@@ -133,10 +133,6 @@ public enum NativeMinimalPairsPage { List, Create, Session }
 /// <summary>Source modes: Focus (one pair, 10 trials) and Mixed (all pairs, 20 trials).</summary>
 public enum NativeMinimalPairsMode { Focus, Mixed }
 
-public enum NativeMinimalPairsNoticeKind { Success, Error }
-
-public sealed record NativeMinimalPairsNotice(NativeMinimalPairsNoticeKind Kind, string Key);
-
 /// <summary>A pair card: the two target terms and the optional contrast label.</summary>
 public sealed record NativeMinimalPairItem(int Id, string WordA, string WordB, string? ContrastLabel)
 {
@@ -279,5 +275,5 @@ public sealed record NativeMinimalPairsState(
     NativeMinimalPairsListState? List = null,
     NativeMinimalPairsCreateState? Create = null,
     NativeMinimalPairsSessionState? Session = null,
-    ImmutableArray<NativeMinimalPairsNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null);

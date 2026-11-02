@@ -136,11 +136,8 @@ internal sealed partial class AndroidSliceShell
                     viewport.Add(StatusAlert(Localize(error), palette, error: true,
                         automationId: NativeHowDoYouSayAccess.Error));
                 viewport.Add(HowDoYouSayInputCard(state, palette));
-                if (state.Notice is { } notice)
-                    viewport.Add(StatusAlert(Localize(notice.Key), palette,
-                        error: notice.Kind == NativeHowDoYouSayNoticeKind.Error,
-                        automationId: NativeHowDoYouSayAccess.Notice,
-                        success: notice.Kind == NativeHowDoYouSayNoticeKind.Success));
+                if (MessageBanners(state.Notice, palette, NativeHowDoYouSayAccess.Notice) is { } banner)
+                    viewport.Add(banner);
                 if (state.HistoryLoading)
                     viewport.Add(new CircularProgressIndicator
                     {

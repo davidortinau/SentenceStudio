@@ -7,6 +7,11 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationScene
 {
     private SwiftView? _activitySlot;
+    private SwiftView? _activityToastLayer;
+    private SwiftView? _activityChildToastLayer;
+    private SwiftView? _renderedActivityToastLayer;
+    private long _renderedActivityToastId;
+    private SourceUiStyle? _renderedActivityToastStyle;
     private SwiftView? _activitySheet;
     private SwiftView? _activitySheetSlot;
     private SwiftView? _activityChildSlot;
@@ -20,13 +25,17 @@ internal sealed partial class ApplicationScene
         if (count == 1 && _activityChildSlot is not null && _activitySlot is not null)
         {
             _activityChildSlot = null;
+            ForgetChildToastLayer();
             _app.OnActivityChildPopped();
             return true;
         }
         if (count != 0 || _activitySlot is null)
             return false;
         _activityChildSlot = null;
+        ForgetChildToastLayer();
         _activitySlot = null;
+        _activityToastLayer = null;
+        _renderedActivityToastLayer = null;
         _activitySheet = null;
         _activitySheetSlot = null;
         _app.OnActivityPopped();
@@ -41,7 +50,12 @@ internal sealed partial class ApplicationScene
         {
             if (_activitySlot is null && _dashboardStack.NavigationPath.Count == 0)
             {
-                _activitySlot = Views.VStack(_app.RenderActivity(_style))
+                _activitySlot = Views.VStack(_app.RenderActivity(_style));
+                // Transient toasts are layered over the page's top edge (clear of input bars); the
+                // layer is empty (and shows nothing) between toasts.
+                _activityToastLayer = Views.VStack().WithFlexibleWidth();
+                _renderedActivityToastLayer = null;
+                var page = Views.Overlay(_activitySlot, _activityToastLayer, SwiftOverlayEdge.Top)
                     .WithNavigationTitle(_app.ActivityTitle)
                     .WithInlineNavigationTitle()
                     .WithTabBarHidden();
@@ -49,7 +63,7 @@ internal sealed partial class ApplicationScene
                 {
                     // One stable sheet node: re-rendering replaces only its slots.
                     _activitySheetSlot = Views.VStack(_app.RenderActivitySheet(_style));
-                    _activitySheet = Views.Sheet(_activitySlot, _activitySheetSlot,
+                    _activitySheet = Views.Sheet(page, _activitySheetSlot,
                             _app.DismissActivitySheet)
                         .WithSheetDetentFraction(_app.ActivitySheetDetent)
                         .WithTabBarHidden();
@@ -57,7 +71,7 @@ internal sealed partial class ApplicationScene
                     _dashboardStack.Push("activity", _activitySheet);
                 }
                 else
-                    _dashboardStack.Push("activity", _app.PresentActivityOver(_activitySlot));
+                    _dashboardStack.Push("activity", _app.PresentActivityOver(page));
             }
             else if (_activitySlot is not null)
             {
@@ -71,17 +85,71 @@ internal sealed partial class ApplicationScene
                 }
             }
             if (_activitySlot is not null)
+            {
                 UpdateActivityChild(_dashboardStack);
+                UpdateActivityToast();
+            }
         }
         else if (_activitySlot is not null)
         {
             var depth = _dashboardStack.NavigationPath.Count;
             _activityChildSlot = null;
+            ForgetChildToastLayer();
             _activitySlot = null;
+            _activityToastLayer = null;
+            _renderedActivityToastLayer = null;
             _activitySheet = null;
             _activitySheetSlot = null;
             for (var index = 0; index < depth && _dashboardStack.NavigationPath.Count > 0; index++)
                 _dashboardStack.Pop();
+        }
+    }
+
+    /// <summary>
+    /// Mounts the controller's current toast in the overlay layer only when it
+    /// changes (or the appearance does), so its VoiceOver announcement is posted
+    /// once per toast and an unrelated re-render does not remount it.
+    /// </summary>
+    private void UpdateActivityToast()
+    {
+        var layer = _activityChildToastLayer ?? _activityToastLayer;
+        if (layer is null)
+            return;
+        var toast = _app.ActivityToast;
+        var id = toast?.Id ?? 0;
+        if (ReferenceEquals(layer, _renderedActivityToastLayer) && id == _renderedActivityToastId
+            && (toast is null || ReferenceEquals(_renderedActivityToastStyle, _style)))
+            return;
+        if (_renderedActivityToastLayer is { } previousLayer && !ReferenceEquals(previousLayer, layer))
+            ClearToastLayer(previousLayer);
+        ClearToastLayer(layer);
+        _renderedActivityToastLayer = layer;
+        _renderedActivityToastId = id;
+        _renderedActivityToastStyle = _style;
+        if (toast is null)
+            return;
+        var gutter = SourceUiLayout.PageGutter(_style.ViewportWidth);
+        // A padded wrapper: the toast's own padding is inside its surface.
+        layer.Add(Views.VStack(_style.MessageToast(toast, _app.LocalizedText, _app.DismissActivityToast))
+            .WithFlexibleWidth()
+            .WithPadding(8, gutter, 0, gutter));
+    }
+
+    /// <summary>The child page left the stack with its layer; the toast moves back to the activity page.</summary>
+    private void ForgetChildToastLayer()
+    {
+        if (ReferenceEquals(_renderedActivityToastLayer, _activityChildToastLayer))
+            _renderedActivityToastLayer = null;
+        _activityChildToastLayer = null;
+    }
+
+    private static void ClearToastLayer(SwiftView layer)
+    {
+        while (layer.Children.Count > 0)
+        {
+            var previous = layer.Children[0];
+            layer.RemoveAt(0);
+            previous.Dispose();
         }
     }
 
@@ -103,7 +171,9 @@ internal sealed partial class ApplicationScene
                     .WithInlineNavigationTitle()
                     .WithTabBarHidden();
                 RecordActivityChild();
-                stack.Push("activity-child", _activityChildSlot);
+                // The toast follows the page on top of the stack.
+                _activityChildToastLayer = Views.VStack().WithFlexibleWidth();
+                stack.Push("activity-child", Views.Overlay(_activityChildSlot, _activityChildToastLayer, SwiftOverlayEdge.Top));
                 return;
             }
             if (_renderedActivityChildVersion != _app.ActivityChildVersion
@@ -119,6 +189,7 @@ internal sealed partial class ApplicationScene
         {
             // Clear first: the route callback must not report this pop as a person's Back.
             _activityChildSlot = null;
+            ForgetChildToastLayer();
             if (stack.NavigationPath.Count > 1)
                 stack.Pop();
         }

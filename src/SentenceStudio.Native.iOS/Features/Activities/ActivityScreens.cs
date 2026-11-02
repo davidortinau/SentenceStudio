@@ -33,6 +33,13 @@ internal interface IActivityScreen : IDisposable
 
     SwiftView Render(SourceUiStyle style);
 
+    /// <summary>
+    /// The newest success or info message in the screen's state. The scene shows
+    /// it once as a transient toast over the page (NativeToastScheduler); errors
+    /// and warnings stay inline as banners in <see cref="Render"/>.
+    /// </summary>
+    NativeMessage? Toast => null;
+
     /// <summary>True for a screen with a SwiftUI sheet (for example Reading's word lookup); the scene keeps one stable sheet node for it.</summary>
     bool HasSheet => false;
 

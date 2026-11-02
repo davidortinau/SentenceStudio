@@ -10417,6 +10417,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Information.
+        /// </summary>
+        internal static string NativeMessage_Information {
+            get {
+                return ResourceManager.GetString("NativeMessage_Information", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Warning.
+        /// </summary>
+        internal static string NativeMessage_Warning {
+            get {
+                return ResourceManager.GetString("NativeMessage_Warning", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Pair deleted..
         /// </summary>
         internal static string NativeMinimalPairs_Deleted {

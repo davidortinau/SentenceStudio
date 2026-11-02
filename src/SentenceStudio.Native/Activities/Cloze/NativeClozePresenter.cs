@@ -51,8 +51,7 @@ public sealed class NativeClozePresenter(
     private bool _revealed;
     private int _correct;
     private int _total;
-    private string? _noticeKey;
-    private bool? _noticeSuccess;
+    private NativeMessage? _notice;
     private string? _errorKey;
     private bool _disposed;
     private bool _exited;
@@ -363,8 +362,7 @@ public sealed class NativeClozePresenter(
         _total++;
         if (correct)
             _correct++;
-        _noticeKey = null;
-        _noticeSuccess = null;
+        _notice = null;
         _errorKey = null;
         PublishGame();
 
@@ -396,9 +394,10 @@ public sealed class NativeClozePresenter(
                 if (updated.IsFamiliar && owner.IsActive(userId))
                 {
                     await progress.HandleVerificationProbeResultAsync(word.Id, userId, correct);
-                    _noticeKey = correct
-                        ? NativeClozeText.FamiliarConfirmed : NativeClozeText.FamiliarTricky;
-                    _noticeSuccess = correct;
+                    // Source ShowSuccess / ShowInfo (Cloze.razor:351-353).
+                    _notice = correct
+                        ? NativeMessage.Success(NativeClozeText.FamiliarConfirmed)
+                        : NativeMessage.Info(NativeClozeText.FamiliarTricky);
                 }
                 scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
                 pendingWrites.MarkPending(userId);
@@ -450,8 +449,7 @@ public sealed class NativeClozePresenter(
         _graded = false;
         _lastCorrect = null;
         _revealed = false;
-        _noticeKey = null;
-        _noticeSuccess = null;
+        _notice = null;
         _errorKey = null;
     }
 
@@ -467,7 +465,7 @@ public sealed class NativeClozePresenter(
             CorrectAnswer: _graded ? current.Answer : null,
             IsGraded: _graded, LastWasCorrect: _lastCorrect,
             SessionCorrect: _correct, SessionTotal: _total,
-            NoticeKey: _noticeKey, NoticeIsSuccess: _noticeSuccess, ErrorKey: _errorKey,
+            Notice: _notice, ErrorKey: _errorKey,
             HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId),
             Generation: _generation);
     }

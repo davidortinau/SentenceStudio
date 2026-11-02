@@ -106,9 +106,6 @@ public sealed record NativeReadingWordPanel(
         && Definition != NativeReadingPresenter.TranslationUnavailableMarker;
 }
 
-/// <summary>A transient source toast.</summary>
-public sealed record NativeReadingNotice(string Key, bool IsError, string? Argument = null);
-
 /// <summary>
 /// Phases: Loading (busy spinner), Ready (passage), Empty (no resource; Go Back),
 /// Error ("Resource not found." / "Resource has no transcript." / load failure;
@@ -131,7 +128,7 @@ public sealed record NativeReadingState(
     int FontSize = NativeReadingPresenter.DefaultFontSize,
     float PlaybackSpeed = 1.0f,
     NativeReadingWordPanel? WordPanel = null,
-    NativeReadingNotice? Notice = null,
+    NativeMessage? Notice = null,
     string? ErrorKey = null,
     bool HasPendingSync = false,
     string? PassageLanguageTag = null)

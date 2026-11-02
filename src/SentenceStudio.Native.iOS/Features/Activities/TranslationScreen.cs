@@ -27,6 +27,9 @@ internal sealed class TranslationScreen : IActivityScreen
 
     public string TitleKey => NativeTranslationText.Title;
 
+    public NativeMessage? Toast => _presenter.State.Phase == NativePhase.Blocked ? null
+        : NativeMessages.LatestToast(_presenter.State.Notice);
+
     public bool HasExited => _presenter.State.Destination == NativeDestination.TodaysPlan;
 
     public Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken) =>
@@ -67,8 +70,9 @@ internal sealed class TranslationScreen : IActivityScreen
         var state = _presenter.State;
         var items = new List<SwiftView>();
         SwiftView? footer = null;
-        if (state.Notice is { } notice && state.Phase != NativePhase.Blocked)
-            items.Add(Notice(notice, style, text));
+        if (state.Phase != NativePhase.Blocked
+            && style.MessageBanners(state.Notice, text, NativeTranslationAccess.Notice) is { } banner)
+            items.Add(banner);
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -110,17 +114,6 @@ internal sealed class TranslationScreen : IActivityScreen
         var page = Views.Scroll(content)
             .WithAccessibilityIdentifier(NativeTranslationAccess.Screen);
         return style.Page(footer is null ? page : Views.BottomInset(page, footer));
-    }
-
-    private SwiftView Notice(NativeTranslationNotice notice, SourceUiStyle style,
-        Func<string, string> text)
-    {
-        var message = notice.Argument is null ? text(notice.Key)
-            : string.Format(CultureInfo.CurrentCulture, text(notice.Key), notice.Argument);
-        var label = style.Text(Views.Text(message), SourceTextRole.Body2);
-        return (notice.IsWarning ? style.InfoAlert(label, compact: true)
-                : style.Alert(label, success: !notice.IsError, compact: true))
-            .WithAccessibilityIdentifier(NativeTranslationAccess.Notice);
     }
 
     private SwiftView Intro(NativeTranslationState state, SourceUiStyle style,

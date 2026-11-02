@@ -30,6 +30,8 @@ internal sealed class HowDoYouSayScreen : IActivityScreen
 
     public string TitleKey => NativeHowDoYouSayText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notice);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     /// <summary>
@@ -90,10 +92,8 @@ internal sealed class HowDoYouSayScreen : IActivityScreen
                             success: false, compact: true)
                         .WithAccessibilityIdentifier(NativeHowDoYouSayAccess.Error));
                 items.Add(InputCard(state, style, text));
-                if (state.Notice is { } notice)
-                    items.Add(style.Alert(style.Text(Views.Text(text(notice.Key)), SourceTextRole.Body2),
-                            success: notice.Kind == NativeHowDoYouSayNoticeKind.Success, compact: true)
-                        .WithAccessibilityIdentifier(NativeHowDoYouSayAccess.Notice));
+                if (style.MessageBanners(state.Notice, text, NativeHowDoYouSayAccess.Notice) is { } banner)
+                    items.Add(banner);
                 if (state.HistoryLoading)
                     items.Add(Views.IndeterminateProgress(text(NativeHowDoYouSayText.Loading))
                         .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)

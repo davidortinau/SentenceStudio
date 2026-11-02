@@ -109,11 +109,6 @@ public enum NativeDiaryPage { List, Editor, Viewer }
 
 public enum NativeDiarySaveStatus { Idle, Saving, Saved }
 
-/// <summary>Source toast kinds used by Diary.</summary>
-public enum NativeDiaryNoticeKind { Warning, Error }
-
-public sealed record NativeDiaryNotice(NativeDiaryNoticeKind Kind, string Key);
-
 /// <summary>
 /// A list row. <see cref="DateKey"/> is Diary_Today / Diary_Yesterday when
 /// the source shows that label instead of the formatted date.
@@ -188,7 +183,7 @@ public sealed record NativeDiaryState(
     NativeDiaryListState? List = null,
     NativeDiaryEditorState? Editor = null,
     NativeDiaryViewerState? Viewer = null,
-    ImmutableArray<NativeDiaryNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null,
     bool HasPendingSync = false);
 

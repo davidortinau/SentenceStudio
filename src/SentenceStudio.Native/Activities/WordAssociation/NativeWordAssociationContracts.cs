@@ -81,11 +81,6 @@ public static class NativeWordAssociationText
     public const string Unavailable = "NativeActivity_LaunchUnavailable";
 }
 
-/// <summary>Source toast kinds: success, info, warning, error.</summary>
-public enum NativeWordAssociationNoticeKind { Success, Info, Warning, Error }
-
-public sealed record NativeWordAssociationNotice(NativeWordAssociationNoticeKind Kind, string Key);
-
 /// <summary>Source CheckHighScoreAsync result ("alltime", "weekly" or null).</summary>
 public enum NativeWordAssociationHighScore { None, AllTime, Weekly }
 
@@ -129,7 +124,7 @@ public sealed record NativeWordAssociationState(
     int TotalClues = 0,
     int TotalScore = 0,
     NativeWordAssociationHighScore HighScore = NativeWordAssociationHighScore.None,
-    ImmutableArray<NativeWordAssociationNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null,
     bool HasPendingSync = false)
 {

@@ -46,7 +46,7 @@ public sealed class NativeWordAssociationPresenter(
     private readonly Dictionary<int, List<Clue>> _clues = [];
     private NativeActivityLaunch? _launch;
     private NativeWordAssociationState _state = new(NativePhase.Idle);
-    private ImmutableArray<NativeWordAssociationNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     private string _draft = string.Empty;
     private int _index;
     private bool _grading;
@@ -106,6 +106,7 @@ public sealed class NativeWordAssociationPresenter(
                 return State;
             Current.Add(new Clue(_draft.Trim()));
             _draft = string.Empty;
+            _notices = [];
             return PublishReady();
         }, cancellationToken);
 
@@ -119,6 +120,7 @@ public sealed class NativeWordAssociationPresenter(
                 || index < 0 || index >= clues.Count || clues[index].Graded)
                 return State;
             clues.RemoveAt(index);
+            _notices = [];
             return PublishReady();
         }, cancellationToken);
 
@@ -129,6 +131,7 @@ public sealed class NativeWordAssociationPresenter(
                 return State;
             _index--;
             _draft = string.Empty;
+            _notices = [];
             return PublishReady();
         }, cancellationToken);
 
@@ -140,6 +143,7 @@ public sealed class NativeWordAssociationPresenter(
                 return State;
             _index++;
             _draft = string.Empty;
+            _notices = [];
             return PublishReady();
         }, cancellationToken);
 
@@ -225,7 +229,7 @@ public sealed class NativeWordAssociationPresenter(
                     logger.LogError(failure, "Word Association could not grade clues.");
                 else
                     logger.LogWarning("Word Association grading returned no verdicts.");
-                _notices = [new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.GradeFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeWordAssociationText.GradeFailed)];
                 return PublishReady();
             }
             for (var i = 0; i < pending.Count && i < entries.Count; i++)
@@ -273,7 +277,7 @@ public sealed class NativeWordAssociationPresenter(
             if (!owner.IsActive(userId))
                 return Refuse();
             _generation++;
-            _notices = saved ? [] : [new(NativeWordAssociationNoticeKind.Error, NativeText.SaveFailed)];
+            _notices = saved ? [] : [new(NativeMessageKind.Error, NativeText.SaveFailed)];
             return Publish(new(NativePhase.Summary,
                 WordCount: _words.Count,
                 TotalRelated: related,
@@ -347,7 +351,7 @@ public sealed class NativeWordAssociationPresenter(
         var graded = Current.Where(clue => clue.Graded).ToList();
         var related = graded.Count(clue => clue.Related);
         var wasCorrect = graded.Count > 0 && (float)related / graded.Count >= 0.5f;
-        var notices = new List<NativeWordAssociationNotice>();
+        var notices = new List<NativeMessage>();
         var saveFailed = false;
         using (var scope = scopes.CreateScope())
         {
@@ -368,8 +372,8 @@ public sealed class NativeWordAssociationPresenter(
                 {
                     await progress.HandleVerificationProbeResultAsync(word.Id, userId, wasCorrect);
                     notices.Add(wasCorrect
-                        ? new(NativeWordAssociationNoticeKind.Success, NativeWordAssociationText.ProbeConfirmed)
-                        : new(NativeWordAssociationNoticeKind.Info, NativeWordAssociationText.ProbeTricky));
+                        ? new(NativeMessageKind.Success, NativeWordAssociationText.ProbeConfirmed)
+                        : new(NativeMessageKind.Info, NativeWordAssociationText.ProbeTricky));
                 }
                 pendingWrites.MarkPending(userId);
                 scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
@@ -415,7 +419,7 @@ public sealed class NativeWordAssociationPresenter(
         if (!owner.IsActive(userId))
             return Refuse();
         if (saveFailed)
-            notices.Add(new(NativeWordAssociationNoticeKind.Error, NativeText.SaveFailed));
+            notices.Add(new(NativeMessageKind.Error, NativeText.SaveFailed));
         _notices = [.. notices];
         return PublishReady();
     }
@@ -469,7 +473,7 @@ public sealed class NativeWordAssociationPresenter(
             }
             cancellationToken.ThrowIfCancellationRequested();
             if (_words.Count == 0)
-                return Empty(new(NativeWordAssociationNoticeKind.Warning,
+                return Empty(new(NativeMessageKind.Warning,
                     NativeWordAssociationText.NoResourceVocabulary));
             for (var i = 0; i < _words.Count; i++)
                 _clues[i] = [];
@@ -480,7 +484,7 @@ public sealed class NativeWordAssociationPresenter(
             logger.LogError(ex, "Word Association could not load vocabulary.");
             _words.Clear();
             _clues.Clear();
-            return Empty(new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.LoadFailed));
+            return Empty(new(NativeMessageKind.Error, NativeWordAssociationText.LoadFailed));
         }
     }
 
@@ -517,7 +521,7 @@ public sealed class NativeWordAssociationPresenter(
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
-    private NativeWordAssociationState Empty(NativeWordAssociationNotice notice)
+    private NativeWordAssociationState Empty(NativeMessage notice)
     {
         _notices = [notice];
         return Publish(new(NativePhase.Empty, Notices: _notices,

@@ -17,7 +17,6 @@ internal sealed partial class AndroidSliceShell
 {
     private NativeReadingPresenter? _reading;
     private bool _readingSpeedMenuOpen;
-    private NativeReadingNotice? _readingScheduledNotice;
 
     internal NativeReadingState Reading { get; private set; } = new(NativePhase.Loading);
 
@@ -52,33 +51,11 @@ internal sealed partial class AndroidSliceShell
         }
         _reading = null;
         _readingSpeedMenuOpen = false;
-        _readingScheduledNotice = null;
     }
 
     private void OnReadingChanged(NativeReadingState state)
     {
         Publish(() => Reading = state);
-        if (state.Notice is { } notice && !ReferenceEquals(notice, _readingScheduledNotice)
-            && _reading is { } presenter)
-        {
-            // Source toasts disappear on their own.
-            _readingScheduledNotice = notice;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(4), _lifetime.Token);
-                    if (ReferenceEquals(presenter.State.Notice, notice))
-                        await presenter.DismissNoticeAsync(_lifetime.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (ObjectDisposedException)
-                {
-                }
-            });
-        }
     }
 
     /// <summary>Reading commands bypass the shell's busy gate so a word lookup does not disable Back; the presenter serializes them.</summary>
@@ -135,13 +112,9 @@ internal sealed partial class AndroidSliceShell
                     viewport.Add(Heading(title, palette, 22,
                         Modifier.TestTag(NativeReadingAccess.Title)
                             .Semantics(semantics => semantics.Heading())));
-                if (state.Notice is { } notice)
-                {
-                    var message = notice.Argument is null ? Localize(notice.Key)
-                        : string.Format(CultureInfo.CurrentCulture, Localize(notice.Key), notice.Argument);
-                    viewport.Add(StatusAlert(message, palette, error: notice.IsError,
-                        automationId: NativeReadingAccess.Notice, success: !notice.IsError));
-                }
+                // Errors stay inline until the next action; success messages are the shell's snackbar.
+                if (MessageBanners(state.Notice, palette, NativeReadingAccess.Notice) is { } banner)
+                    viewport.Add(banner);
                 if (ReadingAudioStatus(state, palette) is { } audio)
                     viewport.Add(audio);
                 viewport.Add(ReadingPassage(state, palette));

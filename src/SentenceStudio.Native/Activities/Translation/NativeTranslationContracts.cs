@@ -107,10 +107,6 @@ public sealed record NativeTranslationFeedback(
     };
 }
 
-/// <summary>A transient source toast: a resource key with an optional format argument.</summary>
-public sealed record NativeTranslationNotice(
-    string Key, bool IsError, string? Argument = null, bool IsWarning = false);
-
 /// <summary>
 /// Phases: Loading (spinner), Ready (intro when <see cref="ShowIntro"/>, else
 /// the active sentence), Summary, Empty ("no sentences" + Go Back), Error
@@ -137,7 +133,7 @@ public sealed record NativeTranslationState(
     int GradedCount = 0,
     int AverageAccuracy = 0,
     int AverageFluency = 0,
-    NativeTranslationNotice? Notice = null,
+    NativeMessage? Notice = null,
     string? ErrorKey = null,
     bool HasPendingSync = false)
 {

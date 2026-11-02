@@ -105,14 +105,9 @@ internal sealed partial class AndroidSliceShell
                 .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 16)
                 .TestTag(NativeTranslationAccess.Screen),
         };
-        if (state.Notice is { } notice && state.Phase != NativePhase.Blocked)
-        {
-            var message = notice.Argument is null ? Localize(notice.Key)
-                : string.Format(CultureInfo.CurrentCulture, Localize(notice.Key), notice.Argument);
-            viewport.Add(StatusAlert(message, palette, error: notice.IsError,
-                automationId: NativeTranslationAccess.Notice,
-                success: !notice.IsError && !notice.IsWarning));
-        }
+        if (state.Phase != NativePhase.Blocked
+            && MessageBanners(state.Notice, palette, NativeTranslationAccess.Notice) is { } banner)
+            viewport.Add(banner);
         ComposableNode? inputBar = null;
         switch (state.Phase)
         {

@@ -64,7 +64,7 @@ public sealed class NativeReadingPresenter(
     private NativePhase _phase = NativePhase.Idle;
     private NativeDestination _destination = NativeDestination.Activity;
     private string? _errorKey;
-    private NativeReadingNotice? _notice;
+    private NativeMessage? _notice;
     private NativeReadingWordPanel? _panel;
     private long _lookup;
     private int _current = -1;
@@ -346,12 +346,12 @@ public sealed class NativeReadingPresenter(
             {
                 if (_generating)
                 {
-                    _notice = new(NativeReadingText.AudioStillLoading, IsError: true);
+                    _notice = NativeMessage.Error(NativeReadingText.AudioStillLoading);
                     return;
                 }
                 if (!_audioLoaded || _audio is null)
                 {
-                    _notice = new(NativeReadingText.NoAudio, IsError: true);
+                    _notice = NativeMessage.Error(NativeReadingText.NoAudio);
                     return;
                 }
                 audio = _audio;
@@ -412,7 +412,7 @@ public sealed class NativeReadingPresenter(
                     return;
                 if (!_hasShownJumpHint)
                 {
-                    _notice = new(NativeReadingText.JumpHint, IsError: false);
+                    _notice = NativeMessage.Success(NativeReadingText.JumpHint);
                     _hasShownJumpHint = true;
                     preferences.Set(JumpHintKey, true);
                 }
@@ -646,7 +646,7 @@ public sealed class NativeReadingPresenter(
                     lock (_sync)
                     {
                         _panel = _panel is null ? null : _panel with { IsSaving = false };
-                        _notice = new(NativeReadingText.CouldNotSaveWord, IsError: true);
+                        _notice = NativeMessage.Error(NativeReadingText.CouldNotSaveWord);
                     }
                     return Publish();
                 }
@@ -659,7 +659,7 @@ public sealed class NativeReadingPresenter(
                     RebuildTokens();
                     _panel = _panel is null ? null
                         : _panel with { IsSaving = false, IsInVocabulary = true };
-                    _notice = new(NativeReadingText.WordSaved, IsError: false, panel.Word);
+                    _notice = NativeMessage.Success(NativeReadingText.WordSaved, panel.Word);
                 }
                 Publish();
                 await RecordActivityAsync(userId, $"Added vocabulary: {panel.Word}");
@@ -671,7 +671,7 @@ public sealed class NativeReadingPresenter(
                 lock (_sync)
                 {
                     _panel = _panel is null ? null : _panel with { IsSaving = false };
-                    _notice = new(NativeReadingText.ErrorSavingWord, IsError: true);
+                    _notice = NativeMessage.Error(NativeReadingText.ErrorSavingWord);
                 }
                 return Publish();
             }

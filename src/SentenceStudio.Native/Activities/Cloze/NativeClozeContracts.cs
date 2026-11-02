@@ -112,8 +112,7 @@ public sealed record NativeClozeState(
     bool? LastWasCorrect = null,
     int SessionCorrect = 0,
     int SessionTotal = 0,
-    string? NoticeKey = null,
-    bool? NoticeIsSuccess = null,
+    NativeMessage? Notice = null,
     string? ErrorKey = null,
     bool HasPendingSync = false,
     int Generation = 0)

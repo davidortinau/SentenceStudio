@@ -72,11 +72,6 @@ public sealed record NativeHowDoYouSayVoice(string Id, string Label);
 /// <summary>One owned StreamHistory row: phrase and its creation time in local time.</summary>
 public sealed record NativeHowDoYouSayEntry(int Id, string Phrase, DateTime CreatedAt);
 
-public enum NativeHowDoYouSayNoticeKind { Success, Warning, Error }
-
-/// <summary>The source toast, shown inline until the next command.</summary>
-public sealed record NativeHowDoYouSayNotice(NativeHowDoYouSayNoticeKind Kind, string Key);
-
 /// <summary>
 /// Phases: Loading (profile), Ready (input card and history), Blocked (owner
 /// absent/changed or launch refused; Go Back). Voices and history load inside
@@ -95,7 +90,7 @@ public sealed record NativeHowDoYouSayState(
     bool HistoryLoading = false,
     ImmutableArray<NativeHowDoYouSayEntry> History = default,
     int? PlayingId = null,
-    NativeHowDoYouSayNotice? Notice = null,
+    NativeMessage? Notice = null,
     string? ErrorKey = null)
 {
     /// <summary>Source: the voice dropdown appears only when voices were found.</summary>

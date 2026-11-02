@@ -19,6 +19,7 @@ internal sealed partial class ApplicationController
     private IActivityScreen? _activity;
     private IServiceScope? _activityScope;
     private bool _activityPopPending;
+    private NativeToastScheduler? _activityToasts;
 
     internal bool IsActivityOpen =>
         _destination == NativeDestination.Activity && _activity is not null;
@@ -52,6 +53,38 @@ internal sealed partial class ApplicationController
 
     /// <summary>The NavigationStack popped the activity's child page.</summary>
     internal void OnActivityChildPopped() => _activity?.OnChildPopped();
+
+    /// <summary>
+    /// The toast shown over the activity page: the screen's newest success or
+    /// info message, offered once and cleared by its timer (about 3 s, as the
+    /// source toasts) or the close button. Errors stay inline as banners.
+    /// </summary>
+    internal NativeMessage? ActivityToast
+    {
+        get
+        {
+            if (!IsActivityOpen || _activity is not { } screen)
+                return null;
+            var toasts = _activityToasts ??= CreateActivityToasts();
+            toasts.Offer(screen.Toast);
+            return toasts.Current;
+        }
+    }
+
+    internal string LocalizedText(string key) => Text(key);
+
+    internal void DismissActivityToast()
+    {
+        if (_activityToasts?.Dismiss() == true)
+            Publish();
+    }
+
+    private NativeToastScheduler CreateActivityToasts()
+    {
+        var toasts = new NativeToastScheduler();
+        toasts.Changed += Publish;
+        return toasts;
+    }
 
     /// <summary>The activity page wrapped in the screen's optional presentation (for example an alert).</summary>
     internal SwiftView PresentActivityOver(SwiftView page) => _activity?.PresentOver(page) ?? page;
@@ -227,6 +260,7 @@ internal sealed partial class ApplicationController
     {
         _activity?.Dispose();
         _activity = null;
+        _activityToasts?.Reset();
         _activityScope?.Dispose();
         _activityScope = null;
         _activityPopPending = false;

@@ -268,8 +268,8 @@ internal sealed partial class AndroidSliceShell
             yield return StatusAlert(Localize(error), palette, error: true,
                 automationId: NativeNumberDrillAccess.Error);
         if (state.NoticeKey is { } notice)
-            yield return StatusAlert(Localize(notice), palette,
-                automationId: NativeNumberDrillAccess.Notice);
+            yield return MessageBanner(NativeNumberDrillMessages.Notice(notice), palette,
+                NativeNumberDrillAccess.Notice);
 
         if (state.Phase == NativePhase.Feedback && state.Feedback is { } feedback)
         {

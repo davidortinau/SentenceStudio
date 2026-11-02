@@ -247,7 +247,8 @@ internal sealed partial class AndroidSliceShell
                 .TestTag(NativeSceneAccess.Screen),
         };
         if (!state.Notices.IsDefaultOrEmpty && state.Phase is NativePhase.Ready or NativePhase.Empty)
-            viewport.Add(SceneNotices(state, palette));
+            if (SceneNotices(state, palette) is { } notices)
+                viewport.Add(notices);
         var ready = state.Phase == NativePhase.Ready && state.Image is not null
             && state.Destination == NativeDestination.Activity;
         switch (state.Phase)
@@ -303,37 +304,11 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
-    private ComposableNode SceneNotices(NativeSceneState state, AndroidVisualPalette palette)
-    {
-        var list = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier.Weight(1f).TestTag(NativeSceneAccess.Notices),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var message = notice.Argument is null ? Localize(notice.Key)
-                : string.Format(CultureInfo.CurrentCulture, Localize(notice.Key), notice.Argument);
-            list.Add(StatusAlert(message, palette,
-                error: notice.Kind == NativeSceneNoticeKind.Error,
-                success: notice.Kind == NativeSceneNoticeKind.Success,
-                automationId: $"{NativeSceneAccess.Notice}.{index++}"));
-        }
-        var dismissLabel = Localize(NativeSceneText.Dismiss);
-        var dismiss = new IconButton(
-            () => SceneCommand((scene, token) => scene.DismissNoticesAsync(token)))
-        {
-            Modifier = Modifier.TestTag(NativeSceneAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel) { Modifier = Modifier.Size(20), Tint = palette.Text });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth(),
-            list,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? SceneNotices(NativeSceneState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeSceneAccess.Notice}.{index}",
+            () => SceneCommand((scene, token) => scene.DismissNoticesAsync(token)),
+            NativeSceneAccess.DismissNotices, Localize(NativeSceneText.Dismiss));
 
     /// <summary>Source scene image card (max-height 400, object-fit contain).</summary>
     private ComposableNode SceneImage(NativeSceneImage image, AndroidVisualPalette palette)
@@ -592,7 +567,8 @@ internal sealed partial class AndroidSliceShell
         content.Add(Action(Localize(NativeSceneText.ChoosePhoto), NativeSceneAccess.GalleryPickPhoto,
             PickScenePhoto, !gallery.IsSaving, primary: false));
         if (!state.Notices.IsDefaultOrEmpty)
-            content.Add(SceneNotices(state, palette));
+            if (SceneNotices(state, palette) is { } notices)
+                content.Add(notices);
 
         if (gallery.IsLoading)
             content.Add(new CircularProgressIndicator

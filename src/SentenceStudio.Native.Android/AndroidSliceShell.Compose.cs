@@ -129,7 +129,7 @@ internal sealed partial class AndroidSliceShell
             NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
             NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
-            NativeDestination.Activity => RenderActivity(palette),
+            NativeDestination.Activity => WithActivityToast(composer, RenderActivity(palette)),
             NativeDestination.Onboarding => RenderOnboarding(palette),
             _ => RenderAuthentication(palette),
         };

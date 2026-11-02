@@ -45,7 +45,7 @@ public sealed class NativeHowDoYouSayPresenter(
     private bool _historyLoading;
     private bool _busy;
     private int? _playingId;
-    private NativeHowDoYouSayNotice? _notice;
+    private NativeMessage? _notice;
     private bool _subscribed;
     private bool _exited;
     private bool _disposed;
@@ -144,6 +144,8 @@ public sealed class NativeHowDoYouSayPresenter(
                 return State;
             _voiceId = voiceId;
             voicePreferences.SetVoiceForLanguage(_language, voiceId);
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notice = null;
             return PublishReady();
         }
         finally
@@ -171,7 +173,7 @@ public sealed class NativeHowDoYouSayPresenter(
             _notice = null;
             if (string.IsNullOrWhiteSpace(_voiceId))
             {
-                _notice = new(NativeHowDoYouSayNoticeKind.Warning, NativeHowDoYouSayText.SelectVoice);
+                _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.SelectVoice);
                 return PublishReady();
             }
             userId = _launch!.UserId;
@@ -220,10 +222,10 @@ public sealed class NativeHowDoYouSayPresenter(
             switch (clip.Status)
             {
                 case NativeSpeechClipStatus.Offline:
-                    _notice = new(NativeHowDoYouSayNoticeKind.Warning, NativeHowDoYouSayText.AudioOffline);
+                    _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.AudioOffline);
                     return PublishReady();
                 case NativeSpeechClipStatus.Failed:
-                    _notice = new(NativeHowDoYouSayNoticeKind.Error, NativeHowDoYouSayText.GenerateFailed);
+                    _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.GenerateFailed);
                     return PublishReady();
             }
             if (rows is { } loaded)
@@ -232,12 +234,12 @@ public sealed class NativeHowDoYouSayPresenter(
             if (clip.Audio is { Length: > 0 } audio && player.Load(audio) && player.Play(1.0f))
             {
                 _playingId = row?.Id;
-                _notice = new(NativeHowDoYouSayNoticeKind.Success, NativeHowDoYouSayText.Generated);
+                _notice = new(NativeMessageKind.Success, NativeHowDoYouSayText.Generated);
             }
             else
             {
                 player.Stop();
-                _notice = new(NativeHowDoYouSayNoticeKind.Error, NativeHowDoYouSayText.PlaybackError);
+                _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.PlaybackError);
             }
             _input = string.Empty;
             return PublishReady();
@@ -269,7 +271,7 @@ public sealed class NativeHowDoYouSayPresenter(
                 return PublishReady();
             if (CachedAudioPath(row.AudioFilePath) is not { } path)
             {
-                _notice = new(NativeHowDoYouSayNoticeKind.Warning, NativeHowDoYouSayText.FileNotFound);
+                _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.FileNotFound);
                 return PublishReady();
             }
             try
@@ -282,13 +284,13 @@ public sealed class NativeHowDoYouSayPresenter(
                 else
                 {
                     player.Stop();
-                    _notice = new(NativeHowDoYouSayNoticeKind.Error, NativeHowDoYouSayText.PlaybackError);
+                    _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.PlaybackError);
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 logger.LogWarning("How Do You Say could not read a cached clip: {Failure}.", ex.GetType().Name);
-                _notice = new(NativeHowDoYouSayNoticeKind.Error, NativeHowDoYouSayText.PlaybackError);
+                _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.PlaybackError);
             }
             return PublishReady();
         }
@@ -330,7 +332,7 @@ public sealed class NativeHowDoYouSayPresenter(
                 return Refuse();
             if (deleted <= 0)
             {
-                _notice = new(NativeHowDoYouSayNoticeKind.Error, NativeHowDoYouSayText.DeleteFailed);
+                _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.DeleteFailed);
                 return PublishReady();
             }
             _rows = _rows.Remove(row);
@@ -347,7 +349,7 @@ public sealed class NativeHowDoYouSayPresenter(
                     logger.LogWarning("How Do You Say could not remove a cached clip: {Failure}.", ex.GetType().Name);
                 }
             }
-            _notice = new(NativeHowDoYouSayNoticeKind.Success, NativeHowDoYouSayText.Deleted);
+            _notice = new(NativeMessageKind.Success, NativeHowDoYouSayText.Deleted);
             return PublishReady();
         }
         finally

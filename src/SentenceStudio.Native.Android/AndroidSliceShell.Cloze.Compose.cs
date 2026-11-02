@@ -165,9 +165,9 @@ internal sealed partial class AndroidSliceShell
                         Localize(NativeClozeText.AnswerWas), state.CorrectAnswer),
                 palette, error: state.LastWasCorrect != true,
                 automationId: NativeClozeAccess.Feedback, success: state.LastWasCorrect == true));
-        if (state.NoticeKey is { } notice)
-            viewport.Add(StatusAlert(Localize(notice), palette,
-                automationId: NativeClozeAccess.Notice, success: state.NoticeIsSuccess == true));
+        // The probe outcome is a success/info snackbar (shell), never inline.
+        if (MessageBanners(state.Notice, palette, NativeClozeAccess.Notice) is { } banner)
+            viewport.Add(banner);
         if (state.ErrorKey is { } error)
             viewport.Add(StatusAlert(Localize(error), palette, error: true,
                 automationId: NativeClozeAccess.Error));

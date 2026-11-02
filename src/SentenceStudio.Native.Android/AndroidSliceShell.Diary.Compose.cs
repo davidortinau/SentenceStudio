@@ -205,7 +205,8 @@ internal sealed partial class AndroidSliceShell
     {
         var items = new List<ComposableNode>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(DiaryNotices(state, palette));
+            if (DiaryNotices(state, palette) is { } notices)
+                items.Add(notices);
         var list = state.List;
         if (list is null || list.IsLoading)
             items.Add(DiarySpinner());
@@ -309,7 +310,8 @@ internal sealed partial class AndroidSliceShell
                 .TestTag(NativeDiaryAccess.Editor),
         };
         if (!state.Notices.IsDefaultOrEmpty)
-            body.Add(DiaryNotices(state, palette));
+            if (DiaryNotices(state, palette) is { } notices)
+                body.Add(notices);
         body.Add(DiaryPromptCard(editor, palette));
         var placeholder = Localize(NativeDiaryText.EditorPlaceholder);
         body.Add(new OutlinedTextField(DiaryDraft, enabled: true, singleLine: false, minLines: 6)
@@ -485,7 +487,8 @@ internal sealed partial class AndroidSliceShell
     {
         var items = new List<ComposableNode>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(DiaryNotices(state, palette));
+            if (DiaryNotices(state, palette) is { } notices)
+                items.Add(notices);
         var viewer = state.Viewer;
         if (viewer is null || viewer.IsLoading)
             items.Add(DiarySpinner());
@@ -580,34 +583,9 @@ internal sealed partial class AndroidSliceShell
         return Card(palette, NativeDiaryAccess.Feedback, [.. children]);
     }
 
-    private ComposableNode DiaryNotices(NativeDiaryState state, AndroidVisualPalette palette)
-    {
-        var list = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier.Weight(1f).TestTag(NativeDiaryAccess.Notices),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-            list.Add(StatusAlert(Localize(notice.Key), palette,
-                error: notice.Kind == NativeDiaryNoticeKind.Error,
-                automationId: $"{NativeDiaryAccess.Notice}.{index++}"));
-        var dismissLabel = Localize(NativeDiaryText.Dismiss);
-        var dismiss = new IconButton(
-            () => DiaryCommand((presenter, token) => presenter.DismissNoticesAsync(token)))
-        {
-            Modifier = Modifier.TestTag(NativeDiaryAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel)
-        {
-            Modifier = Modifier.Size(20),
-            Tint = palette.Text,
-        });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth(),
-            list,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? DiaryNotices(NativeDiaryState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeDiaryAccess.Notice}.{index}",
+            () => DiaryCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
+            NativeDiaryAccess.DismissNotices, Localize(NativeDiaryText.Dismiss));
 }

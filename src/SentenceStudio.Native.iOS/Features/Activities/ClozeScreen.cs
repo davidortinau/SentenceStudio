@@ -28,6 +28,8 @@ internal sealed class ClozeScreen : IActivityScreen
 
     public string TitleKey => NativeClozeText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notice);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     public async Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken) =>
@@ -131,13 +133,9 @@ internal sealed class ClozeScreen : IActivityScreen
                     success: state.LastWasCorrect == true, compact: true)
                 .WithAccessibilityIdentifier(NativeClozeAccess.Feedback);
         }
-        if (state.NoticeKey is { } notice)
-            yield return (state.NoticeIsSuccess == true
-                    ? style.Alert(style.Text(Views.Text(text(notice)), SourceTextRole.Body2),
-                        success: true, compact: true)
-                    : style.InfoAlert(style.Text(Views.Text(text(notice)), SourceTextRole.Body2),
-                        compact: true))
-                .WithAccessibilityIdentifier(NativeClozeAccess.Notice);
+        // The probe outcome is a success/info toast (scene overlay), never inline.
+        if (style.MessageBanners(state.Notice, text, NativeClozeAccess.Notice) is { } banner)
+            yield return banner;
         if (state.ErrorKey is { } error)
             yield return style.Text(Views.Text(text(error)), SourceTextRole.Body2,
                     SourceTextTone.Danger)

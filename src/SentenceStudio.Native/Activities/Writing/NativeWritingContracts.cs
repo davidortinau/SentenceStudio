@@ -73,17 +73,6 @@ public static class NativeWritingText
     public const string Unavailable = "NativeActivity_LaunchUnavailable";
 }
 
-/// <summary>Source toast kinds: success, info, warning, error.</summary>
-public enum NativeWritingNoticeKind { Success, Info, Warning, Error }
-
-/// <summary>
-/// A source toast shown inline. <see cref="Key"/> is a localization key
-/// (formatted with <see cref="Argument"/> when present); when Key is null,
-/// <see cref="Argument"/> is literal text (the translation result).
-/// </summary>
-public sealed record NativeWritingNotice(
-    NativeWritingNoticeKind Kind, string? Key, string? Argument = null);
-
 /// <summary>One of the four target-language vocabulary blocks.</summary>
 public sealed record NativeWritingBlock(int Index, string WordId, string Text)
 {
@@ -124,7 +113,7 @@ public sealed record NativeWritingState(
     int GradedCount = 0,
     int AverageAccuracy = 0,
     int AverageFluency = 0,
-    ImmutableArray<NativeWritingNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null,
     bool HasPendingSync = false)
 {

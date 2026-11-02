@@ -105,8 +105,10 @@ public sealed class NativeTranslationPresenterTests
         // The suggestion falls back to GrammarNotes.RecommendedTranslation.
         Assert.Equal("가고 싶어요.", feedback.RecommendedTranslation);
         Assert.True(feedback.HasDetails);
-        Assert.Equal(new NativeTranslationNotice(NativeTranslationText.GradedAccuracy, false, "85"),
-            state.Notice);
+        Assert.Equal(NativeMessageKind.Success, state.Notice?.Kind);
+        Assert.Equal(NativeTranslationText.GradedAccuracy, state.Notice?.Key);
+        Assert.Equal("85", state.Notice?.Argument);
+        Assert.True(state.Notice?.IsToast);
         var grade = Assert.Single(ai.GradePrompts);
         Assert.Contains("Given this sentence: \\\"I want sentence 0.\\\"", grade);
         Assert.Contains("this translation: \\\"target sentence 0\\\"", grade);
@@ -245,13 +247,19 @@ public sealed class NativeTranslationPresenterTests
         var failed = await translation.GradeAsync();
         Assert.False(failed.IsGrading);
         Assert.Null(failed.Feedback);
-        Assert.Equal(new NativeTranslationNotice(NativeTranslationText.GradeFailed, true), failed.Notice);
+        Assert.Equal(NativeMessageKind.Error, failed.Notice?.Kind);
+        Assert.Equal(NativeTranslationText.GradeFailed, failed.Notice?.Key);
+        Assert.Null(failed.Notice?.Argument);
+        Assert.True(failed.Notice?.IsBanner);
         Assert.Equal("오늘 가요", failed.Input);
 
         ai.GradeFails = false;
         ai.GradeReturnsNull = true;
         var none = await translation.GradeAsync();
         Assert.Equal(NativeTranslationText.GradeFailed, none.Notice?.Key);
+        // The error banner stays until the learner's next action, then clears.
+        Assert.Same(none.Notice, translation.State.Notice);
+        Assert.Null((await translation.ToggleInputModeAsync()).Notice);
 
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
