@@ -449,6 +449,72 @@ public sealed class NativeConversationPresenterTests
         Assert.Equal(["owner", "owner"], gateway.Owners);
     }
 
+    [Theory]
+    [InlineData(0.85, 85)]
+    [InlineData(72, 72)]
+    [InlineData(1.0, 100)]
+    public async Task Comprehension_IsShownOnTheZeroToHundredScale(double modelScore, double shown)
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new FakeConversationAi { ReplyComprehension = modelScore };
+        using var conversation = Presenter(fixture, ai);
+        await conversation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        await conversation.Opening;
+
+        conversation.SetDraft("커피 주세요");
+        var state = await conversation.SendAsync();
+
+        var user = state.Messages.Single(message => message.IsUser);
+        Assert.Equal(shown, user.Comprehension);
+        Assert.True(user.ShowsComprehension);
+    }
+
+    [Fact]
+    public async Task ConversationAi_KeepsScoringOutOfThePersonaReply()
+    {
+        var gateway = new CapturingGateway();
+        var services = new ServiceCollection()
+            .AddSingleton<IOwnerBoundNativeAiGateway>(gateway).BuildServiceProvider();
+        var ai = new NativeConversationAi(services);
+        var scenario = new ConversationScenario
+        {
+            Name = "Ordering Coffee", PersonaName = "박지영",
+            PersonaDescription = "a friendly barista", SituationDescription = "Ordering coffee",
+            ConversationType = ConversationType.Finite
+        };
+        ConversationChunk[] history =
+        [
+            new ConversationChunk { Author = "박지영", Text = "안녕하세요" },
+            new ConversationChunk { Author = "Me", Text = "커피 주세요" },
+        ];
+
+        await ai.StartAsync("owner", scenario, "Korean", CancellationToken.None);
+        await ai.StartAsync("owner", null, "Korean", CancellationToken.None);
+        await ai.ContinueAsync("owner", history, scenario, "Korean", CancellationToken.None);
+        await ai.ContinueAsync("owner", history, null, "Korean", CancellationToken.None);
+
+        // The opening system prompts no longer ask for a score at all (there is no
+        // structured field for it), and they forbid scores in the dialogue.
+        Assert.Equal(2, gateway.Instructed.Count);
+        foreach (var (instructions, _) in gateway.Instructed)
+        {
+            Assert.DoesNotContain("Score your comprehension", instructions);
+            Assert.Contains("pure in-character dialogue", instructions);
+        }
+        // Continue prompts put the 0-100 score only in comprehension_score.
+        Assert.Equal(2, gateway.Prompts.Count);
+        foreach (var prompt in gateway.Prompts)
+        {
+            Assert.DoesNotContain("Score your comprehension", prompt);
+            Assert.Contains("whole number from 0 to 100", prompt);
+            Assert.Contains("only in comprehension_score", prompt);
+            Assert.Contains("The message must be pure in-character dialogue", prompt);
+            Assert.Contains("\"comprehension_score\": 85", prompt);
+        }
+    }
+
     private static NativeConversationPresenter Presenter(NativeSliceFixture fixture,
         INativeConversationAi ai, INativeShadowingSpeech? speech = null,
         INativeShadowingPlayer? player = null) =>
@@ -480,6 +546,7 @@ public sealed class NativeConversationPresenterTests
         public bool FailReply { get; set; }
         public string? OpeningText { get; set; }
         public string? ReplyText { get; set; }
+        public double ReplyComprehension { get; set; } = 85;
         public TaskCompletionSource? HangStart { get; set; }
         public TaskCompletionSource? HangReply { get; set; }
         public List<VocabularyAnalysis>? Analysis { get; set; }
@@ -508,7 +575,7 @@ public sealed class NativeConversationPresenterTests
             return new Reply
             {
                 Message = ReplyText ?? $"reply {++_replies}",
-                Comprehension = 85,
+                Comprehension = ReplyComprehension,
                 GrammarCorrections = [new GrammarCorrectionDto { Original = "wrong", Corrected = "right", Explanation = "why" }],
                 VocabularyAnalysis = Analysis
             };

@@ -9,7 +9,7 @@ namespace SentenceStudio.Shared.Models;
 /// </summary>
 public class GradeResult
 {
-    [Description("Comprehension score from 0.0 to 1.0 indicating how well the user's message was understood")]
+    [Description("Comprehension score as a whole number from 0 to 100 (0 = understood nothing, 100 = understood everything) for how well the user's message was understood")]
     [JsonPropertyName("comprehension_score")]
     public double ComprehensionScore { get; set; }
 
