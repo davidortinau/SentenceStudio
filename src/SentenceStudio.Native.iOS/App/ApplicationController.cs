@@ -246,9 +246,7 @@ internal sealed partial class ApplicationController : IDisposable
                     .GetByIdAsync(owner, _lifetime.Token))?.Name;
             if (_dashboard is not null)
             {
-                _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
-                if (_dashboardState is { Phase: NativePhase.Ready, HasPendingSync: true })
-                    _dashboardState = await _dashboard.RefreshAsync(_lifetime.Token);
+                _dashboardState = await _dashboard.LoadAfterSignInAsync(_lifetime.Token);
             }
             RefreshSamAvailability();
         }

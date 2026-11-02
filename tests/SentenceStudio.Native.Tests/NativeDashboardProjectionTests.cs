@@ -247,6 +247,37 @@ public sealed class NativeDashboardProjectionTests
     }
 
     [Fact]
+    public async Task ChooseOwnWithoutPlanClearsPendingSyncAfterSignInLoad()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        fixture.Sync.Outcome = NativeSyncOutcome.Confirmed;
+        var dashboard = fixture.Dashboard;
+        dashboard.SetMode(NativeDashboardMode.ChooseOwn);
+
+        var state = await dashboard.LoadAfterSignInAsync();
+
+        Assert.Equal(NativeDashboardMode.ChooseOwn, state.Mode);
+        Assert.Contains(state.Phase, new[] { NativePhase.Ready, NativePhase.Empty });
+        Assert.False(state.HasPendingSync);
+        using var scope = fixture.Scope();
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .DailyPlans.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(NativePhase.Ready, true, true)]
+    [InlineData(NativePhase.Empty, true, true)]
+    [InlineData(NativePhase.PendingSync, true, false)]
+    [InlineData(NativePhase.Blocked, true, false)]
+    [InlineData(NativePhase.Ready, false, false)]
+    public void SignInLoadSynchronizesOnlyLoadedDashboardsStillPending(
+        NativePhase phase, bool pending, bool expected) =>
+        Assert.Equal(expected, NativeDashboardPresenter.NeedsSyncConfirmation(
+            new NativeDashboardState(phase, HasPendingSync: pending)));
+
+    [Fact]
     public async Task NumberInsightsAreScopedAndShownOnlyForSupportedTargetLanguage()
     {
         using var fixture = new NativeSliceFixture();

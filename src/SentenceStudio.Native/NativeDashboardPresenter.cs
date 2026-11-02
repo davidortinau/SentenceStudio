@@ -70,6 +70,21 @@ public sealed partial class NativeDashboardPresenter(
     public Task<NativeDashboardState> RefreshAsync(CancellationToken cancellationToken = default) =>
         LoadCoreAsync(generateIfMissing: true, synchronize: true, cancellationToken);
 
+    /// <summary>
+    /// First Dashboard load after sign-in or restore: load from local data, then,
+    /// if sync is still unconfirmed on a loaded Dashboard (a plan or Choose My
+    /// Own with no plan), synchronize once so the pending caption reflects the
+    /// real outcome instead of the initial assumption.
+    /// </summary>
+    public async Task<NativeDashboardState> LoadAfterSignInAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await LoadAsync(cancellationToken);
+        return NeedsSyncConfirmation(state) ? await RefreshAsync(cancellationToken) : state;
+    }
+
+    internal static bool NeedsSyncConfirmation(NativeDashboardState state) =>
+        state is { HasPendingSync: true, Phase: NativePhase.Ready or NativePhase.Empty };
+
     public async Task<NativeDashboardState> RegenerateAsync(CancellationToken cancellationToken = default)
     {
         if (!TryCurrentUser(out var owner))

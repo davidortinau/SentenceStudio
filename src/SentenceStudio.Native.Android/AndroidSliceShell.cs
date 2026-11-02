@@ -646,7 +646,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             && state.Destination == NativeDestination.Dashboard)
         {
             if (_dashboard is not null)
-                await _dashboard.LoadAsync(cancellationToken);
+                await _dashboard.LoadAfterSignInAsync(cancellationToken);
             Post(RefreshSamAvailability);
         }
         else if (state.Phase == NativePhase.Ready
