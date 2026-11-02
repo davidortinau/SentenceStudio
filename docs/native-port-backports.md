@@ -16,7 +16,7 @@ Native fix references are commits on `native-platform-heads`.
 | # | Activity | Defect in WebApp/MAUI | Where | Native fix |
 |---|---|---|---|---|
 | B1 | Minimal Pairs | All reads and writes use hard-coded user `"1"`; a real learner's pairs never show | UI `MinimalPair*.razor`, `MinimalPair*Repository` | Minimal Pairs merge (`33ed998f`) |
-| B2 | Minimal Pairs | `MinimalPairAttempt` prompt/selected word FKs are RESTRICT; deleting a word with attempts fails (and a synced delete may fail on devices) | Shared schema, both providers | Pending Captain decision (migration to Cascade) |
+| B2 | Minimal Pairs | `MinimalPairAttempt` prompt/selected word FKs are RESTRICT; deleting a word with attempts fails (and a synced delete may fail on devices) | Shared schema, both providers | Captain 2026-11-01: leave as is (known risk, no migration) |
 | B3 | Vocabulary Matching | Uses `Preferences.Get("active_profile_id","")`; empty owner is passed through instead of refused | UI `VocabMatching.razor` | Matching foundation (`a0303765`) |
 | B4 | Word Association | Writes with an empty profile id when none is active | UI `WordAssociation.razor`, `WordAssociationService` | Word Association merge |
 | B5 | Diary | Entry update and feedback save don't check the owner | Shared diary repository | Diary merge |
@@ -39,7 +39,7 @@ Native fix references are commits on `native-platform-heads`.
 
 | # | Activity | Defect | Where |
 |---|---|---|---|
-| B15 | Conversation | Azure OpenAI content filter rejects the combined "SYSTEM INSTRUCTIONS…TASK…" opening prompt (400), so the chat opens empty. Send instructions as the system role (`/api/v1/ai/chat-messages`) | `ConversationService`, `StartConversation*.scriban-txt` |
+| B15 | Conversation | Azure OpenAI content filter rejects the combined "SYSTEM INSTRUCTIONS…TASK…" opening prompt (400), so the chat opens empty. Send instructions as the system role (`/api/v1/ai/chat-messages`) | `ConversationService`, `StartConversation*.scriban-txt`. Web check 2026-11-01: default-persona path opens normally (no 400 in logs); scenario path not reachable for e2e, still unverified |
 | B16 | Conversation | `Reply.Comprehension` description asks for 0.0-1.0 but prompt and display expect 0-100, so it shows "0%" (WebApp showed "Comprehension: 1%" for a model 1.0 on 2026-11-01). Fixed in shared code (`bebeebd6`): schema says 0-100, `Reply.NormalizeComprehension` maps legacy fractions at web and native assignment/display; verify on WebApp/MAUI | `Shared/Models/Reply.cs`, prompts, `Conversation.razor` |
 | B17 | Conversation | Persona replies include the score text ("(이해도: 85/100)") because the scenario prompt asks for scoring in the reply. Fixed in shared code (`bebeebd6`): opening prompts forbid scores in dialogue, continue prompts put the score only in `comprehension_score`; verify on WebApp/MAUI | `Conversation.scenario.scriban-txt`, `Conversation.system`, `ContinueConversation*.scriban-txt` |
 
