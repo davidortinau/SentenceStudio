@@ -46,7 +46,7 @@ for the WebApp and MAUI app.
 
 | # | Departure | Original behavior | Decision |
 |---|---|---|---|
-| 19 | Pop-up messages in several activities are inline banners | Toasts/pop-ups | Discuss |
+| 19 | Pop-up messages in several activities are inline banners | Toasts/pop-ups | Split by kind: errors banner, success/info toast (implemented 81c2cede) |
 | 20 | Android Translation puts the answer box above the buttons | Answer box and buttons in one row | Keep |
 | 21 | iOS Minimal Pairs delete dialog is titled "Delete A vs B?" | "Confirm Delete" | Keep |
 | 22 | Video Watching transcript scrolls with the page | Fixed 300-pt scrolling box | Keep |
