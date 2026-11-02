@@ -78,8 +78,10 @@ internal sealed partial class AndroidSliceShell
             screen,
             new SnackbarHost(host)
             {
+                // Below the 64 dp Material top app bar, clear of the bottom input bars.
                 Modifier = Modifier.Align(Alignment.TopCenter)
-                    .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 12)
+                    .Padding(start: AndroidVisualTheme.PagePadding, top: 64,
+                        end: AndroidVisualTheme.PagePadding)
                     .TestTag(NativeMessageAccess.Toast),
             },
         };
