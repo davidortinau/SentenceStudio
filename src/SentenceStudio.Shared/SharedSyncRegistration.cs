@@ -49,7 +49,12 @@ public static class SharedSyncRegistration
             .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 3: tables that gained an owner (migration 20261103230000_SyncOwnersPhase3).
+            // Built-in scenarios, device photos and rows with no owner stay where they are.
+            .Table<SceneImage>("SceneImage", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -85,7 +90,12 @@ public static class SharedSyncRegistration
             .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 3: tables that gained an owner (migration 20261103230000_SyncOwnersPhase3).
+            // Built-in scenarios, device photos and rows with no owner stay where they are.
+            .Table<SceneImage>("SceneImage", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

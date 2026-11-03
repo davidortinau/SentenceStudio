@@ -144,7 +144,7 @@ public sealed class NativeConversationPresenter(
 
     /// <summary>Source OnScenarioChanged: switch persona and restart the chat.</summary>
     public async Task<NativeConversationState> SelectScenarioAsync(
-        int scenarioId, CancellationToken cancellationToken = default)
+        string scenarioId, CancellationToken cancellationToken = default)
     {
         OpeningRequest opening;
         await _gate.WaitAsync(cancellationToken);

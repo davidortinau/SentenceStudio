@@ -13,9 +13,19 @@ namespace SentenceStudio.Shared.Models;
 public partial class ConversationScenario : ObservableObject
 {
     /// <summary>
-    /// Unique identifier for the scenario.
+    /// Text ID. A built-in scenario has the same fixed ID on every client
+    /// (<c>SyncIds.BuiltInScenario</c>); a custom one gets a new GUID (phase 3,
+    /// docs/sync-all-tables-plan.md).
     /// </summary>
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// The learner who created a custom scenario. Null for built-in scenarios, and for custom
+    /// ones saved before scenarios had an owner (those stay where they are and never sync, D3).
+    /// Never serialized, so AI responses cannot assign it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? UserProfileId { get; set; }
 
     /// <summary>
     /// Display name for the scenario (English).

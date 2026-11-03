@@ -8,7 +8,11 @@ using System.Text.RegularExpressions;
 namespace SentenceStudio.Data;
 
 /// <summary>
-/// Repository for example sentence CRUD operations with performance optimizations
+/// Repository for example sentence CRUD operations with performance optimizations.
+/// Each sentence belongs to a learner (phase 3 of docs/sync-all-tables-plan.md): the learner
+/// who created it, else its resource's or word's owner. Reads, updates and deletes for pages
+/// are scoped to the active learner (<see cref="ActiveOwner"/>); sentences saved before they had
+/// an owner, with no proven owner, stay visible only on the device that holds them (D3).
 /// </summary>
 public class ExampleSentenceRepository
 {
@@ -32,12 +36,50 @@ public class ExampleSentenceRepository
         _logger = logger;
     }
 
+    /// <summary>The active learner's sentences; none when there is no active learner.</summary>
+    private IQueryable<ExampleSentence> Visible(string operation)
+    {
+        if (!ActiveOwner.TryResolve(_serviceProvider, _logger, operation, out var owner))
+            return _context.ExampleSentences.Where(_ => false);
+        return ActiveOwner.ShowsUnownedRows(_context)
+            ? _context.ExampleSentences.Where(es => es.UserProfileId == owner || es.UserProfileId == null)
+            : _context.ExampleSentences.Where(es => es.UserProfileId == owner);
+    }
+
+    /// <summary>
+    /// The owner of a new sentence: the active learner who creates it; with none (an import
+    /// running in the background), the owner of its resource, else of its word. Null when none
+    /// is proven, and then nothing is written.
+    /// </summary>
+    private async Task<string?> OwnerForNewAsync(
+        string vocabularyWordId, string? learningResourceId, CancellationToken ct)
+    {
+        if (ActiveOwner.TryResolve(_serviceProvider, NullLoggerForBackground, "ExampleSentence create", out var active))
+            return active;
+        if (!string.IsNullOrWhiteSpace(learningResourceId)
+            && await _context.LearningResources.AsNoTracking()
+                .Where(resource => resource.Id == learningResourceId)
+                .Select(resource => resource.UserProfileId)
+                .FirstOrDefaultAsync(ct) is { Length: > 0 } resourceOwner)
+            return resourceOwner;
+        return await _context.VocabularyWords.AsNoTracking()
+            .Where(word => word.Id == vocabularyWordId)
+            .Select(word => word.UserProfileId)
+            .FirstOrDefaultAsync(ct) is { Length: > 0 } wordOwner
+            ? wordOwner
+            : null;
+    }
+
+    // A background import has no active learner by design; that is not worth a warning.
+    private static readonly ILogger NullLoggerForBackground =
+        Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     /// <summary>
     /// Get all example sentences for a vocabulary word
     /// </summary>
     public Task<List<ExampleSentence>> GetByVocabularyWordIdAsync(string vocabularyWordId)
     {
-        return _context.ExampleSentences
+        return Visible(nameof(GetByVocabularyWordIdAsync))
             .Where(es => es.VocabularyWordId == vocabularyWordId)
             .OrderBy(es => es.CreatedAt)
             .ToListAsync();
@@ -49,7 +91,7 @@ public class ExampleSentenceRepository
     /// </summary>
     public Task<List<ExampleSentence>> GetCoreExamplesAsync(string vocabularyWordId)
     {
-        return _context.ExampleSentences
+        return Visible(nameof(GetCoreExamplesAsync))
             .Where(es => es.VocabularyWordId == vocabularyWordId && es.IsCore)
             .OrderBy(es => es.CreatedAt)
             .ToListAsync();
@@ -63,7 +105,7 @@ public class ExampleSentenceRepository
         if (!vocabularyWordIds.Any())
             return new Dictionary<string, int>();
 
-        return await _context.ExampleSentences
+        return await Visible(nameof(GetCountsByVocabularyWordIdsAsync))
             .Where(es => vocabularyWordIds.Contains(es.VocabularyWordId))
             .GroupBy(es => es.VocabularyWordId)
             .Select(g => new { VocabularyWordId = g.Key, Count = g.Count() })
@@ -76,7 +118,7 @@ public class ExampleSentenceRepository
     /// </summary>
     public Task<List<ExampleSentence>> GetQuizEligibleAsync(string vocabularyWordId)
     {
-        return _context.ExampleSentences
+        return Visible(nameof(GetQuizEligibleAsync))
             .Where(es => es.VocabularyWordId == vocabularyWordId
                 && !es.IsFlagged
                 && (es.Status == ExampleSentenceStatus.Curated || es.Status == ExampleSentenceStatus.Verified))
@@ -192,7 +234,7 @@ public class ExampleSentenceRepository
             select new
             {
                 ExistingUserId = user.Id,
-                ExampleSentenceId = (int?)candidate.ExampleSentenceId,
+                ExampleSentenceId = (string?)candidate.ExampleSentenceId,
                 candidate.VocabularyWordId,
                 candidate.TargetSentence,
                 DifficultyLevel = (int?)candidate.DifficultyLevel,
@@ -210,9 +252,9 @@ public class ExampleSentenceRepository
         }
 
         var candidates = rows
-            .Where(row => row.ExampleSentenceId.HasValue)
+            .Where(row => row.ExampleSentenceId != null)
             .Select(row => new QuizHintCandidate(
-                row.ExampleSentenceId!.Value,
+                row.ExampleSentenceId!,
                 row.VocabularyWordId!,
                 row.TargetSentence!,
                 row.DifficultyLevel,
@@ -242,6 +284,9 @@ public class ExampleSentenceRepository
     /// </summary>
     public async Task<ExampleSentence> CreateAsync(ExampleSentence sentence)
     {
+        sentence.UserProfileId = await OwnerForNewAsync(
+            sentence.VocabularyWordId, sentence.LearningResourceId, default)
+            ?? throw new InvalidOperationException("An example sentence needs a proven owner.");
         sentence.CreatedAt = DateTime.UtcNow;
         sentence.UpdatedAt = DateTime.UtcNow;
 
@@ -325,7 +370,7 @@ public class ExampleSentenceRepository
         var existingSentences = existingForWord ?? Array.Empty<ExampleSentence>();
         var trackedSentences = _context.ExampleSentences.Local
             .Where(es => es.VocabularyWordId == word.Id && !existingSentences.Any(existing =>
-                ReferenceEquals(existing, es) || (existing.Id != 0 && existing.Id == es.Id)))
+                ReferenceEquals(existing, es) || existing.Id == es.Id))
             .ToList();
         var sentencesForChecks = existingSentences
             .Concat(trackedSentences)
@@ -348,9 +393,16 @@ public class ExampleSentenceRepository
                 return null;
         }
 
+        if (await OwnerForNewAsync(word.Id, learningResourceId, ct) is not { } owner)
+        {
+            _logger.LogWarning("CreateFromReadingIfNewAsync skipped a sentence with no proven owner.");
+            return null;
+        }
+
         var now = DateTime.UtcNow;
         var sentence = new ExampleSentence
         {
+            UserProfileId = owner,
             VocabularyWordId = word.Id,
             LearningResourceId = learningResourceId,
             TargetSentence = trimmedTargetSentence,
@@ -377,6 +429,13 @@ public class ExampleSentenceRepository
     /// </summary>
     public async Task<ExampleSentence> UpdateAsync(ExampleSentence sentence)
     {
+        var stored = await Visible(nameof(UpdateAsync)).AsNoTracking()
+            .Where(es => es.Id == sentence.Id)
+            .Select(es => new { es.UserProfileId })
+            .SingleOrDefaultAsync()
+            ?? throw new InvalidOperationException($"Example sentence {sentence.Id} not found");
+        // The stored owner is kept; a caller cannot move a sentence to another learner.
+        sentence.UserProfileId = stored.UserProfileId;
         sentence.UpdatedAt = DateTime.UtcNow;
 
         _context.ExampleSentences.Update(sentence);
@@ -390,9 +449,9 @@ public class ExampleSentenceRepository
     /// <summary>
     /// Delete an example sentence
     /// </summary>
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(string id)
     {
-        var sentence = await _context.ExampleSentences.FindAsync(id);
+        var sentence = await Visible(nameof(DeleteAsync)).SingleOrDefaultAsync(es => es.Id == id);
         if (sentence != null)
         {
             _context.ExampleSentences.Remove(sentence);
@@ -406,9 +465,9 @@ public class ExampleSentenceRepository
     /// Toggle the IsCore flag on an example sentence. Setting a sentence as core
     /// demotes any other core example for the same word (single-core invariant).
     /// </summary>
-    public async Task<ExampleSentence> SetCoreAsync(int id, bool isCore)
+    public async Task<ExampleSentence> SetCoreAsync(string id, bool isCore)
     {
-        var sentence = await _context.ExampleSentences.FindAsync(id);
+        var sentence = await Visible(nameof(SetCoreAsync)).SingleOrDefaultAsync(es => es.Id == id);
         if (sentence == null)
             throw new InvalidOperationException($"Example sentence {id} not found");
 
@@ -530,14 +589,14 @@ public class ExampleSentenceRepository
             .ThenByDescending(candidate => candidate.IsCore)
             .ThenByDescending(candidate => candidate.Status == ExampleSentenceStatus.Verified)
             .ThenBy(candidate => candidate.CreatedAt)
-            .ThenBy(candidate => candidate.ExampleSentenceId);
+            .ThenBy(candidate => candidate.ExampleSentenceId, StringComparer.Ordinal);
     }
 
     private static bool IsKnownDifficulty(int? difficultyLevel) =>
         difficultyLevel is >= 1 and <= 5;
 
     private sealed record QuizHintCandidate(
-        int ExampleSentenceId,
+        string ExampleSentenceId,
         string VocabularyWordId,
         string TargetSentence,
         int? DifficultyLevel,
@@ -548,11 +607,11 @@ public class ExampleSentenceRepository
     /// <summary>
     /// Clear IsCore on all other example sentences for a word so at most one stays core.
     /// </summary>
-    private async Task DemoteOtherCoresAsync(string vocabularyWordId, int? exceptId)
+    private async Task DemoteOtherCoresAsync(string vocabularyWordId, string? exceptId)
     {
-        var existingCores = await _context.ExampleSentences
+        var existingCores = await Visible(nameof(DemoteOtherCoresAsync))
             .Where(es => es.VocabularyWordId == vocabularyWordId && es.IsCore
-                && (exceptId == null || es.Id != exceptId.Value))
+                && (exceptId == null || es.Id != exceptId))
             .ToListAsync();
 
         foreach (var core in existingCores)

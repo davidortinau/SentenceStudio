@@ -385,3 +385,62 @@ Checks so far:
 
 Deploy order: the API (with this migration) ships before any app build with
 phase 2b. An older API refuses uploads that contain `ActivitySession`.
+
+## Phase 3: tables with no owner (2026-11-03)
+
+Captain's decisions (2026-11-03, squad decision inbox):
+- **Scene images:** image links (URLs) sync; a photo taken on a device stays on that
+  device until server image storage exists (like D4).
+- **Scenarios:** built-in scenarios get the same fixed ID on every client
+  (`SyncIds.BuiltInScenario`, for example `scn:first-meeting`) and never sync; custom
+  scenarios get an owner and sync. A conversation's scenario link is a plain text
+  reference with no database constraint, so a conversation never fails to sync over a
+  missing scenario row; an unknown link reads as no scenario.
+- **Existing rows:** rows in a native per-learner database belong to that learner
+  (`NativeOwnerStores.AdoptUnownedRowsAsync`, at activation, before any sync). Example
+  sentences take their resource's owner, else their word's. Rows in the pre-account
+  device database, on MAUI, and unlinked server rows stay unowned: visible only where
+  they are, never synced, hidden on the web (D3).
+- **Story and GradeResponse** stay out of sync (decided under the AGENTS.md YAGNI gate):
+  no client writes them today (`StorytellerService` and both `SaveGrade` methods have no
+  callers; 0 rows on the local server). A feature that writes them again adds an owner and
+  sync then.
+
+What changed:
+- Migration `20261103230000_SyncOwnersPhase3` (PostgreSQL + hand-written SQLite): text IDs
+  and an owner column for `SceneImage`, `ConversationScenario` and `ExampleSentence`;
+  `Conversation.ScenarioId` becomes text and loses its constraint. SQLite rebuilds the four
+  tables with foreign keys off (as EF does), because dropping `Conversation` with them on
+  would delete every conversation's chunks and memory.
+- **The web's ownership bug is fixed** for the live tables: `SceneImageService`,
+  `ScenarioRepository` and `ExampleSentenceRepository` read and write only the active
+  learner's rows (`ActiveOwner`); with none they return nothing and write nothing. Before,
+  every web learner saw every other learner's scene images and custom scenarios.
+- The three tables are registered for sync. The server sends and accepts only the owner's
+  rows, never a device photo, a built-in or an unowned row; an example only with a word
+  the owner can see and from the owner's resource. Native uploads keep those rows local.
+- Rebuilding `Conversation` on SQLite drops its tracking; it is listed in
+  `SyncLateTables`, so a device re-sends the learner's conversations once, with their
+  converted scenario links. The server's table is altered in place and stays tracked.
+
+Known limits:
+- **Deletes do not sync from a device.** The server refuses every delete in a device
+  upload (a delete carries only an ID), and one refused item blocked the whole upload. This
+  already affected deleting a Minimal Pair (phase 2a) and would have hit deleting a scene
+  image. Native uploads now keep deletes on the device (except word-link undo pairs, which
+  have their own handling): the server and other clients keep the row. Making deletes sync
+  needs a server design and a Captain decision.
+- A scene image has no timestamp, so the gallery orders by ID (stable, not creation order).
+
+Checks so far:
+- Both migration validation scripts pass (pinned 2b to 3; the schema contract checks the
+  new ID types, owner columns and the dropped constraint). SQLite migration tests pass
+  against the iOS and Android models, including a phase 3 Up and Down that keeps every
+  conversation chunk, re-points links, gives the first built-in copy its fixed ID and
+  restores the constraint.
+- Throwaway PostgreSQL 16 loaded from the local server: Up kept all 101 example sentences
+  (99 got an owner from their resource or word), 6 conversations and 57 chunks; Down
+  restored numbers 1..101 and the constraint; Up ran again cleanly. With seeded scenarios,
+  the first "First Meeting" got `scn:first-meeting`, its second copy a GUID, and both
+  conversation links followed their scenario.
+- The API suite with PostgreSQL tests enabled on that server: 5,163 passed.

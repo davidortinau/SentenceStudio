@@ -99,7 +99,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
     {
         SeedOwnedWord("owned-word", ResourceA);
         SeedOwnedWord("foreign-word", ResourceB);
-        SeedExample("owned-word", ResourceA, "내 문장");
+        SeedExample("owned-word", ResourceA, "내 문장", id: "owned-example");
         SeedExample("foreign-word", ResourceB, "다른 사용자의 문장");
         SaveAndResetQueryCounter();
 
@@ -109,7 +109,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
             "B1");
 
         results.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new VocabQuizSentenceHint(1, "owned-word", "내 문장"));
+            .Which.Should().BeEquivalentTo(new VocabQuizSentenceHint("owned-example", "owned-word", "내 문장"));
     }
 
     [Fact]
@@ -247,9 +247,9 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
         SeedOwnedWord("word-a", ResourceA);
         var later = new DateTime(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
         var earlier = later.AddMinutes(-1);
-        SeedExample("word-a", ResourceA, "later", id: 30, difficulty: 3, createdAt: later);
-        SeedExample("word-a", ResourceA, "earlier-high-id", id: 20, difficulty: 3, createdAt: earlier);
-        SeedExample("word-a", ResourceA, "earlier-low-id", id: 10, difficulty: 3, createdAt: earlier);
+        SeedExample("word-a", ResourceA, "later", id: "30", difficulty: 3, createdAt: later);
+        SeedExample("word-a", ResourceA, "earlier-high-id", id: "20", difficulty: 3, createdAt: earlier);
+        SeedExample("word-a", ResourceA, "earlier-low-id", id: "10", difficulty: 3, createdAt: earlier);
         SaveAndResetQueryCounter();
 
         var results = await _repo.GetQuizHintsForWordsAsync(UserA, new[] { "word-a" }, "B1");
@@ -442,7 +442,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
         string wordId,
         string? resourceId,
         string targetSentence,
-        int? id = null,
+        string? id = null,
         int? difficulty = 3,
         bool core = false,
         ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
@@ -451,7 +451,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
     {
         _db.ExampleSentences.Add(new ExampleSentence
         {
-            Id = id ?? 0,
+            Id = id ?? Guid.NewGuid().ToString(),
             VocabularyWordId = wordId,
             LearningResourceId = resourceId,
             TargetSentence = targetSentence,

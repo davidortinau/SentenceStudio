@@ -209,16 +209,14 @@ internal sealed class ConversationScreen : IActivityScreen
         if (!state.Scenarios.IsDefaultOrEmpty)
         {
             var options = state.Scenarios
-                .Select(item => new SwiftPickerOption(item.Id.ToString(CultureInfo.InvariantCulture),
-                    item.DisplayName))
+                .Select(item => new SwiftPickerOption(item.Id, item.DisplayName))
                 .ToArray();
-            var selected = (state.ActiveScenarioId ?? state.Scenarios[0].Id)
-                .ToString(CultureInfo.InvariantCulture);
+            var selected = state.ActiveScenarioId ?? state.Scenarios[0].Id;
             var picker = Views.Picker(text(NativeConversationText.Scenario), options, selected,
                     value =>
                     {
-                        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-                            Fire(token => _presenter.SelectScenarioAsync(id, token));
+                        if (!string.IsNullOrEmpty(value))
+                            Fire(token => _presenter.SelectScenarioAsync(value, token));
                     })
                 .WithPickerStyle(SwiftPickerStyle.Menu)
                 .WithAccessibilityIdentifier(NativeConversationAccess.Scenario);

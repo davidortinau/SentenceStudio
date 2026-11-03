@@ -48,7 +48,7 @@ public class ScenarioCreationState
     /// <summary>
     /// The ID of the scenario being edited (if IsEditing is true).
     /// </summary>
-    public int? EditingScenarioId { get; set; }
+    public string? EditingScenarioId { get; set; }
 
     /// <summary>
     /// Whether all required fields are filled.

@@ -291,7 +291,7 @@ public sealed record NativeQuizPrompt(
 
 public sealed record NativeQuizPhotoAsset(byte[] Bytes, string ContentType);
 
-public sealed record NativeQuizSentenceHint(int ExampleSentenceId, string TargetSentence);
+public sealed record NativeQuizSentenceHint(string ExampleSentenceId, string TargetSentence);
 
 public sealed record NativeQuizSentencePrompt(
     string WordId,

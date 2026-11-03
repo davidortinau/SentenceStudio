@@ -115,7 +115,8 @@ public sealed partial class NativeResourceStore
                 cancellationToken);
         var examples = await OwnedExamples(db, owner)
             .Where(example => example.VocabularyWordId == wordId)
-            .OrderBy(example => example.Id)
+            .OrderBy(example => example.CreatedAt)
+            .ThenBy(example => example.Id)
             .Select(example => new NativeVocabularyExample(
                 example.Id, example.TargetSentence, example.NativeSentence))
             .ToListAsync(cancellationToken);
@@ -298,13 +299,14 @@ public sealed partial class NativeResourceStore
 
     private static IQueryable<ExampleSentence> OwnedExamples(
         ApplicationDbContext db, string owner) =>
-        // Examples without a resource have no owner field; even UserAuthored
-        // cannot identify which learner wrote one when the word is shared.
+        // The learner's own examples (phase 3 gave examples an owner), and older examples
+        // with no owner whose resource is the learner's.
         db.ExampleSentences.AsNoTracking()
-            .Where(example => example.LearningResourceId != null
-                && db.LearningResources.Any(resource =>
-                    resource.Id == example.LearningResourceId
-                    && resource.UserProfileId == owner));
+            .Where(example => example.UserProfileId == owner
+                || (example.UserProfileId == null && example.LearningResourceId != null
+                    && db.LearningResources.Any(resource =>
+                        resource.Id == example.LearningResourceId
+                        && resource.UserProfileId == owner)));
 
     private static IQueryable<string> OwnedVocabularyIds(
         ApplicationDbContext db, string owner) =>

@@ -50,7 +50,7 @@ public class ScenarioService : IScenarioService
         return await _repository.GetAllAsync();
     }
 
-    public async Task<ConversationScenario?> GetScenarioAsync(int id)
+    public async Task<ConversationScenario?> GetScenarioAsync(string id)
     {
         return await _repository.GetByIdAsync(id);
     }
@@ -103,10 +103,10 @@ public class ScenarioService : IScenarioService
 
         scenario.UpdatedAt = DateTime.UtcNow;
         var result = await _repository.SaveAsync(scenario);
-        return result > 0;
+        return result is not null;
     }
 
-    public async Task<bool> DeleteScenarioAsync(int id)
+    public async Task<bool> DeleteScenarioAsync(string id)
     {
         return await _repository.DeleteAsync(id);
     }
@@ -222,10 +222,10 @@ public class ScenarioService : IScenarioService
 
         ConversationScenario scenario;
 
-        if (state.IsEditing && state.EditingScenarioId.HasValue)
+        if (state.IsEditing && state.EditingScenarioId is { Length: > 0 } editingId)
         {
             // Update existing scenario
-            scenario = await _repository.GetByIdAsync(state.EditingScenarioId.Value)
+            scenario = await _repository.GetByIdAsync(editingId)
                 ?? throw new InvalidOperationException("Scenario not found for editing");
 
             scenario.Name = state.Name!;
@@ -295,14 +295,8 @@ public class ScenarioService : IScenarioService
 
     public async Task SeedPredefinedScenariosAsync()
     {
-        if (await _repository.HasPredefinedScenariosAsync())
-        {
-            _logger.LogDebug("Predefined scenarios already exist, skipping seed");
-            return;
-        }
-
-        _logger.LogInformation("Seeding predefined conversation scenarios");
-
+        // Built-ins have the same fixed ID on every client (phase 3, docs/sync-all-tables-plan.md);
+        // a store gets any it lacks, and never a second copy.
         var predefinedScenarios = new[]
         {
             new ConversationScenario
@@ -363,11 +357,11 @@ public class ScenarioService : IScenarioService
         };
 
         foreach (var scenario in predefinedScenarios)
-        {
-            await _repository.SaveAsync(scenario);
-        }
+            scenario.Id = SyncIds.BuiltInScenario(scenario.Name);
+        var added = await _repository.AddMissingBuiltInsAsync(predefinedScenarios);
 
-        _logger.LogInformation("Seeded {Count} predefined scenarios", predefinedScenarios.Length);
+        if (added > 0)
+            _logger.LogInformation("Seeded {Count} predefined scenarios", added);
     }
 
     #endregion

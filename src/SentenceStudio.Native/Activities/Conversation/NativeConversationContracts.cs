@@ -59,7 +59,7 @@ public static class NativeConversationText
     public const string Unavailable = "NativeActivity_LaunchUnavailable";
 }
 
-public sealed record NativeConversationScenarioOption(int Id, string DisplayName, string PersonaName);
+public sealed record NativeConversationScenarioOption(string Id, string DisplayName, string PersonaName);
 
 public sealed record NativeConversationCorrection(string? Original, string? Corrected, string? Explanation);
 
@@ -88,7 +88,7 @@ public sealed record NativeConversationState(
     NativePhase Phase,
     NativeDestination Destination = NativeDestination.Activity,
     ImmutableArray<NativeConversationScenarioOption> Scenarios = default,
-    int? ActiveScenarioId = null,
+    string? ActiveScenarioId = null,
     string TargetLanguage = "Korean",
     ImmutableArray<NativeConversationMessage> Messages = default,
     bool IsStarting = false,

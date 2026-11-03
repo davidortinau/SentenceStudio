@@ -21,6 +21,7 @@ public sealed class SqliteMigrationApplicationTests
     private const string ArchiveMigration = "20260928050905_ArchiveDisplacedPlanItems";
     private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
     private const string Phase2aMigration = "20261103015116_SyncTextIdsPhase2a";
+    private const string Phase2bMigration = "20261103151517_SyncTextIdsPhase2b";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -582,6 +583,117 @@ public sealed class SqliteMigrationApplicationTests
             + $"FROM \"ActivitySession\" WHERE \"LaunchContextKey\" = '{webKey}' AND \"Status\" = 'InProgress'"));
         Assert.Equal(nativeState, await Scalar(
             $"SELECT \"StateJson\" FROM \"ActivitySession\" WHERE \"LaunchContextKey\" = '{nativeKey}'"));
+    }
+
+    /// <summary>
+    /// Phase 3 (docs/sync-all-tables-plan.md): scene images, scenarios and example sentences get
+    /// text IDs and owners. Rebuilding "Conversation" must keep every conversation's chunks and
+    /// memory (they cascade from it), its links follow their scenario, built-ins get their fixed
+    /// IDs (a second copy does not), and Down restores numbers, links and the constraint.
+    /// </summary>
+    [Fact]
+    public async Task SyncOwnersPhase3_GivesTextIdsAndOwners_KeepsConversationsAndTheirChunks_AndDownRestoresThem()
+    {
+        using var scratch = new ScratchDatabase();
+        const string owner = "owner-a";
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(Phase2bMigration);
+            foreach (var sql in new[]
+            {
+                "INSERT INTO \"UserProfile\" (\"Id\", \"Name\", \"NativeLanguage\", \"TargetLanguage\", \"PreferredSessionMinutes\", \"CreatedAt\") VALUES ('owner-a', 'A', 'English', 'Korean', 20, '2026-11-01 00:00:00')",
+                "INSERT INTO \"LearningResource\" (\"Id\", \"Title\", \"UserProfileId\", \"IsSmartResource\", \"CreatedAt\", \"UpdatedAt\") VALUES ('res-a', 'R', 'owner-a', 0, '2026-11-01 00:00:00', '2026-11-01 00:00:00')",
+                "INSERT INTO \"VocabularyWord\" (\"Id\", \"TargetLanguageTerm\", \"UserProfileId\", \"CreatedAt\", \"UpdatedAt\") VALUES ('word-owned', '물', 'owner-a', '2026-11-01 00:00:00', '2026-11-01 00:00:00')",
+                "INSERT INTO \"VocabularyWord\" (\"Id\", \"TargetLanguageTerm\", \"CreatedAt\", \"UpdatedAt\") VALUES ('word-shared', '불', '2026-11-01 00:00:00', '2026-11-01 00:00:00')",
+                ScenarioRow(1, "First Meeting", predefined: true, "2026-11-01 01:00:00"),
+                ScenarioRow(2, "Ordering Coffee", predefined: true, "2026-11-01 01:00:01"),
+                ScenarioRow(3, "First Meeting", predefined: true, "2026-11-01 01:00:02"),
+                ScenarioRow(4, "My Job Interview", predefined: false, "2026-11-01 01:00:03"),
+                ConversationRow("conv-builtin", 2),
+                ConversationRow("conv-custom", 4),
+                ConversationRow("conv-none", null),
+                "INSERT INTO \"ConversationChunk\" (\"Id\", \"ConversationId\", \"SentTime\", \"Author\", \"Text\", \"Role\", \"Comprehension\", \"UserProfileId\") VALUES ('chunk-1', 'conv-builtin', '2026-11-01 02:00:00', 'me', '안녕', 0, 0, 'owner-a')",
+                "INSERT INTO \"ConversationChunk\" (\"Id\", \"ConversationId\", \"SentTime\", \"Author\", \"Text\", \"Role\", \"Comprehension\", \"UserProfileId\") VALUES ('chunk-2', 'conv-custom', '2026-11-01 02:00:01', 'me', '네', 0, 0, 'owner-a')",
+                "INSERT INTO \"SceneImage\" (\"Id\", \"Url\", \"Description\", \"IsSelected\") VALUES (1, 'https://example.test/a.jpg', 'A', 0)",
+                "INSERT INTO \"SceneImage\" (\"Id\", \"Url\", \"Description\", \"IsSelected\") VALUES (2, 'native-scene-image:b.jpg', 'B', 0)",
+                SentenceRow(1, "word-owned", null, "물을 마셔요."),
+                SentenceRow(2, "word-shared", "res-a", "불이 뜨거워요."),
+                SentenceRow(3, "word-shared", null, "불을 꺼요."),
+            })
+                await previous.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+
+            var scenarios = await upgraded.ConversationScenarios.AsNoTracking().ToListAsync();
+            Assert.Equal(4, scenarios.Count);
+            var firstMeeting = SentenceStudio.Services.SyncIds.BuiltInScenario("First Meeting");
+            var coffee = SentenceStudio.Services.SyncIds.BuiltInScenario("Ordering Coffee");
+            Assert.Equal("scn:first-meeting", firstMeeting);
+            Assert.Single(scenarios, row => row.Id == firstMeeting);
+            Assert.Single(scenarios, row => row.Id == coffee);
+            // The second copy of a built-in keeps its row under a GUID.
+            Assert.Equal(2, scenarios.Count(row => row.Name == "First Meeting"));
+            var custom = scenarios.Single(row => !row.IsPredefined);
+            Assert.True(Guid.TryParse(custom.Id, out _));
+            Assert.All(scenarios, row => Assert.Null(row.UserProfileId));
+
+            var conversations = await upgraded.Conversations.AsNoTracking().ToDictionaryAsync(row => row.Id);
+            Assert.Equal(3, conversations.Count);
+            Assert.Equal(coffee, conversations["conv-builtin"].ScenarioId);
+            Assert.Equal(custom.Id, conversations["conv-custom"].ScenarioId);
+            Assert.Null(conversations["conv-none"].ScenarioId);
+            // The rebuild deleted no chunk (they cascade from their conversation).
+            Assert.Equal(["chunk-1", "chunk-2"], (await upgraded.ConversationChunks.AsNoTracking()
+                .Select(row => row.Id).OrderBy(id => id).ToListAsync()));
+
+            var images = await upgraded.SceneImages.AsNoTracking().OrderBy(row => row.Url).ToListAsync();
+            Assert.Equal(2, images.Count);
+            Assert.All(images, row => Assert.True(Guid.TryParse(row.Id, out _)));
+            Assert.All(images, row => Assert.Null(row.UserProfileId));
+
+            var sentences = await upgraded.ExampleSentences.AsNoTracking().ToDictionaryAsync(row => row.TargetSentence);
+            Assert.Equal(3, sentences.Count);
+            Assert.All(sentences.Values, row => Assert.True(Guid.TryParse(row.Id, out _)));
+            Assert.Equal(owner, sentences["물을 마셔요."].UserProfileId);
+            Assert.Equal(owner, sentences["불이 뜨거워요."].UserProfileId);
+            Assert.Null(sentences["불을 꺼요."].UserProfileId);
+        }
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(Phase2bMigration);
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        foreach (var table in new[] { "SceneImage", "ConversationScenario", "ExampleSentence" })
+            Assert.Equal(await Scalar($"SELECT count(*) FROM \"{table}\""),
+                await Scalar($"SELECT sum(typeof(\"Id\") = 'integer') FROM \"{table}\""));
+        Assert.Equal("Ordering Coffee", await Scalar(
+            "SELECT s.\"Name\" FROM \"Conversation\" c JOIN \"ConversationScenario\" s ON s.\"Id\" = c.\"ScenarioId\" WHERE c.\"Id\" = 'conv-builtin'"));
+        Assert.Equal("My Job Interview", await Scalar(
+            "SELECT s.\"Name\" FROM \"Conversation\" c JOIN \"ConversationScenario\" s ON s.\"Id\" = c.\"ScenarioId\" WHERE c.\"Id\" = 'conv-custom'"));
+        Assert.Equal("2", await Scalar("SELECT count(*) FROM \"ConversationChunk\""));
+        Assert.Equal("1", await Scalar(
+            "SELECT count(*) FROM pragma_foreign_key_list('Conversation') WHERE \"table\" = 'ConversationScenario'"));
+        Assert.Equal("", await Scalar("SELECT group_concat(\"table\") FROM pragma_foreign_key_check"));
+
+        static string ScenarioRow(int id, string name, bool predefined, string at) =>
+            "INSERT INTO \"ConversationScenario\" (\"Id\", \"Name\", \"PersonaName\", \"PersonaDescription\", \"SituationDescription\", \"ConversationType\", \"IsPredefined\", \"CreatedAt\", \"UpdatedAt\") "
+            + $"VALUES ({id}, '{name}', 'P', 'D', 'S', 0, {(predefined ? 1 : 0)}, '{at}', '{at}')";
+        static string ConversationRow(string id, int? scenario) =>
+            "INSERT INTO \"Conversation\" (\"Id\", \"CreatedAt\", \"Language\", \"ScenarioId\", \"UserProfileId\") "
+            + $"VALUES ('{id}', '2026-11-01 02:00:00', 'Korean', {(scenario is null ? "NULL" : scenario.ToString())}, 'owner-a')";
+        static string SentenceRow(int id, string word, string? resource, string text) =>
+            "INSERT INTO \"ExampleSentence\" (\"Id\", \"VocabularyWordId\", \"LearningResourceId\", \"TargetSentence\", \"IsCore\", \"CreatedAt\", \"UpdatedAt\") "
+            + $"VALUES ({id}, '{word}', {(resource is null ? "NULL" : $"'{resource}'")}, '{text}', 0, '2026-11-01 03:0{id}:00', '2026-11-01 03:0{id}:00')";
     }
 
     private static ApplicationDbContext CreateContext(string connectionString) =>

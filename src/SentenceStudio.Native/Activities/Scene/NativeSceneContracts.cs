@@ -93,7 +93,7 @@ public static class NativeSceneText
 public enum NativeSceneImageLoad { Loading, Loaded, Failed }
 
 /// <summary>The scene image on the page (source imageUrl / currentSceneId).</summary>
-public sealed record NativeSceneImage(int Id, NativeSceneImageLoad Load, byte[]? Bytes);
+public sealed record NativeSceneImage(string Id, NativeSceneImageLoad Load, byte[]? Bytes);
 
 /// <summary>A graded description card (source Sentence), newest first.</summary>
 public sealed record NativeSceneResult(
@@ -111,9 +111,12 @@ public sealed record NativeSceneResult(
 
 /// <summary>A gallery tile (source scene-gallery-item).</summary>
 public sealed record NativeSceneGalleryItem(
-    int Id, NativeSceneImageLoad Load, byte[]? Bytes, bool IsCurrent, bool IsChecked)
+    string Id, NativeSceneImageLoad Load, byte[]? Bytes, bool IsCurrent, bool IsChecked)
 {
     public string AccessibilityId => $"{NativeSceneAccess.GalleryItem}.{Id}";
+
+    /// <summary>The image's 1-based position in the gallery, for its spoken label (IDs are GUIDs).</summary>
+    public int Number { get; init; }
 }
 
 /// <summary>The gallery overlay (source showGallery block).</summary>
@@ -188,7 +191,7 @@ public interface INativeSceneImageStore
         CancellationToken cancellationToken);
 
     /// <summary>Deletes the owner's rows (and their local photo files); returns the rows deleted.</summary>
-    Task<int> DeleteAsync(string owner, IReadOnlyCollection<int> ids, CancellationToken cancellationToken);
+    Task<int> DeleteAsync(string owner, IReadOnlyCollection<string> ids, CancellationToken cancellationToken);
 
     Task<byte[]?> LoadBytesAsync(string owner, SceneImage image, CancellationToken cancellationToken);
 }

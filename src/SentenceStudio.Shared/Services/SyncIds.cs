@@ -25,6 +25,23 @@ public static class SyncIds
     }
 
     /// <summary>
+    /// A built-in conversation scenario: the same fixed ID on every client, so built-ins never
+    /// sync and a synced conversation's scenario reference means the same scenario everywhere
+    /// (phase 3, Captain 2026-11-03). The key is the scenario's English name in lower case with
+    /// spaces as hyphens ("First Meeting" is "scn:first-meeting"); keep it identical to the
+    /// migration that converted existing rows.
+    /// </summary>
+    public static string BuiltInScenario(string englishName)
+    {
+        Require(englishName, nameof(englishName));
+        return "scn:" + englishName.Trim().ToLowerInvariant().Replace(' ', '-');
+    }
+
+    /// <summary>True for a built-in scenario's fixed ID.</summary>
+    public static bool IsBuiltInScenario(string? id) =>
+        id?.StartsWith("scn:", StringComparison.Ordinal) == true;
+
+    /// <summary>
     /// One activity run per learner, activity and launch (plan card, focus words, resources,
     /// due-only and skill: <c>VocabQuizSessionSnapshot.BuildLaunchContextKey</c>). Later runs of
     /// the same launch reuse the row. Not for device-only receipts.

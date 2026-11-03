@@ -38,11 +38,56 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
 
         var services = new ServiceCollection();
         services.AddSingleton(_db);
+        services.AddSingleton<SentenceStudio.Services.Plans.IUserScopeProvider>(_learner);
         _provider = services.BuildServiceProvider();
         _repo = new ExampleSentenceRepository(
             _db,
             _provider,
             NullLogger<ExampleSentenceRepository>.Instance);
+    }
+
+    private readonly ActiveLearner _learner = new() { Id = "user-1" };
+
+    /// <summary>The signed-in learner the repository acts for (phase 3: sentences have an owner).</summary>
+    private sealed class ActiveLearner : SentenceStudio.Services.Plans.IUserScopeProvider
+    {
+        public string? Id { get; set; }
+        public string UserProfileId => Id ?? throw new UnauthorizedAccessException();
+        public bool TryGetUserProfileId(out string userProfileId)
+        {
+            userProfileId = Id ?? string.Empty;
+            return !string.IsNullOrEmpty(Id);
+        }
+    }
+
+    /// <summary>
+    /// Phase 3 (docs/sync-all-tables-plan.md): a sentence belongs to the learner who created it,
+    /// and another learner sees, changes and deletes none of it. With no learner nothing is read
+    /// or written.
+    /// </summary>
+    [Fact]
+    public async Task Sentences_BelongToTheirCreator_AndAreInvisibleToAnotherLearner()
+    {
+        var mine = await _repo.CreateAsync(New("w1", "mine"));
+        mine.UserProfileId.Should().Be("user-1");
+
+        _learner.Id = "user-2";
+        (await _repo.GetByVocabularyWordIdAsync("w1")).Should().BeEmpty();
+        (await _repo.GetCountsByVocabularyWordIdsAsync(["w1"])).Should().BeEmpty();
+        await _repo.DeleteAsync(mine.Id);
+        var act = () => _repo.SetCoreAsync(mine.Id, true);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        _db.ChangeTracker.Clear();
+        (await _db.ExampleSentences.AsNoTracking().SingleAsync(s => s.Id == mine.Id)).IsCore
+            .Should().BeFalse();
+
+        _learner.Id = null;
+        (await _repo.GetByVocabularyWordIdAsync("w1")).Should().BeEmpty();
+        var refused = () => _repo.CreateAsync(New("w2", "nobody"));
+        await refused.Should().ThrowAsync<InvalidOperationException>();
+
+        _learner.Id = "user-1";
+        (await _repo.GetByVocabularyWordIdAsync("w1")).Select(s => s.Id).Should().Equal(mine.Id);
     }
 
     private ExampleSentence New(string word, string target, bool core = false,

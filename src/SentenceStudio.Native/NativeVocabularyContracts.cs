@@ -27,7 +27,7 @@ public sealed record NativeVocabularyHistory(
     bool WasCorrect, bool IsPassive, string? ResourceTitle);
 
 public sealed record NativeVocabularyExample(
-    int Id, string TargetSentence, string? NativeSentence);
+    string Id, string TargetSentence, string? NativeSentence);
 
 public sealed record NativeVocabularyConstituent(
     string Id, string TargetTerm, string NativeTerm);

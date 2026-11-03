@@ -169,7 +169,7 @@ else
 
 @code {
     [SupplyParameterFromQuery(Name = "scenarioId")]
-    public int? ScenarioIdParam { get; set; }
+    public string? ScenarioIdParam { get; set; }
 
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
@@ -265,8 +265,8 @@ else
 
             scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
 
-            if (ScenarioIdParam is not null and > 0)
-                activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam.Value);
+            if (!string.IsNullOrWhiteSpace(ScenarioIdParam))
+                activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam);
 
             // When launched from plan with ResourceId but no scenarioId, use default scenario.
             // ResourceId/SkillId are accepted for future resource-aware scenario matching.
@@ -490,7 +490,7 @@ else
 
     private async Task OnScenarioChanged(ChangeEventArgs e)
     {
-        if (int.TryParse(e.Value?.ToString(), out var id))
+        if (e.Value?.ToString() is { Length: > 0 } id)
         {
             activeScenario = scenarios.FirstOrDefault(s => s.Id == id);
             await StartConversation();

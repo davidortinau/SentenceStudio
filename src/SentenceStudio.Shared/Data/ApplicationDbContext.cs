@@ -198,9 +198,16 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<StreamHistory>().HasIndex(e => new { e.UserProfileId, e.CreatedAt });
         modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
         modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.Id);
+        // Phase 3 (docs/sync-all-tables-plan.md): text IDs and an owner, so these rows sync.
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
+        modelBuilder.Entity<SceneImage>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<SceneImage>().HasIndex(e => e.UserProfileId);
         modelBuilder.Entity<ConversationScenario>().ToTable("ConversationScenario").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationScenario>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ConversationScenario>().HasIndex(e => e.UserProfileId);
         modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
+        modelBuilder.Entity<ExampleSentence>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ExampleSentence>().HasIndex(e => e.UserProfileId);
         // Text IDs so these rows sync (Captain 2026-11-02, docs/sync-all-tables-plan.md).
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPair>().Property(e => e.Id).ValueGeneratedNever();
@@ -246,12 +253,8 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(cc => cc.ConversationId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Configure Conversation to ConversationScenario relationship
-        modelBuilder.Entity<Conversation>()
-            .HasOne(c => c.Scenario)
-            .WithMany()
-            .HasForeignKey(c => c.ScenarioId)
-            .OnDelete(DeleteBehavior.SetNull);
+        // Conversation.ScenarioId is a plain reference with no constraint (phase 3).
+        modelBuilder.Entity<Conversation>().HasIndex(c => c.ScenarioId);
 
         // Configure Conversation to ConversationMemoryState relationship
         modelBuilder.Entity<ConversationMemoryState>()

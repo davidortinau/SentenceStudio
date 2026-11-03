@@ -27,7 +27,7 @@ internal sealed partial class AndroidSliceShell
     private const int SceneMaxPhotoEdge = 2048;
     private const int SceneMaxBitmapEdge = 1280;
     private NativeScenePresenter? _scene;
-    private readonly Dictionary<int, (byte[] Source, Bitmap? Bitmap)> _sceneBitmaps = [];
+    private readonly Dictionary<string, (byte[] Source, Bitmap? Bitmap)> _sceneBitmaps = new(StringComparer.Ordinal);
 
     internal NativeSceneState Scene { get; private set; } = new(NativePhase.Loading);
 
@@ -197,7 +197,7 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>A display bitmap per image, decoded once per byte array.</summary>
-    private Bitmap? SceneBitmap(int id, byte[] bytes)
+    private Bitmap? SceneBitmap(string id, byte[] bytes)
     {
         if (_sceneBitmaps.TryGetValue(id, out var cached) && ReferenceEquals(cached.Source, bytes))
             return cached.Bitmap;
@@ -207,7 +207,7 @@ internal sealed partial class AndroidSliceShell
         return bitmap;
     }
 
-    private ComposableNode? ScenePicture(int id, byte[] bytes, string label, int height)
+    private ComposableNode? ScenePicture(string id, byte[] bytes, string label, int height)
     {
         if (SceneBitmap(id, bytes) is not { } bitmap)
             return null;
@@ -602,8 +602,8 @@ internal sealed partial class AndroidSliceShell
     {
         var sceneLabel = Localize(NativeSceneText.SceneImage);
         var label = item.IsCurrent
-            ? $"{sceneLabel} {item.Id}, {Localize(NativeSceneText.Current)}"
-            : $"{sceneLabel} {item.Id}";
+            ? $"{sceneLabel} {item.Number}, {Localize(NativeSceneText.Current)}"
+            : $"{sceneLabel} {item.Number}";
         var enabled = selecting || !grading;
         var modifier = Modifier.Weight(1f).TestTag(item.AccessibilityId)
             .Semantics(semantics =>

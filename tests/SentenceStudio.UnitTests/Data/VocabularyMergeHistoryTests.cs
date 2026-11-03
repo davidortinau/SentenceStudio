@@ -879,7 +879,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         });
     }
 
-    private int SeedExampleSentence(string wordId, string targetSentence, string? learningResourceId = null)
+    private string SeedExampleSentence(string wordId, string targetSentence, string? learningResourceId = null)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1016,7 +1016,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         return db.VocabularyWords.AsNoTracking().Any(w => w.Id == wordId);
     }
 
-    private ExampleSentence? GetExampleSentence(int id)
+    private ExampleSentence? GetExampleSentence(string id)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

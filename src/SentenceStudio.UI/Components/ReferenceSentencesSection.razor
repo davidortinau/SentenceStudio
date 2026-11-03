@@ -81,7 +81,7 @@
     }
 
     @* Saved sentences *@
-    @if (openMenuId != -1)
+    @if (openMenuId is not null)
     {
         <div class="ref-menu-backdrop" @onclick="CloseMenu"></div>
     }
@@ -182,14 +182,14 @@
     private string newNative = "";
     private SpeechRegister newRegister = SpeechRegister.Unspecified;
 
-    private int editingId = -1;
+    private string? editingId;
     private string editTarget = "";
     private string editNative = "";
     private SpeechRegister editRegister = SpeechRegister.Unspecified;
 
-    private int openMenuId = -1;
-    private void ToggleMenu(int id) => openMenuId = openMenuId == id ? -1 : id;
-    private void CloseMenu() => openMenuId = -1;
+    private string? openMenuId;
+    private void ToggleMenu(string id) => openMenuId = openMenuId == id ? null : id;
+    private void CloseMenu() => openMenuId = null;
 
     private static readonly SpeechRegister[] Registers = (SpeechRegister[])Enum.GetValues(typeof(SpeechRegister));
 
@@ -291,14 +291,14 @@
 
     private void StartEdit(ExampleSentence s)
     {
-        openMenuId = -1;
+        openMenuId = null;
         editingId = s.Id;
         editTarget = s.TargetSentence;
         editNative = s.NativeSentence ?? "";
         editRegister = s.Register;
     }
 
-    private void CancelEdit() => editingId = -1;
+    private void CancelEdit() => editingId = null;
 
     private async Task SaveEditAsync(ExampleSentence s)
     {
@@ -309,13 +309,13 @@
         using var scope = Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
         await repo.UpdateAsync(s);
-        editingId = -1;
+        editingId = null;
         Toast.ShowSuccess($"{Localize["RefSentences_Saved"]}");
     }
 
     private async Task SetCoreAsync(ExampleSentence s)
     {
-        openMenuId = -1;
+        openMenuId = null;
         var makeCore = !s.IsCore;
         using (var scope = Services.CreateScope())
         {
@@ -332,7 +332,7 @@
 
     private async Task ToggleFlagAsync(ExampleSentence s)
     {
-        openMenuId = -1;
+        openMenuId = null;
         s.IsFlagged = !s.IsFlagged;
         using var scope = Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
@@ -341,7 +341,7 @@
 
     private async Task DeleteAsync(ExampleSentence s)
     {
-        openMenuId = -1;
+        openMenuId = null;
         using (var scope = Services.CreateScope())
         {
             var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();

@@ -638,8 +638,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ScenarioId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("ScenarioId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserProfileId")
                         .HasColumnType("TEXT");
@@ -744,9 +744,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationScenario", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<int>("ConversationType")
@@ -788,7 +787,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("ConversationScenario", (string)null);
                 });
@@ -971,9 +975,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<string>("AudioUri")
@@ -1016,6 +1019,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("VocabularyWordId")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1023,6 +1029,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.HasKey("Id");
 
                     b.HasIndex("LearningResourceId");
+
+                    b.HasIndex("UserProfileId");
 
                     b.HasIndex("VocabularyWordId");
 
@@ -1341,9 +1349,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SceneImage", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<string>("Description")
@@ -1355,7 +1362,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("SceneImage", (string)null);
                 });
@@ -2397,16 +2409,6 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .IsRequired();
 
                     b.Navigation("Operation");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.ConversationScenario", "Scenario")
-                        .WithMany()
-                        .HasForeignKey("ScenarioId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Scenario");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>

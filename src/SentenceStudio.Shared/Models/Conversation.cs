@@ -32,13 +32,13 @@ public partial class Conversation : ObservableObject
     /// Optional reference to the scenario used for this conversation.
     /// Null for conversations started before scenario feature or without a specific scenario.
     /// </summary>
-    public int? ScenarioId { get; set; }
-
-    /// <summary>
-    /// Navigation property to the conversation scenario.
-    /// </summary>
-    [ForeignKey(nameof(ScenarioId))]
-    public ConversationScenario? Scenario { get; set; }
+    /// <remarks>
+    /// A plain reference with no database constraint (phase 3, Captain 2026-11-03): a built-in
+    /// scenario has the same fixed ID everywhere, a custom one syncs with its owner, and a
+    /// conversation never fails to sync because a scenario row has not arrived. Readers treat an
+    /// unknown ID as no scenario.
+    /// </remarks>
+    public string? ScenarioId { get; set; }
 
     // Navigation property for EF Core and CoreSync
     public List<ConversationChunk>? Chunks { get; set; }
@@ -52,7 +52,7 @@ public partial class Conversation : ObservableObject
         Chunks = new List<ConversationChunk>();
     }
 
-    public Conversation(DateTime createdAt, int? scenarioId)
+    public Conversation(DateTime createdAt, string? scenarioId)
     {
         CreatedAt = createdAt;
         ScenarioId = scenarioId;

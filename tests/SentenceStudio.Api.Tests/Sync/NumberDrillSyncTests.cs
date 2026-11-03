@@ -88,6 +88,54 @@ public sealed class NumberDrillSyncTests
             filtered.Items.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
     }
 
+    /// <summary>
+    /// Phase 3 (Captain 2026-11-03): scene images, custom scenarios and example sentences travel
+    /// only to their owner. A photo stored on one device, a built-in scenario and a row with no
+    /// owner never travel; an example travels only with a word the owner can see and from the
+    /// owner's resource.
+    /// </summary>
+    [Fact]
+    public async Task NativeDownload_KeepsOnlyTheOwnersPhase3Rows_NeverDevicePhotosBuiltInsOrUnownedRows()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateAsync(connection);
+        db.LearningResources.AddRange(
+            new LearningResource { Id = "owned-resource", UserProfileId = Owner },
+            new LearningResource { Id = "foreign-resource", UserProfileId = Foreign });
+        db.VocabularyWords.AddRange(
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+        db.ResourceVocabularyMappings.Add(
+            new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" });
+        await db.SaveChangesAsync();
+
+        var changes = new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 3), SyncAnchor.Null,
+        [
+            Item("SceneImage", "url-image", ("UserProfileId", Owner), ("Url", "https://example.test/a.jpg")),
+            Item("SceneImage", "device-photo", ("UserProfileId", Owner), ("Url", SceneImage.DevicePhotoScheme + "a.jpg")),
+            Item("SceneImage", "unowned-image", ("Url", "https://example.test/b.jpg")),
+            Item("SceneImage", "foreign-image", ("UserProfileId", Foreign), ("Url", "https://example.test/c.jpg")),
+            Item("ConversationScenario", "custom-scenario", ("UserProfileId", Owner)),
+            Item("ConversationScenario", SentenceStudio.Services.SyncIds.BuiltInScenario("First Meeting")),
+            Item("ConversationScenario", "unowned-scenario"),
+            Item("ConversationScenario", "foreign-scenario", ("UserProfileId", Foreign)),
+            Item("ExampleSentence", "owned-sentence", ("UserProfileId", Owner), ("VocabularyWordId", "w1")),
+            Item("ExampleSentence", "own-resource-sentence", ("UserProfileId", Owner), ("VocabularyWordId", "w1"),
+                ("LearningResourceId", "owned-resource")),
+            Item("ExampleSentence", "hidden-word-sentence", ("UserProfileId", Owner), ("VocabularyWordId", "hidden")),
+            Item("ExampleSentence", "foreign-resource-sentence", ("UserProfileId", Owner), ("VocabularyWordId", "w1"),
+                ("LearningResourceId", "foreign-resource")),
+            Item("ExampleSentence", "unowned-sentence", ("VocabularyWordId", "w1")),
+            Item("ExampleSentence", "foreign-sentence", ("UserProfileId", Foreign), ("VocabularyWordId", "w1")),
+        ]);
+
+        var filtered = await NativeOwnerSyncProvider.FilterForOwnerAsync(changes, Owner, db);
+
+        Assert.Equal(["url-image", "custom-scenario", "owned-sentence", "own-resource-sentence"],
+            filtered.Items.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
+    }
+
     [Fact]
     public async Task StoredOwnerLookup_ReportsTheForeignOwnerOfAnExistingRow()
     {

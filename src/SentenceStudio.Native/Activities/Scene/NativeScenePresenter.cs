@@ -44,10 +44,10 @@ public sealed class NativeScenePresenter(
     private readonly NativeActivityLoad _galleryLoad = new();
     private readonly List<VocabularyWord> _vocabulary = [];
     private readonly List<NativeSceneResult> _results = [];
-    private readonly Dictionary<int, byte[]?> _bytes = [];
-    private readonly LinkedList<int> _bytesOrder = new();
+    private readonly Dictionary<string, byte[]?> _bytes = new(StringComparer.Ordinal);
+    private readonly LinkedList<string> _bytesOrder = new();
     private readonly List<SceneImage> _gallery = [];
-    private readonly HashSet<int> _selected = [];
+    private readonly HashSet<string> _selected = new(StringComparer.Ordinal);
     private NativeActivityLaunch? _launch;
     private NativeSceneState _state = new(NativePhase.Idle);
     private ImmutableArray<NativeMessage> _notices = [];
@@ -349,7 +349,7 @@ public sealed class NativeScenePresenter(
     /// makes the image current, clears the graded list and closes the gallery.
     /// While a grade is in flight the scene does not change.
     /// </summary>
-    public async Task<NativeSceneState> TapGalleryItemAsync(int id,
+    public async Task<NativeSceneState> TapGalleryItemAsync(string id,
         CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
@@ -838,7 +838,7 @@ public sealed class NativeScenePresenter(
         _newUrl = string.Empty;
     }
 
-    private void Remember(int id, byte[]? bytes)
+    private void Remember(string id, byte[]? bytes)
     {
         if (_bytes.ContainsKey(id))
             _bytesOrder.Remove(id);
@@ -858,7 +858,7 @@ public sealed class NativeScenePresenter(
         }
     }
 
-    private void Forget(int id)
+    private void Forget(string id)
     {
         if (_bytes.Remove(id))
             _bytesOrder.Remove(id);
@@ -891,13 +891,14 @@ public sealed class NativeScenePresenter(
         NativeSceneGallery? gallery = null;
         if (_galleryOpen)
             gallery = new(_galleryLoading,
-                [.. _gallery.Select(item =>
+                [.. _gallery.Select((item, index) =>
                 {
                     var known = _bytes.TryGetValue(item.Id, out var bytes);
                     return new NativeSceneGalleryItem(item.Id,
                         bytes is not null ? NativeSceneImageLoad.Loaded
                         : known ? NativeSceneImageLoad.Failed : NativeSceneImageLoad.Loading,
-                        bytes, item.Id == _current?.Id, _selected.Contains(item.Id));
+                        bytes, item.Id == _current?.Id, _selected.Contains(item.Id))
+                    { Number = index + 1 };
                 })],
                 _selecting, _selected.Count, _newUrl, _saving);
         return new(

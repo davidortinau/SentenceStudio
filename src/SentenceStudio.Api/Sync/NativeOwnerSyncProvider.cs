@@ -510,6 +510,9 @@ internal sealed class NativeOwnerSyncProvider(
             "StreamHistory" => DirectOwnersAsync<StreamHistory>(db, ids, "UserProfileId", ct),
             "ConversationMemoryState" => DirectOwnersAsync<ConversationMemoryState>(db, ids, "UserProfileId", ct),
             "ActivitySession" => DirectOwnersAsync<ActivitySession>(db, ids, "UserId", ct),
+            "SceneImage" => DirectOwnersAsync<SceneImage>(db, ids, "UserProfileId", ct),
+            "ConversationScenario" => DirectOwnersAsync<ConversationScenario>(db, ids, "UserProfileId", ct),
+            "ExampleSentence" => DirectOwnersAsync<ExampleSentence>(db, ids, "UserProfileId", ct),
             "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
             "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
             "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),
@@ -703,6 +706,17 @@ internal sealed class NativeOwnerSyncProvider(
             "MinimalPairAttempt" => Value(item, "UserId") == owner
                 && keys.WordIds.Contains(Value(item, "PromptWordId") ?? string.Empty)
                 && keys.WordIds.Contains(Value(item, "SelectedWordId") ?? string.Empty),
+            // Phase 3: a photo stored on one device and a built-in scenario never travel; rows
+            // with no owner (saved before these tables had one) never match an owner.
+            "SceneImage" => Value(item, "UserProfileId") == owner
+                && !SceneImage.IsDevicePhoto(Value(item, "Url")),
+            "ConversationScenario" => Value(item, "UserProfileId") == owner
+                && !SyncIds.IsBuiltInScenario(id),
+            // An example travels with a word this owner can see, and only from their resource.
+            "ExampleSentence" => Value(item, "UserProfileId") == owner
+                && keys.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)
+                && (string.IsNullOrEmpty(Value(item, "LearningResourceId"))
+                    || keys.ResourceIds.Contains(Value(item, "LearningResourceId")!)),
             _ => false,
         };
     }

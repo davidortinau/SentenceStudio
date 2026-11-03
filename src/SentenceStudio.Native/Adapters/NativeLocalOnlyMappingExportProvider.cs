@@ -186,18 +186,47 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         var kept = changes.Items.Where(item => !IsDeviceOnlyRow(item)).ToArray();
         if (kept.Length == changes.Items.Count)
             return changes;
-        logger.LogDebug("Native sync kept {Count} device-only {Table} rows local.",
-            changes.Items.Count - kept.Length, ActivitySessionTable);
+        var deletes = changes.Items.Count(item => item.ChangeType == ChangeType.Delete
+            && item.TableName != MappingTable);
+        logger.LogInformation(
+            "Native sync kept {Count} device-only rows local, {Deletes} of them deletes the server does not accept yet.",
+            changes.Items.Count - kept.Length, deletes);
         return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, kept);
     }
 
     private const string ActivitySessionTable = "ActivitySession";
 
-    internal static bool IsDeviceOnlyRow(SyncItem item) =>
-        item.TableName == ActivitySessionTable
-        && ActivitySessionTypes.IsDeviceOnly(
-            item.Values.TryGetValue("ActivityType", out var type) ? type?.Value as string : null,
-            item.Values.TryGetValue("Id", out var id) ? id?.Value as string : null);
+    /// <summary>
+    /// Rows that never leave this device:
+    /// <list type="bullet">
+    /// <item>quiz answer receipts (phase 2b);</item>
+    /// <item>phase 3 rows with no owner (saved before these tables had one, D3), photos stored on
+    /// this device and built-in scenarios (Captain 2026-11-03);</item>
+    /// <item>deletes: the server refuses every delete from a device (it cannot prove what a
+    /// delete carrying only an ID removes), and one refused item would block the whole upload.
+    /// A delete therefore stays on this device; the server and other clients keep the row.
+    /// Word-link deletes are the exception: the code below proves and resolves local undo
+    /// pairs.</item>
+    /// </list>
+    /// </summary>
+    internal static bool IsDeviceOnlyRow(SyncItem item)
+    {
+        string? Text(string column) =>
+            item.Values.TryGetValue(column, out var value) ? value?.Value?.ToString() : null;
+
+        if (item.ChangeType == ChangeType.Delete)
+            return item.TableName != MappingTable;
+        return item.TableName switch
+        {
+            ActivitySessionTable => ActivitySessionTypes.IsDeviceOnly(Text("ActivityType"), Text("Id")),
+            "SceneImage" => string.IsNullOrEmpty(Text("UserProfileId"))
+                || SceneImage.IsDevicePhoto(Text("Url")),
+            "ConversationScenario" => string.IsNullOrEmpty(Text("UserProfileId"))
+                || SentenceStudio.Services.SyncIds.IsBuiltInScenario(Text("Id")),
+            "ExampleSentence" => string.IsNullOrEmpty(Text("UserProfileId")),
+            _ => false
+        };
+    }
 
     private static bool IsMappingDelete(SyncItem item) =>
         item.TableName == MappingTable

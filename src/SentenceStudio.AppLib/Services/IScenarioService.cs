@@ -19,7 +19,7 @@ public interface IScenarioService
     /// <summary>
     /// Gets a scenario by ID.
     /// </summary>
-    Task<ConversationScenario?> GetScenarioAsync(int id);
+    Task<ConversationScenario?> GetScenarioAsync(string id);
 
     /// <summary>
     /// Gets predefined scenarios only.
@@ -53,7 +53,7 @@ public interface IScenarioService
     /// <summary>
     /// Deletes a user scenario.
     /// </summary>
-    Task<bool> DeleteScenarioAsync(int id);
+    Task<bool> DeleteScenarioAsync(string id);
 
     // ============================================
     // CONVERSATIONAL CREATION

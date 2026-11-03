@@ -473,8 +473,8 @@ internal sealed class SceneScreen : IActivityScreen
         var tile = Views.VStack(parts.ToArray()).WithPadding(4);
         tile.Spacing = 4;
         var label = item.IsCurrent
-            ? $"{text(NativeSceneText.SceneImage)} {item.Id}, {text(NativeSceneText.Current)}"
-            : $"{text(NativeSceneText.SceneImage)} {item.Id}";
+            ? $"{text(NativeSceneText.SceneImage)} {item.Number}, {text(NativeSceneText.Current)}"
+            : $"{text(NativeSceneText.SceneImage)} {item.Number}";
         var button = Views.Button(item.IsChecked || item.IsCurrent
                     ? style.BorderedCard(tile) : style.Card(tile),
                 () => Fire(token => _presenter.TapGalleryItemAsync(item.Id, token)))

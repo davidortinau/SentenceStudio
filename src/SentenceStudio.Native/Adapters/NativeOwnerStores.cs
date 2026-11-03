@@ -124,6 +124,8 @@ public sealed class NativeOwnerStores
                 _afterMigrate?.Invoke(db);
                 if (_claimPreferences is { } preferences)
                     await ClaimLegacyQuizSavesOnceAsync(db, owner, preferences, cancellationToken);
+                if (path != LegacyPath)
+                    await AdoptUnownedRowsAsync(db, owner, cancellationToken);
                 _migrated[path] = true;
             }
             _active = new ActiveStore(owner, path);
@@ -160,6 +162,26 @@ public sealed class NativeOwnerStores
     }
 
     internal const string LegacyQuizClaimKey = "native.legacyQuizRunsClaimed.";
+
+    /// <summary>
+    /// Scene images, custom scenarios and example sentences had no owner before phase 3 of
+    /// docs/sync-all-tables-plan.md. Every row in a per-learner database was written while that
+    /// learner was signed in, so it is theirs (Captain 2026-11-03); it gets the owner here and
+    /// then syncs. The pre-account device database is never passed here: its rows stay unowned
+    /// and local (D3). Built-in scenarios belong to nobody. Runs at activation, before any sync;
+    /// the server never sends a row without an owner, so later runs find nothing.
+    /// </summary>
+    internal static async Task<int> AdoptUnownedRowsAsync(
+        ApplicationDbContext db, string owner, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        return await db.Database.ExecuteSqlRawAsync("""
+            UPDATE "SceneImage" SET "UserProfileId" = {0} WHERE "UserProfileId" IS NULL;
+            UPDATE "ConversationScenario" SET "UserProfileId" = {0}
+                WHERE "UserProfileId" IS NULL AND "IsPredefined" = 0 AND "Id" NOT LIKE 'scn:%';
+            UPDATE "ExampleSentence" SET "UserProfileId" = {0} WHERE "UserProfileId" IS NULL;
+            """, [owner], cancellationToken);
+    }
 
     internal static async Task<int> ClaimLegacyQuizSavesAsync(
         ApplicationDbContext db, string owner, string installId, CancellationToken cancellationToken)

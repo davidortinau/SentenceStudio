@@ -4,6 +4,6 @@ namespace SentenceStudio.Shared.Models;
 /// Target-language-only sentence content safe to expose as a Vocab Quiz hint.
 /// </summary>
 public sealed record VocabQuizSentenceHint(
-    int ExampleSentenceId,
+    string ExampleSentenceId,
     string VocabularyWordId,
     string TargetSentence);

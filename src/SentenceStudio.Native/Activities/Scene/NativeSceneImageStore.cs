@@ -11,25 +11,26 @@ namespace SentenceStudio.Native;
 
 /// <summary>
 /// The source SceneImageService over the native owner's database, plus image
-/// bytes. SceneImage has no owner column and is not in the CoreSync set
-/// (SharedSyncRegistration), so nothing here is uploaded and no row can block
-/// owner-scoped sync; the native ApplicationDbContext opens only the active
-/// owner's SQLite file (NativeOwnerStores), which is what keeps one account's
-/// gallery out of another's. Every call also names the owner and refuses an
-/// absent or inactive one.
+/// bytes. Every call names the owner and refuses an absent or inactive one; rows
+/// carry their owner (phase 3 of docs/sync-all-tables-plan.md), and images saved
+/// before that with no owner stay visible here and never sync (D3). The native
+/// ApplicationDbContext also opens only the active owner's SQLite file
+/// (NativeOwnerStores).
 /// <para>
 /// URL images (the source's only add path) are fetched without credentials
 /// through <see cref="NativeRemotePhotoLoader"/> (HTTPS only, bounded). Photos
 /// chosen in the system picker (Captain, 2026-11-01) are stored as files under
 /// <c>{AppData}/SceneImages/{owner}/</c> and referenced by a relative
 /// <c>native-scene-image:</c> URL, so they survive the app container moving
-/// and resolve only inside the owner's own folder. The API has no image
-/// upload endpoint and the table is local-only, so nothing is uploaded.
+/// and resolve only inside the owner's own folder. URL images sync to the
+/// owner's other clients; a photo row stays on this device (Captain 2026-11-03),
+/// because the API has no image storage and another client could not show it
+/// (<see cref="SceneImage.IsDevicePhoto"/>).
 /// </para>
 /// </summary>
 public sealed partial class NativeSceneImageStore : INativeSceneImageStore, IDisposable
 {
-    public const string LocalScheme = "native-scene-image:";
+    public const string LocalScheme = SceneImage.DevicePhotoScheme;
     public const int MaxImageBytes = 8 * 1024 * 1024;
     internal const string Folder = "SceneImages";
 
@@ -64,7 +65,7 @@ public sealed partial class NativeSceneImageStore : INativeSceneImageStore, IDis
             return [];
         using var scope = _scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SceneImages.AsNoTracking().OrderBy(image => image.Id)
+        return await Visible(db, owner).AsNoTracking().OrderBy(image => image.Id)
             .ToListAsync(cancellationToken);
     }
 
@@ -112,7 +113,7 @@ public sealed partial class NativeSceneImageStore : INativeSceneImageStore, IDis
         }
     }
 
-    public async Task<int> DeleteAsync(string owner, IReadOnlyCollection<int> ids,
+    public async Task<int> DeleteAsync(string owner, IReadOnlyCollection<string> ids,
         CancellationToken cancellationToken)
     {
         if (!_owner.IsActive(owner) || ids.Count == 0)
@@ -121,7 +122,7 @@ public sealed partial class NativeSceneImageStore : INativeSceneImageStore, IDis
         using (var scope = _scopes.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            rows = await db.SceneImages.Where(image => ids.Contains(image.Id))
+            rows = await Visible(db, owner).Where(image => ids.Contains(image.Id))
                 .ToListAsync(cancellationToken);
             if (rows.Count == 0)
                 return 0;
@@ -188,10 +189,19 @@ public sealed partial class NativeSceneImageStore : INativeSceneImageStore, IDis
             return null;
         using var scope = _scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        image.UserProfileId = owner;
         db.SceneImages.Add(image);
         await db.SaveChangesAsync(cancellationToken);
-        return new SceneImage { Id = image.Id, Url = image.Url, Description = image.Description };
+        return new SceneImage
+        {
+            Id = image.Id, Url = image.Url, Description = image.Description,
+            UserProfileId = image.UserProfileId
+        };
     }
+
+    /// <summary>The owner's images, and images saved before images had an owner (D3).</summary>
+    private static IQueryable<SceneImage> Visible(ApplicationDbContext db, string owner) =>
+        db.SceneImages.Where(image => image.UserProfileId == owner || image.UserProfileId == null);
 
     /// <summary>Owner IDs are server GUIDs; anything else has no folder and fails closed.</summary>
     private string? OwnerDirectory(string owner) =>

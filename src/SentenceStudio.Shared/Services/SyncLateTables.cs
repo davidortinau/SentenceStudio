@@ -34,6 +34,14 @@ public static class SyncLateTables
             ["StreamHistory"] = "UserProfileId",
             ["ConversationMemoryState"] = "UserProfileId",
             ["ActivitySession"] = "UserId",
+            ["SceneImage"] = "UserProfileId",
+            ["ConversationScenario"] = "UserProfileId",
+            ["ExampleSentence"] = "UserProfileId",
+            // Not late-joined: phase 3 rebuilt this table on SQLite to change ScenarioId, which
+            // drops its tracking triggers. Listing it re-sends the owner's conversations once,
+            // with their converted scenario links, the first time the device tracks it again.
+            // The server's table was altered in place and stays tracked, so it is not touched.
+            ["Conversation"] = "UserProfileId",
         };
 
     /// <summary>Late tables that this store has not provisioned yet. Call before provisioning.</summary>

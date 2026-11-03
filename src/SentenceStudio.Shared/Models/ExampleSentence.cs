@@ -5,8 +5,17 @@ namespace SentenceStudio.Shared.Models;
 
 public class ExampleSentence
 {
-    public int Id { get; set; }
-    
+    /// <summary>Text ID, unique on every client, so the row can sync (phase 3).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// The learner the sentence belongs to: its word's or resource's owner, or the learner who
+    /// created it. Null only for rows saved before sentences had an owner with no proven owner;
+    /// those stay where they are and never sync (D3). Never serialized.
+    /// </summary>
+    [JsonIgnore]
+    public string? UserProfileId { get; set; }
+
     public string VocabularyWordId { get; set; } = string.Empty;
     
     public string? LearningResourceId { get; set; }

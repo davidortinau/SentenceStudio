@@ -844,8 +844,8 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("ScenarioId")
-                        .HasColumnType("integer");
+                    b.Property<string>("ScenarioId")
+                        .HasColumnType("text");
 
                     b.Property<string>("UserProfileId")
                         .HasColumnType("text");
@@ -949,11 +949,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationScenario", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<int>("ConversationType")
                         .HasColumnType("integer");
@@ -994,7 +991,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("ConversationScenario", (string)null);
                 });
@@ -1177,11 +1179,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<string>("AudioUri")
                         .HasMaxLength(2000)
@@ -1223,6 +1222,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("text");
+
                     b.Property<string>("VocabularyWordId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1230,6 +1232,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LearningResourceId");
+
+                    b.HasIndex("UserProfileId");
 
                     b.HasIndex("VocabularyWordId");
 
@@ -1803,11 +1807,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.SceneImage", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
@@ -1818,7 +1819,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("Url")
                         .HasColumnType("text");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("SceneImage", (string)null);
                 });
@@ -2473,16 +2479,6 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired();
 
                     b.Navigation("Operation");
-                });
-
-            modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
-                {
-                    b.HasOne("SentenceStudio.Shared.Models.ConversationScenario", "Scenario")
-                        .WithMany()
-                        .HasForeignKey("ScenarioId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Scenario");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationChunk", b =>

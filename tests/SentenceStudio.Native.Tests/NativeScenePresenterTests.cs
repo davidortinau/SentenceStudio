@@ -40,14 +40,14 @@ public sealed class NativeScenePresenterTests
         await fixture.SeedAsync(owner, wordCount: 4);
         await SignInAsync(fixture, NativeSliceFixture.EmailA);
         var store = new FakeImageStore();
-        store.Images.Add(new SceneImage { Id = 7, Url = "https://example.invalid/park.jpg", Description = "A park" });
+        store.Images.Add(new SceneImage { Id = "7", Url = "https://example.invalid/park.jpg", Description = "A park" });
         var ai = new FakeSceneAi();
         using var scene = Presenter(fixture, store, ai);
 
         var state = await scene.OpenAsync(ChooseOwnLaunch(fixture, owner));
 
         Assert.Equal(NativePhase.Ready, state.Phase);
-        Assert.Equal(7, state.Image!.Id);
+        Assert.Equal("7", state.Image!.Id);
         Assert.Equal(NativeSceneImageLoad.Loaded, state.Image.Load);
         Assert.Equal(Png, state.Image.Bytes);
         Assert.Empty(state.Results);
@@ -113,10 +113,10 @@ public sealed class NativeScenePresenterTests
         }
 
         // New scene keeps the graded list (source LoadNewScene does not clear it).
-        store.Images.Add(new SceneImage { Id = 8, Url = "https://example.invalid/b.jpg" });
-        store.RandomPick = images => images.Single(image => image.Id == 8);
+        store.Images.Add(new SceneImage { Id = "8", Url = "https://example.invalid/b.jpg" });
+        store.RandomPick = images => images.Single(image => image.Id == "8");
         state = await scene.NewSceneAsync();
-        Assert.Equal(8, state.Image!.Id);
+        Assert.Equal("8", state.Image!.Id);
         Assert.Equal(3, state.Results.Length);
 
         var exit = await scene.ExitAsync();
@@ -202,7 +202,7 @@ public sealed class NativeScenePresenterTests
         Assert.True(scene.State.IsGrading);
         // Rule 4: changing the scene waits for the grade.
         Assert.False(scene.State.CanChangeScene);
-        Assert.Equal(1, (await scene.NewSceneAsync()).Image!.Id);
+        Assert.Equal("1", (await scene.NewSceneAsync()).Image!.Id);
 
         var watch = Stopwatch.StartNew();
         var exit = await scene.ExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
@@ -290,8 +290,8 @@ public sealed class NativeScenePresenterTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         await SignInAsync(fixture, NativeSliceFixture.EmailA);
         var store = new FakeImageStore();
-        store.Images.Add(new SceneImage { Id = 1, Url = "https://example.invalid/1.jpg" });
-        store.Images.Add(new SceneImage { Id = 2, Url = "https://example.invalid/2.jpg", Description = "Two" });
+        store.Images.Add(new SceneImage { Id = "1", Url = "https://example.invalid/1.jpg" });
+        store.Images.Add(new SceneImage { Id = "2", Url = "https://example.invalid/2.jpg", Description = "Two" });
         store.RandomPick = images => images[0];
         var ai = new FakeSceneAi();
         using var scene = Presenter(fixture, store, ai);
@@ -302,14 +302,14 @@ public sealed class NativeScenePresenterTests
         var state = await scene.OpenGalleryAsync();
         Assert.NotNull(state.Gallery);
         Assert.False(state.Gallery!.IsLoading);
-        Assert.Equal([1, 2], state.Gallery.Items.Select(item => item.Id).ToArray());
+        Assert.Equal(["1", "2"], state.Gallery.Items.Select(item => item.Id).ToArray());
         Assert.True(state.Gallery.Items[0].IsCurrent);
         Assert.All(state.Gallery.Items, item => Assert.Equal(NativeSceneImageLoad.Loaded, item.Load));
 
         // Tap switches the scene, clears results and closes the gallery.
-        state = await scene.TapGalleryItemAsync(2);
+        state = await scene.TapGalleryItemAsync("2");
         Assert.Null(state.Gallery);
-        Assert.Equal(2, state.Image!.Id);
+        Assert.Equal("2", state.Image!.Id);
         Assert.Empty(state.Results);
         scene.SetDraft("둘");
         await scene.GradeAsync();
@@ -340,15 +340,15 @@ public sealed class NativeScenePresenterTests
         state = await scene.ToggleSelectModeAsync();
         Assert.True(state.Gallery!.IsSelecting);
         Assert.False(state.Gallery.CanDelete);
-        await scene.TapGalleryItemAsync(1);
-        await scene.TapGalleryItemAsync(2);
-        state = await scene.TapGalleryItemAsync(1);
+        await scene.TapGalleryItemAsync("1");
+        await scene.TapGalleryItemAsync("2");
+        state = await scene.TapGalleryItemAsync("1");
         Assert.Equal(1, state.Gallery!.SelectedCount);
-        Assert.Equal(2, state.Image!.Id);
+        Assert.Equal("2", state.Image!.Id);
         state = await scene.DeleteSelectedAsync();
         Assert.Contains(state.Notices, notice => notice.Key == NativeSceneText.Deleted && notice.Argument == "1");
         Assert.False(state.Gallery!.IsSelecting);
-        Assert.DoesNotContain(state.Gallery.Items, item => item.Id == 2);
+        Assert.DoesNotContain(state.Gallery.Items, item => item.Id == "2");
         Assert.Equal(NativePhase.Empty, state.Phase);
         Assert.Null(state.Image);
 
@@ -507,7 +507,7 @@ public sealed class NativeScenePresenterTests
         public static FakeImageStore WithOne()
         {
             var store = new FakeImageStore();
-            store.Images.Add(new SceneImage { Id = 1, Url = "https://example.invalid/1.jpg" });
+            store.Images.Add(new SceneImage { Id = "1", Url = "https://example.invalid/1.jpg" });
             return store;
         }
 
@@ -533,7 +533,7 @@ public sealed class NativeScenePresenterTests
             return Task.FromResult<SceneImage?>(image);
         }
 
-        public Task<int> DeleteAsync(string owner, IReadOnlyCollection<int> ids, CancellationToken cancellationToken) =>
+        public Task<int> DeleteAsync(string owner, IReadOnlyCollection<string> ids, CancellationToken cancellationToken) =>
             Task.FromResult(Images.RemoveAll(image => ids.Contains(image.Id)));
 
         public async Task<byte[]?> LoadBytesAsync(string owner, SceneImage image,

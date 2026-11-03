@@ -259,8 +259,8 @@ else
     private bool isSelecting;
     private string newImageUrl = "";
     private List<SceneImage> galleryImages = new();
-    private HashSet<int> selectedImageIds = new();
-    private int currentSceneId;
+    private HashSet<string> selectedImageIds = new();
+    private string? currentSceneId;
 
     protected override async Task OnInitializedAsync()
     {

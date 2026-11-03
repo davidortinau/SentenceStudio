@@ -3,6 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
 
+/// <summary>
+/// The learner's Describe a Scene images (web and MAUI). Every read and write is scoped to the
+/// active learner (<see cref="ActiveOwner"/>); with no learner it returns nothing and writes
+/// nothing. Images saved before they had an owner stay visible only on the device that holds
+/// them, never on the multi-tenant server, and never sync (phase 3, D3).
+/// </summary>
 public class SceneImageService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -16,34 +22,58 @@ public class SceneImageService
         _logger = logger;
     }
 
+    private static IQueryable<SceneImage> Visible(ApplicationDbContext db, string owner) =>
+        ActiveOwner.ShowsUnownedRows(db)
+            ? db.SceneImages.Where(image => image.UserProfileId == owner || image.UserProfileId == null)
+            : db.SceneImages.Where(image => image.UserProfileId == owner);
+
     public async Task<List<SceneImage>> ListAsync()
     {
         using var scope = _serviceProvider.CreateScope();
+        if (!ActiveOwner.TryResolve(scope.ServiceProvider, _logger, nameof(ListAsync), out var owner))
+            return [];
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SceneImages.ToListAsync();
+        return await Visible(db, owner).ToListAsync();
     }
 
-    public async Task<SceneImage> GetAsync(string url)
+    public async Task<SceneImage?> GetAsync(string url)
     {
         using var scope = _serviceProvider.CreateScope();
+        if (!ActiveOwner.TryResolve(scope.ServiceProvider, _logger, nameof(GetAsync), out var owner))
+            return null;
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SceneImages.Where(i => i.Url == url).FirstOrDefaultAsync();
+        return await Visible(db, owner).Where(i => i.Url == url).FirstOrDefaultAsync();
     }
 
     public async Task<int> SaveAsync(SceneImage item)
     {
         using var scope = _serviceProvider.CreateScope();
+        if (!ActiveOwner.TryResolve(scope.ServiceProvider, _logger, nameof(SaveAsync), out var owner))
+            return -1;
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            if (item.Id != 0)
+            var stored = await db.SceneImages.AsNoTracking()
+                .Where(image => image.Id == item.Id)
+                .Select(image => new { image.UserProfileId })
+                .SingleOrDefaultAsync();
+            if (stored is null)
             {
+                item.UserProfileId = owner;
+                db.SceneImages.Add(item);
+            }
+            else if (stored.UserProfileId == owner
+                || (stored.UserProfileId is null && ActiveOwner.ShowsUnownedRows(db)))
+            {
+                // The stored owner is kept; a caller cannot move an image to another learner.
+                item.UserProfileId = stored.UserProfileId;
                 db.SceneImages.Update(item);
             }
             else
             {
-                db.SceneImages.Add(item);
+                _logger.LogWarning("SceneImageService.SaveAsync refused an image outside the active learner.");
+                return -1;
             }
 
             int result = await db.SaveChangesAsync();
@@ -55,10 +85,6 @@ public class SceneImageService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred in SaveAsync");
-            if (item.Id == 0)
-            {
-                // UXDivers popup removed - error already logged above
-            }
             return -1;
         }
     }
@@ -66,11 +92,16 @@ public class SceneImageService
     public async Task<int> DeleteAsync(SceneImage item)
     {
         using var scope = _serviceProvider.CreateScope();
+        if (!ActiveOwner.TryResolve(scope.ServiceProvider, _logger, nameof(DeleteAsync), out var owner))
+            return -1;
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            db.SceneImages.Remove(item);
+            var stored = await Visible(db, owner).SingleOrDefaultAsync(image => image.Id == item.Id);
+            if (stored is null)
+                return 0;
+            db.SceneImages.Remove(stored);
             int result = await db.SaveChangesAsync();
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
@@ -84,22 +115,9 @@ public class SceneImageService
         }
     }
 
-    public async Task<SceneImage> GetRandomAsync()
+    public async Task<SceneImage?> GetRandomAsync()
     {
-        using var scope = _serviceProvider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var images = await db.SceneImages.ToListAsync();
-        if (images.Count > 0)
-        {
-            var random = new Random();
-            var index = random.Next(0, images.Count);
-            var image = images[index];
-            return image;
-        }
-        else
-        {
-            return null;
-        }
+        var images = await ListAsync();
+        return images.Count > 0 ? images[Random.Shared.Next(images.Count)] : null;
     }
 }

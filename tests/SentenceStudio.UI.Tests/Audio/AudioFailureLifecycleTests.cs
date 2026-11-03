@@ -103,8 +103,8 @@ public class AudioFailureLifecycleTests
         var gateway = new RecordingAiGateway();
         using var services = CreateConversationServices(gateway);
         var conversation = new Conversation();
-        var original = new ConversationScenario { Id = 1, Name = "First", PersonaName = "First guide" };
-        var selected = new ConversationScenario { Id = 2, Name = "Second", PersonaName = "Second guide" };
+        var original = new ConversationScenario { Id = "1", Name = "First", PersonaName = "First guide" };
+        var selected = new ConversationScenario { Id = "2", Name = "Second", PersonaName = "Second guide" };
         SetMember(conversation, "ConversationSvc", services.GetRequiredService<ConversationService>());
         SetMember(conversation, "JS", js);
         SetMember(conversation, "Logger", logger);
@@ -156,8 +156,8 @@ public class AudioFailureLifecycleTests
         var toasts = new List<ToastMessage>();
         toast.OnShow += toasts.Add;
         var conversation = new Conversation();
-        var original = new ConversationScenario { Id = 1, Name = "First", PersonaName = "First guide" };
-        var selected = new ConversationScenario { Id = 2, Name = "Second", PersonaName = "Second guide" };
+        var original = new ConversationScenario { Id = "1", Name = "First", PersonaName = "First guide" };
+        var selected = new ConversationScenario { Id = "2", Name = "Second", PersonaName = "Second guide" };
         SetMember(conversation, "ConversationSvc", services.GetRequiredService<ConversationService>());
         SetMember(conversation, "JS", js);
         SetMember(conversation, "Logger", logger);

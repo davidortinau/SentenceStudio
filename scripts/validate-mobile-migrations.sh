@@ -13,8 +13,8 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20261103151517_SyncTextIdsPhase2b"
-EXPECTED_PREVIOUS_MIGRATION="20261103015116_SyncTextIdsPhase2a"
+EXPECTED_SCHEMA_MIGRATION="20261103230000_SyncOwnersPhase3"
+EXPECTED_PREVIOUS_MIGRATION="20261103151517_SyncTextIdsPhase2b"
 PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
@@ -995,16 +995,34 @@ expected_word_owner_indexes = [(word_owner_index, 0, "c", 0, ("UserProfileId",))
 if word_owner_indexes != expected_word_owner_indexes:
     errors.append("VocabularyWord: owner index contract mismatch")
 
-# Phase 2b (docs/sync-all-tables-plan.md): ActivitySession IDs become text; the one
+# Phase 2b (docs/sync-all-tables-plan.md): ActivitySession IDs are text; the one
 # in-progress run per learner + activity + launch stays unique.
 session_id_columns = [
     (row[1], row[2].upper(), row[5])
     for row in connection.execute('PRAGMA table_info("ActivitySession")')
     if row[1] == "Id"
 ]
-expected_session_id_type = "INTEGER" if phase == "previous" else "TEXT"
-if session_id_columns != [("Id", expected_session_id_type, 1)]:
-    errors.append(f"ActivitySession: {expected_session_id_type} primary key contract mismatch")
+if session_id_columns != [("Id", "TEXT", 1)]:
+    errors.append("ActivitySession: TEXT primary key contract mismatch")
+
+# Phase 3: scene images, conversation scenarios and example sentences get text IDs and an
+# owner; a conversation's scenario link becomes text with no foreign key.
+for table in ("SceneImage", "ConversationScenario", "ExampleSentence"):
+    columns = {row[1]: (row[2].upper(), row[5])
+               for row in connection.execute(f'PRAGMA table_info("{table}")')}
+    expected_id = ("INTEGER", 1) if phase == "previous" else ("TEXT", 1)
+    if columns.get("Id") != expected_id:
+        errors.append(f"{table}: {expected_id[0]} primary key contract mismatch")
+    if (phase == "previous") == ("UserProfileId" in columns):
+        errors.append(f"{table}: owner column contract mismatch")
+scenario_link = [row[2].upper() for row in connection.execute('PRAGMA table_info("Conversation")')
+                 if row[1] == "ScenarioId"]
+if scenario_link != (["INTEGER"] if phase == "previous" else ["TEXT"]):
+    errors.append("Conversation: scenario link type contract mismatch")
+scenario_keys = [row for row in connection.execute('PRAGMA foreign_key_list("Conversation")')
+                 if row[2] == "ConversationScenario"]
+if (len(scenario_keys) == 1) != (phase == "previous"):
+    errors.append("Conversation: scenario foreign key contract mismatch")
 launch_index = connection.execute(
     "SELECT sql FROM sqlite_master WHERE type = 'index' "
     "AND name = 'IX_ActivitySession_UserId_LaunchContextKey'").fetchone()
@@ -1015,7 +1033,7 @@ if launch_index is None or "UNIQUE" not in launch_index[0].upper() \
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, and {phase} activity-session contracts passed.")
+print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, activity-session and {phase} phase 3 owner contracts passed.")
 PY
 }
 

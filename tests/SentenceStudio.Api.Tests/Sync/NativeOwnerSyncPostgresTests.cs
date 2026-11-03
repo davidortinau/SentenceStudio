@@ -1197,7 +1197,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();
         var listId = Guid.NewGuid().ToString();
-        int scenarioId;
+        string scenarioId;
         await using (var db = _fixture.NewContext())
         {
             var scenario = new ConversationScenario

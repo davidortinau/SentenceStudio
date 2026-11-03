@@ -45,7 +45,7 @@ public sealed class VocabQuizSentenceHintPolicyTests
     public void TargetLanguagePrompt_ProjectsAtMostThreeNonEmptyTargetSentences()
     {
         var hints = CreateHints(4)
-            .Append(new VocabQuizSentenceHint(99, "word-a", "   "))
+            .Append(new VocabQuizSentenceHint("99", "word-a", "   "))
             .ToArray();
 
         var visible = VocabQuizSentenceHintPolicy.GetHintsForTurn(false, hints);
@@ -134,7 +134,7 @@ public sealed class VocabQuizSentenceHintPolicyTests
     private static IReadOnlyList<VocabQuizSentenceHint> CreateHints(int count)
         => Enumerable.Range(1, count)
             .Select(index => new VocabQuizSentenceHint(
-                index,
+                index.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "word-a",
                 $"target sentence {index}"))
             .ToArray();
