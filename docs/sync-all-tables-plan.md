@@ -57,11 +57,11 @@ the owner column fixes this for the web as well as enabling sync.
 
 | # | Question | Recommendation | Decision |
 |---|---|---|---|
-| D1 | `RefreshToken` is a server sign-in credential. Exclude it from sync? | Exclude. It must never be on a device. | |
-| D2 | Built-in content (Number Drill catalog, built-in scenarios) is created by each device. Make it identical everywhere, or sync it down from the server? | Fixed IDs derived from each item's code, so every device and the web create the same rows. No sync needed and it works offline on first launch. | |
-| D3 | Existing rows with no provable owner (scene images, stories, grades, custom scenarios, old audio history). AGENTS.md forbids guessing an owner. | Keep them on the device or server where they are, visible only there, and never sync them. New rows get an owner and sync. On the web, hide unowned rows from everyone except through a later verified recovery. | |
-| D4 | Audio history rows point at audio files saved on one device. Syncing the row doesn't move the audio. | Phase 1: sync the history; another device regenerates the audio the first time it is played (costs one speech call). Upload to server storage later if regeneration cost matters. | |
-| D5 | Two devices already have Number Drill progress for the same bucket. Which wins when they first merge? | Keep the one reviewed most recently; keep every attempt row (attempts never conflict). | |
+| D1 | `RefreshToken` is a server sign-in credential. Exclude it from sync? | Exclude. It must never be on a device. | Exclude |
+| D2 | Built-in content (Number Drill catalog, built-in scenarios) is created by each device. Make it identical everywhere, or sync it down from the server? | Fixed IDs derived from each item's code, so every device and the web create the same rows. No sync needed and it works offline on first launch. | Do recommendation |
+| D3 | Existing rows with no provable owner (scene images, stories, grades, custom scenarios, old audio history). AGENTS.md forbids guessing an owner. | Keep them on the device or server where they are, visible only there, and never sync them. New rows get an owner and sync. On the web, hide unowned rows from everyone except through a later verified recovery. | Do recommendation |
+| D4 | Audio history rows point at audio files saved on one device. Syncing the row doesn't move the audio. | Phase 1: sync the history; another device regenerates the audio the first time it is played (costs one speech call). Upload to server storage later if regeneration cost matters. | Do recommendation |
+| D5 | Two devices already have Number Drill progress for the same bucket. Which wins when they first merge? | Keep the one reviewed most recently; keep every attempt row (attempts never conflict). | Do recommendation |
 
 ## Phases
 
