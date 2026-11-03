@@ -121,3 +121,28 @@ describe('browser audio startup and completion', () => {
         assert.deepEqual(calls, ['OnJsPlaybackEnded']);
     });
 });
+
+describe('browser audio playback rate', () => {
+    it('applies a slower rate to the loaded clip and keeps it for playback', async () => {
+        const { interop, players } = createAudioInterop(audio => {
+            audio.paused = false;
+            return Promise.resolve();
+        });
+        await interop.loadFromBase64('SUQz', 'audio/mpeg');
+
+        assert.equal(interop.setPlaybackRate(0.6), true);
+        assert.equal(await interop.startPlayback(null, 1000), true);
+
+        assert.equal(players[0].playbackRate, 0.6);
+    });
+
+    it('refuses a rate when no clip is loaded or the rate is not positive', async () => {
+        const { interop, players } = createAudioInterop(() => Promise.resolve());
+
+        assert.equal(interop.setPlaybackRate(0.6), false);
+        await interop.loadFromBase64('SUQz', 'audio/mpeg');
+        assert.equal(interop.setPlaybackRate(0), false);
+        assert.equal(interop.setPlaybackRate(Number.NaN), false);
+        assert.equal(players[0].playbackRate, undefined);
+    });
+});

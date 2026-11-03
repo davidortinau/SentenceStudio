@@ -97,6 +97,19 @@ window.audioInterop = {
         }
     },
 
+    // Playback speed of the loaded clip (1 = normal); pitch is preserved by the
+    // browser's default preservesPitch. Returns false when nothing is loaded.
+    setPlaybackRate: function (rate) {
+        if (!this._player || !(rate > 0)) return false;
+        try {
+            this._player.playbackRate = rate;
+            return true;
+        } catch (e) {
+            console.warn("[audioInterop] setPlaybackRate failed:", e);
+            return false;
+        }
+    },
+
     getCurrentTime: function () {
         return this._player ? this._player.currentTime : 0;
     },

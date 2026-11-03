@@ -57,7 +57,17 @@ else if (sentences.Any())
             WaveformData="@waveformData"
             Duration="@audioDuration"
             CurrentPosition="@playbackPosition"
+            SeekLabel='@Localize["NativeShadowing_PlaybackPosition"]'
             OnPositionChanged="HandleSeek" />
+    }
+
+    @* Audio that could not be prepared stays reported until the next attempt;
+       the target text above remains the learner's exposure. *@
+    @if (audioIssueKey is not null)
+    {
+        <div class="alert alert-warning mt-3 mb-0 ss-body2" role="alert" id="shadowing-audio-status">
+            <i class="bi bi-exclamation-triangle me-1"></i>@Localize[audioIssueKey]
+        </div>
     }
 }
 else
@@ -125,7 +135,7 @@ else
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
-    [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
     [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -152,6 +162,18 @@ else
     private float[]? waveformData;
     private string voiceId = "";
 
+    // Audio is synthesized once per sentence at normal speed; Slow/Normal is a
+    // playback rate (the synthesize request has no usable speed).
+    private const string AudioOfflineKey = "OfflineAudioUnavailable";
+    private const string AudioFailedKey = "NativeShadowing_AudioFailed";
+    private byte[]? _clip;
+    private int _clipIndex = -1;
+    private int _audioVersion;
+    private string? audioIssueKey;
+
+    /// <summary>The chosen speed as a playback rate (0.6 or 1.0).</summary>
+    private double PlaybackRate => Math.Round(playbackSpeed, 2);
+
     private List<ShadowingSentence> sentences = new();
     private ShadowingSentence currentSentence = new();
     private readonly UiAudioPlayerSession _nativeAudio = new();
@@ -177,7 +199,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to initialize shadowing");
-            Toast.ShowError("Could not load shadowing exercise.");
+            Toast.ShowError(Localize["NativeActivity_LoadFailed"]);
         }
     }
 
@@ -201,7 +223,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load sentences");
-            Toast.ShowError($"Error: {ex.Message}");
+            Toast.ShowError(Localize["NativeActivity_LoadFailed"]);
         }
         finally
         {
@@ -212,33 +234,36 @@ else
     private async Task GenerateAudioForCurrent()
     {
         if (_disposed || string.IsNullOrEmpty(currentSentence.TargetLanguageText)) return;
+        // A newer sentence or speed change supersedes this preparation.
+        var version = ++_audioVersion;
+        var index = currentIndex;
         isBuffering = true;
+        audioIssueKey = null;
         StateHasChanged();
 
         try
         {
-            var vid = !string.IsNullOrEmpty(voiceId) ? voiceId : "echo";
-            // Save to temp and prepare for playback
-            var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "Cache");
-            Directory.CreateDirectory(cacheDir);
-            var tempPath = Path.Combine(cacheDir, $"shadow_{currentIndex}_{Guid.NewGuid():N}.mp3");
-            using var stream = await SpeechService.TextToSpeechAsync(
-                currentSentence.TargetLanguageText, vid, speed: playbackSpeed);
-            if (_disposed) return;
-            using (var fs = File.Create(tempPath))
+            var (audio, issueKey) = await GetClipAsync(index, currentSentence.TargetLanguageText);
+            if (_disposed || version != _audioVersion) return;
+            if (audio is null)
             {
-                await stream.CopyToAsync(fs, _audioLifetime.Token);
+                // The learner is told; Play tries again.
+                audioIssueKey = issueKey ?? AudioFailedKey;
+                await StopAudioAsync();
+                waveformData = null;
+                return;
             }
 
             await StopAudioAsync();
-            if (_disposed) return;
+            if (_disposed || version != _audioVersion) return;
 
             if (_useJsAudio)
             {
-                var bytes = await File.ReadAllBytesAsync(tempPath, _audioLifetime.Token);
-                if (_disposed) return;
                 _browserAudioAttempted = true;
-                await BrowserAudioPlayback.PlayAsync(JS, bytes, _audioLifetime.Token);
+                if (playbackSpeed == 1.0f)
+                    await BrowserAudioPlayback.PlayAsync(JS, audio, _audioLifetime.Token);
+                else
+                    await BrowserAudioPlayback.PlayAtRateAsync(JS, audio, PlaybackRate, _audioLifetime.Token);
                 if (_disposed) return;
                 var duration = await JS.InvokeAsync<double>("audioInterop.getDuration", _audioLifetime.Token);
                 if (!double.IsFinite(duration) || duration <= 0)
@@ -249,7 +274,7 @@ else
             }
             else
             {
-                var player = _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(tempPath));
+                var player = _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(audio));
                 player.PlaybackEnded += (s, e) =>
                 {
                     if (!ReferenceEquals(player, audioPlayer)) return;
@@ -266,6 +291,11 @@ else
         }
         catch (OperationCanceledException) when (_disposed)
         {
+        }
+        catch (Exception ex) when (version != _audioVersion && !_disposed)
+        {
+            // A newer sentence or speed owns the player now; this attempt is moot.
+            Logger.LogWarning(ex, "Superseded shadowing audio preparation failed");
         }
         catch (Exception ex)
         {
@@ -285,13 +315,55 @@ else
             if (!_disposed)
             {
                 Logger.LogError(ex, "Failed to generate audio");
-                Toast.ShowError("Audio playback failed.");
+                audioIssueKey = AudioFailedKey;
             }
         }
         finally
         {
-            isBuffering = false;
+            if (version == _audioVersion)
+                isBuffering = false;
         }
+    }
+
+    /// <summary>
+    /// The sentence's target-language clip at normal speed: kept in memory for the
+    /// current sentence (speed changes and replays reuse it), else synthesized.
+    /// No audio, with the localization key of the reason, when it cannot be had.
+    /// </summary>
+    private async Task<(byte[]? Audio, string? IssueKey)> GetClipAsync(int index, string text)
+    {
+        if (_clip is { Length: > 0 } clip && _clipIndex == index)
+            return (clip, null);
+        if (!Connectivity.IsInternetAvailable)
+            return (null, AudioOfflineKey);
+
+        var vid = !string.IsNullOrEmpty(voiceId) ? voiceId : "echo";
+        using var stream = await SpeechService.TextToSpeechAsync(
+            text, vid, speed: 1.0f, cancellationToken: _audioLifetime.Token);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, _audioLifetime.Token);
+        if (buffer.Length == 0)
+        {
+            // The speech service returns an empty stream when synthesis fails.
+            Logger.LogWarning("Shadowing speech synthesis returned no audio.");
+            return (null, AudioFailedKey);
+        }
+
+        var audio = buffer.ToArray();
+        if (index == currentIndex)
+        {
+            _clip = audio;
+            _clipIndex = index;
+        }
+        return (audio, null);
+    }
+
+    /// <summary>Starts the native player at the chosen speed (the rate is applied right before Play).</summary>
+    private void PlayNative(IUiAudioPlayer player)
+    {
+        if (!player.TrySetPlaybackRate(PlaybackRate) && playbackSpeed != 1.0f)
+            Logger.LogWarning("This audio player cannot change speed; playing at normal speed.");
+        player.Play();
     }
 
     private static float[] GeneratePlaceholderWaveform()
@@ -327,7 +399,7 @@ else
         {
             await GenerateAudioForCurrent();
             if (audioPlayer is null) return;
-            audioPlayer.Play();
+            PlayNative(audioPlayer);
             isAudioPlaying = true;
             StartPlaybackTimer();
             return;
@@ -346,7 +418,7 @@ else
             {
                 audioPlayer.Seek(0);
             }
-            audioPlayer.Play();
+            PlayNative(audioPlayer);
             isAudioPlaying = true;
             StartPlaybackTimer();
         }
@@ -364,20 +436,47 @@ else
         }
         else if (audioPlayer is not null)
         {
-            audioPlayer.Play();
+            PlayNative(audioPlayer);
             isAudioPlaying = true;
             StartPlaybackTimer();
         }
     }
 
-    private Task HandleSeek(double position)
+    /// <summary>
+    /// Waveform seek to a 0..1 fraction of the clip. The native player seeks
+    /// whether playing or paused; browser audio has no pause here (Play
+    /// restarts the clip), so it seeks while playing.
+    /// </summary>
+    private async Task HandleSeek(double position)
     {
-        playbackPosition = position;
+        if (_disposed || isBuffering || !double.IsFinite(position)) return;
+        position = Math.Clamp(position, 0, 1);
         if (audioPlayer is not null)
         {
-            audioPlayer.Seek(position * audioPlayer.Duration);
+            var duration = audioPlayer.Duration;
+            if (duration <= 0) return;
+            audioPlayer.Seek(position * duration);
+            playbackPosition = position;
         }
-        return Task.CompletedTask;
+        else if (_useJsAudio && _browserAudioAttempted && isAudioPlaying
+                 && audioDuration > TimeSpan.Zero)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("audioInterop.seekTo", _audioLifetime.Token,
+                    position * audioDuration.TotalSeconds);
+                playbackPosition = position;
+            }
+            catch (OperationCanceledException) when (_disposed)
+            {
+            }
+            catch (Exception ex) when (ex is JSException or JSDisconnectedException
+                or OperationCanceledException)
+            {
+                // The playhead stays where the browser is; playback continues.
+                Logger.LogWarning(ex, "Shadowing browser seek failed");
+            }
+        }
     }
 
     private async Task NextSentence()
@@ -430,10 +529,11 @@ else
                 }
                 else if (_useJsAudio && isAudioPlaying)
                 {
-                    // For JS audio, estimate position based on elapsed time
+                    // For JS audio, estimate position based on elapsed time at the playback rate
                     if (audioDuration.TotalSeconds > 0)
                     {
-                        playbackPosition = Math.Min(1.0, playbackPosition + (0.1 / audioDuration.TotalSeconds));
+                        playbackPosition = Math.Min(1.0,
+                            playbackPosition + (0.1 * PlaybackRate / audioDuration.TotalSeconds));
                         if (playbackPosition >= 1.0)
                         {
                             isAudioPlaying = false;
