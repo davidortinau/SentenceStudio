@@ -1,6 +1,6 @@
 @using SentenceStudio.Shared.Models
 
-<div class="interactive-text" @onclick="HandleContainerClick">
+<div class="interactive-text">
     @if (_sentenceSpans is not null)
     {
         @for (int si = 0; si < _sentenceSpans.Count; si++)
@@ -9,6 +9,7 @@
             var sentence = _sentenceSpans[si];
             <span class="sentence @(sentenceIndex == SelectedSentenceIndex ? "sentence--selected" : "")"
                   data-sentence="@sentenceIndex"
+                  @onclick="() => OnSentenceClicked.InvokeAsync(sentenceIndex)"
                   @ondblclick="() => OnSentenceDoubleClicked.InvokeAsync(sentenceIndex)"
                   @ondblclick:stopPropagation="true">
                 @foreach (var word in sentence)
@@ -166,11 +167,5 @@
         {
             await OnWordClicked.InvokeAsync(word.Text);
         }
-    }
-
-    private async Task HandleContainerClick(MouseEventArgs e)
-    {
-        // Sentence click is handled via the data attribute on sentence spans
-        // This provides a fallback for clicking non-word areas within a sentence
     }
 }
