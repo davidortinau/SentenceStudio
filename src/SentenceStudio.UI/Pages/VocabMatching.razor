@@ -122,6 +122,9 @@ else
     private List<MatchingTile> tiles = new();
     private List<MatchingTile> selectedTiles = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
+    // The learner the board was loaded for. Attempts are recorded only for this owner,
+    // and only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -139,6 +142,14 @@ else
         isBusy = true;
         try
         {
+            _owner = Preferences.Get("active_profile_id", string.Empty);
+            if (string.IsNullOrWhiteSpace(_owner))
+            {
+                Logger.LogWarning("Activity {ActivityName} opened without an active profile; no board is loaded.", nameof(VocabMatching));
+                Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+                return;
+            }
+
             var focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
             var usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
             var allWords = new List<VocabularyWord>();
@@ -150,7 +161,7 @@ else
                 var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
                 if (DueOnly)
                 {
-                    var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                    var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(_owner);
                     allWords.AddRange(words);
                 }
                 else
@@ -159,7 +170,7 @@ else
 
                     foreach (var id in resourceIds)
                     {
-                        var resource = await ResourceRepo.GetResourceAsync(id);
+                        var resource = await ResourceRepo.GetResourceAsync(id, _owner);
                         if (resource?.Vocabulary?.Any() == true)
                             allWords.AddRange(resource.Vocabulary);
                     }
@@ -168,7 +179,7 @@ else
 
             if (usingFocusVocabularyIds)
             {
-                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(_owner);
                 allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
 
                 if (allWords.Count == 0)
@@ -189,14 +200,13 @@ else
 
             if (!allWords.Any())
             {
-                Toast.ShowWarning("No vocabulary available.");
+                Toast.ShowWarning(Localize["VocabMatching_NoVocab"]);
                 isBusy = false;
                 return;
             }
 
-            var activeUserId = Preferences.Get("active_profile_id", "");
             var wordIds = allWords.Select(w => w.Id).ToList();
-            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, _owner);
 
             var selectedWords = usingFocusVocabularyIds
                 ? allWords.Take(8).ToList()
@@ -260,7 +270,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading vocabulary");
-            Toast.ShowError($"Error: {ex.Message}");
+            Toast.ShowError(Localize["NativeActivity_LoadFailed"]);
         }
         finally
         {
@@ -337,11 +347,15 @@ else
 
         // Record progress
         var matchedWord = tile1.Word ?? tile2.Word;
-        if (matchedWord != null)
+        var activeUserId = _owner;
+        if (matchedWord != null && !OwnerStillActive())
+        {
+            Logger.LogWarning("Matching attempt not recorded: the active profile changed or is absent.");
+        }
+        else if (matchedWord != null)
         {
             try
             {
-                var activeUserId = Preferences.Get("active_profile_id", "");
                 var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                 {
                     VocabularyWordId = matchedWord.Id,
@@ -455,6 +469,10 @@ else
         return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
 
     private void GoBack()
     {
