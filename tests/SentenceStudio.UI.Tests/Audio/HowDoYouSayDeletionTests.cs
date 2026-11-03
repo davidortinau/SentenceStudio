@@ -42,7 +42,7 @@ public class HowDoYouSayDeletionTests
         GetField<StreamHistory?>(page, "currentPlayingItem").Should().BeNull();
         GetField<bool>(page, "isAudioPlaying").Should().BeFalse();
         toasts.Should().ContainSingle().Which
-            .Should().Be(new ToastMessage("Deleted.", ToastType.Success, 3000));
+            .Should().Be(new ToastMessage(Localized("Deleted"), ToastType.Success, 3000));
         var warning = logger.Entries.Should().ContainSingle().Which;
         warning.Level.Should().Be(LogLevel.Warning);
         warning.Error.Should().BeSameAs(stopError);
@@ -81,7 +81,7 @@ public class HowDoYouSayDeletionTests
         GetField<StreamHistory?>(page, "currentPlayingItem").Should().BeNull();
         GetField<bool>(page, "isAudioPlaying").Should().BeFalse();
         toasts.Should().ContainSingle().Which
-            .Should().Be(new ToastMessage("Deleted.", ToastType.Success, 3000));
+            .Should().Be(new ToastMessage(Localized("Deleted"), ToastType.Success, 3000));
         var warning = logger.Entries.Should().ContainSingle().Which;
         warning.Level.Should().Be(LogLevel.Warning);
         if (cancelStop)
@@ -123,7 +123,7 @@ public class HowDoYouSayDeletionTests
         GetField<StreamHistory?>(page, "currentPlayingItem").Should().BeNull();
         GetField<bool>(page, "isAudioPlaying").Should().BeFalse();
         toasts.Should().ContainSingle().Which
-            .Should().Be(new ToastMessage("Deleted.", ToastType.Success, 3000));
+            .Should().Be(new ToastMessage(Localized("Deleted"), ToastType.Success, 3000));
         var warning = logger.Entries.Should().ContainSingle().Which;
         warning.Level.Should().Be(LogLevel.Warning);
         warning.Error.Should().BeSameAs(stopError);
@@ -204,7 +204,7 @@ public class HowDoYouSayDeletionTests
             .Select(row => row.Id).Should().BeEquivalentTo(
                 new[] { fixture.DeletedRow.Id, fixture.OtherRow.Id });
         toasts.Should().ContainSingle().Which
-            .Should().Be(new ToastMessage("Error deleting item.", ToastType.Error, 5000));
+            .Should().Be(new ToastMessage(Localized("NativeHowDoYouSay_DeleteFailed"), ToastType.Error, 5000));
         logger.Entries.Should().ContainSingle(entry =>
             entry.Level == LogLevel.Warning
             && (cancelStop
@@ -354,6 +354,8 @@ public class HowDoYouSayDeletionTests
             File.Delete(scratchAudio);
         }
     }
+
+    private static string Localized(string key) => new BlazorLocalizationService()[key];
 
     private static Task InvokeDeleteAsync(HowDoYouSay page, StreamHistory row) =>
         (Task)typeof(HowDoYouSay)

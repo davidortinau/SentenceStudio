@@ -62,19 +62,24 @@ else if (history.Any())
         {
             var h = item;
             var isPlaying = currentPlayingItem?.Id == h.Id && isAudioPlaying;
+            var isRestoring = restoringItemId == h.Id;
 
             <div class="card card-ss p-3">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="flex-grow-1">
                         <p class="ss-body1 fw-bold mb-0">@h.Phrase</p>
-                        <small class="text-secondary-ss">@h.CreatedAt.ToString("g")</small>
+                        <small class="text-secondary-ss">@FormatCreatedAt(h.CreatedAt)</small>
                     </div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm @(isPlaying ? "btn-ss-primary" : "btn-ss-secondary")"
+                                aria-label='@(isPlaying ? Localize["NativeShadowing_Pause"] : Localize["NativeShadowing_Play"])'
+                                aria-busy="@(isRestoring ? "true" : "false")"
                                 @onclick="() => PlayHistoryItem(h)">
-                            @if (isPlaying) { <i class="bi bi-pause-fill"></i> } else { <i class="bi bi-play-fill"></i> }
+                            @if (isRestoring) { <span class="spinner-border spinner-border-sm"></span> }
+                            else if (isPlaying) { <i class="bi bi-pause-fill"></i> } else { <i class="bi bi-play-fill"></i> }
                         </button>
                         <button class="btn btn-sm btn-outline-danger"
+                                aria-label='@Localize["Common_Delete"]'
                                 @onclick="() => DeleteHistoryItem(h)">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -92,6 +97,8 @@ else if (history.Any())
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Plans.IPlanDateContext LearnerClock { get; set; } = default!;
     [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -114,7 +121,27 @@ else if (history.Any())
     private List<VoiceInfo> availableVoices = new();
     private List<StreamHistory> history = new();
     private StreamHistory? currentPlayingItem;
+    private string? restoringItemId;
     private readonly UiAudioPlayerSession _nativeAudio = new();
+    private UiSpeechClipCache? _clipCache;
+
+    // The page's existing voice settings (stability, similarity, speed).
+    private const float Stability = 0.5f;
+    private const float SimilarityBoost = 0.75f;
+    private const float SpeechSpeed = 0.85f;
+    private const string ClipFilePrefix = "phrase";
+
+    private UiSpeechClipCache ClipCache =>
+        _clipCache ??= new UiSpeechClipCache(HistoryRepo, FileSystemService, Logger);
+
+    private Func<string, CancellationToken, Task<Stream>> SynthesizerFor(string text) =>
+        (voice, token) => SpeechService.TextToSpeechAsync(text, voice, Stability, SimilarityBoost, SpeechSpeed,
+            cancellationToken: token);
+
+    /// <summary>History times are stored in UTC; show them in the learner's time zone.</summary>
+    private string FormatCreatedAt(DateTime createdAtUtc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(createdAtUtc, DateTimeKind.Utc), LearnerClock.TimeZone)
+            .ToString("g", Localize.Culture);
 
     protected override async Task OnInitializedAsync()
     {
@@ -171,61 +198,61 @@ else if (history.Any())
 
         isBusy = true;
         CancellationToken playbackToken = default;
+        var playbackStarted = false;
         try
         {
             var voiceId = selectedVoiceId;
             if (string.IsNullOrEmpty(voiceId))
             {
-                Toast.ShowWarning("Please select a voice first.");
+                Toast.ShowWarning(Localize["NativeHowDoYouSay_SelectVoice"]);
                 return;
             }
 
+            var text = phrase.Trim();
             playbackToken = await BeginAudioRequestAsync();
-            var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
-            Directory.CreateDirectory(cacheDir);
-            var safeName = string.Join("_", phrase.Split(Path.GetInvalidFileNameChars())).Substring(0, Math.Min(50, phrase.Length));
-            var filePath = Path.Combine(cacheDir, $"{safeName}_{Guid.NewGuid():N}.mp3");
-            using (var audioStream = await SpeechService.TextToSpeechAsync(phrase, voiceId, 0.5f, 0.75f, 0.85f))
-            using (var fs = File.Create(filePath))
+            // The owner's cached clip of this phrase in this voice plays without a
+            // new synthesis or a second history entry.
+            var clip = await ClipCache.GetOrCreateAsync(text, voiceId, Connectivity.IsInternetAvailable,
+                ClipFilePrefix, SynthesizerFor(text), playbackToken);
+            if (_disposed || playbackToken.IsCancellationRequested) return;
+            switch (clip.Status)
             {
-                await audioStream.CopyToAsync(fs, playbackToken);
+                case UiSpeechClipStatus.Offline:
+                    Toast.ShowWarning(Localize["OfflineAudioUnavailable"]);
+                    return;
+                case UiSpeechClipStatus.Failed:
+                    Toast.ShowError(Localize["NativeHowDoYouSay_GenerateFailed"]);
+                    return;
             }
-            if (playbackToken.IsCancellationRequested) return;
-
-            // Save to history
-            var entry = new StreamHistory
-            {
-                Phrase = phrase,
-                VoiceId = voiceId,
-                AudioFilePath = filePath,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            if (await HistoryRepo.SaveStreamHistoryAsync(entry) <= 0)
-                throw new InvalidOperationException("Audio history could not be saved for the active user.");
 
             // Play it
-            if (_disposed || playbackToken.IsCancellationRequested) return;
+            playbackStarted = true;
             if (_useJsAudio)
             {
-                var audioBytes = await File.ReadAllBytesAsync(filePath, playbackToken);
-                if (_disposed || playbackToken.IsCancellationRequested) return;
                 _browserAudioAttempted = true;
-                await BrowserAudioPlayback.PlayAsync(JS, audioBytes, playbackToken);
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, playbackToken);
             }
             else
             {
-                _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(filePath)).Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
             }
             if (_disposed || playbackToken.IsCancellationRequested) return;
-            currentPlayingItem = entry;
+            currentPlayingItem = clip.Entry;
             isAudioPlaying = true;
 
-            // Add to top of history list
-            history.Insert(0, entry);
+            // A new entry goes to the top of the history; a reused or re-pointed
+            // entry keeps its place.
+            if (clip.Entry is { } stored)
+            {
+                var index = history.FindIndex(h => h.Id == stored.Id);
+                if (index >= 0)
+                    history[index] = stored;
+                else
+                    history.Insert(0, stored);
+            }
 
             phrase = "";
-            Toast.ShowSuccess("Audio generated!");
+            Toast.ShowSuccess(Localize["NativeHowDoYouSay_Generated"]);
         }
         catch (OperationCanceledException) when (_disposed || playbackToken.IsCancellationRequested)
         {
@@ -236,7 +263,8 @@ else if (history.Any())
             {
                 _nativeAudio.Stop();
                 Logger.LogError(ex, "Failed to generate speech");
-                Toast.ShowError($"Error: {ex.Message}");
+                Toast.ShowError(Localize[playbackStarted
+                    ? "NativeHowDoYouSay_PlaybackError" : "NativeHowDoYouSay_GenerateFailed"]);
             }
         }
         finally
@@ -277,27 +305,56 @@ else if (history.Any())
                 Toast.ShowWarning("Audio unavailable.");
                 return;
             }
-            if (!string.IsNullOrEmpty(ownedItem.AudioFilePath) && File.Exists(ownedItem.AudioFilePath))
+
+            // A synced entry whose clip was made on another device (or before a
+            // reinstall) is synthesized again in the entry's own voice, and the
+            // same entry points at the new clip (no second entry).
+            if (UiSpeechClipCache.Resolve(FileSystemService.AppDataDirectory, ownedItem.AudioFilePath) is null)
             {
-                if (_useJsAudio)
-                {
-                    var audioBytes = await File.ReadAllBytesAsync(ownedItem.AudioFilePath, playbackToken);
-                    if (_disposed || playbackToken.IsCancellationRequested) return;
-                    _browserAudioAttempted = true;
-                    await BrowserAudioPlayback.PlayAsync(JS, audioBytes, playbackToken);
-                }
-                else
-                {
-                    _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(ownedItem.AudioFilePath)).Play();
-                }
-                if (_disposed || playbackToken.IsCancellationRequested) return;
-                currentPlayingItem = ownedItem;
-                isAudioPlaying = true;
+                restoringItemId = ownedItem.Id;
+                StateHasChanged();
+            }
+            UiSpeechClip clip;
+            try
+            {
+                clip = await ClipCache.GetForEntryAsync(ownedItem,
+                    !string.IsNullOrEmpty(selectedVoiceId)
+                        ? selectedVoiceId : VoicePrefs.GetVoiceForLanguage(targetLanguage),
+                    Connectivity.IsInternetAvailable, ClipFilePrefix,
+                    SynthesizerFor(ownedItem.Phrase ?? string.Empty), playbackToken);
+            }
+            finally
+            {
+                if (restoringItemId == ownedItem.Id)
+                    restoringItemId = null;
+            }
+            if (_disposed || playbackToken.IsCancellationRequested) return;
+            switch (clip.Status)
+            {
+                case UiSpeechClipStatus.Offline:
+                    Toast.ShowWarning(Localize["OfflineAudioUnavailable"]);
+                    return;
+                case UiSpeechClipStatus.Failed:
+                    Toast.ShowWarning(Localize["NativeHowDoYouSay_FileNotFound"]);
+                    return;
+            }
+
+            if (_useJsAudio)
+            {
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, playbackToken);
             }
             else
             {
-                Toast.ShowWarning("Audio file not found.");
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
             }
+            if (_disposed || playbackToken.IsCancellationRequested) return;
+            var playing = clip.Entry ?? ownedItem;
+            var index = history.FindIndex(h => h.Id == playing.Id);
+            if (index >= 0)
+                history[index] = playing;
+            currentPlayingItem = playing;
+            isAudioPlaying = true;
         }
         catch (OperationCanceledException) when (_disposed || playbackToken.IsCancellationRequested)
         {
@@ -308,7 +365,7 @@ else if (history.Any())
             {
                 _nativeAudio.Stop();
                 Logger.LogError(ex, "Failed to play audio");
-                Toast.ShowError("Playback error.");
+                Toast.ShowError(Localize["NativeHowDoYouSay_PlaybackError"]);
             }
         }
     }
@@ -351,12 +408,12 @@ else if (history.Any())
             // Audio files are retained: another profile or cached entry may
             // reference the same path, and row ownership cannot establish
             // exclusive file ownership.
-            Toast.ShowSuccess("Deleted.");
+            Toast.ShowSuccess(Localize["Deleted"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete history item");
-            Toast.ShowError("Error deleting item.");
+            Toast.ShowError(Localize["NativeHowDoYouSay_DeleteFailed"]);
         }
     }
 
