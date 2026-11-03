@@ -53,7 +53,7 @@
                 <div class="audio-gen-banner d-flex align-items-center gap-3 mb-3">
                     <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
                     <div class="flex-grow-1">
-                        <div class="ss-body2 mb-1">@audioGenStatus</div>
+                        <div class="ss-body2 mb-1">@AudioStatusText</div>
                         @if (audioGenProgress > 0)
                         {
                             <div class="progress" style="height: 4px;">
@@ -61,6 +61,14 @@
                             </div>
                         }
                     </div>
+                </div>
+            }
+            else if (audioFailed)
+            {
+                @* Generation stopped with a failure: keep the reason visible; reading works without audio. *@
+                <div class="audio-gen-banner d-flex align-items-center gap-3 mb-3" role="status">
+                    <i class="bi bi-exclamation-triangle text-warning-ss"></i>
+                    <div class="ss-body2 flex-grow-1">@AudioStatusText</div>
                 </div>
             }
 
@@ -103,6 +111,10 @@
                         <span class="ss-body2 text-secondary-ss">@Localize["Reading_LookingUpDef"]</span>
                     </div>
                 }
+                else if (translationUnavailable)
+                {
+                    <p class="ss-body1 mb-2">@Localize["Reading_TranslationUnavailable"]</p>
+                }
                 else if (!string.IsNullOrEmpty(wordDefinition))
                 {
                     <p class="ss-body1 mb-2">@wordDefinition</p>
@@ -113,7 +125,7 @@
                         <i class="bi bi-check-circle me-1"></i>@Localize["Reading_InYourVocab"]
                     </span>
                 }
-                else if (!isTranslating && !string.IsNullOrEmpty(wordDefinition) && wordDefinition != "(translation unavailable)")
+                else if (!isTranslating && !translationUnavailable && !string.IsNullOrEmpty(wordDefinition))
                 {
                     @if (isSavingWord)
                     {
@@ -248,7 +260,10 @@
     private TimestampedAudioManager? _audioManager;
     private SentenceTimingCalculator? _timingCalculator;
     private bool isGeneratingAudio;
-    private string audioGenStatus = "";
+    // Status is kept as a resource key (plus optional detail) so it is shown localized.
+    private string audioGenStatusKey = "";
+    private string? audioGenStatusDetail;
+    private bool audioFailed;
     private double audioGenProgress;
     private bool isAudioLoaded;
     private bool isAudioPlaying;
@@ -268,7 +283,20 @@
     private bool isSavingWord;
     private string selectedWord = "";
     private string wordDefinition = "";
+    private bool translationUnavailable;
     private VocabularyWord? selectedVocabWord;
+    // Each tap or close starts a new lookup; a slower earlier lookup never replaces it.
+    private long _lookupGeneration;
+
+    // The learner the passage was loaded for. Lookups and activity rows are recorded only
+    // for this owner, and only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+
+    private string AudioStatusText => string.IsNullOrEmpty(audioGenStatusKey)
+        ? string.Empty
+        : audioGenStatusDetail is null
+            ? Localize[audioGenStatusKey]
+            : Localize.Get(audioGenStatusKey, audioGenStatusDetail);
 
     // Preferences tracking
     private bool hasShownJumpHint;
@@ -295,10 +323,18 @@
         isBusy = true;
         try
         {
-            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam);
+            _owner = Preferences.Get("active_profile_id", string.Empty);
+            if (string.IsNullOrWhiteSpace(_owner))
+            {
+                Logger.LogWarning("Activity {ActivityName} opened without an active profile; nothing is loaded.", nameof(Reading));
+                errorMessage = Localize["Vocabulary_NoActiveProfile"];
+                return;
+            }
+
+            resource = await ResourceRepo.GetResourceAsync(ResourceIdParam, _owner);
             if (resource is null)
             {
-                errorMessage = "Resource not found.";
+                errorMessage = Localize["Reading_ResourceNotFound"];
                 return;
             }
 
@@ -324,14 +360,14 @@
             }
             else
             {
-                errorMessage = "Resource has no transcript.";
+                errorMessage = Localize["Reading_NoTranscript"];
                 return;
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load reading resource");
-            errorMessage = $"Error loading resource: {ex.Message}";
+            errorMessage = Localize["NativeActivity_LoadFailed"];
         }
         finally
         {
@@ -347,7 +383,8 @@
         if (_disposed || resource?.Transcript is null) return;
 
         isGeneratingAudio = true;
-        audioGenStatus = "Initializing audio...";
+        audioFailed = false;
+        SetAudioStatus("Reading_AudioInitializing");
         audioGenProgress = 0.1;
         await InvokeAsync(StateHasChanged);
 
@@ -356,7 +393,7 @@
             _timingCalculator = new SentenceTimingCalculator(TimingCalcLogger);
             _audioManager = new TimestampedAudioManager(_timingCalculator, AudioPlayerFactory, AudioManagerLogger);
 
-            audioGenStatus = "Generating timestamped audio...";
+            SetAudioStatus("Reading_AudioGenerating");
             audioGenProgress = 0.3;
             await InvokeAsync(StateHasChanged);
 
@@ -365,7 +402,7 @@
 
             if (result is not null)
             {
-                audioGenStatus = "Processing timestamps...";
+                SetAudioStatus("Reading_AudioProcessing");
                 audioGenProgress = 0.7;
                 await InvokeAsync(StateHasChanged);
 
@@ -377,7 +414,7 @@
                     Duration = result.Duration.TotalSeconds
                 };
 
-                audioGenStatus = "Loading audio...";
+                SetAudioStatus("Reading_AudioLoading");
                 audioGenProgress = 0.9;
                 await InvokeAsync(StateHasChanged);
 
@@ -399,7 +436,8 @@
                 else if (!_audioManager.HasNativePlayer)
                 {
                     Logger.LogWarning("Native reading audio is unavailable on this device");
-                    Toast.ShowError("Audio playback is unavailable on this device.");
+                    SetAudioStatus("Reading_AudioFailed");
+                    audioFailed = true;
                     return;
                 }
 
@@ -417,6 +455,7 @@
 
                 audioDuration = timestampedAudio.Duration;
                 isAudioLoaded = true;
+                SetAudioStatus(string.Empty);
 
                 Logger.LogInformation("Audio loaded: {Duration:F1}s, {SentenceCount} sentences",
                     audioDuration, sentences.Count);
@@ -424,7 +463,8 @@
             else
             {
                 Logger.LogWarning("Failed to generate timestamped audio");
-                audioGenStatus = "Audio generation failed — reading without audio.";
+                SetAudioStatus("Reading_AudioFailed");
+                audioFailed = true;
             }
         }
         catch (OperationCanceledException) when (_disposed)
@@ -433,7 +473,8 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error initializing audio");
-            audioGenStatus = $"Audio error: {ex.Message}";
+            SetAudioStatus("Reading_AudioError", ex.Message);
+            audioFailed = true;
             if (_browserAudioAttempted)
             {
                 _browserAudioAttempted = false;
@@ -458,6 +499,12 @@
             if (!_disposed)
                 await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void SetAudioStatus(string key, string? detail = null)
+    {
+        audioGenStatusKey = key;
+        audioGenStatusDetail = detail;
     }
 
     // ── Audio event handlers (fire on background threads) ──
@@ -497,12 +544,12 @@
     {
         if (isGeneratingAudio)
         {
-            Toast.ShowError("Audio is still loading...");
+            Toast.ShowError(Localize["Reading_AudioStillLoading"]);
             return;
         }
         if (!isAudioLoaded || _audioManager is null)
         {
-            Toast.ShowError("No audio available.");
+            Toast.ShowError(Localize["Reading_NoAudio"]);
             return;
         }
 
@@ -623,7 +670,7 @@
             if (!_disposed)
             {
                 Logger.LogError(ex, "Failed to play reading audio");
-                Toast.ShowError("Audio playback failed.");
+                Toast.ShowError(Localize["AudioPlaybackError"]);
             }
             return false;
         }
@@ -679,9 +726,12 @@
     private async Task HandleWordClicked(string word)
     {
         var cleanWord = word.Trim().TrimEnd('.', ',', '!', '?', ':', ';', '"', '\'');
+        var lookup = ++_lookupGeneration;
         selectedWord = cleanWord;
         selectedVocabWord = null;
         wordDefinition = "";
+        isTranslating = false;
+        translationUnavailable = false;
         showWordPanel = true;
         isSavingWord = false;
 
@@ -696,44 +746,60 @@
             return;
         }
 
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Reading lookup refused: the active profile changed or is absent.");
+            translationUnavailable = true;
+            return;
+        }
+
         // AI translation with sentence context
         isTranslating = true;
         StateHasChanged();
 
+        string definition;
+        var translated = false;
         try
         {
             string? context = currentSentenceIndex >= 0 && currentSentenceIndex < sentences.Count
                 ? sentences[currentSentenceIndex] : null;
 
-            wordDefinition = await TranslationSvc.TranslateAsync(cleanWord, context);
-
-            if (string.IsNullOrEmpty(wordDefinition))
-                wordDefinition = "(translation unavailable)";
-
-            // Record lookup activity
-            await ActivityRepo.SaveAsync(new UserActivity
-            {
-                Activity = Activity.Reading.ToString(),
-                Input = $"Dictionary lookup: {cleanWord}",
-                Accuracy = 100,
-                Fluency = 100,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
+            // Reads the owner's vocabulary or asks the AI; the lookup is not saved as a word.
+            definition = await TranslationSvc.TranslateAsync(cleanWord, context, owner);
+            translated = true;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Translation failed for: {Word}", cleanWord);
-            wordDefinition = "(translation unavailable)";
+            definition = string.Empty;
         }
-        finally
+
+        // Every lookup whose translation returned is recorded, even if the panel closed or
+        // another word was tapped meanwhile; never after leaving or for another profile,
+        // and never when the translation failed.
+        if (translated && !_disposed && OwnerStillActive()
+            && string.Equals(owner, _owner, StringComparison.Ordinal))
         {
-            isTranslating = false;
+            await RecordActivityAsync(owner, $"Dictionary lookup: {cleanWord}");
         }
+
+        // A later tap or close supersedes this lookup: its result is not shown.
+        if (lookup != _lookupGeneration)
+            return;
+
+        isTranslating = false;
+        if (string.IsNullOrEmpty(definition))
+            translationUnavailable = true;
+        else
+            wordDefinition = definition;
     }
 
     private Task HandleVocabularyWordClicked(VocabularyWord vw)
     {
+        _lookupGeneration++;
+        isTranslating = false;
+        translationUnavailable = false;
         selectedWord = vw.TargetLanguageTerm ?? "";
         selectedVocabWord = vw;
         wordDefinition = vw.NativeLanguageTerm ?? "";
@@ -754,7 +820,7 @@
 
         if (!hasShownJumpHint)
         {
-            Toast.ShowSuccess("Double-click a sentence to jump to it!");
+            Toast.ShowSuccess(Localize["Reading_JumpHint"]);
             hasShownJumpHint = true;
             Preferences.Set("ReadingActivity_HasShownJumpHint", true);
         }
@@ -771,7 +837,15 @@
 
     private async Task SaveWordToVocabulary()
     {
-        if (string.IsNullOrEmpty(selectedWord) || string.IsNullOrEmpty(wordDefinition)) return;
+        if (string.IsNullOrEmpty(selectedWord) || string.IsNullOrEmpty(wordDefinition) || translationUnavailable) return;
+
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Reading save word refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
 
         isSavingWord = true;
         StateHasChanged();
@@ -786,39 +860,31 @@
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var result = await ResourceRepo.SaveWordAsync(newWord);
+            var result = await ResourceRepo.SaveWordAsync(newWord, owner);
             if (result > 0)
             {
                 // Associate with current resource
                 if (!string.IsNullOrEmpty(resource?.Id))
                 {
-                    await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, newWord.Id);
+                    await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, newWord.Id, owner);
                     vocabularyWords ??= new();
                     vocabularyWords.Add(newWord);
                 }
 
                 selectedVocabWord = newWord;
-                Toast.ShowSuccess($"'{selectedWord}' saved to vocabulary!");
+                Toast.ShowSuccess(Localize.Get("Reading_WordSaved", selectedWord));
 
-                await ActivityRepo.SaveAsync(new UserActivity
-                {
-                    Activity = Activity.Reading.ToString(),
-                    Input = $"Added vocabulary: {selectedWord}",
-                    Accuracy = 100,
-                    Fluency = 100,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
+                await RecordActivityAsync(owner, $"Added vocabulary: {selectedWord}");
             }
             else
             {
-                Toast.ShowError("Could not save word.");
+                Toast.ShowError(Localize["Reading_CouldNotSaveWord"]);
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save word: {Word}", selectedWord);
-            Toast.ShowError("Error saving word.");
+            Toast.ShowError(Localize["Reading_ErrorSavingWord"]);
         }
         finally
         {
@@ -828,6 +894,9 @@
 
     private void CloseWordPanel()
     {
+        _lookupGeneration++;
+        isTranslating = false;
+        translationUnavailable = false;
         showWordPanel = false;
         selectedWord = "";
         wordDefinition = "";
@@ -872,20 +941,35 @@
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
 
         // Record reading session
-        if (resource is not null)
+        if (resource is not null && OwnerStillActive())
         {
-            await ActivityRepo.SaveAsync(new UserActivity
-            {
-                Activity = Activity.Reading.ToString(),
-                Input = $"Reading session: {resource.Title}",
-                Accuracy = 100,
-                Fluency = 100,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
+            await RecordActivityAsync(_owner, $"Reading session: {resource.Title}");
         }
 
         NavManager.NavigateTo("/");
+    }
+
+    // ── Owner ──
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
+
+    /// <summary>Writes one Reading UserActivity row for the owner; logs when it is not saved.</summary>
+    private async Task RecordActivityAsync(string owner, string input)
+    {
+        var saved = await ActivityRepo.SaveAsync(new UserActivity
+        {
+            Activity = Activity.Reading.ToString(),
+            Input = input,
+            Accuracy = 100,
+            Fluency = 100,
+            UserProfileId = owner,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        if (saved < 0)
+            Logger.LogError("Reading could not save a UserActivity row.");
     }
 
     // ── Utilities ──

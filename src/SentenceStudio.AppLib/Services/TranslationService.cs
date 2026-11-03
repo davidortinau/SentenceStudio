@@ -228,16 +228,39 @@ namespace SentenceStudio.Services
                 return new List<Challenge>();
             }
         }
-        public async Task<string> TranslateAsync(string text, string context = null)
+
+        /// <summary>
+        /// Translate helper used by Writing and the Reading dictionary lookup: the owner's own
+        /// vocabulary first (by target term, then by native term), else the AI Translate prompt.
+        /// The AI result is NOT saved as a VocabularyWord: that row had no resource link (on a
+        /// CoreSync device the server refuses it, and the refusal blocks every other upload) and
+        /// Reading stored it with the native and target terms swapped. An owner-scoped lookup
+        /// history is future work (docs/native-port-backports.md B7, B8, B36).
+        /// </summary>
+        /// <param name="text">Text to translate.</param>
+        /// <param name="context">Optional sentence context for the AI prompt.</param>
+        /// <param name="userProfileId">The owner; defaults to the active profile.</param>
+        /// <returns>
+        /// The translation, or an empty string when there is no owner or the AI gave none.
+        /// A failed AI call throws, so callers can report it instead of showing a result.
+        /// </returns>
+        public async Task<string> TranslateAsync(string text, string? context = null, string? userProfileId = null)
         {
-            // Attempt to find an existing translation in the local database
-            var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text);
+            var userId = string.IsNullOrWhiteSpace(userProfileId) ? ActiveUserId : userProfileId;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                _logger.LogWarning("TranslationService.TranslateAsync refused: no active owner.");
+                return string.Empty;
+            }
+
+            // Attempt to find an existing translation in the owner's vocabulary
+            var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.NativeLanguageTerm))
             {
                 return existingWord.NativeLanguageTerm;
             }
 
-            existingWord = await _resourceRepo.GetWordByNativeTermAsync(text);
+            existingWord = await _resourceRepo.GetWordByNativeTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.TargetLanguageTerm))
             {
                 return existingWord.TargetLanguageTerm;
@@ -258,24 +281,13 @@ namespace SentenceStudio.Services
                 }
 
                 // Get translation using the AI service
-                string translation = await _aiService.SendPrompt<string>(prompt);
-
-                // Save the new translation to the local database for future use
-                var vocabWord = new VocabularyWord
-                {
-                    NativeLanguageTerm = text,
-                    TargetLanguageTerm = translation,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _resourceRepo.SaveWordAsync(vocabWord);
-
-                return translation;
+                var translation = await _aiService.SendPrompt<string>(prompt);
+                return translation?.Trim() ?? string.Empty;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"An error occurred during translation: {ex.Message}");
-                return string.Empty;
+                _logger.LogError(ex, "TranslationService.TranslateAsync failed");
+                throw;
             }
         }
     }

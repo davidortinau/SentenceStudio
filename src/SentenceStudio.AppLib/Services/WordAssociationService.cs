@@ -28,18 +28,24 @@ public class WordAssociationService
     }
 
     /// <summary>
-    /// Select vocabulary words for a round from the given Learning Resource(s).
-    /// Excludes Familiar words still in their 14-day grace period.
+    /// Select vocabulary words for a round from the owner's given Learning Resource(s).
+    /// Excludes Familiar words still in their 14-day grace period. An absent owner
+    /// gets no words.
     /// </summary>
-    public async Task<List<VocabularyWord>> GetRoundWordsAsync(string resourceIds, int count = 5)
+    public async Task<List<VocabularyWord>> GetRoundWordsAsync(string userId, string resourceIds, int count = 5)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("WordAssociationService.GetRoundWordsAsync called without an owner; returning no words.");
+            return new List<VocabularyWord>();
+        }
+
         var ids = resourceIds?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
         var allWords = new List<VocabularyWord>();
-        var userProfile = await _serviceProvider.GetRequiredService<UserProfileRepository>().GetAsync();
 
         foreach (var id in ids)
         {
-            var resource = await _resourceRepository.GetResourceAsync(id, userProfile?.Id);
+            var resource = await _resourceRepository.GetResourceAsync(id, userId);
             if (resource?.Vocabulary != null)
                 allWords.AddRange(resource.Vocabulary);
         }
@@ -52,7 +58,7 @@ public class WordAssociationService
 
         // Filter out Familiar words in grace period
         var wordIds = distinct.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, userId);
         var graceExcluded = distinct
             .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
             .OrderBy(_ => Random.Shared.Next())
@@ -67,6 +73,9 @@ public class WordAssociationService
 
     /// <summary>
     /// Batch-grade all user clues for a vocabulary word using AI.
+    /// A failed AI call throws (it is not turned into an empty, "no verdicts" result);
+    /// a response with no entries means the AI gave no verdicts, which callers must not
+    /// record as a graded attempt.
     /// </summary>
     public async Task<WordAssociationGradeResponse> GradeCluesAsync(
         VocabularyWord vocabWord,
@@ -101,7 +110,7 @@ public class WordAssociationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error grading word association clues for '{Word}'", vocabWord.TargetLanguageTerm);
-            return new WordAssociationGradeResponse();
+            throw;
         }
     }
 
@@ -133,10 +142,17 @@ public class WordAssociationService
     }
 
     /// <summary>
-    /// Save a round score to the database.
+    /// Save a round score to the database. Returns false (nothing written) when the owner
+    /// is absent or the row could not be saved.
     /// </summary>
-    public async Task SaveRoundScoreAsync(string userId, int roundScore, int totalClues, List<string> wordIds)
+    public async Task<bool> SaveRoundScoreAsync(string userId, int roundScore, int totalClues, List<string> wordIds)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("WordAssociationService.SaveRoundScoreAsync refused an absent owner.");
+            return false;
+        }
+
         try
         {
             using var scope = _serviceProvider.CreateScope();
@@ -157,10 +173,12 @@ public class WordAssociationService
             await db.SaveChangesAsync();
 
             _logger.LogDebug("Saved round score {Score} for user {UserId}", roundScore, userId);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving round score");
+            return false;
         }
     }
 
@@ -169,6 +187,9 @@ public class WordAssociationService
     /// </summary>
     public async Task<int> GetAllTimeHighAsync(string userId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return 0;
+
         try
         {
             using var scope = _serviceProvider.CreateScope();
@@ -192,6 +213,9 @@ public class WordAssociationService
     /// </summary>
     public async Task<int> GetWeeklyHighAsync(string userId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return 0;
+
         try
         {
             using var scope = _serviceProvider.CreateScope();
@@ -223,6 +247,9 @@ public class WordAssociationService
     /// </summary>
     public async Task<string?> CheckHighScoreAsync(string userId, int currentScore)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
+
         var allTimeHigh = await GetAllTimeHighAsync(userId);
         if (currentScore > allTimeHigh)
             return "alltime";

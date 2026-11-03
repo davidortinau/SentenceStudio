@@ -132,7 +132,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load vocabulary: {ex.Message}");
+            Toast.ShowError(Localize["NativeMinimalPairs_VocabularyLoadFailed"]);
             Logger.LogError(ex, "Failed to load vocabulary");
         }
         finally
@@ -157,11 +157,20 @@ else
             return;
         }
 
+        // The signed-in learner owns the pair; nothing is written without one.
+        var owner = Preferences.Get("active_profile_id", "");
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            Logger.LogWarning("Minimal pair create refused: no active profile.");
+            errorMessage = Localize["Vocabulary_NoActiveProfile"];
+            return;
+        }
+
         isSaving = true;
         try
         {
             var pair = await PairRepo.CreatePairAsync(
-                userId: Preferences.Get("active_profile_id", ""),
+                userId: owner,
                 wordAId: selectedWordAId,
                 wordBId: selectedWordBId,
                 contrastLabel: string.IsNullOrWhiteSpace(contrastLabel) ? null : contrastLabel.Trim()
@@ -178,7 +187,7 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to create pair: {ex.Message}";
+            errorMessage = Localize["MinimalPair_FailedToCreate"];
             Logger.LogError(ex, "Failed to create minimal pair");
         }
         finally

@@ -97,7 +97,7 @@ else if (words.Any())
                         }
                         @if (!string.IsNullOrEmpty(clue.CorrectedText) && clue.CorrectedText != clue.Text)
                         {
-                            <br /><small class="text-muted fst-italic">(Corrected: @clue.CorrectedText)</small>
+                            <br /><small class="text-muted fst-italic">@Localize.Get("WordAssoc_Corrected", clue.CorrectedText)</small>
                         }
                     </div>
                 }
@@ -223,6 +223,10 @@ else
     private int totalRelated;
     private int totalClueCount;
 
+    // The learner the round was loaded for. Grades, attempts and scores are recorded
+    // only for this owner, and only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
@@ -236,8 +240,18 @@ else
         isBusy = true;
         try
         {
+            _owner = Preferences.Get("active_profile_id", string.Empty);
+            if (string.IsNullOrWhiteSpace(_owner))
+            {
+                Logger.LogWarning("Word Association opened without an active profile; no round is loaded.");
+                words = new();
+                allClues.Clear();
+                Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+                return;
+            }
+
             var resourceIds = ResourceIdsParam ?? ResourceIdParam ?? "";
-            words = await WordAssocSvc.GetRoundWordsAsync(resourceIds, 5);
+            words = await WordAssocSvc.GetRoundWordsAsync(_owner, resourceIds, 5);
 
             if (words.Any())
             {
@@ -248,13 +262,13 @@ else
             }
             else
             {
-                Toast.ShowWarning("No vocabulary found in selected resources.");
+                Toast.ShowWarning(Localize["WordAssoc_NoResourceVocab"]);
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading vocabulary words");
-            Toast.ShowError($"Error: {ex.Message}");
+            Toast.ShowError(Localize["WordAssoc_LoadFailed"]);
         }
         finally
         {
@@ -281,86 +295,142 @@ else
 
     private async Task GradeCurrentWord()
     {
+        if (isGrading) return;
         var clues = currentClues.Where(c => !c.Graded).ToList();
         if (clues.Count == 0) return;
+        var word = currentWord;
+        if (word is null) return;
+
+        var userId = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Word Association grading refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
 
         isGrading = true;
         StateHasChanged();
 
         try
         {
-            var userId = Preferences.Get("active_profile_id", "");
             var nativeLanguage = Preferences.Get("native_language", "English");
             var targetLanguage = Preferences.Get("target_language", "Korean");
 
             var clueTexts = clues.Select(c => c.Text).ToList();
-            var result = await WordAssocSvc.GradeCluesAsync(currentWord!, clueTexts, nativeLanguage, targetLanguage);
+            WordAssociationGradeResponse result;
+            try
+            {
+                result = await WordAssocSvc.GradeCluesAsync(word, clueTexts, nativeLanguage, targetLanguage);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error grading clues");
+                Toast.ShowError(Localize["WordAssoc_GradeFailed"]);
+                return;
+            }
+
+            // A grade that lands after the profile changed is discarded: nothing is recorded.
+            if (!OwnerStillActive())
+            {
+                Logger.LogWarning("Word Association grade discarded: the active profile changed while grading.");
+                return;
+            }
+
+            // No verdicts is a failed grade, not a wrong answer: keep the clues pending and
+            // record nothing, so the learner can grade again.
+            var entries = result?.Entries ?? new List<ClueGrade>();
+            if (entries.Count == 0)
+            {
+                Logger.LogWarning("Word Association grading returned no verdicts.");
+                Toast.ShowError(Localize["WordAssoc_GradeFailed"]);
+                return;
+            }
 
             // Apply grades
-            for (int i = 0; i < clues.Count && i < result.Entries.Count; i++)
+            for (int i = 0; i < clues.Count && i < entries.Count; i++)
             {
                 clues[i].Graded = true;
-                clues[i].Related = result.Entries[i].Related;
-                clues[i].IsCloze = result.Entries[i].IsCloze;
-                clues[i].Explanation = result.Entries[i].Explanation;
-                clues[i].CorrectedText = result.Entries[i].CorrectedText;
+                clues[i].Related = entries[i].Related;
+                clues[i].IsCloze = entries[i].IsCloze;
+                clues[i].Explanation = entries[i].Explanation;
+                clues[i].CorrectedText = entries[i].CorrectedText;
             }
 
-            // Record vocabulary progress
-            if (currentWord != null)
-            {
-                var relatedCount = currentClues.Count(c => c.Graded && c.Related);
-                var totalCount = currentClues.Count(c => c.Graded);
-                var wasCorrect = totalCount > 0 && (float)relatedCount / totalCount >= 0.5f;
-
-                var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
-                {
-                    VocabularyWordId = currentWord.Id,
-                    UserId = userId,
-                    Activity = "WordAssociation",
-                    InputMode = "Text",
-                    WasCorrect = wasCorrect,
-                    DifficultyWeight = 1.0f,
-                    ContextType = "Association"
-                });
-
-                // Handle verification probe for Familiar words
-                if (updatedProgress.IsFamiliar)
-                {
-                    await ProgressService.HandleVerificationProbeResultAsync(
-                        currentWord.Id, userId, wasCorrect);
-                    if (wasCorrect)
-                        Toast.ShowSuccess("Confirmed! This one is solid.");
-                    else
-                        Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
-                }
-
-                CacheService.InvalidateVocabSummary();
-            }
-
-            // Record user activity
-            var activity = new UserActivity
-            {
-                Activity = "WordAssociation",
-                Input = string.Join("; ", clueTexts),
-                Accuracy = currentClues.Count(c => c.Graded) > 0
-                    ? (double)currentClues.Count(c => c.Graded && c.Related) / currentClues.Count(c => c.Graded) * 100
-                    : 0,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            await ActivityRepo.SaveAsync(activity);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error grading clues");
-            Toast.ShowError("Error grading clues. Please try again.");
+            await RecordGradeAsync(userId, word, clueTexts);
         }
         finally
         {
             isGrading = false;
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Records the graded word for its owner: one vocabulary attempt (correct when at
+    /// least half the graded clues are related) and a WordAssociation activity row.
+    /// </summary>
+    private async Task RecordGradeAsync(string userId, VocabularyWord word, List<string> clueTexts)
+    {
+        var graded = allClues.TryGetValue(words.IndexOf(word), out var list)
+            ? list.Where(c => c.Graded).ToList()
+            : new List<ClueEntry>();
+        var relatedCount = graded.Count(c => c.Related);
+        var wasCorrect = graded.Count > 0 && (float)relatedCount / graded.Count >= 0.5f;
+        var saveFailed = false;
+
+        try
+        {
+            var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
+            {
+                VocabularyWordId = word.Id,
+                UserId = userId,
+                Activity = "WordAssociation",
+                InputMode = "Text",
+                WasCorrect = wasCorrect,
+                DifficultyWeight = 1.0f,
+                ContextType = "Association"
+            });
+
+            // Handle verification probe for Familiar words
+            if (updatedProgress.IsFamiliar && OwnerStillActive())
+            {
+                await ProgressService.HandleVerificationProbeResultAsync(
+                    word.Id, userId, wasCorrect);
+                if (wasCorrect)
+                    Toast.ShowSuccess(Localize["Writing_ProbeConfirmed"]);
+                else
+                    Toast.ShowInfo(Localize["Writing_ProbeTricky"]);
+            }
+
+            CacheService.InvalidateVocabSummary();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Word Association could not record a vocabulary attempt.");
+            saveFailed = true;
+        }
+
+        if (OwnerStillActive())
+        {
+            var saved = await ActivityRepo.SaveAsync(new UserActivity
+            {
+                Activity = "WordAssociation",
+                Input = string.Join("; ", clueTexts),
+                Accuracy = graded.Count > 0 ? (double)relatedCount / graded.Count * 100 : 0,
+                UserProfileId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            if (saved < 0)
+            {
+                Logger.LogError("Word Association could not save its UserActivity row.");
+                saveFailed = true;
+            }
+        }
+
+        if (saveFailed)
+            Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
     }
 
     private async Task NextWord()
@@ -406,13 +476,21 @@ else
         }
 
         // Save score and check for high scores
-        var userId = Preferences.Get("active_profile_id", "");
+        var userId = _owner;
         var wordIds = words.Select(w => w.Id).ToList();
+
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Word Association round not saved: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
 
         // Check high score BEFORE saving (so we compare against previous scores)
         highScoreType = await WordAssocSvc.CheckHighScoreAsync(userId, totalScore);
 
-        await WordAssocSvc.SaveRoundScoreAsync(userId, totalScore, totalClueCount, wordIds);
+        if (!await WordAssocSvc.SaveRoundScoreAsync(userId, totalScore, totalClueCount, wordIds))
+            Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
 
         showSessionSummary = true;
     }
@@ -427,6 +505,10 @@ else
         userInput = "";
         await LoadWords();
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
 
     private void GoBack() => NavManager.NavigateTo("/");
 

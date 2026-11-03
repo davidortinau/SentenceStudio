@@ -33,7 +33,7 @@
     else if (selectedMode == "Mixed" && pairs.Count > 0)
     {
         <button class="btn btn-ss-primary" @onclick="StartSession">
-            @Localize["MinimalPairs_StartSession"] (@pairs.Count pairs)
+            @Localize.Get("NativeMinimalPairs_StartSessionCount", pairs.Count)
         </button>
     }
 </div>
@@ -120,6 +120,7 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<MinimalPairs> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private List<MinimalPair> pairs = new();
     private bool isLoading = true;
@@ -129,6 +130,9 @@ else
     private string deleteConfirmMessage = "";
     private bool isDeleting;
     private MinimalPair? pairToDelete;
+
+    // The signed-in learner; reads and writes are refused without one (fail closed).
+    private string ActiveOwner => Preferences.Get("active_profile_id", string.Empty);
 
     protected override async Task OnInitializedAsync()
     {
@@ -143,11 +147,19 @@ else
         isLoading = true;
         try
         {
-            pairs = await PairRepo.GetUserPairsAsync("1");
+            var owner = ActiveOwner;
+            if (string.IsNullOrWhiteSpace(owner))
+            {
+                Logger.LogWarning("Minimal Pairs opened without an active profile; no pairs are shown.");
+                pairs = new();
+                Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+                return;
+            }
+            pairs = await PairRepo.GetUserPairsAsync(owner);
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load minimal pairs: {ex.Message}");
+            Toast.ShowError(Localize["NativeMinimalPairs_LoadFailed"]);
             Logger.LogError(ex, "Failed to load minimal pairs");
         }
         finally
@@ -173,13 +185,13 @@ else
     {
         if (selectedMode == "Focus" && selectedPairId == null)
         {
-            Toast.ShowError("Please select a pair to practice in Focus mode.");
+            Toast.ShowError(Localize["NativeMinimalPairs_SelectPairFirst"]);
             return;
         }
 
         if (pairs.Count == 0)
         {
-            Toast.ShowError("No pairs available to start a session.");
+            Toast.ShowError(Localize["NativeMinimalPairs_NoPairsToStart"]);
             return;
         }
 
@@ -195,7 +207,9 @@ else
     private void RequestDelete(MinimalPair pair)
     {
         pairToDelete = pair;
-        deleteConfirmMessage = $"Delete {pair.VocabularyWordA?.TargetLanguageTerm} vs {pair.VocabularyWordB?.TargetLanguageTerm}?";
+        deleteConfirmMessage = Localize.Get("NativeMinimalPairs_DeleteMessage",
+            pair.VocabularyWordA?.TargetLanguageTerm ?? string.Empty,
+            pair.VocabularyWordB?.TargetLanguageTerm ?? string.Empty);
         showDeleteConfirm = true;
     }
 
@@ -212,16 +226,21 @@ else
         isDeleting = true;
         try
         {
-            var success = await PairRepo.DeletePairAsync(pairToDelete.Id);
+            var success = await PairRepo.DeletePairAsync(ActiveOwner, pairToDelete.Id);
             if (success)
             {
                 await LoadPairs();
-                Toast.ShowSuccess("Pair deleted.");
+                Toast.ShowSuccess(Localize["NativeMinimalPairs_Deleted"]);
+            }
+            else
+            {
+                Logger.LogWarning("Minimal pair delete was refused (absent owner or pair not owned).");
+                Toast.ShowError(Localize["NativeMinimalPairs_DeleteFailed"]);
             }
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to delete pair: {ex.Message}");
+            Toast.ShowError(Localize["NativeMinimalPairs_DeleteFailed"]);
             Logger.LogError(ex, "Failed to delete pair");
         }
         finally

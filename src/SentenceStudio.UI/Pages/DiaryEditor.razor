@@ -95,16 +95,16 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             @* Font size controls *@
-            <div class="btn-group btn-group-sm" role="group" aria-label="Font size">
+            <div class="btn-group btn-group-sm" role="group" aria-label='@Localize["Reading_FontSize"]'>
                 <button type="button" class="btn btn-ss-secondary" @onclick="DecreaseFontSize"
-                        disabled="@(editorFontSize <= MinFontSize)" title="Decrease font size">
+                        disabled="@(editorFontSize <= MinFontSize)" title='@Localize["Diary_DecreaseFontSize"]' aria-label='@Localize["Diary_DecreaseFontSize"]'>
                     <i class="bi bi-dash"></i>
                 </button>
                 <button type="button" class="btn btn-ss-secondary" disabled style="min-width: 3rem;">
                     @editorFontSize<small>px</small>
                 </button>
                 <button type="button" class="btn btn-ss-secondary" @onclick="IncreaseFontSize"
-                        disabled="@(editorFontSize >= MaxFontSize)" title="Increase font size">
+                        disabled="@(editorFontSize >= MaxFontSize)" title='@Localize["Diary_IncreaseFontSize"]' aria-label='@Localize["Diary_IncreaseFontSize"]'>
                     <i class="bi bi-plus"></i>
                 </button>
             </div>
