@@ -567,9 +567,17 @@ if (!skipDatabaseInitialization)
         await numberSeeder.SeedAsync("ko", assertSession, startupToken);
         assertSession();
 
+        // Tables that join sync now get their existing rows touched once, after
+        // tracking exists, so every device of each owner downloads them (Captain
+        // 2026-11-02, docs/sync-all-tables-plan.md). Read before provisioning.
+        var lateTables = await SyncLateTables.UntrackedAsync(db, startupToken);
+        assertSession();
+
         // The concrete overload is required: ISyncProvider would open other connections.
         var syncProvider = app.Services.GetRequiredService<PostgreSQLSyncProvider>();
         await startupLock.ProvisionAsync(syncProvider, startupToken);
+        assertSession();
+        await SyncLateTables.TouchAsync(db, lateTables, owner: null, app.Logger, startupToken);
         assertSession();
 
         // Coach and feedback keep independent migration histories but never use

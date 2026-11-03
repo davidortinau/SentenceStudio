@@ -424,6 +424,8 @@ public sealed class NativeNumberDrillPresenter(
             }
             if (!owner.IsActive(userId))
                 return Refuse();
+            if (stored is { Outcome: NumberOverrideOutcome.Applied })
+                pendingWrites.MarkPending(userId);
             if (stored is not { Outcome: NumberOverrideOutcome.Applied or NumberOverrideOutcome.AlreadyCorrect })
                 return Publish(state with
                 {
@@ -679,6 +681,8 @@ public sealed class NativeNumberDrillPresenter(
                 Refuse();
                 return null;
             }
+            // Attempts and mastery sync to the learner's other devices and the web.
+            pendingWrites.MarkPending(userId);
             _itemClock.Stop();
             _latencies.Add(latency);
             _lastErrorClass = null;

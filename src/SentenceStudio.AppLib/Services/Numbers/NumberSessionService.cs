@@ -180,7 +180,10 @@ public class NumberSessionService
         {
             progress = new NumberMasteryProgress
             {
-                Id = Guid.NewGuid().ToString(),
+                // One row per learner and bucket on every device and the web, so sync
+                // merges practice from all of them into this row.
+                Id = NumberSyncIdentity.MasteryId(userProfileId, "ko", item.ContextCode,
+                    item.CounterId, item.System, item.Bucket),
                 UserProfileId = userProfileId,
                 LanguageCode = "ko",
                 ContextCode = item.ContextCode,

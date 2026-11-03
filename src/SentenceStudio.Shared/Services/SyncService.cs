@@ -307,7 +307,7 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
 
                 // Then: Apply CoreSync provisioning to create sync tracking tables
                 _logger.LogDebug("Applying CoreSync provisioning...");
-                await _localSyncProvider.ApplyProvisionAsync();
+                await ProvisionWithLateTablesAsync(CancellationToken.None);
                 _logger.LogInformation("CoreSync provisioning applied");
 
                 _isInitialized = true;
@@ -386,7 +386,7 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
 
     private async Task SynchronizeCoreAsync(CancellationToken cancellationToken)
     {
-        await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
+        await ProvisionWithLateTablesAsync(cancellationToken);
 
         var followUp = _localSyncProvider as ISyncFollowUpSource;
         // A request left by an earlier failed run is answered by this run's own upload.
@@ -400,6 +400,43 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
         _logger.LogInformation("Sync: running one follow-up pass to upload rows merged during the download");
         await SynchronizePassAsync(cancellationToken);
         followUp.TakeFollowUpRequest();
+    }
+
+    /// <summary>
+    /// Provisions tracking and, the first time a late-joined table is tracked on this store,
+    /// queues the signed-in learner's existing rows of it for upload (see
+    /// <see cref="SyncLateTables"/>). Number Drill rows move to their shared IDs first, so the
+    /// first download cannot collide with a learner's own bucket rows.
+    /// </summary>
+    private async Task ProvisionWithLateTablesAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        if (scope.ServiceProvider.GetService<ApplicationDbContext>() is not { } db)
+        {
+            // A host without a local EF store (sync harnesses) has no rows to queue.
+            await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
+            return;
+        }
+        var untracked = await SyncLateTables.UntrackedAsync(db, cancellationToken);
+        if (untracked.Contains("NumberMasteryProgress"))
+            await SentenceStudio.Services.Numbers.NumberSyncIdentity.NormalizeAsync(
+                db, _logger, cancellationToken: cancellationToken);
+
+        await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
+        if (untracked.Count == 0)
+            return;
+
+        var scopeProvider = scope.ServiceProvider
+            .GetService<SentenceStudio.Services.Plans.IUserScopeProvider>();
+        if (scopeProvider is null || !scopeProvider.TryGetUserProfileId(out var owner)
+            || string.IsNullOrWhiteSpace(owner))
+        {
+            // Fail closed: without an owner nothing is queued, and these rows stay local.
+            _logger.LogWarning(
+                "Sync: no signed-in owner, so existing rows of newly synced tables stay local");
+            return;
+        }
+        await SyncLateTables.TouchAsync(db, untracked, owner, _logger, cancellationToken);
     }
 
     private async Task SynchronizePassAsync(CancellationToken cancellationToken)

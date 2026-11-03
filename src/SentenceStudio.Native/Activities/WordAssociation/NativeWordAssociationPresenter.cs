@@ -276,6 +276,8 @@ public sealed class NativeWordAssociationPresenter(
                 _words.Select(word => word.Id).ToList(), cancellationToken);
             if (!owner.IsActive(userId))
                 return Refuse();
+            if (saved)
+                pendingWrites.MarkPending(userId);
             _generation++;
             _notices = saved ? [] : [new(NativeMessageKind.Error, NativeText.SaveFailed)];
             return Publish(new(NativePhase.Summary,

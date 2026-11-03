@@ -99,7 +99,7 @@ public class NumberContentSeeder
             {
                 var context = new NumberContext
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = NumberSyncIdentity.ContextId(contextDto.Code),
                     Code = contextDto.Code,
                     DisplayName = contextDto.DisplayName,
                     Icon = contextDto.Icon,
@@ -134,7 +134,7 @@ public class NumberContentSeeder
             {
                 var subMode = new NumberSubMode
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = NumberSyncIdentity.SubModeId(subModeDto.Code),
                     Code = subModeDto.Code,
                     DisplayName = subModeDto.DisplayName,
                     Phase = subModeDto.Phase,
@@ -165,7 +165,7 @@ public class NumberContentSeeder
             {
                 var counter = new NumberCounter
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = NumberSyncIdentity.CounterId(languageCode, counterDto.Counter),
                     LanguageCode = languageCode,
                     Counter = counterDto.Counter,
                     Romanization = counterDto.Romanization,
@@ -188,6 +188,10 @@ public class NumberContentSeeder
 
         assertSession();
         await _db.SaveChangesAsync(ct);
+        assertSession();
+
+        // Rows seeded before fixed IDs existed move to them, with every reference.
+        await NumberSyncIdentity.NormalizeAsync(_db, _logger, assertSession, ct);
         assertSession();
 
         _logger.LogInformation(

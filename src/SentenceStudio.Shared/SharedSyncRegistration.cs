@@ -4,6 +4,7 @@ using CoreSync.Sqlite;
 using CoreSync.PostgreSQL;
 #endif
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio;
 
@@ -36,7 +37,12 @@ public static class SharedSyncRegistration
             .Table<DailyPlanCompletion>("DailyPlanCompletion", syncDirection: SyncDirection.UploadAndDownload)
             .Table<UserActivity>("UserActivity", syncDirection: SyncDirection.UploadAndDownload)
             .Table<DiaryEntry>("DiaryEntry", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 1 of syncing every learner table (Captain 2026-11-02,
+            // docs/sync-all-tables-plan.md). Catalog tables stay local: fixed IDs.
+            .Table<NumberAttempt>("NumberAttempt", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<NumberMasteryProgress>("NumberMasteryProgress", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -60,7 +66,12 @@ public static class SharedSyncRegistration
             .Table<DailyPlanCompletion>("DailyPlanCompletion", syncDirection: SyncDirection.UploadAndDownload)
             .Table<UserActivity>("UserActivity", syncDirection: SyncDirection.UploadAndDownload)
             .Table<DiaryEntry>("DiaryEntry", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 1 of syncing every learner table (Captain 2026-11-02,
+            // docs/sync-all-tables-plan.md). Catalog tables stay local: fixed IDs.
+            .Table<NumberAttempt>("NumberAttempt", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<NumberMasteryProgress>("NumberMasteryProgress", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

@@ -7,6 +7,7 @@ using SentenceStudio.Contracts;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Api.Sync;
 
@@ -114,6 +115,7 @@ internal sealed class NativeOwnerSyncProvider(
         var items = owner is null ? changes.Items : CollapseRepeatedRows(changes.Items);
 
         IReadOnlySet<string> mergedProgress = new HashSet<string>();
+        var mastery = NumberMasteryUploadMerge.Plan.Empty;
         if (owner is not null && items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -133,18 +135,31 @@ internal sealed class NativeOwnerSyncProvider(
             // values are force-written in CoreSync's transaction with this upload's contexts.
             mergedProgress = await VocabularyProgressConcurrentMerge.PrepareUploadAsync(
                 db, items, owner, logger, ct);
+
+            // Number Drill mastery from two devices: the most recently reviewed copy wins.
+            mastery = await NumberMasteryUploadMerge.PrepareAsync(db, items, owner, ct);
+            items = NumberMasteryUploadMerge.WithoutLosers(items, mastery);
         }
 
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
             changes.TargetAnchor, OrderNativeItems(items));
-        var resolve = mergedProgress.Count == 0 ? onConflict : item =>
+        var resolve = mergedProgress.Count == 0 && mastery.IsEmpty ? onConflict : item =>
             item.TableName == VocabularyProgressConcurrentMerge.ProgressTable
                 && item.ChangeType != ChangeType.Delete
                 && Value(item, "Id") is { } id && mergedProgress.Contains(id)
                 ? ConflictResolution.ForceWrite
-                : onConflict?.Invoke(item) ?? ConflictResolution.Skip;
+                : NumberMasteryUploadMerge.Resolve(mastery, item)
+                    ?? onConflict?.Invoke(item) ?? ConflictResolution.Skip;
         var anchor = await provider.ApplyChangesAsync(applied, resolve, ct);
+
+        if (mastery.StoredWins.Count > 0)
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await NumberMasteryUploadMerge.TouchStoredWinnersAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                mastery, owner!, ct);
+        }
 
         if (mergedProgress.Count > 0)
         {
@@ -478,6 +493,9 @@ internal sealed class NativeOwnerSyncProvider(
             "DailyPlanCompletion" => DirectOwnersAsync<DailyPlanCompletion>(db, ids, "UserProfileId", ct),
             "UserActivity" => DirectOwnersAsync<UserActivity>(db, ids, "UserProfileId", ct),
             "DiaryEntry" => DirectOwnersAsync<DiaryEntry>(db, ids, "UserProfileId", ct),
+            "NumberAttempt" => DirectOwnersAsync<NumberAttempt>(db, ids, "UserProfileId", ct),
+            "NumberMasteryProgress" => DirectOwnersAsync<NumberMasteryProgress>(db, ids, "UserProfileId", ct),
+            "WordAssociationScore" => DirectOwnersAsync<WordAssociationScore>(db, ids, "UserProfileId", ct),
             "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
             "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
             "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),
@@ -655,7 +673,8 @@ internal sealed class NativeOwnerSyncProvider(
             "LearningResource" or "SkillProfile" or "Conversation"
                 or "ConversationChunk" or "MonitoredChannel" or "VideoImport"
                 or "DailyPlan" or "DailyPlanCompletion" or "UserActivity"
-                or "DiaryEntry" => Value(item, "UserProfileId") == owner,
+                or "DiaryEntry" or "NumberAttempt" or "NumberMasteryProgress"
+                or "WordAssociationScore" => Value(item, "UserProfileId") == owner,
             _ => false,
         };
     }
