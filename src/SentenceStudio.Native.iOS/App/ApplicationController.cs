@@ -1021,7 +1021,9 @@ internal sealed partial class ApplicationController : IDisposable
     private async Task RunSafelyAsync(Func<Task> action)
     {
         _busy = true;
-        Publish();
+        // A render failure is logged and the action still runs, so _busy is always
+        // cleared below; otherwise every later action and Back is refused until restart.
+        PublishLoggingFailure();
         try
         {
             await action();
@@ -1053,16 +1055,36 @@ internal sealed partial class ApplicationController : IDisposable
             _busy = false;
             var queuedNavigation = _quizNavigationAfterAudio;
             _quizNavigationAfterAudio = QuizAudioNavigation.None;
-            if (_nativePopPending && !_handlingNativePop && IsQuizOpen)
-                HandlePoppedQuiz();
-            else if (_activityPopPending && IsActivityOpen && !_disposed)
-                HandlePoppedActivity();
-            else if (queuedNavigation != QuizAudioNavigation.None
-                && !_disposed && IsQuizOpen)
-                Run(queuedNavigation == QuizAudioNavigation.Back
-                    ? BackFromQuizAsync : AdvanceQuizAsync);
-            else
-                Publish();
+            try
+            {
+                if (_nativePopPending && !_handlingNativePop && IsQuizOpen)
+                    HandlePoppedQuiz();
+                else if (_activityPopPending && IsActivityOpen && !_disposed)
+                    HandlePoppedActivity();
+                else if (queuedNavigation != QuizAudioNavigation.None
+                    && !_disposed && IsQuizOpen)
+                    Run(queuedNavigation == QuizAudioNavigation.Back
+                        ? BackFromQuizAsync : AdvanceQuizAsync);
+                else
+                    Publish();
+            }
+            catch (Exception ex)
+            {
+                // This task is not awaited: log instead of leaving an unobserved exception.
+                _logger?.LogError(ex, "Native iOS render after an action failed.");
+            }
+        }
+    }
+
+    private void PublishLoggingFailure()
+    {
+        try
+        {
+            Publish();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS render before an action failed.");
         }
     }
 

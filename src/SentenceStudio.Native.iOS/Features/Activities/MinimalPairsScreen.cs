@@ -80,6 +80,9 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         return _deleteAlert.WithTabBarHidden();
     }
 
+    /// <summary>The popped page disposed the alert with it; later renders must not touch it.</summary>
+    public void OnPagePopped() => _deleteAlert = null;
+
     private void OnStateChanged(NativeMinimalPairsState state)
     {
         if (NSThread.IsMain)

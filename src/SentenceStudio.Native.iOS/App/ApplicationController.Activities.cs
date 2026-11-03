@@ -24,6 +24,9 @@ internal sealed partial class ApplicationController
     internal bool IsActivityOpen =>
         _destination == NativeDestination.Activity && _activity is not null;
 
+    /// <summary>The person popped the activity page and its exit has not finished yet.</summary>
+    internal bool IsActivityPopPending => IsActivityOpen && _activityPopPending;
+
     internal string ActivityTitle => _activity is null ? string.Empty : Text(_activity.TitleKey);
 
     internal SwiftView RenderActivity(SourceUiStyle style) =>
@@ -222,6 +225,12 @@ internal sealed partial class ApplicationController
         {
             await screen.ExitAsync(_lifetime.Token);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException || !_lifetime.IsCancellationRequested)
+        {
+            // The screen is released either way; still return to a refreshed Dashboard
+            // instead of leaving no activity on the Activity destination.
+            _logger?.LogError(ex, "Native iOS activity {Title} exit failed.", screen.TitleKey);
+        }
         finally
         {
             ReleaseActivity();
@@ -234,6 +243,7 @@ internal sealed partial class ApplicationController
     {
         if (!IsActivityOpen || _activityPopPending)
             return;
+        _activity!.OnPagePopped();
         _activityPopPending = true;
         if (!_busy)
             HandlePoppedActivity();

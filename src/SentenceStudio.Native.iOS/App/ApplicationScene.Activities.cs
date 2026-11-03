@@ -48,7 +48,10 @@ internal sealed partial class ApplicationScene
             return;
         if (_app.IsActivityOpen)
         {
-            if (_activitySlot is null && _dashboardStack.NavigationPath.Count == 0)
+            // A popped activity stays off the stack while its exit runs: pushing it
+            // again would re-render a screen whose popped views SwiftUI already disposed.
+            if (_activitySlot is null && _dashboardStack.NavigationPath.Count == 0
+                && !_app.IsActivityPopPending)
             {
                 _activitySlot = Views.VStack(_app.RenderActivity(_style));
                 // Transient toasts are layered over the page's top edge (clear of input bars); the

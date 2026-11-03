@@ -83,6 +83,12 @@ internal interface IActivityScreen : IDisposable
     /// the node and updates IsPresented from its renders. Not used with HasSheet.
     /// </summary>
     SwiftView PresentOver(SwiftView page) => page;
+
+    /// <summary>
+    /// The NavigationStack popped the activity page, which disposes the views pushed
+    /// with it: drop any node kept from <see cref="PresentOver"/> before the exit renders.
+    /// </summary>
+    void OnPagePopped() { }
 }
 
 internal static class ActivityScreens
