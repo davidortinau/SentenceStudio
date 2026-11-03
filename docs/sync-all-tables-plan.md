@@ -431,6 +431,12 @@ Known limits:
   have their own handling): the server and other clients keep the row. Making deletes sync
   needs a server design and a Captain decision.
 - A scene image has no timestamp, so the gallery orders by ID (stable, not creation order).
+- **Release-blocking: installed MAUI apps.** Their build reads `Conversation.ScenarioId`
+  as a number. Once the production API has phase 3, a conversation linked to a scenario
+  (for example a built-in, `scn:first-meeting`) downloads to them as text, which their
+  conversation page cannot read. Before phase 3 ships to production, retire or update the
+  MAUI apps on DX24, Pixel 5 and the Mac, or stop headerless sync (GitHub #204), which also
+  stops their sync. Captain decision.
 
 Checks so far:
 - Both migration validation scripts pass (pinned 2b to 3; the schema contract checks the
