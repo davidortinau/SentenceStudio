@@ -131,3 +131,18 @@ refuses uploads that contain these tables.
   bookkeeping rows into it, so it needs a design before syncing.
 - Example sentences move to phase 3: they need an owner column and
   owner-filtered reads, like the other unowned tables.
+
+**Phase 2a done (2026-11-02)**: `bad729fb`, `fe2e2011`. Verified on the local
+stack:
+- the API migrated (35 audio history rows kept, new IDs);
+- device A migrated, created and drilled a Minimal Pair, and synced it;
+- device B migrated and received the pair (same ID), its session, all 3
+  answers and all 5 audio entries;
+- a synced audio entry played on device B by regenerating its clip in place
+  (D4).
+
+**Rollout gap fixed (`fe2e2011`)**: a device that syncs with an older app
+after the API starts tracking a table moves past that table's server rows
+(CoreSync downloads only the tables the app asks for). After upgrading, the
+device asks `POST /api/v1/sync/resend` to re-send its own owner's rows of
+newly tracked tables, retrying until it succeeds.
