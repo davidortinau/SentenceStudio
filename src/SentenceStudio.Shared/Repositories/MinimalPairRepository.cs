@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -7,28 +8,54 @@ namespace SentenceStudio.Repositories;
 /// <summary>
 /// Repository for managing MinimalPair entities.
 /// Provides CRUD operations and ensures pairs are normalized (A < B).
+/// Every call takes the owner explicitly: an empty owner reads nothing and
+/// writes nothing, and another owner's pair is never read, changed or deleted.
 /// </summary>
 public class MinimalPairRepository
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<MinimalPairRepository> _logger;
 
-    public MinimalPairRepository(ApplicationDbContext context)
+    public MinimalPairRepository(ApplicationDbContext context, ILogger<MinimalPairRepository> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
     /// Creates a new minimal pair. Automatically normalizes word IDs so that A < B.
     /// </summary>
-    /// <param name="userId">The user ID</param>
+    /// <param name="userId">The owner</param>
     /// <param name="wordAId">First vocabulary word ID</param>
     /// <param name="wordBId">Second vocabulary word ID</param>
     /// <param name="contrastLabel">Optional label describing the contrast (e.g., "ㅂ vs ㅃ")</param>
-    /// <returns>The created MinimalPair, or null if a duplicate already exists</returns>
+    /// <returns>
+    /// The created MinimalPair, or null if the owner is absent, the words are the same,
+    /// either word is not the owner's vocabulary, or the pair already exists.
+    /// </returns>
     public async Task<MinimalPair?> CreatePairAsync(string userId, string wordAId, string wordBId, string? contrastLabel = null)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairRepository.CreatePairAsync refused an absent owner.");
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(wordAId) || string.IsNullOrWhiteSpace(wordBId)
+            || string.Equals(wordAId, wordBId, StringComparison.Ordinal))
+            return null;
+
         // Normalize: ensure A < B to prevent duplicates
         var (normalizedA, normalizedB) = string.Compare(wordAId, wordBId, StringComparison.Ordinal) < 0 ? (wordAId, wordBId) : (wordBId, wordAId);
+
+        // Both words must be the owner's vocabulary (the words the create page lists).
+        var ownedCount = await OwnedWords(userId)
+            .Where(word => word.Id == normalizedA || word.Id == normalizedB)
+            .CountAsync();
+        if (ownedCount != 2)
+        {
+            _logger.LogWarning("MinimalPairRepository.CreatePairAsync refused words that are not the owner's vocabulary.");
+            return null;
+        }
 
         // Check for existing pair
         var existingPair = await _context.MinimalPairs
@@ -63,6 +90,12 @@ public class MinimalPairRepository
     /// </summary>
     public async Task<List<MinimalPair>> GetUserPairsAsync(string userId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairRepository.GetUserPairsAsync called without an owner; returning no pairs.");
+            return new List<MinimalPair>();
+        }
+
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
             .Include(p => p.VocabularyWordB)
@@ -72,14 +105,18 @@ public class MinimalPairRepository
     }
 
     /// <summary>
-    /// Gets a specific minimal pair by ID, including related vocabulary words.
+    /// Gets the owner's minimal pair by ID, including related vocabulary words.
+    /// Null for an absent owner or a pair owned by anyone else.
     /// </summary>
-    public async Task<MinimalPair?> GetPairByIdAsync(string pairId)
+    public async Task<MinimalPair?> GetPairByIdAsync(string userId, string pairId)
     {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(pairId))
+            return null;
+
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
             .Include(p => p.VocabularyWordB)
-            .FirstOrDefaultAsync(p => p.Id == pairId);
+            .FirstOrDefaultAsync(p => p.Id == pairId && p.UserId == userId);
     }
 
     /// <summary>
@@ -87,6 +124,9 @@ public class MinimalPairRepository
     /// </summary>
     public async Task<bool> PairExistsAsync(string userId, string wordAId, string wordBId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return false;
+
         var (normalizedA, normalizedB) = string.Compare(wordAId, wordBId, StringComparison.Ordinal) < 0 ? (wordAId, wordBId) : (wordBId, wordAId);
 
         return await _context.MinimalPairs
@@ -97,12 +137,20 @@ public class MinimalPairRepository
     }
 
     /// <summary>
-    /// Deletes a minimal pair by ID.
+    /// Deletes the owner's minimal pair by ID.
     /// Also deletes all related attempts via cascade delete.
+    /// False for an absent owner or a pair owned by anyone else.
     /// </summary>
-    public async Task<bool> DeletePairAsync(string pairId)
+    public async Task<bool> DeletePairAsync(string userId, string pairId)
     {
-        var pair = await _context.MinimalPairs.FindAsync(pairId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairRepository.DeletePairAsync refused an absent owner.");
+            return false;
+        }
+
+        var pair = await _context.MinimalPairs
+            .FirstOrDefaultAsync(p => p.Id == pairId && p.UserId == userId);
         if (pair == null)
         {
             return false;
@@ -114,11 +162,18 @@ public class MinimalPairRepository
     }
 
     /// <summary>
-    /// Updates the contrast label for a minimal pair.
+    /// Updates the contrast label for the owner's minimal pair.
     /// </summary>
-    public async Task<bool> UpdateContrastLabelAsync(string pairId, string? contrastLabel)
+    public async Task<bool> UpdateContrastLabelAsync(string userId, string pairId, string? contrastLabel)
     {
-        var pair = await _context.MinimalPairs.FindAsync(pairId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairRepository.UpdateContrastLabelAsync refused an absent owner.");
+            return false;
+        }
+
+        var pair = await _context.MinimalPairs
+            .FirstOrDefaultAsync(p => p.Id == pairId && p.UserId == userId);
         if (pair == null)
         {
             return false;
@@ -136,6 +191,9 @@ public class MinimalPairRepository
     /// </summary>
     public async Task<List<MinimalPair>> GetPairsByWordIdAsync(string userId, string wordId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<MinimalPair>();
+
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
             .Include(p => p.VocabularyWordB)
@@ -143,5 +201,18 @@ public class MinimalPairRepository
                        (p.VocabularyWordAId == wordId || p.VocabularyWordBId == wordId))
             .OrderBy(p => p.CreatedAt)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// The owner's vocabulary: words linked to one of the owner's resources, the same
+    /// set LearningResourceRepository.GetAllVocabularyWordsAsync lists on the create page.
+    /// </summary>
+    private IQueryable<VocabularyWord> OwnedWords(string userId)
+    {
+        var ownedIds = _context.ResourceVocabularyMappings
+            .Join(_context.LearningResources.Where(resource => resource.UserProfileId == userId),
+                mapping => mapping.ResourceId, resource => resource.Id,
+                (mapping, _) => mapping.VocabularyWordId);
+        return _context.VocabularyWords.Where(word => ownedIds.Contains(word.Id));
     }
 }

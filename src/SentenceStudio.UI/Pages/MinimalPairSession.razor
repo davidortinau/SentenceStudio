@@ -26,7 +26,7 @@
             </div>
             <div class="mb-3">
                 <span class="ss-body1">@Localize["MinimalPairSession_Duration"]</span>
-                <span class="ss-title2 ms-2">@($"{Duration:F1}") min</span>
+                <span class="ss-title2 ms-2">@Localize.Get("NativeMinimalPairs_DurationValue", Duration)</span>
             </div>
         </div>
         <button class="btn btn-ss-primary mt-4" @onclick="GoBack">@Localize["Common_Done"]</button>
@@ -103,8 +103,12 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<MinimalPairSession> Logger { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private List<MinimalPair> pairs = new();
+    // The learner the session was started for. Reads and writes use it, and are
+    // refused when it is absent or no longer the active profile (fail closed).
+    private string _owner = string.Empty;
     private bool isInitializing = true;
     private bool showSummary;
     private bool isPlayingAudio;
@@ -153,6 +157,15 @@ else
         isInitializing = true;
         try
         {
+            _owner = Preferences.Get("active_profile_id", string.Empty);
+            if (string.IsNullOrWhiteSpace(_owner))
+            {
+                Logger.LogWarning("Minimal Pairs session opened without an active profile; nothing is loaded.");
+                Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+                isInitializing = false;
+                return;
+            }
+
             var pairIds = ParsePairIds();
             if (pairIds.Length == 0)
             {
@@ -162,8 +175,9 @@ else
 
             foreach (var id in pairIds)
             {
-                var pair = await PairRepo.GetPairByIdAsync(id);
-                if (pair != null) pairs.Add(pair);
+                // Only the owner's pairs whose two words still exist.
+                var pair = await PairRepo.GetPairByIdAsync(_owner, id);
+                if (pair?.VocabularyWordA != null && pair.VocabularyWordB != null) pairs.Add(pair);
             }
 
             if (pairs.Count == 0) { isInitializing = false; return; }
@@ -171,7 +185,13 @@ else
             var mode = ModeParam ?? "Focus";
             totalTrials = TrialsParam ?? 20;
 
-            var session = await SessionRepo.StartSessionAsync("1", mode, totalTrials);
+            var session = await SessionRepo.StartSessionAsync(_owner, mode, totalTrials);
+            if (session is null)
+            {
+                pairs.Clear();
+                isInitializing = false;
+                return;
+            }
             sessionId = session.Id;
             sessionStartedAt = DateTime.UtcNow;
             isInitializing = false;
@@ -264,7 +284,7 @@ else
             }
             else
             {
-                errorMessage = "Audio unavailable offline.";
+                errorMessage = Localize["NumberDrill_AudioOffline"];
                 isPlayingAudio = false;
                 return;
             }
@@ -302,7 +322,7 @@ else
             if (!_disposed)
             {
                 Logger.LogError(ex, "Failed to play audio");
-                errorMessage = "Audio playback error.";
+                errorMessage = Localize["NativeMinimalPairs_PlaybackError"];
             }
         }
         finally
@@ -329,8 +349,15 @@ else
 
         if (sessionId is not null && currentPair != null && promptWord != null)
         {
-            await SessionRepo.RecordAttemptAsync("1", sessionId, currentPair.Id,
-                promptWord.Id, selectedWordId, isCorrect);
+            if (!OwnerStillActive())
+            {
+                Logger.LogWarning("Minimal pair attempt not recorded: the active profile changed or is absent.");
+            }
+            else if (await SessionRepo.RecordAttemptAsync(_owner, sessionId, currentPair.Id,
+                promptWord.Id, selectedWordId, isCorrect) is null)
+            {
+                Logger.LogWarning("Minimal pair attempt was refused by the repository.");
+            }
         }
 
         currentTrialIndex++;
@@ -350,10 +377,14 @@ else
 
     private async Task EndSession()
     {
-        if (sessionId is not null)
-            await SessionRepo.EndSessionAsync(sessionId);
+        if (sessionId is not null && OwnerStillActive())
+            await SessionRepo.EndSessionAsync(_owner, sessionId);
         showSummary = true;
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
 
     private void GoBack() => NavManager.NavigateTo("/minimal-pairs");
 

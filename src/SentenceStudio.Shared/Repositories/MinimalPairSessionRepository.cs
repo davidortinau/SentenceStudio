@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -7,14 +8,18 @@ namespace SentenceStudio.Repositories;
 /// <summary>
 /// Repository for managing MinimalPairSession and MinimalPairAttempt entities.
 /// Provides operations for creating sessions, recording attempts, and retrieving practice history.
+/// Every call takes the owner explicitly: an empty owner reads nothing and writes
+/// nothing, and another owner's sessions, pairs and attempts are never touched.
 /// </summary>
 public class MinimalPairSessionRepository
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<MinimalPairSessionRepository> _logger;
 
-    public MinimalPairSessionRepository(ApplicationDbContext context)
+    public MinimalPairSessionRepository(ApplicationDbContext context, ILogger<MinimalPairSessionRepository> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     #region Session Management
@@ -22,12 +27,18 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Starts a new minimal pair practice session.
     /// </summary>
-    /// <param name="userId">The user ID</param>
+    /// <param name="userId">The owner</param>
     /// <param name="mode">Practice mode: "Focus" (one pair), "Mixed" (multiple pairs), or "Adaptive"</param>
     /// <param name="plannedTrialCount">Optional number of planned trials (null for open-ended)</param>
-    /// <returns>The created session</returns>
-    public async Task<MinimalPairSession> StartSessionAsync(string userId, string mode, int? plannedTrialCount = null)
+    /// <returns>The created session, or null when the owner is absent</returns>
+    public async Task<MinimalPairSession?> StartSessionAsync(string userId, string mode, int? plannedTrialCount = null)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairSessionRepository.StartSessionAsync refused an absent owner.");
+            return null;
+        }
+
         var session = new MinimalPairSession
         {
             UserId = userId,
@@ -44,11 +55,18 @@ public class MinimalPairSessionRepository
     }
 
     /// <summary>
-    /// Ends an active session by setting the EndedAt timestamp.
+    /// Ends the owner's active session by setting the EndedAt timestamp.
     /// </summary>
-    public async Task<bool> EndSessionAsync(string sessionId)
+    public async Task<bool> EndSessionAsync(string userId, string sessionId)
     {
-        var session = await _context.MinimalPairSessions.FindAsync(sessionId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairSessionRepository.EndSessionAsync refused an absent owner.");
+            return false;
+        }
+
+        var session = await _context.MinimalPairSessions
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
         if (session == null)
         {
             return false;
@@ -61,10 +79,13 @@ public class MinimalPairSessionRepository
     }
 
     /// <summary>
-    /// Gets a session by ID, including all attempts with related entities.
+    /// Gets the owner's session by ID, including all attempts with related entities.
     /// </summary>
-    public async Task<MinimalPairSession?> GetSessionByIdAsync(string sessionId)
+    public async Task<MinimalPairSession?> GetSessionByIdAsync(string userId, string sessionId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
+
         return await _context.MinimalPairSessions
             .Include(s => s.Attempts)
                 .ThenInclude(a => a.Pair)
@@ -76,7 +97,7 @@ public class MinimalPairSessionRepository
                 .ThenInclude(a => a.PromptWord)
             .Include(s => s.Attempts)
                 .ThenInclude(a => a.SelectedWord)
-            .FirstOrDefaultAsync(s => s.Id == sessionId);
+            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
     }
 
     /// <summary>
@@ -84,6 +105,9 @@ public class MinimalPairSessionRepository
     /// </summary>
     public async Task<List<MinimalPairSession>> GetUserSessionsAsync(string userId, int limit = 20)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<MinimalPairSession>();
+
         return await _context.MinimalPairSessions
             .Where(s => s.UserId == userId)
             .OrderByDescending(s => s.StartedAt)
@@ -98,14 +122,17 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Records a single trial attempt within a session.
     /// </summary>
-    /// <param name="userId">The user ID</param>
+    /// <param name="userId">The owner</param>
     /// <param name="sessionId">The session ID</param>
     /// <param name="pairId">The minimal pair being practiced</param>
     /// <param name="promptWordId">The word that was played (prompt)</param>
     /// <param name="selectedWordId">The word the user selected</param>
     /// <param name="isCorrect">Whether the selection was correct</param>
-    /// <returns>The recorded attempt</returns>
-    public async Task<MinimalPairAttempt> RecordAttemptAsync(
+    /// <returns>
+    /// The recorded attempt, or null (nothing written) unless the owner is present, the
+    /// session and pair are the owner's, and both words belong to the pair.
+    /// </returns>
+    public async Task<MinimalPairAttempt?> RecordAttemptAsync(
         string userId,
         string sessionId,
         string pairId,
@@ -113,6 +140,26 @@ public class MinimalPairSessionRepository
         string selectedWordId,
         bool isCorrect)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MinimalPairSessionRepository.RecordAttemptAsync refused an absent owner.");
+            return null;
+        }
+
+        if (!await _context.MinimalPairSessions.AnyAsync(s => s.Id == sessionId && s.UserId == userId))
+        {
+            _logger.LogWarning("MinimalPairSessionRepository.RecordAttemptAsync refused a session the owner does not own.");
+            return null;
+        }
+
+        var pair = await _context.MinimalPairs.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == pairId && p.UserId == userId);
+        if (pair == null || !InPair(pair, promptWordId) || !InPair(pair, selectedWordId))
+        {
+            _logger.LogWarning("MinimalPairSessionRepository.RecordAttemptAsync refused a pair or word the owner does not own.");
+            return null;
+        }
+
         // Get the next sequence number for this session
         var maxSequence = await _context.MinimalPairAttempts
             .Where(a => a.SessionId == sessionId)
@@ -136,10 +183,13 @@ public class MinimalPairSessionRepository
     }
 
     /// <summary>
-    /// Gets all attempts for a specific session, ordered by sequence number.
+    /// Gets all attempts for the owner's session, ordered by sequence number.
     /// </summary>
-    public async Task<List<MinimalPairAttempt>> GetSessionAttemptsAsync(string sessionId)
+    public async Task<List<MinimalPairAttempt>> GetSessionAttemptsAsync(string userId, string sessionId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<MinimalPairAttempt>();
+
         return await _context.MinimalPairAttempts
             .Include(a => a.Pair)
                 .ThenInclude(p => p!.VocabularyWordA)
@@ -147,7 +197,7 @@ public class MinimalPairSessionRepository
                 .ThenInclude(p => p!.VocabularyWordB)
             .Include(a => a.PromptWord)
             .Include(a => a.SelectedWord)
-            .Where(a => a.SessionId == sessionId)
+            .Where(a => a.SessionId == sessionId && a.UserId == userId)
             .OrderBy(a => a.SequenceNumber)
             .ToListAsync();
     }
@@ -162,6 +212,9 @@ public class MinimalPairSessionRepository
     /// </summary>
     public async Task<List<MinimalPairAttempt>> GetPairHistoryAsync(string userId, string pairId, int limit = 50)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<MinimalPairAttempt>();
+
         return await _context.MinimalPairAttempts
             .Include(a => a.PromptWord)
             .Include(a => a.SelectedWord)
@@ -176,6 +229,9 @@ public class MinimalPairSessionRepository
     /// </summary>
     public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetPairAccuracyAsync(string userId, string pairId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return (0, 0, 0);
+
         var attempts = await _context.MinimalPairAttempts
             .Where(a => a.UserId == userId && a.PairId == pairId)
             .ToListAsync();
@@ -188,12 +244,15 @@ public class MinimalPairSessionRepository
     }
 
     /// <summary>
-    /// Gets session statistics (total attempts, correct, accuracy).
+    /// Gets statistics (total attempts, correct, accuracy) for the owner's session.
     /// </summary>
-    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetSessionAccuracyAsync(string sessionId)
+    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetSessionAccuracyAsync(string userId, string sessionId)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            return (0, 0, 0);
+
         var attempts = await _context.MinimalPairAttempts
-            .Where(a => a.SessionId == sessionId)
+            .Where(a => a.SessionId == sessionId && a.UserId == userId)
             .ToListAsync();
 
         var total = attempts.Count;
@@ -204,4 +263,7 @@ public class MinimalPairSessionRepository
     }
 
     #endregion
+
+    private static bool InPair(MinimalPair pair, string wordId) =>
+        pair.VocabularyWordAId == wordId || pair.VocabularyWordBId == wordId;
 }
