@@ -13,7 +13,8 @@ namespace SentenceStudio.Services.Numbers;
 /// them (Captain 2026-11-02, docs/sync-all-tables-plan.md D2 and D5):
 /// <list type="bullet">
 /// <item>Catalog rows (contexts, sub-modes, counters) are app content. Their ID comes from their
-/// code, so every store seeds identical rows and synced rows that point at a counter agree.</item>
+/// code, so every store seeds identical rows. (Attempts and mastery store the counter word itself
+/// in <c>CounterId</c>, e.g. "개", not a counter row ID, so they never need re-pointing.)</item>
 /// <item>A learner has one mastery row per drill bucket. Its ID comes from the learner and the
 /// bucket, so two devices practicing the same bucket update one row instead of colliding.</item>
 /// </list>
@@ -45,9 +46,8 @@ public static class NumberSyncIdentity
         row.UserProfileId, row.LanguageCode, row.ContextCode, row.CounterId, row.System, row.Bucket);
 
     /// <summary>
-    /// Moves existing rows created with random IDs to their fixed IDs, in one transaction.
-    /// Catalog rows go first and every <c>CounterId</c> that points at a moved counter follows
-    /// it; then mastery rows move to their bucket ID. Idempotent: rows already on their fixed
+    /// Moves existing rows created with random IDs to their fixed IDs, in one transaction:
+    /// catalog rows first, then mastery rows to their bucket ID. Idempotent: rows already on their fixed
     /// ID are not written. Nothing is deleted. A mastery row whose fixed ID is already taken
     /// (a duplicate bucket) keeps its ID and is reported, so it stays on this store only.
     /// Run before the store's first sync after this change and before a drill can write.
@@ -100,12 +100,6 @@ public static class NumberSyncIdentity
             if (row.Id == target || counters.Any(other => other.Id == target))
                 continue;
             await ExecuteAsync(db, "UPDATE \"NumberCounter\" SET \"Id\" = {0} WHERE \"Id\" = {1}",
-                cancellationToken, target, row.Id);
-            await ExecuteAsync(db,
-                "UPDATE \"NumberAttempt\" SET \"CounterId\" = {0} WHERE \"CounterId\" = {1}",
-                cancellationToken, target, row.Id);
-            await ExecuteAsync(db,
-                "UPDATE \"NumberMasteryProgress\" SET \"CounterId\" = {0} WHERE \"CounterId\" = {1}",
                 cancellationToken, target, row.Id);
             countersMoved++;
         }

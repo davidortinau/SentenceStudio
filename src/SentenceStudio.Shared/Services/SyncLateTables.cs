@@ -43,7 +43,10 @@ public static class SyncLateTables
                 await using var command = connection.CreateCommand();
                 if (db.Database.ProviderName?.Contains("Npgsql", StringComparison.Ordinal) == true)
                 {
-                    command.CommandText = "SELECT 1 FROM pg_trigger WHERE tgname = @name LIMIT 1";
+                    // CoreSync creates these triggers with unquoted names, which
+                    // PostgreSQL folds to lower case.
+                    command.CommandText =
+                        "SELECT 1 FROM pg_trigger WHERE tgname = lower(@name) LIMIT 1";
                     Add(command, "@name", $"__{table}_ct_update__");
                 }
                 else

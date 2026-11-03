@@ -131,7 +131,7 @@ public sealed class SyncLateTablesTests
     }
 
     [Fact]
-    public async Task Normalize_MovesOldRandomIdsToFixedIds_WithReferences_AndIsIdempotent()
+    public async Task Normalize_MovesOldRandomIdsToFixedIds_KeepsData_AndIsIdempotent()
     {
         var store = await CreateStoreAsync(ProviderMode.Local, provision: false);
         await using var keepAlive = store.KeepAlive;
@@ -142,13 +142,13 @@ public sealed class SyncLateTablesTests
             db.NumberCounters.Add(new NumberCounter { Id = "old-counter", LanguageCode = "ko", Counter = "살" });
             db.NumberAttempts.Add(new NumberAttempt
             {
-                Id = "attempt", UserProfileId = Owner, CounterId = "old-counter", ContextCode = "age"
+                Id = "attempt", UserProfileId = Owner, CounterId = "살", ContextCode = "age"
             });
             db.NumberMasteryProgresses.AddRange(
                 new NumberMasteryProgress
                 {
                     Id = "old-mastery", UserProfileId = Owner, LanguageCode = "ko", ContextCode = "age",
-                    CounterId = "old-counter", System = NumberSystem.Native, Bucket = "1-10",
+                    CounterId = "살", System = NumberSystem.Native, Bucket = "1-10",
                     CorrectCount = 4, TotalCount = 5
                 },
                 new NumberMasteryProgress
@@ -165,16 +165,17 @@ public sealed class SyncLateTablesTests
         Assert.Equal(new NumberIdentityReport(1, 1, 1, 1, 0), first);
 
         var counter = NumberSyncIdentity.CounterId("ko", "살");
-        var masteryId = NumberSyncIdentity.MasteryId(Owner, "ko", "age", counter, NumberSystem.Native, "1-10");
+        // Attempts and mastery hold the counter word, which is the same on every store.
+        var masteryId = NumberSyncIdentity.MasteryId(Owner, "ko", "age", "살", NumberSystem.Native, "1-10");
         await using (var db = new ApplicationDbContext(store.Options))
         {
             Assert.Equal(NumberSyncIdentity.ContextId("age"), (await db.NumberContexts.SingleAsync()).Id);
             Assert.Equal(NumberSyncIdentity.SubModeId("produce"), (await db.NumberSubModes.SingleAsync()).Id);
             Assert.Equal(counter, (await db.NumberCounters.SingleAsync()).Id);
-            Assert.Equal(counter, (await db.NumberAttempts.SingleAsync()).CounterId);
+            Assert.Equal("살", (await db.NumberAttempts.SingleAsync()).CounterId);
             var moved = await db.NumberMasteryProgresses.SingleAsync(row => row.UserProfileId == Owner);
             Assert.Equal(masteryId, moved.Id);
-            Assert.Equal(counter, moved.CounterId);
+            Assert.Equal("살", moved.CounterId);
             Assert.Equal((4, 5), (moved.CorrectCount, moved.TotalCount));
             // A row without an owner is never given one or moved.
             Assert.True(await db.NumberMasteryProgresses.AnyAsync(row => row.Id == "unowned-mastery"));

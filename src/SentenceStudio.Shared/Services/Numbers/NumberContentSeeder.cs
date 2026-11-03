@@ -190,7 +190,7 @@ public class NumberContentSeeder
         await _db.SaveChangesAsync(ct);
         assertSession();
 
-        // Rows seeded before fixed IDs existed move to them, with every reference.
+        // Rows seeded before fixed IDs existed move to them.
         await NumberSyncIdentity.NormalizeAsync(_db, _logger, assertSession, ct);
         assertSession();
 
