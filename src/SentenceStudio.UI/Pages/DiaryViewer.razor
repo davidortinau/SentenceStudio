@@ -143,7 +143,18 @@
             var result = await DiaryAi.GetFeedbackAsync(entry.Content, entry.PromptText, entry.Language);
             if (result is not null)
             {
-                entry = await DiaryRepo.SaveFeedbackAsync(entry.Id, result.Recommended, result.Notes, result.Strengths);
+                var saved = await DiaryRepo.SaveFeedbackAsync(entry.Id, result.Recommended, result.Notes, result.Strengths);
+                if (saved is not null)
+                {
+                    entry = saved;
+                }
+                else
+                {
+                    // Refused (no active profile, or the entry is not the active profile's):
+                    // keep showing the entry and report that the feedback was not kept.
+                    Logger.LogWarning("Diary feedback was not saved for entry {Id}", entry.Id);
+                    Toast.ShowError($"{Localize["Diary_FeedbackFailed"]}");
+                }
             }
             else
             {
