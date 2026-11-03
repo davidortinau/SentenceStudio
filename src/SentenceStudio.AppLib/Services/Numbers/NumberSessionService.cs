@@ -16,6 +16,18 @@ public class NumberSessionService
     // In-memory session storage for Phase 1 (sessions not persisted)
     private readonly Dictionary<Guid, NumberSession> _activeSessions = new();
 
+    // The stored attempts of each active session, for its summary (median time,
+    // patterns to review). An "I was correct" override updates its entry.
+    private readonly Dictionary<Guid, List<SessionAttempt>> _sessionAttempts = new();
+
+    private sealed class SessionAttempt(string attemptId, int latencyMs, bool isCorrect, string? errorClass)
+    {
+        public string AttemptId { get; } = attemptId;
+        public int LatencyMs { get; } = latencyMs;
+        public bool IsCorrect { get; set; } = isCorrect;
+        public string? ErrorClass { get; set; } = errorClass;
+    }
+
     public NumberSessionService(
         INumberItemGenerator generator,
         INumberAnswerGrader grader,
@@ -124,6 +136,7 @@ public class NumberSessionService
 
         var session = new NumberSession(sessionId, items.AsReadOnly(), request, DateTime.UtcNow);
         _activeSessions[sessionId] = session;
+        _sessionAttempts[sessionId] = new List<SessionAttempt>();
 
         _logger.LogInformation(
             "📐 NumberDrill session started: user={UserId} subMode={SubMode} context={Context} itemCount={ItemCount} dueOnly={DueOnly}",
@@ -140,6 +153,9 @@ public class NumberSessionService
         int latencyMs,
         CancellationToken ct = default)
     {
+        // An absent owner never writes an unowned attempt or mastery row.
+        ArgumentException.ThrowIfNullOrWhiteSpace(userProfileId);
+
         // Grade the answer
         var gradeResult = _grader.Grade(item, userAnswer, latencyMs);
 
@@ -239,6 +255,12 @@ public class NumberSessionService
 
         await _db.SaveChangesAsync(ct);
 
+        if (_sessionAttempts.TryGetValue(sessionId, out var sessionAttempts))
+        {
+            sessionAttempts.Add(new SessionAttempt(attempt.Id, latencyMs, gradeResult.IsCorrect,
+                SummaryErrorClass(item, gradeResult)));
+        }
+
         var snapshot = new MasteryProgressSnapshot(
             progress.CorrectCount,
             progress.TotalCount,
@@ -319,6 +341,7 @@ public class NumberSessionService
         {
             _logger.LogInformation(
                 "NumberDrill override ignored: attempt {AttemptId} is already correct.", attempt.Id);
+            MarkSessionAttemptCorrect(attempt.Id);
             return new NumberOverrideResult(NumberOverrideOutcome.AlreadyCorrect,
                 progress == null ? null : Snapshot(progress));
         }
@@ -365,6 +388,7 @@ public class NumberSessionService
         progress.DueDate = (progress.LastReviewed ?? DateTime.UtcNow).AddDays(correct.Interval);
 
         await _db.SaveChangesAsync(ct);
+        MarkSessionAttemptCorrect(attempt.Id);
 
         _logger.LogInformation(
             "NumberDrill override applied: user={UserId} attempt={AttemptId} context={Context} " +
@@ -391,22 +415,64 @@ public class NumberSessionService
             throw new InvalidOperationException($"Session {sessionId} not found");
         }
 
-        // For Phase 1, we don't have attempt tracking in memory,
-        // so we return a minimal summary. Phase 2 will track attempts
-        // per session for richer summaries.
+        // The summary covers the attempts this session stored (overrides
+        // included): median answer time and the wrong answers' error classes.
+        var attempts = _sessionAttempts.GetValueOrDefault(sessionId) ?? new List<SessionAttempt>();
         var summary = new NumberSessionSummary(
             SessionId: sessionId,
             TotalItems: session.Items.Count,
-            CorrectCount: 0,  // TODO: track in-session
-            MedianLatencyMs: 0,  // TODO: track in-session
-            ErrorClassBreakdown: new Dictionary<string, int>()
+            CorrectCount: attempts.Count(a => a.IsCorrect),
+            MedianLatencyMs: Median(attempts.Select(a => a.LatencyMs)),
+            ErrorClassBreakdown: attempts
+                .Where(a => !a.IsCorrect && !string.IsNullOrEmpty(a.ErrorClass))
+                .GroupBy(a => a.ErrorClass!, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal)
         );
 
         _activeSessions.Remove(sessionId);
+        _sessionAttempts.Remove(sessionId);
 
         _logger.LogInformation("Ended number session {SessionId}", sessionId);
 
         return Task.FromResult(summary);
+    }
+
+    /// <summary>
+    /// The pattern a wrong answer counts toward in the session summary. Paired
+    /// Disambiguate prompts are graded both-or-nothing, so any miss there is a
+    /// number-system confusion.
+    /// </summary>
+    private static string? SummaryErrorClass(NumberItem item, GradeResult grade)
+    {
+        if (grade.IsCorrect)
+            return null;
+        if (item.SubModeCode == "Disambiguate")
+            return "system_confusion";
+        return string.IsNullOrEmpty(grade.ErrorClass) ? null : grade.ErrorClass;
+    }
+
+    private void MarkSessionAttemptCorrect(string attemptId)
+    {
+        foreach (var attempts in _sessionAttempts.Values)
+        {
+            var match = attempts.FirstOrDefault(a => a.AttemptId == attemptId);
+            if (match == null)
+                continue;
+            match.IsCorrect = true;
+            match.ErrorClass = null;
+            return;
+        }
+    }
+
+    private static int Median(IEnumerable<int> values)
+    {
+        var sorted = values.Order().ToArray();
+        if (sorted.Length == 0)
+            return 0;
+        var middle = sorted.Length / 2;
+        return sorted.Length % 2 == 1
+            ? sorted[middle]
+            : (int)Math.Round((sorted[middle - 1] + (long)sorted[middle]) / 2.0);
     }
 
     // Latency-to-SM2-quality mapping
