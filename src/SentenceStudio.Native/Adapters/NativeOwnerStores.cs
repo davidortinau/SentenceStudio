@@ -1,3 +1,4 @@
+using SentenceStudio.Abstractions;
 using System.Collections.Concurrent;
 using CoreSync;
 using CoreSync.Sqlite;
@@ -38,6 +39,7 @@ public sealed class NativeOwnerStores
     private readonly ConcurrentDictionary<string, bool> _migrated =
         new(StringComparer.Ordinal);
     private volatile ActiveStore? _active;
+    private IPreferencesService? _claimPreferences;
 
     private sealed record ActiveStore(string Owner, string Path);
 
@@ -120,6 +122,8 @@ public sealed class NativeOwnerStores
                     await SqliteMigrationBackup.MigrateWithBackupAsync(
                         db, path, _logger, cancellationToken, _backupDirectory);
                 _afterMigrate?.Invoke(db);
+                if (_claimPreferences is { } preferences)
+                    await ClaimLegacyQuizSavesOnceAsync(db, owner, preferences, cancellationToken);
                 _migrated[path] = true;
             }
             _active = new ActiveStore(owner, path);
@@ -132,6 +136,48 @@ public sealed class NativeOwnerStores
             _gate.Release();
         }
     }
+
+    /// <summary>
+    /// Quiz runs saved by a native build from before they synced (2026-11-03) carry no
+    /// <c>savedBy</c>, but only this device could have saved them. Mark the owner's runs as this
+    /// install's, so this device still finishes its own graded answer and other devices treat it
+    /// as this install's (docs/activity-session-format.md). Web/MAUI saves record no plan row and
+    /// are left alone. Runs once per owner database, at its first activation by a build that
+    /// syncs runs, so before that database's first sync: afterwards a run without
+    /// <c>savedBy</c> may be another client's, downloaded, and is never claimed.
+    /// </summary>
+    internal static async Task ClaimLegacyQuizSavesOnceAsync(
+        ApplicationDbContext db, string owner, IPreferencesService preferences,
+        CancellationToken cancellationToken)
+    {
+        var key = LegacyQuizClaimKey + owner;
+        if (preferences.Get(key, false))
+            return;
+        await ClaimLegacyQuizSavesAsync(
+            db, owner, NativeInstallId.Get(preferences), cancellationToken);
+        // Set after the claim: a stop in between repeats it, still before any sync.
+        preferences.Set(key, true);
+    }
+
+    internal const string LegacyQuizClaimKey = "native.legacyQuizRunsClaimed.";
+
+    internal static async Task<int> ClaimLegacyQuizSavesAsync(
+        ApplicationDbContext db, string owner, string installId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(installId);
+        return await db.Database.ExecuteSqlRawAsync("""
+            UPDATE "ActivitySession" SET "StateJson" = json_set("StateJson", '$.savedBy', {0})
+            WHERE "UserId" = {1} AND "ActivityType" = 'VocabularyReview' AND json_valid("StateJson")
+                AND json_type("StateJson", '$.snapshot') = 'object'
+                AND json_type("StateJson", '$.planItemRowId') = 'text'
+                AND json_type("StateJson", '$.savedBy') IS NULL
+            """, [installId, owner], cancellationToken);
+    }
+
+    /// <summary>Preferences that hold this install's ID, for claiming saves made before quiz runs synced.</summary>
+    internal void UseLegacyQuizClaim(IPreferencesService preferences) =>
+        _claimPreferences = preferences;
 
     /// <summary>Sign-out or a refused sign-in leaves no owner database selectable.</summary>
     public void Deactivate()
@@ -408,7 +454,14 @@ public static class NativeOwnerStoreRegistration
     public static IServiceCollection AddNativeOwnerSqlite(
         this IServiceCollection services, Func<IServiceProvider, NativeOwnerStores> create)
     {
-        services.TryAddSingleton(create);
+        services.TryAddSingleton(provider =>
+        {
+            var stores = create(provider);
+            // Both app heads register preferences; a host without them claims nothing.
+            if (provider.GetService<IPreferencesService>() is { } preferences)
+                stores.UseLegacyQuizClaim(preferences);
+            return stores;
+        });
         services.AddDbContext<ApplicationDbContext>((provider, options) =>
         {
             var (path, owner) = provider.GetRequiredService<NativeOwnerStores>()

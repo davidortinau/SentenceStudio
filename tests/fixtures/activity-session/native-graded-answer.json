@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "userId": "7d1f0c52-3a3e-4f43-9b52-6a3c2f8e1a10",
+  "planDate": "2026-11-03",
+  "launchContextKey": "plan=9d3fd8e6c3ae5ee8|focus=|res=|due=false|skill=",
+  "planItemRowId": "77d0b2c4a1e94f3e8b6d5c4b3a291807",
+  "isRepractice": false,
+  "displayDirection": "TargetToNative",
+  "turnId": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "snapshot": {
+    "planItemId": "9d3fd8e6c3ae5ee8",
+    "batchPool": [
+      { "wordId": "word-1", "sessionCorrectCount": 1, "sessionMCCorrect": 1, "wasCorrectThisSession": true },
+      { "wordId": "word-2" }
+    ],
+    "roundWordOrder": [ "word-1", "word-2" ],
+    "roundCursor": 2,
+    "currentTurnInRound": 0,
+    "totalTurns": 1,
+    "correctCount": 1,
+    "sessionItemsWordIds": [ "word-1", "word-2" ],
+    "promptUsesNativeLanguage": false,
+    "userMode": "MultipleChoice"
+  },
+  "pendingAttempt": {
+    "vocabularyWordId": "word-1",
+    "userId": "7d1f0c52-3a3e-4f43-9b52-6a3c2f8e1a10",
+    "activity": "VocabularyQuiz",
+    "inputMode": "MultipleChoice",
+    "wasCorrect": true,
+    "difficultyWeight": 1.0,
+    "contextType": "Isolated",
+    "userInput": "apple",
+    "expectedAnswer": "apple",
+    "responseTimeMs": 2400
+  },
+  "requiresCorrection": false,
+  "summaryVisible": false,
+  "elapsedTicks": 450000000,
+  "savedBy": "native:5e0c2a7b9d1f4e3a8c6b4d2f0e1a3c5b"
+}

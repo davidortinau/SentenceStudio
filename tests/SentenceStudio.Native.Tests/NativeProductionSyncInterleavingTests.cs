@@ -111,7 +111,7 @@ public sealed class NativeProductionSyncInterleavingTests
             var session = await db.ActivitySessions.AsNoTracking().SingleAsync(
                 row => row.UserId == NativeSliceFixture.UserA
                     && row.ActivityType == "VocabularyReview");
-            var pending = NativeQuizStoredState.Deserialize(session.StateJson);
+            var pending = VocabQuizSavedState.Deserialize(session.StateJson);
             await scope.ServiceProvider.GetRequiredService<INativeQuizAttemptCommitter>()
                 .CommitAsync(NativeSliceFixture.UserA, pending.LaunchContextKey,
                     pending.TurnId, pending.PendingAttempt!, CancellationToken.None);

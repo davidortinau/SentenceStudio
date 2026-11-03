@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio;
 using SentenceStudio.Shared.Services;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native;
 
@@ -11,7 +12,7 @@ public sealed partial class NativeQuizPresenter
 {
     private string? _sentenceSubmissionId;
     private string? _sentenceInput;
-    private ImmutableArray<NativeQuizSentenceGrade> _sentenceResults = [];
+    private ImmutableArray<VocabQuizSentenceGrade> _sentenceResults = [];
     private bool _sentenceCreditApplied;
 
     public async Task<NativeQuizState> SubmitSentenceAsync(
@@ -109,7 +110,7 @@ public sealed partial class NativeQuizPresenter
         if (_sentenceResults.IsDefaultOrEmpty)
         {
             var word = _round[_turnIndex].Word;
-            var results = ImmutableArray.CreateBuilder<NativeQuizSentenceGrade>(
+            var results = ImmutableArray.CreateBuilder<VocabQuizSentenceGrade>(
                 entries.Count);
             foreach (var sentence in entries)
             {
@@ -130,7 +131,7 @@ public sealed partial class NativeQuizPresenter
                 catch (Exception)
                 {
                     // Provider errors can echo the learner's sentence; do not log the exception.
-                    results.Add(new NativeQuizSentenceGrade(sentence, false,
+                    results.Add(new VocabQuizSentenceGrade(sentence, false,
                         LocalizationManager.Instance.GetString(
                             NativeText.SentenceGradeUnavailable,
                             CultureInfo.CurrentUICulture),
@@ -238,6 +239,7 @@ public sealed partial class NativeQuizPresenter
             var previousRound = _round.ToList();
             var previousTurn = _turnIndex;
             var previousTurnId = _turnId;
+            var previousScoredElsewhere = _turnScoredElsewhere;
             var previousMastered = _wordsMastered;
             var previousRounds = _roundsCompleted;
             var previousSubmission = _sentenceSubmissionId;
@@ -275,6 +277,7 @@ public sealed partial class NativeQuizPresenter
                 }
 
                 _turnId = Guid.NewGuid().ToString("N");
+                _turnScoredElsewhere = false;
                 _promptUsesNative = _displayDirection switch
                 {
                     "NativeToTarget" => true,
@@ -292,6 +295,7 @@ public sealed partial class NativeQuizPresenter
                 _round = previousRound;
                 _turnIndex = previousTurn;
                 _turnId = previousTurnId;
+                _turnScoredElsewhere = previousScoredElsewhere;
                 _wordsMastered = previousMastered;
                 _roundsCompleted = previousRounds;
                 _sentenceSubmissionId = previousSubmission;

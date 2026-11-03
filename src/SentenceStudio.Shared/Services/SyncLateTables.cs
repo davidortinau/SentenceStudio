@@ -33,6 +33,7 @@ public static class SyncLateTables
             ["MinimalPairAttempt"] = "UserId",
             ["StreamHistory"] = "UserProfileId",
             ["ConversationMemoryState"] = "UserProfileId",
+            ["ActivitySession"] = "UserId",
         };
 
     /// <summary>Late tables that this store has not provisioned yet. Call before provisioning.</summary>

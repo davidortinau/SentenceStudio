@@ -275,7 +275,7 @@ internal sealed class ScratchActivitySessions(ActivitySessionService inner)
         return inner.CompleteAsync(userId, activityType, launchContextKey);
     }
 
-    public Task AbandonAsync(string userId, int sessionId) =>
+    public Task AbandonAsync(string userId, string sessionId) =>
         inner.AbandonAsync(userId, sessionId);
 }
 

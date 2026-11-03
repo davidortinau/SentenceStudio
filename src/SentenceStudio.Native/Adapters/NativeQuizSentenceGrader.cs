@@ -30,7 +30,7 @@ public sealed class NativeQuizSentenceGrader(
     private const string TemplateResource =
         "SentenceStudio.Native.Prompts.GradeSentence.scriban-txt";
 
-    public async Task<NativeQuizSentenceGrade> GradeAsync(
+    public async Task<VocabQuizSentenceGrade> GradeAsync(
         string userId, string sentence, VocabularyWord word,
         string targetLanguage, string nativeLanguage, CancellationToken cancellationToken)
     {
@@ -78,7 +78,7 @@ public sealed class NativeQuizSentenceGrader(
                 word.TargetLanguageTerm);
         }
         var verifiedGrade = formVerified ? grade : null;
-        return new NativeQuizSentenceGrade(
+        return new VocabQuizSentenceGrade(
             sentence, correct, explanation,
             verifiedGrade?.Accuracy, verifiedGrade?.Fluency,
             verifiedGrade?.AccuracyExplanation ?? string.Empty,

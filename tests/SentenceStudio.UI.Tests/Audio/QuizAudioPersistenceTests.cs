@@ -17,6 +17,15 @@ namespace SentenceStudio.UI.Tests.Audio;
 
 public class QuizAudioPersistenceTests
 {
+    /// <summary>The page saves the one saved format every client reads (docs/activity-session-format.md).</summary>
+    private static VocabQuizSessionSnapshot SavedSnapshot(string stateJson)
+    {
+        var saved = VocabQuizSavedState.Deserialize(stateJson);
+        saved.SavedBy.Should().BeNull("the web/MAUI page never saves a graded, unscored answer");
+        saved.PendingAttempt.Should().BeNull();
+        return saved.Snapshot;
+    }
+
     [Fact]
     public async Task Q25a_GradedPendingBeforeNext_FailedJsStopStillPersistsOneOwnedAttemptAndSnapshot()
     {
@@ -37,7 +46,7 @@ public class QuizAudioPersistenceTests
         var beforeNext = await fixture.ReadRowsAsync();
         beforeNext.Progress.Should().NotContain(p => p.UserId == fixture.OwnerId);
         beforeNext.Contexts.Should().BeEmpty();
-        var initialSnapshot = VocabQuizSessionSnapshot.Deserialize(OwnerSession(fixture, beforeNext).StateJson);
+        var initialSnapshot = SavedSnapshot(OwnerSession(fixture, beforeNext).StateJson);
         initialSnapshot.TotalTurns.Should().Be(0);
         initialSnapshot.BatchPool.Should().ContainSingle().Which.WordId.Should().Be(fixture.WordId);
 
@@ -48,7 +57,7 @@ public class QuizAudioPersistenceTests
         GetField<VocabularyAttempt?>(quiz, "pendingAttempt").Should().BeNull();
         var afterDisposal = await fixture.ReadRowsAsync();
         AssertOneOwnedAttempt(fixture, afterDisposal);
-        var savedSnapshot = VocabQuizSessionSnapshot.Deserialize(OwnerSession(fixture, afterDisposal).StateJson);
+        var savedSnapshot = SavedSnapshot(OwnerSession(fixture, afterDisposal).StateJson);
         savedSnapshot.TotalTurns.Should().Be(1);
         savedSnapshot.CurrentTurnInRound.Should().Be(0);
         savedSnapshot.BatchPool.Should().ContainSingle().Which.WordId.Should().Be(fixture.WordId);
@@ -77,13 +86,13 @@ public class QuizAudioPersistenceTests
         GetField<VocabularyAttempt?>(quiz, "pendingAttempt").Should().BeNull();
         var beforeSnapshotCommit = await fixture.ReadRowsAsync();
         AssertOneOwnedAttempt(fixture, beforeSnapshotCommit);
-        VocabQuizSessionSnapshot.Deserialize(OwnerSession(fixture, beforeSnapshotCommit).StateJson)
+        SavedSnapshot(OwnerSession(fixture, beforeSnapshotCommit).StateJson)
             .TotalTurns.Should().Be(0, "the next snapshot is held after the real attempt write");
 
         await quiz.DisposeAsync();
         var afterDisposal = await fixture.ReadRowsAsync();
         AssertOneOwnedAttempt(fixture, afterDisposal);
-        var disposalSnapshot = VocabQuizSessionSnapshot.Deserialize(OwnerSession(fixture, afterDisposal).StateJson);
+        var disposalSnapshot = SavedSnapshot(OwnerSession(fixture, afterDisposal).StateJson);
         disposalSnapshot.TotalTurns.Should().Be(1);
         disposalSnapshot.CurrentTurnInRound.Should().Be(1);
         disposalSnapshot.SessionItemsWordIds.Should().ContainSingle().Which.Should().Be(fixture.WordId);
@@ -94,7 +103,7 @@ public class QuizAudioPersistenceTests
         var afterNext = await fixture.ReadRowsAsync();
         AssertOneOwnedAttempt(fixture, afterNext);
         OwnerSession(fixture, afterNext).Id.Should().Be(OwnerSession(fixture, afterDisposal).Id);
-        VocabQuizSessionSnapshot.Deserialize(OwnerSession(fixture, afterNext).StateJson)
+        SavedSnapshot(OwnerSession(fixture, afterNext).StateJson)
             .TotalTurns.Should().Be(1);
         logger.Entries.Should().NotContain(entry => entry.Level == LogLevel.Error);
     }
@@ -245,6 +254,14 @@ public class QuizAudioPersistenceTests
             SetMember(quiz, "ProgressService", _provider.GetRequiredService<VocabularyProgressService>());
             SetMember(quiz, "CacheService", _provider.GetRequiredService<ProgressCacheService>());
             SetMember(quiz, "SessionService", Sessions);
+            SetMember(quiz, "PlanDateContext",
+                new SentenceStudio.Services.Plans.PlanDateContext(TimeZoneInfo.Utc));
+            SetMember(quiz, "QuizPrefs", new VocabularyQuizPreferences(
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<VocabularyQuizPreferences>.Instance,
+                new SpeechVoicePreferences(
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<SpeechVoicePreferences>.Instance,
+                    _preferences),
+                _preferences));
             SetMember(quiz, "activeUserId", OwnerId);
             SetMember(quiz, "launchContextKey", LaunchContextKey);
             SetMember(quiz, "activityTimerStarted", true);
@@ -306,7 +323,7 @@ public class QuizAudioPersistenceTests
         public Task CompleteAsync(string userId, string activityType, string launchContextKey)
             => inner.CompleteAsync(userId, activityType, launchContextKey);
 
-        public Task AbandonAsync(string userId, int sessionId) => inner.AbandonAsync(userId, sessionId);
+        public Task AbandonAsync(string userId, string sessionId) => inner.AbandonAsync(userId, sessionId);
     }
 
     private sealed class OwnedPreferences : IPreferencesService

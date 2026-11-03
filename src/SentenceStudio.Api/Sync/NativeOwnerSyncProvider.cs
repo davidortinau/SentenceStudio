@@ -115,7 +115,8 @@ internal sealed class NativeOwnerSyncProvider(
         var items = owner is null ? changes.Items : CollapseRepeatedRows(changes.Items);
 
         IReadOnlySet<string> mergedProgress = new HashSet<string>();
-        var mastery = NumberMasteryUploadMerge.Plan.Empty;
+        var mastery = NumberMasteryUploadMerge.Empty;
+        var runs = ActivitySessionUploadMerge.RunPlan.Empty;
         if (owner is not null && items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -138,27 +139,34 @@ internal sealed class NativeOwnerSyncProvider(
 
             // Number Drill mastery from two devices: the most recently reviewed copy wins.
             mastery = await NumberMasteryUploadMerge.PrepareAsync(db, items, owner, ct);
-            items = NumberMasteryUploadMerge.WithoutLosers(items, mastery);
+            items = LatestCopyUploadMerge.WithoutLosers(items, mastery);
+
+            // A quiz run saved on several clients: the most recent save wins, and a different
+            // run of the same launch that loses is kept as its own record.
+            runs = await ActivitySessionUploadMerge.PrepareAsync(db, items, owner, ct);
+            items = LatestCopyUploadMerge.WithoutLosers(items, runs.Copies);
+            await ActivitySessionUploadMerge.KeepReplacedRunsAsync(db, runs, ct);
         }
 
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
             changes.TargetAnchor, OrderNativeItems(items));
-        var resolve = mergedProgress.Count == 0 && mastery.IsEmpty ? onConflict : item =>
+        var resolve = mergedProgress.Count == 0 && mastery.IsEmpty && runs.Copies.IsEmpty ? onConflict : item =>
             item.TableName == VocabularyProgressConcurrentMerge.ProgressTable
                 && item.ChangeType != ChangeType.Delete
                 && Value(item, "Id") is { } id && mergedProgress.Contains(id)
                 ? ConflictResolution.ForceWrite
-                : NumberMasteryUploadMerge.Resolve(mastery, item)
+                : LatestCopyUploadMerge.Resolve(mastery, item)
+                    ?? LatestCopyUploadMerge.Resolve(runs.Copies, item)
                     ?? onConflict?.Invoke(item) ?? ConflictResolution.Skip;
         var anchor = await provider.ApplyChangesAsync(applied, resolve, ct);
 
-        if (mastery.StoredWins.Count > 0)
+        if (mastery.StoredWins.Count > 0 || runs.Copies.StoredWins.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
-            await NumberMasteryUploadMerge.TouchStoredWinnersAsync(
-                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
-                mastery, owner!, ct);
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await LatestCopyUploadMerge.TouchStoredWinnersAsync(db, mastery, owner!, ct);
+            await LatestCopyUploadMerge.TouchStoredWinnersAsync(db, runs.Copies, owner!, ct);
         }
 
         if (mergedProgress.Count > 0)
@@ -501,6 +509,7 @@ internal sealed class NativeOwnerSyncProvider(
             "MinimalPairAttempt" => DirectOwnersAsync<MinimalPairAttempt>(db, ids, "UserId", ct),
             "StreamHistory" => DirectOwnersAsync<StreamHistory>(db, ids, "UserProfileId", ct),
             "ConversationMemoryState" => DirectOwnersAsync<ConversationMemoryState>(db, ids, "UserProfileId", ct),
+            "ActivitySession" => DirectOwnersAsync<ActivitySession>(db, ids, "UserId", ct),
             "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
             "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
             "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),
@@ -682,6 +691,10 @@ internal sealed class NativeOwnerSyncProvider(
                 or "WordAssociationScore" or "StreamHistory"
                 or "ConversationMemoryState" => Value(item, "UserProfileId") == owner,
             "MinimalPairSession" => Value(item, "UserId") == owner,
+            // Quiz answer receipts are device-only bookkeeping (phase 2b): refused on upload,
+            // and never stored here to send.
+            "ActivitySession" => Value(item, "UserId") == owner
+                && !ActivitySessionTypes.IsDeviceOnly(Value(item, "ActivityType"), id),
             // A pair or answer travels only with words this owner can see, so a device never
             // receives one whose words it lacks.
             "MinimalPair" => Value(item, "UserId") == owner

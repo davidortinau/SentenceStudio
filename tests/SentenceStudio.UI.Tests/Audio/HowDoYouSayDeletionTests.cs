@@ -464,7 +464,7 @@ public class HowDoYouSayDeletionTests
             return page;
         }
 
-        public bool RowExists(int id)
+        public bool RowExists(string id)
         {
             using var command = _connection.CreateCommand();
             command.CommandText = """SELECT COUNT(*) FROM "StreamHistory" WHERE "Id" = $id""";

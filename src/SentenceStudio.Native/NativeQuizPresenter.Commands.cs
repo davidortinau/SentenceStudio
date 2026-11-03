@@ -710,10 +710,34 @@ public sealed partial class NativeQuizPresenter
 
         pendingWrites.RestoreUnmarkedCommittedTurns(_launch.UserId, 1);
         _pendingSync = pendingWrites.IsPending(_launch.UserId);
-        var current = _round[_turnIndex];
-        current.Progress = receipt.Progress;
+        _round[_turnIndex].Progress = receipt.Progress;
         _pending = null;
         _requiresCorrection = false;
+        return await AdvanceTurnAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Resuming a run another client saved mid-question (a graded answer or sentence): that
+    /// client scores it. The snapshot's counters already include a graded answer, so this device
+    /// moves past the question without scoring it, as if Next had been tapped there.
+    /// </summary>
+    private async Task<NativeQuizState> MovePastUnfinishedTurnAsync(CancellationToken cancellationToken)
+    {
+        logger.LogInformation(
+            "Quiz resumed a question another client was grading; moving past it without scoring it here.");
+        _pending = null;
+        _requiresCorrection = false;
+        ResetSentenceSubmission();
+        _turnScoredElsewhere = true;
+        return await AdvanceTurnAsync(cancellationToken);
+    }
+
+    /// <summary>Moves from the current (finished) question to the next one or the round summary.</summary>
+    private async Task<NativeQuizState> AdvanceTurnAsync(CancellationToken cancellationToken)
+    {
+        if (_launch is null || _turnIndex >= _round.Count)
+            throw new InvalidOperationException("No current quiz question to move past.");
+        var current = _round[_turnIndex];
         if (current.ReadyToRotateOut)
         {
             _round.RemoveAt(_turnIndex);
@@ -738,6 +762,7 @@ public sealed partial class NativeQuizPresenter
         }
 
         _turnId = Guid.NewGuid().ToString("N");
+        _turnScoredElsewhere = false;
         _promptUsesNative = _displayDirection switch
         {
             "NativeToTarget" => true,

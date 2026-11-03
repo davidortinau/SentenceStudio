@@ -152,7 +152,9 @@ public sealed class VocabQuizLaunchValidator
 
         rejectedCount += CountRejectedWordReferences(batchWordIds, reachable, requiredContainer: null);
         rejectedCount += CountRejectedWordReferences(snapshot.RoundWordOrder, reachable, batchSet);
-        rejectedCount += CountRejectedWordReferences(snapshot.SessionItemsWordIds, reachable, batchSet);
+        // A word mastered mid-round leaves the batch (spec 1.3) but stays in the round's
+        // session list, so session words need only be reachable (cross-client resume, 2026-11-03).
+        rejectedCount += CountRejectedWordReferences(snapshot.SessionItemsWordIds, reachable, requiredContainer: null);
 
         return rejectedCount;
     }

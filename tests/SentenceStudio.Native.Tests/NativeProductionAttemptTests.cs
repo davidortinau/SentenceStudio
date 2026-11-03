@@ -336,20 +336,20 @@ public sealed class NativeProductionAttemptTests
         var adapter = NewAdapter(fixture);
         using var quiz = NewPresenter(fixture, adapter);
         var question = await quiz.OpenAsync(launch);
-        NativeQuizStoredState? finalPending = null;
+        VocabQuizSavedState? finalPending = null;
         for (var turn = 0; turn < 2; turn++)
         {
             Assert.Equal(NativePhase.Ready, question.Phase);
             Assert.Equal(NativePhase.Feedback,
                 (await quiz.AnswerAsync(question.Choices[0].Text)).Phase);
-            finalPending = NativeQuizStoredState.Deserialize(
+            finalPending = VocabQuizSavedState.Deserialize(
                 (await fixture.RowsAsync(NativeSliceFixture.UserA, planItemId))
                     .Session!.StateJson);
             question = await quiz.NextAsync();
         }
 
         Assert.Equal(NativePhase.Summary, question.Phase);
-        var summary = NativeQuizStoredState.Deserialize(
+        var summary = VocabQuizSavedState.Deserialize(
             (await fixture.RowsAsync(NativeSliceFixture.UserA, planItemId))
                 .Session!.StateJson);
         Assert.True(summary.SummaryVisible);
@@ -594,6 +594,7 @@ public sealed class NativeProductionAttemptTests
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             db.ActivitySessions.Add(new ActivitySession
             {
+                Id = ActivitySessionTypes.NewReceiptId(),
                 UserId = receiptRow.UserId,
                 ActivityType = receiptRow.ActivityType,
                 LaunchContextKey = receiptRow.LaunchContextKey,
@@ -1219,7 +1220,7 @@ public sealed class NativeProductionAttemptTests
             Assert.False(corrected.RequiresCorrection);
         }
         var source = (await fixture.RowsAsync(userId, planItemId)).Session!;
-        var state = NativeQuizStoredState.Deserialize(source.StateJson);
+        var state = VocabQuizSavedState.Deserialize(source.StateJson);
         Assert.NotNull(state.PendingAttempt);
         Assert.Equal(ready.Prompt!.WordId, state.PendingAttempt.VocabularyWordId);
         return new PendingTurn(planItemId, launch, state, source.StateJson);
@@ -1260,5 +1261,5 @@ public sealed class NativeProductionAttemptTests
 
     private sealed record PendingTurn(
         string PlanItemId, NativeQuizLaunch Launch,
-        NativeQuizStoredState State, string SourceJson);
+        VocabQuizSavedState State, string SourceJson);
 }

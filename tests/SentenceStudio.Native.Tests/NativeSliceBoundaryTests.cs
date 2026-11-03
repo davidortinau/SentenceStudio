@@ -161,11 +161,18 @@ public sealed class NativeSliceBoundaryTests
         using var scope = fixture.Scope();
         var sessions = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .ActivitySessions.AsNoTracking()
-            .Where(s => s.UserId == NativeSliceFixture.UserA)
+            .Where(s => s.UserId == NativeSliceFixture.UserA
+                && s.ActivityType == ActivitySessionTypes.VocabularyReview)
             .ToListAsync();
+        // Phase 2b: the fresh run reuses the launch's shared row, so every device writes the
+        // same run; the abandoned run keeps its own record. The old turn is not replayed (one
+        // attempt, one receipt).
         Assert.Equal(2, sessions.Count);
-        Assert.Contains(sessions, session => session.Status == ActivitySessionStatus.Abandoned);
-        Assert.Contains(sessions, session => session.Status == ActivitySessionStatus.InProgress);
+        var run = Assert.Single(sessions, session => session.Status == ActivitySessionStatus.InProgress);
+        Assert.StartsWith("as:" + NativeSliceFixture.UserA + ":", run.Id);
+        Assert.Null(VocabQuizSavedState.Deserialize(run.StateJson).PendingAttempt);
+        var abandoned = Assert.Single(sessions, session => session.Status == ActivitySessionStatus.Abandoned);
+        Assert.StartsWith(run.Id + "@", abandoned.Id);
     }
 
     [Fact]
@@ -316,11 +323,18 @@ public sealed class NativeSliceBoundaryTests
 
         fixture.Restart();
         fixture.Activate(NativeSliceFixture.UserA);
+        // The display direction is a per-device setting, so a run resumed on another client (or
+        // after a change) continues: an unanswered question follows this device's setting, as
+        // the web does (phase 2b, docs/activity-session-format.md).
         fixture.QuizPreferences.DisplayDirection = "NativeToTarget";
         using var changedDirection = fixture.Quiz;
-        var directionMismatch = await changedDirection.OpenAsync(launch!);
-        Assert.Equal(NativePhase.ResumeChoice, directionMismatch.Phase);
-        Assert.Equal(NativeText.ResumeUnavailable, directionMismatch.ErrorKey);
+        var directionChanged = await changedDirection.OpenAsync(launch!);
+        Assert.Equal(NativePhase.ResumeChoice, directionChanged.Phase);
+        Assert.Null(directionChanged.ErrorKey);
+        var resumed = await changedDirection.ResumeAsync();
+        Assert.Equal(NativePhase.Ready, resumed.Phase);
+        Assert.False(resumed.Prompt!.IsTargetLanguagePrompt);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
     [Fact]

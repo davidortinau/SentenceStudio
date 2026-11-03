@@ -346,25 +346,15 @@ public sealed record NativeQuizState(
     public ImmutableArray<int> HeardAnswerChoiceIndices { get; init; } = [];
     public DateTimeOffset? FeedbackStartedAt { get; init; }
     public int AutoAdvanceDurationMs { get; init; }
-    public ImmutableArray<NativeQuizSentenceGrade> SentenceResults { get; init; } = [];
+    public ImmutableArray<VocabQuizSentenceGrade> SentenceResults { get; init; } = [];
     public int SentenceSuccessCount { get; init; }
     public bool IsSentenceSubmitting { get; init; }
     public string? SentenceDraft { get; init; }
 }
 
-public sealed record NativeQuizSentenceGrade(
-    string Sentence, bool UsageCorrect, string UsageExplanation,
-    double? Accuracy, double? Fluency, string AccuracyExplanation,
-    string FluencyExplanation, string RecommendedSentence, string GrammarNotes,
-    bool GradeUnavailable = false)
-{
-    public string? TargetUsedForm { get; init; }
-    public bool HasVerifiedTargetUse { get; init; }
-}
-
 public sealed record NativeQuizSentenceCommitReceipt(
     string SubmissionId, int SuccessCount,
-    ImmutableArray<NativeQuizSentenceGrade> Results,
+    ImmutableArray<VocabQuizSentenceGrade> Results,
     VocabularyProgress? Progress);
 
 /// <summary>The original vocabulary attempt is passed to shared scoring unchanged.</summary>

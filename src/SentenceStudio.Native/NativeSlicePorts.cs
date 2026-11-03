@@ -85,7 +85,7 @@ public interface INativeQuizGrader
 
 public interface INativeQuizSentenceGrader
 {
-    Task<NativeQuizSentenceGrade> GradeAsync(
+    Task<VocabQuizSentenceGrade> GradeAsync(
         string userId, string sentence, VocabularyWord word,
         string targetLanguage, string nativeLanguage, CancellationToken cancellationToken);
 }
@@ -98,7 +98,7 @@ public interface INativeQuizSentenceCommitter
 
     Task<NativeQuizSentenceCommitReceipt> CommitAsync(
         string userId, string launchContextKey, string turnId,
-        string submissionId, IReadOnlyList<NativeQuizSentenceGrade> results,
+        string submissionId, IReadOnlyList<VocabQuizSentenceGrade> results,
         CancellationToken cancellationToken);
 }
 
@@ -263,10 +263,10 @@ internal sealed class UnavailableNativeQuizGrader : INativeQuizGrader
 
 internal sealed class UnavailableNativeQuizSentenceGrader : INativeQuizSentenceGrader
 {
-    public Task<NativeQuizSentenceGrade> GradeAsync(
+    public Task<VocabQuizSentenceGrade> GradeAsync(
         string userId, string sentence, VocabularyWord word,
         string targetLanguage, string nativeLanguage, CancellationToken cancellationToken) =>
-        Task.FromException<NativeQuizSentenceGrade>(
+        Task.FromException<VocabQuizSentenceGrade>(
             new InvalidOperationException("The authenticated sentence grader is offline."));
 }
 
@@ -279,7 +279,7 @@ internal sealed class UnavailableNativeQuizSentenceCommitter : INativeQuizSenten
 
     public Task<NativeQuizSentenceCommitReceipt> CommitAsync(
         string userId, string launchContextKey, string turnId, string submissionId,
-        IReadOnlyList<NativeQuizSentenceGrade> results, CancellationToken cancellationToken) =>
+        IReadOnlyList<VocabQuizSentenceGrade> results, CancellationToken cancellationToken) =>
         Task.FromException<NativeQuizSentenceCommitReceipt>(
             new InvalidOperationException("The owner-scoped sentence receipt writer is unavailable."));
 }

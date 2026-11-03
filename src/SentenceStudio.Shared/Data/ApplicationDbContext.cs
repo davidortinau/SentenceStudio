@@ -209,6 +209,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<MinimalPairAttempt>().ToTable("MinimalPairAttempt").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairAttempt>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<ActivitySession>().ToTable("ActivitySession").HasKey(e => e.Id);
+        modelBuilder.Entity<ActivitySession>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<ActivitySession>().Property(e => e.Status).HasConversion<string>();
         modelBuilder.Entity<ActivitySession>().HasIndex(e => new { e.UserId, e.ActivityType, e.Status });
         modelBuilder.Entity<ActivitySession>()

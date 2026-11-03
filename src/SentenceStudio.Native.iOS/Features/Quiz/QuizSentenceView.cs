@@ -5,6 +5,7 @@ using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Services.Progress;
 using Views = Microsoft.SwiftUI.SwiftUI;
+using SentenceStudio.Shared.Models;
 
 using SentenceStudio.Native.iOS.Styling;
 
@@ -19,7 +20,7 @@ internal static class QuizSentenceView
     {
         var sentence = state.Sentence!;
         var results = state.SentenceResults.IsDefault
-            ? ImmutableArray<NativeQuizSentenceGrade>.Empty
+            ? ImmutableArray<VocabQuizSentenceGrade>.Empty
             : state.SentenceResults;
         var graded = !results.IsEmpty;
         var allGradingUnavailable = graded

@@ -309,6 +309,97 @@ public sealed class ActivitySessionServiceTests : IDisposable
         await duplicateInsert.Should().ThrowAsync<DbUpdateException>();
     }
 
+    /// <summary>
+    /// Phase 2b (docs/sync-all-tables-plan.md): one row per learner + activity + launch, so every
+    /// client writes the same run. A later run of the launch reuses the row; the finished run's
+    /// record is kept under its own ID.
+    /// </summary>
+    [Fact]
+    public async Task SaveSnapshotAsync_UsesTheSharedRunId_AndALaterRunRevivesTheRow()
+    {
+        var sut = GetService();
+        var first = await sut.SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"run":1}""");
+        first!.Id.Should().Be(SentenceStudio.Services.SyncIds.ActivitySession(UserA, ActivityType, ContextA));
+
+        await sut.CompleteAsync(UserA, ActivityType, ContextA);
+        var second = await sut.SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"run":2}""");
+        second!.Id.Should().Be(first.Id);
+        second.Status.Should().Be(ActivitySessionStatus.InProgress);
+        second.CompletedAt.Should().BeNull();
+        second.StartedAt.Should().BeOnOrAfter(first.StartedAt);
+
+        await sut.AbandonAsync(UserA, second.Id);
+        var third = await sut.SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"run":3}""");
+        third!.Id.Should().Be(first.Id);
+
+        // Each finished run keeps its own record; the shared row holds the current run.
+        var rows = await GetSessionsAsync(UserA, ActivityType, ContextA);
+        rows.Should().HaveCount(3);
+        rows.Single(row => row.Id == first.Id).StateJson.Should().Be("""{"run":3}""");
+        rows.Where(row => row.Id != first.Id).Select(row => (row.StateJson, row.Status))
+            .Should().BeEquivalentTo(new[]
+            {
+                ("""{"run":1}""", ActivitySessionStatus.Completed),
+                ("""{"run":2}""", ActivitySessionStatus.Abandoned)
+            });
+        rows.Single(row => row.StateJson == """{"run":1}""").CompletedAt.Should().NotBeNull();
+        (await sut.GetResumableAsync(UserA, ActivityType, ContextA))!.Id.Should().Be(first.Id);
+    }
+
+    /// <summary>
+    /// Phase 2b review: two clients that each start the launch again keep the finished run's
+    /// record under the same ID, so after they sync there is one record, not one per client.
+    /// </summary>
+    [Fact]
+    public async Task SaveSnapshotAsync_RecordAnotherClientAlreadyKept_IsNotDuplicated()
+    {
+        var sut = GetService();
+        var first = await sut.SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"run":1}""");
+        await sut.CompleteAsync(UserA, ActivityType, ContextA);
+        var finished = (await GetSessionsAsync(UserA, ActivityType, ContextA)).Single();
+        // Another client revived the same run first; its record arrived by sync.
+        await InsertSessionAsync(new ActivitySession
+        {
+            Id = SentenceStudio.Services.SyncIds.ActivitySessionRecord(first!.Id, finished.StartedAt),
+            UserId = UserA,
+            ActivityType = ActivityType,
+            LaunchContextKey = ContextA,
+            StateJson = finished.StateJson,
+            Status = finished.Status,
+            StartedAt = finished.StartedAt,
+            UpdatedAt = finished.UpdatedAt,
+            CompletedAt = finished.CompletedAt
+        });
+
+        await sut.SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"run":2}""");
+
+        var rows = await GetSessionsAsync(UserA, ActivityType, ContextA);
+        rows.Should().HaveCount(2);
+        rows.Single(row => row.Id == first.Id).StateJson.Should().Be("""{"run":2}""");
+        rows.Single(row => row.Id != first.Id).StateJson.Should().Be("""{"run":1}""");
+    }
+
+    [Fact]
+    public async Task SaveSnapshotAsync_KeepsUpdatingARunSavedBeforeRunIdsWereShared()
+    {
+        await InsertSessionAsync(new ActivitySession
+        {
+            Id = "legacy-run",
+            UserId = UserA,
+            ActivityType = ActivityType,
+            LaunchContextKey = ContextA,
+            StateJson = """{"turn":1}""",
+            Status = ActivitySessionStatus.InProgress,
+            StartedAt = DateTime.UtcNow.AddMinutes(-5),
+            UpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+        });
+
+        var saved = await GetService().SaveSnapshotAsync(UserA, ActivityType, ContextA, """{"turn":2}""");
+
+        saved!.Id.Should().Be("legacy-run");
+        (await GetSessionsAsync(UserA, ActivityType, ContextA)).Should().ContainSingle();
+    }
+
     private ActivitySessionService GetService()
     {
         return _provider.GetRequiredService<ActivitySessionService>();
@@ -316,13 +407,16 @@ public sealed class ActivitySessionServiceTests : IDisposable
 
     private async Task InsertSessionAsync(ActivitySession session)
     {
+        // A row saved before run IDs were shared (or any legacy row) has its own random ID.
+        if (string.IsNullOrEmpty(session.Id))
+            session.Id = Guid.NewGuid().ToString();
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.ActivitySessions.Add(session);
         await db.SaveChangesAsync();
     }
 
-    private async Task<ActivitySession?> FindSessionAsync(int id)
+    private async Task<ActivitySession?> FindSessionAsync(string id)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

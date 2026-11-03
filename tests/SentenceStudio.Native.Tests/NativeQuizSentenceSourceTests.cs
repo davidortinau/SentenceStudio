@@ -53,7 +53,7 @@ public sealed class NativeQuizSentenceSourceTests
             Assert.Contains("usage_correct", prompt);
         });
 
-        var stored = NativeQuizStoredState.Deserialize(
+        var stored = VocabQuizSavedState.Deserialize(
             (await fixture.RowsAsync(NativeSliceFixture.UserA, itemId))
                 .Session!.StateJson);
         var writer = fixture.Provider.GetRequiredService<INativeQuizSentenceCommitter>();
@@ -92,7 +92,7 @@ public sealed class NativeQuizSentenceSourceTests
         await quiz.OpenAsync((await fixture.Dashboard.SelectAssignedQuizAsync(itemId))!);
         var prompt = quiz.OpenSentenceShortcut().Sentence!;
         await quiz.SubmitSentenceAsync($"{prompt.TargetLanguageTerm} goes home.");
-        var stored = NativeQuizStoredState.Deserialize(
+        var stored = VocabQuizSavedState.Deserialize(
             (await fixture.RowsAsync(NativeSliceFixture.UserA, itemId))
                 .Session!.StateJson);
         var writer = fixture.Provider.GetRequiredService<INativeQuizSentenceCommitter>();
@@ -382,7 +382,7 @@ public sealed class NativeQuizSentenceSourceTests
             }
             """;
         var result = System.Text.Json.JsonSerializer
-            .Deserialize<NativeQuizSentenceGrade>(legacySnapshot);
+            .Deserialize<VocabQuizSentenceGrade>(legacySnapshot);
 
         Assert.NotNull(result);
         Assert.False(result.HasVerifiedTargetUse);
@@ -475,10 +475,10 @@ public sealed class NativeQuizSentenceSourceTests
 
 internal sealed class ForgedEnglishGlossGrader : INativeQuizSentenceGrader
 {
-    public Task<NativeQuizSentenceGrade> GradeAsync(
+    public Task<VocabQuizSentenceGrade> GradeAsync(
         string userId, string sentence, VocabularyWord word,
         string targetLanguage, string nativeLanguage, CancellationToken cancellationToken) =>
-        Task.FromResult(new NativeQuizSentenceGrade(
+        Task.FromResult(new VocabQuizSentenceGrade(
             sentence, true, "Model incorrectly claimed meaningful target use.",
             100, 100, "", "", "", "")
         {

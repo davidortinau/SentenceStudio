@@ -3,6 +3,7 @@ using CoreSync.Sqlite;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Adapters;
 
@@ -115,6 +116,8 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     {
         var changes = await local.GetChangesAsync(
             otherStoreId, syncFilterParameters, syncDirection, tables, cancellationToken);
+        if (syncDirection != SyncDirection.DownloadOnly)
+            changes = WithoutDeviceOnlyRows(changes);
         if (syncDirection != SyncDirection.UploadOnly
             || !changes.Items.Any(IsMappingDelete)
             || activeOwner() is not { Length: > 0 } owner
@@ -171,6 +174,30 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
             changes.Items.Where(item => !IsMappingDelete(item)
                 || !safeIds.Contains((string)item.Values["Id"].Value!)).ToArray());
     }
+
+    /// <summary>
+    /// Quiz answer receipts only prove what this device already scored (the scores sync through
+    /// the progress tables), so they never leave it; the server refuses them too
+    /// (docs/sync-all-tables-plan.md, phase 2b). Leaving them out still advances the upload
+    /// anchor, so they are not offered again.
+    /// </summary>
+    private SyncChangeSet WithoutDeviceOnlyRows(SyncChangeSet changes)
+    {
+        var kept = changes.Items.Where(item => !IsDeviceOnlyRow(item)).ToArray();
+        if (kept.Length == changes.Items.Count)
+            return changes;
+        logger.LogDebug("Native sync kept {Count} device-only {Table} rows local.",
+            changes.Items.Count - kept.Length, ActivitySessionTable);
+        return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, kept);
+    }
+
+    private const string ActivitySessionTable = "ActivitySession";
+
+    internal static bool IsDeviceOnlyRow(SyncItem item) =>
+        item.TableName == ActivitySessionTable
+        && ActivitySessionTypes.IsDeviceOnly(
+            item.Values.TryGetValue("ActivityType", out var type) ? type?.Value as string : null,
+            item.Values.TryGetValue("Id", out var id) ? id?.Value as string : null);
 
     private static bool IsMappingDelete(SyncItem item) =>
         item.TableName == MappingTable

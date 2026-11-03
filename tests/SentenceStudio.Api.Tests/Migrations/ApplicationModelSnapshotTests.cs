@@ -18,6 +18,8 @@ public sealed class ApplicationModelSnapshotTests
     [
         "MinimalPair", "MinimalPairSession", "MinimalPairAttempt", "StreamHistory",
         "ConversationMemoryState",
+        // Phase 2b (2026-11-03).
+        "ActivitySession",
     ];
 
     [Fact]
@@ -28,6 +30,7 @@ public sealed class ApplicationModelSnapshotTests
         using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql("Host=unused;Database=unused").Options);
         Assert.Contains("20261103015116_SyncTextIdsPhase2a", db.Database.GetMigrations());
+        Assert.Contains("20261103151517_SyncTextIdsPhase2b", db.Database.GetMigrations());
 
         var snapshot = db.GetService<IModelRuntimeInitializer>().Initialize(
             db.GetService<IMigrationsAssembly>().ModelSnapshot!.Model, designTime: true);

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "userId": "7d1f0c52-3a3e-4f43-9b52-6a3c2f8e1a10",
+  "planDate": "2026-11-03",
+  "launchContextKey": "plan=9d3fd8e6c3ae5ee8|focus=|res=|due=false|skill=",
+  "displayDirection": "TargetToNative",
+  "turnId": "4b8e2f0d6c1a4e9f8a7b6c5d4e3f2a1b",
+  "snapshot": {
+    "planItemId": "9d3fd8e6c3ae5ee8",
+    "focusVocabularyIds": [],
+    "resourceIds": [],
+    "dueOnly": false,
+    "skillId": null,
+    "batchPool": [
+      { "wordId": "word-1", "sessionCorrectCount": 1, "sessionMCCorrect": 1, "sessionTextCorrect": 0, "wasCorrectThisSession": true },
+      { "wordId": "word-2" },
+      { "wordId": "word-3" }
+    ],
+    "roundWordOrder": [ "word-1", "word-2", "word-3" ],
+    "roundCursor": 3,
+    "currentTurnInRound": 1,
+    "roundsCompleted": 0,
+    "wordsMastered": 0,
+    "totalTurns": 1,
+    "correctCount": 1,
+    "sessionItemsWordIds": [ "word-1", "word-2", "word-3" ],
+    "promptUsesNativeLanguage": false,
+    "userMode": "MultipleChoice"
+  },
+  "summaryVisible": false
+}

@@ -219,6 +219,7 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
             });
             db.ActivitySessions.Add(new ActivitySession
             {
+                Id = SentenceStudio.Services.SyncIds.ActivitySession(UserA, "VocabularyReview", "metadata-session"),
                 UserId = UserA,
                 ActivityType = "VocabularyReview",
                 LaunchContextKey = "metadata-session",

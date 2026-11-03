@@ -18,8 +18,8 @@ public sealed class NativeQuizSentenceAttemptCommitter(
     IUserScopeProvider userScope,
     IPreferencesService preferences) : INativeQuizSentenceCommitter
 {
-    internal const string ReceiptActivityType = "VocabularyReview.NativeSentenceReceipt.v1";
-    private const string QuizActivityType = "VocabularyReview";
+    internal const string ReceiptActivityType = ActivitySessionTypes.NativeSentenceReceipt;
+    private const string QuizActivityType = ActivitySessionTypes.VocabularyReview;
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
@@ -43,12 +43,12 @@ public sealed class NativeQuizSentenceAttemptCommitter(
 
     public async Task<NativeQuizSentenceCommitReceipt> CommitAsync(
         string userId, string launchContextKey, string turnId,
-        string submissionId, IReadOnlyList<NativeQuizSentenceGrade> results,
+        string submissionId, IReadOnlyList<VocabQuizSentenceGrade> results,
         CancellationToken cancellationToken)
     {
         RequireRequest(userId, launchContextKey, turnId, submissionId, cancellationToken);
         ArgumentNullException.ThrowIfNull(results);
-        var frozen = JsonSerializer.Deserialize<NativeQuizSentenceGrade[]>(
+        var frozen = JsonSerializer.Deserialize<VocabQuizSentenceGrade[]>(
             JsonSerializer.Serialize(results, JsonOptions), JsonOptions)
             ?? throw new InvalidOperationException("Sentence results could not be captured.");
 
@@ -141,6 +141,8 @@ public sealed class NativeQuizSentenceAttemptCommitter(
         var nowUtc = DateTime.UtcNow;
         db.ActivitySessions.Add(new ActivitySession
         {
+            // Device-only: never uploaded (NativeLocalOnlyMappingExportProvider).
+            Id = ActivitySessionTypes.NewReceiptId(),
             UserId = userId,
             ActivityType = ReceiptActivityType,
             LaunchContextKey = ReceiptKey(launchContextKey, turnId, submissionId),
@@ -167,7 +169,7 @@ public sealed class NativeQuizSentenceAttemptCommitter(
     private static async Task<VocabularyWord> ValidatePendingAsync(
         ApplicationDbContext db, IPlanDateContext localDate, string owner,
         string launchContextKey, string turnId, string submissionId,
-        NativeQuizStoredState stored, IReadOnlyList<NativeQuizSentenceGrade> results,
+        VocabQuizSavedState stored, IReadOnlyList<VocabQuizSentenceGrade> results,
         CancellationToken cancellationToken)
     {
         var snapshot = stored.Snapshot;
@@ -309,7 +311,7 @@ public sealed class NativeQuizSentenceAttemptCommitter(
         if (journal.Version != 1 || journal.UserId != userId
             || journal.ContextKey != contextKey || journal.TurnId != turnId
             || journal.SubmissionId != submissionId
-            || journal.SourceSessionId <= 0
+            || string.IsNullOrWhiteSpace(journal.SourceSessionId)
             || journal.Results is null || journal.Results.Length == 0
             || journal.ContextIds is null
             || journal.ContextIds.Count != journal.Results.Count(result =>
@@ -380,8 +382,8 @@ public sealed class NativeQuizSentenceAttemptCommitter(
         JsonSerializer.Serialize(new[] { contextKey, turnId, submissionId }, JsonOptions);
 
     private static bool SameResults(
-        IReadOnlyList<NativeQuizSentenceGrade> left,
-        IReadOnlyList<NativeQuizSentenceGrade> right) =>
+        IReadOnlyList<VocabQuizSentenceGrade> left,
+        IReadOnlyList<VocabQuizSentenceGrade> right) =>
         JsonSerializer.Serialize(left, JsonOptions) ==
         JsonSerializer.Serialize(right, JsonOptions);
 
@@ -394,8 +396,8 @@ public sealed class NativeQuizSentenceAttemptCommitter(
 
     private sealed record SentenceReceiptJournal(
         string UserId, string ContextKey, string TurnId,
-        string SubmissionId, int SourceSessionId, string SourceStateJson,
-        string WordId, NativeQuizSentenceGrade[] Results, string? ProgressId,
+        string SubmissionId, string SourceSessionId, string SourceStateJson,
+        string WordId, VocabQuizSentenceGrade[] Results, string? ProgressId,
         IReadOnlyList<string> ContextIds)
     {
         public int Version { get; init; } = 1;

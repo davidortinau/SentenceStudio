@@ -104,28 +104,8 @@ public sealed partial class NativeQuizPresenter
         }
 
         await LoadSentenceHintsAsync(cancellationToken);
-        if (_launch.PlanItemId.Length == 0 && string.IsNullOrWhiteSpace(_planItemRowId))
-        {
-            var adHoc = await planProgress.StartAdHocSessionAsync(
-                _launch.UserId, PlanActivityType.VocabularyReview,
-                !_launch.DueOnly && _launch.ResourceIds.Length == 1
-                    ? _launch.ResourceIds[0] : null,
-                _launch.SkillId, _batch.Select(item => item.Word.Id).ToArray(),
-                estimatedMinutes: 10, cancellationToken);
-            if (string.IsNullOrWhiteSpace(adHoc) || !HasOwner(_launch.UserId))
-                return RefuseLaunch();
-            using var lease = plans.ForOwner(_launch.UserId);
-            var row = await lease.Database.DailyPlanCompletions.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.UserProfileId == _launch.UserId
-                    && item.Date == _launch.PlanDate.ToDateTime(
-                        TimeOnly.MinValue, DateTimeKind.Utc)
-                    && item.PlanItemId == adHoc && item.ActivityType == ActivityType
-                    && !item.IsArchived, cancellationToken);
-            if (row is null)
-                return RefuseLaunch();
-            _adHocPlanItemId = adHoc;
-            _planItemRowId = row.Id;
-        }
+        if (!await EnsureAdHocRowAsync(cancellationToken))
+            return RefuseLaunch();
 
         _clock.Start(_adHocPlanItemId ?? _launch.PlanItemId, TimeSpan.Zero);
         try
@@ -137,6 +117,38 @@ public sealed partial class NativeQuizPresenter
             _clock.Stop();
             throw;
         }
+    }
+
+    /// <summary>
+    /// A quiz started outside the plan records its time on an ad-hoc plan row. Made at the first
+    /// question, or when resuming a run another client saved without one this device has.
+    /// </summary>
+    private async Task<bool> EnsureAdHocRowAsync(CancellationToken cancellationToken)
+    {
+        if (_launch is null)
+            return false;
+        if (_launch.PlanItemId.Length > 0 || !string.IsNullOrWhiteSpace(_planItemRowId))
+            return true;
+        var adHoc = await planProgress.StartAdHocSessionAsync(
+            _launch.UserId, PlanActivityType.VocabularyReview,
+            !_launch.DueOnly && _launch.ResourceIds.Length == 1
+                ? _launch.ResourceIds[0] : null,
+            _launch.SkillId, _batch.Select(item => item.Word.Id).ToArray(),
+            estimatedMinutes: 10, cancellationToken);
+        if (string.IsNullOrWhiteSpace(adHoc) || !HasOwner(_launch.UserId))
+            return false;
+        using var lease = plans.ForOwner(_launch.UserId);
+        var row = await lease.Database.DailyPlanCompletions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserProfileId == _launch.UserId
+                && item.Date == _launch.PlanDate.ToDateTime(
+                    TimeOnly.MinValue, DateTimeKind.Utc)
+                && item.PlanItemId == adHoc && item.ActivityType == ActivityType
+                && !item.IsArchived, cancellationToken);
+        if (row is null)
+            return false;
+        _adHocPlanItemId = adHoc;
+        _planItemRowId = row.Id;
+        return true;
     }
 
     private async Task<NativeQuizState> SetupRoundAsync(CancellationToken cancellationToken)
@@ -152,6 +164,7 @@ public sealed partial class NativeQuizPresenter
         _roundArchive = _round.ToList();
         _turnIndex = 0;
         _turnId = Guid.NewGuid().ToString("N");
+        _turnScoredElsewhere = false;
         _pending = null;
         _requiresCorrection = false;
         _overrideRetryPending = false;
@@ -493,7 +506,7 @@ public sealed partial class NativeQuizPresenter
             PromptUsesNativeLanguage = _promptUsesNative,
             UserMode = _mode
         };
-        var stored = new NativeQuizStoredState
+        var stored = new VocabQuizSavedState
         {
             UserId = _launch.UserId,
             PlanDate = _launch.PlanDate,
@@ -503,6 +516,8 @@ public sealed partial class NativeQuizPresenter
             IsRepractice = _launch.IsRepractice,
             DisplayDirection = _displayDirection!,
             TurnId = _turnId,
+            SavedBy = NativeInstallId.Get(preferences),
+            TurnScoredElsewhere = _turnScoredElsewhere,
             Snapshot = snapshot,
             PendingAttempt = _pending,
             RequiresCorrection = _requiresCorrection,

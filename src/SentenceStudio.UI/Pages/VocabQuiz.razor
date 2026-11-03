@@ -680,6 +680,7 @@ else
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
     [Inject] private IActivitySessionService SessionService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Plans.IPlanDateContext PlanDateContext { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.PhotoViewerCoordinator PhotoViewer { get; set; } = default!;
     [Inject] private ExampleSentenceRepository ExampleSentenceRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Services.LanguageSegmentation.LanguageSegmenterFactory LanguageSegmenters { get; set; } = default!;
@@ -742,7 +743,7 @@ else
     private List<VocabularyWord> distractorScope = new();
     private VocabularyQuizItem? currentItem;
     private ActivitySession? resumableSession;
-    private int? activeSessionId;
+    private string? activeSessionId;
     private string launchContextKey = string.Empty;
     private bool sessionMarkedComplete;
     private bool activityTimerStarted;
@@ -1145,7 +1146,13 @@ else
 
         try
         {
-            var snapshot = VocabQuizSessionSnapshot.Deserialize(resumableSession.StateJson);
+            var saved = TryReadSavedState(resumableSession.StateJson);
+            if (saved is null)
+            {
+                RejectResume(1);
+                return;
+            }
+            var snapshot = saved.Snapshot;
             var currentUserId = GetActiveUserId();
             if (string.IsNullOrWhiteSpace(currentUserId))
             {
@@ -1285,6 +1292,16 @@ else
                 RejectResume(1);
                 return;
             }
+            if (saved.HasUnfinishedTurn && currentTurnInRound < roundWordOrder.Count)
+            {
+                // A native app saved this run while grading this question; that app scores it
+                // (docs/activity-session-format.md). The saved counters already include a graded
+                // answer, so move past the question here without scoring it, as Next would.
+                Logger.LogInformation("Vocabulary quiz resumed a question another client was grading; moving past it without scoring it here.");
+                currentItem = roundWordOrder[currentTurnInRound];
+                await AdvanceFromCurrentItemAsync();
+                return;
+            }
             await LoadCurrentItem(preservePromptState: true);
         }
         catch (Exception ex)
@@ -1368,11 +1385,23 @@ else
                 UserMode = userMode
             };
 
+            // The one saved format every client reads (docs/activity-session-format.md). This
+            // page saves only between questions, so it never holds a graded, unscored answer.
+            var saved = new VocabQuizSavedState
+            {
+                UserId = activeUserId,
+                PlanDate = PlanDateContext.ToUserLocal(DateTime.UtcNow),
+                LaunchContextKey = launchContextKey,
+                DisplayDirection = QuizPrefs.DisplayDirection,
+                TurnId = Guid.NewGuid().ToString("N"),
+                Snapshot = snapshot,
+                SummaryVisible = showSessionSummary
+            };
             var session = await SessionService.SaveSnapshotAsync(
                 activeUserId,
-                "VocabularyReview",
+                ActivitySessionTypes.VocabularyReview,
                 launchContextKey,
-                snapshot.Serialize());
+                saved.Serialize());
 
             if (!IsPreferenceUser(activeUserId))
             {
@@ -1438,17 +1467,18 @@ else
 
     private bool TryDeserializeSnapshot(string stateJson, out VocabQuizSessionSnapshot? snapshot)
     {
-        try
-        {
-            snapshot = VocabQuizSessionSnapshot.Deserialize(stateJson);
-            return true;
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            snapshot = null;
-            return false;
-        }
+        snapshot = TryReadSavedState(stateJson)?.Snapshot;
+        return snapshot is not null;
     }
+
+    /// <summary>The run's saved state when it is valid and belongs to this learner and launch.</summary>
+    private VocabQuizSavedState? TryReadSavedState(string stateJson) =>
+        VocabQuizSavedState.TryDeserialize(stateJson, out var state)
+            && state is not null
+            && string.Equals(state.UserId, GetActiveUserId(), StringComparison.Ordinal)
+            && string.Equals(state.LaunchContextKey, launchContextKey, StringComparison.Ordinal)
+                ? state
+                : null;
 
     private string GetActiveUserId()
     {
@@ -2266,7 +2296,12 @@ else
         autoAdvanceCts?.Cancel();
         await CloseImageFullscreenAsync(restoreFocus: true);
         await RecordPendingAttemptAsync();
+        await AdvanceFromCurrentItemAsync();
+    }
 
+    /// <summary>Moves from the answered current item to the next one or the round summary.</summary>
+    private async Task AdvanceFromCurrentItemAsync()
+    {
         // Immediate rotation check (spec §1.3): remove word mid-round if mastered
         if (currentItem != null && currentItem.ReadyToRotateOut)
         {

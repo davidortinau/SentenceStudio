@@ -20,6 +20,7 @@ public sealed class SqliteMigrationApplicationTests
     private const string StreamOwnerMigration = "20260927100455_AddStreamHistoryOwnerScope";
     private const string ArchiveMigration = "20260928050905_ArchiveDisplacedPlanItems";
     private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
+    private const string Phase2aMigration = "20261103015116_SyncTextIdsPhase2a";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -479,6 +480,108 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Equal("0", await Scalar(
             "SELECT count(*) FROM pragma_table_info('ConversationMemoryState') WHERE name = 'UserProfileId'"));
         Assert.Equal("ok", await Scalar("PRAGMA foreign_key_check") is "" ? "ok" : "violations");
+    }
+
+    /// <summary>
+    /// Phase 2b (Captain 2026-11-03, docs/sync-all-tables-plan.md): activity resume rows get text
+    /// IDs. The in-progress (else latest) run of each launch gets the shared run ID, older runs
+    /// keep their history, receipts become device-only and still point at their quiz row, and a
+    /// bare saved snapshot is wrapped in the one saved format. Down restores every row.
+    /// </summary>
+    [Fact]
+    public async Task SyncTextIdsPhase2b_GivesRunIds_KeepsHistoryAndReceiptLinks_WrapsBareSnapshots_AndDownRestoresThem()
+    {
+        using var scratch = new ScratchDatabase();
+        const string owner = "owner-a";
+        const string webKey = "plan=p1|focus=|res=|due=false|skill=";
+        const string nativeKey = "plan=|focus=|res=r1|due=false|skill=";
+        const string abandonedKey = "plan=p2|focus=|res=|due=false|skill=";
+        const string bareSnapshot = "{\"planItemId\":\"p1\",\"batchPool\":[{\"wordId\":\"w1\"}],\"roundWordOrder\":[\"w1\"],\"totalTurns\":3}";
+        const string nativeState = "{\"version\":1,\"userId\":\"owner-a\",\"planDate\":\"2026-11-02\",\"launchContextKey\":\"plan=|focus=|res=r1|due=false|skill=\",\"planItemRowId\":\"row-1\",\"turnId\":\"0123456789abcdef0123456789abcdef\",\"displayDirection\":\"TargetToNative\",\"snapshot\":{\"batchPool\":[]}}";
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(Phase2aMigration);
+            string Row(int id, string type, string key, string json, string status, string updated) =>
+                "INSERT INTO \"ActivitySession\" (\"Id\", \"UserId\", \"ActivityType\", \"LaunchContextKey\", \"StateJson\", \"Status\", \"StartedAt\", \"UpdatedAt\") "
+                + $"VALUES ({id}, '{owner}', '{type}', '{key}', '{json.Replace("'", "''")}', '{status}', '{updated}', '{updated}')";
+            foreach (var sql in new[]
+            {
+                Row(1, "VocabularyReview", webKey, bareSnapshot, "InProgress", "2026-11-02 08:00:00"),
+                Row(2, "VocabularyReview", webKey, bareSnapshot, "Completed", "2026-11-01 08:00:00"),
+                Row(3, "VocabularyReview", nativeKey, nativeState, "InProgress", "2026-11-02 09:00:00"),
+                Row(4, ActivitySessionTypes.NativeAttemptReceipt, "[\"k\",\"t1\"]", "{\"version\":1,\"sourceSessionId\":3}", "InProgress", "2026-11-02 09:01:00"),
+                Row(5, ActivitySessionTypes.NativeSentenceReceipt, "[\"k\",\"t2\",\"s\"]", "{\"version\":1,\"sourceSessionId\":3}", "InProgress", "2026-11-02 09:02:00"),
+                Row(6, ActivitySessionTypes.NativeAttemptReceipt, "[\"k\",\"t3\"]", "{\"version\":1,\"sourceSessionId\":99}", "InProgress", "2026-11-02 09:03:00"),
+                Row(7, "VocabularyReview", abandonedKey, bareSnapshot, "Abandoned", "2026-10-30 08:00:00"),
+            })
+                // Braces in the JSON are literal, not format placeholders.
+                await previous.Database.ExecuteSqlRawAsync(sql.Replace("{", "{{").Replace("}", "}}"));
+        }
+
+        var webRunId = SentenceStudio.Services.SyncIds.ActivitySession(owner, "VocabularyReview", webKey);
+        var nativeRunId = SentenceStudio.Services.SyncIds.ActivitySession(owner, "VocabularyReview", nativeKey);
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+            var rows = await upgraded.ActivitySessions.AsNoTracking().ToListAsync();
+            Assert.Equal(7, rows.Count);
+
+            var webRun = rows.Single(row => row.Id == webRunId);
+            Assert.Equal(ActivitySessionStatus.InProgress, webRun.Status);
+            var wrapped = VocabQuizSavedState.Deserialize(webRun.StateJson);
+            Assert.Equal((owner, webKey, new DateOnly(2026, 11, 2), "p1", 3, ""),
+                (wrapped.UserId, wrapped.LaunchContextKey, wrapped.PlanDate,
+                    wrapped.Snapshot.PlanItemId, wrapped.Snapshot.TotalTurns, wrapped.DisplayDirection));
+            Assert.True(Guid.TryParseExact(wrapped.TurnId, "N", out _));
+            Assert.Null(wrapped.SavedBy);
+            var olderRun = rows.Single(row => row.LaunchContextKey == webKey && row.Status == ActivitySessionStatus.Completed);
+            Assert.True(Guid.TryParse(olderRun.Id, out _));
+
+            Assert.Equal(nativeState, rows.Single(row => row.Id == nativeRunId).StateJson);
+            Assert.Equal(SentenceStudio.Services.SyncIds.ActivitySession(owner, "VocabularyReview", abandonedKey),
+                rows.Single(row => row.LaunchContextKey == abandonedKey).Id);
+
+            var receipts = rows.Where(row => ActivitySessionTypes.IsDeviceOnly(row.ActivityType, row.Id))
+                .OrderBy(row => row.UpdatedAt).ToList();
+            Assert.Equal(3, receipts.Count);
+            Assert.All(receipts, row => Assert.StartsWith(ActivitySessionTypes.ReceiptIdPrefix, row.Id));
+            string Source(ActivitySession row) => System.Text.Json.JsonDocument.Parse(row.StateJson)
+                .RootElement.GetProperty("sourceSessionId").GetString()!;
+            Assert.Equal([nativeRunId, nativeRunId, "99"], receipts.Select(Source));
+
+            // One in-progress run per learner + activity + launch is still enforced.
+            upgraded.ActivitySessions.Add(new ActivitySession
+            {
+                Id = Guid.NewGuid().ToString(), UserId = owner, ActivityType = "VocabularyReview",
+                LaunchContextKey = webKey, StateJson = "{}", Status = ActivitySessionStatus.InProgress,
+                StartedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+            await Assert.ThrowsAsync<DbUpdateException>(() => upgraded.SaveChangesAsync());
+        }
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(Phase2aMigration);
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("7|7", await Scalar(
+            "SELECT count(*) || '|' || sum(typeof(\"Id\") = 'integer') FROM \"ActivitySession\""));
+        var nativeNumber = await Scalar(
+            $"SELECT \"Id\" FROM \"ActivitySession\" WHERE \"LaunchContextKey\" = '{nativeKey}'");
+        Assert.Equal($"{nativeNumber}|{nativeNumber}|99", await Scalar(
+            "SELECT group_concat(json_extract(\"StateJson\", '$.sourceSessionId'), '|') FROM "
+            + "(SELECT \"StateJson\" FROM \"ActivitySession\" WHERE \"ActivityType\" LIKE '%Receipt%' ORDER BY \"UpdatedAt\")"));
+        Assert.Equal("p1|", await Scalar(
+            $"SELECT json_extract(\"StateJson\", '$.planItemId') || '|' || ifnull(json_extract(\"StateJson\", '$.snapshot'), '') "
+            + $"FROM \"ActivitySession\" WHERE \"LaunchContextKey\" = '{webKey}' AND \"Status\" = 'InProgress'"));
+        Assert.Equal(nativeState, await Scalar(
+            $"SELECT \"StateJson\" FROM \"ActivitySession\" WHERE \"LaunchContextKey\" = '{nativeKey}'"));
     }
 
     private static ApplicationDbContext CreateContext(string connectionString) =>

@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "userId": "7d1f0c52-3a3e-4f43-9b52-6a3c2f8e1a10",
+  "planDate": "2026-11-03",
+  "launchContextKey": "plan=|focus=|res=|due=false|skill=",
+  "turnId": "4b8e2f0d6c1a4e9f8a7b6c5d4e3f2a1b",
+  "snapshot": { "batchPool": [ { "wordId": "word-1" } ] }
+}

@@ -552,10 +552,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ActivitySession", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ActivityType")
                         .IsRequired()

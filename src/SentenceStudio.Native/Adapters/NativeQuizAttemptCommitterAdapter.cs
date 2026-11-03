@@ -23,8 +23,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
     IUserScopeProvider userScope,
     IPreferencesService preferences) : INativeQuizAttemptCommitter, INativeQuizCompletion
 {
-    internal const string ReceiptActivityType = "VocabularyReview.NativeAttemptReceipt.v1";
-    private const string QuizSessionActivityType = "VocabularyReview";
+    internal const string ReceiptActivityType = ActivitySessionTypes.NativeAttemptReceipt;
+    private const string QuizSessionActivityType = ActivitySessionTypes.VocabularyReview;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<NativeQuizCommitReceipt?> FindAsync(
@@ -152,6 +152,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         };
         db.ActivitySessions.Add(new ActivitySession
         {
+            // Device-only: never uploaded (NativeLocalOnlyMappingExportProvider).
+            Id = ActivitySessionTypes.NewReceiptId(),
             UserId = userId,
             ActivityType = ReceiptActivityType,
             LaunchContextKey = ReceiptKey(launchContextKey, turnId),
@@ -228,7 +230,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
         if (journal.Version != 1 || journal.UserId != userId
             || journal.LaunchContextKey != launchContextKey || journal.TurnId != turnId
-            || journal.SourceSessionId <= 0 || journal.PlanId is null
+            || string.IsNullOrWhiteSpace(journal.SourceSessionId) || journal.PlanId is null
             || string.IsNullOrWhiteSpace(journal.PlanItemRowId)
             || string.IsNullOrWhiteSpace(journal.LearningContextId)
             || journal.Attempt is null || journal.ScoredProgress is null)
@@ -297,7 +299,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
     private static async Task<ApprovedPending> RequireApprovedPendingAsync(
         ApplicationDbContext db, string userId, string launchContextKey,
-        string turnId, NativeQuizStoredState stored, VocabularyAttempt attempt,
+        string turnId, VocabQuizSavedState stored, VocabularyAttempt attempt,
         CancellationToken cancellationToken)
     {
         var snapshot = ValidatePendingTurn(
@@ -360,7 +362,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
     private static async Task RequireHistoricalPendingAsync(
         ApplicationDbContext db, string userId, string launchContextKey,
-        string turnId, NativeQuizStoredState captured, StoredAttemptReceipt journal,
+        string turnId, VocabQuizSavedState captured, StoredAttemptReceipt journal,
         CancellationToken cancellationToken)
     {
         var snapshot = ValidatePendingTurn(
@@ -413,7 +415,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
     private static VocabQuizSessionSnapshot ValidatePendingTurn(
         string userId, string launchContextKey, string turnId,
-        NativeQuizStoredState stored, VocabularyAttempt attempt)
+        VocabQuizSavedState stored, VocabularyAttempt attempt)
     {
         var snapshot = stored.Snapshot;
         if (stored.UserId != userId || stored.LaunchContextKey != launchContextKey
@@ -421,7 +423,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             || stored.RequiresCorrection || stored.PendingAttempt is null
             || !SameAttempt(stored.PendingAttempt, attempt)
             || snapshot.PlanItemId?.StartsWith("adhoc-", StringComparison.Ordinal) == true
-            || stored.IsRepractice && string.IsNullOrWhiteSpace(snapshot.PlanItemId)
+            || stored.IsRepractice == true && string.IsNullOrWhiteSpace(snapshot.PlanItemId)
             || snapshot.FocusVocabularyIds is null || snapshot.ResourceIds is null
             || snapshot.BatchPool is null || snapshot.RoundWordOrder is null
             || snapshot.SessionItemsWordIds is null
@@ -491,6 +493,9 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 "Quiz plan skill is not owned by the active user.");
 
         var batchIds = snapshot.BatchPool.Select(item => item.WordId).ToArray();
+        // Session words include a word mastered mid-round, which a client may already have
+        // removed from the batch (the web does); it must still be owned.
+        var checkedIds = batchIds.Union(snapshot.SessionItemsWordIds, StringComparer.Ordinal).ToArray();
         var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
             .Join(db.LearningResources.AsNoTracking().Where(resource =>
                     resource.UserProfileId == userId
@@ -500,10 +505,10 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                         || selectedResourceIds.Contains(resource.Id))),
                 mapping => mapping.ResourceId, resource => resource.Id,
                 (mapping, resource) => mapping.VocabularyWordId)
-            .Where(wordId => batchIds.Contains(wordId))
+            .Where(wordId => checkedIds.Contains(wordId))
             .Distinct()
             .ToListAsync(cancellationToken);
-        if (reachable.Count != batchIds.Length
+        if (batchIds.Any(id => !reachable.Contains(id, StringComparer.Ordinal))
             || focus.Count > 0 && batchIds.Any(id => !focus.Contains(
                 id, StringComparer.Ordinal))
             || VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
@@ -600,11 +605,11 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 "Native quiz attempt receipts require SQLite writer serialization.");
     }
 
-    internal static NativeQuizStoredState ReadStoredState(string json)
+    internal static VocabQuizSavedState ReadStoredState(string json)
     {
         try
         {
-            return NativeQuizStoredState.Deserialize(json);
+            return VocabQuizSavedState.Deserialize(json);
         }
         catch (JsonException ex)
         {
@@ -693,10 +698,13 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             return false;
 
         var stored = ReadStoredState(session.StateJson);
+        // Plan rows are created per client: another client's recorded row (or none, from the
+        // web and MAUI) is not compared (docs/activity-session-format.md).
+        var savedHere = stored.IsSavedBy(NativeInstallId.Get(preferences));
         if (stored.UserId != launch.UserId || stored.PlanDate != launch.PlanDate
             || stored.LaunchContextKey != launchContextKey
             || stored.Snapshot.PlanItemId != launch.PlanItemId
-            || stored.PlanItemRowId != planItemRowId
+            || savedHere && stored.PlanItemRowId != planItemRowId
             || !stored.SummaryVisible || stored.PendingAttempt is not null
             || stored.Snapshot.TotalTurns <= 0
             || stored.Snapshot.RoundWordOrder is null
@@ -705,11 +713,22 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             return false;
 
         // A saved summary must follow a real committed turn, not an edited
-        // snapshot that merely claims the session is over.
+        // snapshot that merely claims the session is over. When another client
+        // scored the round's last answer (the run synced, docs/activity-session-format.md),
+        // its receipt stays on that client: a summary another install saved, or one this
+        // install saved after moving past that answer, needs none here. A receipt that is
+        // here must match.
         var finalTurn = await ReadReceiptAsync(
             db, launch.UserId, launchContextKey, stored.TurnId, cancellationToken);
-        if (finalTurn?.State.SourceSessionId != session.Id
-            || finalTurn.State.PlanItemRowId != card.Id)
+        if (finalTurn is null
+                ? savedHere && !stored.TurnScoredElsewhere
+                : finalTurn.State.SourceSessionId != session.Id
+                    || finalTurn.State.PlanItemRowId != card.Id)
+            return false;
+        // With no receipt here, the round's answers must still have been scored somewhere: the
+        // scoring client's learning records sync with the run. A summary alone completes nothing.
+        if (finalTurn is null && !await RoundWasScoredAsync(
+                db, launch.UserId, stored.Snapshot.RoundWordOrder, session.StartedAt, cancellationToken))
             return false;
 
         var now = DateTime.UtcNow;
@@ -729,6 +748,26 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             launch.UserId, userScope, preferences, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    /// <summary>Clients stamp learning records with their own clocks; allow for drift against the run's start.</summary>
+    private static readonly TimeSpan ClientClockDrift = TimeSpan.FromMinutes(5);
+
+    /// <summary>True when a quiz answer on one of the round's words was scored since the run started.</summary>
+    private static Task<bool> RoundWasScoredAsync(
+        ApplicationDbContext db, string userId, IReadOnlyList<string> roundWordIds,
+        DateTime runStartedAt, CancellationToken cancellationToken)
+    {
+        var words = roundWordIds.ToArray();
+        var since = runStartedAt - ClientClockDrift;
+        return db.VocabularyLearningContexts.AsNoTracking()
+            .Where(context => context.Activity == "VocabularyQuiz" && context.LearnedAt >= since)
+            .Join(db.VocabularyProgresses.AsNoTracking()
+                    .Where(progress => progress.UserId == userId
+                        && words.Contains(progress.VocabularyWordId)),
+                context => context.VocabularyProgressId, progress => progress.Id,
+                (context, _) => context.Id)
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> CompleteAllMasteredAsync(
@@ -834,7 +873,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         public required DateOnly PlanDate { get; init; }
         public required string PlanId { get; init; }
         public required string PlanItemRowId { get; init; }
-        public required int SourceSessionId { get; init; }
+        public required string SourceSessionId { get; init; }
         public required string SourceStateJson { get; init; }
         public required VocabularyAttempt Attempt { get; init; }
         public required VocabularyProgress ScoredProgress { get; init; }

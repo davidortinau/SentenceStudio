@@ -13,8 +13,8 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20261020095243_AddVocabularyWordOwner"
-EXPECTED_PREVIOUS_MIGRATION="20260928050905_ArchiveDisplacedPlanItems"
+EXPECTED_SCHEMA_MIGRATION="20261103151517_SyncTextIdsPhase2b"
+EXPECTED_PREVIOUS_MIGRATION="20261103015116_SyncTextIdsPhase2a"
 PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
@@ -977,9 +977,8 @@ word_owner_columns = [
     for row in connection.execute('PRAGMA table_info("VocabularyWord")')
     if row[1] == "UserProfileId"
 ]
-expected_word_owner_columns = (
-    [] if phase == "previous" else [("UserProfileId", "TEXT", 0, None, 0)]
-)
+# The word owner (20261020095243) predates both migrations of the checked transition.
+expected_word_owner_columns = [("UserProfileId", "TEXT", 0, None, 0)]
 if word_owner_columns != expected_word_owner_columns:
     errors.append("VocabularyWord: UserProfileId owner column contract mismatch")
 word_owner_index = "IX_VocabularyWord_UserProfileId"
@@ -992,17 +991,31 @@ word_owner_indexes = [
     for row in connection.execute('PRAGMA index_list("VocabularyWord")')
     if row[1] == word_owner_index
 ]
-expected_word_owner_indexes = (
-    [] if phase == "previous"
-    else [(word_owner_index, 0, "c", 0, ("UserProfileId",))]
-)
+expected_word_owner_indexes = [(word_owner_index, 0, "c", 0, ("UserProfileId",))]
 if word_owner_indexes != expected_word_owner_indexes:
     errors.append("VocabularyWord: owner index contract mismatch")
+
+# Phase 2b (docs/sync-all-tables-plan.md): ActivitySession IDs become text; the one
+# in-progress run per learner + activity + launch stays unique.
+session_id_columns = [
+    (row[1], row[2].upper(), row[5])
+    for row in connection.execute('PRAGMA table_info("ActivitySession")')
+    if row[1] == "Id"
+]
+expected_session_id_type = "INTEGER" if phase == "previous" else "TEXT"
+if session_id_columns != [("Id", expected_session_id_type, 1)]:
+    errors.append(f"ActivitySession: {expected_session_id_type} primary key contract mismatch")
+launch_index = connection.execute(
+    "SELECT sql FROM sqlite_master WHERE type = 'index' "
+    "AND name = 'IX_ActivitySession_UserId_LaunchContextKey'").fetchone()
+if launch_index is None or "UNIQUE" not in launch_index[0].upper() \
+        or "INPROGRESS" not in launch_index[0].upper().replace("'", ""):
+    errors.append("ActivitySession: unique in-progress launch index contract mismatch")
 
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Six-table ledger, StreamHistory owner, plan-archive, and {phase} word-owner contracts passed.")
+print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, and {phase} activity-session contracts passed.")
 PY
 }
 

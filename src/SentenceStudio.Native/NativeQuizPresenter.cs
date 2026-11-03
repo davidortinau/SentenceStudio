@@ -60,9 +60,11 @@ public sealed partial class NativeQuizPresenter(
     private List<VocabularyQuizItem> _roundArchive = [];
     private List<VocabularyWord> _reachableWords = [];
     private ActivitySession? _resumable;
-    private NativeQuizStoredState? _stored;
+    private VocabQuizSavedState? _stored;
     private VocabularyAttempt? _pending;
     private string _turnId = string.Empty;
+    // The current turn was scored on another client and moved past here (no receipt here).
+    private bool _turnScoredElsewhere;
     private int _turnIndex;
     private int _roundCursor;
     private int _roundsCompleted;
@@ -223,8 +225,12 @@ public sealed partial class NativeQuizPresenter(
 
             try
             {
-                _stored = NativeQuizStoredState.Deserialize(_resumable.StateJson);
-                if (direct)
+                _stored = VocabQuizSavedState.Deserialize(_resumable.StateJson);
+                var savedHere = _stored.IsSavedBy(NativeInstallId.Get(preferences));
+                // A quiz started outside the plan gets a new ad-hoc item when it resumes here
+                // (ResumeAsync) if the saving client made none, or made one this device hasn't
+                // received yet.
+                if (direct && _stored.AdHocPlanItemId is not null)
                 {
                     using var lease = plans.ForOwner(launch.UserId);
                     var row = await lease.Database.DailyPlanCompletions.AsNoTracking()
@@ -236,13 +242,13 @@ public sealed partial class NativeQuizPresenter(
                             && item.PlanItemId.StartsWith("adhoc-")
                             && item.ActivityType == ActivityType && !item.IsArchived,
                             cancellationToken);
-                    if (row is null)
+                    if (row is null && savedHere)
                         throw new InvalidOperationException(
                             "A direct quiz lost its owner-scoped activity row.");
-                    _planItemRowId = row.Id;
-                    _adHocPlanItemId = row.PlanItemId;
+                    _planItemRowId = row?.Id;
+                    _adHocPlanItemId = row?.PlanItemId;
                 }
-                if (!ValidateStoredState(_stored, selected))
+                if (!ValidateStoredState(_stored, selected, savedHere))
                     throw new InvalidOperationException("Stored quiz context does not match the active plan.");
                 return SetState(new(NativePhase.ResumeChoice, NativeDestination.VocabularyQuiz));
             }
@@ -317,7 +323,10 @@ public sealed partial class NativeQuizPresenter(
 
             var snapshot = _stored.Snapshot;
             var words = _reachableWords.ToDictionary(word => word.Id, StringComparer.Ordinal);
-            var ids = snapshot.BatchPool.Select(item => item.WordId).ToList();
+            // Session words include any word mastered mid-round, which the web removes from the
+            // batch at once (the native batch keeps it until the round ends).
+            var ids = snapshot.BatchPool.Select(item => item.WordId)
+                .Union(snapshot.SessionItemsWordIds, StringComparer.Ordinal).ToList();
             var progressByWord = (await progress.GetByWordIdsForUserAsync(ids, _launch.UserId))
                 .ToDictionary(item => item.VocabularyWordId, StringComparer.Ordinal);
             if (!HasOwner(_launch.UserId))
@@ -348,11 +357,24 @@ public sealed partial class NativeQuizPresenter(
             await LoadSentenceHintsAsync(cancellationToken);
             if (!HasOwner(_launch.UserId))
                 return RefuseLaunch();
+            if (!await EnsureAdHocRowAsync(cancellationToken))
+                return RefuseLaunch();
+            // Work graded on another client (an answer or a sentence) is that client's to score
+            // (docs/activity-session-format.md).
+            var savedHere = _stored.IsSavedBy(NativeInstallId.Get(preferences));
             var byId = _batch.ToDictionary(item => item.Word.Id, StringComparer.Ordinal);
             _round = snapshot.RoundWordOrder.Select(id => byId[id]).ToList();
             _roundArchive = (snapshot.SessionItemsWordIds.Count > 0
                     ? snapshot.SessionItemsWordIds : snapshot.RoundWordOrder)
-                .Select(id => byId[id]).ToList();
+                .Select(id => byId.TryGetValue(id, out var item) ? item : new VocabularyQuizItem
+                {
+                    // Mastered and rotated out on the client that saved the run; it appears in
+                    // the round summary only (as the web restores it).
+                    Word = words[id],
+                    Progress = progressByWord.GetValueOrDefault(id)
+                        ?? new VocabularyProgress { VocabularyWordId = id, UserId = _launch.UserId },
+                    IsDueOnlySession = _launch.DueOnly
+                }).ToList();
             _turnIndex = snapshot.CurrentTurnInRound;
             _roundCursor = snapshot.RoundCursor;
             _roundsCompleted = snapshot.RoundsCompleted;
@@ -365,12 +387,14 @@ public sealed partial class NativeQuizPresenter(
             _sentenceInput = _stored.SentenceSourceInput;
             _sentenceResults = _stored.SentenceResults.ToImmutableArray();
             _sentenceCreditApplied = _stored.SentenceCreditApplied;
-            pendingWrites.RestoreUnmarkedCommittedTurns(
-                _launch.UserId, snapshot.TotalTurns - (_pending is null ? 0 : 1));
+            if (savedHere)
+                pendingWrites.RestoreUnmarkedCommittedTurns(
+                    _launch.UserId, snapshot.TotalTurns - (_pending is null ? 0 : 1));
             _pendingSync = pendingWrites.IsPending(_launch.UserId);
             _overrideRetryPending = false;
             _correctionRetryPending = false;
             _turnId = _stored.TurnId;
+            _turnScoredElsewhere = _stored.TurnScoredElsewhere;
             _clock.Stop();
             var elapsedTicks = Math.Max(_stored.ElapsedTicks, _clock.Elapsed.Ticks);
             _clock.Start(_adHocPlanItemId ?? _launch.PlanItemId,
@@ -381,6 +405,8 @@ public sealed partial class NativeQuizPresenter(
                 var receipt = await sentenceCommitter.FindAsync(
                     _launch.UserId, _contextKey!, _turnId,
                     _sentenceSubmissionId, cancellationToken);
+                if (receipt is null && !savedHere)
+                    return await MovePastUnfinishedTurnAsync(cancellationToken);
                 if (receipt is not null && !_sentenceCreditApplied)
                 {
                     ApplySentenceReceipt(receipt);
@@ -437,6 +463,8 @@ public sealed partial class NativeQuizPresenter(
                     // abandon the advance after it cleared the pending turn.
                     return await AdvanceCommittedAsync(receipt, _lifetime.Token);
                 }
+                if (!savedHere)
+                    return await MovePastUnfinishedTurnAsync(_lifetime.Token);
 
                 var feedback = await PresentQuestionAsync(
                     snapshot.PromptUsesNativeLanguage, snapshot.UserMode,
@@ -449,8 +477,12 @@ public sealed partial class NativeQuizPresenter(
             if (_stored.SummaryVisible)
                 return SetState(SummaryState());
 
+            // An unanswered question follows this device's display direction setting.
+            var promptUsesNative = _displayDirection == "Mixed"
+                ? snapshot.PromptUsesNativeLanguage
+                : _displayDirection == "NativeToTarget";
             var question = await PresentQuestionAsync(
-                snapshot.PromptUsesNativeLanguage, snapshot.UserMode,
+                promptUsesNative, snapshot.UserMode,
                 graded: false, cancellationToken);
             if (question.Phase == NativePhase.Blocked)
                 _clock.Stop();
@@ -476,7 +508,8 @@ public sealed partial class NativeQuizPresenter(
         }
     }
 
-    private bool ValidateStoredState(NativeQuizStoredState stored, IReadOnlyList<VocabularyWord> selected)
+    private bool ValidateStoredState(
+        VocabQuizSavedState stored, IReadOnlyList<VocabularyWord> selected, bool savedHere)
     {
         var snapshot = stored.Snapshot;
         if (snapshot.BatchPool is null
@@ -491,16 +524,19 @@ public sealed partial class NativeQuizPresenter(
 
         return _launch is not null
             && string.Equals(stored.UserId, _launch.UserId, StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(stored.PlanItemRowId)
-            && string.Equals(stored.PlanItemRowId, _planItemRowId, StringComparison.Ordinal)
+            // The launch key and plan date identify the run on every client. Plan rows are created
+            // per client, so the recorded plan row and ad-hoc item must match only when this
+            // install saved them; other clients' rows are resolved here (the web and MAUI record
+            // none).
+            && (!savedHere || stored.PlanItemRowId is { Length: > 0 }
+                    && string.Equals(stored.PlanItemRowId, _planItemRowId, StringComparison.Ordinal))
             && (string.IsNullOrEmpty(_launch.PlanItemId)
-                ? !string.IsNullOrWhiteSpace(stored.AdHocPlanItemId)
+                ? !savedHere || stored.AdHocPlanItemId is { Length: > 0 }
                     && stored.AdHocPlanItemId == _adHocPlanItemId
                 : stored.AdHocPlanItemId is null)
             && stored.PlanDate == _launch.PlanDate
             && string.Equals(stored.LaunchContextKey, _contextKey, StringComparison.Ordinal)
-            && string.Equals(stored.DisplayDirection, _displayDirection, StringComparison.Ordinal)
-            && stored.IsRepractice == _launch.IsRepractice
+            && (stored.IsRepractice is null || stored.IsRepractice == _launch.IsRepractice)
             && VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
                 snapshot, _launch.PlanItemId,
                 _launch.FocusVocabularyIds.IsDefault ? [] : _launch.FocusVocabularyIds,
@@ -524,7 +560,10 @@ public sealed partial class NativeQuizPresenter(
             && snapshot.CorrectCount <= snapshot.TotalTurns
             && snapshot.RoundCursor >= 0 && snapshot.RoundsCompleted >= 0
             && Guid.TryParseExact(stored.TurnId, "N", out _)
-            && (_displayDirection == "Mixed"
+            // The display direction is a per-device setting. An answered question is shown as it
+            // was asked; an unanswered one follows this device's setting (ResumeAsync). Another
+            // install's answered question is moved past, never shown, so its direction is moot.
+            && (stored.PendingAttempt is null || !savedHere || _displayDirection == "Mixed"
                 || snapshot.PromptUsesNativeLanguage == (_displayDirection == "NativeToTarget"))
             && (!stored.SummaryVisible || stored.PendingAttempt is null)
             && (stored.SentenceSubmissionId is null

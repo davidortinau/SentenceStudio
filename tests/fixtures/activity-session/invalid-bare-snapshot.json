@@ -1,0 +1,7 @@
+{
+  "planItemId": "9d3fd8e6c3ae5ee8",
+  "batchPool": [ { "wordId": "word-1" } ],
+  "roundWordOrder": [ "word-1" ],
+  "currentTurnInRound": 0,
+  "userMode": "MultipleChoice"
+}

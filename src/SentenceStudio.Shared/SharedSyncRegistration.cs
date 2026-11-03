@@ -48,7 +48,8 @@ public static class SharedSyncRegistration
             .Table<MinimalPairSession>("MinimalPairSession", syncDirection: SyncDirection.UploadAndDownload)
             .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -83,7 +84,8 @@ public static class SharedSyncRegistration
             .Table<MinimalPairSession>("MinimalPairSession", syncDirection: SyncDirection.UploadAndDownload)
             .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ActivitySession>("ActivitySession", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

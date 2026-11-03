@@ -214,6 +214,26 @@ public sealed class VocabQuizSessionSnapshotTests
         rejectedCount.Should().Be(3);
     }
 
+    [Fact]
+    public void ResumeValidation_AcceptsAWordMasteredMidRound_ButNotAnUnreachableOne()
+    {
+        // The web removes a mastered word from the batch at once and keeps it in the round's
+        // session list; that saved run must still resume (on the web and the native apps).
+        var mastered = CreateResumeSnapshot() with
+        {
+            BatchPool = [new VocabQuizBatchItemSnapshot { WordId = "word-a" }],
+            RoundWordOrder = ["word-a"],
+            SessionItemsWordIds = ["word-a", "word-b"]
+        };
+        int Rejected(VocabQuizSessionSnapshot snapshot) =>
+            VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+                snapshot, "plan-a", ["word-a", "word-b"], ["resource-a"], false, "skill-a",
+                reachableWordIds: ["word-a", "word-b"]);
+
+        Rejected(mastered).Should().Be(0);
+        Rejected(mastered with { SessionItemsWordIds = ["word-a", "foreign-word"] }).Should().Be(1);
+    }
+
     private static VocabQuizSessionSnapshot CreateResumeSnapshot() => new()
     {
         PlanItemId = "plan-a",
