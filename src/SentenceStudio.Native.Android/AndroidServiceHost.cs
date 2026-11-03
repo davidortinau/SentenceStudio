@@ -95,6 +95,7 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddOwnerBoundNativeSentenceGateway(apiUri);
             services.AddOwnerBoundNativeSam(apiUri);
             services.AddOwnerBoundNativeReadingAudio(apiUri);
+            services.AddOwnerBoundNativeSyncResend(apiUri);
             // Shadowing audio: the owner-bound /api/v1/speech/synthesize path.
             services.AddOwnerBoundNativeQuizSpeech(apiUri);
         }

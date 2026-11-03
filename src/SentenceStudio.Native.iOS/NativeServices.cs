@@ -129,6 +129,7 @@ public sealed class NativeServices : IDisposable
             services.AddOwnerBoundNativeAiGateway(endpoint);
             services.AddOwnerBoundNativeQuizSpeech(endpoint);
             services.AddOwnerBoundNativeReadingAudio(endpoint);
+            services.AddOwnerBoundNativeSyncResend(endpoint);
             services.AddOwnerBoundNativeSentenceGrader(endpoint);
             services.AddOwnerBoundNativeSam(endpoint);
         }

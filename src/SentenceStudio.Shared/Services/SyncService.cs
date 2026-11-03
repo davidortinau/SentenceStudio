@@ -2,6 +2,7 @@ using CoreSync;
 using CoreSync.Http.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 
 namespace SentenceStudio.Services;
@@ -423,20 +424,43 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
                 db, _logger, cancellationToken: cancellationToken);
 
         await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
-        if (untracked.Count == 0)
-            return;
 
         var scopeProvider = scope.ServiceProvider
             .GetService<SentenceStudio.Services.Plans.IUserScopeProvider>();
-        if (scopeProvider is null || !scopeProvider.TryGetUserProfileId(out var owner)
+        string? owner = null;
+        if (scopeProvider is null || !scopeProvider.TryGetUserProfileId(out owner)
             || string.IsNullOrWhiteSpace(owner))
         {
-            // Fail closed: without an owner nothing is queued, and these rows stay local.
-            _logger.LogWarning(
-                "Sync: no signed-in owner, so existing rows of newly synced tables stay local");
+            if (untracked.Count > 0)
+                // Fail closed: without an owner nothing is queued, and these rows stay local.
+                _logger.LogWarning(
+                    "Sync: no signed-in owner, so existing rows of newly synced tables stay local");
             return;
         }
-        await SyncLateTables.TouchAsync(db, untracked, owner, _logger, cancellationToken);
+
+        var preferences = scope.ServiceProvider.GetService<IPreferencesService>();
+        var queue = preferences is null ? null : new SyncResendQueue(preferences);
+        if (untracked.Count > 0)
+        {
+            await SyncLateTables.TouchAsync(db, untracked, owner, _logger, cancellationToken);
+            queue?.Add(owner, untracked);
+        }
+
+        // Ask the server to re-send this owner's rows of newly tracked tables before this
+        // sync's download (see ISyncResendRequester). A failure leaves them queued.
+        var requester = scope.ServiceProvider.GetService<ISyncResendRequester>();
+        if (queue is null || requester is null || queue.Pending(owner) is not { Count: > 0 } pending)
+            return;
+        try
+        {
+            if (await requester.RequestAsync(owner, pending, cancellationToken))
+                queue.Clear(owner, pending);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning("Sync: re-send request for newly synced tables failed: {Failure}",
+                ex.GetType().Name);
+        }
     }
 
     private async Task SynchronizePassAsync(CancellationToken cancellationToken)

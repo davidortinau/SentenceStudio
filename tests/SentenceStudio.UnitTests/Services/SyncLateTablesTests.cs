@@ -121,6 +121,112 @@ public sealed class SyncLateTablesTests
         Assert.Equal(["web-attempt", "web-score"], await RemoteIdsAsync(device));
     }
 
+    /// <summary>
+    /// The rollout gap: the server already tracks a late table and holds rows of it, but the
+    /// device still runs an older app that does not sync that table. CoreSync downloads only the
+    /// tables the app asks for, then moves the device's download position to the server's latest
+    /// version, so after the upgrade the device never receives those rows. An owner-scoped
+    /// re-send (POST /api/v1/sync/resend) records them as changes again and they arrive.
+    /// </summary>
+    [Fact]
+    public async Task OlderAppSyncMovesPastServerRows_TheOwnersResendBringsThemBack()
+    {
+        var server = await CreateStoreAsync(ProviderMode.Remote, provision: true);
+        await using var serverKeepAlive = server.KeepAlive;
+        await using (var db = new ApplicationDbContext(server.Options))
+        {
+            db.StreamHistories.AddRange(
+                new StreamHistory { Id = "owner-audio", UserProfileId = Owner },
+                new StreamHistory { Id = "other-audio", UserProfileId = Other });
+            await db.SaveChangesAsync();
+        }
+
+        // The older app: the same database schema, but these tables are not in its sync list.
+        var connectionString = $"Data Source=LateTables{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+        await using var deviceKeepAlive = new SqliteConnection(connectionString);
+        await deviceKeepAlive.OpenAsync();
+        var deviceOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(deviceKeepAlive).Options;
+        await using (var db = new ApplicationDbContext(deviceOptions))
+            await db.Database.EnsureCreatedAsync();
+        var older = new SqliteSyncProvider(new SqliteSyncConfigurationBuilder(connectionString)
+            .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
+            .Build(), ProviderMode.Local);
+        await older.ApplyProvisionAsync();
+        // Over HTTP the server end reports no table list (SyncProviderHttpClient).
+        var overHttp = new HttpLikeRemote(server.Provider);
+        await new SyncAgent(older, overHttp).SynchronizeAsync(
+            remoteConflictResolutionFunc: Rule, localConflictResolutionFunc: Rule);
+        await new SyncAgent(older, overHttp).SynchronizeAsync(
+            remoteConflictResolutionFunc: Rule, localConflictResolutionFunc: Rule);
+
+        // The upgraded app on the same device and store.
+        var upgraded = new SqliteSyncProvider(new SqliteSyncConfigurationBuilder(connectionString)
+            .ConfigureSyncTables().Build(), ProviderMode.Local);
+        await upgraded.ApplyProvisionAsync();
+        await new SyncAgent(upgraded, overHttp).SynchronizeAsync(
+            remoteConflictResolutionFunc: Rule, localConflictResolutionFunc: Rule);
+        var device = new Store(deviceKeepAlive, deviceOptions, upgraded);
+        Assert.DoesNotContain("owner-audio", await RemoteIdsAsync(device));
+
+        await using (var db = new ApplicationDbContext(server.Options))
+            await SyncLateTables.TouchAsync(db, ["StreamHistory"], Owner, NullLogger.Instance);
+        await new SyncAgent(upgraded, overHttp).SynchronizeAsync(
+            remoteConflictResolutionFunc: Rule, localConflictResolutionFunc: Rule);
+
+        var received = await RemoteIdsAsync(device);
+        Assert.Contains("owner-audio", received);
+        // Only the requesting owner's rows are re-sent.
+        Assert.DoesNotContain("other-audio", received);
+    }
+
+    [Fact]
+    public void ResendQueue_KeepsPendingTablesPerOwner_UntilTheyAreSent()
+    {
+        var preferences = new MemoryPreferences();
+        var queue = new SyncResendQueue(preferences);
+        queue.Add(Owner, ["StreamHistory", "MinimalPair", "DiaryEntry"]);
+        queue.Add(Owner, ["MinimalPair"]);
+        queue.Add(Other, ["NumberAttempt"]);
+
+        Assert.Equal(["StreamHistory", "MinimalPair"], queue.Pending(Owner));
+        queue.Clear(Owner, ["StreamHistory"]);
+        Assert.Equal(["MinimalPair"], queue.Pending(Owner));
+        queue.Clear(Owner, ["MinimalPair"]);
+        Assert.Empty(queue.Pending(Owner));
+        Assert.Equal(["NumberAttempt"], queue.Pending(Other));
+    }
+
+    private sealed class HttpLikeRemote(ISyncProvider inner) : ISyncProviderBase
+    {
+        public string[]? SyncTableNames => null;
+        public Task<Guid> GetStoreIdAsync(CancellationToken cancellationToken = default) =>
+            inner.GetStoreIdAsync(cancellationToken);
+        public Task SaveVersionForStoreAsync(Guid otherStoreId, long version,
+            CancellationToken cancellationToken = default) =>
+            inner.SaveVersionForStoreAsync(otherStoreId, version, cancellationToken);
+        public Task<SyncAnchor> ApplyChangesAsync(SyncChangeSet changeSet,
+            Func<SyncItem, ConflictResolution>? onConflictFunc = null,
+            CancellationToken cancellationToken = default) =>
+            inner.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+        public Task<SyncChangeSet> GetChangesAsync(Guid otherStoreId,
+            SyncFilterParameter[]? syncFilterParameters = null,
+            SyncDirection syncDirection = SyncDirection.UploadAndDownload, string[]? tables = null,
+            CancellationToken cancellationToken = default) =>
+            inner.GetChangesAsync(otherStoreId, syncFilterParameters, syncDirection, tables,
+                cancellationToken);
+    }
+
+    private sealed class MemoryPreferences : SentenceStudio.Abstractions.IPreferencesService
+    {
+        private readonly Dictionary<string, object?> _values = new();
+        public T Get<T>(string key, T defaultValue) =>
+            _values.TryGetValue(key, out var value) && value is T typed ? typed : defaultValue;
+        public void Set<T>(string key, T value) => _values[key] = value;
+        public void Remove(string key) => _values.Remove(key);
+        public void Clear() => _values.Clear();
+    }
+
     [Fact]
     public async Task Touch_RefusesATableThatIsNotLateJoined()
     {

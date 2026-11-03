@@ -983,6 +983,9 @@ app.MapPost("/api/v1/ai/analyze-image", async (AnalyzeImageRequest request, [Fro
     })
     .RequireAuthorization();
 
+// Devices re-request their own rows of newly synced tables (docs/sync-all-tables-plan.md).
+SentenceStudio.Api.Sync.SyncResendEndpoint.MapSyncResend(app);
+
 app.MapPost("/api/v1/speech/synthesize", async (
         SynthesizeRequest request,
         [FromServices] ElevenLabsClient? client,
