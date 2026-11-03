@@ -158,7 +158,7 @@ else
         }
 
         // The signed-in learner owns the pair; nothing is written without one.
-        var owner = Preferences.Get("active_profile_id", string.Empty);
+        var owner = Preferences.Get("active_profile_id", "");
         if (string.IsNullOrWhiteSpace(owner))
         {
             Logger.LogWarning("Minimal pair create refused: no active profile.");
