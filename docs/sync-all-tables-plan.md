@@ -94,3 +94,24 @@ isolation proven on the server, then run on simulators/emulator and the web.
   build registers, and the server must keep accepting that. This is checked
   in every phase.
 - Rows that can't be converted safely are kept and reported, never deleted.
+
+## Status
+
+**Phase 1 done (2026-11-02)**: `9cf712f9`, `c51ce0fe`. Verified on the local
+stack:
+- the API moved its Number Drill rows to the shared IDs;
+- Kaylee's simulator, upgraded from the old app, uploaded her earlier
+  answers and progress;
+- a second simulator on the same account downloaded them;
+- practice on either simulator reached the other through the server.
+
+The web app uses the same code for creating progress rows (test
+`SubmitAnswerAsync_CreatesMasteryWithTheSharedBucketId`), but I haven't
+checked a web sign-in yet: that needs the test account password.
+
+Leftover rows: on the local server, 11 Number Drill answers and 8 progress
+rows belong to two profiles that no longer exist. Per D3 and AGENTS.md they
+are not given an owner or deleted. No device will download them.
+
+Deploy order: the API ships before any app build with phase 1. An older API
+refuses uploads that contain these tables.

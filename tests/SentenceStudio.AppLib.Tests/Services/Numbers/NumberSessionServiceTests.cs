@@ -104,6 +104,29 @@ public class NumberSessionServiceTests : IDisposable
         Assert.True(progress.DueDate > DateTime.UtcNow); // SM-2 scheduled future review
     }
 
+    /// <summary>
+    /// The web app and every device create a learner's bucket row with the same ID, so CoreSync
+    /// merges them into one row (Captain 2026-11-02, docs/sync-all-tables-plan.md).
+    /// </summary>
+    [Fact]
+    public async Task SubmitAnswerAsync_CreatesMasteryWithTheSharedBucketId()
+    {
+        await SeedTestDataAsync();
+        var item = _generator.GenerateItem(new NumberItemRequest(
+            ContextCode: "Time", SubModeCode: "ListenAndType", Bucket: "1-10",
+            CounterId: null, Difficulty: 1, RandomSeed: 42));
+
+        await _service.SubmitAnswerAsync("test-user-guid-1", Guid.NewGuid(), item,
+            item.CanonicalAnswer, 5000);
+        await _service.SubmitAnswerAsync("test-user-guid-1", Guid.NewGuid(), item,
+            item.CanonicalAnswer, 5000);
+
+        var progress = Assert.Single(await _db.NumberMasteryProgresses.ToListAsync());
+        Assert.Equal(NumberSyncIdentity.MasteryId("test-user-guid-1", "ko", item.ContextCode,
+            item.CounterId, item.System, item.Bucket), progress.Id);
+        Assert.Equal(2, progress.TotalCount);
+    }
+
     [Fact]
     public async Task SubmitAnswerAsync_IncorrectAnswer_UpdatesMasteryWithResetSchedule()
     {
