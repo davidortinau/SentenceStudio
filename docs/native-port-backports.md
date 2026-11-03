@@ -64,6 +64,7 @@ Native fix references are commits on `native-platform-heads`.
 | B32 | How Do You Say | History timestamps shown in UTC; raw exception text shown to the learner | `HowDoYouSay.razor` |
 | B33 | Translation, Writing | Navigation allowed while a grade is in flight, so a late result can land on the wrong sentence | `Translation.razor`, `Writing.razor` |
 | B34 | Many | Hard-coded English strings (Cloze Familiar messages, Number Drill, Writing, Reading toasts) need resx keys (native added `NumberDrill_*`, `Writing_*`, `Reading_*`, `NativeCloze_*` keys that can be reused) | UI pages |
+| B38 | How Do You Say | Audio history now syncs (Phase 2a, docs/sync-all-tables-plan.md D4), so the web lists entries whose clip was made on a phone. Playing one must synthesize the clip again in the entry's voice and point the entry at it (no second entry), like native `NativeHowDoYouSayPresenter.TogglePlayAsync` / `NativeShadowingSpeech.GetForVoiceAsync` | `HowDoYouSay.razor`, web audio cache |
 | B37 | Number Drill | "I was correct" fixes only the session score; the stored `NumberAttempt` and `NumberMasteryProgress` (SM-2) stay graded wrong. Shared `NumberSessionService.OverrideAttemptAsync` (`c3836877`) re-grades both; keep `NumberAttemptResult.Receipt` from the submit and pass it with the owner in `OverrideAsCorrect`, then show `NumberDrill_OverrideFailed` on Refused (Captain, 2026-11-02) | `NumberDrill.razor` |
 
 ## Platform (MAUI app only)

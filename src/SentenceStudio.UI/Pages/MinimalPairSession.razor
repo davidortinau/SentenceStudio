@@ -120,7 +120,7 @@ else
     private int totalTrials = 20;
     private int correctCount;
     private int incorrectCount;
-    private int? sessionId;
+    private string? sessionId;
     private DateTime? sessionStartedAt;
 
     private MinimalPair? currentPair;
@@ -190,12 +190,12 @@ else
         }
     }
 
-    private int[] ParsePairIds()
+    private string[] ParsePairIds()
     {
-        if (string.IsNullOrEmpty(PairIdsParam)) return Array.Empty<int>();
+        if (string.IsNullOrEmpty(PairIdsParam)) return Array.Empty<string>();
         return PairIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => int.TryParse(s, out var id) ? id : 0)
-            .Where(id => id > 0)
+            .Select(Uri.UnescapeDataString)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToArray();
     }
 
@@ -327,9 +327,9 @@ else
         answerWasCorrect = isCorrect;
         if (isCorrect) correctCount++; else incorrectCount++;
 
-        if (sessionId.HasValue && currentPair != null && promptWord != null)
+        if (sessionId is not null && currentPair != null && promptWord != null)
         {
-            await SessionRepo.RecordAttemptAsync("1", sessionId.Value, currentPair.Id,
+            await SessionRepo.RecordAttemptAsync("1", sessionId, currentPair.Id,
                 promptWord.Id, selectedWordId, isCorrect);
         }
 
@@ -350,8 +350,8 @@ else
 
     private async Task EndSession()
     {
-        if (sessionId.HasValue)
-            await SessionRepo.EndSessionAsync(sessionId.Value);
+        if (sessionId is not null)
+            await SessionRepo.EndSessionAsync(sessionId);
         showSummary = true;
     }
 

@@ -193,6 +193,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         // Non-synced entities (keep int auto-increment PKs)
         modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
+        modelBuilder.Entity<StreamHistory>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<StreamHistory>().Property(e => e.UserProfileId).IsRequired(false);
         modelBuilder.Entity<StreamHistory>().HasIndex(e => new { e.UserProfileId, e.CreatedAt });
         modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
@@ -200,9 +201,13 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationScenario>().ToTable("ConversationScenario").HasKey(e => e.Id);
         modelBuilder.Entity<ExampleSentence>().ToTable("ExampleSentence").HasKey(e => e.Id);
+        // Text IDs so these rows sync (Captain 2026-11-02, docs/sync-all-tables-plan.md).
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPair>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<MinimalPairSession>().ToTable("MinimalPairSession").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPairSession>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<MinimalPairAttempt>().ToTable("MinimalPairAttempt").HasKey(e => e.Id);
+        modelBuilder.Entity<MinimalPairAttempt>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<ActivitySession>().ToTable("ActivitySession").HasKey(e => e.Id);
         modelBuilder.Entity<ActivitySession>().Property(e => e.Status).HasConversion<string>();
         modelBuilder.Entity<ActivitySession>().HasIndex(e => new { e.UserId, e.ActivityType, e.Status });
@@ -211,6 +216,8 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .IsUnique()
             .HasFilter("\"Status\" = 'InProgress'");
         modelBuilder.Entity<ConversationMemoryState>().ToTable("ConversationMemoryState").HasKey(e => e.Id);
+        modelBuilder.Entity<ConversationMemoryState>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ConversationMemoryState>().HasIndex(e => e.UserProfileId);
 
         // Configure relationships for vocabulary progress tracking
         modelBuilder.Entity<VocabularyProgress>()

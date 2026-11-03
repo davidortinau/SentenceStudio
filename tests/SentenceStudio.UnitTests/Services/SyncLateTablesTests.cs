@@ -36,6 +36,26 @@ public sealed class SyncLateTablesTests
 
         await using (var db = new ApplicationDbContext(local.Options))
         {
+            // Parents of the Minimal Pairs rows (already-synced tables, so they upload anyway).
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
+                new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2" });
+            await db.SaveChangesAsync();
+            var pairId = SyncIds.MinimalPair(Owner, "w1", "w2");
+            db.MinimalPairs.Add(new MinimalPair
+            {
+                Id = pairId, UserId = Owner, VocabularyWordAId = "w1", VocabularyWordBId = "w2"
+            });
+            db.MinimalPairSessions.Add(new MinimalPairSession { Id = "session-a", UserId = Owner });
+            db.MinimalPairAttempts.Add(new MinimalPairAttempt
+            {
+                Id = "pair-attempt-a", UserId = Owner, SessionId = "session-a", PairId = pairId,
+                PromptWordId = "w1", SelectedWordId = "w2"
+            });
+            db.StreamHistories.AddRange(
+                new StreamHistory { Id = "stream-a", UserProfileId = Owner },
+                new StreamHistory { Id = "stream-b", UserProfileId = Other },
+                new StreamHistory { Id = "stream-unowned", UserProfileId = null });
             db.NumberAttempts.AddRange(
                 new NumberAttempt { Id = "attempt-a", UserProfileId = Owner },
                 new NumberAttempt { Id = "attempt-b", UserProfileId = Other });
@@ -51,7 +71,7 @@ public sealed class SyncLateTablesTests
         IReadOnlyList<string> untracked;
         await using (var db = new ApplicationDbContext(local.Options))
             untracked = await SyncLateTables.UntrackedAsync(db);
-        Assert.Equal(["NumberAttempt", "NumberMasteryProgress", "WordAssociationScore"], untracked);
+        Assert.Equal(SyncLateTables.OwnerColumns.Keys, untracked);
 
         await local.Provider.ApplyProvisionAsync();
         await SyncLikeTheAppAsync(local, remote);
@@ -60,12 +80,13 @@ public sealed class SyncLateTablesTests
         await using (var db = new ApplicationDbContext(local.Options))
         {
             Assert.Empty(await SyncLateTables.UntrackedAsync(db));
-            Assert.Equal(3, await SyncLateTables.TouchAsync(
+            Assert.Equal(7, await SyncLateTables.TouchAsync(
                 db, untracked, Owner, NullLogger.Instance));
         }
         await SyncLikeTheAppAsync(local, remote);
 
-        Assert.Equal(["attempt-a", "mastery-a", "score-a"], await RemoteIdsAsync(remote));
+        Assert.Equal(["attempt-a", "mastery-a", "mp:owner-a:w1:w2", "pair-attempt-a", "score-a",
+            "session-a", "stream-a"], await RemoteIdsAsync(remote));
     }
 
     [Fact]
@@ -269,7 +290,11 @@ public sealed class SyncLateTablesTests
         return (await db.NumberAttempts.Select(row => row.Id).ToListAsync())
             .Concat(await db.NumberMasteryProgresses.Select(row => row.Id).ToListAsync())
             .Concat(await db.WordAssociationScores.Select(row => row.Id).ToListAsync())
-            .Order().ToList();
+            .Concat(await db.MinimalPairs.Select(row => row.Id).ToListAsync())
+            .Concat(await db.MinimalPairSessions.Select(row => row.Id).ToListAsync())
+            .Concat(await db.MinimalPairAttempts.Select(row => row.Id).ToListAsync())
+            .Concat(await db.StreamHistories.Select(row => row.Id).ToListAsync())
+            .Order(StringComparer.Ordinal).ToList();
     }
 
     private static async Task<Store> CreateStoreAsync(ProviderMode mode, bool provision)

@@ -9,7 +9,7 @@ public class MinimalPairAttempt
     /// <summary>
     /// Primary key
     /// </summary>
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// User who made this attempt (default 1 for single-user app)
@@ -19,12 +19,12 @@ public class MinimalPairAttempt
     /// <summary>
     /// The session this attempt belongs to
     /// </summary>
-    public int SessionId { get; set; }
+    public string SessionId { get; set; } = string.Empty;
 
     /// <summary>
     /// The minimal pair being tested
     /// </summary>
-    public int PairId { get; set; }
+    public string PairId { get; set; } = string.Empty;
 
     /// <summary>
     /// Which vocabulary word was played as the prompt (the correct answer)

@@ -124,7 +124,7 @@ else
     private List<MinimalPair> pairs = new();
     private bool isLoading = true;
     private string selectedMode = "Focus";
-    private int? selectedPairId;
+    private string? selectedPairId;
     private bool showDeleteConfirm;
     private string deleteConfirmMessage = "";
     private bool isDeleting;
@@ -163,7 +163,7 @@ else
             selectedPairId = null;
     }
 
-    private void SelectPair(int pairId)
+    private void SelectPair(string pairId)
     {
         if (selectedMode == "Focus")
             selectedPairId = pairId;
@@ -183,9 +183,10 @@ else
             return;
         }
 
+        // Pair IDs are text (e.g. "mp:<learner>:<word>:<word>"), so each one is escaped.
         var pairIds = selectedMode == "Focus"
-            ? selectedPairId!.Value.ToString()
-            : string.Join(",", pairs.Select(p => p.Id));
+            ? Uri.EscapeDataString(selectedPairId!)
+            : string.Join(",", pairs.Select(p => Uri.EscapeDataString(p.Id)));
         var trialCount = selectedMode == "Focus" ? 10 : 20;
 
         NavManager.NavigateTo($"/minimal-pairs/session/0?pairIds={pairIds}&mode={selectedMode}&trials={trialCount}");

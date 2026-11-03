@@ -154,6 +154,8 @@ public sealed class NativeMinimalPairsPresenterTests
         var row = await SinglePairRowAsync(fixture, pair.Id);
         Assert.Equal(UserA, row.UserId);
         Assert.Equal((wordB, wordA), (row.VocabularyWordAId, row.VocabularyWordBId));
+        // The same ID on every device and the web, so sync merges instead of duplicating.
+        Assert.Equal(SentenceStudio.Services.SyncIds.MinimalPair(UserA, wordB, wordA), row.Id);
 
         // The same two words in either order are a duplicate (source returns null).
         await test.Presenter.OpenCreateAsync();
@@ -542,7 +544,7 @@ public sealed class NativeMinimalPairsPresenterTests
         return fixture;
     }
 
-    private static async Task<int> InsertPairAsync(NativeSliceFixture fixture, string owner, int a, int b,
+    private static async Task<string> InsertPairAsync(NativeSliceFixture fixture, string owner, int a, int b,
         string? label = null, DateTime? createdAt = null, string? wordOwner = null)
     {
         using var scope = fixture.Scope();
@@ -550,6 +552,8 @@ public sealed class NativeMinimalPairsPresenterTests
         var words = wordOwner ?? owner;
         var row = new MinimalPair
         {
+            Id = SentenceStudio.Services.SyncIds.MinimalPair(
+                owner, fixture.WordId(words, a), fixture.WordId(words, b)),
             UserId = owner,
             VocabularyWordAId = fixture.WordId(words, a),
             VocabularyWordBId = fixture.WordId(words, b),
@@ -562,7 +566,7 @@ public sealed class NativeMinimalPairsPresenterTests
         return row.Id;
     }
 
-    private static async Task<MinimalPair> SinglePairRowAsync(NativeSliceFixture fixture, int id)
+    private static async Task<MinimalPair> SinglePairRowAsync(NativeSliceFixture fixture, string id)
     {
         using var scope = fixture.Scope();
         return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()

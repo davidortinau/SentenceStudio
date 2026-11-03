@@ -57,8 +57,8 @@ public static class NativeMinimalPairsAccess
     public const string SummaryDuration = "native.minimalpairs.summary.duration";
     public const string Done = "native.minimalpairs.summary.done";
 
-    public static string Pair(int id) => $"native.minimalpairs.pair.{id}";
-    public static string PairDelete(int id) => $"native.minimalpairs.pair.{id}.delete";
+    public static string Pair(string id) => $"native.minimalpairs.pair.{id}";
+    public static string PairDelete(string id) => $"native.minimalpairs.pair.{id}.delete";
     public static string WordOption(char slot, string wordId) =>
         $"native.minimalpairs.create.word-{char.ToLowerInvariant(slot)}.{wordId}";
 }
@@ -134,7 +134,7 @@ public enum NativeMinimalPairsPage { List, Create, Session }
 public enum NativeMinimalPairsMode { Focus, Mixed }
 
 /// <summary>A pair card: the two target terms and the optional contrast label.</summary>
-public sealed record NativeMinimalPairItem(int Id, string WordA, string WordB, string? ContrastLabel)
+public sealed record NativeMinimalPairItem(string Id, string WordA, string WordB, string? ContrastLabel)
 {
     public string AccessibilityId => NativeMinimalPairsAccess.Pair(Id);
 }
@@ -143,7 +143,7 @@ public sealed record NativeMinimalPairsListState(
     bool IsLoading,
     ImmutableArray<NativeMinimalPairItem> Pairs,
     NativeMinimalPairsMode Mode = NativeMinimalPairsMode.Focus,
-    int? SelectedPairId = null,
+    string? SelectedPairId = null,
     NativeMinimalPairItem? PendingDelete = null,
     bool IsDeleting = false)
 {
@@ -157,7 +157,7 @@ public sealed record NativeMinimalPairsListState(
         && (Mode == NativeMinimalPairsMode.Mixed || SelectedPairId is not null);
 
     /// <summary>Source: every card is highlighted in Mixed; only the chosen card in Focus.</summary>
-    public bool IsHighlighted(int pairId) =>
+    public bool IsHighlighted(string pairId) =>
         Mode == NativeMinimalPairsMode.Mixed || SelectedPairId == pairId;
 }
 

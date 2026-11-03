@@ -46,7 +46,7 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Ends an active session by setting the EndedAt timestamp.
     /// </summary>
-    public async Task<bool> EndSessionAsync(int sessionId)
+    public async Task<bool> EndSessionAsync(string sessionId)
     {
         var session = await _context.MinimalPairSessions.FindAsync(sessionId);
         if (session == null)
@@ -63,7 +63,7 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Gets a session by ID, including all attempts with related entities.
     /// </summary>
-    public async Task<MinimalPairSession?> GetSessionByIdAsync(int sessionId)
+    public async Task<MinimalPairSession?> GetSessionByIdAsync(string sessionId)
     {
         return await _context.MinimalPairSessions
             .Include(s => s.Attempts)
@@ -107,8 +107,8 @@ public class MinimalPairSessionRepository
     /// <returns>The recorded attempt</returns>
     public async Task<MinimalPairAttempt> RecordAttemptAsync(
         string userId,
-        int sessionId,
-        int pairId,
+        string sessionId,
+        string pairId,
         string promptWordId,
         string selectedWordId,
         bool isCorrect)
@@ -138,7 +138,7 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Gets all attempts for a specific session, ordered by sequence number.
     /// </summary>
-    public async Task<List<MinimalPairAttempt>> GetSessionAttemptsAsync(int sessionId)
+    public async Task<List<MinimalPairAttempt>> GetSessionAttemptsAsync(string sessionId)
     {
         return await _context.MinimalPairAttempts
             .Include(a => a.Pair)
@@ -160,7 +160,7 @@ public class MinimalPairSessionRepository
     /// Gets practice history for a specific minimal pair.
     /// Returns attempts across all sessions, ordered by most recent.
     /// </summary>
-    public async Task<List<MinimalPairAttempt>> GetPairHistoryAsync(string userId, int pairId, int limit = 50)
+    public async Task<List<MinimalPairAttempt>> GetPairHistoryAsync(string userId, string pairId, int limit = 50)
     {
         return await _context.MinimalPairAttempts
             .Include(a => a.PromptWord)
@@ -174,7 +174,7 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Calculates accuracy statistics for a specific pair.
     /// </summary>
-    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetPairAccuracyAsync(string userId, int pairId)
+    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetPairAccuracyAsync(string userId, string pairId)
     {
         var attempts = await _context.MinimalPairAttempts
             .Where(a => a.UserId == userId && a.PairId == pairId)
@@ -190,7 +190,7 @@ public class MinimalPairSessionRepository
     /// <summary>
     /// Gets session statistics (total attempts, correct, accuracy).
     /// </summary>
-    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetSessionAccuracyAsync(int sessionId)
+    public async Task<(int TotalAttempts, int Correct, double AccuracyPercent)> GetSessionAccuracyAsync(string sessionId)
     {
         var attempts = await _context.MinimalPairAttempts
             .Where(a => a.SessionId == sessionId)

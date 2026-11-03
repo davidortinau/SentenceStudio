@@ -44,6 +44,7 @@ public class MinimalPairRepository
 
         var pair = new MinimalPair
         {
+            Id = SentenceStudio.Services.SyncIds.MinimalPair(userId, normalizedA, normalizedB),
             UserId = userId,
             VocabularyWordAId = normalizedA,
             VocabularyWordBId = normalizedB,
@@ -73,7 +74,7 @@ public class MinimalPairRepository
     /// <summary>
     /// Gets a specific minimal pair by ID, including related vocabulary words.
     /// </summary>
-    public async Task<MinimalPair?> GetPairByIdAsync(int pairId)
+    public async Task<MinimalPair?> GetPairByIdAsync(string pairId)
     {
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
@@ -99,7 +100,7 @@ public class MinimalPairRepository
     /// Deletes a minimal pair by ID.
     /// Also deletes all related attempts via cascade delete.
     /// </summary>
-    public async Task<bool> DeletePairAsync(int pairId)
+    public async Task<bool> DeletePairAsync(string pairId)
     {
         var pair = await _context.MinimalPairs.FindAsync(pairId);
         if (pair == null)
@@ -115,7 +116,7 @@ public class MinimalPairRepository
     /// <summary>
     /// Updates the contrast label for a minimal pair.
     /// </summary>
-    public async Task<bool> UpdateContrastLabelAsync(int pairId, string? contrastLabel)
+    public async Task<bool> UpdateContrastLabelAsync(string pairId, string? contrastLabel)
     {
         var pair = await _context.MinimalPairs.FindAsync(pairId);
         if (pair == null)

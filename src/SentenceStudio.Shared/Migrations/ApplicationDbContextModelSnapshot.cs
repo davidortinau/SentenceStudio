@@ -910,11 +910,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationMemoryState", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<string>("ConversationId")
                         .IsRequired()
@@ -939,10 +936,16 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId")
                         .IsUnique();
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("ConversationMemoryState", (string)null);
                 });
@@ -1334,11 +1337,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPair", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<string>("ContrastLabel")
                         .HasColumnType("text");
@@ -1375,11 +1375,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPairAttempt", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1387,8 +1384,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<bool>("IsCorrect")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("PairId")
-                        .HasColumnType("integer");
+                    b.Property<string>("PairId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("PromptWordId")
                         .IsRequired()
@@ -1401,8 +1399,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("SequenceNumber")
                         .HasColumnType("integer");
 
-                    b.Property<int>("SessionId")
-                        .HasColumnType("integer");
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -1423,11 +1422,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPairSession", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1894,11 +1890,8 @@ namespace SentenceStudio.Shared.Migrations
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.StreamHistory", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
 
                     b.Property<string>("AudioFilePath")
                         .HasColumnType("text");

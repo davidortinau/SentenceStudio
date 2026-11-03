@@ -13,7 +13,7 @@ public partial class StreamHistory : ObservableObject
     /// <summary>
     /// Unique identifier for the stream history record
     /// </summary>
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// Owner of this audio history entry. Legacy entries have no reliable per-row

@@ -9,7 +9,7 @@ public class MinimalPairSession
     /// <summary>
     /// Primary key
     /// </summary>
-    public int Id { get; set; }
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// User who performed this session (default 1 for single-user app)

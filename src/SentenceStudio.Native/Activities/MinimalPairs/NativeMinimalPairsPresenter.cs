@@ -57,7 +57,7 @@ public sealed class NativeMinimalPairsPresenter(
     private List<MinimalPair> _pairs = [];
     private MinimalPair? _currentPair;
     private VocabularyWord? _promptWord;
-    private int? _sessionId;
+    private string? _sessionId;
     private DateTimeOffset _sessionStarted;
     private string _language = "Korean";
     private long _generation;
@@ -110,7 +110,7 @@ public sealed class NativeMinimalPairsPresenter(
         }, cancellationToken);
 
     /// <summary>Source SelectPair: only Focus mode selects a card.</summary>
-    public Task<NativeMinimalPairsState> SelectPairAsync(int pairId,
+    public Task<NativeMinimalPairsState> SelectPairAsync(string pairId,
         CancellationToken cancellationToken = default) =>
         ListCommandAsync(() =>
         {
@@ -119,7 +119,7 @@ public sealed class NativeMinimalPairsPresenter(
         }, cancellationToken);
 
     /// <summary>Source RequestDelete: opens the "Delete A vs B?" confirmation.</summary>
-    public Task<NativeMinimalPairsState> RequestDeleteAsync(int pairId,
+    public Task<NativeMinimalPairsState> RequestDeleteAsync(string pairId,
         CancellationToken cancellationToken = default) =>
         ListCommandAsync(() =>
         {
@@ -349,8 +349,8 @@ public sealed class NativeMinimalPairsPresenter(
                 return PublishReady();
             }
             var mode = _list.Mode;
-            int[] ids = mode == NativeMinimalPairsMode.Focus
-                ? [_list.SelectedPairId!.Value]
+            string[] ids = mode == NativeMinimalPairsMode.Focus
+                ? [_list.SelectedPairId!]
                 : [.. _list.Pairs.Select(pair => pair.Id)];
             var trials = mode == NativeMinimalPairsMode.Focus ? FocusTrials : MixedTrials;
             BeginPage(NativeMinimalPairsPage.Session);

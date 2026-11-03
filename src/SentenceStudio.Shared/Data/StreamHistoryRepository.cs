@@ -104,7 +104,7 @@ public class StreamHistoryRepository
                 .ToListAsync(),
             reportUnownedLegacy: true);
 
-    public Task<StreamHistory?> GetStreamHistoryAsync(int id) =>
+    public Task<StreamHistory?> GetStreamHistoryAsync(string id) =>
         WithOwnerAsync<StreamHistory?>(
             nameof(GetStreamHistoryAsync),
             null,
@@ -127,7 +127,13 @@ public class StreamHistoryRepository
 
             try
             {
-                if (streamHistory.Id == 0)
+                // Text IDs exist before the first save, so a new entry is one whose ID
+                // is not stored yet (any owner). A stored ID is only ever updated by its owner.
+                if (string.IsNullOrWhiteSpace(streamHistory.Id))
+                    streamHistory.Id = Guid.NewGuid().ToString();
+                var stored = await db.StreamHistories.AsNoTracking()
+                    .AnyAsync(h => h.Id == streamHistory.Id);
+                if (!stored)
                 {
                     streamHistory.UserProfileId = userId;
                     if (streamHistory.CreatedAt == default)

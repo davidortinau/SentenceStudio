@@ -703,9 +703,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ConversationMemoryState", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<string>("ConversationId")
@@ -731,10 +730,16 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId")
                         .IsUnique();
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("ConversationMemoryState", (string)null);
                 });
@@ -1123,9 +1128,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPair", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<string>("ContrastLabel")
@@ -1163,9 +1167,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPairAttempt", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<DateTime>("CreatedAt")
@@ -1174,8 +1177,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<bool>("IsCorrect")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("PairId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("PairId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PromptWordId")
                         .IsRequired()
@@ -1188,8 +1192,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("SequenceNumber")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("SessionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -1210,9 +1215,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.MinimalPairSession", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<DateTime>("CreatedAt")
@@ -1421,9 +1425,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.StreamHistory", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
 
                     b.Property<string>("AudioFilePath")

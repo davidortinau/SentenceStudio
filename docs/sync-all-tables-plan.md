@@ -115,3 +115,19 @@ are not given an owner or deleted. No device will download them.
 
 Deploy order: the API ships before any app build with phase 1. An older API
 refuses uploads that contain these tables.
+
+**Phase 2 split** (2026-11-02):
+- **2a**: Minimal Pairs (pairs, sessions, answers), audio history and
+  conversation memory.
+  - Migration `20261103015116_SyncTextIdsPhase2a` (PostgreSQL + SQLite)
+    gives every row a new text ID; old numbers are not reused.
+  - A pair's ID is `mp:<learner>:<word A>:<word B>` and a conversation
+    memory's is `cm:<conversation>`, so each exists once everywhere.
+  - Conversation memory gains its owner, filled from its conversation.
+  - How Do You Say regenerates a synced entry's clip in its own voice (D4);
+    web backport B38.
+- **2b**: activity resume state (ActivitySession). It allows one in-progress
+  session per activity and resource, and the native quiz writes its own
+  bookkeeping rows into it, so it needs a design before syncing.
+- Example sentences move to phase 3: they need an owner column and
+  owner-filtered reads, like the other unowned tables.

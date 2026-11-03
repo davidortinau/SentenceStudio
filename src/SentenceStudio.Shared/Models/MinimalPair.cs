@@ -8,9 +8,10 @@ namespace SentenceStudio.Shared.Models;
 public class MinimalPair
 {
     /// <summary>
-    /// Primary key
+    /// Primary key. One pair per learner and word pair on every device and the web:
+    /// <see cref="SentenceStudio.Services.SyncIds.MinimalPair"/>.
     /// </summary>
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>
     /// User who owns this minimal pair (default 1 for single-user app)

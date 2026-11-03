@@ -58,6 +58,16 @@ public interface INativeShadowingSpeech
     /// </summary>
     Task<NativeSpeechClip> GetAsync(
         string owner, string text, string language, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The same, for a specific stored voice (a history entry's own voice). A synced history
+    /// entry whose clip is not on this device is synthesized again and the entry points at the
+    /// new clip (Captain 2026-11-02, docs/sync-all-tables-plan.md D4).
+    /// </summary>
+    Task<NativeSpeechClip> GetForVoiceAsync(
+        string owner, string text, string language, string? voiceId,
+        CancellationToken cancellationToken) =>
+        GetAsync(owner, text, language, cancellationToken);
 }
 
 /// <summary>
@@ -78,13 +88,23 @@ public sealed class NativeShadowingSpeech(
 {
     private const int MaxAudioBytes = 8 * 1024 * 1024;
 
-    public async Task<NativeSpeechClip> GetAsync(
-        string userId, string text, string language, CancellationToken cancellationToken)
+    public Task<NativeSpeechClip> GetAsync(
+        string userId, string text, string language, CancellationToken cancellationToken) =>
+        GetCoreAsync(userId, text, voices.GetVoiceForLanguage(language), cancellationToken);
+
+    public Task<NativeSpeechClip> GetForVoiceAsync(
+        string userId, string text, string language, string? voiceId,
+        CancellationToken cancellationToken) =>
+        GetCoreAsync(userId, text,
+            string.IsNullOrWhiteSpace(voiceId) ? voices.GetVoiceForLanguage(language) : voiceId,
+            cancellationToken);
+
+    private async Task<NativeSpeechClip> GetCoreAsync(
+        string userId, string text, string voice, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(text) || !owner.IsActive(userId))
             return new(NativeSpeechClipStatus.Failed);
-        var voice = voices.GetVoiceForLanguage(language);
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(text, voice);
         if (!owner.IsActive(userId))
             return new(NativeSpeechClipStatus.Failed);
@@ -137,15 +157,31 @@ public sealed class NativeShadowingSpeech(
             var path = Path.Combine(directory, $"shadow_{Guid.NewGuid():N}.mp3");
             await File.WriteAllBytesAsync(path, audio, cancellationToken);
             if (owner.IsActive(userId))
-                await history.SaveStreamHistoryAsync(new StreamHistory
-                {
-                    UserProfileId = userId,
-                    Phrase = text,
-                    VoiceId = voice,
-                    AudioFilePath = path,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
+                await history.SaveStreamHistoryAsync(cached?.UserProfileId == userId
+                    // The owner's entry exists but its clip is not on this device (another
+                    // device made it): point that entry at the new clip, no second entry.
+                    ? new StreamHistory
+                    {
+                        Id = cached.Id,
+                        Phrase = cached.Phrase,
+                        Duration = cached.Duration,
+                        VoiceId = cached.VoiceId,
+                        AudioFilePath = path,
+                        FileName = cached.FileName,
+                        Title = cached.Title,
+                        Source = cached.Source,
+                        SourceUrl = cached.SourceUrl,
+                        CreatedAt = cached.CreatedAt,
+                    }
+                    : new StreamHistory
+                    {
+                        UserProfileId = userId,
+                        Phrase = text,
+                        VoiceId = voice,
+                        AudioFilePath = path,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -18,13 +18,21 @@ namespace SentenceStudio.Services;
 /// </summary>
 public static class SyncLateTables
 {
-    /// <summary>Late-joined tables and the column that names each row's owner.</summary>
+    /// <summary>
+    /// Late-joined tables and the column that names each row's owner. Listed parents first:
+    /// the server touches tables in this order, so a device downloads a parent before its child.
+    /// </summary>
     public static IReadOnlyDictionary<string, string> OwnerColumns { get; } =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["NumberAttempt"] = "UserProfileId",
             ["NumberMasteryProgress"] = "UserProfileId",
             ["WordAssociationScore"] = "UserProfileId",
+            ["MinimalPair"] = "UserId",
+            ["MinimalPairSession"] = "UserId",
+            ["MinimalPairAttempt"] = "UserId",
+            ["StreamHistory"] = "UserProfileId",
+            ["ConversationMemoryState"] = "UserProfileId",
         };
 
     /// <summary>Late tables that this store has not provisioned yet. Call before provisioning.</summary>

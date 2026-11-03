@@ -44,7 +44,7 @@ public sealed class NativeHowDoYouSayPresenter(
     private bool _voicesLoading;
     private bool _historyLoading;
     private bool _busy;
-    private int? _playingId;
+    private string? _playingId;
     private NativeMessage? _notice;
     private bool _subscribed;
     private bool _exited;
@@ -250,9 +250,30 @@ public sealed class NativeHowDoYouSayPresenter(
         }
     }
 
-    /// <summary>Source PlayHistoryItem: the playing row pauses (stops); any other row plays from its cached file.</summary>
+    /// <summary>
+    /// Source PlayHistoryItem: the playing row pauses (stops); any other row plays from its cached
+    /// file. An entry synced from another device has no clip here yet, so it is synthesized again
+    /// in the entry's own voice and the entry points at the new clip (Captain 2026-11-02,
+    /// docs/sync-all-tables-plan.md D4).
+    /// </summary>
     public async Task<NativeHowDoYouSayState> TogglePlayAsync(
-        int id, CancellationToken cancellationToken = default)
+        string id, CancellationToken cancellationToken = default)
+    {
+        var request = new RegenerationRequest();
+        var state = await TogglePlayLockedAsync(id, request, cancellationToken);
+        return request.Row is { } row
+            ? await RegenerateAndPlayAsync(row, request.UserId!, cancellationToken)
+            : state;
+    }
+
+    private sealed class RegenerationRequest
+    {
+        public StreamHistory? Row;
+        public string? UserId;
+    }
+
+    private async Task<NativeHowDoYouSayState> TogglePlayLockedAsync(
+        string id, RegenerationRequest regeneration, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -271,7 +292,14 @@ public sealed class NativeHowDoYouSayPresenter(
                 return PublishReady();
             if (CachedAudioPath(row.AudioFilePath) is not { } path)
             {
-                _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.FileNotFound);
+                if (_busy || string.IsNullOrWhiteSpace(row.Phrase))
+                {
+                    _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.FileNotFound);
+                    return PublishReady();
+                }
+                regeneration.Row = row;
+                regeneration.UserId = _launch!.UserId;
+                _busy = true;
                 return PublishReady();
             }
             try
@@ -301,11 +329,75 @@ public sealed class NativeHowDoYouSayPresenter(
     }
 
     /// <summary>
+    /// Synthesizes a history entry's clip again (this device does not have it) and plays it.
+    /// The network call runs outside the command gate, like a new phrase.
+    /// </summary>
+    private async Task<NativeHowDoYouSayState> RegenerateAndPlayAsync(
+        StreamHistory row, string userId, CancellationToken cancellationToken)
+    {
+        var pending = (Row: row, UserId: userId);
+        NativeSpeechClip clip;
+        ImmutableArray<StreamHistory>? rows = null;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _lifetime.Token);
+        try
+        {
+            clip = await speech.GetForVoiceAsync(pending.UserId, pending.Row.Phrase!, _language,
+                pending.Row.VoiceId, request.Token);
+            if (clip.Status == NativeSpeechClipStatus.Ready && owner.IsActive(pending.UserId))
+                rows = await LoadHistoryAsync(request.Token);
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        {
+            return await SettledStateAsync(clearBusy: true);
+        }
+        catch (Exception ex)
+        {
+            // The phrase is learner content; only the failure type is logged.
+            logger.LogError("How Do You Say could not restore a clip: {Failure}.", ex.GetType().Name);
+            clip = new(NativeSpeechClipStatus.Failed);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            _busy = false;
+            if (!CanCommand(out var refused))
+                return refused;
+            if (clip.Status == NativeSpeechClipStatus.Offline)
+            {
+                _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.AudioOffline);
+                return PublishReady();
+            }
+            if (clip.Status != NativeSpeechClipStatus.Ready)
+            {
+                _notice = new(NativeMessageKind.Warning, NativeHowDoYouSayText.FileNotFound);
+                return PublishReady();
+            }
+            if (rows is { } loaded)
+                _rows = loaded;
+            StopAudioCore();
+            if (clip.Audio is { Length: > 0 } audio && player.Load(audio) && player.Play(1.0f))
+                _playingId = pending.Row.Id;
+            else
+            {
+                player.Stop();
+                _notice = new(NativeMessageKind.Error, NativeHowDoYouSayText.PlaybackError);
+            }
+            return PublishReady();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
     /// Source DeleteHistoryItem: removes the owner's row and then its cached file.
     /// The file is removed only inside AudioCache and only when no other owned row uses it.
     /// </summary>
     public async Task<NativeHowDoYouSayState> DeleteAsync(
-        int id, CancellationToken cancellationToken = default)
+        string id, CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
         try

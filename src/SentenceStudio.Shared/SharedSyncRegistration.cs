@@ -42,7 +42,13 @@ public static class SharedSyncRegistration
             // docs/sync-all-tables-plan.md). Catalog tables stay local: fixed IDs.
             .Table<NumberAttempt>("NumberAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<NumberMasteryProgress>("NumberMasteryProgress", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 2a: tables converted to text IDs (migration 20261103015116_SyncTextIdsPhase2a).
+            .Table<MinimalPair>("MinimalPair", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MinimalPairSession>("MinimalPairSession", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -71,7 +77,13 @@ public static class SharedSyncRegistration
             // docs/sync-all-tables-plan.md). Catalog tables stay local: fixed IDs.
             .Table<NumberAttempt>("NumberAttempt", syncDirection: SyncDirection.UploadAndDownload)
             .Table<NumberMasteryProgress>("NumberMasteryProgress", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<WordAssociationScore>("WordAssociationScore", syncDirection: SyncDirection.UploadAndDownload)
+            // Phase 2a: tables converted to text IDs (migration 20261103015116_SyncTextIdsPhase2a).
+            .Table<MinimalPair>("MinimalPair", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MinimalPairSession>("MinimalPairSession", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<MinimalPairAttempt>("MinimalPairAttempt", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<StreamHistory>("StreamHistory", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<ConversationMemoryState>("ConversationMemoryState", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

@@ -112,7 +112,7 @@ public sealed class StreamHistoryOwnerMigrationTests
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         var previousCreatedAt = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
-        int previousId;
+        string previousId;
         await using (var legacy = new LegacyHistoryDbContext(
             new DbContextOptionsBuilder<LegacyHistoryDbContext>().UseSqlite(connection).Options))
         {

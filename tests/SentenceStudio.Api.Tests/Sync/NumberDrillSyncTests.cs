@@ -42,6 +42,52 @@ public sealed class NumberDrillSyncTests
             filtered.Items.Select(item => item.Values["Id"].Value?.ToString()));
     }
 
+    /// <summary>
+    /// Phase 2a: Minimal Pairs, audio history and conversation memory travel only to their owner,
+    /// and a pair or answer only with words that owner can see.
+    /// </summary>
+    [Fact]
+    public async Task NativeDownload_KeepsOnlyTheOwnersPhase2aRowsWithVisibleWords()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateAsync(connection);
+        db.LearningResources.Add(new LearningResource { Id = "owned-resource", UserProfileId = Owner });
+        db.VocabularyWords.AddRange(
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
+            new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2" },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+        db.ResourceVocabularyMappings.AddRange(
+            new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" },
+            new ResourceVocabularyMapping { Id = "m2", ResourceId = "owned-resource", VocabularyWordId = "w2" });
+        await db.SaveChangesAsync();
+
+        var changes = new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 3), SyncAnchor.Null,
+        [
+            Item("MinimalPair", "owned-pair", ("UserId", Owner),
+                ("VocabularyWordAId", "w1"), ("VocabularyWordBId", "w2")),
+            Item("MinimalPair", "hidden-word-pair", ("UserId", Owner),
+                ("VocabularyWordAId", "w1"), ("VocabularyWordBId", "hidden")),
+            Item("MinimalPair", "foreign-pair", ("UserId", Foreign),
+                ("VocabularyWordAId", "w1"), ("VocabularyWordBId", "w2")),
+            Item("MinimalPairSession", "owned-session", ("UserId", Owner)),
+            Item("MinimalPairSession", "foreign-session", ("UserId", Foreign)),
+            Item("MinimalPairAttempt", "owned-answer", ("UserId", Owner),
+                ("PromptWordId", "w1"), ("SelectedWordId", "w2")),
+            Item("MinimalPairAttempt", "hidden-answer", ("UserId", Owner),
+                ("PromptWordId", "hidden"), ("SelectedWordId", "w2")),
+            Item("StreamHistory", "owned-audio", ("UserProfileId", Owner)),
+            Item("StreamHistory", "unowned-audio"),
+            Item("ConversationMemoryState", "cm:owned", ("UserProfileId", Owner)),
+            Item("ConversationMemoryState", "cm:foreign", ("UserProfileId", Foreign)),
+        ]);
+
+        var filtered = await NativeOwnerSyncProvider.FilterForOwnerAsync(changes, Owner, db);
+
+        Assert.Equal(["owned-pair", "owned-session", "owned-answer", "owned-audio", "cm:owned"],
+            filtered.Items.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
+    }
+
     [Fact]
     public async Task StoredOwnerLookup_ReportsTheForeignOwnerOfAnExistingRow()
     {

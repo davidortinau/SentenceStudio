@@ -180,9 +180,28 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.Null(paused.PlayingId);
         Assert.False(test.Player.IsPlaying);
 
-        var notFound = await test.Presenter.TogglePlayAsync(missing);
+        // An entry whose clip is not on this device (synced from another device) is
+        // synthesized again in its own voice, plays, and keeps one entry (D4).
+        var restored = await test.Presenter.TogglePlayAsync(missing);
+        Assert.Null(restored.Notice);
+        Assert.False(restored.IsBusy);
+        Assert.Equal(missing, restored.PlayingId);
+        Assert.True(test.Player.IsPlaying);
+        Assert.Equal((NativeSliceFixture.UserA, "missing", "voice-x"),
+            Assert.Single(test.Source.Synthesized));
+        Assert.Equal(2, restored.History.Length);
+        var repaired = (await FindRowAsync(fixture, missing))!;
+        Assert.True(File.Exists(repaired.AudioFilePath));
+        Assert.Equal("voice-x", repaired.VoiceId);
+
+        // Offline, the same entry cannot be restored and says so.
+        File.Delete(repaired.AudioFilePath!);
+        test.Source.Fails = true;
+        await test.Presenter.TogglePlayAsync(missing);
+        var failed = await test.Presenter.TogglePlayAsync(missing);
         Assert.Equal(new NativeMessage(NativeMessageKind.Warning,
-            NativeHowDoYouSayText.FileNotFound), notFound.Notice);
+            NativeHowDoYouSayText.FileNotFound), failed.Notice);
+        test.Source.Fails = false;
 
         await test.Presenter.TogglePlayAsync(withFile);
         var deleted = await test.Presenter.DeleteAsync(withFile);
@@ -384,7 +403,7 @@ public sealed class NativeHowDoYouSayPresenterTests
         new(Route, owner, new DateOnly(2026, 9, 28), null,
             [fixture.ResourceId(owner)], null, [], false, fixture.ResourceId(owner), null);
 
-    private static async Task<int> InsertHistoryAsync(NativeSliceFixture fixture, string owner,
+    private static async Task<string> InsertHistoryAsync(NativeSliceFixture fixture, string owner,
         string phrase, DateTime createdAt, string? path = null)
     {
         using var scope = fixture.Scope();
@@ -403,14 +422,14 @@ public sealed class NativeHowDoYouSayPresenterTests
         return row.Id;
     }
 
-    private static async Task<StreamHistory?> FindRowAsync(NativeSliceFixture fixture, int id)
+    private static async Task<StreamHistory?> FindRowAsync(NativeSliceFixture fixture, string id)
     {
         using var scope = fixture.Scope();
         return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .StreamHistories.AsNoTracking().SingleOrDefaultAsync(row => row.Id == id);
     }
 
-    private static async Task<StreamHistory> SingleRowAsync(NativeSliceFixture fixture, int id) =>
+    private static async Task<StreamHistory> SingleRowAsync(NativeSliceFixture fixture, string id) =>
         Assert.IsType<StreamHistory>(await FindRowAsync(fixture, id));
 
     private static async Task<int> PlanRowCountAsync(NativeSliceFixture fixture)

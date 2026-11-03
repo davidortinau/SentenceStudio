@@ -106,10 +106,12 @@ public sealed class StreamHistoryOwnerScopingTests
         {
             Id = ownedA.Id, UserProfileId = UserB, Phrase = "owner spoof"
         })).Should().Be(0);
+        // Text IDs exist before the first save, so an ID that no row has is a new entry,
+        // always owned by the active user (Phase 2a, docs/sync-all-tables-plan.md).
         (await store.Repository.SaveStreamHistoryAsync(new StreamHistory
         {
-            Id = int.MaxValue, Phrase = "nonexistent id"
-        })).Should().Be(0);
+            Id = "new-entry-id", UserProfileId = null, Phrase = "new entry"
+        })).Should().Be(1);
 
         (await store.Repository.SaveStreamHistoryAsync(new StreamHistory
         {
@@ -117,7 +119,8 @@ public sealed class StreamHistoryOwnerScopingTests
         })).Should().Be(1);
 
         var rows = await store.RowsAsync();
-        rows.Should().HaveCount(3);
+        rows.Should().HaveCount(4);
+        rows.Single(h => h.Id == "new-entry-id").UserProfileId.Should().Be(UserA);
         rows.Single(h => h.Id == ownedA.Id).Should().Match<StreamHistory>(
             h => h.Phrase == "my revised audio" && h.VoiceId == "my-voice"
                 && h.UserProfileId == UserA && h.CreatedAt == ownedA.CreatedAt);

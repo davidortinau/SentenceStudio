@@ -11,6 +11,7 @@ public sealed class SqliteMigrationBackupTests : IDisposable
 {
     private const string ArchiveMigration = "20260928050905_ArchiveDisplacedPlanItems";
     private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
+    private const string LatestMigration = "20261103015116_SyncTextIdsPhase2a";
 
     private readonly DirectoryInfo _directory =
         Directory.CreateTempSubdirectory("SentenceStudio.MigrationBackup.");
@@ -38,14 +39,14 @@ public sealed class SqliteMigrationBackupTests : IDisposable
         Assert.Empty(Directory.GetFiles(_directory.FullName, "*.partial*"));
         Assert.Equal("delete", Scalar(backup, "PRAGMA journal_mode"));
         Assert.Contains(SqliteMigrationBackup.Marker, Path.GetFileName(backup));
-        Assert.EndsWith($"-{WordOwnerMigration}.sqlite", backup);
+        Assert.EndsWith($"-{LatestMigration}.sqlite", backup);
         // The copy is the untouched pre-migration database.
         Assert.Equal(ArchiveMigration, Scalar(backup, "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
         Assert.Equal("1", Scalar(backup, "SELECT count(*) FROM \"VocabularyWord\""));
         Assert.Equal("0", Scalar(backup,
             "SELECT count(*) FROM pragma_table_info('VocabularyWord') WHERE name = 'UserProfileId'"));
         // The live database is migrated and kept its row.
-        Assert.Equal(WordOwnerMigration, Scalar(DatabasePath, "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
+        Assert.Equal(LatestMigration, Scalar(DatabasePath, "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
         Assert.Equal("legacy word", Scalar(DatabasePath, "SELECT \"NativeLanguageTerm\" FROM \"VocabularyWord\""));
         Assert.Equal("1", Scalar(DatabasePath,
             "SELECT count(*) FROM pragma_table_info('VocabularyWord') WHERE name = 'UserProfileId'"));
@@ -65,7 +66,7 @@ public sealed class SqliteMigrationBackupTests : IDisposable
                 db, DatabasePath, NullLogger.Instance));
 
         Assert.Empty(Backups());
-        Assert.Equal(WordOwnerMigration, Scalar(DatabasePath, "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
+        Assert.Equal(LatestMigration, Scalar(DatabasePath, "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
     }
 
     [Fact]

@@ -904,13 +904,14 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         return db.LearningResources.AsNoTracking().First(r => r.UserProfileId == userId).Id;
     }
 
-    private int SeedMinimalPair(string userId, string wordAId, string wordBId)
+    private string SeedMinimalPair(string userId, string wordAId, string wordBId)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         (wordAId, wordBId) = NormalizePairOrder(wordAId, wordBId);
         var pair = new MinimalPair
         {
+            Id = SentenceStudio.Services.SyncIds.MinimalPair(userId, wordAId, wordBId),
             UserId = userId,
             VocabularyWordAId = wordAId,
             VocabularyWordBId = wordBId,
@@ -923,7 +924,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         return pair.Id;
     }
 
-    private int SeedMinimalPairAttempt(string userId, int pairId, string promptWordId, string selectedWordId)
+    private string SeedMinimalPairAttempt(string userId, string pairId, string promptWordId, string selectedWordId)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1022,14 +1023,14 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         return db.ExampleSentences.AsNoTracking().FirstOrDefault(e => e.Id == id);
     }
 
-    private MinimalPair? GetMinimalPair(int id)
+    private MinimalPair? GetMinimalPair(string id)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return db.MinimalPairs.AsNoTracking().FirstOrDefault(p => p.Id == id);
     }
 
-    private MinimalPairAttempt? GetMinimalPairAttempt(int id)
+    private MinimalPairAttempt? GetMinimalPairAttempt(string id)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1043,7 +1044,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         return db.PhraseConstituents.AsNoTracking().FirstOrDefault(pc => pc.Id == id);
     }
 
-    private bool MinimalPairExists(int id)
+    private bool MinimalPairExists(string id)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

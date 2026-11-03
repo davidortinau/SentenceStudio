@@ -51,7 +51,7 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
     }
 
     /// <summary>Source GetPairByIdAsync per id, restricted to the owner's pairs; unknown ids are skipped.</summary>
-    public async Task<List<MinimalPair>> GetPairsAsync(string owner, IReadOnlyCollection<int> ids,
+    public async Task<List<MinimalPair>> GetPairsAsync(string owner, IReadOnlyCollection<string> ids,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner) || ids.Count == 0)
@@ -95,6 +95,8 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
         var now = DateTime.UtcNow;
         var row = new MinimalPair
         {
+            // One pair per learner and word pair on every device and the web.
+            Id = SentenceStudio.Services.SyncIds.MinimalPair(owner, a, b),
             UserId = owner,
             VocabularyWordAId = a,
             VocabularyWordBId = b,
@@ -116,7 +118,7 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
     }
 
     /// <summary>Source DeletePairAsync for the owner's pair; its attempts go with it (source cascade).</summary>
-    public async Task<bool> DeletePairAsync(string owner, int pairId, CancellationToken cancellationToken)
+    public async Task<bool> DeletePairAsync(string owner, string pairId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
             return false;
@@ -161,7 +163,7 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
     /// Source RecordAttemptAsync: next sequence number in the session. Refused
     /// (null) unless the session and pair are the owner's and both words belong to the pair.
     /// </summary>
-    public async Task<MinimalPairAttempt?> RecordAttemptAsync(string owner, int sessionId, int pairId,
+    public async Task<MinimalPairAttempt?> RecordAttemptAsync(string owner, string sessionId, string pairId,
         string promptWordId, string selectedWordId, bool isCorrect, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
@@ -195,7 +197,7 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
     }
 
     /// <summary>Source EndSessionAsync for the owner's session.</summary>
-    public async Task<bool> EndSessionAsync(string owner, int sessionId, CancellationToken cancellationToken)
+    public async Task<bool> EndSessionAsync(string owner, string sessionId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
             return false;

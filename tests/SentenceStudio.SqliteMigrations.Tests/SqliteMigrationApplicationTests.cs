@@ -58,22 +58,12 @@ public sealed class SqliteMigrationApplicationTests
         }
 
         var recordedAt = new DateTime(2026, 9, 1, 12, 30, 0, DateTimeKind.Utc);
-        int streamId;
-        await using (var legacy = new LegacyStreamHistoryContext(
-            new DbContextOptionsBuilder<LegacyStreamHistoryContext>()
-                .UseSqlite(scratch.ConnectionString).Options))
+        // The old schema numbers audio history rows, so the row is written with SQL.
+        await using (var legacy = CreateContext(scratch.ConnectionString))
         {
-            var stream = new StreamHistory
-            {
-                Phrase = "offline recording",
-                AudioFilePath = "offline-recording.mp3",
-                Duration = 2.5,
-                CreatedAt = recordedAt,
-                UpdatedAt = recordedAt
-            };
-            legacy.StreamHistories.Add(stream);
-            await legacy.SaveChangesAsync();
-            streamId = stream.Id;
+            await legacy.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"StreamHistory\" (\"Phrase\", \"AudioFilePath\", \"Duration\", \"CreatedAt\", \"UpdatedAt\") VALUES ({0}, {1}, {2}, {3}, {4})",
+                "offline recording", "offline-recording.mp3", 2.5, recordedAt, recordedAt);
         }
 
         var planId = Guid.NewGuid().ToString();
@@ -107,9 +97,10 @@ public sealed class SqliteMigrationApplicationTests
             Assert.Empty(await upgraded.Database.GetPendingMigrationsAsync());
             Assert.False(upgraded.Database.HasPendingModelChanges());
 
+            // Phase 2a gives every row a new text ID (old numbers are not reused).
             var stream = await upgraded.StreamHistories.AsNoTracking()
-                .SingleAsync(row => row.Id == streamId);
-            Assert.Equal("offline recording", stream.Phrase);
+                .SingleAsync(row => row.Phrase == "offline recording");
+            Assert.True(Guid.TryParse(stream.Id, out _));
             Assert.Equal("offline-recording.mp3", stream.AudioFilePath);
             Assert.Equal(2.5, stream.Duration);
             Assert.Equal(recordedAt, stream.CreatedAt);
@@ -198,23 +189,15 @@ public sealed class SqliteMigrationApplicationTests
         using var scratch = new ScratchDatabase();
         var recordedAt = new DateTime(2026, 9, 2, 10, 0, 0, DateTimeKind.Utc);
         var planId = Guid.NewGuid().ToString();
-        int streamId;
         await using (var previous = CreateContext(scratch.ConnectionString))
         {
             await previous.Database.MigrateAsync(StreamOwnerMigration);
             Assert.Equal(StreamOwnerMigration,
                 (await previous.Database.GetAppliedMigrationsAsync()).Last());
             Assert.Contains(ArchiveMigration, await previous.Database.GetPendingMigrationsAsync());
-            var stream = new StreamHistory
-            {
-                UserProfileId = "offline-owner",
-                Phrase = "owned recording",
-                CreatedAt = recordedAt,
-                UpdatedAt = recordedAt
-            };
-            previous.StreamHistories.Add(stream);
-            await previous.SaveChangesAsync();
-            streamId = stream.Id;
+            await previous.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"StreamHistory\" (\"UserProfileId\", \"Phrase\", \"Duration\", \"CreatedAt\", \"UpdatedAt\") VALUES ({0}, {1}, 0, {2}, {3})",
+                "offline-owner", "owned recording", recordedAt, recordedAt);
         }
 
         await using (var legacy = new LegacyPlanContext(
@@ -247,7 +230,7 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Equal("offline-owner", plan.UserProfileId);
         Assert.False(plan.IsArchived);
         var streamAfter = await upgraded.StreamHistories.AsNoTracking()
-            .SingleAsync(row => row.Id == streamId);
+            .SingleAsync(row => row.Phrase == "owned recording");
         Assert.Equal("owned recording", streamAfter.Phrase);
         Assert.Equal("offline-owner", streamAfter.UserProfileId);
 
@@ -410,6 +393,94 @@ public sealed class SqliteMigrationApplicationTests
             + Environment.NewLine + string.Join(Environment.NewLine, missingOrMismatched));
     }
 
+    /// <summary>
+    /// Phase 2a of syncing every learner table (Captain 2026-11-02, docs/sync-all-tables-plan.md):
+    /// number IDs become text IDs that are unique on every store, answers keep their session and
+    /// pair, conversation memories gain their owner, and nothing is lost in either direction.
+    /// </summary>
+    [Fact]
+    public async Task SyncTextIds_ConvertsNumberIdsKeepingEveryRowAndLink_AndDownRestoresThem()
+    {
+        using var scratch = new ScratchDatabase();
+        var at = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+        const string owner = "owner-a";
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(WordOwnerMigration);
+            foreach (var id in new[] { "w1", "w2", "w3" })
+                previous.VocabularyWords.Add(new VocabularyWord
+                {
+                    Id = id, TargetLanguageTerm = id, CreatedAt = at, UpdatedAt = at
+                });
+            previous.Conversations.Add(new Conversation { Id = "conv-1", UserProfileId = owner, CreatedAt = at });
+            await previous.SaveChangesAsync();
+            foreach (var sql in new[]
+            {
+                "INSERT INTO \"MinimalPair\" (\"Id\", \"UserId\", \"VocabularyWordAId\", \"VocabularyWordBId\", \"CreatedAt\", \"UpdatedAt\") VALUES (7, 'owner-a', 'w1', 'w2', '2026-11-01 09:00:00', '2026-11-01 09:00:00')",
+                "INSERT INTO \"MinimalPair\" (\"Id\", \"UserId\", \"VocabularyWordAId\", \"VocabularyWordBId\", \"CreatedAt\", \"UpdatedAt\") VALUES (8, 'owner-a', 'w2', 'w3', '2026-11-01 09:01:00', '2026-11-01 09:01:00')",
+                "INSERT INTO \"MinimalPairSession\" (\"Id\", \"UserId\", \"Mode\", \"StartedAt\", \"CreatedAt\", \"UpdatedAt\") VALUES (3, 'owner-a', 'Focus', '2026-11-01 09:00:00', '2026-11-01 09:00:00', '2026-11-01 09:00:00')",
+                "INSERT INTO \"MinimalPairAttempt\" (\"UserId\", \"SessionId\", \"PairId\", \"PromptWordId\", \"SelectedWordId\", \"IsCorrect\", \"SequenceNumber\", \"CreatedAt\") VALUES ('owner-a', 3, 7, 'w1', 'w1', 1, 1, '2026-11-01 09:02:00')",
+                "INSERT INTO \"MinimalPairAttempt\" (\"UserId\", \"SessionId\", \"PairId\", \"PromptWordId\", \"SelectedWordId\", \"IsCorrect\", \"SequenceNumber\", \"CreatedAt\") VALUES ('owner-a', 3, 8, 'w2', 'w3', 0, 2, '2026-11-01 09:03:00')",
+                "INSERT INTO \"ConversationMemoryState\" (\"ConversationId\", \"SerializedState\", \"CreatedAt\", \"UpdatedAt\") VALUES ('conv-1', 'state', '2026-11-01 09:00:00', '2026-11-01 09:00:00')",
+                "INSERT INTO \"StreamHistory\" (\"UserProfileId\", \"Phrase\", \"Duration\", \"CreatedAt\", \"UpdatedAt\") VALUES ('owner-a', 'hello', 1.5, '2026-11-01 09:00:00', '2026-11-01 09:00:00')",
+            })
+                await previous.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+
+            var pairs = await upgraded.MinimalPairs.AsNoTracking().OrderBy(p => p.CreatedAt).ToListAsync();
+            Assert.Equal(["mp:owner-a:w1:w2", "mp:owner-a:w2:w3"], pairs.Select(p => p.Id));
+            Assert.Equal(pairs.Select(p => SentenceStudio.Services.SyncIds.MinimalPair(
+                p.UserId, p.VocabularyWordAId, p.VocabularyWordBId)), pairs.Select(p => p.Id));
+            var session = await upgraded.MinimalPairSessions.AsNoTracking().SingleAsync();
+            Assert.True(Guid.TryParse(session.Id, out _));
+            var attempts = await upgraded.MinimalPairAttempts.AsNoTracking()
+                .OrderBy(a => a.SequenceNumber).ToListAsync();
+            Assert.Equal(2, attempts.Count);
+            Assert.All(attempts, a => Assert.Equal(session.Id, a.SessionId));
+            Assert.Equal(["mp:owner-a:w1:w2", "mp:owner-a:w2:w3"], attempts.Select(a => a.PairId));
+            Assert.Equal([true, false], attempts.Select(a => a.IsCorrect));
+            Assert.All(attempts, a => Assert.True(Guid.TryParse(a.Id, out _)));
+
+            var memory = await upgraded.ConversationMemoryStates.AsNoTracking().SingleAsync();
+            Assert.Equal(("cm:conv-1", owner), (memory.Id, memory.UserProfileId));
+            Assert.Equal(SentenceStudio.Services.SyncIds.ConversationMemory("conv-1"), memory.Id);
+
+            var stream = await upgraded.StreamHistories.AsNoTracking().SingleAsync();
+            Assert.True(Guid.TryParse(stream.Id, out _));
+            Assert.Equal(("hello", owner, 1.5), (stream.Phrase, stream.UserProfileId, stream.Duration));
+
+            // Deleting a pair still removes its answers (the cascade survived the rebuild).
+            upgraded.MinimalPairs.Remove(pairs[1]);
+            await upgraded.SaveChangesAsync();
+            Assert.Equal(1, await upgraded.MinimalPairAttempts.CountAsync());
+
+            var migrator = upgraded.GetService<IMigrator>();
+            await migrator.MigrateAsync(WordOwnerMigration);
+        }
+
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("1", await Scalar("SELECT \"Id\" FROM \"MinimalPair\""));
+        Assert.Equal("1|1|1", await Scalar(
+            "SELECT \"SessionId\" || '|' || \"PairId\" || '|' || \"IsCorrect\" FROM \"MinimalPairAttempt\""));
+        Assert.Equal("integer", await Scalar("SELECT lower(typeof(\"Id\")) FROM \"StreamHistory\""));
+        Assert.Equal("1", await Scalar("SELECT count(*) FROM \"ConversationMemoryState\""));
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM pragma_table_info('ConversationMemoryState') WHERE name = 'UserProfileId'"));
+        Assert.Equal("ok", await Scalar("PRAGMA foreign_key_check") is "" ? "ok" : "violations");
+    }
+
     private static ApplicationDbContext CreateContext(string connectionString) =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlite(connectionString).Options);
@@ -505,18 +576,6 @@ public sealed class SqliteMigrationApplicationTests
         while (await reader.ReadAsync())
             actual.Add(reader.GetString(2));
         Assert.Equal(columns, actual);
-    }
-
-    private sealed class LegacyStreamHistoryContext(
-        DbContextOptions<LegacyStreamHistoryContext> options) : DbContext(options)
-    {
-        public DbSet<StreamHistory> StreamHistories => Set<StreamHistory>();
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(row => row.Id);
-            modelBuilder.Entity<StreamHistory>().Ignore(row => row.UserProfileId);
-        }
     }
 
     private sealed class LegacyPlanContext(

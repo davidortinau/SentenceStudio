@@ -16,7 +16,13 @@ namespace SentenceStudio.Shared.Models;
 public class ConversationMemoryState
 {
     [Key]
-    public int Id { get; set; }
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Owner of the conversation this memory belongs to. Set from the conversation, so sync
+    /// can scope the row directly (Captain 2026-11-02, docs/sync-all-tables-plan.md).
+    /// </summary>
+    public string UserProfileId { get; set; } = string.Empty;
 
     /// <summary>
     /// The conversation this memory state belongs to.

@@ -258,8 +258,8 @@ internal sealed class NativeOwnerSyncProvider(
             "LearningResource" => 2,
             "ConversationChunk" or "VideoImport" or "DailyPlanCompletion"
                 or "ResourceVocabularyMapping" or "PhraseConstituent" => 3,
-            "VocabularyProgress" => 4,
-            "VocabularyLearningContext" => 5,
+            "VocabularyProgress" or "MinimalPair" or "MinimalPairSession" => 4,
+            "VocabularyLearningContext" or "MinimalPairAttempt" => 5,
             _ => 6
         }).ToArray();
     }
@@ -496,6 +496,11 @@ internal sealed class NativeOwnerSyncProvider(
             "NumberAttempt" => DirectOwnersAsync<NumberAttempt>(db, ids, "UserProfileId", ct),
             "NumberMasteryProgress" => DirectOwnersAsync<NumberMasteryProgress>(db, ids, "UserProfileId", ct),
             "WordAssociationScore" => DirectOwnersAsync<WordAssociationScore>(db, ids, "UserProfileId", ct),
+            "MinimalPair" => DirectOwnersAsync<MinimalPair>(db, ids, "UserId", ct),
+            "MinimalPairSession" => DirectOwnersAsync<MinimalPairSession>(db, ids, "UserId", ct),
+            "MinimalPairAttempt" => DirectOwnersAsync<MinimalPairAttempt>(db, ids, "UserId", ct),
+            "StreamHistory" => DirectOwnersAsync<StreamHistory>(db, ids, "UserProfileId", ct),
+            "ConversationMemoryState" => DirectOwnersAsync<ConversationMemoryState>(db, ids, "UserProfileId", ct),
             "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
             "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
             "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),
@@ -674,7 +679,17 @@ internal sealed class NativeOwnerSyncProvider(
                 or "ConversationChunk" or "MonitoredChannel" or "VideoImport"
                 or "DailyPlan" or "DailyPlanCompletion" or "UserActivity"
                 or "DiaryEntry" or "NumberAttempt" or "NumberMasteryProgress"
-                or "WordAssociationScore" => Value(item, "UserProfileId") == owner,
+                or "WordAssociationScore" or "StreamHistory"
+                or "ConversationMemoryState" => Value(item, "UserProfileId") == owner,
+            "MinimalPairSession" => Value(item, "UserId") == owner,
+            // A pair or answer travels only with words this owner can see, so a device never
+            // receives one whose words it lacks.
+            "MinimalPair" => Value(item, "UserId") == owner
+                && keys.WordIds.Contains(Value(item, "VocabularyWordAId") ?? string.Empty)
+                && keys.WordIds.Contains(Value(item, "VocabularyWordBId") ?? string.Empty),
+            "MinimalPairAttempt" => Value(item, "UserId") == owner
+                && keys.WordIds.Contains(Value(item, "PromptWordId") ?? string.Empty)
+                && keys.WordIds.Contains(Value(item, "SelectedWordId") ?? string.Empty),
             _ => false,
         };
     }

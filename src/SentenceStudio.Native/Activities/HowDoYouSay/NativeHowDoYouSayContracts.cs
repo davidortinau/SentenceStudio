@@ -19,11 +19,11 @@ public static class NativeHowDoYouSayAccess
     public const string Error = "native.howdoyousay.error";
     public const string Back = "native.howdoyousay.back";
 
-    public static string Entry(int id) => $"native.howdoyousay.history.{id}";
-    public static string EntryPhrase(int id) => $"native.howdoyousay.history.{id}.phrase";
-    public static string EntryTime(int id) => $"native.howdoyousay.history.{id}.time";
-    public static string EntryPlay(int id) => $"native.howdoyousay.history.{id}.play";
-    public static string EntryDelete(int id) => $"native.howdoyousay.history.{id}.delete";
+    public static string Entry(string id) => $"native.howdoyousay.history.{id}";
+    public static string EntryPhrase(string id) => $"native.howdoyousay.history.{id}.phrase";
+    public static string EntryTime(string id) => $"native.howdoyousay.history.{id}.time";
+    public static string EntryPlay(string id) => $"native.howdoyousay.history.{id}.play";
+    public static string EntryDelete(string id) => $"native.howdoyousay.history.{id}.delete";
 }
 
 public static class NativeHowDoYouSayText
@@ -70,7 +70,7 @@ public static class NativeHowDoYouSayText
 public sealed record NativeHowDoYouSayVoice(string Id, string Label);
 
 /// <summary>One owned StreamHistory row: phrase and its creation time in local time.</summary>
-public sealed record NativeHowDoYouSayEntry(int Id, string Phrase, DateTime CreatedAt);
+public sealed record NativeHowDoYouSayEntry(string Id, string Phrase, DateTime CreatedAt);
 
 /// <summary>
 /// Phases: Loading (profile), Ready (input card and history), Blocked (owner
@@ -89,7 +89,7 @@ public sealed record NativeHowDoYouSayState(
     bool IsBusy = false,
     bool HistoryLoading = false,
     ImmutableArray<NativeHowDoYouSayEntry> History = default,
-    int? PlayingId = null,
+    string? PlayingId = null,
     NativeMessage? Notice = null,
     string? ErrorKey = null)
 {
