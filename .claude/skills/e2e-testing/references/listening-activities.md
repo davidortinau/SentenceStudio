@@ -16,6 +16,16 @@
 
 **Verify:** No stray characters in footer. No console errors on audio playback.
 
+WebApp/MAUI regression (docs/native-port-backports.md B26-B28; same Learning
+Value Gate matrix as the native heads below: the target sentence is always
+shown and the audio is always the target sentence):
+
+| Step | Action | Verify |
+|------|--------|--------|
+| W1 | Tap Slow, then Normal | Slow plays the same clip at 0.6x (browser `playbackRate`, device player speed); no second synthesis request; Normal replays it at 1.0x |
+| W2 | While playing, tap a point on the waveform (or focus it and press arrow keys) | Playback jumps to that point; the playhead moves there (device player also seeks while paused) |
+| W3 | Go offline before the next sentence's audio is made, or make synthesis fail | `shadowing-audio-status` alert (offline / could not be played) stays under the sentence; Play tries again and clears it |
+
 ### Native heads (iOS SwiftUI / Android Compose)
 
 Entry: Today's Plan card of type Shadowing **or Listening** (both open this
@@ -77,6 +87,10 @@ not run owner-switch or deletion scenarios against a personal/production DB.
 | 4 | As test user B, play and delete one of B's recordings | Only B's row is removed; A's DB row and all cached audio files remain intact |
 | 5 | While a B recording is playing, delete it and force browser audio stop to reject in the isolated test | The owned DB row still disappears; an audio-stop failure does not block authorized deletion |
 | 6 | With no active user or an unknown profile, invoke history reads and a write in the isolated test | Nothing is returned, inserted, or deleted; warning is logged |
+| 7 | Speak the same phrase twice with the same voice | One `StreamHistory` row; the second play makes no synthesis request (docs/native-port-backports.md B31) |
+| 8 | Sync an entry made on a phone, then play it in the WebApp | The clip is synthesized again in the entry's own voice; the same row (same Id) now points at the new clip; no second row (B38) |
+| 9 | On iOS MAUI, reinstall on a simulator and play an older entry | The clip is found by file name under the new container's AudioCache and plays without synthesis (B35) |
+| 10 | Read the history timestamps; make synthesis fail | Times are in the learner's time zone; the failure toast is the localized message, never exception text (B32) |
 
 On an isolated SQLite fixture, delete test user A's profile while leaving an
 unowned recording, then create test user B's profile on the same day. Even with

@@ -124,3 +124,37 @@ VALUES (
 **Overview:** Drag-and-drop numbers onto a visual timeline/grid (e.g., clock face for Time context).
 
 **Placeholder:** When implemented, add E2E steps for drag-drop interactions, visual feedback, and DB verification.
+
+## WebApp/MAUI regression: native-port fixes (docs/native-port-backports.md B18-B23, B34, B37)
+
+Use an isolated test database and the canonical test accounts. Element IDs:
+`numberdrill-gate`, `numberdrill-feedback`, `numberdrill-override`,
+`numberdrill-next`, `numberdrill-error`, `numberdrill-hint-a`/`-b`,
+`numberdrill-summary`, `numberdrill-summary-median`,
+`numberdrill-summary-patterns`, `drill-progress`, `drill-correct-count`;
+mode chips carry `data-submode`.
+
+Learning Value Gate matrix (objective: retrieve and recognize Korean number
+forms in context; every reachable row has Korean in the prompt or response):
+
+| Sub-mode | Prompt | Response | L2 action | Verdict |
+|---|---|---|---|---|
+| ListenAndType | Korean audio | typed digits or Hangul | comprehension | ship |
+| ReadAndProduce | digits | typed Hangul | production | ship |
+| TapTheCounter (Counting) | Korean sentence frame | Korean counter chip | recall | ship |
+| ListenAndPlace (Time) | Korean audio | digital time card; feedback shows the correct time | comprehension | ship |
+| Disambiguate | English contexts | Korean forms; each prompt's hint after Submit | recall of the number system | ship |
+| Any, learner's target language not Korean | none | none | none | unreachable: gate message and Go Back |
+
+| Step | Action | Verify |
+|------|--------|--------|
+| R1 | Open `/numberdrill` as a learner whose target language is not Korean | `numberdrill-gate` shows the Korean-only message and Go Back; no setup card; no plan minutes recorded |
+| R2 | As a Korean learner, open setup | Modes in seed order: Listen & Type, Read & Produce, Disambiguate the System (Any); Time adds Listen & Place last; Counting adds Tap the Counter |
+| R3 | Time + Listen & Place: Start, Play, tap a time card | `numberdrill-feedback` (verdict, Number, Korean) and `drill-correct-count` update; auto-advance after 1.5 s; a `NumberAttempt` row with `SubModeCode = 'ListenAndPlace'` for the learner |
+| R4 | Counting + Tap the Counter: tap a chip, press Next during the 1.5 s pause | `drill-progress` moves by exactly one item |
+| R5 | Disambiguate: choose A and B, Submit Both | Both cards stay; `numberdrill-hint-a` and `numberdrill-hint-b` show; verdict Both correct / One correct / Review the hints |
+| R6 | Answer wrong, press "I was correct" | Verdict "정확해요! (Overridden)"; that `NumberAttempt.IsCorrect = true` (ErrorClass kept); its `NumberMasteryProgress` has one more correct answer and the SM-2 values of a correct grade; auto-advance |
+| R7 | As R6, but change the mastery row first (another device practices the same bucket) | `numberdrill-error` says the correction could not be saved; no auto-advance; attempt and mastery rows unchanged |
+| R8 | Finish a round with some wrong answers | `numberdrill-summary-median` is the round's median answer time (not 0 ms); `numberdrill-summary-patterns` lists the wrong answers' error classes; an overridden answer is not listed |
+| R9 | Switch display language to Korean | Setup, session and summary copy in Korean; the next-review date is in the learner's time zone |
+| R10 | Play an item's audio, restart (MAUI: reinstall on a simulator), play it again | The cached clip plays without a new synthesis; one `StreamHistory` row for the cue and voice |
