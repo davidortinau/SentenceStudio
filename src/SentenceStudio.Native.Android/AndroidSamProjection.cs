@@ -31,6 +31,9 @@ internal sealed record AndroidSamRow(string Key, AndroidSamRowKind Kind,
 
 internal enum AndroidSamStatusAction { Stop, Retry, Recover, ReloadPlan, KeepChatting, KeepPlan, StartNew }
 
+/// <summary>Where the Sam entry sits on the current screen.</summary>
+internal enum AndroidSamEntryPlacement { None, Floating, TopBar }
+
 internal sealed record AndroidSamStatus(string Message, bool Danger, bool Progress,
     ImmutableArray<AndroidSamStatusAction> Actions);
 
@@ -58,15 +61,41 @@ internal static class AndroidSamProjection
     internal static bool UsesCompactHeight(NativeSamState state, int widthDp) =>
         IsResizable(widthDp) && state.Size == NativeSamPanelSize.Compact;
 
-    /// <summary>The entry appears only on the authenticated dashboard (source CoachSurfaceGate).</summary>
-    internal static bool IsEntryVisible(NativeDestination destination, bool preview,
-        bool overlayOpen, NativeSamState state) =>
+    /// <summary>
+    /// Source CoachSurfaceGate: signed in, past onboarding, not syncing. Every
+    /// screen of the signed-in shell qualifies (Dashboard, Resources, the screens
+    /// opened over them, the quiz and every activity); sign-in, the post-login
+    /// sync and onboarding do not.
+    /// </summary>
+    internal static bool IsShellDestination(NativeDestination destination) =>
         destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-        && !preview && !overlayOpen && state.IsVisible && !state.IsOpen;
+            or NativeDestination.Resources or NativeDestination.VocabularyQuiz
+            or NativeDestination.QuizSummary or NativeDestination.Activity;
+
+    /// <summary>
+    /// Source MainLayout mounts Sam on every signed-in page. The two tab roots keep
+    /// the floating button; a screen opened over them (<paramref name="screenOverTab"/>:
+    /// a More screen or the resource form), the quiz and every activity get the
+    /// same entry in their top app bar, because a floating button there would
+    /// cover the screen's bottom answer and send bars.
+    /// </summary>
+    internal static AndroidSamEntryPlacement EntryPlacement(NativeDestination destination,
+        bool preview, bool screenOverTab, NativeSamState state)
+    {
+        if (!IsShellDestination(destination) || preview || !state.IsVisible || state.IsOpen)
+            return AndroidSamEntryPlacement.None;
+        return (destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
+                or NativeDestination.Resources) && !screenOverTab
+            ? AndroidSamEntryPlacement.Floating
+            : AndroidSamEntryPlacement.TopBar;
+    }
+
+    internal static bool IsEntryVisible(NativeDestination destination, bool preview,
+        bool screenOverTab, NativeSamState state) =>
+        EntryPlacement(destination, preview, screenOverTab, state) != AndroidSamEntryPlacement.None;
 
     internal static bool IsPresented(NativeDestination destination, bool preview, NativeSamState state) =>
-        destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-        && !preview && state.IsVisible && state.IsOpen;
+        IsShellDestination(destination) && !preview && state.IsVisible && state.IsOpen;
 
     /// <summary>The coach name follows the study language (Korean study shows the ko value).</summary>
     internal static string Persona(NativeSamState state, Func<string, CultureInfo, string> text) =>

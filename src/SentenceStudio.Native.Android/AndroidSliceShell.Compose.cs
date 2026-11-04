@@ -95,6 +95,7 @@ internal sealed partial class AndroidSliceShell
             content.Add(StatusAlert("Debug preview - isolated sample; not signed in.",
                 palette, automationId: "native.debug.preview.banner"));
 #endif
+        _screenHeaderBar = null;
         var screen = Destination switch
         {
             NativeDestination.Dashboard or NativeDestination.TodaysPlan
@@ -106,16 +107,9 @@ internal sealed partial class AndroidSliceShell
             NativeDestination.Onboarding => RenderOnboarding(palette),
             _ => RenderAuthentication(palette),
         };
-        if (Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-            && !IsMoreScreenOpen)
-        {
-            var dashboard = new Box { Modifier.FillMaxSize(), screen };
-            if (IsSamEntryVisible)
-                dashboard.Add(RenderSamFab(palette));
-            if (IsSamPresented)
-                dashboard.Add(RenderSamSheet(palette));
-            screen = dashboard;
-        }
+        // Sam on every signed-in screen (source MainLayout), hosted once here.
+        if (AndroidSamProjection.IsShellDestination(Destination))
+            screen = WithSam(screen, palette);
         if (ShowsBottomTabs)
         {
             content.Add(new Box { Modifier.FillMaxWidth().Weight(1f), screen });

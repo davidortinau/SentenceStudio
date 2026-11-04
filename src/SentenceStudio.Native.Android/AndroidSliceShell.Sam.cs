@@ -15,18 +15,25 @@ internal sealed partial class AndroidSliceShell
 
     private NativeSamState SamState => _sam?.State ?? new NativeSamState();
 
-    private bool IsSamEntryVisible =>
-        AndroidSamProjection.IsEntryVisible(Destination, _preview,
-            IsMoreScreenOpen || IsResourceFormOpen, SamState)
-        && HasDashboardOwner(Auth.UserId);
+    private AndroidSamEntryPlacement SamEntryPlacement =>
+        AndroidSamProjection.EntryPlacement(Destination, _preview,
+            IsMoreScreenOpen || IsResourceFormOpen, SamState) is var placement
+        && placement != AndroidSamEntryPlacement.None && HasDashboardOwner(Auth.UserId)
+            ? placement : AndroidSamEntryPlacement.None;
+
+    private bool IsSamEntryVisible => SamEntryPlacement != AndroidSamEntryPlacement.None;
 
     private bool IsSamPresented =>
         AndroidSamProjection.IsPresented(Destination, _preview, SamState)
-        && !IsMoreScreenOpen && HasDashboardOwner(Auth.UserId);
+        && HasDashboardOwner(Auth.UserId);
 
     private int WindowWidthDp => activity.Resources?.Configuration?.ScreenWidthDp ?? 0;
 
     private int WindowHeightDp => activity.Resources?.Configuration?.ScreenHeightDp ?? 0;
+
+    /// <summary>The activity's font scale: the system size times the app's text size (AndroidFontScale).</summary>
+    private float WindowFontScale => activity.Resources?.Configuration?.FontScale is > 0f and var scale
+        ? scale : 1f;
 
     private NativeSamPresenter? EnsureSam()
     {
@@ -49,6 +56,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Sign-out or owner change: nothing of the previous owner's Sam survives.</summary>
     private void ClearSamForAccountBoundary()
     {
+        _samPlanRefreshPending = false;
         _samListOwner = null;
         _samLastKey = null;
         _samLastConversation = null;
@@ -398,10 +406,26 @@ internal sealed partial class AndroidSliceShell
     /// <summary>A server-side plan revision must reach the device's Today's Plan (sync, then reload).</summary>
     private void OnSamPlanChanged()
     {
-        if (_dashboard is null || !HasDashboardOwner(Auth.UserId)
-            || Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan))
+        if (_dashboard is null || !HasDashboardOwner(Auth.UserId))
             return;
+        // Sam is open over another screen: refresh when the learner is back on the Dashboard.
+        if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan))
+        {
+            _samPlanRefreshPending = true;
+            return;
+        }
+        _samPlanRefreshPending = false;
         Execute(async cancellationToken => await _dashboard.RefreshAsync(cancellationToken));
+    }
+
+    private bool _samPlanRefreshPending;
+
+    /// <summary>Runs a plan refresh that Sam asked for while another screen was open.</summary>
+    private void RunPendingSamPlanRefresh()
+    {
+        if (_samPlanRefreshPending && !_disposed
+            && Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan)
+            OnSamPlanChanged();
     }
 
     /// <summary>
@@ -409,10 +433,24 @@ internal sealed partial class AndroidSliceShell
     /// server, so it must sync to this device before the native quiz validates
     /// it against the owner's local resources.
     /// </summary>
-    private void OnSamVocabularyReview(string owner, string resourceId) => Execute(async cancellationToken =>
+    private void OnSamVocabularyReview(string owner, string resourceId)
+    {
+        // The quiz replaces the current screen: an activity, a running quiz or an
+        // open resource form must close first.
+        if (Destination is NativeDestination.Activity or NativeDestination.VocabularyQuiz
+            or NativeDestination.QuizSummary || IsResourceFormOpen)
+        {
+            _sam?.ReportVocabularyReviewBlockedByScreen();
+            return;
+        }
+        StartSamVocabularyReview(owner, resourceId);
+    }
+
+    private void StartSamVocabularyReview(string owner, string resourceId) => Execute(async cancellationToken =>
     {
         if (_scope is null || !HasDashboardOwner(owner) || Auth.UserId != owner
-            || Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan))
+            || Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan
+                or NativeDestination.Resources))
             return;
         var provider = _scope.ServiceProvider;
         var outcome = await provider.GetRequiredService<INativeSyncReadiness>()

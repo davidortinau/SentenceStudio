@@ -91,7 +91,8 @@ public sealed class AndroidAuthCompositionTests
         Assert.Contains("_auth.RequestPasswordRecoveryAsync(", source);
         Assert.Contains("NativeRegistrationOutcome.SignedIn", source);
         Assert.Contains("NativeRegistrationOutcome.ConfirmationRequired", source);
-        Assert.Contains("NativeAuth_RegistrationAccepted", source);
+        Assert.Contains("Register_CheckYourEmail", source);
+        Assert.Contains("Register_VerificationSent", source);
         Assert.Contains("NativePasswordRecoveryOutcome.Accepted", source);
         Assert.Contains("ForgotPassword_ResetSent", source);
         Assert.Contains("Localize(result.ErrorKey ?? NativeText.UnexpectedError)",
@@ -153,15 +154,19 @@ public sealed class AndroidAuthCompositionTests
 
         foreach (var key in new[]
         {
-            "NativeAuth_RegistrationAccepted", "NativeAuth_RecoveryUnavailable",
+            "Register_CheckYourEmail", "Register_VerificationSent",
+            "NativeAuth_PasswordRuleMet", "NativeAuth_PasswordRuleNotMet",
+            "NativeAuth_RecoveryUnavailable",
             "NativeAuth_RecoveryFailed", "ForgotPassword_ResetSent",
-            "Register_Failed", "Register_NotAvailable"
+            "Register_Failed", "Register_NotAvailable",
+            "NativeOnboarding_StepDone", "NativeOnboarding_StepInProgress",
+            "NativeOnboarding_StepWaiting", "NativeSam_VocabularyReviewLeaveScreen"
         })
             Assert.Contains(key, keys);
     }
 
     [Fact]
-    public void OnboardingCannotSendAnUnsafeProfileWrite()
+    public void OnboardingWritesOnlyThroughTheSharedOwnerCheckedPresenter()
     {
         var root = Path.GetFullPath(typeof(AndroidAuthCompositionTests).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
@@ -171,11 +176,17 @@ public sealed class AndroidAuthCompositionTests
         var services = File.ReadAllText(Path.Combine(
             root, "AndroidServiceHost.cs"));
 
-        Assert.Contains("native.auth.onboarding.unavailable", onboarding);
+        // The shared presenter saves on the server first, then locally, for its owner only.
+        Assert.Contains("auth.SaveOnboardingProfileAsync(draft, cancellationToken)", onboarding);
+        Assert.Contains("auth.FinishOnboardingAsync(createStarter, cancellationToken)", onboarding);
+        Assert.Contains("auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token)", onboarding);
+        Assert.Contains("auth.BeginOnboardingForMissingTargetLanguageAsync(cancellationToken)",
+            onboarding);
+        Assert.DoesNotContain("SaveOnboardingProfileForOwnerAsync", onboarding);
+        Assert.DoesNotContain("UserProfileRepository>().Save", onboarding);
+        Assert.DoesNotContain("native.auth.onboarding.unavailable", onboarding);
         Assert.DoesNotContain("AndroidOnboardingGateway", onboarding);
         Assert.DoesNotContain("AndroidOnboardingGateway", services);
-        Assert.DoesNotContain("SaveOnboardingProfileAsync(", onboarding);
-        Assert.DoesNotContain("FinishOnboardingAsync(", onboarding);
     }
 
     [Fact]

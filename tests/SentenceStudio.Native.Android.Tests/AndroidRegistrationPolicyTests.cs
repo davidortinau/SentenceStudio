@@ -20,6 +20,26 @@ public sealed class AndroidRegistrationPolicyTests
     }
 
     [Fact]
+    public void PasswordChecklistListsEveryRuleWithItsStateOnceTyping()
+    {
+        Assert.Empty(AndroidRegistrationPolicy.PasswordRules(null));
+        Assert.Empty(AndroidRegistrationPolicy.PasswordRules(string.Empty));
+
+        // Source RegisterPage: met rules stay listed (text-success), not only the unmet ones.
+        var rules = AndroidRegistrationPolicy.PasswordRules("abc");
+        Assert.Equal(SentenceStudio.Contracts.Auth.PasswordPolicy.Rules.Count, rules.Count);
+        Assert.Equal(["length", "uppercase", "lowercase", "number", "symbol"],
+            rules.Select(rule => rule.AutomationSuffix));
+        Assert.True(rules.Single(rule => rule.AutomationSuffix == "lowercase").Met);
+        Assert.False(rules.Single(rule => rule.AutomationSuffix == "length").Met);
+        Assert.Equal("Register_OneLowercase",
+            rules.Single(rule => rule.AutomationSuffix == "lowercase").LabelKey);
+
+        Assert.All(AndroidRegistrationPolicy.PasswordRules("Secure123!"),
+            rule => Assert.True(rule.Met));
+    }
+
+    [Fact]
     public void ValidAccountEntryCanSubmit()
     {
         Assert.True(AndroidRegistrationPolicy.CanSubmit(

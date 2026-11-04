@@ -170,13 +170,21 @@ internal sealed partial class AndroidSliceShell
             if (profile is null)
                 errorKey = "Dashboard_StarterCreateFailed";
             else if (string.IsNullOrWhiteSpace(profile.TargetLanguage))
+            {
+                // Source Index.razor:804-811: no target language sends the learner to onboarding.
+                if (await RouteToOnboardingForMissingTargetLanguageAsync(cancellationToken))
+                    return;
                 errorKey = "NativeResources_SetTargetLanguage";
+            }
             else
             {
                 var created = await _scope.ServiceProvider
                     .GetRequiredService<NativeResourcePresenter>()
                     .CreateStarterAsync(cancellationToken);
                 if (!HasDashboardOwner(owner))
+                    return;
+                if (created.ErrorKey == "NativeResources_SetTargetLanguage"
+                    && await RouteToOnboardingForMissingTargetLanguageAsync(cancellationToken))
                     return;
                 if (created.Result is NativeResourceMutationResult.Success
                     or NativeResourceMutationResult.AlreadyPresent)

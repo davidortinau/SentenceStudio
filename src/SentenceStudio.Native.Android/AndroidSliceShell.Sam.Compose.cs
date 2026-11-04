@@ -115,6 +115,62 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
+    /// <summary>
+    /// Hosts Sam over every signed-in screen (source MainLayout): the floating
+    /// button on a tab root, a top app bar action on any other screen, and the
+    /// panel sheet wherever it is open.
+    /// </summary>
+    private ComposableNode WithSam(ComposableNode screen, AndroidVisualPalette palette)
+    {
+        var placement = SamEntryPlacement;
+        if (placement == AndroidSamEntryPlacement.TopBar)
+            AddSamTopBarAction(palette);
+        var host = new Box { Modifier.FillMaxSize(), screen };
+        if (placement == AndroidSamEntryPlacement.Floating)
+            host.Add(RenderSamFab(palette));
+        if (IsSamPresented)
+            host.Add(RenderSamSheet(palette));
+        return host;
+    }
+
+    /// <summary>
+    /// The first top app bar the screen being composed created (ScreenHeader and the
+    /// resource form record it); reset before each screen is built.
+    /// </summary>
+    private TopAppBar? _screenHeaderBar;
+
+    /// <summary>
+    /// Puts the Sam entry first in the screen's own top app bar actions, after the
+    /// screen set them, so no screen has to add it.
+    /// </summary>
+    private void AddSamTopBarAction(AndroidVisualPalette palette)
+    {
+        if (_screenHeaderBar is not { } bar)
+            return;
+        var label = AndroidSamProjection.EntryLabel(SamPersona(SamState), Localize);
+        var sam = new IconButton(OpenSam, enabled: true)
+        {
+            Modifier = Modifier.TestTag("native.sam.topbar")
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(label);
+                    semantics.Role(SemanticsRole.Button);
+                }),
+        };
+        sam.Add(new Icon(Icons.Default.Face, null)
+        {
+            Modifier = Modifier.Size(24),
+            Tint = palette.Primary,
+        });
+        if (bar.Actions is { } existing)
+            bar.Actions = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+            {
+                sam, existing
+            };
+        else
+            bar.Actions = sam;
+    }
+
     private ComposableNode RenderSamFab(AndroidVisualPalette palette)
     {
         var label = AndroidSamProjection.EntryLabel(SamPersona(SamState), Localize);

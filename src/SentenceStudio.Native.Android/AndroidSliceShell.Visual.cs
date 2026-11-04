@@ -111,6 +111,7 @@ internal sealed partial class AndroidSliceShell
             Title = Heading(title, palette, 22,
                 Modifier.Semantics(semantics => semantics.Heading()))
         };
+        _screenHeaderBar ??= bar; // the shell adds the Sam entry to it (WithSam)
         if (back)
         {
             var button = new IconButton(

@@ -785,6 +785,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             || Destination == NativeDestination.SignIn
                 && _accountEntry != AccountEntry.SignIn);
         _revision.Value = unchecked(_revision.Value + 1);
+        RunPendingSamPlanRefresh();
     }
 
     private void Post(Action update)

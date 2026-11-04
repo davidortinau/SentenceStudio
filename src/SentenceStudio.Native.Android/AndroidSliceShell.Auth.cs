@@ -129,7 +129,22 @@ internal sealed partial class AndroidSliceShell
             });
         if (_registrationComplete)
         {
-            contents.Add(Body(Localize("NativeAuth_RegistrationAccepted"), palette));
+            // Source RegisterPage: envelope, "Check your email", the address, Go to Sign In.
+            contents.Add(new Icon(Icons.Default.Email, null)
+            {
+                Modifier = Modifier.Size(48),
+                Tint = palette.Success,
+            });
+            var checkEmail = Heading(Localize("Register_CheckYourEmail"), palette, 20,
+                Modifier.FillMaxWidth().TestTag("native.auth.register.complete")
+                    .Semantics(semantics => semantics.Heading()));
+            checkEmail.Align = TextAlign.Center;
+            contents.Add(checkEmail);
+            var sent = Body(string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Localize("Register_VerificationSent"), Email.Value.Trim()),
+                palette, secondary: true, Modifier.FillMaxWidth());
+            sent.Align = TextAlign.Center;
+            contents.Add(sent);
             contents.Add(Action(Localize("Register_GoToSignIn"),
                 "native.auth.register.signin", ReturnToSignIn, !Busy.Value));
             return AuthCardViewport("native.auth.register.screen", contents, palette);
@@ -179,14 +194,10 @@ internal sealed partial class AndroidSliceShell
             Password, ShowPassword, Localize(NativeText.Password),
             Localize("Common_PasswordPlaceholder"),
             "native.auth.register.password", passwordKeyboard, canEdit));
-        if (!string.IsNullOrEmpty(Password.Value))
-        {
-            foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
-                if (!SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, Password.Value))
-                    contents.Add(Body(
-                        Localize(SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)),
-                        palette, secondary: true));
-        }
+        // Source RegisterPage: every rule, each marked met (check, success) or not
+        // (cross, danger), with the state spoken too.
+        foreach (var rule in AndroidRegistrationPolicy.PasswordRules(Password.Value))
+            contents.Add(PasswordRuleRow(rule, palette));
         contents.Add(PasswordEntry(
             ConfirmPassword, ShowConfirmPassword,
             Localize("Register_ConfirmPassword"),
@@ -263,6 +274,29 @@ internal sealed partial class AndroidSliceShell
             "native.auth.recovery.back", ReturnToSignIn, !Busy.Value,
             primary: false));
         return AuthCardViewport("native.auth.recovery.screen", contents, palette);
+    }
+
+    private ComposableNode PasswordRuleRow(AndroidPasswordRuleRow rule, AndroidVisualPalette palette)
+    {
+        var label = Localize(rule.LabelKey);
+        var state = Localize(rule.Met ? "NativeAuth_PasswordRuleMet" : "NativeAuth_PasswordRuleNotMet");
+        var color = rule.Met ? palette.Success : palette.Danger;
+        return new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth()
+                .TestTag($"native.auth.register.rule.{rule.AutomationSuffix}")
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription($"{label}, {state}");
+                    semantics.StateDescription(state);
+                }),
+            new Icon(rule.Met ? Icons.Default.CheckCircle : Icons.Default.Close, null)
+            {
+                Modifier = Modifier.Size(16),
+                Tint = color,
+            },
+            new Text(label) { Color = color, FontSize = new Sp(13) },
+        };
     }
 
     private ComposableNode PasswordEntry(

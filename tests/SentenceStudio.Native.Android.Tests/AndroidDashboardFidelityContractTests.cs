@@ -11,7 +11,11 @@ public sealed class AndroidDashboardFidelityContractTests
     {
         var controls = Source("AndroidSliceShell.Dashboard.Compose.cs");
         Assert.Contains("var compact = WindowWidthDp < 768;", controls);
-        Assert.Contains("var columns = WindowWidthDp >= 992 ? 4 : compact ? 2 : 3;", controls);
+        // Source 2/3/4 columns at 768 and 992, fewer as the font scale grows
+        // (shared NativeAdaptiveLayout, covered by NativeAdaptiveLayoutTests).
+        Assert.Contains(
+            "var columns = NativeAdaptiveLayout.ActivityColumns(WindowWidthDp, WindowFontScale);",
+            controls);
         Assert.Contains("if (compact && NativeDashboardPresenter.ChooseOwnActivities.Length > 6)",
             controls);
         Assert.Contains("ActivityTile(visible[index], canSelect, palette)", controls);
