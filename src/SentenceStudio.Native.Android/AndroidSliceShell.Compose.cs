@@ -378,7 +378,7 @@ internal sealed partial class AndroidSliceShell
                         RefreshPlan, !Busy.Value)));
             }
             else if (state.Phase is NativePhase.Error or NativePhase.Blocked)
-                viewport.Add(StatusAlert(Localize(state.ErrorKey ?? NativeText.PlanError),
+                viewport.Add(StatusAlert(DashboardErrorText(state.ErrorKey),
                     palette, error: true, automationId: "native.dashboard.status"));
             else
             {

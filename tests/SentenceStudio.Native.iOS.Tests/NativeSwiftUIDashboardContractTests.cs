@@ -260,7 +260,8 @@ public sealed class NativeSwiftUIDashboardContractTests
     public void VocabularyAndNumbersSectionsHaveIndependentStates()
     {
         var progress = Source("Features/Dashboard/DashboardLearningProgressView.cs");
-        Assert.Contains("state.VocabErrorKey is { } vocabError", progress);
+        Assert.Contains("NativeDashboardPresenter.VocabularySectionErrorKey(state) is { } vocabError",
+            progress);
         Assert.Contains("if (!state.NumbersApplicable && state.NumberErrorKey is null)",
             progress);
         Assert.Contains("\"native.dashboard.vocab.empty\"", progress);

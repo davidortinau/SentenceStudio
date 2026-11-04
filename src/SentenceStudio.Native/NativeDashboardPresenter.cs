@@ -86,6 +86,22 @@ public sealed partial class NativeDashboardPresenter(
     internal static bool NeedsSyncConfirmation(NativeDashboardState state) =>
         state is { HasPendingSync: true, Phase: NativePhase.Ready or NativePhase.Empty };
 
+    /// <summary>
+    /// The message the Vocabulary section shows in place of its statistics, or null
+    /// when it shows its spinner, the statistics, or the empty card. A load that failed
+    /// or was blocked before the statistics were read has neither a summary nor a
+    /// statistics error: it shows that load's message (Dashboard_UnableToLoadPlan when
+    /// none), never "No vocabulary data yet". Statistics that did load stay on screen
+    /// when only the plan fails.
+    /// </summary>
+    public static string? VocabularySectionErrorKey(NativeDashboardState state) =>
+        state.StatisticsLoading || state.VocabSummary is not null
+            ? null
+            : state.VocabErrorKey
+                ?? (state.Phase is NativePhase.Error or NativePhase.Blocked
+                    ? state.ErrorKey ?? NativeText.PlanError
+                    : null);
+
     public async Task<NativeDashboardState> RegenerateAsync(CancellationToken cancellationToken = default)
     {
         if (!TryCurrentUser(out var owner))

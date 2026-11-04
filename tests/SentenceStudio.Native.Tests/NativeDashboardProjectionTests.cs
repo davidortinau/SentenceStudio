@@ -330,6 +330,8 @@ public sealed class NativeDashboardProjectionTests
         Assert.Equal(NativeText.PlanGenerationError, state.ErrorKey);
         Assert.NotNull(state.VocabSummary);
         Assert.Null(state.VocabErrorKey);
+        // The loaded statistics stay; the plan error does not replace them.
+        Assert.Null(NativeDashboardPresenter.VocabularySectionErrorKey(state));
         Assert.True(state.NumbersApplicable);
     }
 
