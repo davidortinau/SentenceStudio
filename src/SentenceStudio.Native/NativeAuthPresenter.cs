@@ -22,7 +22,8 @@ public sealed partial class NativeAuthPresenter(
     SkillProfileRepository skills,
     ILogger<NativeAuthPresenter> logger,
     INativeProfileRemoteStore? profileRemote = null,
-    Adapters.NativeOwnerStores? ownerStores = null)
+    Adapters.NativeOwnerStores? ownerStores = null,
+    INativeOnboardingNames? onboardingNames = null)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _trustedOwnerId;

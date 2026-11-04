@@ -117,7 +117,10 @@ internal sealed partial class ApplicationScene : IDisposable
             previousAppearance.FontScale != selectedAppearance.FontScale;
         if (themeChanged || modeChanged || fontScaleChanged)
         {
-            _style = new SourceUiStyle(_app.Appearance, _style.ViewportWidth);
+            _style = new SourceUiStyle(_app.Appearance, _style.ViewportWidth)
+            {
+                DynamicType = _dynamicType
+            };
             _style.Page(_root);
             _root.PreferredColorScheme = PreferredSchemeFor(selectedAppearance.Mode);
             if (fontScaleChanged || themeChanged)
@@ -159,7 +162,12 @@ internal sealed partial class ApplicationScene : IDisposable
         }
         if (target == RootKind.Onboarding)
         {
+            // Suggested names can arrive while the learner types: keep the field focused.
+            var focusedId = FindFocusedInput(_onboardingSlot!)?.AccessibilityIdentifier;
             Replace(_onboardingSlot!, _app.RenderOnboarding(_style));
+            if (!string.IsNullOrEmpty(focusedId)
+                && Find(_onboardingSlot, focusedId) is { IsEnabled: true } focusedInput)
+                focusedInput.FocusRequested = true;
             return;
         }
 
@@ -325,7 +333,7 @@ internal sealed partial class ApplicationScene : IDisposable
                 .WithInlineNavigationTitle()
                 .WithTabBarHidden();
             _renderedSkillsListVersion = _app.SkillsListVersion;
-            stack.Push("skills", _skillsSlot);
+            stack.Push("skills", WithSamToolbar(stack, "skills", _skillsSlot));
         }
         if (_skillsSlot is null)
             return;
@@ -354,8 +362,8 @@ internal sealed partial class ApplicationScene : IDisposable
                     _app.ConfirmSkillDelete)
                 .WithTransparentDeleteBackdrop()
                 .WithAccessibilityIdentifier("native.skills.edit.delete");
-            stack.Push("skill-form",
-                _skillDeleteConfirmation.WithTabBarHidden());
+            stack.Push("skill-form", WithSamToolbar(stack, "skill-form",
+                _skillDeleteConfirmation.WithTabBarHidden()));
         }
         else if (ApplicationFormRoutes.ShouldPopSkillForm(
             _app.IsSkillFormOpen, _skillFormSlot is not null,
@@ -646,7 +654,7 @@ internal sealed partial class ApplicationScene : IDisposable
                     _app.DismissQuizDetails)
                     .WithSheetDetentFraction(0.7)
                     .WithTabBarHidden();
-                _dashboardStack.Push("quiz", _quizSheet);
+                _dashboardStack.Push("quiz", WithSamToolbar(_dashboardStack, "quiz", _quizSheet));
             }
             else if (_quizSlot is not null)
                 Replace(_quizSlot,
@@ -686,7 +694,7 @@ internal sealed partial class ApplicationScene : IDisposable
                 .WithInlineNavigationTitle()
                 .WithTabBarHidden();
             _renderedSettingsVersion = version;
-            _dashboardStack.Push("settings", _settingsSlot);
+            _dashboardStack.Push("settings", WithSamToolbar(_dashboardStack, "settings", _settingsSlot));
             return;
         }
         if (_settingsSlot is null)
@@ -820,8 +828,8 @@ internal sealed partial class ApplicationScene : IDisposable
                             })
                         .WithAccessibilityIdentifier(
                             "native.resources.edit.conflict.keep"));
-                _resourcesStack.Push("resource-form",
-                    _conflictAlert.WithTabBarHidden());
+                _resourcesStack.Push("resource-form", WithSamToolbar(_resourcesStack, "resource-form",
+                    _conflictAlert.WithTabBarHidden()));
             }
             else if (_formSlot is not null
                 && (_renderedFormVersion != _app.ResourceFormProjectionVersion
@@ -947,6 +955,7 @@ internal sealed partial class ApplicationScene : IDisposable
             (_style.ViewportWidth < 768) != (width < 768);
         _style.ViewportWidth = width;
         _dynamicType = dynamicType;
+        _style.DynamicType = dynamicType;
         SourceUiStyle.RefreshTypography(_root, _app.Appearance, width);
         Find(_dashboardSlot, "native.dashboard.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
@@ -974,7 +983,7 @@ internal sealed partial class ApplicationScene : IDisposable
         if (Find(_vocabularySlot, "native.vocabulary.wide.filters") is { } filtersGrid)
             filtersGrid.GridColumns = width < 1024 ? 2 : 4;
         if (Find(_dashboardSlot, "native.dashboard.chooseown.grid") is { } activityGrid)
-            activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width);
+            activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width, _style.TextScale);
         if (crossedDesktopBreakpoint)
         {
             if (_app.IsVocabularyFilterPresented)

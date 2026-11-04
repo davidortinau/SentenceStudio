@@ -122,15 +122,19 @@ public sealed class AndroidPackagingTests
         Assert.Contains("native.auth.forgot.open", composition);
         Assert.Contains("native.auth.register.submit", auth);
         Assert.Contains("native.auth.recovery.send", auth);
-        Assert.Contains("NativeAuth_RegistrationAccepted", auth);
+        // Source RegisterPage confirmation, as iOS (AF-N01).
+        Assert.Contains("Register_CheckYourEmail", auth);
+        Assert.Contains("Register_VerificationSent", auth);
         Assert.Contains("NativePasswordRecoveryOutcome.Accepted", auth);
         Assert.DoesNotContain("PostAsJsonAsync", auth);
-        Assert.DoesNotContain("Register_VerificationSent", auth);
         Assert.Contains("RenderOnboarding(palette)", composition);
         Assert.Contains("native.auth.onboarding.pending", onboarding);
-        Assert.Contains("native.auth.onboarding.unavailable", onboarding);
-        Assert.DoesNotContain("FinishOnboardingAsync(", onboarding);
-        Assert.DoesNotContain("SaveOnboardingProfileAsync(", onboarding);
+        // Step 5 finishes through the shared presenter's owner-checked API write (AF-N04).
+        Assert.DoesNotContain("native.auth.onboarding.unavailable", onboarding);
+        Assert.Contains("auth.SaveOnboardingProfileAsync(draft, cancellationToken)", onboarding);
+        Assert.Contains("auth.FinishOnboardingAsync(createStarter, cancellationToken)", onboarding);
+        Assert.Contains("native.auth.onboarding.finish.starter", onboarding);
+        Assert.Contains("native.auth.onboarding.finish.skip", onboarding);
         Assert.Contains("NativeOnboardingOptions.NativeLanguages", onboarding);
         Assert.Contains("NativeOnboardingOptions.TargetLanguages", onboarding);
         Assert.Contains("NativeOnboardingOptions.SessionMinutes", onboarding);

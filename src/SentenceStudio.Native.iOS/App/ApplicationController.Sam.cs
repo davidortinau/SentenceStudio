@@ -19,12 +19,23 @@ internal sealed partial class ApplicationController
 
     internal NativeSamState SamState => _sam?.State ?? new NativeSamState();
 
-    /// <summary>The entry appears only on an authenticated dashboard shell (source CoachSurfaceGate).</summary>
-    internal bool IsSamEntryVisible =>
-        _destination == NativeDestination.Dashboard && !_preview
-        && SamState.IsVisible && !SamState.IsOpen;
+    /// <summary>
+    /// Source CoachSurfaceGate: signed in, past onboarding, not syncing. Every
+    /// screen of the signed-in tab shell qualifies (the Dashboard and Resources
+    /// tabs, the screens pushed over them, the quiz and every activity); sign-in,
+    /// the post-login sync and onboarding do not.
+    /// </summary>
+    internal static bool IsSamShellDestination(NativeDestination destination) =>
+        destination is NativeDestination.Dashboard or NativeDestination.VocabularyQuiz
+            or NativeDestination.QuizSummary or NativeDestination.Activity;
 
-    internal bool IsSamPresented => _destination is NativeDestination.Dashboard
+    /// <summary>Sam is offered to this owner on the current screen (open or not).</summary>
+    internal bool IsSamAvailable =>
+        IsSamShellDestination(_destination) && !_preview && SamState.IsVisible;
+
+    internal bool IsSamEntryVisible => IsSamAvailable && !SamState.IsOpen;
+
+    internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;
 
     internal SamActions SamActions => _samActions ??= new SamActions(
@@ -215,6 +226,15 @@ internal sealed partial class ApplicationController
     /// </summary>
     private void OnSamVocabularyReview(string owner, string resourceId)
     {
+        // The quiz opens over the Dashboard tab's root, so a screen open over it
+        // (an activity, the quiz, or a pushed Dashboard screen) must close first.
+        if (_destination != NativeDestination.Dashboard || _settingsOpen || IsProfileOpen
+            || IsSkillsOpen || IsVocabularyOpen || IsActivityLogOpen)
+        {
+            if (IsSamShellDestination(_destination))
+                _sam?.ReportVocabularyReviewBlockedByScreen();
+            return;
+        }
         Run(async () =>
         {
             if (_services is null || _destination != NativeDestination.Dashboard)

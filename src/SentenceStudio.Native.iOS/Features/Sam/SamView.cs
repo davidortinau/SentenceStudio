@@ -82,12 +82,26 @@ internal static class SamView
     internal static string Persona(NativeSamState state) =>
         NativeLocalizedText.Get("Coach_RoleCoach", new CultureInfo(state.PersonaCulture));
 
+    /// <summary>The entry's accessible name: "Ask {coach}" in the study language's persona.</summary>
+    internal static string EntryLabel(NativeSamState state, Func<string, string> text) =>
+        string.Format(CultureInfo.CurrentCulture, text("Coach_OpenNamed"), Persona(state));
+
+    /// <summary>
+    /// The same entry as a navigation bar button, for pushed screens whose bottom
+    /// edge holds the screen's own answer or send bar.
+    /// </summary>
+    internal static SwiftView ToolbarEntry(NativeSamState state, Func<string, string> text,
+        Action open, string id = "native.sam.toolbar") =>
+        Views.Button(Views.Image("bubble.left.and.bubble.right.fill"), open)
+            .WithAccessibilityLabel(EntryLabel(state, text))
+            .WithAccessibilityIdentifier(id);
+
     /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
     internal static SwiftView Fab(SourceUiStyle style, NativeSamState state,
         Func<string, string> text, Action open, string id = "native.sam.fab")
     {
         var appearance = style.Appearance;
-        var label = string.Format(CultureInfo.CurrentCulture, text("Coach_OpenNamed"), Persona(state));
+        var label = EntryLabel(state, text);
         var button = Views.Button(Views.Image("bubble.left.and.bubble.right.fill")
                     .WithFixedSymbolSize(22)
                     .WithForegroundColor(appearance.OnPrimary.Light, appearance.OnPrimary.Dark),

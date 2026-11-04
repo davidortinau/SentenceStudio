@@ -90,19 +90,44 @@ public sealed class AndroidSamProjectionTests
     }
 
     [Theory]
-    [InlineData(NativeDestination.Dashboard, false, false, true, false, true)]
-    [InlineData(NativeDestination.TodaysPlan, false, false, true, false, true)]
-    [InlineData(NativeDestination.Resources, false, false, true, false, false)]
-    [InlineData(NativeDestination.VocabularyQuiz, false, false, true, false, false)]
-    [InlineData(NativeDestination.Dashboard, true, false, true, false, false)]
-    [InlineData(NativeDestination.Dashboard, false, true, true, false, false)]
-    [InlineData(NativeDestination.Dashboard, false, false, false, false, false)]
-    [InlineData(NativeDestination.Dashboard, false, false, true, true, false)]
-    public void EntryAppearsOnlyOnTheAuthenticatedDashboard(NativeDestination destination, bool preview,
-        bool overlay, bool visible, bool open, bool expected)
+    // Tab roots: the floating button.
+    [InlineData(NativeDestination.Dashboard, false, false, true, false, "Floating")]
+    [InlineData(NativeDestination.TodaysPlan, false, false, true, false, "Floating")]
+    [InlineData(NativeDestination.Resources, false, false, true, false, "Floating")]
+    // Screens over a tab, the quiz and activities: the top app bar (their bottom bars stay clear).
+    [InlineData(NativeDestination.Dashboard, false, true, true, false, "TopBar")]
+    [InlineData(NativeDestination.Resources, false, true, true, false, "TopBar")]
+    [InlineData(NativeDestination.VocabularyQuiz, false, false, true, false, "TopBar")]
+    [InlineData(NativeDestination.QuizSummary, false, false, true, false, "TopBar")]
+    [InlineData(NativeDestination.Activity, false, false, true, false, "TopBar")]
+    // Never before sign-in finishes, in the preview, while unavailable or already open.
+    [InlineData(NativeDestination.SignIn, false, false, true, false, "None")]
+    [InlineData(NativeDestination.Onboarding, false, false, true, false, "None")]
+    [InlineData(NativeDestination.Dashboard, true, false, true, false, "None")]
+    [InlineData(NativeDestination.Dashboard, false, false, false, false, "None")]
+    [InlineData(NativeDestination.Activity, false, false, true, true, "None")]
+    public void EntryAppearsOnEverySignedInScreen(NativeDestination destination, bool preview,
+        bool screenOverTab, bool visible, bool open, string expectedPlacement)
     {
         var state = new NativeSamState(IsVisible: visible, IsOpen: open);
-        Assert.Equal(expected, AndroidSamProjection.IsEntryVisible(destination, preview, overlay, state));
+        var expected = Enum.Parse<AndroidSamEntryPlacement>(expectedPlacement);
+        Assert.Equal(expected, AndroidSamProjection.EntryPlacement(destination, preview, screenOverTab, state));
+        Assert.Equal(expected != AndroidSamEntryPlacement.None,
+            AndroidSamProjection.IsEntryVisible(destination, preview, screenOverTab, state));
+    }
+
+    [Theory]
+    [InlineData(NativeDestination.Dashboard, false, true)]
+    [InlineData(NativeDestination.Resources, false, true)]
+    [InlineData(NativeDestination.VocabularyQuiz, false, true)]
+    [InlineData(NativeDestination.Activity, false, true)]
+    [InlineData(NativeDestination.Onboarding, false, false)]
+    [InlineData(NativeDestination.SignIn, false, false)]
+    [InlineData(NativeDestination.Activity, true, false)]
+    public void PanelStaysOpenAcrossSignedInScreens(NativeDestination destination, bool preview, bool expected)
+    {
+        var state = new NativeSamState(IsVisible: true, IsOpen: true);
+        Assert.Equal(expected, AndroidSamProjection.IsPresented(destination, preview, state));
     }
 
     [Fact]

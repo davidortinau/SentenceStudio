@@ -38,8 +38,8 @@ internal sealed partial class ApplicationScene
                 ActivityLogView.Filters(state, _style, _app.Localize,
                     _app.FilterActivityLog));
             _renderedActivityLogVersion = _app.ActivityLogViewVersion;
-            _dashboardStack.Push("activity-log",
-                _activityLogToolbar.WithTabBarHidden());
+            _dashboardStack.Push("activity-log", WithSamToolbar(_dashboardStack, "activity-log",
+                _activityLogToolbar.WithTabBarHidden()));
         }
         if (_activityLogSlot is null || _activityLogToolbar is null)
             return;

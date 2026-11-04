@@ -27,6 +27,22 @@ internal static class SourceUiLayout
     internal static bool ShowResourceListMetadata(double viewportWidth) =>
         viewportWidth >= 768;
 
-    internal static int ActivityColumns(double viewportWidth) =>
-        viewportWidth < 768 ? 2 : viewportWidth < 992 ? 3 : 4;
+    /// <summary>
+    /// Source col-6 col-md-4 col-lg-3 by width, with fewer columns as text grows
+    /// (shared <see cref="NativeAdaptiveLayout.ActivityColumns"/>).
+    /// </summary>
+    internal static int ActivityColumns(double viewportWidth, double textScale = 1) =>
+        NativeAdaptiveLayout.ActivityColumns(viewportWidth, textScale);
+
+    /// <summary>
+    /// The system text size relative to the default (Large): Apple's Body point
+    /// size for each Dynamic Type size (HIG Typography, "Dynamic Type sizes",
+    /// iOS: 14, 15, 16, 17, 19, 21, 23, then 28, 33, 40, 47 and 53 for the
+    /// accessibility sizes) divided by 17. <paramref name="dynamicTypeSize"/> is the
+    /// facade's <c>SwiftDynamicTypeSize</c> value (XSmall = 0 ... Accessibility5 = 11).
+    /// </summary>
+    internal static double DynamicTypeScale(int dynamicTypeSize) =>
+        (dynamicTypeSize is >= 0 and < 12 ? BodyPointSizes[dynamicTypeSize] : 17) / 17.0;
+
+    private static readonly int[] BodyPointSizes = [14, 15, 16, 17, 19, 21, 23, 28, 33, 40, 47, 53];
 }

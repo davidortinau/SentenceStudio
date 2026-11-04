@@ -44,6 +44,10 @@ internal sealed partial class AndroidSliceShell
             _onboardingStep = 0;
             _onboardingMinutes = 15;
             _onboardingCefr = "A2";
+            _onboardingStepsDone = 0;
+            _onboardingFinishing = false;
+            _onboardingCreatingStarter = false;
+            CancelSuggestedNames();
             OnboardingName.Value = ComposeExtensions.NewTextFieldValue(
                 profile?.Name ?? DisplayName.Value.Text ?? string.Empty);
             NativeLanguage.Value = OnboardingLanguages.Contains(profile?.NativeLanguage)
@@ -56,14 +60,151 @@ internal sealed partial class AndroidSliceShell
 
     private void OnboardingNext() => Publish(() =>
     {
-        if (_onboardingStep == 3
-            && string.IsNullOrWhiteSpace(OnboardingName.Value.Text))
+        if (Busy.Value || _onboardingFinishing
+            || _onboardingStep == 3
+                && string.IsNullOrWhiteSpace(OnboardingName.Value.Text))
             return;
+        // Source Onboarding.razor NextStep: leaving the target language step loads names.
+        if (_onboardingStep == 2)
+            LoadSuggestedNames(TargetLanguage.Value);
         _onboardingStep = Math.Min(_onboardingStep + 1, 5);
     });
 
     private void OnboardingPrevious() => Publish(() =>
-        _onboardingStep = Math.Max(_onboardingStep - 1, 0));
+    {
+        if (Busy.Value || _onboardingFinishing)
+            return;
+        _onboardingStep = Math.Max(_onboardingStep - 1, 0);
+    });
+
+    private CancellationTokenSource? _suggestedNamesLoad;
+    private int _onboardingStepsDone;
+    private bool _onboardingFinishing;
+    private bool _onboardingCreatingStarter;
+
+    private void CancelSuggestedNames()
+    {
+        _suggestedNamesLoad?.Cancel();
+        _suggestedNamesLoad?.Dispose();
+        _suggestedNamesLoad = null;
+        _suggestedNames = [];
+        _loadingSuggestedNames = false;
+    }
+
+    /// <summary>
+    /// Source LoadSuggestedNames, beside the steps and outside the action gate so
+    /// the learner can type or go on while it runs; a newer request wins.
+    /// </summary>
+    private void LoadSuggestedNames(string targetLanguage)
+    {
+        if (_auth is not { } auth)
+            return;
+        CancelSuggestedNames();
+        var load = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _suggestedNamesLoad = load;
+        _loadingSuggestedNames = true;
+        _ = LoadSuggestedNamesAsync(auth, targetLanguage, load);
+    }
+
+    private async Task LoadSuggestedNamesAsync(
+        NativeAuthPresenter auth, string targetLanguage, CancellationTokenSource load)
+    {
+        ImmutableArray<string> names = [];
+        try
+        {
+            names = await auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token);
+        }
+        catch (OperationCanceledException) when (load.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Warn("SentenceStudio.Native",
+                $"Onboarding name suggestions could not be loaded ({ex.GetType().Name}).");
+        }
+        Publish(() =>
+        {
+            if (!ReferenceEquals(_suggestedNamesLoad, load))
+                return;
+            _loadingSuggestedNames = false;
+            _suggestedNames = Destination == NativeDestination.Onboarding
+                ? [.. names] : [];
+        });
+    }
+
+    /// <summary>
+    /// Source CreateStarterContent / FinishOnboarding through the shared presenter:
+    /// save the profile on the server and device, optionally create the starter
+    /// resource and skill, then return to the Dashboard. A failure keeps the
+    /// learner on this step with the reason; a changed owner returns to sign-in.
+    /// </summary>
+    private void FinishOnboarding(bool createStarter) => Execute(async cancellationToken =>
+    {
+        if (_auth is not { } auth || Destination != NativeDestination.Onboarding
+            || _onboardingFinishing)
+            return;
+        var draft = new NativeOnboardingDraft(
+            OnboardingName.Value.Text?.Trim() ?? string.Empty,
+            NativeLanguage.Value, TargetLanguage.Value,
+            _onboardingMinutes, _onboardingCefr);
+        Publish(() =>
+        {
+            _onboardingFinishing = true;
+            _onboardingCreatingStarter = createStarter;
+            _onboardingStepsDone = 0;
+        });
+        try
+        {
+            var saved = await auth.SaveOnboardingProfileAsync(draft, cancellationToken);
+            Publish(() => _onboardingStepsDone = saved.ContentStepsDone);
+            if (saved.Outcome != NativeOnboardingOutcome.Success)
+            {
+                await HandleOnboardingFailureAsync(auth, saved, cancellationToken);
+                return;
+            }
+            var completed = await auth.FinishOnboardingAsync(createStarter, cancellationToken);
+            Publish(() => _onboardingStepsDone = completed.ContentStepsDone);
+            if (completed.Outcome != NativeOnboardingOutcome.Success)
+            {
+                await HandleOnboardingFailureAsync(auth, completed, cancellationToken);
+                return;
+            }
+            await HandleAuthAsync(auth.State, cancellationToken);
+        }
+        finally
+        {
+            Publish(() => _onboardingFinishing = false);
+        }
+    });
+
+    private async Task HandleOnboardingFailureAsync(NativeAuthPresenter auth,
+        NativeOnboardingResult result, CancellationToken cancellationToken)
+    {
+        if (result.Outcome == NativeOnboardingOutcome.Blocked)
+        {
+            await HandleAuthAsync(auth.State, cancellationToken);
+            return;
+        }
+        ShowError(Localize(result.ErrorKey is "Resources_StarterFailed"
+            ? "NativeOnboarding_StarterFailed"
+            : result.ErrorKey ?? "NativeOnboarding_SaveFailed"));
+    }
+
+    /// <summary>
+    /// Source Index.razor CreateStarterResourceAsync: the shared presenter sends a
+    /// Dashboard learner whose profile has no target language to onboarding.
+    /// </summary>
+    private async Task<bool> RouteToOnboardingForMissingTargetLanguageAsync(
+        CancellationToken cancellationToken)
+    {
+        if (_auth is not { } auth
+            || !await auth.BeginOnboardingForMissingTargetLanguageAsync(cancellationToken))
+            return false;
+        Post(CloseSam);
+        await HandleAuthAsync(auth.State, cancellationToken);
+        return true;
+    }
 
     private ComposableNode RenderOnboarding(AndroidVisualPalette palette)
     {
@@ -121,19 +262,41 @@ internal sealed partial class AndroidSliceShell
                     Label = new Text(Localize("Onboarding_EnterName"))
                 });
                 if (_loadingSuggestedNames)
-                    content.Add(Body(Localize("Onboarding_GeneratingNames"), palette));
+                    content.Add(new Row(Arrangement.SpacedBy(8),
+                        Alignment.Vertical.CenterVertically)
+                    {
+                        Modifier.FillMaxWidth()
+                            .TestTag("native.auth.onboarding.names.loading"),
+                        new CircularProgressIndicator { Modifier = Modifier.Size(16) },
+                        Body(Localize("Onboarding_GeneratingNames"), palette, secondary: true),
+                    });
                 else if (_suggestedNames.Length > 0)
                 {
                     content.Add(Body(Localize("Onboarding_OrChooseSuggested"),
                         palette, secondary: true));
-                    foreach (var suggestion in _suggestedNames)
+                    // Source: a two-column grid (col-6) of name buttons.
+                    for (var start = 0; start < _suggestedNames.Length; start += 2)
                     {
-                        var name = suggestion;
-                        content.Add(OnboardingOption(name,
-                            OnboardingName.Value.Text == name,
-                            $"native.auth.onboarding.suggestion.{Array.IndexOf(_suggestedNames, name)}",
-                            () => OnboardingName.Value =
-                                ComposeExtensions.NewTextFieldValue(name)));
+                        var row = new Row(Arrangement.SpacedBy(8))
+                        {
+                            Modifier.FillMaxWidth()
+                        };
+                        for (var index = start; index < start + 2; index++)
+                        {
+                            if (index >= _suggestedNames.Length)
+                            {
+                                row.Add(new Box { Modifier.Weight(1f) });
+                                continue;
+                            }
+                            var name = _suggestedNames[index];
+                            row.Add(OnboardingOption(name,
+                                OnboardingName.Value.Text == name,
+                                $"native.auth.onboarding.suggestion.{index}",
+                                () => Publish(() => OnboardingName.Value =
+                                    ComposeExtensions.NewTextFieldValue(name)),
+                                inline: true));
+                        }
+                        content.Add(row);
                     }
                 }
                 break;
@@ -183,9 +346,18 @@ internal sealed partial class AndroidSliceShell
             case 5:
                 content.Add(Heading(Localize("Onboarding_AllSet"), palette, 23));
                 content.Add(Body(Localize("Onboarding_CreateStarterContent"), palette));
-                content.Add(StatusAlert(Localize("NativeResources_Unavailable"),
-                    palette, error: true,
-                    automationId: "native.auth.onboarding.unavailable"));
+                if (_onboardingFinishing)
+                    content.Add(RenderOnboardingProgress(palette));
+                else
+                {
+                    content.Add(Action(Localize("Onboarding_CreateStarter"),
+                        "native.auth.onboarding.finish.starter",
+                        () => FinishOnboarding(createStarter: true), !Busy.Value));
+                    content.Add(Action(Localize("Onboarding_SkipSetup"),
+                        "native.auth.onboarding.finish.skip",
+                        () => FinishOnboarding(createStarter: false), !Busy.Value,
+                        primary: false));
+                }
                 break;
         }
 
@@ -254,6 +426,45 @@ internal sealed partial class AndroidSliceShell
         };
         outlined.Add(new Text(label));
         return outlined;
+    }
+
+    /// <summary>
+    /// Source Onboarding.razor:117-166: saving the profile, then (with the
+    /// starter) generating vocabulary and creating the skill profile; each row is
+    /// done, in progress or waiting.
+    /// </summary>
+    private ComposableNode RenderOnboardingProgress(AndroidVisualPalette palette)
+    {
+        string[] steps = _onboardingCreatingStarter
+            ? ["Onboarding_SavingProfile", "Onboarding_GeneratingVocab",
+                "Onboarding_CreatingSkillProfile"]
+            : ["Onboarding_SavingProfile"];
+        var rows = new List<ComposableNode>();
+        for (var index = 0; index < steps.Length; index++)
+        {
+            var label = Localize(steps[index]);
+            ComposableNode marker = index < _onboardingStepsDone
+                ? new Icon(Icons.Default.CheckCircle, null)
+                {
+                    Modifier = Modifier.Size(20),
+                    Tint = palette.Success,
+                }
+                : index == _onboardingStepsDone
+                    ? new CircularProgressIndicator { Modifier = Modifier.Size(18) }
+                    : new Box { Modifier.Size(16).Clip(8).Background(palette.Border) };
+            var state = Localize(index < _onboardingStepsDone ? "NativeOnboarding_StepDone"
+                : index == _onboardingStepsDone ? "NativeOnboarding_StepInProgress"
+                : "NativeOnboarding_StepWaiting");
+            rows.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth()
+                    .TestTag($"native.auth.onboarding.progress.{index}")
+                    .Semantics(semantics => semantics.ContentDescription($"{label}, {state}")),
+                marker,
+                Body(label, palette),
+            });
+        }
+        return Card(palette, "native.auth.onboarding.progress", [.. rows]);
     }
 
     private ComposableNode RenderOnboardingSteps(AndroidVisualPalette palette)

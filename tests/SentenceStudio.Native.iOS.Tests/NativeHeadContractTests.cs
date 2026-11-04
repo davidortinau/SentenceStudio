@@ -184,7 +184,7 @@ public sealed class NativeHeadContractTests
             HeadPath, "Features", "Quiz", "QuizView.cs"));
 
         Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
-        Assert.Contains("_dashboardStack.Push(\"quiz\", _quizSheet)", scene);
+        Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_app.OnQuizPopped()", scene);
         Assert.Contains("OnActivityRoutesChanged(routes.Count) || routes.Count != 0", scene);
         Assert.Contains("if (_app.IsQuizOpen)", scene);

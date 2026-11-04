@@ -92,7 +92,8 @@ internal sealed partial class ApplicationScene
                 .WithAccessibilityIdentifier("native.vocabulary.filters.host");
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
             _renderedVocabularySheetVersion = _app.VocabularySheetVersion;
-            stack.Push(ApplicationFormRoutes.Vocabulary, _vocabularySheet);
+            stack.Push(ApplicationFormRoutes.Vocabulary,
+                WithSamToolbar(stack, ApplicationFormRoutes.Vocabulary, _vocabularySheet));
         }
         if (_vocabularySlot is null || _vocabularySheet is null
             || _vocabularyFilterSlot is null)
@@ -121,7 +122,7 @@ internal sealed partial class ApplicationScene
                 .WithTabBarHidden();
             _renderedVocabularyFormVersion = _app.VocabularyFormVersion;
             stack.Push(ApplicationFormRoutes.VocabularyWordForm,
-                _vocabularyWordSlot);
+                WithSamToolbar(stack, ApplicationFormRoutes.VocabularyWordForm, _vocabularyWordSlot));
         }
         else if (ApplicationFormRoutes.ShouldPopVocabularyWordForm(
             _app.IsVocabularyWordOpen, _vocabularyWordSlot is not null,

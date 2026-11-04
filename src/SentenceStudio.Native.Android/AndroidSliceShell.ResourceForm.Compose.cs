@@ -232,6 +232,7 @@ internal sealed partial class AndroidSliceShell
             Title = heading,
             NavigationIcon = back,
         };
+        _screenHeaderBar ??= bar; // the shell adds the Sam entry to it (WithSam)
         if (!state.IsEditable)
             return bar;
         var canSave = !busy && state.CanSave;

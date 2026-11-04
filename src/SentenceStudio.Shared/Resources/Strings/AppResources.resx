@@ -6002,6 +6002,14 @@ For example: {0} ...</value>
   <data name="NativeAuth_RegistrationAccepted" xml:space="preserve">
     <value>If an account can be created for this address, follow the confirmation instructions sent to it.</value>
   </data>
+  <data name="NativeAuth_PasswordRuleMet" xml:space="preserve">
+    <value>Met</value>
+    <comment>Spoken state of a password rule the typed password meets</comment>
+  </data>
+  <data name="NativeAuth_PasswordRuleNotMet" xml:space="preserve">
+    <value>Not met</value>
+    <comment>Spoken state of a password rule the typed password does not meet yet</comment>
+  </data>
   <data name="NativeAuth_RecoveryUnavailable" xml:space="preserve">
     <value>Password recovery is not available in this app yet.</value>
   </data>
@@ -6071,6 +6079,18 @@ For example: {0} ...</value>
   </data>
   <data name="NativeOnboarding_StarterFailed" xml:space="preserve">
     <value>Starter content could not be created. You can retry or skip this step.</value>
+  </data>
+  <data name="NativeOnboarding_StepDone" xml:space="preserve">
+    <value>Done</value>
+    <comment>Spoken state of a finished onboarding setup step</comment>
+  </data>
+  <data name="NativeOnboarding_StepInProgress" xml:space="preserve">
+    <value>In progress</value>
+    <comment>Spoken state of the onboarding setup step that is running</comment>
+  </data>
+  <data name="NativeOnboarding_StepWaiting" xml:space="preserve">
+    <value>Waiting</value>
+    <comment>Spoken state of an onboarding setup step that has not started</comment>
   </data>
   <data name="NativeVocabQuiz_FullForm" xml:space="preserve">
     <value>Full form: {0}</value>
@@ -9342,6 +9362,10 @@ For example: {0} ...</value>
   </data>
   <data name="NativeSam_VocabularyReviewNotReady" xml:space="preserve">
     <value>This vocabulary set has not reached this device yet. Try again after sync completes.</value>
+  </data>
+  <data name="NativeSam_VocabularyReviewLeaveScreen" xml:space="preserve">
+    <value>Close the screen you are on, then start this review.</value>
+    <comment>Sam vocabulary set: Start review was tapped over an activity, the quiz or another screen</comment>
   </data>
   <data name="NativeSam_CoachHistoryDeleteFailed" xml:space="preserve">
     <value>Coach history could not be deleted. Nothing was removed.</value>

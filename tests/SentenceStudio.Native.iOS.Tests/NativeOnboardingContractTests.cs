@@ -6,6 +6,40 @@ namespace SentenceStudio.Native.iOS.Tests;
 
 public sealed class NativeOnboardingContractTests
 {
+    /// <summary>
+    /// AF-N04: source Onboarding.razor:59-75,277-283,311-329 (names load when the target
+    /// language step is left; a grid of name buttons fills the field) and AF-D01: source
+    /// Index.razor:804-811 (Quick Start with no target language goes to onboarding).
+    /// </summary>
+    [Fact]
+    public void NameStepOffersSuggestedNamesAndQuickStartRoutesToOnboarding()
+    {
+        var view = Source("Features/Onboarding/OnboardingView.cs");
+        var app = Source("App/ApplicationController.cs");
+        var onboarding = Source("App/ApplicationController.Onboarding.cs");
+        var scene = Source("App/ApplicationScene.cs");
+
+        Assert.Contains("Onboarding_GeneratingNames", view);
+        Assert.Contains("Onboarding_OrChooseSuggested", view);
+        Assert.Contains("Views.LazyVGrid(2, buttons)", view);
+        Assert.Contains("native.onboarding.names.", view);
+        Assert.Contains("suggestions.Choose(name)", view);
+        Assert.Contains("if (_onboardingStep == 2)\n            LoadOnboardingNames(_onboardingDraft.TargetLanguage);",
+            app);
+        Assert.Contains("_auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token)", onboarding);
+        Assert.Contains("_onboardingDraft = _onboardingDraft with { Name = name };", onboarding);
+        // Names arriving while the learner types keep the field focused.
+        Assert.Contains("var focusedId = FindFocusedInput(_onboardingSlot!)?.AccessibilityIdentifier;",
+            scene);
+
+        Assert.Contains("_auth.BeginOnboardingForMissingTargetLanguageAsync(_lifetime.Token)", onboarding);
+        Assert.Contains("if (!await RouteToOnboardingForMissingTargetLanguageAsync())", app);
+        Assert.Contains("created.ErrorKey == \"NativeResources_SetTargetLanguage\"\n"
+            + "                && await RouteToOnboardingForMissingTargetLanguageAsync()", app);
+        // The source progress card: done, in progress (spinner) or waiting.
+        Assert.Contains("Views.IndeterminateProgress(label)", view);
+    }
+
     [Fact]
     public void SixStepNativeOnboarding_FinishesThroughOwnerCheckedPresenterSave()
     {

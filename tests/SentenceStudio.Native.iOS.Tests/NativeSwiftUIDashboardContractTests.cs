@@ -19,7 +19,7 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("if (_dashboardSlot is not null)", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet,", scene);
         Assert.Contains("Views.NavigationStack(_resourcesSlot,", scene);
-        Assert.Contains("_dashboardStack.Push(\"quiz\", _quizSheet)", scene);
+        Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_resourcesStack.Push(\"resource-form\",", scene);
         Assert.Contains("_dashboardStack.CanNavigateBack =\n"
             + "                !_app.NavigationBlocked || _app.CanNavigateBackDuringQuizAudio;",

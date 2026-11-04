@@ -30,6 +30,13 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
     internal SourceUiAppearance Appearance => appearance;
     internal double ViewportWidth { get; set; } = viewportWidth;
 
+    /// <summary>The system text size the scene last reported (OnViewportChanged).</summary>
+    internal SwiftDynamicTypeSize DynamicType { get; set; } = SwiftDynamicTypeSize.Large;
+
+    /// <summary>How much larger than the default body text renders: system size times the app's text size.</summary>
+    internal double TextScale =>
+        SourceUiLayout.DynamicTypeScale((int)DynamicType) * appearance.Selection.FontScale;
+
     internal SwiftView Text(SwiftView view, SourceTextRole role,
         SourceTextTone tone = SourceTextTone.Body,
         bool sourceHeading = false, bool strongElement = false)

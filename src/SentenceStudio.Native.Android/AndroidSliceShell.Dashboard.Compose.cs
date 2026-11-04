@@ -97,7 +97,8 @@ internal sealed partial class AndroidSliceShell
         var visible = !compact || choose.ShowAllActivities
             ? NativeDashboardPresenter.ChooseOwnActivities
             : NativeDashboardPresenter.ChooseOwnActivities.Take(6).ToImmutableArray();
-        var columns = WindowWidthDp >= 992 ? 4 : compact ? 2 : 3;
+        // Source col-6 col-md-4 col-lg-3 by width; larger text drops columns (shared rule).
+        var columns = NativeAdaptiveLayout.ActivityColumns(WindowWidthDp, WindowFontScale);
         for (var start = 0; start < visible.Length; start += columns)
         {
             var row = new Row(Arrangement.SpacedBy(12))

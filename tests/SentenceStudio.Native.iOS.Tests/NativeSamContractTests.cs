@@ -54,8 +54,42 @@ public sealed class NativeSamContractTests
             Source("App/ApplicationScene.Sam.cs"));
     }
 
+    /// <summary>
+    /// Decision 6 (2026-11-03): Sam on every signed-in screen, as the source MainLayout
+    /// mounts it. Tab roots keep the floating entry; every screen pushed on either tab's
+    /// NavigationStack gets the navigation bar entry, so none of them can be missed.
+    /// </summary>
+    [Fact]
+    public void EveryPushedSignedInScreenCarriesTheSamToolbarEntry()
+    {
+        var files = Directory.GetFiles(Path.Combine(HeadPath, "App"), "ApplicationScene*.cs");
+        var pushes = files.SelectMany(file => Regex.Matches(File.ReadAllText(file),
+                @"\.Push\(([^,]+),\s*([^\n]*)")
+            .Select(match => (File: Path.GetFileName(file), Route: match.Groups[1].Value.Trim(),
+                Destination: match.Groups[2].Value.Trim())))
+            .Where(push => push.Route != "\"sam-conversations\"")
+            .ToArray();
+        Assert.True(pushes.Length >= 12, $"Expected every pushed screen, found {pushes.Length}.");
+        foreach (var push in pushes)
+            Assert.True(push.Destination.StartsWith("WithSamToolbar(", StringComparison.Ordinal),
+                $"{push.File} pushes {push.Route} without the Sam entry.");
+        var scene = Source("App/ApplicationScene.Sam.cs");
+        Assert.Contains("SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open)", scene);
+        Assert.Contains("UpdateSamToolbars();", scene);
+        Assert.Contains("\"native.sam.toolbar\"", Source("Features/Sam/SamView.cs"));
+
+        var controller = Source("App/ApplicationController.Sam.cs");
+        Assert.Contains("destination is NativeDestination.Dashboard or NativeDestination.VocabularyQuiz\n"
+            + "            or NativeDestination.QuizSummary or NativeDestination.Activity", controller);
+        Assert.Contains("IsSamShellDestination(_destination) && !_preview", controller);
+        Assert.Contains("internal bool IsSamPresented => IsSamShellDestination(_destination)", controller);
+        // Start review away from the Dashboard root asks to close the screen instead of doing nothing.
+        Assert.Contains("_sam?.ReportVocabularyReviewBlockedByScreen();", controller);
+    }
+
     [Theory]
     [InlineData("native.sam.fab")]
+    [InlineData("native.sam.toolbar")]
     [InlineData("native.sam.panel")]
     [InlineData("native.sam.composer")]
     [InlineData("native.sam.send")]
