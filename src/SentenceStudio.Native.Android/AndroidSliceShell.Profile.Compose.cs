@@ -8,9 +8,9 @@ namespace SentenceStudio.Native.Android;
 
 /// <summary>
 /// Profile (source Profile.razor, iOS ProfileView) on the shared ProfileCoordinator.
-/// As on iOS, edits are drafts: Save, password change and account deletion stay
-/// disabled with their explanation until a safe server update exists, so nothing
-/// here changes the account.
+/// Save sends the editable fields through the owner-checked profile API, then keeps
+/// the server's values locally; email is read-only here. Password change and account
+/// deletion stay disabled with their explanation, as on iOS.
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
@@ -64,12 +64,17 @@ internal sealed partial class AndroidSliceShell
         }
 
         var draft = state.Draft;
+        var editable = !state.IsSaving;
+        // Save sends only the editable fields; email is shown read-only so an edit
+        // is never silently dropped.
         viewport.Add(Card(palette, "native.profile.personal",
             ProfileHeading(Localize("Profile_PersonalInformation"), palette),
             ProfileField(Localize("Profile_Name"), Localize("Profile_NamePlaceholder"),
-                draft.Name, "native.profile.name", profile.SetName),
+                draft.Name, "native.profile.name", profile.SetName, editable),
             ProfileField(Localize("Profile_Email"), Localize("Profile_EmailPlaceholder"),
-                draft.Email, "native.profile.email", profile.SetEmail)));
+                draft.Email, "native.profile.email", profile.SetEmail, enabled: false),
+            Caption(Localize("NativeProfile_EmailReadOnly"), palette,
+                "native.profile.email.readonly")));
 
         var languages = NativeOnboardingOptions.NativeLanguages
             .Select(language => (language, language)).ToArray();
@@ -77,17 +82,17 @@ internal sealed partial class AndroidSliceShell
             ProfileHeading(Localize("Profile_LanguageSettings"), palette),
             MoreDropdown("profile.native", "native.profile.language.native",
                 Localize("Profile_NativeLanguage"), languages, draft.NativeLanguage,
-                value => ProfileEdit(profile.SetNativeLanguage(value)), true, palette),
+                value => ProfileEdit(profile.SetNativeLanguage(value)), editable, palette),
             MoreDropdown("profile.target", "native.profile.language.target",
                 Localize("Profile_TargetLanguage"), languages, draft.TargetLanguage,
-                value => ProfileEdit(profile.SetTargetLanguage(value)), true, palette),
+                value => ProfileEdit(profile.SetTargetLanguage(value)), editable, palette),
             MoreDropdown("profile.display", "native.profile.language.display",
                 Localize("Profile_DisplayLanguage"),
                 [
                     ("English", Localize("Profile_DisplayLanguage_English")),
                     ("Korean", Localize("Profile_DisplayLanguage_Korean")),
                 ], draft.DisplayLanguage,
-                value => ProfileEdit(profile.SetDisplayLanguage(value)), true, palette)));
+                value => ProfileEdit(profile.SetDisplayLanguage(value)), editable, palette)));
 
         viewport.Add(Card(palette, "native.profile.preferences",
             ProfileHeading(Localize("Profile_LearningPreferences"), palette),
@@ -95,16 +100,16 @@ internal sealed partial class AndroidSliceShell
                 NativeOnboardingOptions.SessionMinutes, draft.PreferredSessionMinutes,
                 minute => minute.ToString(CultureInfo.CurrentCulture),
                 minute => $"native.profile.minutes.{minute}",
-                minute => ProfileEdit(profile.SetSessionMinutes(minute)), palette),
+                minute => ProfileEdit(profile.SetSessionMinutes(minute)), palette, editable),
             ProfileChoices(Localize("Profile_TargetCEFRLevel"),
                 NativeOnboardingOptions.CefrLevels, draft.TargetCefrLevel,
                 level => level, level => $"native.profile.level.{level}",
-                level => ProfileEdit(profile.SetTargetCefrLevel(level)), palette)));
+                level => ProfileEdit(profile.SetTargetCefrLevel(level)), palette, editable)));
 
         viewport.Add(Action(Localize("Profile_SaveProfile"), "native.profile.save",
-            static () => { }, enabled: false));
-        viewport.Add(Caption(Localize("NativeProfile_SaveUnavailable"), palette,
-            "native.profile.save.unavailable"));
+            () => RunMore(() => profile.SaveAsync(_lifetime.Token)), enabled: state.CanSave));
+        if (ProfileSaveMessage(state, palette) is { } saveStatus)
+            viewport.Add(saveStatus);
 
         viewport.Add(Card(palette, "native.profile.password",
             new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
@@ -142,9 +147,31 @@ internal sealed partial class AndroidSliceShell
     private static ComposableNode ProfileHeading(string title, AndroidVisualPalette palette) =>
         Heading(title, palette, 20, Modifier.Semantics(semantics => semantics.Heading()));
 
+    /// <summary>The last save attempt: progress, the source "Profile saved" success, or an honest error.</summary>
+    private ComposableNode? ProfileSaveMessage(ProfileState state, AndroidVisualPalette palette)
+    {
+        if (state.SaveStatus == ProfileSaveStatus.Saving)
+            return new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().TestTag("native.profile.save.status"),
+                new CircularProgressIndicator { Modifier = Modifier.Size(24) },
+                Body(Localize("NativeProfile_Saving"), palette, secondary: true),
+            };
+        if (state.SaveStatus is ProfileSaveStatus.Saved
+                or ProfileSaveStatus.Failed
+            && state.SaveMessageKey is { } key)
+        {
+            var saved = state.SaveStatus == ProfileSaveStatus.Saved;
+            return StatusAlert(Localize(key), palette, error: !saved,
+                automationId: "native.profile.save.status", success: saved);
+        }
+        return null;
+    }
+
     private ComposableNode ProfileField(string label, string placeholder, string value,
-        string tag, Func<string, bool> changed) =>
-        new OutlinedTextField(value, text => ProfileEdit(changed(text)), singleLine: true)
+        string tag, Func<string, bool> changed, bool enabled) =>
+        new OutlinedTextField(value, text => ProfileEdit(changed(text)), enabled: enabled,
+            singleLine: true)
         {
             Modifier = Modifier.FillMaxWidth().TestTag(tag)
                 .Semantics(semantics => semantics.ContentDescription(label)),
@@ -165,7 +192,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Source button group: the selected option is primary, the rest secondary; phones stack.</summary>
     private ComposableNode ProfileChoices<T>(string label, IReadOnlyList<T> options, T selected,
         Func<T, string> display, Func<T, string> tag, Action<T> changed,
-        AndroidVisualPalette palette) where T : notnull
+        AndroidVisualPalette palette, bool enabled) where T : notnull
     {
         var phone = WindowWidthDp < 768;
         var buttons = new List<ComposableNode>();
@@ -184,7 +211,7 @@ internal sealed partial class AndroidSliceShell
                 });
             if (isSelected)
             {
-                var primary = new ComposeButton(() => changed(value), enabled: true)
+                var primary = new ComposeButton(() => changed(value), enabled: enabled)
                 {
                     Modifier = modifier,
                     Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
@@ -194,7 +221,7 @@ internal sealed partial class AndroidSliceShell
             }
             else
             {
-                var secondary = new OutlinedButton(() => changed(value), enabled: true)
+                var secondary = new OutlinedButton(() => changed(value), enabled: enabled)
                 {
                     Modifier = modifier,
                     Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
