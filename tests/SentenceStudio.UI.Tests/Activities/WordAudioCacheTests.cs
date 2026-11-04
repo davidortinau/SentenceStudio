@@ -47,11 +47,11 @@ public sealed class WordAudioCacheTests
 
     [Theory]
     [MemberData(nameof(Pages))]
-    public async Task RowWhoseClipIsNotOnThisDevice_IsSynthesizedOnce_AndTheSameRowPointsAtIt(string pageName)
+    public async Task RowWhoseClipIsNotOnThisDevice_IsSynthesizedOnce_AndTheSharedRowIsUnchanged(string pageName)
     {
         await using var harness = await ActivityPageHarness.CreateAsync();
-        var synced = await AddRowAsync(harness, VoiceFor(harness, pageName),
-            "/var/mobile/Containers/Data/Application/PHONE/Library/AudioCache/word_phone.mp3");
+        const string phonePath = "/var/mobile/Containers/Data/Application/PHONE/Library/AudioCache/word_phone.mp3";
+        var synced = await AddRowAsync(harness, VoiceFor(harness, pageName), phonePath);
 
         await PlayAsync(harness, pageName);
         await PlayAsync(harness, pageName);
@@ -59,7 +59,10 @@ public sealed class WordAudioCacheTests
         harness.Speech.SynthesisCount.Should().Be(1, "the second play uses the clip cached by the first");
         var row = (await Rows(harness)).Should().ContainSingle("no second history row is added").Which;
         row.Id.Should().Be(synced.Id);
-        Path.GetDirectoryName(row.AudioFilePath).Should().Be(harness.AudioCacheDirectory);
+        // The synced row keeps its path; this device's copy is kept under the row's own name.
+        row.AudioFilePath.Should().Be(phonePath);
+        File.Exists(Path.Combine(harness.AudioCacheDirectory,
+            StreamHistory.RegeneratedClipFileName(synced.Id))).Should().BeTrue();
         harness.Audio.Players.Should().HaveCount(2)
             .And.OnlyContain(player => player.Audio.SequenceEqual(harness.Speech.Audio));
     }
