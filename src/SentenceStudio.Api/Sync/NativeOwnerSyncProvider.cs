@@ -335,7 +335,7 @@ internal sealed class NativeOwnerSyncProvider(
     /// its table does not sync from devices) is left out instead of refusing the upload: it stays
     /// on the device, as native keeps its device-only rows, and everything else syncs. Leaving a
     /// row out can leave its children without a parent, so the check repeats until nothing more
-    /// is left out. Deletes are left out: the server cannot yet prove what a delete removes.
+    /// is left out. Deletes are applied only for the owner's own rows (<see cref="OwnDeletesAsync"/>).
     /// </summary>
     private async Task<IReadOnlyList<SyncItem>> PlaceableItemsAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
@@ -352,8 +352,9 @@ internal sealed class NativeOwnerSyncProvider(
                 break;
             writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
         }
+        var deletes = await OwnDeletesAsync(db, items, owner, ct);
 
-        var kept = new HashSet<SyncItem>(writes, ReferenceEqualityComparer.Instance);
+        var kept = new HashSet<SyncItem>(writes.Concat(deletes), ReferenceEqualityComparer.Instance);
         var leftOut = items.Where(item => !kept.Contains(item)).ToArray();
         if (leftOut.Length > 0)
             logger.LogInformation(
@@ -361,7 +362,78 @@ internal sealed class NativeOwnerSyncProvider(
                 leftOut.Length,
                 string.Join(", ", leftOut.GroupBy(item => (item.TableName, item.ChangeType))
                     .Select(group => $"{group.Key.TableName} {group.Key.ChangeType} x{group.Count()}")));
-        return writes;
+        return [.. writes, .. deletes];
+    }
+
+    /// <summary>
+    /// The deletes this upload applies (Captain 2026-11-04, decision 2): a device deletes only a
+    /// row the server stores for this owner, looked up by its ID before the delete. A delete of a
+    /// row this upload also writes is older history of a row the device has again. A learner
+    /// profile is never deleted from a device, and a word only when nothing of another learner's
+    /// depends on it (its links, progress, examples and pairs go with it). Any other delete is
+    /// left out and the row stays: a device cannot know the owner of a row it already deleted, so
+    /// such a delete never refuses the upload. The deletion log records each applied delete for
+    /// the owner's other devices (migration AddSyncDeletionLog).
+    /// </summary>
+    private static async Task<IReadOnlyList<SyncItem>> OwnDeletesAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct)
+    {
+        var written = items.Where(item => item.ChangeType != ChangeType.Delete)
+            .Select(item => (item.TableName, Value(item, "Id")))
+            .ToHashSet();
+        var deletes = items.Where(item => item.ChangeType == ChangeType.Delete
+                && item.TableName != "UserProfile" && SyncRowOwners.HasOwner(item.TableName)
+                && !written.Contains((item.TableName, Value(item, "Id"))))
+            .ToArray();
+        var accepted = new List<SyncItem>();
+        foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal))
+        {
+            var ids = table.Select(item => Value(item, "Id")!)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            var stored = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
+            var owned = stored.Where(row => row.Value == owner)
+                .Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
+            if (table.Key == "VocabularyWord" && owned.Count > 0)
+                owned.ExceptWith(await WordsOthersDependOnAsync(db, owned.ToArray(), owner, ct));
+            accepted.AddRange(table.Where(item => owned.Contains(Value(item, "Id")!)));
+        }
+        return accepted;
+    }
+
+    /// <summary>
+    /// Words among <paramref name="ids"/> that a row of another learner, or a row nobody owns,
+    /// still uses: deleting the word would cascade into, or clear a link of, that row.
+    /// </summary>
+    private static async Task<HashSet<string>> WordsOthersDependOnAsync(
+        ApplicationDbContext db, string[] ids, string owner, CancellationToken ct)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        used.UnionWith(await (
+            from mapping in db.ResourceVocabularyMappings.AsNoTracking()
+            join resource in db.LearningResources.AsNoTracking()
+                on mapping.ResourceId equals resource.Id into resources
+            from resource in resources.DefaultIfEmpty()
+            where ids.Contains(mapping.VocabularyWordId)
+                && (resource == null || resource.UserProfileId != owner)
+            select mapping.VocabularyWordId).ToListAsync(ct));
+        used.UnionWith(await db.VocabularyProgresses.AsNoTracking()
+            .Where(progress => ids.Contains(progress.VocabularyWordId) && progress.UserId != owner)
+            .Select(progress => progress.VocabularyWordId).ToListAsync(ct));
+        used.UnionWith(await db.ExampleSentences.AsNoTracking()
+            .Where(example => ids.Contains(example.VocabularyWordId) && example.UserProfileId != owner)
+            .Select(example => example.VocabularyWordId).ToListAsync(ct));
+        var pairs = await db.MinimalPairs.AsNoTracking()
+            .Where(pair => (ids.Contains(pair.VocabularyWordAId) || ids.Contains(pair.VocabularyWordBId))
+                && pair.UserId != owner)
+            .Select(pair => new { pair.VocabularyWordAId, pair.VocabularyWordBId }).ToListAsync(ct);
+        used.UnionWith(pairs.SelectMany(pair => new[] { pair.VocabularyWordAId, pair.VocabularyWordBId }));
+        used.UnionWith(await (
+            from phrase in db.PhraseConstituents.AsNoTracking()
+            join word in db.VocabularyWords.AsNoTracking() on phrase.PhraseWordId equals word.Id
+            where phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId)
+                && word.UserProfileId != owner
+            select phrase.ConstituentWordId!).ToListAsync(ct));
+        return used;
     }
 
     /// <summary>
@@ -639,8 +711,57 @@ internal sealed class NativeOwnerSyncProvider(
         SyncChangeSet changes, string owner, ApplicationDbContext db, CancellationToken ct = default)
     {
         var visible = await GetVisibleKeysAsync(db, owner, ct);
-        var items = changes.Items.Where(item => IsVisible(item, owner, visible)).ToArray();
+        var deletes = await DeletesForOwnerAsync(db, changes.Items, owner, ct);
+        var items = changes.Items.Where(item => item.ChangeType == ChangeType.Delete
+            ? deletes.Contains(item)
+            : IsVisible(item, owner, visible)).ToArray();
         return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, items);
+    }
+
+    /// <summary>
+    /// The deletes a device of <paramref name="owner"/> receives (decision 2): rows gone from the
+    /// server whose last logged delete names this owner ("SyncDeletion", filled by triggers for
+    /// every delete path: the web app, cascades, other devices). Nobody else's devices learn of
+    /// them, and a row that exists again on the server is not deleted on the device.
+    /// </summary>
+    private static async Task<IReadOnlySet<SyncItem>> DeletesForOwnerAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct)
+    {
+        var result = new HashSet<SyncItem>(ReferenceEqualityComparer.Instance);
+        var deletes = items.Where(item => item.ChangeType == ChangeType.Delete
+            && item.TableName != "UserProfile" && SyncRowOwners.HasOwner(item.TableName)
+            && !string.IsNullOrWhiteSpace(Value(item, "Id"))).ToArray();
+        if (deletes.Length == 0)
+            return result;
+
+        var ids = deletes.Select(item => Value(item, "Id")!).Distinct(StringComparer.Ordinal).ToArray();
+        var logged = await db.Database.SqlQuery<LoggedDeletion>($"""
+            SELECT DISTINCT ON ("TableName", "RowId") "TableName", "RowId", "OwnerId"
+            FROM "SyncDeletion" WHERE "RowId" = ANY({ids})
+            ORDER BY "TableName", "RowId", "Id" DESC
+            """).ToListAsync(ct);
+        var deletedFor = logged.ToDictionary(row => (row.TableName, row.RowId), row => row.OwnerId);
+        foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal))
+        {
+            var existing = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key,
+                table.Select(item => Value(item, "Id")!).Distinct(StringComparer.Ordinal).ToArray(), ct);
+            foreach (var item in table)
+            {
+                var id = Value(item, "Id")!;
+                if (!existing.ContainsKey(id)
+                    && deletedFor.TryGetValue((table.Key, id), out var deletedOwner)
+                    && deletedOwner == owner)
+                    result.Add(item);
+            }
+        }
+        return result;
+    }
+
+    private sealed class LoggedDeletion
+    {
+        public string TableName { get; set; } = string.Empty;
+        public string RowId { get; set; } = string.Empty;
+        public string? OwnerId { get; set; }
     }
 
     private static async Task<VisibleKeys> GetVisibleKeysAsync(

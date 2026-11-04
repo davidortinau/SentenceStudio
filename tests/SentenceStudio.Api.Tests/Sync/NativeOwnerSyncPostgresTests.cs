@@ -2000,7 +2000,11 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
         try
         {
             await using (var db = _database.NewContext())
+            {
                 await db.Database.EnsureCreatedAsync();
+                // EnsureCreated runs no migrations; the deletion log exists only as one.
+                await SyncDeletionLogSchema.ApplyAsync(db);
+            }
             var coreSync = new PostgreSQLSyncProvider(
                 new PostgreSQLSyncConfigurationBuilder(_database.ConnectionString)
                     .ConfigureSyncTables().Build(), ProviderMode.Remote);
@@ -2103,16 +2107,18 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
         TimeProvider clock, bool allowHeaderless = false) =>
         new(Database.ConnectionString, clock, allowHeaderless);
 
+    /// <param name="seenServer">The server anchor of the device's last download; CoreSync
+    /// applies a delete only of a row unchanged since then.</param>
     public Task<HttpResponseMessage> BeginUploadAsync(
         HttpClient client, string owner, Guid sessionId, Guid storeId, int totalChanges,
-        bool nativeHeader = true) =>
+        bool nativeHeader = true, SyncAnchor? seenServer = null) =>
         SendJsonAsync(client, "/api/sync-agent/changes-bulk-begin", owner,
             new BulkSyncChangeSet
             {
                 SessionId = sessionId,
                 TotalChanges = totalChanges,
                 SourceAnchor = new SyncAnchor(storeId, 1),
-                TargetAnchor = SyncAnchor.Null
+                TargetAnchor = seenServer ?? SyncAnchor.Null
             }, nativeHeader);
 
     public Task<HttpResponseMessage> UploadChunkAsync(
