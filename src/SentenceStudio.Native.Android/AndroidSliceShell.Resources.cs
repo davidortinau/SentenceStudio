@@ -18,7 +18,7 @@ internal sealed partial class AndroidSliceShell
 
     private bool ShowsBottomTabs =>
         AndroidRoutePolicy.UsesBottomTabs && !_preview
-        && !_appearanceSettingsOpen && !IsResourceFormOpen
+        && !IsMoreScreenOpen && !IsResourceFormOpen
         && AndroidRoutePolicy.IsTopLevel(Destination)
         && HasDashboardOwner(Auth.UserId);
 

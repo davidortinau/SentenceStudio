@@ -418,14 +418,16 @@ public sealed class AndroidPackagingTests
     {
         var source = File.ReadAllText(Path.Combine(
             HeadRoot, "..", "SentenceStudio.UI", "Pages", "VocabQuiz.razor"));
-        var theme = File.ReadAllText(Path.Combine(HeadRoot, "AndroidVisualTheme.cs"));
+        var theme = File.ReadAllText(Path.Combine(HeadRoot, "AndroidVisualTheme.cs"))
+            + File.ReadAllText(Path.Combine(HeadRoot, "AndroidThemeTokens.cs"));
         var visual = File.ReadAllText(Path.Combine(
             HeadRoot, "AndroidSliceShell.Visual.cs"));
         var composition = File.ReadAllText(Path.Combine(
             HeadRoot, "AndroidSliceShell.Compose.cs"));
         Assert.Contains("ss-display mb-2\" style=\"color: var(--bs-primary);\"",
             source);
-        Assert.Contains("ThemeCatalog.Default.PaletteFor(dark ?", theme);
+        Assert.Contains("theme.PaletteFor(dark ? ThemeMode.Dark : ThemeMode.Light)", theme);
+        Assert.Contains("Color.FromHex(tokens.Primary)", theme);
         Assert.Contains("internal const int QuizPromptSize = 42", theme);
         Assert.Contains("Color = palette.Primary", visual);
         Assert.Contains("FontWeight = FontWeight.Bold", visual);
