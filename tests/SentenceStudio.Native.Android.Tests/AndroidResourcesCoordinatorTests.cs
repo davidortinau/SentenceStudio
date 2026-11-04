@@ -140,7 +140,7 @@ public sealed class AndroidResourcesCoordinatorTests
             "native.resources.form.delete.menu", "native.resources.edit.delete.confirm",
             "native.resources.edit.quick.search", "native.resources.edit.generate",
             "native.resources.form.vocabulary.paste", "native.resources.form.vocabulary.import",
-            "native.resources.form.vocabulary.file.unavailable",
+            "native.resources.form.vocabulary.file",
         })
             Assert.Contains(tag, form);
         Assert.Contains("NativeDestination.Resources => RenderResources(palette)", compose);

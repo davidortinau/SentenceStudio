@@ -4,17 +4,37 @@ using SentenceStudio.Common;
 using SentenceStudio.Native;
 using SentenceStudio.Shared.Models;
 using ComposeButton = AndroidX.Compose.Button;
-using ComposeScrollState = AndroidX.Compose.ScrollState;
 
 namespace SentenceStudio.Native.Android;
 
 /// <summary>Compose Add/Edit Learning Resource form (fields, vocabulary, quick add, import, delete).</summary>
 internal sealed partial class AndroidSliceShell
 {
-    private ComposeScrollState _resourceFormScroll = null!;
+    private int _quickAddFocusHandled;
 
+    /// <summary>
+    /// One row of the lazily composed form. <see cref="Content"/> builds the row's
+    /// node only when it is visible; <see cref="Gap"/> rows keep the 14 dp field
+    /// spacing below them, while the vocabulary card's segments stay contiguous.
+    /// </summary>
+    private sealed record ResourceFormRow(string Key, Func<ComposableNode> Content, bool Gap = true);
+
+    // The form is one LazyColumn (AGENTS.md native virtualization, AF-R11): the
+    // fields above the vocabulary are a handful of rows, and every vocabulary word
+    // is its own row, so a resource with thousands of words composes only the
+    // visible ones. The list state and quick-add focus belong to one open form.
     private ComposableNode RenderResourceForm(
-        AndroidResourcesCoordinator resources, AndroidVisualPalette palette)
+        AndroidResourcesCoordinator resources, AndroidVisualPalette palette) =>
+        new Composed(composer =>
+        {
+            var form = resources.FormGeneration;
+            var list = composer.Remember(() => new LazyListState(), form);
+            var quickFocus = composer.Remember(() => new FocusRequester(), form);
+            return ResourceFormPage(resources, palette, list, quickFocus);
+        });
+
+    private ComposableNode ResourceFormPage(AndroidResourcesCoordinator resources,
+        AndroidVisualPalette palette, LazyListState list, FocusRequester quickFocus)
     {
         var state = resources.FormState;
         var creating = resources.IsCreating;
@@ -27,20 +47,31 @@ internal sealed partial class AndroidSliceShell
                 ? "native.resources.add.screen" : "native.resources.edit.screen"),
             ResourceFormAppBar(resources, state, title, creating, busy, palette),
         };
-        var fields = new Column(Arrangement.SpacedBy(14))
+        var fields = new List<ResourceFormRow>();
+        void Add(string key, Func<ComposableNode> content) => fields.Add(new(key, content));
+        ComposableNode Finish()
         {
-            Modifier = Modifier.FillMaxWidth().Weight(1f)
-                .VerticalScroll(_resourceFormScroll)
-                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 12)
-                .TestTag("native.resources.form.scroll"),
-        };
-        page.Add(fields);
-        if (state.ShowDeleteConfirmation)
-            page.Add(ResourceDeleteDialog(resources, state));
+            var last = fields.Count == 0 ? null : fields[^1];
+            page.Add(new LazyColumn<ResourceFormRow>(fields, row => row.Gap
+                && !ReferenceEquals(row, last)
+                    ? new Box { Modifier.FillMaxWidth().Padding(bottom: 14), row.Content() }
+                    : row.Content())
+            {
+                Key = row => row.Key,
+                State = list,
+                ContentPadding = new PaddingValues(
+                    horizontal: AndroidVisualTheme.PagePadding, vertical: 12),
+                Modifier = Modifier.FillMaxWidth().Weight(1f)
+                    .TestTag("native.resources.form.scroll"),
+            });
+            if (state.ShowDeleteConfirmation)
+                page.Add(ResourceDeleteDialog(resources, state));
+            return page;
+        }
 
         if (state.IsSaving || state.IsReloading
             || state.Phase == NativeResourceDetailPhase.Deleting)
-            fields.Add(new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
+            Add("progress", () => new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
             {
                 Modifier.FillMaxWidth().TestTag(creating
                     ? "native.resources.form.status" : "native.resources.form.saving"),
@@ -49,20 +80,20 @@ internal sealed partial class AndroidSliceShell
                     ? "Common_Delete" : "Common_Save"), palette, secondary: true),
             });
         if (state.Status is { Length: > 0 } status)
-            fields.Add(StatusAlert(status, palette, success: true,
+            Add("status", () => StatusAlert(status, palette, success: true,
                 automationId: "native.resources.form.status"));
         if (state.ErrorKey is { } error
             && !(state.IsSmartResource
                 && state.Phase == NativeResourceDetailPhase.ReadOnly
                 && error == "ResourceEdit_AutoUpdated"))
-            fields.Add(StatusAlert(FormatResourceError(error), palette, error: true,
+            Add("error", () => StatusAlert(FormatResourceError(error), palette, error: true,
                 automationId: state.Phase == NativeResourceDetailPhase.Conflict
                     ? NativeAccess.ResourceConflict : "native.resources.form.error"));
 
         if (state.IsUnavailable)
         {
             if (state.Status is null && state.ErrorKey is null)
-                fields.Add(state.Phase == NativeResourceDetailPhase.Loading
+                Add("unavailable", () => state.Phase == NativeResourceDetailPhase.Loading
                     ? new CircularProgressIndicator
                     {
                         Modifier = Modifier.Size(28).TestTag("native.resources.form.status")
@@ -70,19 +101,68 @@ internal sealed partial class AndroidSliceShell
                     : Body(Localize("NativeResources_LoadError"), palette,
                         modifier: Modifier.TestTag("native.resources.form.status")));
             if (state.Phase == NativeResourceDetailPhase.LoadError)
-                fields.Add(Action(Localize(NativeText.Retry), "native.resources.form.retry",
+                Add("retry", () => Action(Localize(NativeText.Retry), "native.resources.form.retry",
                     resources.RetryForm, !busy, primary: false));
-            fields.Add(Action(Localize("Common_Cancel"), NativeAccess.ResourceCancel,
+            Add("cancel", () => Action(Localize("Common_Cancel"), NativeAccess.ResourceCancel,
                 () => resources.CloseForm(), !busy, primary: false));
-            return page;
+            return Finish();
         }
 
         if (state.IsSmartResource)
-            fields.Add(StatusAlert(
+            Add("readonly", () => StatusAlert(
                 $"{Localize("ResourceEdit_SmartResource")} {Localize("ResourceEdit_AutoUpdated")}",
                 palette, automationId: "native.resources.form.readonly"));
 
         var readOnly = state.IsSmartResource || busy;
+        Add("basic", () => ResourceBasicCard(resources, state, creating, readOnly, palette));
+
+        if (creating && state.MediaType != "Vocabulary List")
+            Add("media", () => Card(palette, "native.resources.form.media.card",
+                Heading(Localize("ResourceAdd_MediaContent"), palette, 18,
+                    Modifier.Semantics(semantics => semantics.Heading())),
+                ResourceField(resources, NativeResourceField.MediaUrl,
+                    Localize("ResourceAdd_MediaUrlLabel"), state.MediaUrl,
+                    "native.resources.form.media.url", readOnly, false,
+                    "https://...", palette),
+                ResourceField(resources, NativeResourceField.Transcript,
+                    Localize("ResourceAdd_TranscriptLabel"), state.Transcript,
+                    "native.resources.form.transcript", readOnly, false,
+                    Localize("ResourceAdd_TranscriptPlaceholder"), palette, lines: 5),
+                ResourceField(resources, NativeResourceField.Translation,
+                    Localize("ResourceAdd_TranslationLabel"), state.Translation,
+                    "native.resources.form.translation", readOnly, false,
+                    Localize("ResourceAdd_TranslationPlaceholder"), palette, lines: 5)));
+        if (!creating)
+        {
+            Add("transcript", () => Card(palette, "native.resources.form.transcript.card",
+                ResourceField(resources, NativeResourceField.Transcript,
+                    Localize("ResourceEdit_Transcript"), state.Transcript,
+                    "native.resources.form.transcript", readOnly, state.IsSmartResource,
+                    null, palette, lines: 6)));
+            Add("translation", () => Card(palette, "native.resources.form.translation.card",
+                ResourceField(resources, NativeResourceField.Translation,
+                    Localize("ResourceEdit_Translation"), state.Translation,
+                    "native.resources.form.translation", readOnly, state.IsSmartResource,
+                    null, palette, lines: 6)));
+        }
+
+        AddResourceVocabularyRows(fields, resources, state, creating, busy, palette, quickFocus);
+        if (creating)
+            Add("save.bottom", () => Action(Localize("ResourceAdd_SaveResource"),
+                "native.resources.add.save.bottom", resources.Save,
+                !busy && state.IsEditable && state.CanSave));
+        if (state.HasDraft && (state.Phase is NativeResourceDetailPhase.Conflict
+                or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
+            || state.ErrorKey is "NativeResources_ReloadError" or "NativeResources_SaveInvalid"))
+            Add("reload", () => Action(Localize("NativeResources_ReloadDiscard"),
+                NativeAccess.ResourceReload, resources.ReloadDraft, !busy, primary: false));
+        return Finish();
+    }
+
+    private ComposableNode ResourceBasicCard(AndroidResourcesCoordinator resources,
+        AndroidResourceFormState state, bool creating, bool readOnly,
+        AndroidVisualPalette palette)
+    {
         var basic = new List<ComposableNode>
         {
             Heading(Localize(creating ? "ResourceAdd_BasicInfo" : "ResourceEdit_BasicInfo"),
@@ -125,50 +205,7 @@ internal sealed partial class AndroidSliceShell
                 AndroidResourceDates.DetailUpdatedDate(state.UpdatedAt),
                 "native.resources.form.updated", palette));
         }
-        fields.Add(Card(palette, "native.resources.form.basic.card", basic.ToArray()));
-
-        if (creating && state.MediaType != "Vocabulary List")
-            fields.Add(Card(palette, "native.resources.form.media.card",
-                Heading(Localize("ResourceAdd_MediaContent"), palette, 18,
-                    Modifier.Semantics(semantics => semantics.Heading())),
-                ResourceField(resources, NativeResourceField.MediaUrl,
-                    Localize("ResourceAdd_MediaUrlLabel"), state.MediaUrl,
-                    "native.resources.form.media.url", readOnly, false,
-                    "https://...", palette),
-                ResourceField(resources, NativeResourceField.Transcript,
-                    Localize("ResourceAdd_TranscriptLabel"), state.Transcript,
-                    "native.resources.form.transcript", readOnly, false,
-                    Localize("ResourceAdd_TranscriptPlaceholder"), palette, lines: 5),
-                ResourceField(resources, NativeResourceField.Translation,
-                    Localize("ResourceAdd_TranslationLabel"), state.Translation,
-                    "native.resources.form.translation", readOnly, false,
-                    Localize("ResourceAdd_TranslationPlaceholder"), palette, lines: 5)));
-        if (!creating)
-        {
-            fields.Add(Card(palette, "native.resources.form.transcript.card",
-                ResourceField(resources, NativeResourceField.Transcript,
-                    Localize("ResourceEdit_Transcript"), state.Transcript,
-                    "native.resources.form.transcript", readOnly, state.IsSmartResource,
-                    null, palette, lines: 6)));
-            fields.Add(Card(palette, "native.resources.form.translation.card",
-                ResourceField(resources, NativeResourceField.Translation,
-                    Localize("ResourceEdit_Translation"), state.Translation,
-                    "native.resources.form.translation", readOnly, state.IsSmartResource,
-                    null, palette, lines: 6)));
-        }
-
-        fields.Add(Card(palette, "native.resources.form.vocabulary.card",
-            ResourceVocabulary(resources, state, creating, busy, palette).ToArray()));
-        if (creating)
-            fields.Add(Action(Localize("ResourceAdd_SaveResource"),
-                "native.resources.add.save.bottom", resources.Save,
-                !busy && state.IsEditable && state.CanSave));
-        if (state.HasDraft && (state.Phase is NativeResourceDetailPhase.Conflict
-                or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
-            || state.ErrorKey is "NativeResources_ReloadError" or "NativeResources_SaveInvalid"))
-            fields.Add(Action(Localize("NativeResources_ReloadDiscard"),
-                NativeAccess.ResourceReload, resources.ReloadDraft, !busy, primary: false));
-        return page;
+        return Card(palette, "native.resources.form.basic.card", basic.ToArray());
     }
 
     private ComposableNode ResourceFormAppBar(AndroidResourcesCoordinator resources,
@@ -359,8 +396,108 @@ internal sealed partial class AndroidSliceShell
         };
     }
 
-    private List<ComposableNode> ResourceVocabulary(AndroidResourcesCoordinator resources,
-        AndroidResourceFormState state, bool creating, bool busy, AndroidVisualPalette palette)
+    /// <summary>
+    /// The vocabulary card as lazy rows: a head segment (heading, generate, quick
+    /// add, bulk import, No Vocab Yet), one segment per word, and on Add a foot with
+    /// the staged count. Segments share the card color with square joins, so the
+    /// card reads as one surface while only visible words are composed.
+    /// </summary>
+    private void AddResourceVocabularyRows(List<ResourceFormRow> rows,
+        AndroidResourcesCoordinator resources, AndroidResourceFormState state,
+        bool creating, bool busy, AndroidVisualPalette palette, FocusRequester quickFocus)
+    {
+        const string cardTag = "native.resources.form.vocabulary.card";
+        var words = state.Vocabulary;
+        if (words.Count == 0)
+        {
+            rows.Add(new("vocabulary.head", () => Card(palette, cardTag,
+                ResourceVocabularyHead(resources, state, creating, busy, palette,
+                    quickFocus).ToArray())));
+            return;
+        }
+
+        rows.Add(new("vocabulary.head", () => CardSegment(palette, top: true, bottom: false,
+            bottomPadding: 8, cardTag,
+            ResourceVocabularyHead(resources, state, creating, busy, palette,
+                quickFocus).ToArray()), Gap: false));
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < words.Count; index++)
+        {
+            var word = words[index];
+            var first = index == 0;
+            var last = index == words.Count - 1;
+            // Keys keep scroll anchoring stable; a repeated id still gets a unique key.
+            var key = keys.Add(word.Id)
+                ? $"vocabulary.word.{word.Id}" : $"vocabulary.word.{word.Id}#{index}";
+            rows.Add(creating
+                ? new(key, () => CardSegment(palette, top: false, bottom: false,
+                    bottomPadding: 8, null,
+                    StagedWordRow(resources, word, busy, palette)), Gap: false)
+                : new(key, () => CardSegment(palette, top: false, bottom: last,
+                    bottomPadding: 0, null, EditWordSegment(resources, word,
+                        state.IsSmartResource, busy, divider: !first, palette)),
+                    Gap: last));
+        }
+        if (!creating)
+            return;
+        rows.Add(new("vocabulary.foot", () =>
+        {
+            var count = Body(string.Format(CultureInfo.CurrentCulture,
+                    Localize("ResourceAdd_VocabWordsAdded"), words.Count),
+                palette, secondary: true,
+                modifier: Modifier.TestTag("native.resources.form.vocabulary.staged.count"));
+            count.FontSize = new Sp(AndroidVisualTheme.CaptionSize);
+            return CardSegment(palette, top: false, bottom: true, bottomPadding: 0, null,
+                count);
+        }));
+    }
+
+    /// <summary>
+    /// A slice of a <see cref="Card"/>: rounded only at the card's own top or
+    /// bottom. A square fill behind the rounded surface squares the joined edge
+    /// (the facade's per-corner shape takes pixels, so it is not used here).
+    /// </summary>
+    private static ComposableNode CardSegment(AndroidVisualPalette palette, bool top,
+        bool bottom, int bottomPadding, string? automationId,
+        params ComposableNode[] children)
+    {
+        var pad = AndroidVisualTheme.CardPadding;
+        var content = new Column(Arrangement.SpacedBy(8))
+        {
+            Modifier = Modifier.FillMaxWidth().Padding(start: pad, top: top ? pad : 0,
+                end: pad, bottom: bottom ? pad : bottomPadding),
+        };
+        foreach (var child in children)
+            content.Add(child);
+        var surface = new Surface
+        {
+            Modifier = Modifier.FillMaxWidth(),
+            Color = palette.Card,
+        };
+        if (top || bottom)
+            surface.Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius);
+        surface.Add(content);
+        var modifier = Modifier.FillMaxWidth();
+        if (bottom)
+            modifier = modifier.Padding(bottom: 12);
+        if (automationId is not null)
+            modifier = modifier.TestTag(automationId);
+        var segment = new Box { modifier };
+        if (top != bottom)
+            segment.Add(new Box
+            {
+                Modifier = Modifier.MatchParentSize()
+                    .Padding(top: top ? AndroidVisualTheme.CardRadius : 0,
+                        bottom: bottom ? AndroidVisualTheme.CardRadius : 0)
+                    .Background(palette.Card),
+            });
+        segment.Add(surface);
+        return segment;
+    }
+
+    private List<ComposableNode> ResourceVocabularyHead(AndroidResourcesCoordinator resources,
+        AndroidResourceFormState state, bool creating, bool busy, AndroidVisualPalette palette,
+        FocusRequester quickFocus)
     {
         var items = new List<ComposableNode>
         {
@@ -385,7 +522,7 @@ internal sealed partial class AndroidSliceShell
         }
         if (!creating && !state.IsSmartResource)
         {
-            items.Add(QuickAdd(resources, state, busy, palette));
+            items.Add(QuickAdd(resources, state, busy, palette, quickFocus));
             items.Add(Action(Localize("ResourceEdit_BulkImportToggle"),
                 "native.resources.edit.bulk.toggle", resources.ToggleBulk, !busy,
                 primary: false));
@@ -396,39 +533,17 @@ internal sealed partial class AndroidSliceShell
         if (state.Vocabulary.Count == 0 && !creating)
             items.Add(Body(Localize("ResourceEdit_NoVocabYet"), palette, secondary: true,
                 modifier: Modifier.TestTag("native.resources.form.vocabulary.empty")));
-        else if (creating && state.Vocabulary.Count > 0)
-        {
-            var table = new Column(Arrangement.SpacedBy(8))
-            {
-                Modifier.FillMaxWidth().TestTag("native.resources.add.table"),
-            };
-            foreach (var word in state.Vocabulary)
-                table.Add(StagedWordRow(resources, word, busy, palette));
-            items.Add(table);
-            var count = Body(string.Format(CultureInfo.CurrentCulture,
-                    Localize("ResourceAdd_VocabWordsAdded"), state.Vocabulary.Count),
-                palette, secondary: true,
-                modifier: Modifier.TestTag("native.resources.form.vocabulary.staged.count"));
-            count.FontSize = new Sp(AndroidVisualTheme.CaptionSize);
-            items.Add(count);
-        }
-        else if (!creating)
-        {
-            var rows = new Column
-            {
-                Modifier.FillMaxWidth().TestTag("native.resources.form.vocabulary.rows"),
-            };
-            var first = true;
-            foreach (var word in state.Vocabulary)
-            {
-                if (!first)
-                    rows.Add(new HorizontalDivider { Color = palette.Border });
-                first = false;
-                rows.Add(EditWordRow(resources, word, state.IsSmartResource, busy, palette));
-            }
-            items.Add(rows);
-        }
         return items;
+    }
+
+    private ComposableNode EditWordSegment(AndroidResourcesCoordinator resources,
+        AndroidResourceWord word, bool smart, bool busy, bool divider,
+        AndroidVisualPalette palette)
+    {
+        var row = EditWordRow(resources, word, smart, busy, palette);
+        return divider
+            ? new Column { Modifier.FillMaxWidth(), new HorizontalDivider { Color = palette.Border }, row }
+            : row;
     }
 
     private ComposableNode EditWordRow(AndroidResourcesCoordinator resources,
@@ -555,8 +670,43 @@ internal sealed partial class AndroidSliceShell
         return surface;
     }
 
+    /// <summary>
+    /// Source quick add: after an attach or create the field takes focus back for
+    /// the next word. The request runs in the field's own (lazy row) composition,
+    /// once per <see cref="AndroidResourcesCoordinator.QuickFocusVersion"/>, after
+    /// the field is enabled again.
+    /// </summary>
     private ComposableNode QuickAdd(AndroidResourcesCoordinator resources,
-        AndroidResourceFormState state, bool busy, AndroidVisualPalette palette)
+        AndroidResourceFormState state, bool busy, AndroidVisualPalette palette,
+        FocusRequester quickFocus) => new Composed(composer =>
+    {
+        var version = resources.QuickFocusVersion;
+        var focusable = state.CanQuickAdd && !busy;
+        // One primitive key (effect keys must be Java-comparable): the version, and
+        // whether the field can take focus yet.
+        composer.LaunchedEffect(version * 2L + (focusable ? 1 : 0), _ =>
+        {
+            if (focusable && version > 0 && version != _quickAddFocusHandled
+                && resources.QuickFocusVersion == version)
+            {
+                _quickAddFocusHandled = version;
+                try
+                {
+                    quickFocus.RequestFocus();
+                }
+                catch (Java.Lang.IllegalStateException)
+                {
+                    // The field left the composition before the request ran.
+                }
+            }
+            return Task.CompletedTask;
+        });
+        return QuickAddContent(resources, state, busy, palette, quickFocus);
+    });
+
+    private ComposableNode QuickAddContent(AndroidResourcesCoordinator resources,
+        AndroidResourceFormState state, bool busy, AndroidVisualPalette palette,
+        FocusRequester quickFocus)
     {
         var label = Localize("ResourceEdit_QuickAddLabel");
         var keyboard = KeyboardOptionsCompanion.Default;
@@ -570,6 +720,7 @@ internal sealed partial class AndroidSliceShell
                 enabled: state.CanQuickAdd && !busy, singleLine: true)
             {
                 Modifier = Modifier.FillMaxWidth()
+                    .FocusRequester(quickFocus)
                     .TestTag("native.resources.edit.quick.search")
                     .Semantics(semantics => semantics.ContentDescription(label)),
                 Label = new Text(label),
@@ -712,6 +863,14 @@ internal sealed partial class AndroidSliceShell
                 ? "ResourceAdd_ImportVocabulary" : "ResourceEdit_Import"),
             "native.resources.form.vocabulary.import", resources.ImportText,
             !busy && !string.IsNullOrWhiteSpace(resources.PasteText), primary: false));
+        // Source Choose File (accept=".txt,.csv", 1 MB): the system Open Document
+        // picker, read off the UI thread into the shared importer.
+        items.Add(Body(Localize(creating
+            ? "ResourceAdd_OrImportFile" : "ResourceEdit_OrImportFile"), palette, secondary: true));
+        items.Add(Action(Localize(creating ? "ResourceAdd_ChooseFile" : "ResourceEdit_ChooseFile"),
+            "native.resources.form.vocabulary.file", () => ChooseResourceFile(resources),
+            enabled: !busy && !resources.IsFilePickPending && !resources.IsNavigationBlocked,
+            primary: false));
         if (resources.FormState.IsImporting)
             items.Add(new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
             {
@@ -720,14 +879,9 @@ internal sealed partial class AndroidSliceShell
                 Body(Localize(creating ? "ResourceAdd_Importing" : "ResourceEdit_Importing"),
                     palette, secondary: true),
             });
-        // The facade has no Compose document picker; file import stays visibly
-        // unavailable rather than falling back to a non-Compose picker.
-        items.Add(Body(Localize(creating
-            ? "ResourceAdd_OrImportFile" : "ResourceEdit_OrImportFile"), palette, secondary: true));
-        items.Add(Action(Localize(creating ? "ResourceAdd_ChooseFile" : "ResourceEdit_ChooseFile"),
-            "native.resources.form.vocabulary.file", () => { }, enabled: false, primary: false));
-        items.Add(Body(Localize("NativeResources_Unavailable"), palette, secondary: true,
-            modifier: Modifier.TestTag("native.resources.form.vocabulary.file.unavailable")));
+        if (resources.FormState.FileStatus is { Length: > 0 } fileStatus)
+            items.Add(Body(fileStatus, palette, secondary: true,
+                modifier: Modifier.TestTag("native.resources.form.vocabulary.file.status")));
     }
 
     private static string FormatResourceError(string key) =>
