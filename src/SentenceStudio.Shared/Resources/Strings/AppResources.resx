@@ -3498,6 +3498,10 @@ For example: {0} ...</value>
     <value>Browse Gallery</value>
     <comment>Gallery button</comment>
   </data>
+  <data name="Scene_GalleryEmpty" xml:space="preserve">
+    <value>No cached images yet. Paste a URL above to add one.</value>
+    <comment>Describe a Scene gallery with no images (web: URL only)</comment>
+  </data>
   <data name="Scene_ImageGallery" xml:space="preserve">
     <value>Image Gallery</value>
     <comment>Gallery header</comment>
@@ -3549,6 +3553,10 @@ For example: {0} ...</value>
   <data name="Conversation_PlayingAudio" xml:space="preserve">
     <value>Playing audio...</value>
     <comment>Audio status</comment>
+  </data>
+  <data name="HowDoYouSay_AudioUnavailable" xml:space="preserve">
+    <value>Audio unavailable.</value>
+    <comment>How Do You Say history entry that is no longer available to play</comment>
   </data>
   <data name="HowDoYouSay_EnterPhrase" xml:space="preserve">
     <value>Enter a phrase in {0}</value>
@@ -6608,6 +6616,10 @@ For example: {0} ...</value>
     <value>Contrast Label (optional)</value>
     <comment>Contrast label field</comment>
   </data>
+  <data name="MinimalPair_ContrastLabelPlaceholder" xml:space="preserve">
+    <value>e.g., ㅂ vs ㅃ</value>
+    <comment>Placeholder example for the minimal pair contrast label</comment>
+  </data>
   <data name="MinimalPair_SelectBothWords" xml:space="preserve">
     <value>Please select both words.</value>
     <comment>Select both words error</comment>
@@ -9448,6 +9460,10 @@ For example: {0} ...</value>
   </data>
   <data name="Reading_JumpHint" xml:space="preserve">
     <value>Double-tap a sentence to jump to it!</value>
+  </data>
+  <data name="Reading_JumpHintWeb" xml:space="preserve">
+    <value>Double-click or double-tap a sentence to jump to it!</value>
+    <comment>Reading jump hint for the Razor page (web mouse and MAUI touch)</comment>
   </data>
   <data name="Reading_PlayFromSentence" xml:space="preserve">
     <value>Play from this sentence</value>

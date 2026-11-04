@@ -286,7 +286,7 @@ else if (history.Any())
                 await LoadHistory();
                 if (currentPlayingItem?.Id == item.Id)
                     await StopAudioAsync();
-                Toast.ShowWarning("Audio unavailable.");
+                Toast.ShowWarning(Localize["HowDoYouSay_AudioUnavailable"]);
                 return;
             }
 
@@ -302,7 +302,7 @@ else if (history.Any())
             if (ownedItem is null)
             {
                 await LoadHistory();
-                Toast.ShowWarning("Audio unavailable.");
+                Toast.ShowWarning(Localize["HowDoYouSay_AudioUnavailable"]);
                 return;
             }
 

@@ -85,7 +85,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
 
                                 <button class="btn btn-sm btn-link p-0 mt-1 text-secondary-ss text-start"
                                         @onclick="() => ToggleExpand(gradedSentences.IndexOf(sentence))">
-                                    @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? "Less ▲" : "More ▼")
+                                    @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? Localize["NativeScene_Less"] + " ▲" : Localize["NativeScene_More"] + " ▼")
                                 </button>
                             </div>
                         }
@@ -179,7 +179,7 @@ else
             else if (!galleryImages.Any())
             {
                 <div class="text-center p-4">
-                    <p class="text-secondary-ss ss-body2">No cached images yet. Paste a URL above to add one.</p>
+                    <p class="text-secondary-ss ss-body2">@Localize["Scene_GalleryEmpty"]</p>
                 </div>
             }
             else
@@ -190,7 +190,7 @@ else
                     var isChecked = selectedImageIds.Contains(img.Id);
                     <div class="scene-gallery-item @(isActive ? "active" : "") @(isChecked ? "selected" : "")"
                          @onclick="() => OnGalleryItemClick(img)">
-                        <img src="@img.Url" alt="@(img.Description ?? "Scene")" loading="lazy" />
+                        <img src="@img.Url" alt="@(img.Description ?? Localize["NativeScene_SceneImage"])" loading="lazy" />
                         @if (isActive)
                         {
                             <span class="scene-gallery-active-badge">@Localize["Scene_Current"]</span>
