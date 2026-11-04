@@ -57,12 +57,13 @@ public class DevAuthHandlerTests : IClassFixture<DevAuthApiFactory>
     }
 
     [Fact]
-    public async Task DevAuthHandler_CoreSyncEndpointsAccessible()
+    public async Task DevAuthHandler_DoesNotOpenCoreSyncWithoutOwnerHeader()
     {
         var response = await _client.GetAsync(CoreSyncStoreIdPath);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK,
-            "DevAuthHandler should keep CoreSync usable during local development");
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "sync needs a verified owner header in every environment (decision 1); "
+            + "DevAuth has no bearer to prove one");
     }
 
     [Fact]

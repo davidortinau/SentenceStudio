@@ -91,16 +91,17 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
     }
 
     [Fact]
-    public async Task CoreSync_AcceptsValidJwtToken()
+    public async Task CoreSync_RefusesValidJwtTokenWithoutOwnerHeader()
     {
-        var token = TestJwtGenerator.GenerateToken(userProfileId: $"jwt-plan-{Guid.NewGuid():N}");
-        _client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token);
+        var token = TestJwtGenerator.GenerateToken(userProfileId: Guid.NewGuid().ToString());
+        using var request = new HttpRequestMessage(HttpMethod.Get, CoreSyncStoreIdPath);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await _client.GetAsync(CoreSyncStoreIdPath);
+        using var response = await _client.SendAsync(request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK,
-            "CoreSync should accept the same JWTs the API accepts");
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "Sync:AllowHeaderlessClients is closed by default: a sync request without the "
+            + "owner header would get no owner checks (decision 1, GitHub #204)");
     }
 
     [Fact]

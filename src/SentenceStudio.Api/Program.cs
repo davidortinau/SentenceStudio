@@ -370,6 +370,7 @@ builder.Services.AddSingleton<PostgreSQLSyncProvider>(sp =>
     return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
 builder.Services.AddSingleton<NativeSyncStoreBindings>();
+builder.Services.AddSingleton(sp => SyncAccessOptions.From(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton<ISyncProvider, NativeOwnerSyncProvider>();
 
 // User profile repository (lives in SentenceStudio.Shared; not pulled in via the
@@ -743,7 +744,16 @@ app.UseCoreSyncHttpServer(optionsConfigure: options =>
         {
             try
             {
-                NativeOwnerSyncProvider.GetNativeOwner(context.HttpContext);
+                // Runs before every route-specific filter, on every CoreSync route.
+                var services = context.HttpContext.RequestServices;
+                if (NativeOwnerSyncProvider.GetNativeOwner(context.HttpContext) is null
+                    && !services.GetRequiredService<SyncAccessOptions>().AllowHeaderlessClients)
+                {
+                    services.GetRequiredService<ILogger<SyncAccessOptions>>().LogWarning(
+                        "CoreSync refused a request without the {Header} header.",
+                        SharedSyncRegistration.NativeOwnerHeader);
+                    return Results.StatusCode(StatusCodes.Status403Forbidden);
+                }
                 return await next(context);
             }
             catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status403Forbidden)

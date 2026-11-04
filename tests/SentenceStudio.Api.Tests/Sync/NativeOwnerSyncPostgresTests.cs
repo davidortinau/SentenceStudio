@@ -510,7 +510,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task NativeUploadSession_RejectsDuplicateBeginsAndForeignJsonBinaryOrHeaderlessReplay()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         var sessionId = Guid.NewGuid();
         var storeId = Guid.NewGuid();
         var ownResourceId = Guid.NewGuid().ToString();
@@ -621,7 +621,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task HeaderlessLegacyUpload_RemainsUsable_WithoutOpeningNativeSessions()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         var nativeId = Guid.NewGuid();
         var legacyId = Guid.NewGuid();
         var resourceId = Guid.NewGuid().ToString();
@@ -703,7 +703,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var storeId = Guid.NewGuid();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         using (var uploaded = await _fixture.UploadLegacyAsync(
             client, owner, storeId, Resource(Guid.NewGuid().ToString(), owner)))
             Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
@@ -739,7 +739,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task ExistingStoreWithOwnedChanges_DeniesForeignFirstUseBeforeBinding()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         var storeId = Guid.NewGuid();
         var resourceId = Guid.NewGuid().ToString();
         using (var uploaded = await _fixture.UploadLegacyAsync(
@@ -764,7 +764,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task ExistingReadOnlyLegacyCursor_RejectsUnprovableNativeClaim()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         var storeId = Guid.NewGuid();
         var legacy = await _fixture.StartDownloadAsync(
             client, owner, nativeHeader: false, storeId: storeId);
@@ -816,7 +816,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             await db.SaveChangesAsync();
         }
 
-        using var api = new NativeOwnerSyncPostgresApiFactory(database.ConnectionString);
+        using var api = new NativeOwnerSyncPostgresApiFactory(
+            database.ConnectionString, allowHeaderless: true);
         using var client = api.CreateClient();
         var native = await _fixture.StartDownloadAsync(client, owner);
         using var nativeChunk = await _fixture.GetAsync(client,
@@ -898,7 +899,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task HeaderlessLegacyBinaryUpload_StillReadsItsSingleBodyAndCompletes()
     {
         var (_, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
         var sessionId = Guid.NewGuid();
         var resourceId = Guid.NewGuid().ToString();
         using (var begin = await _fixture.BeginUploadAsync(
@@ -921,7 +922,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var clock = new ControlledUploadTime();
-        using var replica = _fixture.CreateReplicaWithClock(clock);
+        using var replica = _fixture.CreateReplicaWithClock(clock, allowHeaderless: true);
         using var client = replica.CreateClient();
         var sessions = replica.Services.GetRequiredService<NativeSyncUploadSessions>();
         var cache = replica.Services.GetRequiredService<IMemoryCache>();
@@ -1762,7 +1763,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     public async Task NativePagedDownload_DeniesForeignAndHeaderlessReplay_ButPreservesLegacy()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
-        using var client = _fixture.CreateClient();
+        using var client = _fixture.CreateLegacyClient();
 
         var nativeSession = await _fixture.StartDownloadAsync(client, owner);
         Assert.True(nativeSession.TotalChanges > 0);
@@ -1927,6 +1928,7 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
 {
     private ApplicationOperationPostgresHarness? _database;
     private NativeOwnerSyncPostgresApiFactory? _api;
+    private NativeOwnerSyncPostgresApiFactory? _legacyApi;
 
     public async Task InitializeAsync()
     {
@@ -1943,6 +1945,8 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
                     .ConfigureSyncTables().Build(), ProviderMode.Remote);
             await coreSync.ApplyProvisionAsync();
             _api = new NativeOwnerSyncPostgresApiFactory(_database.ConnectionString);
+            _legacyApi = new NativeOwnerSyncPostgresApiFactory(
+                _database.ConnectionString, allowHeaderless: true);
         }
         catch (Exception initializationError)
         {
@@ -1965,12 +1969,20 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _api?.Dispose();
+        _legacyApi?.Dispose();
         if (_database is not null)
             await _database.DisposeAsync();
     }
 
     public ApplicationDbContext NewContext() => Database.NewContext();
     public HttpClient CreateClient() => Api.CreateClient();
+
+    /// <summary>An API with <c>Sync:AllowHeaderlessClients</c> open, for legacy-coexistence tests.</summary>
+    public HttpClient CreateLegacyClient() =>
+        (_legacyApi ?? throw new InvalidOperationException("Legacy API was not initialized."))
+            .CreateClient();
+
+    public string ConnectionString => Database.ConnectionString;
 
     public async Task<(string Owner, string Foreign)> SeedOwnersAsync()
     {
@@ -2022,8 +2034,9 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
     internal NativeOwnerSyncPostgresApiFactory CreateReplica() =>
         new(Database.ConnectionString);
 
-    internal NativeOwnerSyncPostgresApiFactory CreateReplicaWithClock(TimeProvider clock) =>
-        new(Database.ConnectionString, clock);
+    internal NativeOwnerSyncPostgresApiFactory CreateReplicaWithClock(
+        TimeProvider clock, bool allowHeaderless = false) =>
+        new(Database.ConnectionString, clock, allowHeaderless);
 
     public Task<HttpResponseMessage> BeginUploadAsync(
         HttpClient client, string owner, Guid sessionId, Guid storeId, int totalChanges,
@@ -2113,13 +2126,16 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
 }
 
 internal sealed class NativeOwnerSyncPostgresApiFactory(
-    string connectionString, TimeProvider? uploadClock = null)
+    string connectionString, TimeProvider? uploadClock = null, bool allowHeaderless = false)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:sentencestudio", connectionString);
+        // Production default is closed; only the legacy-coexistence tests open it.
+        if (allowHeaderless)
+            builder.UseSetting("Sync:AllowHeaderlessClients", "true");
         builder.UseSetting("Database:SkipMigrateOnStartup", "true");
         builder.UseSetting("Auth:SeedDevTestAccounts", "false");
         builder.UseSetting("Auth:EnableDevAuthFallback", "false");

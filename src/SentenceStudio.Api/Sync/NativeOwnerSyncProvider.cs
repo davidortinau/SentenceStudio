@@ -21,7 +21,8 @@ internal sealed class NativeOwnerSyncProvider(
     NativeSyncStoreBindings stores,
     IHttpContextAccessor requests,
     IServiceScopeFactory scopes,
-    ILogger<NativeOwnerSyncProvider> logger) : ISyncProvider
+    ILogger<NativeOwnerSyncProvider> logger,
+    SyncAccessOptions access) : ISyncProvider
 {
     private const long UploadLockKey = 0x53534E4154495645L;
 
@@ -33,7 +34,7 @@ internal sealed class NativeOwnerSyncProvider(
     public async Task SaveVersionForStoreAsync(
         Guid storeId, long version, CancellationToken ct = default)
     {
-        var owner = GetNativeOwner(requests.HttpContext);
+        var owner = RequestOwner();
         var scopedStoreId = owner is null
             ? storeId : await stores.BindAsync(storeId, owner, ct);
         await provider.SaveVersionForStoreAsync(scopedStoreId, version, ct);
@@ -44,7 +45,7 @@ internal sealed class NativeOwnerSyncProvider(
         SyncDirection direction = SyncDirection.UploadAndDownload,
         string[]? tables = null, CancellationToken ct = default)
     {
-        var owner = GetNativeOwner(requests.HttpContext);
+        var owner = RequestOwner();
         var scopedStoreId = owner is null
             ? otherStoreId : await stores.BindAsync(otherStoreId, owner, ct);
         var changes = await provider.GetChangesAsync(scopedStoreId, filters, direction, tables, ct);
@@ -67,6 +68,20 @@ internal sealed class NativeOwnerSyncProvider(
         return filtered;
     }
 
+    /// <summary>
+    /// The request's verified owner. Without the owner header the request is refused unless
+    /// <c>Sync:AllowHeaderlessClients</c> is open; the CoreSync endpoint filter refuses it first,
+    /// and this repeats the check for any route that might miss that filter.
+    /// </summary>
+    private string? RequestOwner()
+    {
+        var owner = GetNativeOwner(requests.HttpContext);
+        if (owner is null && !access.AllowHeaderlessClients)
+            throw new BadHttpRequestException(
+                "Sync requires the owner header.", StatusCodes.Status403Forbidden);
+        return owner;
+    }
+
     private static void NormalizeNativeTimestamps(IReadOnlyList<SyncItem> items)
     {
         // Npgsql's legacy timestamp switch materializes timestamptz as Local.
@@ -86,7 +101,7 @@ internal sealed class NativeOwnerSyncProvider(
         SyncChangeSet changes, Func<SyncItem, ConflictResolution>? onConflict = null,
         CancellationToken ct = default)
     {
-        var owner = GetNativeOwner(requests.HttpContext);
+        var owner = RequestOwner();
         var scopedStoreId = owner is null
             ? changes.SourceAnchor.StoreId
             : await stores.BindAsync(changes.SourceAnchor.StoreId, owner, ct);
