@@ -1,6 +1,6 @@
 # Decisions for the Captain (2026-11-03)
 
-Seven decisions are waiting. Each section says what happens today, why it matters, the
+Eight decisions are waiting. Each section says what happens today, why it matters, the
 options, what I recommend, and the short answer I need. Facts come from the code on
 `native-platform-heads` (local, not pushed) unless a section says otherwise.
 
@@ -13,6 +13,7 @@ options, what I recommend, and the short answer I need. Facts come from the code
 | 5 | Number Drill: lenient grading of "Disambiguate" answers | Low, but it changes stored mastery | Grade each choice exactly, as the generator intends |
 | 6 | Reading "Remember this word" can leave a word with no resource | Low | Use the native path that creates and links the word in one step |
 | 7 | Four Dashboard questions from the native fidelity work | Low | Accept a and b; yes to c and d |
+| 8 | Four Android Settings and Profile questions from the native fidelity work | Low to medium | Accept a for now; yes to b and c; yes to d as a separate piece of work |
 
 ---
 
@@ -222,6 +223,48 @@ is not one you approved, and agents cannot sign in. Recommendation: let me use
 "SS Agent ipad2" (install in place, back up first); if it is not signed in, you sign it in.
 
 What I need from you: accept or change a and b; yes or no for c and d.
+
+---
+
+## 8. Android Settings and Profile questions (native fidelity, W2)
+
+Android now has Settings (appearance, text size, every quiz setting including the
+direction and the 1 to 10 second auto-advance) and the Profile, Skills, Vocabulary and
+Activity Log screens, reached from its menu in the iOS order. The logic behind these screens
+moved from the iOS project into the shared native library, so both platforms run the same
+code.
+
+**a. How Android applies text size.** The Compose library we use cannot set display density
+directly, so Android applies the text-size setting (85 to 150%) by changing the screen's font
+scale through an older Android call (`Resources.UpdateConfiguration`, marked deprecated). It
+creates no Android view, so it is within the UI rules. It works: 150% scaled the whole app
+and survived a restart. The proper fix is a density setting in the Compose library, which is
+an upstream change that needs your permission. Recommendation: accept for now, and let me
+log it as a library gap.
+
+**b. Exact theme colors on Android.** iOS uses the exact colors of the web app's ten themes
+(copied from its CSS). Android derives its colors for the nine non-default themes from the
+shared theme list: readable, but not identical. Moving the exact color tables into shared
+code would make all clients match. Recommendation: yes (about half a day).
+
+**c. A reversible data check for Skills and Vocabulary.** The Skills list, edit, save and
+delete flows, and saving a vocabulary word, were not tried on the device because the test
+account has no skills and a save writes data. The check would create one throwaway skill and
+delete it, and change one word and change it back, on Kaylee's test account. Recommendation:
+yes.
+
+**d. Saving the profile from the native apps.** On the web you can edit and save your
+profile (name, languages, session length, level). On iOS and Android the profile screen
+shows your data but Save is disabled, because devices only download the profile row from the
+server; nothing sends a device's change back. Making Save work needs a small API endpoint
+that saves the signed-in learner's own profile, and the apps calling it (about one day).
+Recommendation: yes, as its own piece of work.
+
+What I need from you: accept or change a; yes or no for b, c and d.
+
+Follow-ups already queued (no decision needed): move the iOS Vocabulary screen onto the new
+shared code, give Android's segmented buttons and tab markers the theme colors (they still use
+the default purple), and add "Harvest example sentences" on both platforms.
 
 ---
 
