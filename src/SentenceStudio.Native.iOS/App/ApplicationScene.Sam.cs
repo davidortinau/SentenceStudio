@@ -35,41 +35,67 @@ internal sealed partial class ApplicationScene
     private NativeSamPanelSize? _renderedSamSize;
     private double _samDetent;
 
-    private readonly List<(SwiftView Stack, string Route, SwiftView Button)> _samToolbars = [];
+    private readonly List<(SwiftView Stack, string Route, SwiftView Slot)> _samToolbars = [];
 
     /// <summary>
     /// Source MainLayout mounts Sam on every signed-in page. The tab roots keep the
     /// floating entry; every pushed screen (activities, the quiz, Settings, Profile,
-    /// Skills, Vocabulary, Activity Log, the resource form) gets the same entry in
-    /// its navigation bar instead, because a floating button there would cover the
-    /// screen's bottom answer and send bars. A toolbar's actions are fixed once it
-    /// is built, so the button is added when Sam is available for the owner and is
-    /// then only disabled while the panel is open.
+    /// Skills, Vocabulary, Recent lookups, Activity Log, the resource form) gets the
+    /// same entry in its navigation bar instead, because a floating button there
+    /// would cover the screen's bottom answer and send bars.
     /// </summary>
+    /// <remarks>
+    /// A facade toolbar's actions are fixed once it is built, so the entry lives in
+    /// its own small toolbar host inside an empty top overlay layer (the overlay does
+    /// not change the page's layout; SwiftUI collects toolbar items from the layer
+    /// like any other descendant). <see cref="UpdateSamToolbars"/> adds that host when
+    /// Sam becomes available for the owner and removes it when Sam is not, so a screen
+    /// pushed before Sam's availability loads still gets the entry.
+    /// </remarks>
     private SwiftView WithSamToolbar(SwiftView stack, string route, SwiftView page)
     {
         _samToolbars.RemoveAll(entry => ReferenceEquals(entry.Stack, stack)
             && string.Equals(entry.Route, route, StringComparison.Ordinal));
-        if (!_app.IsSamAvailable)
-            return page;
-        var button = SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open);
-        button.IsEnabled = _app.IsSamEntryVisible;
-        _samToolbars.Add((stack, route, button));
-        return Views.Toolbar(page, button);
+        var slot = Views.VStack();
+        slot.Spacing = 0;
+        _samToolbars.Add((stack, route, slot));
+        return Views.Overlay(page, slot, SwiftOverlayEdge.Top);
     }
 
-    /// <summary>Keeps each live screen's Sam button in step with the panel and the coach name.</summary>
+    /// <summary>
+    /// Keeps each live screen's Sam entry in step with availability, the panel and
+    /// the coach name. Runs after every push in the same update.
+    /// </summary>
     private void UpdateSamToolbars()
     {
         _samToolbars.RemoveAll(entry => !entry.Stack.NavigationPath.Contains(entry.Route));
+        var available = _app.IsSamAvailable;
         var enabled = _app.IsSamEntryVisible;
         var label = SamView.EntryLabel(_app.SamState, _app.Localize);
         foreach (var entry in _samToolbars)
         {
-            if (entry.Button.IsEnabled != enabled)
-                entry.Button.IsEnabled = enabled;
-            entry.Button.WithAccessibilityLabel(label);
+            var slot = entry.Slot;
+            if (!available)
+            {
+                if (slot.Children.Count > 0)
+                    slot.RemoveAt(0);
+                continue;
+            }
+            if (slot.Children.Count == 0)
+                slot.Add(SamToolbarHost());
+            var button = slot.Children[0].Children[1];
+            if (button.IsEnabled != enabled)
+                button.IsEnabled = enabled;
+            button.WithAccessibilityLabel(label);
         }
+    }
+
+    /// <summary>A zero-size view that carries only the Sam toolbar button.</summary>
+    private SwiftView SamToolbarHost()
+    {
+        var button = SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open);
+        button.IsEnabled = _app.IsSamEntryVisible;
+        return Views.Toolbar(Views.VStack(Views.Text(string.Empty)), button);
     }
 
     /// <summary>Wraps the tab shell in the Sam sheet and inspector. Called once per tab install.</summary>

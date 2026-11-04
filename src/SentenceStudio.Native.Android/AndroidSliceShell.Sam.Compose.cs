@@ -114,7 +114,6 @@ internal sealed partial class AndroidSliceShell
         });
     }
 
-    /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
     /// <summary>
     /// Hosts Sam over every signed-in screen (source MainLayout): the floating
     /// button on a tab root, a top app bar action on any other screen, and the
@@ -171,6 +170,7 @@ internal sealed partial class AndroidSliceShell
             bar.Actions = sam;
     }
 
+    /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
     private ComposableNode RenderSamFab(AndroidVisualPalette palette)
     {
         var label = AndroidSamProjection.EntryLabel(SamPersona(SamState), Localize);

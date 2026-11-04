@@ -435,10 +435,11 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void OnSamVocabularyReview(string owner, string resourceId)
     {
-        // The quiz replaces the current screen: an activity, a running quiz or an
-        // open resource form must close first.
-        if (Destination is NativeDestination.Activity or NativeDestination.VocabularyQuiz
-            or NativeDestination.QuizSummary || IsResourceFormOpen)
+        // The quiz replaces the current screen: an activity, a running quiz, a More
+        // screen (Settings, Profile, Skills, Vocabulary, Activity Log)
+        // or an open resource form must close first, as on iOS.
+        if (AndroidSamProjection.ReviewBlockedByScreen(Destination,
+                IsMoreScreenOpen || IsResourceFormOpen))
         {
             _sam?.ReportVocabularyReviewBlockedByScreen();
             return;

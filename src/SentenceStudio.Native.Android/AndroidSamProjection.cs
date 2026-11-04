@@ -90,6 +90,14 @@ internal static class AndroidSamProjection
             : AndroidSamEntryPlacement.TopBar;
     }
 
+    /// <summary>
+    /// A Sam vocabulary review opens the quiz from a tab root only: over an activity,
+    /// the quiz, a More screen or the resource form the learner is asked to close it.
+    /// </summary>
+    internal static bool ReviewBlockedByScreen(NativeDestination destination, bool screenOverTab) =>
+        destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan
+            or NativeDestination.Resources) || screenOverTab;
+
     internal static bool IsEntryVisible(NativeDestination destination, bool preview,
         bool screenOverTab, NativeSamState state) =>
         EntryPlacement(destination, preview, screenOverTab, state) != AndroidSamEntryPlacement.None;

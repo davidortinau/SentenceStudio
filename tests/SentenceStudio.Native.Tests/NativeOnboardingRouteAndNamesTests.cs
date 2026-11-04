@@ -69,6 +69,34 @@ public sealed class NativeOnboardingRouteAndNamesTests
     }
 
     [Fact]
+    public async Task MissingLocalProfileIsNotAMissingTargetLanguage()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        var auth = fixture.Auth;
+        Assert.Equal(NativeDestination.Dashboard,
+            (await auth.SignInAsync(NativeSliceFixture.EmailA, "fixture-password")).Destination);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.UserProfiles.Remove(await db.UserProfiles.SingleAsync(profile =>
+                profile.Id == NativeSliceFixture.UserA));
+            await db.SaveChangesAsync();
+        }
+
+        // No profile on the device: no route, no marker, so onboarding can never
+        // save over the server's profile from here.
+        Assert.False(await auth.BeginOnboardingForMissingTargetLanguageAsync());
+        Assert.Equal(NativeDestination.Dashboard, auth.State.Destination);
+        Assert.False(fixture.Preferences.Get(
+            $"onboarding_pending:{NativeSliceFixture.UserA}", false));
+        Assert.Equal(NativeOnboardingOutcome.Blocked,
+            (await auth.SaveOnboardingProfileAsync(
+                new NativeOnboardingDraft("Overwrite", "English", "Korean"))).Outcome);
+        Assert.Empty(fixture.RemoteProfileWrites);
+    }
+
+    [Fact]
     public async Task OnboardingRouteFailsClosedWithoutTheSignedInOwner()
     {
         using var fixture = new NativeSliceFixture();

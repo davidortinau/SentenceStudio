@@ -170,8 +170,8 @@ public sealed partial class NativeAuthPresenter
     /// whose profile has no target language is sent to onboarding instead of
     /// being told to set one. Only the published owner's own profile is read;
     /// the per-owner pending marker resumes onboarding after a restart. Returns
-    /// false, and changes nothing, when the owner is not current or the profile
-    /// already has a target language.
+    /// false, and changes nothing, when the owner is not current, the owner's
+    /// profile is not on this device, or the profile already has a target language.
     /// </summary>
     public async Task<bool> BeginOnboardingForMissingTargetLanguageAsync(
         CancellationToken cancellationToken = default)
@@ -185,8 +185,15 @@ public sealed partial class NativeAuthPresenter
                     UserId: { } owner } current
                 || !await HasPublishedTokenOwnerAsync(owner, cancellationToken))
                 return false;
+            // No local profile is not "no target language": onboarding would then
+            // save over the server's profile, so the route fails closed.
             var profile = await profiles.GetByIdAsync(owner, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(profile?.TargetLanguage)
+            if (profile is null)
+            {
+                logger.LogWarning("Native onboarding route refused: the owner's profile is not on this device.");
+                return false;
+            }
+            if (!string.IsNullOrWhiteSpace(profile.TargetLanguage)
                 || State is not { Phase: NativePhase.Ready,
                     Destination: NativeDestination.Dashboard, UserId: { } stillOwner }
                 || stillOwner != owner
