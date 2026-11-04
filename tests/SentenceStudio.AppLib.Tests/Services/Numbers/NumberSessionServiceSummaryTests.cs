@@ -87,10 +87,10 @@ public sealed class NumberSessionServiceSummaryTests : IDisposable
             new NumberSessionRequest(null, "Disambiguate", ItemCount: 1));
         var item = session.Items[0];
 
-        // An answer every grader path rejects (the shared grader normalizes number
-        // words, so some wrong-system choices are stored as correct; see report).
+        // A wrong choice for the second prompt; each choice is graded exactly.
+        var wrongB = item.ChoicesB!.First(choice => choice != item.CorrectAnswerB);
         var result = await _service.SubmitAnswerAsync(User, session.SessionId, item,
-            $"{item.CorrectAnswerA} | 틀림", 7000);
+            $"{item.CorrectAnswerA} | {wrongB}", 7000);
         var summary = await _service.EndSessionAsync(session.SessionId);
 
         Assert.False(result.Grade.IsCorrect);

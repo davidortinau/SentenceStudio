@@ -30,6 +30,12 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             );
         }
 
+        // Disambiguate: the learner picks one choice per prompt ("A | B"). Every distractor
+        // is a near form of the answer, so each choice is graded exactly and the pair is
+        // both-or-nothing, matching what every client shows.
+        if (item.SubModeCode == "Disambiguate")
+            return GradeDisambiguate(item, userAnswer);
+
         // Special case: If user typed ONLY bare digits (no Korean, no counter), accept as shortcut
         if (Regex.IsMatch(normalized, @"^\d+$"))
         {
@@ -120,6 +126,25 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             CanonicalAnswer: item.CanonicalAnswer,
             UserAnswer: userAnswer.Trim(),
             Tip: tip
+        );
+    }
+
+    private static GradeResult GradeDisambiguate(NumberItem item, string userAnswer)
+    {
+        var choices = (userAnswer ?? string.Empty).Split('|', StringSplitOptions.TrimEntries);
+        var isCorrect = choices.Length == 2
+            && !string.IsNullOrEmpty(item.CorrectAnswerA)
+            && !string.IsNullOrEmpty(item.CorrectAnswerB)
+            && string.Equals(choices[0], item.CorrectAnswerA, StringComparison.Ordinal)
+            && string.Equals(choices[1], item.CorrectAnswerB, StringComparison.Ordinal);
+
+        return new GradeResult(
+            IsCorrect: isCorrect,
+            Verdict: isCorrect ? "정확해요!" : "다시 해 볼까요?",
+            ErrorClass: isCorrect ? null : "system_confusion",
+            CanonicalAnswer: item.CanonicalAnswer,
+            UserAnswer: userAnswer?.Trim() ?? string.Empty,
+            Tip: null
         );
     }
 
