@@ -35,51 +35,47 @@ internal sealed partial class ApplicationScene
     private NativeSamPanelSize? _renderedSamSize;
     private double _samDetent;
 
-    private readonly List<(SwiftView Stack, string Route, SwiftView Toolbar)> _samToolbars = [];
-    private string? _samToolbarLabel;
+    private readonly List<(SwiftView Stack, string Route, SwiftView Button)> _samToolbars = [];
 
     /// <summary>
     /// Source MainLayout mounts Sam on every signed-in page. The tab roots keep the
     /// floating entry; every pushed screen (activities, the quiz, Settings, Profile,
     /// Skills, Vocabulary, Activity Log, the resource form) gets the same entry in
     /// its navigation bar instead, because a floating button there would cover the
-    /// screen's bottom answer and send bars. One toolbar wrapper per pushed route.
+    /// screen's bottom answer and send bars. A toolbar's actions are fixed once it
+    /// is built, so the button is added when Sam is available for the owner and is
+    /// then only disabled while the panel is open.
     /// </summary>
     private SwiftView WithSamToolbar(SwiftView stack, string route, SwiftView page)
     {
-        var toolbar = Views.Toolbar(page);
         _samToolbars.RemoveAll(entry => ReferenceEquals(entry.Stack, stack)
             && string.Equals(entry.Route, route, StringComparison.Ordinal));
-        _samToolbars.Add((stack, route, toolbar));
-        SyncSamToolbar(toolbar, rebuild: false);
-        return toolbar;
+        if (!_app.IsSamAvailable)
+            return page;
+        var button = SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open);
+        button.IsEnabled = _app.IsSamEntryVisible;
+        _samToolbars.Add((stack, route, button));
+        return Views.Toolbar(page, button);
     }
 
-    /// <summary>Adds or removes each live screen's Sam button as availability changes.</summary>
+    /// <summary>Keeps each live screen's Sam button in step with the panel and the coach name.</summary>
     private void UpdateSamToolbars()
     {
         _samToolbars.RemoveAll(entry => !entry.Stack.NavigationPath.Contains(entry.Route));
+        var enabled = _app.IsSamEntryVisible;
         var label = SamView.EntryLabel(_app.SamState, _app.Localize);
-        var rebuild = !string.Equals(label, _samToolbarLabel, StringComparison.Ordinal);
-        _samToolbarLabel = label;
         foreach (var entry in _samToolbars)
-            SyncSamToolbar(entry.Toolbar, rebuild);
-    }
-
-    private void SyncSamToolbar(SwiftView toolbar, bool rebuild)
-    {
-        var show = _app.IsSamEntryVisible;
-        if (toolbar.Children.Count > 1 && (!show || rebuild))
-            toolbar.RemoveAt(1);
-        if (show && toolbar.Children.Count == 1)
-            toolbar.Add(SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open));
+        {
+            if (entry.Button.IsEnabled != enabled)
+                entry.Button.IsEnabled = enabled;
+            entry.Button.WithAccessibilityLabel(label);
+        }
     }
 
     /// <summary>Wraps the tab shell in the Sam sheet and inspector. Called once per tab install.</summary>
     private SwiftView WrapWithSam(SwiftView tabs)
     {
         _samToolbars.Clear();
-        _samToolbarLabel = null;
         _samPanelSlot = Views.VStack(Views.Text(_app.Localize("Common_Loading")));
         _samStack = Views.NavigationStack(_samPanelSlot, routes =>
         {
@@ -253,7 +249,6 @@ internal sealed partial class ApplicationScene
     private void DropSamReferences()
     {
         _samToolbars.Clear();
-        _samToolbarLabel = null;
         _samPanelHost = null;
         _samSheet = null;
         _samSheetHolder = null;

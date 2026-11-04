@@ -29,9 +29,11 @@ internal sealed partial class ApplicationController
         destination is NativeDestination.Dashboard or NativeDestination.VocabularyQuiz
             or NativeDestination.QuizSummary or NativeDestination.Activity;
 
-    internal bool IsSamEntryVisible =>
-        IsSamShellDestination(_destination) && !_preview
-        && SamState.IsVisible && !SamState.IsOpen;
+    /// <summary>Sam is offered to this owner on the current screen (open or not).</summary>
+    internal bool IsSamAvailable =>
+        IsSamShellDestination(_destination) && !_preview && SamState.IsVisible;
+
+    internal bool IsSamEntryVisible => IsSamAvailable && !SamState.IsOpen;
 
     internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;
