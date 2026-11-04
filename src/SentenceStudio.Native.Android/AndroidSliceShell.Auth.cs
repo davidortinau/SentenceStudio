@@ -129,8 +129,9 @@ internal sealed partial class AndroidSliceShell
             });
         if (_registrationComplete)
         {
-            // Source RegisterPage: envelope, "Check your email", the address, Go to Sign In.
-            contents.Add(new Icon(Icons.Default.Email, null)
+            // Source RegisterPage: success mark (bi-envelope-check; CheckCircle is the
+            // facade's kept stand-in), "Check your email", the address, Go to Sign In.
+            contents.Add(new Icon(Icons.Default.CheckCircle, null)
             {
                 Modifier = Modifier.Size(48),
                 Tint = palette.Success,
