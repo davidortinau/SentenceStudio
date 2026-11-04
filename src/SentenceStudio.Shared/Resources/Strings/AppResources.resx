@@ -3382,6 +3382,30 @@ For example: {0} ...</value>
     <value>All words mastered! Session complete.</value>
     <comment>Toast when the last words of the quiz are mastered and the session is saved as complete</comment>
   </data>
+  <data name="VocabQuiz_AllVocabularyMastered" xml:space="preserve">
+    <value>All vocabulary in this resource is mastered!</value>
+  </data>
+  <data name="VocabQuiz_OptionLabel" xml:space="preserve">
+    <value>Option {0}</value>
+  </data>
+  <data name="VocabQuiz_WriteSentenceFirst" xml:space="preserve">
+    <value>Write at least one sentence first.</value>
+  </data>
+  <data name="VocabQuiz_SomeSentencesUngraded" xml:space="preserve">
+    <value>See details below for sentences we couldn't grade.</value>
+  </data>
+  <data name="VocabQuiz_SentencesGradeUnavailable" xml:space="preserve">
+    <value>We couldn't grade your sentences right now. Please try again.</value>
+  </data>
+  <data name="VocabQuiz_SentenceTryAnother" xml:space="preserve">
+    <value>Not yet. Try another sentence using {0}.</value>
+  </data>
+  <data name="VocabQuiz_SentenceGradeFailedNoChange" xml:space="preserve">
+    <value>We couldn't grade that sentence right now. No progress was changed. Please try again.</value>
+  </data>
+  <data name="VocabQuiz_MarkedCorrect" xml:space="preserve">
+    <value>Marked correct</value>
+  </data>
   <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
     <value>This saved quiz cannot be resumed safely. Start a fresh session to continue.</value>
     <comment>Fail-closed compromised or stale resume warning</comment>

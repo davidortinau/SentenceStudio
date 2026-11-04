@@ -257,7 +257,8 @@ else if (currentItem != null)
                 {
                     <button class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                             style="width: 44px; height: 44px;"
-                            title="Play audio"
+                            title="@Localize["VocabWordEdit_PlayAudio"]"
+                            aria-label="@Localize["VocabWordEdit_PlayAudio"]"
                             disabled="@isPlayingAudio"
                             @onclick="PlayWordAudio">
                         <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
@@ -267,14 +268,16 @@ else if (currentItem != null)
                 {
                     <button class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                             style="width: 44px; height: 44px;"
-                            title="@(showMnemonicImage ? "Hide image" : "Show image")"
+                            title="@Localize[showMnemonicImage ? "NativeVocabQuiz_HideImage" : "NativeVocabQuiz_ShowImage"]"
+                            aria-label="@Localize[showMnemonicImage ? "NativeVocabQuiz_HideImage" : "NativeVocabQuiz_ShowImage"]"
                             @onclick="ToggleMnemonicImage">
                         <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
                     </button>
                 }
                 <button id="quiz-info-button" class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                         style="width: 44px; height: 44px;"
-                        title="Word learning details"
+                        title="@Localize["VocabQuiz_LearningDetails"]"
+                        aria-label="@Localize["VocabQuiz_LearningDetails"]"
                         @onclick="() => showInfoPanel = true">
                     <i class="bi bi-info-circle"></i>
                 </button>
@@ -314,7 +317,7 @@ else if (currentItem != null)
             @if (showMnemonicTextHint && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicText))
             {
                 <div class="alert alert-info py-2 px-3 mb-3 mx-auto" style="max-width: 560px;">
-                    <strong>Mnemonic:</strong> @currentItem.Word.MnemonicText
+                    <strong>@Localize["NativeVocabQuiz_Mnemonic"]:</strong> @currentItem.Word.MnemonicText
                 </div>
             }
 
@@ -359,7 +362,8 @@ else if (currentItem != null)
                 {
                     var optCopy = choiceOptions[optionIndex];
                     var optionText = optCopy.Text;
-                    var optionLabel = $"Option {(char)('A' + optionIndex)}";
+                    var optionLetter = ((char)('A' + optionIndex)).ToString();
+                    var optionLabel = Localize.Get("VocabQuiz_OptionLabel", optionLetter);
                     var optionId = $"quiz-option-{(char)('a' + optionIndex)}";
                     var bgClass = "";
                     var borderStyle = "";
@@ -388,8 +392,8 @@ else if (currentItem != null)
                         <div class="d-flex align-items-stretch gap-2">
                             <button type="button"
                                     class="btn btn-outline-secondary px-3"
-                                    title="Play answer audio"
-                                    aria-label="@($"Play {optionLabel.ToLowerInvariant()}")"
+                                    title="@Localize.Get("NativeVocabQuiz_PlayChoice", optionLetter)"
+                                    aria-label="@Localize.Get("NativeVocabQuiz_PlayChoice", optionLetter)"
                                     disabled="@isPlayingAudio"
                                     @onclick:stopPropagation="true"
                                     @onclick="() => PlayChoiceAudio(optCopy)">
@@ -399,8 +403,8 @@ else if (currentItem != null)
                             <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 flex-grow-1 @bgClass"
                                     id="@optionId"
                                     style="@borderStyle"
-                                    title="Select this answer"
-                                    aria-label="@($"Choose {optionLabel.ToLowerInvariant()}")"
+                                    title="@Localize.Get("NativeVocabQuiz_ChooseChoice", optionLetter)"
+                                    aria-label="@Localize.Get("NativeVocabQuiz_ChooseChoice", optionLetter)"
                                     disabled="@showAnswer"
                                     @onclick="() => SelectMultipleChoice(optionText)">
                                 @optionLabel
@@ -483,129 +487,107 @@ else
          style="height: auto; max-height: 70vh; border-radius: var(--bs-border-radius-xl) var(--bs-border-radius-xl) 0 0; z-index: 1050;">
         <div class="offcanvas-header pb-1 border-bottom">
             <h5 class="ss-title3 mb-0"><i class="bi bi-info-circle me-2"></i>@Localize["VocabQuiz_LearningDetails"]</h5>
-            <button type="button" class="btn-close" @onclick="() => showInfoPanel = false"></button>
+            <button type="button" class="btn-close" aria-label="@Localize["Common_Close"]" @onclick="() => showInfoPanel = false"></button>
         </div>
         <div class="offcanvas-body pt-2" style="overflow-y: auto;">
             @{
                 var p = currentItem.Progress;
-                var statusText = p?.Status.ToString() ?? "Unknown";
-                var statusBadge = statusText switch
+                var status = p?.Status ?? LearningStatus.Unknown;
+                var statusBadge = status switch
                 {
-                    "Known" => "bg-success",
-                    "Learning" => "bg-warning text-dark",
-                    "Familiar" => "bg-info text-dark",
+                    LearningStatus.Known => "bg-success",
+                    LearningStatus.Learning => "bg-warning text-dark",
+                    LearningStatus.Familiar => "bg-info text-dark",
                     _ => "bg-secondary"
                 };
+                var whyModeKey = WhyModeKey(currentItem);
             }
             @* #194 anti-cheat: Do NOT render TargetLanguageTerm or NativeLanguageTerm here —
                this panel is opened mid-quiz and showing either side leaks the answer.
                Only stats, status, and metadata may appear in the Learning Details panel. *@
             <div class="mb-3">
-                <span class="badge @statusBadge">@statusText</span>
+                <span class="badge @statusBadge">@Localize[StatusKey(status)]</span>
             </div>
 
             @* #189: Render only the streak-based truth fields. Legacy/obsolete metadata
                (IsKnown, IsUserDeclared, VerificationState, ProductionAttempts, RecognitionAttempts)
                is intentionally NOT shown — those readouts misled users about quiz state.
-               Schema fields remain on VocabularyProgress for backward compat. *@
+               Schema fields remain on VocabularyProgress for backward compat.
+               Labels match the native Learning Details (QuizLearningDetailsView). *@
             <div class="row g-2 mb-3">
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">TotalAttempts</small>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_TotalAttempts"]</small>
                     <span class="ss-body2 fw-bold">@(p?.TotalAttempts ?? 0)</span>
                 </div>
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">CorrectAttempts</small>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_CorrectAttempts"]</small>
                     <span class="ss-body2 fw-bold">@(p?.CorrectAttempts ?? 0)</span>
                 </div>
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">Accuracy</small>
-                    <span class="ss-body2 fw-bold">@((p?.Accuracy ?? 0f).ToString("P0"))</span>
+                    <small class="text-secondary-ss d-block">@Localize["Accuracy"]</small>
+                    <span class="ss-body2 fw-bold">@((p?.Accuracy ?? 0f).ToString("P0", Localize.Culture))</span>
                 </div>
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">CurrentStreak</small>
-                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak.ToString("F1") ?? "0")</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_CurrentStreak"]</small>
+                    <span class="ss-body2 fw-bold">@((p?.CurrentStreak ?? 0f).ToString("F1", Localize.Culture))</span>
                 </div>
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">ProductionInStreak</small>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_ProductionInStreak"]</small>
                     <span class="ss-body2 fw-bold">@(p?.ProductionInStreak ?? 0) / 2</span>
                 </div>
                 <div class="col-4">
-                    <small class="text-secondary-ss d-block">EffectiveStreak</small>
-                    <span class="ss-body2 fw-bold">@((p?.EffectiveStreak ?? 0f).ToString("F1"))</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_EffectiveStreak"]</small>
+                    <span class="ss-body2 fw-bold">@((p?.EffectiveStreak ?? 0f).ToString("F1", Localize.Culture))</span>
                 </div>
                 <div class="col-12">
-                    <small class="text-secondary-ss d-block">MasteryScore</small>
-                    <span class="ss-body2 fw-bold">@((p?.MasteryScore ?? 0f).ToString("P0"))</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_MasteryScore"]</small>
+                    <span class="ss-body2 fw-bold">@((p?.MasteryScore ?? 0f).ToString("P0", Localize.Culture))</span>
                 </div>
             </div>
 
             <hr class="border-secondary my-2" />
-            <h6 class="ss-caption1 text-secondary-ss mb-2">SRS Schedule</h6>
+            <h6 class="ss-caption1 text-secondary-ss mb-2">@Localize["NativeVocabQuiz_Details_SrsSchedule"]</h6>
             <div class="row g-2 mb-3">
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">NextReviewDate</small>
-                    <span class="ss-body2 fw-bold">@(p?.NextReviewDate?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not scheduled")</span>
+                    <small class="text-secondary-ss d-block">@Localize["VocabWordEdit_NextReviewLabel"]</small>
+                    <span class="ss-body2 fw-bold">@(p?.NextReviewDate?.ToLocalTime().ToString("d", Localize.Culture) ?? Localize["NotScheduled"])</span>
                 </div>
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">ReviewInterval</small>
-                    <span class="ss-body2 fw-bold">@(p?.ReviewInterval ?? 1) days</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_ReviewInterval"]</small>
+                    <span class="ss-body2 fw-bold">@Localize.Get("NativeVocabQuiz_Details_Days", p?.ReviewInterval ?? 1)</span>
                 </div>
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">EaseFactor</small>
-                    <span class="ss-body2 fw-bold">@((p?.EaseFactor ?? 2.5f).ToString("F2"))</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_EaseFactor"]</small>
+                    <span class="ss-body2 fw-bold">@((p?.EaseFactor ?? 2.5f).ToString("F2", Localize.Culture))</span>
                 </div>
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">IsDueForReview</small>
-                    <span class="ss-body2 fw-bold @(p?.IsDueForReview == true ? "text-warning" : "")">@(p?.IsDueForReview == true ? "Yes" : "No")</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_IsDueForReview"]</small>
+                    <span class="ss-body2 fw-bold @(p?.IsDueForReview == true ? "text-warning" : "")">@Localize[p?.IsDueForReview == true ? "Yes" : "No"]</span>
                 </div>
             </div>
 
             <hr class="border-secondary my-2" />
-            <h6 class="ss-caption1 text-secondary-ss mb-2">Quiz Context</h6>
+            <h6 class="ss-caption1 text-secondary-ss mb-2">@Localize["NativeVocabQuiz_Details_QuizContext"]</h6>
             <div class="row g-2">
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">Quiz Mode</small>
-                    <span class="ss-body2 fw-bold">@userMode</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_QuizMode"]</small>
+                    <span class="ss-body2 fw-bold">@Localize[userMode == "Text" ? "NativeVocabQuiz_Details_TextMode" : "NativeVocabQuiz_Details_MultipleChoiceMode"]</span>
                 </div>
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">DueOnly Filter</small>
-                    <span class="ss-body2 fw-bold">@(DueOnly ? "Yes" : "No")</span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_DueOnly"]</small>
+                    <span class="ss-body2 fw-bold">@Localize[DueOnly ? "Yes" : "No"]</span>
                 </div>
                 <div class="col-12">
-                    <small class="text-secondary-ss d-block">Why This Mode</small>
-                    <span class="ss-body2 fw-bold">
-                        @if (currentItem.PendingRecognitionCheck)
-                        {
-                            <text>Recognition check (wrong text answer earlier)</text>
-                        }
-                        else if (userMode == "Text")
-                        {
-                            @if (currentItem.RequiresFullSessionDemonstration && currentItem.UseKnownWordShortcut)
-                            {
-                                <text>Already known — confirming production once</text>
-                            }
-                            else if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f)
-                            {
-                                <text>Lifetime streak >= 3 (global progress)</text>
-                            }
-                            else
-                            {
-                                <text>MasteryScore >= 50% (global progress)</text>
-                            }
-                        }
-                        else
-                        {
-                            @if (currentItem.RequiresFullSessionDemonstration)
-                            {
-                                <text>Focus word — @Math.Clamp(currentItem.Progress?.QuizRecognitionDemonstrations ?? 0, 0, 3)/3 recognitions before Text</text>
-                            }
-                            else
-                            {
-                                <text>Still building recognition (streak &lt; 3, mastery &lt; 50%)</text>
-                            }
-                        }
-                    </span>
+                    <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_WhyMode"]</small>
+                    <span class="ss-body2 fw-bold">@Localize[whyModeKey]</span>
                 </div>
+                @if (whyModeKey == "NativeVocabQuiz_ModeFocusRecognition")
+                {
+                    <div class="col-12">
+                        <small class="text-secondary-ss d-block">@Localize["NativeVocabQuiz_Details_RecognitionDemonstrations"]</small>
+                        <span class="ss-body2 fw-bold">@Math.Clamp(currentItem.Progress?.QuizRecognitionDemonstrations ?? 0, 0, 3)/3</span>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -1036,7 +1018,7 @@ else
 
             if (!batchPool.Any())
             {
-                Toast.ShowInfo("All vocabulary in this resource is mastered!");
+                Toast.ShowInfo(Localize["VocabQuiz_AllVocabularyMastered"]);
                 isBusy = false;
                 return;
             }
@@ -1055,7 +1037,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load vocabulary");
-            Toast.ShowError($"Error loading vocabulary: {ex.Message}");
+            Toast.ShowError(Localize["ErrorLoadingVocabulary"]);
         }
         finally
         {
@@ -1999,7 +1981,7 @@ else
         var sentenceEntries = SplitSentenceEntries(sentenceShortcutInput);
         if (sentenceEntries.Count == 0)
         {
-            Toast.ShowWarning("Write at least one sentence first.");
+            Toast.ShowWarning(Localize["VocabQuiz_WriteSentenceFirst"]);
             return;
         }
 
@@ -2035,7 +2017,7 @@ else
                         gradedResults.Add(new SentenceShortcutResult(
                             sentenceText,
                             false,
-                            $"We couldn't confirm usage of \"{currentItem.Word.TargetLanguageTerm}\" in this sentence. Try rewriting it and submit again.",
+                            Localize.Get("NativeVocabQuiz_SentenceTargetUnconfirmed", currentItem.Word.TargetLanguageTerm),
                             grade?.Accuracy ?? 0,
                             grade?.Fluency ?? 0,
                             grade?.AccuracyExplanation ?? string.Empty,
@@ -2048,8 +2030,8 @@ else
                     var usageCorrect = targetAnalysis.UsageCorrect;
                     var usageExplanation = string.IsNullOrWhiteSpace(targetAnalysis.UsageExplanation)
                         ? usageCorrect
-                            ? $"\"{currentItem.Word.TargetLanguageTerm}\" is used meaningfully here."
-                            : $"This doesn't yet show a clear, correct use of \"{currentItem.Word.TargetLanguageTerm}\"."
+                            ? Localize.Get("NativeVocabQuiz_SentenceMeaningful", currentItem.Word.TargetLanguageTerm)
+                            : Localize.Get("NativeVocabQuiz_SentenceUnclear", currentItem.Word.TargetLanguageTerm)
                         : targetAnalysis.UsageExplanation;
 
                     gradedResults.Add(new SentenceShortcutResult(
@@ -2070,7 +2052,7 @@ else
                     gradedResults.Add(new SentenceShortcutResult(
                         sentenceText,
                         false,
-                        "We couldn't grade this sentence right now. Please try again.",
+                        Localize["NativeVocabQuiz_SentenceGradeUnavailable"],
                         0, 0, string.Empty, string.Empty, string.Empty, string.Empty));
                 }
             }
@@ -2125,26 +2107,30 @@ else
 
             if (sentenceShortcutSuccessCount == sentenceShortcutResults.Count)
             {
-                Toast.ShowSuccess($"Nice! {sentenceShortcutSuccessCount} sentence(s) counted toward mastery.");
+                Toast.ShowSuccess(Localize.Get("NativeVocabQuiz_SentenceResults",
+                    sentenceShortcutSuccessCount, sentenceShortcutResults.Count, currentItem.Word.TargetLanguageTerm));
             }
             else if (sentenceShortcutSuccessCount > 0)
             {
-                var suffix = gradingFailureCount > 0 ? " See details below for sentences we couldn't grade." : string.Empty;
-                Toast.ShowInfo($"{sentenceShortcutSuccessCount} of {sentenceShortcutResults.Count} sentence(s) counted toward mastery.{suffix}");
+                var counted = Localize.Get("NativeVocabQuiz_SentenceResults",
+                    sentenceShortcutSuccessCount, sentenceShortcutResults.Count, currentItem.Word.TargetLanguageTerm);
+                Toast.ShowInfo(gradingFailureCount > 0
+                    ? $"{counted} {Localize["VocabQuiz_SomeSentencesUngraded"]}"
+                    : counted);
             }
             else if (gradingFailureCount == sentenceShortcutResults.Count)
             {
-                Toast.ShowWarning("We couldn't grade your sentences right now. Please try again.");
+                Toast.ShowWarning(Localize["VocabQuiz_SentencesGradeUnavailable"]);
             }
             else
             {
-                Toast.ShowWarning($"Not yet—try another sentence using {currentItem.Word.TargetLanguageTerm}.");
+                Toast.ShowWarning(Localize.Get("VocabQuiz_SentenceTryAnother", currentItem.Word.TargetLanguageTerm));
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to grade sentence shortcut for word {Word}", currentItem.Word.TargetLanguageTerm);
-            Toast.ShowError("We couldn't grade that sentence right now. No progress was changed. Please try again.");
+            Toast.ShowError(Localize["VocabQuiz_SentenceGradeFailedNoChange"]);
         }
         finally
         {
@@ -2294,11 +2280,11 @@ else
         if (isCorrect) currentItem.WasCorrectThisSession = true;
 
         if (isCorrect && fuzzyCompleteForm != null)
-            feedbackMessage = $"Correct! Full form: {fuzzyCompleteForm}";
+            feedbackMessage = Localize.Get("NativeVocabQuiz_FuzzyFeedback", fuzzyCompleteForm);
         else if (isCorrect)
-            feedbackMessage = "Correct!";
+            feedbackMessage = Localize["NativeVocabQuiz_CorrectFeedback"];
         else
-            feedbackMessage = $"The answer is: {correctAnswer}";
+            feedbackMessage = Localize.Get("NativeVocabQuiz_IncorrectFeedback", correctAnswer);
 
         showMnemonicTextHint = showAnswer && isCorrect && QuizPrefs.ShowMnemonicImage
             && !string.IsNullOrWhiteSpace(currentItem.Word.MnemonicText);
@@ -2476,7 +2462,7 @@ else
         autoAdvanceCts?.Cancel();
         isCorrect = true;
         requireCorrectTyping = false;
-        feedbackMessage = "Marked correct ✓";
+        feedbackMessage = Localize["VocabQuiz_MarkedCorrect"];
 
         // Apply session-state mutations via the shared method on
         // VocabularyQuizItem so the regression tests bind to the same code.
@@ -3122,4 +3108,25 @@ else
     private string GetAnswerText(VocabularyWord word) => promptUsesNativeLanguage
         ? word.TargetLanguageTerm ?? ""
         : word.NativeLanguageTerm ?? "";
+
+    /// <summary>Why this word is in its mode; the same rule and keys as the native Learning Details.</summary>
+    private string WhyModeKey(VocabularyQuizItem item) => item.PendingRecognitionCheck
+        ? "NativeVocabQuiz_ModeRecognitionCheck"
+        : userMode == "Text"
+            ? item.RequiresFullSessionDemonstration && item.UseKnownWordShortcut
+                ? "NativeVocabQuiz_ModeKnownConfirmation"
+                : (item.Progress?.CurrentStreak ?? 0f) >= 3f
+                    ? "NativeVocabQuiz_ModeLifetimeStreak"
+                    : "NativeVocabQuiz_ModeMastery"
+            : item.RequiresFullSessionDemonstration
+                ? "NativeVocabQuiz_ModeFocusRecognition"
+                : "NativeVocabQuiz_ModeBuildingRecognition";
+
+    private static string StatusKey(LearningStatus status) => status switch
+    {
+        LearningStatus.Known => "VocabWordEdit_StatusKnown",
+        LearningStatus.Familiar => "VocabWordEdit_StatusFamiliar",
+        LearningStatus.Learning => "VocabWordEdit_StatusLearning",
+        _ => "VocabWordEdit_StatusUnknown"
+    };
 }

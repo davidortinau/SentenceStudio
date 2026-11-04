@@ -4,8 +4,8 @@ using SentenceStudio.WebUI.Services;
 namespace SentenceStudio.UI.Tests.Activities;
 
 /// <summary>
-/// B34 leftovers: hard-coded English on the shared Razor pages now uses resx keys with natural
-/// Korean, and the Reading jump hint no longer tells a mouse user to double-tap.
+/// B34 leftovers and B50 (Vocabulary Quiz): hard-coded English on the shared Razor pages now uses
+/// resx keys with natural Korean, and the Reading jump hint no longer tells a mouse user to double-tap.
 /// </summary>
 public sealed class BackportLocalizationTests
 {
@@ -17,6 +17,14 @@ public sealed class BackportLocalizationTests
         { "HowDoYouSay.razor", "HowDoYouSay_AudioUnavailable", "\"Audio unavailable.\"" },
         { "Reading.razor", "Reading_JumpHintWeb", "Localize[\"Reading_JumpHint\"]" },
         { "Scene.razor", "Scene_GalleryEmpty", "No cached images yet." },
+        // B50: Vocabulary Quiz hard-coded English and raw exception text.
+        { "VocabQuiz.razor", "ErrorLoadingVocabulary", "Error loading vocabulary: {ex.Message}" },
+        { "VocabQuiz.razor", "VocabQuiz_AllVocabularyMastered", "\"All vocabulary in this resource is mastered!\"" },
+        { "VocabQuiz.razor", "VocabQuiz_WriteSentenceFirst", "\"Write at least one sentence first.\"" },
+        { "VocabQuiz.razor", "VocabQuiz_SentenceGradeFailedNoChange", "No progress was changed. Please try again.\"" },
+        { "VocabQuiz.razor", "VocabQuiz_MarkedCorrect", "Marked correct" + " \u2713" },
+        { "VocabQuiz.razor", "NativeVocabQuiz_Details_TotalAttempts", ">TotalAttempts<" },
+        { "VocabQuiz.razor", "NativeVocabQuiz_Details_WhyMode", "Why This Mode" },
     };
 
     [Theory]
