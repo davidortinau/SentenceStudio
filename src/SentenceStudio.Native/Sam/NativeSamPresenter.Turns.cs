@@ -569,6 +569,16 @@ public sealed partial class NativeSamPresenter
             Publish(_state with { VocabularySetMessageKey = "NativeSam_VocabularyReviewNotReady" });
     }
 
+    /// <summary>
+    /// Sam is reachable on every signed-in screen, but the review opens from the
+    /// Dashboard: the learner is asked to close the current screen; Start stays available.
+    /// </summary>
+    public void ReportVocabularyReviewBlockedByScreen()
+    {
+        if (_state.ApprovedResourceId is not null)
+            Publish(_state with { VocabularySetMessageKey = "NativeSam_VocabularyReviewLeaveScreen" });
+    }
+
     private async Task DecideVocabularySetAsync(ApplicationOperationDecision decision,
         CancellationToken cancellationToken)
     {

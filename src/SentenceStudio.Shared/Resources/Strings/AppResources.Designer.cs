@@ -10129,6 +10129,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Met.
+        /// </summary>
+        internal static string NativeAuth_PasswordRuleMet {
+            get {
+                return ResourceManager.GetString("NativeAuth_PasswordRuleMet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not met.
+        /// </summary>
+        internal static string NativeAuth_PasswordRuleNotMet {
+            get {
+                return ResourceManager.GetString("NativeAuth_PasswordRuleNotMet", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Could not request password recovery. Check your address and try again..
         /// </summary>
         internal static string NativeAuth_RecoveryFailed {
@@ -10588,6 +10606,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Done.
+        /// </summary>
+        internal static string NativeOnboarding_StepDone {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_StepDone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In progress.
+        /// </summary>
+        internal static string NativeOnboarding_StepInProgress {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_StepInProgress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting.
+        /// </summary>
+        internal static string NativeOnboarding_StepWaiting {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_StepWaiting", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Password changes and account deletion are unavailable here. Your account will not be changed..
         /// </summary>
         internal static string NativeProfile_AccountActionUnavailable {
@@ -11016,6 +11061,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeSam_SyncRequired {
             get {
                 return ResourceManager.GetString("NativeSam_SyncRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close the screen you are on, then start this review..
+        /// </summary>
+        internal static string NativeSam_VocabularyReviewLeaveScreen {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularyReviewLeaveScreen", resourceCulture);
             }
         }
 

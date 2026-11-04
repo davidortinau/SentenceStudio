@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -140,6 +141,62 @@ public sealed partial class NativeAuthPresenter
             logger.LogError(ex, "Native onboarding completion failed.");
             return new(NativeOnboardingOutcome.Failed,
                 "NativeOnboarding_StarterFailed");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Source Onboarding.razor LoadSuggestedNames: after the target language step,
+    /// eight names for that language. Only the onboarding owner may ask, and a
+    /// result that arrives after the owner changed is dropped (empty).
+    /// </summary>
+    public async Task<ImmutableArray<string>> SuggestOnboardingNamesAsync(
+        string targetLanguage, CancellationToken cancellationToken = default)
+    {
+        if (onboardingNames is null
+            || !NativeOnboardingOptions.TargetLanguages.Contains(targetLanguage)
+            || !TryOnboardingOwner(out var owner))
+            return [];
+        var names = await onboardingNames.SuggestAsync(owner, targetLanguage, cancellationToken);
+        return TryOnboardingOwner(out var current) && current == owner && !names.IsDefault
+            ? names : [];
+    }
+
+    /// <summary>
+    /// Source Index.razor CreateStarterResourceAsync: a learner on the Dashboard
+    /// whose profile has no target language is sent to onboarding instead of
+    /// being told to set one. Only the published owner's own profile is read;
+    /// the per-owner pending marker resumes onboarding after a restart. Returns
+    /// false, and changes nothing, when the owner is not current or the profile
+    /// already has a target language.
+    /// </summary>
+    public async Task<bool> BeginOnboardingForMissingTargetLanguageAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (State is not {
+                    Phase: NativePhase.Ready,
+                    Destination: NativeDestination.Dashboard,
+                    UserId: { } owner } current
+                || !await HasPublishedTokenOwnerAsync(owner, cancellationToken))
+                return false;
+            var profile = await profiles.GetByIdAsync(owner, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(profile?.TargetLanguage)
+                || State is not { Phase: NativePhase.Ready,
+                    Destination: NativeDestination.Dashboard, UserId: { } stillOwner }
+                || stillOwner != owner
+                || !await HasPublishedTokenOwnerAsync(owner, cancellationToken))
+                return false;
+            logger.LogInformation("Native Dashboard routed a learner with no target language to onboarding.");
+            SetOnboardingPending(owner, true);
+            SetState(new(NativePhase.Ready, NativeDestination.Onboarding, owner,
+                HasPendingSync: current.HasPendingSync || pendingWrites.IsPending(owner)));
+            return true;
         }
         finally
         {

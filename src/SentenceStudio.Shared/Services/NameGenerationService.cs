@@ -12,7 +12,7 @@ public class NameGenerationService
     private readonly IConnectivityService _connectivity;
 
     // Hardcoded names by language and gender
-    private readonly Dictionary<string, Dictionary<string, string[]>> _hardcodedNames = new()
+    private static readonly Dictionary<string, Dictionary<string, string[]>> _hardcodedNames = new()
     {
         ["English"] = new()
         {
@@ -61,30 +61,37 @@ public class NameGenerationService
 
     private async Task<string[]> GenerateNamesWithAiAsync(string targetLanguage)
     {
-        var prompt = $"Generate 8 popular names from {targetLanguage} culture in the native script/language - 4 masculine and 4 feminine names. " +
-                    $"If the language is Korean, use Hangul characters. If Japanese, use appropriate Japanese characters. " +
-                    $"Return only the names separated by commas, no additional text, formatting, or romanization. " +
-                    $"For example for Korean: 지훈, 민수, 현우, 태양, 지은, 수빈, 예린, 하은";
-
-        var response = await _aiService.SendPrompt<string>(prompt);
-
-        if (!string.IsNullOrEmpty(response))
-        {
-            var names = response.Split(',')
-                               .Select(name => name.Trim())
-                               .Where(name => !string.IsNullOrEmpty(name))
-                               .Take(8)
-                               .ToArray();
-
-            if (names.Length == 8)
-                return names;
-        }
+        var response = await _aiService.SendPrompt<string>(BuildPrompt(targetLanguage));
 
         // Fallback if AI response is invalid
-        return GetHardcodedNames(targetLanguage);
+        return ParseNames(response) ?? GetHardcodedNames(targetLanguage);
     }
 
-    private string[] GetHardcodedNames(string targetLanguage)
+    /// <summary>
+    /// The name-suggestion prompt. Shared with the native onboarding port so every
+    /// client asks for the same eight names.
+    /// </summary>
+    public static string BuildPrompt(string targetLanguage) =>
+        $"Generate 8 popular names from {targetLanguage} culture in the native script/language - 4 masculine and 4 feminine names. " +
+        $"If the language is Korean, use Hangul characters. If Japanese, use appropriate Japanese characters. " +
+        $"Return only the names separated by commas, no additional text, formatting, or romanization. " +
+        $"For example for Korean: 지훈, 민수, 현우, 태양, 지은, 수빈, 예린, 하은";
+
+    /// <summary>The eight comma-separated names of a response, or null when it has fewer.</summary>
+    public static string[]? ParseNames(string? response)
+    {
+        if (string.IsNullOrEmpty(response))
+            return null;
+        var names = response.Split(',')
+                           .Select(name => name.Trim())
+                           .Where(name => !string.IsNullOrEmpty(name))
+                           .Take(8)
+                           .ToArray();
+        return names.Length == 8 ? names : null;
+    }
+
+    /// <summary>The built-in names for a language (English when it has none).</summary>
+    public static string[] GetHardcodedNames(string targetLanguage)
     {
         if (_hardcodedNames.TryGetValue(targetLanguage, out var languageNames))
         {

@@ -93,6 +93,7 @@ public static class NativeSliceRegistration
                 ? new NativeApiProfileRemoteStore(clients, profileAuth,
                     sp.GetRequiredService<ILogger<NativeApiProfileRemoteStore>>())
                 : new UnavailableNativeProfileRemoteStore());
+        services.TryAddSingleton<INativeOnboardingNames, NativeOnboardingNames>();
         services.AddTransient<NativeAuthPresenter>();
         services.AddTransient<NativeDashboardPresenter>();
         services.AddTransient<NativeQuizPresenter>();
