@@ -53,7 +53,8 @@ internal sealed partial class ApplicationScene
                 .WithInlineNavigationTitle()
                 .WithTabBarHidden();
             _renderedLookupsVersion = _app.RecentLookupsViewVersion;
-            stack.Push(ApplicationFormRoutes.RecentLookups, _lookupsSlot);
+            stack.Push(ApplicationFormRoutes.RecentLookups,
+                WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));
         }
         else if (_lookupsSlot is not null
             && (appearanceChanged || _renderedLookupsVersion != _app.RecentLookupsViewVersion))

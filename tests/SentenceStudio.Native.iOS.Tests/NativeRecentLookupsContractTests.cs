@@ -21,7 +21,9 @@ public sealed class NativeRecentLookupsContractTests
         Assert.Contains("OpenLookups = OpenRecentLookups", Source("App/ApplicationController.Vocabulary.cs"));
 
         var scene = Source("App/ApplicationScene.Vocabulary.cs");
-        Assert.Contains("stack.Push(ApplicationFormRoutes.RecentLookups, _lookupsSlot);", scene);
+        // Pushed with the Sam entry like every other signed-in screen (W1, decision 6).
+        Assert.Contains("stack.Push(ApplicationFormRoutes.RecentLookups,\n"
+            + "                WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));", scene);
         Assert.Contains(".WithTabBarHidden();", scene);
         Assert.Contains("_app.OnRecentLookupsPopped();", scene);
         Assert.Equal("recent-lookups", ApplicationFormRoutes.RecentLookups);
