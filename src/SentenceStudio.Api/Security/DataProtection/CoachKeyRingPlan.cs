@@ -205,9 +205,10 @@ public static class CoachKeyRingPlanner
     /// <remarks>
     /// Aspire appends <c>;ContainerName=&lt;name&gt;</c> to both forms it emits — the Azurite
     /// shared-key string and the <c>Endpoint=</c> string. The Azure SDK does not understand that
-    /// segment, so it has to come off before the value reaches a client.
+    /// segment, so it has to come off before the value reaches a client. Also used by the speech
+    /// clip cache, which reads its container the same way.
     /// </remarks>
-    private static (string Target, string ContainerName) SplitConnectionString(
+    internal static (string Target, string ContainerName) SplitConnectionString(
         string connectionString,
         string fallbackContainerName)
     {

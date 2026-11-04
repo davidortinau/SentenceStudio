@@ -125,13 +125,14 @@ var redis = builder.AddRedis("cache");
 // live here. Keep the established volume name when no override is provided.
 var localAzuriteDataVolume = builder.Configuration["LocalAzurite:DataVolume"]?.Trim();
 
-var storage = builder.AddAzureStorage("storage")
+var storageAccount = builder.AddAzureStorage("storage")
     .RunAsEmulator(azurite => azurite
         .WithDataVolume(string.IsNullOrWhiteSpace(localAzuriteDataVolume)
             ? "sentencestudio-local-azurite-data"
             : localAzuriteDataVolume)
-        .WithLifetime(ContainerLifetime.Persistent))
-    .AddBlobs("media");
+        .WithLifetime(ContainerLifetime.Persistent));
+
+var storage = storageAccount.AddBlobs("media");
 
 // The Data Protection key ring for the API. It is a separate container from "media" on purpose:
 // the ring is key material, so it gets its own container and can be given its own access policy
@@ -142,6 +143,11 @@ var storage = builder.AddAzureStorage("storage")
 // protected coach row written before a restart becomes permanently unreadable. Persisting to a
 // blob keeps the ring across restarts and across replicas.
 var coachKeyRing = storage.AddBlobContainer("coach-keyring", "coach-dataprotection");
+
+// The "media" blob container. The API keeps generated speech clips here under speech-cache/v1/,
+// named by a hash of voice, model, settings and text, so a repeat request is not paid for again.
+// Declaring it here creates it in Azurite locally and in Azure on the next provision.
+var mediaContainer = storageAccount.AddBlobContainer("media-container", "media");
 
 // --- Learning Coach flow-through configuration ---------------------------------------------
 // Local run mode reads the AppHost's complete builder configuration, so appsettings.Development
@@ -191,6 +197,11 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     // leave it on the ephemeral ring for the life of the process.
     .WithReference(coachKeyRing)
     .WaitFor(coachKeyRing)
+    // Injects ConnectionStrings__media-container for the speech clip cache; see
+    // SpeechClipCacheServiceCollectionExtensions. The cache is optional: the API serves speech
+    // without it, so this only waits for the container Aspire creates in the emulator.
+    .WithReference(mediaContainer)
+    .WaitFor(mediaContainer)
     .WithExternalHttpEndpoints()
     // /health is Development-only and reports database diagnostics. The existing public version
     // route is mapped in every environment, after the API's pre-Run migrations and backfills.
