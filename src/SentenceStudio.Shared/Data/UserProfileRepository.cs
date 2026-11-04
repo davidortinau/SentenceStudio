@@ -377,6 +377,55 @@ public partial class UserProfileRepository : SentenceStudio.Application.Learners
     }
 
     /// <summary>
+    /// Returned by <see cref="SaveEditableProfileForOwnerAsync"/> when the owner has no row.
+    /// </summary>
+    public const int EditableProfileSaveMissing = -2;
+
+    /// <summary>
+    /// Updates only the learner-editable profile fields (the web Profile page's name,
+    /// languages, session length and level) on the exact owner's existing row. Email,
+    /// API keys and every other column are left as stored, so this never overwrites a
+    /// concurrent change to them. Never creates a row. Returns the affected row count
+    /// (zero when nothing changed), <see cref="EditableProfileSaveMissing"/> when the
+    /// owner's row does not exist, and -1 for an absent owner or invalid input.
+    /// </summary>
+    public async Task<int> SaveEditableProfileForOwnerAsync(
+        string owner, string name, string nativeLanguage, string targetLanguage,
+        string displayLanguage, int preferredSessionMinutes, string targetCefrLevel,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            _logger.LogWarning("SaveEditableProfileForOwnerAsync refused an absent owner.");
+            return -1;
+        }
+        if (string.IsNullOrWhiteSpace(name)
+            || string.IsNullOrWhiteSpace(nativeLanguage)
+            || string.IsNullOrWhiteSpace(targetLanguage)
+            || string.IsNullOrWhiteSpace(displayLanguage)
+            || string.IsNullOrWhiteSpace(targetCefrLevel)
+            || preferredSessionMinutes <= 0)
+        {
+            _logger.LogWarning("SaveEditableProfileForOwnerAsync refused incomplete fields.");
+            return -1;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var profile = await db.UserProfiles.FirstOrDefaultAsync(
+            item => item.Id == owner, cancellationToken);
+        if (profile is null)
+            return EditableProfileSaveMissing;
+        profile.Name = name;
+        profile.NativeLanguage = nativeLanguage;
+        profile.TargetLanguage = targetLanguage;
+        profile.DisplayLanguage = displayLanguage;
+        profile.PreferredSessionMinutes = preferredSessionMinutes;
+        profile.TargetCEFRLevel = targetCefrLevel;
+        return await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Persists only the <see cref="UserProfile.VocabQuizShowTextWithPhoto"/> property for
     /// the given user. Unlike <see cref="SaveAsync"/>, this performs a tracked single-property
     /// update and cannot overwrite unrelated concurrent changes.

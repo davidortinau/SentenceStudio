@@ -96,7 +96,8 @@ internal sealed partial class AndroidSliceShell
             case MoreScreen.Profile when owner is not null:
                 var profile = new ProfileCoordinator(
                     provider.GetRequiredService<UserProfileRepository>(), scope,
-                    provider.GetRequiredService<ILogger<ProfileCoordinator>>());
+                    provider.GetRequiredService<ILogger<ProfileCoordinator>>(),
+                    provider.GetRequiredService<INativeProfileRemoteStore>());
                 profile.Changed += OnMoreChanged;
                 _profile = profile;
                 RunMore(() => profile.OpenAsync(owner, _lifetime.Token));

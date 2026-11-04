@@ -14,7 +14,8 @@ internal sealed record ProfileFormActions(
     Func<int, bool> SessionMinutesChanged,
     Func<string, bool> TargetCefrLevelChanged,
     Action Retry,
-    Action RequestDelete);
+    Action RequestDelete,
+    Action Save);
 
 internal static class ProfileView
 {
@@ -45,12 +46,18 @@ internal static class ProfileView
         }
 
         var draft = state.Draft;
+        var editable = !state.IsSaving;
+        // Save sends only the editable fields; email is shown read-only so an edit
+        // is never silently dropped.
         var personal = Card(style, "native.profile.personal", [
             Heading(style, text("Profile_PersonalInformation")),
             Field(style, text("Profile_Name"), text("Profile_NamePlaceholder"),
-                draft.Name, "native.profile.name", actions.NameChanged),
+                draft.Name, "native.profile.name", actions.NameChanged, editable),
             Field(style, text("Profile_Email"), text("Profile_EmailPlaceholder"),
-                draft.Email, "native.profile.email", actions.EmailChanged)
+                draft.Email, "native.profile.email", actions.EmailChanged, enabled: false),
+            style.Text(Views.Text(text("NativeProfile_EmailReadOnly")),
+                    SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.profile.email.readonly")
         ]);
 
         var languages = NativeOnboardingOptions.NativeLanguages
@@ -59,10 +66,10 @@ internal static class ProfileView
             Heading(style, text("Profile_LanguageSettings")),
             Choice(style, text("Profile_NativeLanguage"), languages,
                 draft.NativeLanguage, "native.profile.language.native",
-                actions.NativeLanguageChanged),
+                actions.NativeLanguageChanged, editable),
             Choice(style, text("Profile_TargetLanguage"), languages,
                 draft.TargetLanguage, "native.profile.language.target",
-                actions.TargetLanguageChanged),
+                actions.TargetLanguageChanged, editable),
             Choice(style, text("Profile_DisplayLanguage"),
                 [
                     new SwiftPickerOption("English",
@@ -70,7 +77,7 @@ internal static class ProfileView
                     new SwiftPickerOption("Korean",
                         text("Profile_DisplayLanguage_Korean"))
                 ], draft.DisplayLanguage, "native.profile.language.display",
-                actions.DisplayLanguageChanged)
+                actions.DisplayLanguageChanged, editable)
         ]);
 
         var preferences = Card(style, "native.profile.preferences", [
@@ -80,19 +87,20 @@ internal static class ProfileView
                 draft.PreferredSessionMinutes,
                 minute => minute.ToString(CultureInfo.CurrentCulture),
                 minute => $"native.profile.minutes.{minute}",
-                actions.SessionMinutesChanged),
+                actions.SessionMinutesChanged, editable),
             Preference(style, text("Profile_TargetCEFRLevel"),
                 NativeOnboardingOptions.CefrLevels,
                 draft.TargetCefrLevel, level => level,
                 level => $"native.profile.level.{level}",
-                actions.TargetCefrLevelChanged)
+                actions.TargetCefrLevelChanged, editable)
         ]);
 
         var save = style.PrimaryButton(text("Profile_SaveProfile"),
-                static () => { }, fullWidth: true)
+                actions.Save, fullWidth: true)
             .WithAccessibilityIdentifier("native.profile.save");
-        SourceUiStyle.SetCustomButtonAvailability(save, style.Appearance,
-            SourceButtonRole.Primary, enabled: false);
+        if (!state.CanSave)
+            SourceUiStyle.SetCustomButtonAvailability(save, style.Appearance,
+                SourceButtonRole.Primary, enabled: false);
 
         var password = Card(style, "native.profile.password", [
             Views.HStack(
@@ -114,14 +122,29 @@ internal static class ProfileView
         ]);
 
         var danger = DangerCard(style, text, actions.RequestDelete);
-        return Page(style, [
-            personal, settings, preferences,
-            save,
-            style.Text(Views.Text(text("NativeProfile_SaveUnavailable")),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.profile.save.unavailable"),
-            password, danger
-        ]);
+        var sections = new List<SwiftView> { personal, settings, preferences, save };
+        if (SaveStatus(state, style, text) is { } saveStatus)
+            sections.Add(saveStatus);
+        sections.Add(password);
+        sections.Add(danger);
+        return Page(style, sections);
+    }
+
+    /// <summary>The last save attempt: progress, the source "Profile saved" success, or an honest error.</summary>
+    private static SwiftView? SaveStatus(
+        ProfileState state, SourceUiStyle style, Func<string, string> text)
+    {
+        SwiftView? status = state.SaveStatus switch
+        {
+            ProfileSaveStatus.Saving => Views.IndeterminateProgress(
+                text("NativeProfile_Saving")),
+            ProfileSaveStatus.Saved or ProfileSaveStatus.Failed
+                when state.SaveMessageKey is { } key => style.Alert(
+                    style.Text(Views.Text(text(key)), SourceTextRole.Body2),
+                    success: state.SaveStatus == ProfileSaveStatus.Saved),
+            _ => null
+        };
+        return status?.WithAccessibilityIdentifier("native.profile.save.status");
     }
 
     private static SwiftView Page(SourceUiStyle style, IEnumerable<SwiftView> sections)
@@ -154,12 +177,13 @@ internal static class ProfileView
 
     private static SwiftView Field(
         SourceUiStyle style, string label, string placeholder,
-        string value, string id, Func<string, bool> changed)
+        string value, string id, Func<string, bool> changed, bool enabled)
     {
         var input = style.TextInput(Views.TextField(placeholder, value,
                 next => changed(next)))
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
+        input.IsEnabled = enabled;
         var field = Views.VStack(
             style.Text(Views.Text(label), SourceTextRole.Body2,
                 SourceTextTone.Secondary), input);
@@ -169,7 +193,7 @@ internal static class ProfileView
 
     private static SwiftView Choice(
         SourceUiStyle style, string label, SwiftPickerOption[] options,
-        string selected, string id, Func<string, bool> changed)
+        string selected, string id, Func<string, bool> changed, bool enabled)
     {
         var picker = style.Input(Views.Picker(
                     string.Empty, options, selected, next => changed(next))
@@ -177,6 +201,7 @@ internal static class ProfileView
                 .WithAccessibilityLabel(label)
                 .WithFlexibleWidth())
             .WithAccessibilityIdentifier(id);
+        picker.IsEnabled = enabled;
         var field = Views.VStack(
             style.Text(Views.Text(label), SourceTextRole.Body2,
                 SourceTextTone.Secondary), picker);
@@ -187,7 +212,7 @@ internal static class ProfileView
     private static SwiftView Preference<T>(
         SourceUiStyle style, string label, IReadOnlyList<T> options,
         T selected, Func<T, string> display, Func<T, string> id,
-        Func<T, bool> changed) where T : notnull
+        Func<T, bool> changed, bool enabled) where T : notnull
     {
         var phone = style.ViewportWidth < 768;
         var buttons = new SwiftView[options.Count];
@@ -202,6 +227,10 @@ internal static class ProfileView
                         fullWidth: phone))
                 .WithAccessibilitySelected(isSelected)
                 .WithAccessibilityIdentifier(id(value));
+            if (!enabled)
+                SourceUiStyle.SetCustomButtonAvailability(buttons[index], style.Appearance,
+                    isSelected ? SourceButtonRole.Primary : SourceButtonRole.FilledSecondary,
+                    enabled: false);
         }
 
         void Select(T value)
