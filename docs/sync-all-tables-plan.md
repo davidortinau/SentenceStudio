@@ -539,6 +539,14 @@ the active learner, after the translation is shown; a failed or empty lookup rec
 a recording failure is logged and the translation stays shown. Reading also keeps its
 `UserActivity` row ("Dictionary lookup: ...") for the activity log.
 
+**Direction must be known, or nothing is recorded** (`VocabularyLookupRepository.DirectionFor`).
+A match on the learner's own word by its target term is `ToNative`; by its native term,
+`ToTarget`. The Translate prompt always translates into English, so its result is `ToNative`
+only for a learner whose native language is English, and only when it differs from the text
+(English typed in gives English back). For any other learner (for example a Korean speaker
+learning English) the translation is shown but not recorded, because "Add to vocabulary"
+would otherwise create a word with its sides swapped.
+
 **Add to vocabulary.** The learner picks one of their resources in the lookup's language (not
 smart resources); the target and native terms come from `Direction`; the shared
 create-and-link path (`CreateAndAttachOwnedVocabularyAsync`) links an existing word instead of

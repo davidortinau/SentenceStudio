@@ -111,25 +111,28 @@ internal static class RecentLookupsView
             return style.Text(Views.Text(text("Lookups_NoResource")),
                     SourceTextRole.Small, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier(RecentLookupsAccess.Add(row));
-        var items = new List<SwiftView>
-        {
-            Views.Text(text("Lookups_ChooseResource"))
-                .WithAccessibilityIdentifier($"{RecentLookupsAccess.Add(row)}.heading")
-        };
-        items.AddRange(row.Destinations.Select(destination =>
-            Views.Button(destination.Title, () => add(row.Id, destination.ResourceId))
-                .WithAccessibilityIdentifier(RecentLookupsAccess.Destination(row, destination))));
         var adding = addingId == row.Id;
         var face = Views.HStack(
                 Views.Image(adding ? "hourglass" : "plus.circle"),
                 Views.Text(text("Lookups_AddToVocabulary")))
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
         face.Spacing = 6;
-        var menu = Views.Menu(face, items.ToArray())
+        var menu = Views.Menu(face, DestinationButtons(row, add))
             .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(RecentLookupsAccess.Add(row));
         menu.IsEnabled = addingId is null;
         return menu;
     }
+
+    /// <summary>
+    /// The menu's actions: one Button per destination resource and nothing else. The facade's
+    /// Menu refuses any action that is not a Button (a heading Text threw and left the page on
+    /// Loading, seen on the simulator 2026-11-04).
+    /// </summary>
+    internal static SwiftView[] DestinationButtons(RecentLookupRow row, Action<string, string> add) =>
+        row.Destinations.Select(destination =>
+                Views.Button(destination.Title, () => add(row.Id, destination.ResourceId))
+                    .WithAccessibilityIdentifier(RecentLookupsAccess.Destination(row, destination)))
+            .ToArray();
 }

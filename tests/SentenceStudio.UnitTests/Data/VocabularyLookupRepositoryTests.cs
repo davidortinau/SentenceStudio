@@ -22,6 +22,8 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
 {
     private const string LearnerA = "learner-a";
     private const string LearnerB = "learner-b";
+    /// <summary>A Korean speaker learning English: the Translate prompt's English is their target language.</summary>
+    private const string LearnerKo = "learner-ko";
     private static readonly DateTime Start = new(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc);
 
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
@@ -45,7 +47,8 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
         db.Database.EnsureCreated();
         db.UserProfiles.AddRange(
             new UserProfile { Id = LearnerA, Name = "A", TargetLanguage = "Korean", NativeLanguage = "English" },
-            new UserProfile { Id = LearnerB, Name = "B", TargetLanguage = "Japanese", NativeLanguage = "English" });
+            new UserProfile { Id = LearnerB, Name = "B", TargetLanguage = "Japanese", NativeLanguage = "English" },
+            new UserProfile { Id = LearnerKo, Name = "K", TargetLanguage = "English", NativeLanguage = "Korean" });
         db.LearningResources.AddRange(
             Resource("res-a", LearnerA, "A's story", "Korean"),
             Resource("res-a-smart", LearnerA, "Daily words", "Korean", smart: true),
@@ -64,7 +67,7 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
         new(_provider, NullLogger<VocabularyLookupRepository>.Instance, clock: _clock);
 
     private static VocabularyLookupEntry Reading(string text, string translation, string? resource = "res-a") =>
-        new(text, translation, VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Reading, resource);
+        new(text, translation, VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Reading, resource);
 
     [Fact]
     public async Task RepeatLookup_UpdatesItsOneRow_WithTheLatestTranslationAndTime_KeepingTheFirst()
@@ -72,7 +75,7 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
         (await Repository().RecordAsync(LearnerA, Reading("물", "water"))).Should().Be(VocabularyLookupRecordStatus.Recorded);
         _clock.Advance(TimeSpan.FromMinutes(5));
         (await Repository().RecordAsync(LearnerA, new VocabularyLookupEntry(" 물 ", "water (drink)",
-            VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Writing))).Should().Be(VocabularyLookupRecordStatus.Recorded);
+            VocabularyLookupOrigin.OwnedTargetTerm, VocabularyLookupActivity.Writing))).Should().Be(VocabularyLookupRecordStatus.Recorded);
 
         var row = (await RowsAsync()).Should().ContainSingle().Subject;
         row.Id.Should().Be(SyncIds.VocabularyLookup(LearnerA, "Korean", VocabularyLookupDirection.ToNative, "물"));
@@ -117,6 +120,52 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
             "a caller acting for B while A is active is refused");
         (await Repository().GetRecentAsync(LearnerB)).Items.Should().BeEmpty();
         (await RowsAsync()).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(VocabularyLookupOrigin.OwnedTargetTerm, "Korean", VocabularyLookupDirection.ToNative)]
+    [InlineData(VocabularyLookupOrigin.OwnedNativeTerm, "Korean", VocabularyLookupDirection.ToTarget)]
+    [InlineData(VocabularyLookupOrigin.OwnedTargetTerm, "English", VocabularyLookupDirection.ToNative)]
+    [InlineData(VocabularyLookupOrigin.OwnedNativeTerm, "English", VocabularyLookupDirection.ToTarget)]
+    [InlineData(VocabularyLookupOrigin.TranslatedToEnglish, "English", VocabularyLookupDirection.ToNative)]
+    [InlineData(VocabularyLookupOrigin.TranslatedToEnglish, " english ", VocabularyLookupDirection.ToNative)]
+    public void Direction_IsKnownForOwnedMatchesAndForEnglishFromAnEnglishSpeaker(
+        VocabularyLookupOrigin origin, string nativeLanguage, VocabularyLookupDirection expected) =>
+        VocabularyLookupRepository.DirectionFor(origin, nativeLanguage, "물", "water").Should().Be(expected);
+
+    [Theory]
+    [InlineData("Korean")]
+    [InlineData("Japanese")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Direction_OfAnEnglishTranslation_IsUnknownForAnyOtherNativeLanguage(string? nativeLanguage) =>
+        VocabularyLookupRepository.DirectionFor(VocabularyLookupOrigin.TranslatedToEnglish,
+            nativeLanguage, "water", "물").Should().BeNull(
+            "the prompt translates into English, which is this learner's target language or neither side");
+
+    [Fact]
+    public void Direction_OfAnEnglishTranslationOfEnglishText_IsUnknown() =>
+        VocabularyLookupRepository.DirectionFor(VocabularyLookupOrigin.TranslatedToEnglish,
+            "English", " Hello  world ", "hello world").Should().BeNull("English typed in gives English back");
+
+    [Fact]
+    public async Task KoreanSpeaker_AnEnglishTranslationIsNotRecorded_ButTheirOwnWordMatchesAre()
+    {
+        _learner.Id = LearnerKo;
+        (await Repository().RecordAsync(LearnerKo, new VocabularyLookupEntry("apple", "사과",
+                VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Writing)))
+            .Should().Be(VocabularyLookupRecordStatus.DirectionUnknown);
+        (await RowsAsync()).Should().BeEmpty("a word with unknown sides could be added to vocabulary swapped");
+
+        (await Repository().RecordAsync(LearnerKo, new VocabularyLookupEntry("apple", "사과",
+                VocabularyLookupOrigin.OwnedTargetTerm, VocabularyLookupActivity.Reading)))
+            .Should().Be(VocabularyLookupRecordStatus.Recorded);
+        (await Repository().RecordAsync(LearnerKo, new VocabularyLookupEntry("사과", "apple",
+                VocabularyLookupOrigin.OwnedNativeTerm, VocabularyLookupActivity.Writing)))
+            .Should().Be(VocabularyLookupRecordStatus.Recorded);
+        var rows = await RowsAsync();
+        rows.Should().HaveCount(2).And.OnlyContain(row => row.TargetTerm == "apple" && row.NativeTerm == "사과");
+        rows.Should().OnlyContain(row => row.Language == "English");
     }
 
     [Fact]
@@ -206,7 +255,7 @@ public sealed class VocabularyLookupRepositoryTests : IDisposable
         }
         // Writing looked up the English "water": the translation is the target term.
         await Repository().RecordAsync(LearnerA, new VocabularyLookupEntry("water", "물",
-            VocabularyLookupDirection.ToTarget, VocabularyLookupActivity.Writing));
+            VocabularyLookupOrigin.OwnedNativeTerm, VocabularyLookupActivity.Writing));
         var lookup = (await RowsAsync()).Single();
 
         (await Repository().AddToVocabularyAsync(LearnerA, lookup.Id, "res-a")).Should().Be(ResourceVocabularyWriteStatus.Success);

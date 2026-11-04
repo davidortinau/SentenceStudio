@@ -9,6 +9,22 @@ public enum VocabularyLookupDirection
     ToTarget
 }
 
+/// <summary>
+/// Where a lookup's translation came from; the direction follows from it (not stored).
+/// </summary>
+public enum VocabularyLookupOrigin
+{
+    /// <summary>The learner's word matched by its target term: the translation is its native term.</summary>
+    OwnedTargetTerm,
+    /// <summary>The learner's word matched by its native term: the translation is its target term.</summary>
+    OwnedNativeTerm,
+    /// <summary>
+    /// The Translate prompt, which always translates into English. Its direction is known only
+    /// for a learner whose native language is English (target text to native English).
+    /// </summary>
+    TranslatedToEnglish
+}
+
 /// <summary>Where a lookup was made (stored as text so every client reads it).</summary>
 public static class VocabularyLookupActivity
 {

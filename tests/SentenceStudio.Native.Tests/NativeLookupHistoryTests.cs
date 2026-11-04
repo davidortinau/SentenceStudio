@@ -54,6 +54,106 @@ public sealed class NativeLookupHistoryTests
     }
 
     [Fact]
+    public async Task Writing_EnglishTranslationForAKoreanSpeaker_IsShownButNotRecorded()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 4);
+        await SetLanguagesAsync(fixture, NativeSliceFixture.UserA, native: "Korean", target: "English");
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        await MakeWordsAsync(fixture, NativeSliceFixture.UserA);
+        using var writing = ActivatorUtilities.CreateInstance<NativeWritingPresenter>(
+            fixture.Provider, new FakeWritingAi { Reply = "an apple" });
+        await writing.OpenAsync(Launch(fixture, NativeActivityCatalog.Writing, PlanActivityType.Writing));
+
+        writing.SetDraft("사과");
+        var state = await writing.TranslateAsync();
+
+        Assert.Equal("an apple", Assert.Single(state.Notices).Argument);
+        Assert.Empty(await LookupsAsync(fixture));
+
+        // The learner's own word still has known sides.
+        writing.SetDraft($"target-{NativeSliceFixture.UserA}-1");
+        await writing.TranslateAsync();
+        var owned = Assert.Single(await LookupsAsync(fixture));
+        Assert.Equal(VocabularyLookupDirection.ToNative, owned.Direction);
+        Assert.Equal($"target-{NativeSliceFixture.UserA}-1", owned.TargetTerm);
+    }
+
+    [Fact]
+    public async Task Reading_RememberWord_AlreadyInTheResource_IsShownAsInVocabulary_NotAnError()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await SetTranscriptAsync(fixture, NativeSliceFixture.UserA, "바다가 좋아요.");
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var reading = ActivatorUtilities.CreateInstance<NativeReadingPresenter>(fixture.Provider,
+            new NoAudio(), new NoPlayers(), new Translator("sea"));
+        var state = await reading.OpenAsync(Launch(fixture, NativeActivityCatalog.Reading, PlanActivityType.Reading));
+        var word = state.Sentences.SelectMany(sentence => sentence.Tokens).First(token => token.Text == "바다가");
+        state = await reading.TapWordAsync(word.Id);
+        Assert.True(state.WordPanel!.CanSave);
+        // The word reaches the resource after the page loaded (another device, the web).
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyWords.Add(new VocabularyWord
+            {
+                Id = "synced-word", TargetLanguageTerm = "바다가", NativeLanguageTerm = "sea",
+                Language = "Korean", UserProfileId = NativeSliceFixture.UserA
+            });
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = "synced-mapping", ResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
+                VocabularyWordId = "synced-word"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        state = await reading.SaveWordAsync();
+
+        Assert.Equal(NativeReadingText.AlreadyInResource, state.Notice?.Key);
+        Assert.Equal(NativeMessageKind.Info, state.Notice?.Kind);
+        Assert.Equal("Synthetic vocabulary", state.Notice?.Argument);
+        Assert.True(state.WordPanel!.IsInVocabulary);
+        Assert.False(state.WordPanel.IsSaving);
+        Assert.Contains(state.Sentences.SelectMany(sentence => sentence.Tokens),
+            token => token.Text == "바다가" && token.IsVocabulary);
+        using var check = fixture.Scope();
+        var verify = check.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Equal(1, await verify.VocabularyWords.CountAsync(row => row.TargetLanguageTerm == "바다가"));
+        Assert.False(await verify.UserActivities.AnyAsync(row => row.Input == "Added vocabulary: 바다가"));
+    }
+
+    [Fact]
+    public async Task RecentLookups_ACancelledLoad_NeverLeavesTheSpinner()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        await fixture.Provider.GetRequiredService<VocabularyLookupRepository>().RecordAsync(NativeSliceFixture.UserA,
+            new("바다", "sea", VocabularyLookupOrigin.OwnedTargetTerm, VocabularyLookupActivity.Reading));
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        // The first load cancelled: Retry is offered.
+        using (var first = Coordinator(fixture))
+        {
+            await first.OpenAsync(NativeSliceFixture.UserA, cancelled.Token);
+            Assert.Equal(RecentLookupsPhase.LoadError, first.State.Phase);
+            await first.ReloadAsync();
+            Assert.Equal(RecentLookupsPhase.Ready, first.State.Phase);
+        }
+
+        // A later reload cancelled: the list shown before stays.
+        using var lookups = Coordinator(fixture);
+        Assert.True(await lookups.OpenAsync(NativeSliceFixture.UserA));
+        await lookups.ReloadAsync(cancelled.Token);
+        var state = lookups.State;
+        Assert.Equal(RecentLookupsPhase.Ready, state.Phase);
+        Assert.Equal("바다", Assert.Single(state.Rows).Text);
+    }
+
+    [Fact]
     public async Task Writing_FailedTranslation_RecordsNothing()
     {
         using var fixture = new NativeSliceFixture();
@@ -114,10 +214,10 @@ public sealed class NativeLookupHistoryTests
         fixture.Activate(NativeSliceFixture.UserB);
         var repository = fixture.Provider.GetRequiredService<VocabularyLookupRepository>();
         Assert.Equal(VocabularyLookupRecordStatus.Recorded, await repository.RecordAsync(NativeSliceFixture.UserB,
-            new("강", "B's river", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Writing)));
+            new("강", "B's river", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Writing)));
         fixture.Activate(NativeSliceFixture.UserA);
         Assert.Equal(VocabularyLookupRecordStatus.Recorded, await repository.RecordAsync(NativeSliceFixture.UserA,
-            new("바다", "sea", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Reading,
+            new("바다", "sea", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Reading,
                 fixture.ResourceId(NativeSliceFixture.UserA))));
 
         using var lookups = Coordinator(fixture);
@@ -214,6 +314,17 @@ public sealed class NativeLookupHistoryTests
             word.LexicalUnitType = LexicalUnitType.Word;
             word.UserProfileId = owner;
         }
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SetLanguagesAsync(NativeSliceFixture fixture, string owner,
+        string native, string target)
+    {
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var profile = await db.UserProfiles.SingleAsync(row => row.Id == owner);
+        profile.NativeLanguage = native;
+        profile.TargetLanguage = target;
         await db.SaveChangesAsync();
     }
 

@@ -289,7 +289,8 @@ public sealed class NativeWritingPresenter(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _lifetime.Token);
         string? translation = null;
-        var direction = VocabularyLookupDirection.ToNative;
+        // Where the translation came from; the lookup history derives the direction from it.
+        var origin = VocabularyLookupOrigin.OwnedTargetTerm;
         Exception? failure = null;
         try
         {
@@ -302,10 +303,13 @@ public sealed class NativeWritingPresenter(
                 if (!string.IsNullOrEmpty(existing?.TargetLanguageTerm))
                 {
                     translation = existing.TargetLanguageTerm;
-                    direction = VocabularyLookupDirection.ToTarget;
+                    origin = VocabularyLookupOrigin.OwnedNativeTerm;
                 }
                 else if (owner.IsActive(userId))
+                {
                     translation = (await ai.TranslateAsync(userId, text, linked.Token))?.Trim();
+                    origin = VocabularyLookupOrigin.TranslatedToEnglish;
+                }
             }
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
@@ -361,7 +365,7 @@ public sealed class NativeWritingPresenter(
         }
         if (succeeded)
             await RecordLookupAsync(userId, new VocabularyLookupEntry(text, translation!,
-                direction, VocabularyLookupActivity.Writing, resourceId));
+                origin, VocabularyLookupActivity.Writing, resourceId));
         return shown;
     }
 

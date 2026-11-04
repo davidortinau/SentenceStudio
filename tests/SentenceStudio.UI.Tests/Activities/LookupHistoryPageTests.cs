@@ -61,6 +61,37 @@ public sealed class LookupHistoryPageTests
     }
 
     [Fact]
+    public async Task Writing_EnglishTranslationForAKoreanSpeaker_IsShownButNotRecorded()
+    {
+        await using var fixture = await CreateAsync();
+        await SetLanguagesAsync(fixture, native: "Korean", target: "English");
+        var page = await OpenWritingAsync(fixture);
+        fixture.Ai.Respond = _ => "an apple";
+        await SetInputAsync(fixture, page, "사과");
+
+        await fixture.Renderer.InvokeAsync(page, "TranslateInput");
+
+        fixture.Toasts.Should().Contain(t => t.Text == "an apple" && t.Type == ToastType.Info);
+        (await fixture.RowsAsync<VocabularyLookup>()).Should().BeEmpty(
+            "the prompt translates into English, this learner's target language: the sides are unknown");
+    }
+
+    [Fact]
+    public async Task Reading_EnglishTranslationForAKoreanSpeaker_IsShownButNotRecorded()
+    {
+        await using var fixture = await CreateAsync();
+        await SetLanguagesAsync(fixture, native: "Korean", target: "English");
+        var page = await OpenReadingAsync(fixture, resource: null);
+        fixture.Ai.Respond = _ => "apple";
+
+        await fixture.Renderer.InvokeAsync(page, "HandleWordClicked", "apples");
+
+        Members.Get<string>(page, "wordDefinition").Should().Be("apple");
+        (await fixture.RowsAsync<VocabularyLookup>()).Should().BeEmpty();
+        (await fixture.RowsAsync<UserActivity>()).Should().ContainSingle("the activity log still records the lookup");
+    }
+
+    [Fact]
     public async Task Writing_FailedTranslation_RecordsNothing()
     {
         await using var fixture = await CreateAsync();
@@ -167,13 +198,13 @@ public sealed class LookupHistoryPageTests
         var (resource, _) = await fixture.SeedResourceAsync(ActivityPageFixture.OwnerA, ("하늘", "sky"));
         var lookups = fixture.Services.GetRequiredService<VocabularyLookupRepository>();
         await lookups.RecordAsync(ActivityPageFixture.OwnerA, new VocabularyLookupEntry(
-            "바다", "sea", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Reading, resource.Id));
+            "바다", "sea", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Reading, resource.Id));
         await Task.Delay(5);
         await lookups.RecordAsync(ActivityPageFixture.OwnerA, new VocabularyLookupEntry(
-            "산", "mountain", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Writing));
+            "산", "mountain", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Writing));
         fixture.Preferences.ActiveId = ActivityPageFixture.OwnerB;
         await lookups.RecordAsync(ActivityPageFixture.OwnerB, new VocabularyLookupEntry(
-            "강", "B's river", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Writing));
+            "강", "B's river", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Writing));
         fixture.Preferences.ActiveId = ActivityPageFixture.OwnerA;
 
         var (id, page) = await fixture.Renderer.RenderAsync<RecentLookupsPage>();
@@ -192,7 +223,7 @@ public sealed class LookupHistoryPageTests
         var (resource, _) = await fixture.SeedResourceAsync(ActivityPageFixture.OwnerA, ("하늘", "sky"));
         await fixture.Services.GetRequiredService<VocabularyLookupRepository>().RecordAsync(
             ActivityPageFixture.OwnerA, new VocabularyLookupEntry(
-                "바다", "sea", VocabularyLookupDirection.ToNative, VocabularyLookupActivity.Reading, resource.Id));
+                "바다", "sea", VocabularyLookupOrigin.TranslatedToEnglish, VocabularyLookupActivity.Reading, resource.Id));
         var (id, page) = await fixture.Renderer.RenderAsync<RecentLookupsPage>();
         var lookupKey = Key(Members.Get<VocabularyLookupPage>(page, "lookups").Items.Single().Lookup.Id);
 
@@ -251,6 +282,16 @@ public sealed class LookupHistoryPageTests
 
     private static Task SetInputAsync(ActivityPageFixture fixture, WritingPage page, string text) =>
         fixture.Renderer.Dispatcher.InvokeAsync(() => Members.Set(page, "userInput", text));
+
+    private static async Task SetLanguagesAsync(ActivityPageFixture fixture, string native, string target)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var profile = await db.UserProfiles.SingleAsync(row => row.Id == ActivityPageFixture.OwnerA);
+        profile.NativeLanguage = native;
+        profile.TargetLanguage = target;
+        await db.SaveChangesAsync();
+    }
 
     /// <summary>Makes every lookup write fail (the database refuses it), as a broken store would.</summary>
     private static async Task BreakLookupTableAsync(ActivityPageFixture fixture)

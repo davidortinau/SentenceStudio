@@ -7,9 +7,13 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
-/// <summary>One successful lookup to record. Language is filled in when absent.</summary>
+/// <summary>
+/// One successful lookup to record. The direction comes from <see cref="Origin"/> and the
+/// learner's profile (<see cref="VocabularyLookupRepository.DirectionFor"/>). Language is filled
+/// in when absent.
+/// </summary>
 public sealed record VocabularyLookupEntry(
-    string Text, string Translation, VocabularyLookupDirection Direction, string Activity,
+    string Text, string Translation, VocabularyLookupOrigin Origin, string Activity,
     string? ResourceId = null, string? Language = null);
 
 public enum VocabularyLookupRecordStatus
@@ -18,7 +22,13 @@ public enum VocabularyLookupRecordStatus
     /// <summary>No trusted owner, or it is not the expected one: nothing was written.</summary>
     Refused,
     /// <summary>Empty text or translation: not a lookup.</summary>
-    Invalid
+    Invalid,
+    /// <summary>
+    /// Which side is the target language is not known (an English translation for a learner whose
+    /// native language is not English): nothing was written, so "Add to vocabulary" can never
+    /// create a word with its sides swapped.
+    /// </summary>
+    DirectionUnknown
 }
 
 /// <summary>A lookup and the title of the learner's resource it came from, if it still exists.</summary>
@@ -106,15 +116,21 @@ public sealed class VocabularyLookupRepository
             resourceId = resource?.Id;
             resourceLanguage = resource?.Language;
         }
-        var language = FirstText(entry.Language, resourceLanguage)
-            ?? await db.UserProfiles.AsNoTracking()
-                .Where(profile => profile.Id == owner)
-                .Select(profile => profile.TargetLanguage)
-                .FirstOrDefaultAsync(cancellationToken)
-            ?? string.Empty;
-        language = language.Trim();
+        var profile = await db.UserProfiles.AsNoTracking()
+            .Where(row => row.Id == owner)
+            .Select(row => new { row.TargetLanguage, row.NativeLanguage })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (DirectionFor(entry.Origin, profile?.NativeLanguage, text, translation) is not { } direction)
+        {
+            _logger.LogWarning(
+                "A lookup was not recorded: its direction is unknown ({Origin}, the learner's native language is not English).",
+                entry.Origin);
+            return VocabularyLookupRecordStatus.DirectionUnknown;
+        }
+        var language = (FirstText(entry.Language, resourceLanguage, profile?.TargetLanguage)
+            ?? string.Empty).Trim();
 
-        var id = SyncIds.VocabularyLookup(owner, language, entry.Direction, text);
+        var id = SyncIds.VocabularyLookup(owner, language, direction, text);
         var now = _clock.GetUtcNow().UtcDateTime;
         for (var attempt = 0; ; attempt++)
         {
@@ -129,7 +145,7 @@ public sealed class VocabularyLookupRepository
                 db.VocabularyLookups.Add(new VocabularyLookup
                 {
                     Id = id, UserProfileId = owner, Text = text, Translation = translation,
-                    Language = language, Direction = entry.Direction, Activity = entry.Activity,
+                    Language = language, Direction = direction, Activity = entry.Activity,
                     ResourceId = resourceId, FirstLookedUpAt = now, LastLookedUpAt = now
                 });
             else
@@ -236,6 +252,26 @@ public sealed class VocabularyLookupRepository
                 string.IsNullOrWhiteSpace(resource.Language) ? null! : resource.Language,
                 owner, cancellationToken);
     }
+
+    /// <summary>
+    /// The direction a lookup's translation went, when it is known (one rule for every client):
+    /// a match on the learner's own word knows its sides; the Translate prompt translates into
+    /// English, so its result is the native side only for a learner whose native language is
+    /// English, and only when it differs from the text (English typed in gives English back).
+    /// Null means unknown: the lookup is not recorded.
+    /// </summary>
+    public static VocabularyLookupDirection? DirectionFor(
+        VocabularyLookupOrigin origin, string? nativeLanguage, string text, string translation) =>
+        origin switch
+        {
+            VocabularyLookupOrigin.OwnedTargetTerm => VocabularyLookupDirection.ToNative,
+            VocabularyLookupOrigin.OwnedNativeTerm => VocabularyLookupDirection.ToTarget,
+            VocabularyLookupOrigin.TranslatedToEnglish
+                when string.Equals(nativeLanguage?.Trim(), "English", StringComparison.OrdinalIgnoreCase)
+                    && SyncIds.NormalizeLookupText(text) != SyncIds.NormalizeLookupText(translation)
+                => VocabularyLookupDirection.ToNative,
+            _ => null
+        };
 
     /// <summary>A resource with no language accepts any lookup; otherwise the languages match.</summary>
     internal static bool LanguagesMatch(string? lookupLanguage, string? resourceLanguage) =>

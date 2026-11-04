@@ -2,8 +2,8 @@
   "version": 1,
   "profiles": {
     "native-ios": {
-      "description": "Run native iOS regressions, then compile the simulator app. No install or runtime acceptance.",
-      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.25"],
+      "description": "Run native iOS regressions and the real-facade SwiftUI view host (a local macOS process), then compile the simulator app. No install or runtime acceptance.",
+      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "tests/SentenceStudio.Native.SwiftUIViews.Tests", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.25"],
       "tools": [["dotnet", "--version"], ["xcodebuild", "-version"]],
       "steps": [
         {
@@ -11,6 +11,18 @@
           "argv": ["dotnet", "test", "tests/SentenceStudio.Native.iOS.Tests/SentenceStudio.Native.iOS.Tests.csproj", "-f", "net11.0", "--no-restore", "-m:1", "-p:BuildInParallel=false", "--logger", "console;verbosity=minimal"],
           "cwd": ".",
           "timeout": 600
+        },
+        {
+          "name": "swiftui-view-host-build",
+          "argv": ["dotnet", "build", "tests/SentenceStudio.Native.SwiftUIViews.Tests/SentenceStudio.Native.SwiftUIViews.Tests.csproj", "-p:ValidateXcodeVersion=false", "-m:1", "-p:BuildInParallel=false", "-v:quiet"],
+          "cwd": ".",
+          "timeout": 900
+        },
+        {
+          "name": "swiftui-view-host-run",
+          "argv": ["tests/SentenceStudio.Native.SwiftUIViews.Tests/bin/Debug/net11.0-macos/osx-arm64/SentenceStudio.Native.SwiftUIViews.Tests.app/Contents/MacOS/SentenceStudio.Native.SwiftUIViews.Tests"],
+          "cwd": ".",
+          "timeout": 120
         },
         {
           "name": "simulator-build",

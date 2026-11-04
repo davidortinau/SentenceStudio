@@ -8,8 +8,8 @@ using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services
 {
-    /// <summary>A lookup's translation and the direction it went.</summary>
-    public sealed record LookupTranslation(string Translation, VocabularyLookupDirection Direction);
+    /// <summary>A lookup's translation and where it came from (the lookup history derives the direction).</summary>
+    public sealed record LookupTranslation(string Translation, VocabularyLookupOrigin Origin);
 
     public class TranslationService
     {
@@ -237,10 +237,9 @@ namespace SentenceStudio.Services
             (await TranslateLookupAsync(text, context, userProfileId))?.Translation ?? string.Empty;
 
         /// <summary>
-        /// <see cref="TranslateAsync"/> with the direction the translation went, for the lookup
-        /// history: the owner's word by target term (to native), then by native term (to target),
-        /// then the Translate prompt (to English, the native language). Null when no owner or no
-        /// translation came back.
+        /// <see cref="TranslateAsync"/> with where the translation came from, for the lookup
+        /// history: the owner's word by target term, then by native term, then the Translate
+        /// prompt (always into English). Null when no owner or no translation came back.
         /// </summary>
         public async Task<LookupTranslation?> TranslateLookupAsync(
             string text, string? context = null, string? userProfileId = null)
@@ -256,13 +255,13 @@ namespace SentenceStudio.Services
             var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.NativeLanguageTerm))
             {
-                return new(existingWord.NativeLanguageTerm, VocabularyLookupDirection.ToNative);
+                return new(existingWord.NativeLanguageTerm, VocabularyLookupOrigin.OwnedTargetTerm);
             }
 
             existingWord = await _resourceRepo.GetWordByNativeTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.TargetLanguageTerm))
             {
-                return new(existingWord.TargetLanguageTerm, VocabularyLookupDirection.ToTarget);
+                return new(existingWord.TargetLanguageTerm, VocabularyLookupOrigin.OwnedNativeTerm);
             }
 
             try
@@ -283,7 +282,7 @@ namespace SentenceStudio.Services
                 var translation = await _aiService.SendPrompt<string>(prompt);
                 return string.IsNullOrWhiteSpace(translation)
                     ? null
-                    : new(translation.Trim(), VocabularyLookupDirection.ToNative);
+                    : new(translation.Trim(), VocabularyLookupOrigin.TranslatedToEnglish);
             }
             catch (Exception ex)
             {

@@ -516,7 +516,7 @@ else
         try
         {
             var status = await LookupRepo.RecordAsync(owner, new VocabularyLookupEntry(
-                text, lookup.Translation, lookup.Direction, VocabularyLookupActivity.Writing,
+                text, lookup.Translation, lookup.Origin, VocabularyLookupActivity.Writing,
                 ResourceIdParam));
             if (status != VocabularyLookupRecordStatus.Recorded)
                 Logger.LogWarning("Writing did not record a lookup: {Status}", status);
