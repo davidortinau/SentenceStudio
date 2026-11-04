@@ -264,6 +264,28 @@ public sealed class NativeClozePresenterTests
         Assert.Equal(1, await fixture.AttemptCountAsync(owner));
     }
 
+    [Theory]
+    [InlineData("나는 사과를 좋아해요.", "사과를", "사과", "나는 ______ 좋아해요.")]
+    [InlineData("나는 사과 좋아해요.", "사과를", "사과", "나는 ______ 좋아해요.")]
+    [InlineData("나는 빵을 좋아해요.", "사과를", "사과", null)]
+    // A whitespace answer must never blank every space in the sentence.
+    [InlineData("나는 사과를 좋아해요.", " ", "사과", null)]
+    [InlineData("나는 사과를 좋아해요.", "   ", "", null)]
+    // An empty answer gives no blank even when the dictionary form is present.
+    [InlineData("나는 사과를 좋아해요.", "", "사과", null)]
+    public void BlankedSentence_UsesTheSharedClozeBlankRule(
+        string sentence, string answer, string dictionaryForm, string? expected)
+    {
+        var challenge = new NativeClozeChallenge(sentence, "I like apples.", dictionaryForm,
+            answer, [], null);
+
+        Assert.Equal(expected, challenge.BlankedSentence);
+        Assert.Equal(SentenceStudio.Shared.Services.ClozureAnswerHelper.TryBlankSentence(
+            sentence, answer, dictionaryForm), challenge.BlankedSentence);
+        Assert.Equal(SentenceStudio.Shared.Services.ClozureAnswerHelper.BlankMarker,
+            NativeClozeChallenge.BlankMarker);
+    }
+
     [Fact]
     public async Task ManualNavigationDuringTheAdvanceDelaySupersedesTheAutoAdvance()
     {
