@@ -26,16 +26,6 @@ public class ClozureService
     private readonly IFileSystemService _fileSystem;
     private readonly IPreferencesService? _preferences;
 
-    private List<VocabularyWord> _words;
-
-    public List<VocabularyWord> Words
-    {
-        get
-        {
-            return _words;
-        }
-    }
-
     private readonly VocabularyProgressService _progressService;
     private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
@@ -114,23 +104,24 @@ public class ClozureService
         // thousands of eligible words, which blows past Scriban's 1000-iteration loop limit
         // and would overwhelm the LLM context anyway. A random sample keeps variety.
         const int MaxVocabSample = 40;
+        List<VocabularyWord> words;
         if (eligibleWords.Count > MaxVocabSample)
         {
-            _words = eligibleWords
+            words = eligibleWords
                 .OrderBy(_ => Random.Shared.Next())
                 .Take(MaxVocabSample)
                 .ToList();
             _logger.LogDebug("Sampled {SampleCount} of {EligibleCount} eligible vocabulary words for AI prompt ({Excluded} excluded for grace period)",
-                _words.Count, eligibleWords.Count, allVocab.Count - eligibleWords.Count);
+                words.Count, eligibleWords.Count, allVocab.Count - eligibleWords.Count);
         }
         else
         {
-            _words = eligibleWords;
+            words = eligibleWords;
             _logger.LogDebug("Sending {WordCount} vocabulary words to AI ({Excluded} excluded for grace period)",
-                _words.Count, allVocab.Count - _words.Count);
+                words.Count, allVocab.Count - words.Count);
         }
 
-        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, resource.Language);
+        return await GenerateSentencesFromWords(words, numberOfSentences, skillID, resource.Language);
     }
 
     private async Task<List<Challenge>> GetSentencesFromFocusWords(
@@ -167,8 +158,8 @@ public class ClozureService
             contextWords.AddRange(await GetDueVocabularyWordsAsync(allWords));
         }
 
-        _words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, contextWords);
-        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, targetLanguage, focusWords);
+        var words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, contextWords);
+        return await GenerateSentencesFromWords(words, numberOfSentences, skillID, targetLanguage, focusWords);
     }
 
     private async Task<List<VocabularyWord>> GetDueVocabularyWordsAsync(List<VocabularyWord> allWords)
@@ -248,19 +239,20 @@ public class ClozureService
 
         // Cap vocab sample (same pattern as resource-driven path)
         const int MaxVocabSample = 40;
+        List<VocabularyWord> words;
         if (dueWords.Count > MaxVocabSample)
         {
-            _words = dueWords
+            words = dueWords
                 .OrderBy(_ => Random.Shared.Next())
                 .Take(MaxVocabSample)
                 .ToList();
             _logger.LogDebug("Sampled {SampleCount} of {DueCount} due vocabulary words for AI prompt",
-                _words.Count, dueWords.Count);
+                words.Count, dueWords.Count);
         }
         else
         {
-            _words = dueWords;
-            _logger.LogDebug("Using all {WordCount} due vocabulary words for AI prompt", _words.Count);
+            words = dueWords;
+            _logger.LogDebug("Using all {WordCount} due vocabulary words for AI prompt", words.Count);
         }
 
         // Get user profile for target language
@@ -268,7 +260,7 @@ public class ClozureService
         var userProfile = await userProfileRepo.GetAsync();
         string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
 
-        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, targetLanguage);
+        return await GenerateSentencesFromWords(words, numberOfSentences, skillID, targetLanguage);
     }
 
     private async Task<List<Challenge>> GenerateSentencesFromWords(

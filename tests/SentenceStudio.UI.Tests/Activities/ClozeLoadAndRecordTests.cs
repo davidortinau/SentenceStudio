@@ -168,13 +168,19 @@ public sealed class ClozeLoadAndRecordTests
                 });
             await db.SaveChangesAsync();
         }
-        fixture.Ai.Respond = _ => new ClozureResponse { Sentences = [Sentence("바다가 넓어요.", "바다", "바다가")] };
+        // The AI answers for both words; only a word sent as due links to the learner's word.
+        fixture.Ai.Respond = _ => new ClozureResponse
+        {
+            Sentences = [Sentence("바다가 넓어요.", "바다", "바다가"), Sentence("하늘이 맑아요.", "하늘", "하늘이")]
+        };
         var clozure = fixture.Services.GetRequiredService<ClozureService>();
 
         var sentences = await clozure.GetSentences(string.Empty, 8, string.Empty, dueOnly: true);
 
-        clozure.Words.Select(word => word.Id).Should().Equal(words[0].Id);
-        sentences.Should().ContainSingle();
+        sentences.Single(s => s.VocabularyWord == "바다").Vocabulary.Select(word => word.Id)
+            .Should().Equal(words[0].Id);
+        sentences.Single(s => s.VocabularyWord == "하늘").Vocabulary.Should().BeEmpty(
+            "the word due in a minute was not sent as due");
     }
 
     [Fact]
