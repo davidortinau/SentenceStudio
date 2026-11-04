@@ -7,6 +7,14 @@ using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services;
 
+/// <summary>
+/// The AI could not produce usable cloze sentences (the call failed, returned nothing, or every
+/// sentence would have shown its answer). Distinct from "no eligible vocabulary", which is an
+/// empty list; the page tells the learner instead of showing "No cloze sentences".
+/// </summary>
+public sealed class ClozeGenerationException(string message, Exception? inner = null)
+    : Exception(message, inner);
+
 public class ClozureService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -44,6 +52,11 @@ public class ClozureService
         _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
     }
 
+    /// <summary>
+    /// Cloze sentences for the active learner. Empty only when the learner has no eligible
+    /// vocabulary; throws <see cref="ClozeGenerationException"/> when the AI fails or returns no
+    /// sentence whose answer can be blanked.
+    /// </summary>
     public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID, bool dueOnly = false, IReadOnlyList<string>? focusVocabularyIds = null)
     {
         var normalizedFocusIds = FocusVocabularySelection.NormalizeFocusVocabularyIds(focusVocabularyIds);
@@ -254,6 +267,13 @@ public class ClozureService
         string? targetLanguage = null,
         IReadOnlyList<VocabularyWord>? requiredFocusWords = null)
     {
+        // No eligible vocabulary is the only honest "no sentences" case; the AI is not asked.
+        if (words is not { Count: > 0 })
+        {
+            _logger.LogDebug("No eligible vocabulary to generate cloze sentences from");
+            return new List<Challenge>();
+        }
+
         // Skill is optional — when empty (e.g. launched from dashboard tile with no skill picker),
         // we still generate cloze sentences without grammar-pattern bias. The Scriban template
         // already gracefully omits the "Prioritize grammar patterns" hint when {{skills}} is empty.
@@ -297,106 +317,117 @@ public class ClozureService
         }
 
         _logger.LogDebug("Prompt created, length: {PromptLength}", prompt.Length);
+        ClozureResponse? reply;
         try
         {
             _logger.LogDebug("Sending prompt to AI service");
-            var reply = await _aiService.SendPrompt<ClozureResponse>(prompt);
-
-            if (reply?.Sentences != null)
-            {
-                _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
-
-                // Convert ClozureDto objects to Challenge objects and link vocabulary
-                _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Sentences.Count);
-                var challenges = new List<Challenge>();
-
-                foreach (var clozureDto in reply.Sentences)
-                {
-                    _logger.LogDebug("Processing clozure DTO");
-                    _logger.LogDebug("DTO.VocabularyWord: '{VocabularyWord}'", clozureDto.VocabularyWord);
-                    _logger.LogDebug("DTO.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", clozureDto.VocabularyWordAsUsed);
-                    _logger.LogDebug("DTO.VocabularyWordGuesses: {GuessCount} items", clozureDto.VocabularyWordGuesses?.Count ?? 0);
-
-                    // Normalize and self-heal the AI response so the UI never receives a broken cloze.
-                    // Two frequent AI failure modes are handled here:
-                    //   (1) vocabularyWordAsUsed isn't a verbatim substring of sentenceText (particles split, etc.)
-                    //   (2) the correct answer is missing from the guesses list
-                    var sentenceText = clozureDto.SentenceText ?? string.Empty;
-                    var wordAsUsed = (clozureDto.VocabularyWordAsUsed ?? string.Empty).Trim();
-                    var dictionaryForm = (clozureDto.VocabularyWord ?? string.Empty).Trim();
-
-                    // Repair wordAsUsed if it's not a substring of the sentence.
-                    if (!string.IsNullOrEmpty(sentenceText) && !string.IsNullOrEmpty(wordAsUsed)
-                        && !sentenceText.Contains(wordAsUsed, StringComparison.Ordinal))
-                    {
-                        var repaired = SentenceStudio.Shared.Services.ClozureAnswerHelper.TryRepairWordAsUsed(sentenceText, wordAsUsed, dictionaryForm);
-                        if (!string.IsNullOrEmpty(repaired) && !string.Equals(repaired, wordAsUsed, StringComparison.Ordinal))
-                        {
-                            _logger.LogWarning("Repaired VocabularyWordAsUsed '{Old}' -> '{New}' to match sentence '{Sentence}'",
-                                wordAsUsed, repaired, sentenceText);
-                            wordAsUsed = repaired;
-                        }
-                    }
-
-                    // Ensure the guesses list always includes the correct answer as an option, and is exactly 5 unique items.
-                    var repairedGuesses = SentenceStudio.Shared.Services.ClozureAnswerHelper.EnsureGuessesIncludeAnswer(
-                        clozureDto.VocabularyWordGuesses, wordAsUsed, out var guessesWereFixed);
-                    if (guessesWereFixed)
-                    {
-                        _logger.LogWarning("Repaired VocabularyWordGuesses: correct answer '{Answer}' was missing; final options=[{Options}]",
-                            wordAsUsed, string.Join(", ", repairedGuesses));
-                    }
-
-                    // Convert the list of guesses to a comma-separated string for storage
-                    var guessesString = repairedGuesses.Any()
-                        ? string.Join(", ", repairedGuesses)
-                        : string.Empty;
-
-                    // Create Challenge object from DTO - keep it simple
-                    var challenge = new Challenge
-                    {
-                        SentenceText = sentenceText,
-                        RecommendedTranslation = clozureDto.RecommendedTranslation,
-                        VocabularyWord = clozureDto.VocabularyWord,
-                        VocabularyWordAsUsed = wordAsUsed,
-                        VocabularyWordGuesses = guessesString,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };                    // Try to find matching vocabulary word for progress tracking
-                    var matchingWord = words.FirstOrDefault(w =>
-                        string.Equals(w.TargetLanguageTerm, clozureDto.VocabularyWord, StringComparison.OrdinalIgnoreCase));
-
-                    if (matchingWord != null)
-                    {
-                        challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
-                        _logger.LogDebug("Linked to vocabulary word ID {WordId} ('{TargetTerm}')",
-                            matchingWord.Id, matchingWord.TargetLanguageTerm);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Could not find vocabulary word '{VocabularyWord}' in lesson vocabulary",
-                            clozureDto.VocabularyWord);
-                        challenge.Vocabulary = new List<VocabularyWord>();
-                    }
-
-                    challenges.Add(challenge);
-                    _logger.LogDebug("Added clozure challenge");
-                }
-
-                return challenges;
-            }
-            else
-            {
-                _logger.LogWarning("Reply or Sentences is null");
-                return new List<Challenge>();
-            }
+            reply = await _aiService.SendPrompt<ClozureResponse>(prompt);
         }
         catch (Exception ex)
         {
-            // Handle any exceptions that occur during the process
+            // An AI failure is not "no sentences": the caller tells the learner it failed.
             _logger.LogError(ex, "Error occurred in GetChallenges");
-            return new List<Challenge>();
+            throw new ClozeGenerationException("Cloze sentence generation failed.", ex);
         }
+
+        if (reply?.Sentences is not { Count: > 0 })
+        {
+            _logger.LogWarning("Reply or Sentences is null");
+            throw new ClozeGenerationException("The AI returned no cloze sentences.");
+        }
+
+        _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
+
+        // Convert ClozureDto objects to Challenge objects and link vocabulary
+        _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Sentences.Count);
+        var challenges = new List<Challenge>();
+
+        foreach (var clozureDto in reply.Sentences)
+        {
+            _logger.LogDebug("Processing clozure DTO");
+            _logger.LogDebug("DTO.VocabularyWord: '{VocabularyWord}'", clozureDto.VocabularyWord);
+            _logger.LogDebug("DTO.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", clozureDto.VocabularyWordAsUsed);
+            _logger.LogDebug("DTO.VocabularyWordGuesses: {GuessCount} items", clozureDto.VocabularyWordGuesses?.Count ?? 0);
+
+            // Normalize and self-heal the AI response so the UI never receives a broken cloze.
+            // Two frequent AI failure modes are handled here:
+            //   (1) vocabularyWordAsUsed isn't a verbatim substring of sentenceText (particles split, etc.)
+            //   (2) the correct answer is missing from the guesses list
+            var sentenceText = clozureDto.SentenceText ?? string.Empty;
+            var wordAsUsed = (clozureDto.VocabularyWordAsUsed ?? string.Empty).Trim();
+            var dictionaryForm = (clozureDto.VocabularyWord ?? string.Empty).Trim();
+
+            // Repair wordAsUsed if it's not a substring of the sentence.
+            if (!string.IsNullOrEmpty(sentenceText) && !string.IsNullOrEmpty(wordAsUsed)
+                && !sentenceText.Contains(wordAsUsed, StringComparison.Ordinal))
+            {
+                var repaired = SentenceStudio.Shared.Services.ClozureAnswerHelper.TryRepairWordAsUsed(sentenceText, wordAsUsed, dictionaryForm);
+                if (!string.IsNullOrEmpty(repaired) && !string.Equals(repaired, wordAsUsed, StringComparison.Ordinal))
+                {
+                    _logger.LogWarning("Repaired VocabularyWordAsUsed '{Old}' -> '{New}' to match sentence '{Sentence}'",
+                        wordAsUsed, repaired, sentenceText);
+                    wordAsUsed = repaired;
+                }
+            }
+
+            // A sentence whose answer still cannot be blanked would show the answer: drop it.
+            if (SentenceStudio.Shared.Services.ClozureAnswerHelper.TryBlankSentence(
+                    sentenceText, wordAsUsed, dictionaryForm) is null)
+            {
+                _logger.LogWarning("Dropped a cloze sentence whose answer cannot be blanked.");
+                continue;
+            }
+
+            // Ensure the guesses list always includes the correct answer as an option, and is exactly 5 unique items.
+            var repairedGuesses = SentenceStudio.Shared.Services.ClozureAnswerHelper.EnsureGuessesIncludeAnswer(
+                clozureDto.VocabularyWordGuesses, wordAsUsed, out var guessesWereFixed);
+            if (guessesWereFixed)
+            {
+                _logger.LogWarning("Repaired VocabularyWordGuesses: correct answer '{Answer}' was missing; final options=[{Options}]",
+                    wordAsUsed, string.Join(", ", repairedGuesses));
+            }
+
+            // Convert the list of guesses to a comma-separated string for storage
+            var guessesString = repairedGuesses.Any()
+                ? string.Join(", ", repairedGuesses)
+                : string.Empty;
+
+            // Create Challenge object from DTO - keep it simple
+            var challenge = new Challenge
+            {
+                SentenceText = sentenceText,
+                RecommendedTranslation = clozureDto.RecommendedTranslation,
+                VocabularyWord = clozureDto.VocabularyWord,
+                VocabularyWordAsUsed = wordAsUsed,
+                VocabularyWordGuesses = guessesString,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // Try to find matching vocabulary word for progress tracking
+            var matchingWord = words.FirstOrDefault(w =>
+                string.Equals(w.TargetLanguageTerm, clozureDto.VocabularyWord, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingWord != null)
+            {
+                challenge.Vocabulary = new List<VocabularyWord> { matchingWord };
+                _logger.LogDebug("Linked to vocabulary word ID {WordId} ('{TargetTerm}')",
+                    matchingWord.Id, matchingWord.TargetLanguageTerm);
+            }
+            else
+            {
+                _logger.LogWarning("Could not find vocabulary word '{VocabularyWord}' in lesson vocabulary",
+                    clozureDto.VocabularyWord);
+                challenge.Vocabulary = new List<VocabularyWord>();
+            }
+
+            challenges.Add(challenge);
+            _logger.LogDebug("Added clozure challenge");
+        }
+
+        if (challenges.Count == 0)
+            throw new ClozeGenerationException("The AI returned no usable cloze sentences.");
+        return challenges;
     }
 
     public async Task<string> SaveChallenges(Challenge item)

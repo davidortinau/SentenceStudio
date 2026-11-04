@@ -64,7 +64,10 @@ else if (sentences.Any())
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">@Localize["Cloze_NoSentences"]</p>
+        @* A failed load is not "no sentences": the learner is told it failed and nothing was recorded. *@
+        <p class="ss-body1 text-secondary-ss" role="@(loadErrorKey is null ? null : "alert")">
+            @(loadErrorKey is null ? Localize["Cloze_NoSentences"] : Localize[loadErrorKey])
+        </p>
         <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
@@ -172,6 +175,11 @@ else
     private SentenceStudio.Services.Timer.ActivityTimerLease? activityTimerLease;
 
     private bool isBusy;
+    // The learner the session was loaded for. Answers are recorded only for this owner, and
+    // only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+    // Set when the sentences could not be loaded; shown instead of "No cloze sentences".
+    private string? loadErrorKey;
     private bool showSessionSummary;
     private bool showFeedback;
     private bool lastWasCorrect;
@@ -202,6 +210,17 @@ else
 
     private async Task LoadSentences()
     {
+        loadErrorKey = null;
+        sentences = new();
+        _owner = Preferences.Get("active_profile_id", string.Empty);
+        if (string.IsNullOrWhiteSpace(_owner))
+        {
+            Logger.LogWarning("Activity {ActivityName} opened without an active profile; nothing is loaded.", nameof(Cloze));
+            loadErrorKey = "Vocabulary_NoActiveProfile";
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         isBusy = true;
         try
         {
@@ -215,24 +234,33 @@ else
             var skillId = SkillIdParam ?? "";
 
             var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly, focusVocabularyIds);
-            if (result?.Any() == true)
+            // Never show a sentence whose answer cannot be blanked: it would show the answer.
+            var usable = (result ?? new List<Challenge>())
+                .Where(challenge => ClozureAnswerHelper.TryBlankSentence(
+                    challenge.SentenceText, challenge.VocabularyWordAsUsed, challenge.VocabularyWord) is not null)
+                .ToList();
+            if (usable.Any())
             {
-                sentences = result;
-                if (sentences.Any())
-                {
-                    sentences[0].IsCurrent = true;
-                    SetCurrentChallenge(sentences[0]);
-                }
+                sentences = usable;
+                sentences[0].IsCurrent = true;
+                SetCurrentChallenge(sentences[0]);
             }
             else
             {
-                Toast.ShowWarning("No cloze sentences available.");
+                Toast.ShowWarning(Localize["Cloze_NoSentences"]);
             }
+        }
+        catch (ClozeGenerationException ex)
+        {
+            Logger.LogError(ex, "Cloze sentences could not be generated");
+            loadErrorKey = "NativeCloze_GenerationFailed";
+            Toast.ShowError(Localize["NativeCloze_GenerationFailed"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading cloze sentences");
-            Toast.ShowError($"Error: {ex.Message}");
+            loadErrorKey = "NativeActivity_LoadFailed";
+            Toast.ShowError(Localize["NativeActivity_LoadFailed"]);
         }
         finally
         {
@@ -242,22 +270,11 @@ else
 
     private void SetCurrentChallenge(Challenge challenge)
     {
-        var wordAsUsed = challenge.VocabularyWordAsUsed ?? "";
-        var sentence = challenge.SentenceText ?? "";
-        // If the conjugated form is a substring, blank it. Otherwise fall back to
-        // the dictionary form so the blank is at least visible.
-        if (!string.IsNullOrEmpty(wordAsUsed) && sentence.Contains(wordAsUsed))
-        {
-            displaySentence = sentence.Replace(wordAsUsed, "______");
-        }
-        else if (!string.IsNullOrEmpty(challenge.VocabularyWord) && sentence.Contains(challenge.VocabularyWord))
-        {
-            displaySentence = sentence.Replace(challenge.VocabularyWord, "______");
-        }
-        else
-        {
-            displaySentence = sentence;
-        }
+        // The conjugated form is blanked, else the dictionary form. Sentences where neither can
+        // be blanked were dropped at load, so the answer is never shown before it is given.
+        displaySentence = ClozureAnswerHelper.TryBlankSentence(
+            challenge.SentenceText, challenge.VocabularyWordAsUsed, challenge.VocabularyWord)
+            ?? ClozureAnswerHelper.BlankMarker;
         translationHint = challenge.RecommendedTranslation ?? "";
         correctWordAnswer = challenge.VocabularyWordAsUsed;
         guessOptions = challenge.VocabularyWordGuesses?
@@ -279,6 +296,14 @@ else
 
         var answer = inputMode == "MultipleChoice" ? selectedOption : userInput;
         if (string.IsNullOrWhiteSpace(answer)) return;
+
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Cloze answer refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
 
         // Use lenient equality so Korean particle mismatches (밥 vs 밥을) don't
         // penalize a user who clearly knows the word. MultipleChoice keeps strict
@@ -304,7 +329,8 @@ else
         if (isCorrect)
             displaySentence = current.SentenceText ?? "";
 
-        // Record user activity
+        // Record user activity (UTC, the owner's)
+        var saveFailed = false;
         try
         {
             var activity = new UserActivity
@@ -312,14 +338,19 @@ else
                 Activity = SentenceStudio.Shared.Models.Activity.Clozure.ToString(),
                 Input = answer,
                 Accuracy = isCorrect ? 100 : 0,
+                UserProfileId = owner,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             current.UserActivity = activity;
-            await ActivityRepo.SaveAsync(activity);
+            if (await ActivityRepo.SaveAsync(activity) < 0)
+            {
+                Logger.LogError("Cloze could not save its UserActivity row.");
+                saveFailed = true;
+            }
 
             // Record vocabulary progress if we can find the word
-            if (current.Vocabulary?.Any() == true)
+            if (current.Vocabulary?.Any() == true && OwnerStillActive())
             {
                 var vocabWord = current.Vocabulary.FirstOrDefault(v =>
                     string.Equals(v.TargetLanguageTerm, current.VocabularyWord, StringComparison.OrdinalIgnoreCase))
@@ -332,7 +363,7 @@ else
                     var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
                     {
                         VocabularyWordId = vocabWord.Id,
-                        UserId = Preferences.Get("active_profile_id", ""),
+                        UserId = owner,
                         Activity = "Clozure",
                         InputMode = inputMode,
                         WasCorrect = isCorrect,
@@ -346,11 +377,11 @@ else
                     if (updatedProgress.IsFamiliar)
                     {
                         await ProgressService.HandleVerificationProbeResultAsync(
-                            vocabWord.Id, Preferences.Get("active_profile_id", ""), isCorrect);
+                            vocabWord.Id, owner, isCorrect);
                         if (isCorrect)
-                            Toast.ShowSuccess("Confirmed! This one is solid.");
+                            Toast.ShowSuccess(Localize["NativeCloze_FamiliarConfirmed"]);
                         else
-                            Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
+                            Toast.ShowInfo(Localize["NativeCloze_FamiliarTricky"]);
                     }
 
                     CacheService.InvalidateVocabSummary();
@@ -360,7 +391,11 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error recording cloze activity");
+            saveFailed = true;
         }
+
+        if (saveFailed)
+            Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
 
         if (isCorrect)
         {
@@ -369,6 +404,10 @@ else
             NextSentence();
         }
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
 
     private void OnOptionTapped(string option)
     {
