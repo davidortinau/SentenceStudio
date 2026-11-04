@@ -10597,6 +10597,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your email address can be changed in the web app..
+        /// </summary>
+        internal static string NativeProfile_EmailReadOnly {
+            get {
+                return ResourceManager.GetString("NativeProfile_EmailReadOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No profile was found for the active account..
         /// </summary>
         internal static string NativeProfile_NotFound {
@@ -10615,11 +10624,56 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Changes here are drafts. Saving requires a safe server update; going back discards them..
+        ///   Looks up a localized string similar to Your profile could not be saved. Try again..
+        /// </summary>
+        internal static string NativeProfile_SaveFailed {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a name of up to 200 characters and choose each setting, then save again..
+        /// </summary>
+        internal static string NativeProfile_SaveInvalid {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your profile was saved to your account, but this device could not update its copy. It will update at the next sync..
+        /// </summary>
+        internal static string NativeProfile_SaveLocalFailed {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveLocalFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server did not accept these changes. Your profile was not saved..
+        /// </summary>
+        internal static string NativeProfile_SaveRejected {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveRejected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saving is not available right now. Your changes were not saved..
         /// </summary>
         internal static string NativeProfile_SaveUnavailable {
             get {
                 return ResourceManager.GetString("NativeProfile_SaveUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saving your profile....
+        /// </summary>
+        internal static string NativeProfile_Saving {
+            get {
+                return ResourceManager.GetString("NativeProfile_Saving", resourceCulture);
             }
         }
 

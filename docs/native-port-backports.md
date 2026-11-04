@@ -78,6 +78,8 @@ Native fix references are commits on `native-platform-heads`.
 | B48 | Reading | **Done** (Captain 2026-11-04, decision 6). "Remember this word" saved the word, then linked it to the resource; a failed link left an owned word with no resource. It now uses the native one-step `CreateAndAttachOwnedVocabularyAsync`: a word the learner already has is linked, not duplicated, and a refused link saves nothing | `Reading.razor` |
 | B49 | Translation | **Done** (shared). An AI failure while loading sentences showed "No sentences returned"; it now propagates, so the page shows its load-failed error. Also removed the `_words` field that `TranslationService` and `ClozureService` (singletons on the web) kept from the last request of any learner | Shared `TranslationService`, `ClozureService` |
 | B50 | Vocabulary Quiz | **Done**. Hard-coded English (Learning Details labels and reasons, button titles, choice labels, sentence-grading toasts, feedback) and one toast with raw exception text now use resource keys in English and Korean, the same keys as the native Learning Details. Icon buttons gained accessible names | `VocabQuiz.razor` |
+| B51 | Profile (API) | **Added, no web/MAUI change** (`0739f1b6`, decision 8d). New owner-scoped `PUT /api/v1/profile/me` (owner from the token only; name, languages, session length, level; Email and API keys never read or written) and `UserProfileRepository.SaveEditableProfileForOwnerAsync`. The web Profile page, the MAUI app and the existing `/api/v1/profile/{id}` routes behave as before; the MAUI and a future Flutter client can use `/me` for profile edits, which avoids the existing PUT's read-then-write race on the API keys. Needs the API redeployed before native Save works against a server | API `ProfileEndpoints`, Shared `UserProfileRepository` |
+| B52 | Settings (theme colors) | Open, not a regression: the web's own exact theme colours include low-contrast pairs that native now matches (decision 8b): Vapor light `.card-ss` (`--bs-tertiary-bg` `#F8F9FA`) under body text `#32FBE2`; Slate light cards (`#F8F9FA`) under `#AAAAAA`; Flatly and Sketchy dark `--bs-primary` marks on the dark page. A contrast fix belongs in `app.css` (and then the shared native table) and needs the Captain's call | `app.css`, Bootswatch overrides |
 
 ## Platform (MAUI app only)
 
@@ -93,10 +95,10 @@ Native fix references are commits on `native-platform-heads`.
 - Fixed (2026-11-04): `UserActivityRepository.SaveAsync` wrote a row with an empty `UserProfileId` when neither the item nor the active profile named one; it now refuses the write (returns -1, logged).
 
 - Number Drill on the web wrote attempts through `IAppState`, one singleton shared by every signed-in learner, so it could record under another learner; fixed in `44780523` (uses the circuit's profile).
-- Disambiguate's combined answer is normalized before grading, so some wrong-system choices (for example 삼째 날 for 셋째 날) are stored as correct while the page shows them wrong, on every client. Cross-client grading decision.
+- Fixed as B47: Disambiguate is graded exactly per choice on every client.
 
-- `TranslationService.GetTranslationSentences` still turns AI failures into an empty list ("No sentences returned"), the same class of bug as B12.
-- `ClozureService` and `TranslationService` are singletons that keep the last call's words in a field; on the web that state is shared by every signed-in learner. Nothing reads it today.
+- Fixed as B49: Translation sentence loading reports AI failures.
+- Fixed as B49: `ClozureService` and `TranslationService` no longer keep the last call's words in a shared field.
 
 ## Process
 

@@ -426,7 +426,10 @@ public sealed class AndroidPackagingTests
             HeadRoot, "AndroidSliceShell.Compose.cs"));
         Assert.Contains("ss-display mb-2\" style=\"color: var(--bs-primary);\"",
             source);
-        Assert.Contains("theme.PaletteFor(dark ? ThemeMode.Dark : ThemeMode.Light)", theme);
+        // The prompt colour is --bs-primary for the selected theme and mode, read from
+        // the shared web colour table (decision 8b).
+        Assert.Contains("NativeThemeColorTable.For(id, dark)", theme);
+        Assert.Contains("colors.Primary,", theme);
         Assert.Contains("Color.FromHex(tokens.Primary)", theme);
         Assert.Contains("internal const int QuizPromptSize = 42", theme);
         Assert.Contains("Color = palette.Primary", visual);

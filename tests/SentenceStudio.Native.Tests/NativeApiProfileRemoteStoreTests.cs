@@ -32,6 +32,109 @@ public sealed class NativeApiProfileRemoteStoreTests
         Assert.Equal(1, handler.Calls);
     }
 
+    private static readonly NativeProfileFields Fields =
+        new("Saved Name", "Japanese", "French", "Korean", 45, "C1");
+
+    [Fact]
+    public async Task ProfileSaveSendsOnlyEditableFieldsToMe_AndReturnsTheServerValues()
+    {
+        var handler = new Recorder(HttpStatusCode.OK, """
+            {"id":"owner-a","displayName":"Server Name","email":"a@example.invalid",
+             "nativeLanguage":"Japanese","targetLanguage":"French","displayLanguage":"Korean",
+             "targetCefrLevel":"C1","preferredSessionMinutes":45,"openAiApiKey":"sk-secret"}
+            """);
+        var store = new NativeApiProfileRemoteStore(new Factory(handler),
+            new Auth(TokenFor("owner-a")), NullLogger<NativeApiProfileRemoteStore>.Instance);
+
+        var result = await store.SaveProfileAsync("owner-a", Fields, CancellationToken.None);
+
+        Assert.Equal(NativeProfileRemoteOutcome.Saved, result.Outcome);
+        Assert.Equal(Fields with { Name = "Server Name" }, result.Saved);
+        Assert.Equal("a@example.invalid", result.Email);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Put, request.Method);
+        Assert.Equal("/api/v1/profile/me", request.Path);
+        Assert.Equal("Bearer", request.Scheme);
+        using var body = System.Text.Json.JsonDocument.Parse(request.Body!);
+        var names = body.RootElement.EnumerateObject()
+            .Select(p => p.Name.ToLowerInvariant()).Order().ToArray();
+        Assert.Equal(new[] { "displaylanguage", "displayname", "nativelanguage",
+            "preferredsessionminutes", "targetcefrlevel", "targetlanguage" }, names);
+        Assert.DoesNotContain("owner-a", request.Body);
+    }
+
+    [Fact]
+    public async Task ProfileSaveRefusesAMismatchedTokenOwnerWithoutARequest()
+    {
+        var handler = new Recorder(HttpStatusCode.OK, "{}");
+        var store = new NativeApiProfileRemoteStore(new Factory(handler),
+            new Auth(TokenFor("owner-b")), NullLogger<NativeApiProfileRemoteStore>.Instance);
+
+        var result = await store.SaveProfileAsync("owner-a", Fields, CancellationToken.None);
+        var empty = await store.SaveProfileAsync("", Fields, CancellationToken.None);
+
+        Assert.Equal(NativeProfileRemoteOutcome.Rejected, result.Outcome);
+        Assert.Equal(NativeProfileRemoteOutcome.Rejected, empty.Outcome);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, "{}", NativeProfileRemoteOutcome.Rejected)]
+    [InlineData(HttpStatusCode.Unauthorized, "", NativeProfileRemoteOutcome.Rejected)]
+    [InlineData(HttpStatusCode.NotFound, "", NativeProfileRemoteOutcome.Rejected)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "", NativeProfileRemoteOutcome.TransportFailure)]
+    [InlineData(HttpStatusCode.OK, "not json", NativeProfileRemoteOutcome.Rejected)]
+    [InlineData(HttpStatusCode.OK, """
+        {"id":"owner-b","displayName":"B","nativeLanguage":"English","targetLanguage":"Korean",
+         "displayLanguage":"English","targetCefrLevel":"A1","preferredSessionMinutes":15}
+        """, NativeProfileRemoteOutcome.Rejected)]
+    public async Task ProfileSaveFailuresAreHonest(
+        HttpStatusCode status, string body, NativeProfileRemoteOutcome expected)
+    {
+        var handler = new Recorder(status, body);
+        var store = new NativeApiProfileRemoteStore(new Factory(handler),
+            new Auth(TokenFor("owner-a")), NullLogger<NativeApiProfileRemoteStore>.Instance);
+
+        var result = await store.SaveProfileAsync("owner-a", Fields, CancellationToken.None);
+
+        Assert.Equal(expected, result.Outcome);
+        Assert.Null(result.Saved);
+    }
+
+    [Fact]
+    public async Task ProfileSaveTransportErrorIsATransportFailure()
+    {
+        var handler = new Recorder(HttpStatusCode.OK, "") { Throw = true };
+        var store = new NativeApiProfileRemoteStore(new Factory(handler),
+            new Auth(TokenFor("owner-a")), NullLogger<NativeApiProfileRemoteStore>.Instance);
+
+        var result = await store.SaveProfileAsync("owner-a", Fields, CancellationToken.None);
+
+        Assert.Equal(NativeProfileRemoteOutcome.TransportFailure, result.Outcome);
+    }
+
+    private sealed record RecordedRequest(HttpMethod Method, string Path, string? Scheme, string? Body);
+
+    private sealed class Recorder(HttpStatusCode status, string body) : HttpMessageHandler
+    {
+        internal bool Throw { get; init; }
+        internal List<RecordedRequest> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(new(request.Method, request.RequestUri!.AbsolutePath,
+                request.Headers.Authorization?.Scheme,
+                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
+            if (Throw)
+                throw new HttpRequestException("offline");
+            return new HttpResponseMessage(status)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
     private static string TokenFor(string owner) =>
         new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             claims: [new Claim(AuthClaimTypes.UserProfileId, owner)],

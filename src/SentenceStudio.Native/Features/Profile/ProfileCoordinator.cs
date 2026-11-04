@@ -28,14 +28,30 @@ internal sealed record ProfileDraft(
                 ? "A2" : profile.TargetCEFRLevel);
 }
 
+internal enum ProfileSaveStatus { Idle, Saving, Saved, Failed }
+
 internal sealed record ProfileState(
-    ProfilePhase Phase, ProfileDraft Draft, bool ShowDeleteConfirmation);
+    ProfilePhase Phase, ProfileDraft Draft, bool ShowDeleteConfirmation,
+    ProfileSaveStatus SaveStatus = ProfileSaveStatus.Idle, string? SaveMessageKey = null)
+{
+    internal bool IsSaving => SaveStatus == ProfileSaveStatus.Saving;
+    internal bool CanSave => Phase == ProfilePhase.Ready && !IsSaving;
+}
 
 internal sealed class ProfileCoordinator : IDisposable
 {
+    internal const string SaveInvalidKey = "NativeProfile_SaveInvalid";
+    internal const string SaveRejectedKey = "NativeProfile_SaveRejected";
+    internal const string SaveFailedKey = "NativeProfile_SaveFailed";
+    internal const string SaveLocalFailedKey = "NativeProfile_SaveLocalFailed";
+    internal const string SaveUnavailableKey = "NativeProfile_SaveUnavailable";
+    internal const string SavedKey = "Profile_Saved";
+    private const int MaxNameLength = 200;
+
     private readonly object _gate = new();
     private readonly UserProfileRepository _repository;
     private readonly DeviceUserScopeProvider _userScope;
+    private readonly INativeProfileRemoteStore _remote;
     private readonly ILogger<ProfileCoordinator> _logger;
     private string? _owner;
     private DeviceUserScopeProvider.ScopeStamp _stamp;
@@ -46,14 +62,20 @@ internal sealed class ProfileCoordinator : IDisposable
     private bool _open;
     private bool _disposed;
     private int _viewVersion;
+    private ProfileSaveStatus _saveStatus;
+    private string? _saveMessageKey;
+    private Task<bool>? _inflightSave;
 
     internal ProfileCoordinator(
         UserProfileRepository repository, DeviceUserScopeProvider userScope,
-        ILogger<ProfileCoordinator> logger)
+        ILogger<ProfileCoordinator> logger, INativeProfileRemoteStore? remote = null)
     {
         _repository = repository;
         _userScope = userScope;
         _logger = logger;
+        // Native profile sync is download-only: without the owner-checked API
+        // there is no safe save, so Save reports Unavailable instead of writing.
+        _remote = remote ?? new UnavailableNativeProfileRemoteStore();
     }
 
     internal event Action? Changed;
@@ -74,7 +96,7 @@ internal sealed class ProfileCoordinator : IDisposable
             lock (_gate)
             {
                 revoked = RevokeIfStaleLocked();
-                state = new(_phase, _draft, _deleteRequested);
+                state = new(_phase, _draft, _deleteRequested, _saveStatus, _saveMessageKey);
             }
             if (revoked)
                 Changed?.Invoke();
@@ -136,6 +158,8 @@ internal sealed class ProfileCoordinator : IDisposable
                 generation = ++_loadGeneration;
                 _draft = ProfileDraft.Empty;
                 _deleteRequested = false;
+                _saveStatus = ProfileSaveStatus.Idle;
+                _saveMessageKey = null;
                 _phase = ProfilePhase.Loading;
                 ++_viewVersion;
             }
@@ -243,6 +267,215 @@ internal sealed class ProfileCoordinator : IDisposable
             Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Saves the draft's editable fields: the server first (native profile sync is
+    /// download-only, so a local-only change would be reverted by the next download),
+    /// then the local row with exactly the values the server stored. Concurrent calls
+    /// share one in-flight save. Returns true only when both writes succeeded for the
+    /// owner that is still active.
+    /// </summary>
+    internal async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
+    {
+        TaskCompletionSource<bool>? flight = null;
+        Task<bool>? running;
+        lock (_gate)
+        {
+            running = _inflightSave;
+            if (running is null)
+            {
+                flight = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _inflightSave = flight.Task;
+            }
+        }
+        if (running is not null)
+            return await running;
+
+        try
+        {
+            var saved = await SaveOnceAsync(cancellationToken);
+            flight!.TrySetResult(saved);
+            return saved;
+        }
+        catch
+        {
+            flight!.TrySetResult(false);
+            throw;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_inflightSave, flight!.Task))
+                    _inflightSave = null;
+            }
+        }
+    }
+
+    private async Task<bool> SaveOnceAsync(CancellationToken cancellationToken)
+    {
+        string owner;
+        DeviceUserScopeProvider.ScopeStamp stamp;
+        long generation;
+        ProfileDraft draft;
+        bool revoked;
+        bool invalid = false;
+        bool started = false;
+        lock (_gate)
+        {
+            revoked = RevokeIfStaleLocked();
+            owner = _owner ?? string.Empty;
+            stamp = _stamp;
+            generation = _loadGeneration;
+            draft = _draft;
+            if (!revoked && _phase == ProfilePhase.Ready
+                && IsCurrentOwnerLocked(owner, stamp))
+            {
+                invalid = !IsSavable(draft);
+                _saveStatus = invalid ? ProfileSaveStatus.Failed : ProfileSaveStatus.Saving;
+                _saveMessageKey = invalid ? SaveInvalidKey : null;
+                started = !invalid;
+                ++_viewVersion;
+            }
+        }
+        if (revoked || invalid || started)
+            Changed?.Invoke();
+        if (!started)
+        {
+            if (!invalid)
+                _logger.LogWarning("Profile save refused without an open owned profile.");
+            return false;
+        }
+
+        var fields = new NativeProfileFields(draft.Name.Trim(), draft.NativeLanguage,
+            draft.TargetLanguage, draft.DisplayLanguage, draft.PreferredSessionMinutes,
+            draft.TargetCefrLevel);
+        NativeProfileSaveResult remote;
+        try
+        {
+            remote = await _remote.SaveProfileAsync(owner, fields, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Idle, null, null);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Profile save failed before the server accepted it.");
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Failed, SaveFailedKey, null);
+            return false;
+        }
+
+        if (remote.Outcome != NativeProfileRemoteOutcome.Saved || remote.Saved is null)
+        {
+            _logger.LogWarning("Profile save was not accepted by the server ({Outcome}).",
+                remote.Outcome);
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Failed,
+                remote.Outcome switch
+                {
+                    NativeProfileRemoteOutcome.TransportFailure => NativeText.ConnectionError,
+                    NativeProfileRemoteOutcome.Unavailable => SaveUnavailableKey,
+                    _ => SaveRejectedKey
+                }, null);
+            return false;
+        }
+
+        // The owner may have changed while the request was in flight. The server
+        // already holds the change for the original owner; that owner's next sync
+        // download brings it to this device, so nothing is written here.
+        if (!IsSaveCurrent(owner, stamp, generation))
+            return false;
+
+        var accepted = remote.Saved;
+        int local;
+        try
+        {
+            local = await _repository.SaveEditableProfileForOwnerAsync(owner, accepted.Name,
+                accepted.NativeLanguage, accepted.TargetLanguage, accepted.DisplayLanguage,
+                accepted.PreferredSessionMinutes, accepted.TargetCefrLevel,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Idle, null, null);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Profile was saved on the server but the local row was not updated.");
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Failed, SaveLocalFailedKey, null);
+            return false;
+        }
+        if (local < 0)
+        {
+            _logger.LogWarning(
+                "Profile was saved on the server but the local row was not updated ({Result}).",
+                local);
+            FinishSave(owner, stamp, generation, ProfileSaveStatus.Failed, SaveLocalFailedKey, null);
+            return false;
+        }
+
+        var savedDraft = new ProfileDraft(accepted.Name, remote.Email ?? draft.Email,
+            accepted.NativeLanguage, accepted.TargetLanguage, accepted.DisplayLanguage,
+            accepted.PreferredSessionMinutes, accepted.TargetCefrLevel);
+        return FinishSave(owner, stamp, generation, ProfileSaveStatus.Saved, SavedKey,
+            savedDraft);
+    }
+
+    private static bool IsSavable(ProfileDraft draft)
+    {
+        var name = draft.Name?.Trim() ?? string.Empty;
+        return name.Length is > 0 and <= MaxNameLength
+            && NativeOnboardingOptions.NativeLanguages.Contains(draft.NativeLanguage)
+            && NativeOnboardingOptions.TargetLanguages.Contains(draft.TargetLanguage)
+            && draft.DisplayLanguage is ("English" or "Korean")
+            && NativeOnboardingOptions.SessionMinutes.Contains(draft.PreferredSessionMinutes)
+            && NativeOnboardingOptions.CefrLevels.Contains(draft.TargetCefrLevel);
+    }
+
+    private bool IsSaveCurrent(
+        string owner, DeviceUserScopeProvider.ScopeStamp stamp, long generation)
+    {
+        bool revoked;
+        bool current;
+        lock (_gate)
+        {
+            revoked = RevokeIfStaleLocked();
+            current = !revoked && generation == _loadGeneration
+                && IsCurrentOwnerLocked(owner, stamp);
+        }
+        if (revoked)
+            Changed?.Invoke();
+        if (!current)
+            _logger.LogWarning("Profile save result discarded after the owner or screen changed.");
+        return current;
+    }
+
+    private bool FinishSave(string owner, DeviceUserScopeProvider.ScopeStamp stamp,
+        long generation, ProfileSaveStatus status, string? messageKey, ProfileDraft? draft)
+    {
+        bool changed;
+        var applied = false;
+        lock (_gate)
+        {
+            changed = RevokeIfStaleLocked();
+            if (!changed && generation == _loadGeneration
+                && IsCurrentOwnerLocked(owner, stamp))
+            {
+                _saveStatus = status;
+                _saveMessageKey = messageKey;
+                if (draft is not null)
+                    _draft = draft;
+                ++_viewVersion;
+                changed = true;
+                applied = status == ProfileSaveStatus.Saved;
+            }
+        }
+        if (changed)
+            Changed?.Invoke();
+        return applied;
+    }
+
     internal void Close()
     {
         lock (_gate)
@@ -258,6 +491,8 @@ internal sealed class ProfileCoordinator : IDisposable
         _stamp = default;
         _draft = ProfileDraft.Empty;
         _deleteRequested = false;
+        _saveStatus = ProfileSaveStatus.Idle;
+        _saveMessageKey = null;
         _phase = ProfilePhase.Closed;
         ++_loadGeneration;
     }
@@ -269,7 +504,9 @@ internal sealed class ProfileCoordinator : IDisposable
         lock (_gate)
         {
             revoked = RevokeIfStaleLocked();
+            // Edits wait for an in-flight save: its result replaces the draft.
             applied = !revoked && _phase == ProfilePhase.Ready
+                && _saveStatus != ProfileSaveStatus.Saving
                 && IsCurrentOwnerLocked(_owner ?? string.Empty, _stamp);
             if (applied)
                 _draft = edit(_draft);
@@ -306,6 +543,8 @@ internal sealed class ProfileCoordinator : IDisposable
         _stamp = default;
         _draft = ProfileDraft.Empty;
         _deleteRequested = false;
+        _saveStatus = ProfileSaveStatus.Idle;
+        _saveMessageKey = null;
         _phase = ProfilePhase.Blocked;
         ++_loadGeneration;
         ++_viewVersion;

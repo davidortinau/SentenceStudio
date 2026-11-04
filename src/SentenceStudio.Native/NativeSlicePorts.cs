@@ -298,14 +298,31 @@ internal sealed class UnavailableNativeQuizMedia : INativeQuizMedia
 
 public enum NativeProfileRemoteOutcome { Saved, Rejected, TransportFailure, Unavailable }
 
+/// <summary>The learner-editable profile fields (web Profile page minus email and keys).</summary>
+public sealed record NativeProfileFields(
+    string Name, string NativeLanguage, string TargetLanguage, string DisplayLanguage,
+    int PreferredSessionMinutes, string TargetCefrLevel);
+
 /// <summary>
-/// Native UserProfile sync is download-only. Onboarding choices must reach the
-/// server through the owner-checked profile API before they are kept locally.
+/// A profile save's outcome. <see cref="Saved"/> carries the values the server
+/// stored, which are the only values a device may keep locally.
+/// </summary>
+public sealed record NativeProfileSaveResult(
+    NativeProfileRemoteOutcome Outcome, NativeProfileFields? Saved = null, string? Email = null);
+
+/// <summary>
+/// Native UserProfile sync is download-only. Onboarding choices and profile edits
+/// must reach the server through the owner-checked profile API before they are
+/// kept locally.
 /// </summary>
 public interface INativeProfileRemoteStore
 {
     Task<NativeProfileRemoteOutcome> SaveOnboardingAsync(
         string owner, NativeOnboardingDraft draft, CancellationToken cancellationToken);
+
+    /// <summary>Saves the signed-in learner's own profile fields (PUT /api/v1/profile/me).</summary>
+    Task<NativeProfileSaveResult> SaveProfileAsync(
+        string owner, NativeProfileFields fields, CancellationToken cancellationToken);
 }
 
 internal sealed class UnavailableNativeProfileRemoteStore : INativeProfileRemoteStore
@@ -313,4 +330,8 @@ internal sealed class UnavailableNativeProfileRemoteStore : INativeProfileRemote
     public Task<NativeProfileRemoteOutcome> SaveOnboardingAsync(
         string owner, NativeOnboardingDraft draft, CancellationToken cancellationToken) =>
         Task.FromResult(NativeProfileRemoteOutcome.Unavailable);
+
+    public Task<NativeProfileSaveResult> SaveProfileAsync(
+        string owner, NativeProfileFields fields, CancellationToken cancellationToken) =>
+        Task.FromResult(new NativeProfileSaveResult(NativeProfileRemoteOutcome.Unavailable));
 }

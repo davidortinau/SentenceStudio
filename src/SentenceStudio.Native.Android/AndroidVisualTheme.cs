@@ -21,7 +21,14 @@ internal sealed record AndroidVisualPalette(
     Color DangerContainer,
     Color OnDanger,
     Color WarningText,
-    Color KnownText);
+    Color KnownText)
+{
+    /// <summary>Theme-tinted fill for a selected segment and the selected tab indicator.</summary>
+    internal Color SelectedContainer { get; init; }
+    internal Color TertiaryText { get; init; }
+    internal Color SecondarySurface { get; init; }
+    internal Color Secondary { get; init; }
+}
 
 internal static class AndroidVisualTheme
 {
@@ -52,7 +59,13 @@ internal static class AndroidVisualTheme
             Color.FromHex(AndroidSamCards.DangerContainerHex),
             Color.FromHex(AndroidSamCards.OnDangerHex),
             Color.FromHex(tokens.WarningText),
-            Color.FromHex(tokens.KnownText));
+            Color.FromHex(tokens.KnownText))
+        {
+            SelectedContainer = Color.FromHex(tokens.SelectedContainer),
+            TertiaryText = Color.FromHex(tokens.TertiaryText),
+            SecondarySurface = Color.FromHex(tokens.SecondarySurface),
+            Secondary = Color.FromHex(tokens.Secondary),
+        };
     }
 
     private static readonly Dictionary<(string Theme, bool Dark), AndroidVisualPalette> Palettes = [];
@@ -73,23 +86,55 @@ internal static class AndroidVisualTheme
     internal static bool UsesDarkScheme(bool dark, string? themeId) =>
         AndroidThemeTokensCatalog.For(themeId, dark).DarkSurface;
 
+    /// <summary>
+    /// Material roles from the theme's exact colours. Every container and surface-container
+    /// role is set, so no component falls back to Material's baseline purple: segmented
+    /// buttons and the navigation-bar indicator read secondaryContainer, the navigation
+    /// bar, menus, sheets and dialogs read the surface containers.
+    /// </summary>
     internal static ColorScheme ColorScheme(bool dark, string? themeId = null)
     {
         var color = For(dark, themeId);
         return UsesDarkScheme(dark, themeId)
             ? ComposeMaterialTheme.DarkColorScheme(
                 primary: color.Primary, onPrimary: color.OnPrimary,
-                secondary: color.Success, background: color.Background,
-                onBackground: color.Text, surface: color.Background,
-                onSurface: color.Text, surfaceVariant: color.Card,
-                onSurfaceVariant: color.SecondaryText, outline: color.Border,
-                error: color.Danger, onError: Color.White)
+                primaryContainer: color.SelectedContainer, onPrimaryContainer: color.Text,
+                inversePrimary: color.Primary,
+                secondary: color.Success,
+                secondaryContainer: color.SelectedContainer, onSecondaryContainer: color.Text,
+                tertiary: color.Accent,
+                tertiaryContainer: color.SelectedContainer, onTertiaryContainer: color.Text,
+                background: color.Background, onBackground: color.Text,
+                surface: color.Background, onSurface: color.Text,
+                surfaceVariant: color.Card, onSurfaceVariant: color.SecondaryText,
+                surfaceTint: color.Primary,
+                inverseSurface: color.Text, inverseOnSurface: color.Background,
+                error: color.Danger, onError: Color.White,
+                errorContainer: color.DangerSurface, onErrorContainer: color.Text,
+                outline: color.Border, outlineVariant: color.Border,
+                surfaceBright: color.Elevated,
+                surfaceContainer: color.Card, surfaceContainerHigh: color.Elevated,
+                surfaceContainerHighest: color.Elevated, surfaceContainerLow: color.Card,
+                surfaceContainerLowest: color.Background, surfaceDim: color.Background)
             : ComposeMaterialTheme.LightColorScheme(
                 primary: color.Primary, onPrimary: color.OnPrimary,
-                secondary: color.Success, background: color.Background,
-                onBackground: color.Text, surface: color.Background,
-                onSurface: color.Text, surfaceVariant: color.Card,
-                onSurfaceVariant: color.SecondaryText, outline: color.Border,
-                error: color.Danger, onError: Color.White);
+                primaryContainer: color.SelectedContainer, onPrimaryContainer: color.Text,
+                inversePrimary: color.Primary,
+                secondary: color.Success,
+                secondaryContainer: color.SelectedContainer, onSecondaryContainer: color.Text,
+                tertiary: color.Accent,
+                tertiaryContainer: color.SelectedContainer, onTertiaryContainer: color.Text,
+                background: color.Background, onBackground: color.Text,
+                surface: color.Background, onSurface: color.Text,
+                surfaceVariant: color.Card, onSurfaceVariant: color.SecondaryText,
+                surfaceTint: color.Primary,
+                inverseSurface: color.Text, inverseOnSurface: color.Background,
+                error: color.Danger, onError: Color.White,
+                errorContainer: color.DangerSurface, onErrorContainer: color.Text,
+                outline: color.Border, outlineVariant: color.Border,
+                surfaceBright: color.Elevated,
+                surfaceContainer: color.Card, surfaceContainerHigh: color.Elevated,
+                surfaceContainerHighest: color.Elevated, surfaceContainerLow: color.Card,
+                surfaceContainerLowest: color.Background, surfaceDim: color.Background);
     }
 }

@@ -48,7 +48,8 @@ internal sealed partial class ApplicationController
         }
         _profile ??= new ProfileCoordinator(
             _services.Provider.GetRequiredService<UserProfileRepository>(),
-            scope, _services.Provider.GetRequiredService<ILogger<ProfileCoordinator>>());
+            scope, _services.Provider.GetRequiredService<ILogger<ProfileCoordinator>>(),
+            _services.Provider.GetRequiredService<INativeProfileRemoteStore>());
         _profile.Changed -= Publish;
         _profile.Changed += Publish;
         Run(async () => await _profile.OpenAsync(expectedOwner, _lifetime.Token));
@@ -63,7 +64,8 @@ internal sealed partial class ApplicationController
                     profile.SetDisplayLanguage, profile.SetSessionMinutes,
                     profile.SetTargetCefrLevel,
                     () => Run(() => profile.ReloadAsync(_lifetime.Token)),
-                    profile.RequestDelete))
+                    profile.RequestDelete,
+                    () => Run(() => profile.SaveAsync(_lifetime.Token))))
             : Views.Text(Text("Common_Loading"));
 
     internal void CancelProfileDelete() => _profile?.CancelDelete();

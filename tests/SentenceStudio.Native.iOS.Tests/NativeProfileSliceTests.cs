@@ -328,7 +328,10 @@ public sealed class NativeProfileSliceTests
             "Profile_Cancel", "Profile_Delete",
             "NativeProfile_OwnerUnavailable", "NativeProfile_NotFound",
             "NativeProfile_SaveUnavailable",
-            "NativeProfile_AccountActionUnavailable"
+            "NativeProfile_AccountActionUnavailable",
+            "Profile_Saved", "NativeProfile_Saving", "NativeProfile_SaveInvalid",
+            "NativeProfile_SaveRejected", "NativeProfile_SaveFailed",
+            "NativeProfile_SaveLocalFailed", "NativeProfile_EmailReadOnly"
         })
             Assert.True(resources.Any(entry =>
                 entry.Attribute("name")?.Value == key
@@ -358,6 +361,14 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("NativeOnboardingOptions.CefrLevels", view);
         Assert.Contains("Views.Scroll(content)", view);
         Assert.Contains("enabled: false", view);
+        // Save (decision 8d) runs the shared owner-checked save; email is read-only.
+        Assert.Contains("actions.Save, fullWidth: true", view);
+        Assert.Contains("if (!state.CanSave)", view);
+        Assert.Contains("\"native.profile.save.status\"", view);
+        Assert.Contains("\"native.profile.email\", actions.EmailChanged, enabled: false", view);
+        Assert.Contains("NativeProfile_EmailReadOnly", view);
+        Assert.Contains("() => Run(() => profile.SaveAsync(_lifetime.Token))", app);
+        Assert.Contains("GetRequiredService<INativeProfileRemoteStore>()", app);
         Assert.Contains("delete.IsEnabled = false;", scene);
         Assert.Contains("Views.Alert(_profileSlot,", scene);
         Assert.Contains("_dashboardStack.Push(\"profile\",", scene);
@@ -370,7 +381,7 @@ public sealed class NativeProfileSliceTests
             Source("../SentenceStudio.Native/Features/Profile/ProfileCoordinator.cs"));
         Assert.Contains("native.dashboard.profile", dashboard);
         Assert.DoesNotContain("ExportAllData", view);
-        Assert.DoesNotContain("SaveAsync(", view + app);
+        Assert.DoesNotContain("SaveAsync(", view);
         Assert.DoesNotContain("DeleteAccountAsync(", view + app);
         Assert.DoesNotContain("ChangePasswordAsync(", view + app);
     }

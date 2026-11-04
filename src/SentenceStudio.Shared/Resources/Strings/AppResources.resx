@@ -2330,8 +2330,32 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <comment>Native Profile: owner has no local profile row</comment>
   </data>
   <data name="NativeProfile_SaveUnavailable" xml:space="preserve">
-    <value>Changes here are drafts. Saving requires a safe server update; going back discards them.</value>
-    <comment>Native Profile: disabled Save while server persistence is unavailable</comment>
+    <value>Saving is not available right now. Your changes were not saved.</value>
+    <comment>Native Profile: Save could not reach a configured server path</comment>
+  </data>
+  <data name="NativeProfile_Saving" xml:space="preserve">
+    <value>Saving your profile...</value>
+    <comment>Native Profile: Save in progress</comment>
+  </data>
+  <data name="NativeProfile_SaveInvalid" xml:space="preserve">
+    <value>Enter a name of up to 200 characters and choose each setting, then save again.</value>
+    <comment>Native Profile: draft failed validation before saving</comment>
+  </data>
+  <data name="NativeProfile_SaveRejected" xml:space="preserve">
+    <value>The server did not accept these changes. Your profile was not saved.</value>
+    <comment>Native Profile: server refused the profile save</comment>
+  </data>
+  <data name="NativeProfile_SaveFailed" xml:space="preserve">
+    <value>Your profile could not be saved. Try again.</value>
+    <comment>Native Profile: unexpected failure before the server accepted the save</comment>
+  </data>
+  <data name="NativeProfile_SaveLocalFailed" xml:space="preserve">
+    <value>Your profile was saved to your account, but this device could not update its copy. It will update at the next sync.</value>
+    <comment>Native Profile: server saved, local row not updated</comment>
+  </data>
+  <data name="NativeProfile_EmailReadOnly" xml:space="preserve">
+    <value>Your email address can be changed in the web app.</value>
+    <comment>Native Profile: email is shown read-only; Save does not change it</comment>
   </data>
   <data name="NativeProfile_AccountActionUnavailable" xml:space="preserve">
     <value>Password changes and account deletion are unavailable here. Your account will not be changed.</value>
