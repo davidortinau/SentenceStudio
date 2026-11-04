@@ -74,6 +74,10 @@ Native fix references are commits on `native-platform-heads`.
 | B44 | Vocabulary Quiz | **Done** (code review 3). After the last words were mastered the page said "All words mastered! Session complete." even when saving failed or the run was left for the client that scored it. It now says so only when the run was saved (`VocabQuiz_AllMasteredSessionComplete`, English and Korean); a failed save shows `NativeCommon_SaveFailed` and keeps the summary, so Continue tries again | `VocabQuiz.razor` |
 | B45 | Vocabulary Quiz, How Do You Say | **Done** (code review 3). The offline audio checks looked only at the entry's own file, not the copy this device made of a clip recorded on another device (`entry_<id>.mp3`), so a clip that would play was reported missing | `UiSpeechClipCache.ResolveEntry` |
 | B46 | Cloze | **Done** (code review 3, shared). When the plan's focus words gave no sentence that could be blanked, the activity failed instead of trying the regular word pool | Shared `ClozureService.GetSentences` |
+| B47 | Number Drill | **Done** (Captain 2026-11-04, decision 5; shared). Disambiguate pages grade each choice exactly, but the shared grader normalized number words, so some wrong-system choices (for example 삼째 날 for 셋째 날) were stored as correct while the page showed them wrong. The grader now grades Disambiguate exactly per choice, both-or-nothing, on every client. Past attempts are unchanged | Shared `KoreanNumberAnswerGrader` |
+| B48 | Reading | **Done** (Captain 2026-11-04, decision 6). "Remember this word" saved the word, then linked it to the resource; a failed link left an owned word with no resource. It now uses the native one-step `CreateAndAttachOwnedVocabularyAsync`: a word the learner already has is linked, not duplicated, and a refused link saves nothing | `Reading.razor` |
+| B49 | Translation | **Done** (shared). An AI failure while loading sentences showed "No sentences returned"; it now propagates, so the page shows its load-failed error. Also removed the `_words` field that `TranslationService` and `ClozureService` (singletons on the web) kept from the last request of any learner | Shared `TranslationService`, `ClozureService` |
+| B50 | Vocabulary Quiz | **Done**. Hard-coded English (Learning Details labels and reasons, button titles, choice labels, sentence-grading toasts, feedback) and one toast with raw exception text now use resource keys in English and Korean, the same keys as the native Learning Details. Icon buttons gained accessible names | `VocabQuiz.razor` |
 
 ## Platform (MAUI app only)
 
@@ -84,8 +88,9 @@ Native fix references are commits on `native-platform-heads`.
 
 ## Found while backporting (open)
 
-- Reading "Remember this word" saves the word, then links it to the resource; if the link fails, an owned word with no resource is left (the same sync risk as B7). Native uses `CreateAndAttachOwnedVocabularyAsync`; switching changes smart-resource and duplicate behavior, so it needs a decision.
-- `UserActivityRepository.SaveAsync` writes a row with an empty `UserProfileId` when neither the item nor the active profile names one (shared code; the backported pages now always set the owner).
+- Fixed as B48: Reading "Remember this word" now creates and links in one step.
+- Number Drill Disambiguate offers spacing-only variants as wrong choices (for example 삼층 for 삼 층, 세시 for 세 시). Attached spellings like these are accepted Korean, so exact grading marks a valid spelling wrong (the page already did). Needs a content decision.
+- Fixed (2026-11-04): `UserActivityRepository.SaveAsync` wrote a row with an empty `UserProfileId` when neither the item nor the active profile named one; it now refuses the write (returns -1, logged).
 
 - Number Drill on the web wrote attempts through `IAppState`, one singleton shared by every signed-in learner, so it could record under another learner; fixed in `44780523` (uses the circuit's profile).
 - Disambiguate's combined answer is normalized before grading, so some wrong-system choices (for example 삼째 날 for 셋째 날) are stored as correct while the page shows them wrong, on every client. Cross-client grading decision.
