@@ -572,13 +572,17 @@ versions." Decision 2: A, with word-link deletes kept on the device first.
   checks: a download returned every learner's rows (GitHub #204). Opening the switch exists only
   for a deliberate, temporary rollout of old builds.
 - **A row the server cannot place stays on the device.** An upload is refused as a whole (403)
-  only for a malformed row or a row that is another learner's: it names another learner in its
-  owner column, or the stored row with its ID belongs to one. Every other row the server cannot
-  place for the uploading learner (it names no owner, its stored copy has none, its parent or
-  word is not theirs, a legacy table such as `VocabularyList`) is left out and the rest applies,
-  repeating until the kept rows are consistent, so a left-out parent's children stay too. Before,
-  one such row refused the whole upload and stopped that device's sync for good. Nothing foreign
-  or ownerless is ever applied.
+  only for a malformed row or a row that names another learner in its own owner column: the one
+  thing a client can always check before sending. Every other row the server cannot place for
+  the uploading learner is left out and the rest applies: it names no owner; its stored copy
+  is recorded or inferred as another learner's, or has no owner; its parent or word is not
+  theirs; or its table does not sync from devices (`VocabularyList`). This repeats until the
+  kept rows are consistent, so a left-out parent's children stay too. A decision from stored
+  state never refuses an upload, because the device's copy can disagree: an old shared word with
+  no recorded owner can name two learners on a MAUI install (no owner, so it is sent) while the
+  server, lacking the device's new progress row, infers the other learner. A refused upload is
+  offered again on every sync, so that install would never sync again. Nothing foreign or
+  ownerless is ever applied.
 - **A store binds to its first learner.** A device database's CoreSync store is bound to the
   first learner that syncs it with the owner header; every other account is then refused (403).
   A store that synced before without the header (an installed MAUI app) used to need every row
@@ -586,13 +590,22 @@ versions." Decision 2: A, with word-link deletes kept on the device first.
   nothing, so no MAUI install could have synced again. Now the claim is refused only when that
   history names learners and none of them is the claimant. Such a store downloaded every
   learner's rows unfiltered, so its cursor is valid for any owner and is copied once.
+  **The trade-off:** a store whose history proves no owner (it only downloaded, or everything
+  it uploaded has no owner, was deleted since, or is a legacy table) is claimed by whichever
+  learner syncs it first with the new build, even if that is not the install's usual learner.
+  The other learner is then refused on that install, and their work there that never reached
+  the server stays on the install: it is not uploaded from it, even after they sign in again.
 - **Owner-checked deletes.** A device delete is applied only when the stored row, looked up by
   its ID first, is the uploading learner's. A learner profile is never deleted from a device, and
   a word only when no other learner's link, progress, example, pair or phrase uses it. A delete
   of a row the same upload writes again is not applied. Any other delete (another learner's row,
   an unowned row, a row the server never had) is left out without refusing the upload: a device
-  cannot know the owner of a row it already deleted. CoreSync still skips a delete of a row
-  changed on the server since the device last synced (an update elsewhere wins).
+  cannot know the owner of a row it already deleted. Deletes apply before writes, children
+  before parents: a minimal pair answer references its two words with ON DELETE RESTRICT (the
+  only restricting references among synced tables), so a word goes only after its answers, and
+  a word delete is left out while an answer the upload does not remove (the learner's or
+  another's) still uses it. CoreSync still skips a delete of a row changed on the server since
+  the device last synced (an update elsewhere wins).
 - **Deletes reach the learner's other devices.** Migration `20261104162953_AddSyncDeletionLog`
   adds a server-only log, `"SyncDeletion"` (table, row ID, owner, time), filled by a
   `BEFORE DELETE` trigger on each of the 28 synced tables that have an owner, so every delete
@@ -622,8 +635,11 @@ intended).
    row that is another learner's (its owner column names another learner, or its owner resolved
    from local parent rows does: a link from its resource, a learning record from its progress,
    a phrase part from its phrase word, a word from its recorded owner or the one learner its
-   links and progress name; `SyncRowOwners`, `SyncUploadRules`). Leaving a row out still moves
-   the upload cursor past it; it is offered again only when it changes.
+   links and progress name; `SyncRowOwners`, `SyncUploadRules`). A row naming another learner in
+   its owner column must be kept: the server refuses the whole upload for it. A row resolved to
+   another learner only from parent rows is optional to keep (the server leaves it out anyway);
+   the shared rules keep it. Leaving a row out still moves the upload cursor past it; it is
+   offered again only when it changes.
 3. Send every other change, deletes included. The server applies what it can place and leaves
    out the rest without failing the upload.
 4. Apply downloaded deletes (CoreSync does), forcing them over local changes as `SyncService`
@@ -653,7 +669,8 @@ intended).
 - **A second account on the same install.** The install's store binds to the first learner who
   syncs it with this build; a second account signed in on that install gets 403 on sync, keeps
   working offline, and its work stays on that install (when the first learner syncs again, the
-  second account's rows are left out as another learner's). The first learner keeps syncing.
+  second account's rows are left out as another learner's, and never upload from this install,
+  even after that account signs in again). The first learner keeps syncing.
   To use a second account, use another install or a native app (one database per account). If
   the wrong account syncs first, the binding can only be cleared on the server
   (`__core_sync_remote_anchor` row `sentencestudio:native-store:v1:<store>:<owner>`), which
@@ -685,7 +702,14 @@ before the apps that send deletes.
   commit of this work) were left out of uploads and their place in the upload queue has passed:
   they do not reach the server now. Delete such a row again on the web.
 - A row left out of an upload stays left out until it changes on the device.
-- The deletion log has no retention rule yet; rows are small.
+- The deletion log has no retention rule yet; rows are small (about 100 bytes plus index).
+  Proposed, not built: a daily job removes log rows older than a year, and at once the rows of
+  an account that no longer exists (account erasure logs every deleted row, and nobody can
+  download them). A device offline for longer than a year then misses those deletes and keeps
+  the rows (stale, never lost or leaked). Removal by `"Id"` below the first row newer than the
+  cut-off needs no new index. CoreSync's own change table, `__core_sync_ct`, grows faster (one
+  row per change of any kind) and has no retention either; pruning it needs a plan for devices
+  whose cursor falls below the oldest kept change.
 - A delete of a row whose owner nobody can prove (an old word linked from two learners, a phrase
   on such a word) reaches no device.
 - A delete can cascade only into the learner's own rows, except legacy cross-owner links: a
@@ -700,10 +724,12 @@ before the apps that send deletes.
   the rest, a foreign row still refuses it (`UnplaceableRowsPostgresTests`); a MAUI-shaped
   database syncs through the shared `SyncService` with the MAUI rules and header, is not stuck,
   and a second account is refused while the first keeps syncing; a delete on one MAUI install
-  reaches the learner's other install (`MauiOwnerCheckedSyncPostgresTests`); two learners and
-  several devices for device, web and cascaded deletes, foreign and unprovable deletes, and a
-  recreated row; the migration is discovered, applied, rolled back and re-applied
-  (`OwnerCheckedDeletesPostgresTests`).
+  reaches the learner's other install; an old shared word the server infers as another
+  learner's is left out and the install keeps syncing (`MauiOwnerCheckedSyncPostgresTests`); two
+  learners and several devices for device, web and cascaded deletes, foreign and unprovable
+  deletes, a word deleted with its minimal pair answers, a word an answer still uses, and a
+  recreated row; the deletion log read through its index (EXPLAIN); the migration is
+  discovered, applied, rolled back and re-applied (`OwnerCheckedDeletesPostgresTests`).
 - Both migration validation scripts (`validate-mobile-migrations.sh` in its EF-only and native
   SQLite modes; its full mode launches the MAUI macOS head, which this Mac's real MAUI app and
   data rule out).
