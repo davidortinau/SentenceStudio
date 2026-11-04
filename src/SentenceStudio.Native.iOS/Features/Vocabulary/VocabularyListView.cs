@@ -15,7 +15,8 @@ internal sealed record VocabularyListActions(
     Action Reload,
     Action<string> Sort,
     Action<bool> SetListMode,
-    Action<string, string?> ChangeWideFilter);
+    Action<string, string?> ChangeWideFilter,
+    Action? OpenLookups = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -115,15 +116,22 @@ internal static class VocabularyListView
         content.Spacing = SourceUiLayout.PageGap;
         var page = Views.Scroll(content)
             .WithAccessibilityIdentifier("native.vocabulary.scroll");
-        var toolbar = style.ViewportWidth < 768
-            ? new[] { Views.Button(Views.Image(
+        var actionsShown = new List<SwiftView>();
+        // Recent lookups (decision 4 B): words looked up in Writing and Reading.
+        if (actions.OpenLookups is { } openLookups)
+            actionsShown.Add(Views.Button(Views.Image("clock.arrow.circlepath"), openLookups)
+                .WithAccessibilityLabel(text("Lookups_Title"))
+                .WithAccessibilityIdentifier(
+                    SentenceStudio.Native.Features.Lookups.RecentLookupsAccess.Open));
+        if (style.ViewportWidth < 768)
+            actionsShown.Add(Views.Button(Views.Image(
                         state.Filters.HasActiveFilters
                             ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease.circle"),
                     actions.OpenFilters)
                 .WithAccessibilityLabel(text("Vocabulary_Filters"))
-                .WithAccessibilityIdentifier("native.vocabulary.filters.open") }
-            : Array.Empty<SwiftView>();
+                .WithAccessibilityIdentifier("native.vocabulary.filters.open"));
+        var toolbar = actionsShown.ToArray();
         return Views.Toolbar(style.Page(page), toolbar)
             .WithAccessibilityIdentifier("native.vocabulary.page");
     }

@@ -80,6 +80,13 @@ public class UserActivityRepository
             // Ensure UserProfileId is set for new items
             if (string.IsNullOrEmpty(item.UserProfileId) && !string.IsNullOrEmpty(ActiveUserId))
                 item.UserProfileId = ActiveUserId;
+            // No owner, no write: an unowned row is invisible to every learner and the
+            // server refuses it on sync.
+            if (string.IsNullOrEmpty(item.UserProfileId))
+            {
+                _logger.LogWarning("UserActivity save refused: no owner on the item and no active profile.");
+                return -1;
+            }
 
             // With GUID PKs, Id is always pre-set. Check DB existence to determine Add vs Update.
             var exists = !string.IsNullOrEmpty(item.Id)

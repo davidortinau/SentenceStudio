@@ -7,6 +7,7 @@ internal static class ApplicationFormRoutes
     internal const string SkillForm = "skill-form";
     internal const string Vocabulary = "vocabulary";
     internal const string VocabularyWordForm = "vocabulary-word-form";
+    internal const string RecentLookups = "recent-lookups";
 
     internal static bool ShouldPopResourceForm(
         bool formMounted, IReadOnlyList<string> path) =>

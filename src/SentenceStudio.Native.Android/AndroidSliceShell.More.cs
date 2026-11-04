@@ -96,7 +96,8 @@ internal sealed partial class AndroidSliceShell
             case MoreScreen.Profile when owner is not null:
                 var profile = new ProfileCoordinator(
                     provider.GetRequiredService<UserProfileRepository>(), scope,
-                    provider.GetRequiredService<ILogger<ProfileCoordinator>>());
+                    provider.GetRequiredService<ILogger<ProfileCoordinator>>(),
+                    provider.GetRequiredService<INativeProfileRemoteStore>());
                 profile.Changed += OnMoreChanged;
                 _profile = profile;
                 RunMore(() => profile.OpenAsync(owner, _lifetime.Token));
@@ -164,6 +165,8 @@ internal sealed partial class AndroidSliceShell
                 }
                 break;
             case MoreScreen.Vocabulary when _vocabulary is { } vocabulary:
+                if (HandleRecentLookupsBack())
+                    return true;
                 if (vocabulary.IsNavigationBlocked)
                     return true;
                 if (vocabulary.IsPhoneFilterPresented)
@@ -201,6 +204,7 @@ internal sealed partial class AndroidSliceShell
 
     private void ReleaseMoreCoordinators()
     {
+        CloseRecentLookups();
         if (_settings is { } settings)
         {
             settings.Changed -= OnMoreChanged;

@@ -20,6 +20,8 @@ public sealed class ApplicationModelSnapshotTests
         "ConversationMemoryState",
         // Phase 2b (2026-11-03).
         "ActivitySession",
+        // Lookup history (decision 4 B, 2026-11-04).
+        "VocabularyLookup",
     ];
 
     [Fact]
@@ -31,6 +33,7 @@ public sealed class ApplicationModelSnapshotTests
             .UseNpgsql("Host=unused;Database=unused").Options);
         Assert.Contains("20261103015116_SyncTextIdsPhase2a", db.Database.GetMigrations());
         Assert.Contains("20261103151517_SyncTextIdsPhase2b", db.Database.GetMigrations());
+        Assert.Contains("20261104153858_AddVocabularyLookup", db.Database.GetMigrations());
 
         var snapshot = db.GetService<IModelRuntimeInitializer>().Initialize(
             db.GetService<IMigrationsAssembly>().ModelSnapshot!.Model, designTime: true);

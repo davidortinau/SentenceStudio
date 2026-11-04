@@ -54,7 +54,9 @@ public static class SharedSyncRegistration
             // Built-in scenarios, device photos and rows with no owner stay where they are.
             .Table<SceneImage>("SceneImage", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload)
+            // Lookup history (decision 4 B, migration 20261104153858_AddVocabularyLookup).
+            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -95,7 +97,9 @@ public static class SharedSyncRegistration
             // Built-in scenarios, device photos and rows with no owner stay where they are.
             .Table<SceneImage>("SceneImage", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload)
+            // Lookup history (decision 4 B, migration 20261104153858_AddVocabularyLookup).
+            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

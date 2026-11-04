@@ -180,8 +180,9 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("if (canOpen)", compose);
         Assert.Contains("Icons.AutoMirrored.Default.KeyboardArrowRight", compose);
         Assert.Contains("MaterialTheme.IsSystemInDarkTheme(composer)", compose);
-        Assert.Contains("theme.PaletteFor(dark ? ThemeMode.Dark : ThemeMode.Light)", theme);
-        Assert.Contains("dark ? \"#FFD77A\" : \"#855900\"", theme);
+        // Theme colours come from the shared web table for the selected mode (decision 8b).
+        Assert.Contains("NativeThemeColorTable.For(id, dark)", theme);
+        Assert.Contains("darkSurface ? \"#FFD77A\" : \"#855900\"", theme);
         Assert.Contains("Color.FromHex(tokens.WarningText)", theme);
     }
 

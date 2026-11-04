@@ -9427,6 +9427,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Added to {0}..
+        /// </summary>
+        internal static string Lookups_Added {
+            get {
+                return ResourceManager.GetString("Lookups_Added", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not add this word..
+        /// </summary>
+        internal static string Lookups_AddFailed {
+            get {
+                return ResourceManager.GetString("Lookups_AddFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add to vocabulary.
+        /// </summary>
+        internal static string Lookups_AddToVocabulary {
+            get {
+                return ResourceManager.GetString("Lookups_AddToVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add {0} to vocabulary.
+        /// </summary>
+        internal static string Lookups_AddToVocabularyFor {
+            get {
+                return ResourceManager.GetString("Lookups_AddToVocabularyFor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Already in {0}..
+        /// </summary>
+        internal static string Lookups_AlreadyPresent {
+            get {
+                return ResourceManager.GetString("Lookups_AlreadyPresent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add to which resource?.
+        /// </summary>
+        internal static string Lookups_ChooseResource {
+            get {
+                return ResourceManager.GetString("Lookups_ChooseResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words you look up in Writing and Reading appear here..
+        /// </summary>
+        internal static string Lookups_Empty {
+            get {
+                return ResourceManager.GetString("Lookups_Empty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load your recent lookups..
+        /// </summary>
+        internal static string Lookups_LoadFailed {
+            get {
+                return ResourceManager.GetString("Lookups_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No resource in this language to add to..
+        /// </summary>
+        internal static string Lookups_NoResource {
+            get {
+                return ResourceManager.GetString("Lookups_NoResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recent lookups.
+        /// </summary>
+        internal static string Lookups_Title {
+            get {
+                return ResourceManager.GetString("Lookups_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Collapse sidebar.
         /// </summary>
         internal static string MainLayout_CollapseSidebar {
@@ -10597,6 +10687,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your email address can be changed in the web app..
+        /// </summary>
+        internal static string NativeProfile_EmailReadOnly {
+            get {
+                return ResourceManager.GetString("NativeProfile_EmailReadOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No profile was found for the active account..
         /// </summary>
         internal static string NativeProfile_NotFound {
@@ -10615,11 +10714,56 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Changes here are drafts. Saving requires a safe server update; going back discards them..
+        ///   Looks up a localized string similar to Your profile could not be saved. Try again..
+        /// </summary>
+        internal static string NativeProfile_SaveFailed {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a name of up to 200 characters and choose each setting, then save again..
+        /// </summary>
+        internal static string NativeProfile_SaveInvalid {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your profile was saved to your account, but this device could not update its copy. It will update at the next sync..
+        /// </summary>
+        internal static string NativeProfile_SaveLocalFailed {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveLocalFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server did not accept these changes. Your profile was not saved..
+        /// </summary>
+        internal static string NativeProfile_SaveRejected {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveRejected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saving is not available right now. Your changes were not saved..
         /// </summary>
         internal static string NativeProfile_SaveUnavailable {
             get {
                 return ResourceManager.GetString("NativeProfile_SaveUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saving your profile....
+        /// </summary>
+        internal static string NativeProfile_Saving {
+            get {
+                return ResourceManager.GetString("NativeProfile_Saving", resourceCulture);
             }
         }
 
@@ -18281,6 +18425,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to All vocabulary in this resource is mastered!.
+        /// </summary>
+        internal static string VocabQuiz_AllVocabularyMastered {
+            get {
+                return ResourceManager.GetString("VocabQuiz_AllVocabularyMastered", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Continue quiz.
         /// </summary>
         internal static string VocabQuiz_ContinueQuiz {
@@ -18416,6 +18569,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Marked correct.
+        /// </summary>
+        internal static string VocabQuiz_MarkedCorrect {
+            get {
+                return ResourceManager.GetString("VocabQuiz_MarkedCorrect", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Mastered.
         /// </summary>
         internal static string VocabQuiz_Mastered {
@@ -18466,6 +18628,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_OnlyMeaningful {
             get {
                 return ResourceManager.GetString("VocabQuiz_OnlyMeaningful", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Option {0}.
+        /// </summary>
+        internal static string VocabQuiz_OptionLabel {
+            get {
+                return ResourceManager.GetString("VocabQuiz_OptionLabel", resourceCulture);
             }
         }
 
@@ -18524,6 +18695,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t grade that sentence right now. No progress was changed. Please try again..
+        /// </summary>
+        internal static string VocabQuiz_SentenceGradeFailedNoChange {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentenceGradeFailedNoChange", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Write one or more sentences using &quot;{0}&quot;.
         ///For example: {0} ....
         /// </summary>
@@ -18534,11 +18714,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t grade your sentences right now. Please try again..
+        /// </summary>
+        internal static string VocabQuiz_SentencesGradeUnavailable {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentencesGradeUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Sentence shortcut.
         /// </summary>
         internal static string VocabQuiz_SentenceShortcut {
             get {
                 return ResourceManager.GetString("VocabQuiz_SentenceShortcut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not yet. Try another sentence using {0}..
+        /// </summary>
+        internal static string VocabQuiz_SentenceTryAnother {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentenceTryAnother", resourceCulture);
             }
         }
 
@@ -18575,6 +18773,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_ShowText {
             get {
                 return ResourceManager.GetString("VocabQuiz_ShowText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to See details below for sentences we couldn&apos;t grade..
+        /// </summary>
+        internal static string VocabQuiz_SomeSentencesUngraded {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SomeSentencesUngraded", resourceCulture);
             }
         }
 
@@ -18656,6 +18863,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_WriteOneSentence {
             get {
                 return ResourceManager.GetString("VocabQuiz_WriteOneSentence", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Write at least one sentence first..
+        /// </summary>
+        internal static string VocabQuiz_WriteSentenceFirst {
+            get {
+                return ResourceManager.GetString("VocabQuiz_WriteSentenceFirst", resourceCulture);
             }
         }
 

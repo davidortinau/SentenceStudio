@@ -13,8 +13,8 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20261103230000_SyncOwnersPhase3"
-EXPECTED_PREVIOUS_MIGRATION="20261103151517_SyncTextIdsPhase2b"
+EXPECTED_SCHEMA_MIGRATION="20261104153858_AddVocabularyLookup"
+EXPECTED_PREVIOUS_MIGRATION="20261103230000_SyncOwnersPhase3"
 PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
@@ -1005,24 +1005,54 @@ session_id_columns = [
 if session_id_columns != [("Id", "TEXT", 1)]:
     errors.append("ActivitySession: TEXT primary key contract mismatch")
 
-# Phase 3: scene images, conversation scenarios and example sentences get text IDs and an
-# owner; a conversation's scenario link becomes text with no foreign key.
+# Phase 3 (20261103230000, now before both migrations of the checked transition): scene
+# images, conversation scenarios and example sentences have text IDs and an owner; a
+# conversation's scenario link is text with no foreign key.
 for table in ("SceneImage", "ConversationScenario", "ExampleSentence"):
     columns = {row[1]: (row[2].upper(), row[5])
                for row in connection.execute(f'PRAGMA table_info("{table}")')}
-    expected_id = ("INTEGER", 1) if phase == "previous" else ("TEXT", 1)
-    if columns.get("Id") != expected_id:
-        errors.append(f"{table}: {expected_id[0]} primary key contract mismatch")
-    if (phase == "previous") == ("UserProfileId" in columns):
+    if columns.get("Id") != ("TEXT", 1):
+        errors.append(f"{table}: TEXT primary key contract mismatch")
+    if "UserProfileId" not in columns:
         errors.append(f"{table}: owner column contract mismatch")
 scenario_link = [row[2].upper() for row in connection.execute('PRAGMA table_info("Conversation")')
                  if row[1] == "ScenarioId"]
-if scenario_link != (["INTEGER"] if phase == "previous" else ["TEXT"]):
+if scenario_link != ["TEXT"]:
     errors.append("Conversation: scenario link type contract mismatch")
 scenario_keys = [row for row in connection.execute('PRAGMA foreign_key_list("Conversation")')
                  if row[2] == "ConversationScenario"]
-if (len(scenario_keys) == 1) != (phase == "previous"):
+if scenario_keys:
     errors.append("Conversation: scenario foreign key contract mismatch")
+
+# Lookup history (decision 4 B, 20261104153858): one owner-scoped table with a text ID, a
+# nullable plain resource reference (no foreign key) and an owner + last-lookup index.
+lookup_columns = [
+    (row[1], row[2].upper(), row[3], row[5])
+    for row in connection.execute('PRAGMA table_info("VocabularyLookup")')
+]
+expected_lookup_columns = [
+    ("Id", "TEXT", 1, 1), ("UserProfileId", "TEXT", 1, 0), ("Text", "TEXT", 1, 0),
+    ("Translation", "TEXT", 1, 0), ("Language", "TEXT", 1, 0), ("Direction", "TEXT", 1, 0),
+    ("Activity", "TEXT", 1, 0), ("ResourceId", "TEXT", 0, 0),
+    ("FirstLookedUpAt", "TEXT", 1, 0), ("LastLookedUpAt", "TEXT", 1, 0),
+]
+if phase == "previous":
+    if lookup_columns:
+        errors.append("VocabularyLookup: table exists before its migration")
+else:
+    if lookup_columns != expected_lookup_columns:
+        errors.append("VocabularyLookup: column/type/nullability/PK contract mismatch")
+    if list(connection.execute('PRAGMA foreign_key_list("VocabularyLookup")')):
+        errors.append("VocabularyLookup: unexpected foreign key")
+    lookup_index = "IX_VocabularyLookup_UserProfileId_LastLookedUpAt"
+    lookup_indexes = [
+        (row[1], row[2], row[4],
+         tuple(column[2] for column in connection.execute(f'PRAGMA index_info("{row[1]}")')))
+        for row in connection.execute('PRAGMA index_list("VocabularyLookup")')
+        if not row[1].startswith("sqlite_autoindex")
+    ]
+    if lookup_indexes != [(lookup_index, 0, 0, ("UserProfileId", "LastLookedUpAt"))]:
+        errors.append("VocabularyLookup: owner index contract mismatch")
 launch_index = connection.execute(
     "SELECT sql FROM sqlite_master WHERE type = 'index' "
     "AND name = 'IX_ActivitySession_UserId_LaunchContextKey'").fetchone()
@@ -1033,7 +1063,7 @@ if launch_index is None or "UNIQUE" not in launch_index[0].upper() \
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, activity-session and {phase} phase 3 owner contracts passed.")
+print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, activity-session, phase 3 owner and {phase} lookup-history contracts passed.")
 PY
 }
 

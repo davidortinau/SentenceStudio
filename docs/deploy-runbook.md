@@ -31,7 +31,7 @@ pending decommission — do **not** target it.
 | Log Analytics | `law-rsn72awybem6s` |
 | App Insights | `appi-sstudio-biz` |
 | Managed identity (UAMI) | `mi-rsn72awybem6s` |
-| Storage | `storagersn72awybem6s` (blob container `media`) |
+| Storage | `storagersn72awybem6s` (the AppHost declares blob containers `coach-dataprotection` and `media`; see "Speech clip cache" below) |
 | **API** | `https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
 | **WebApp** | `https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
 | **Marketing** | `https://marketing.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
@@ -182,6 +182,106 @@ marker, and fails if any PostgreSQL-gated test is missing or skipped. Test hosts
 environment after use, and leave scratch data intact rather than deleting files.
 After an authorized deploy, the mandatory post-deploy validator and
 migration-history checks below still apply.
+
+---
+
+## Speech clip cache (Phase 4 audio): Azure step awaiting approval
+
+Prepared 2026-11-04. **Nothing below has been run against Azure.** The Captain approves the
+Azure step.
+
+**What changed.** `/api/v1/speech/synthesize` and `/api/v1/speech/synthesize-timestamped` keep
+every clip they generate in the blob container `media` under `speech-cache/v1/`, named by a
+SHA-256 of provider, variant, voice ID, model, voice settings, output format and exact text
+(`src/SentenceStudio.Api/Speech/SpeechClipSpec.cs`). A repeat request is served from the blob
+without an ElevenLabs call. No schema change, no client change, same responses. The callers are
+the native iOS and Android heads (see "Not covered yet" below for web and MAUI).
+
+**How the API reaches it.** The AppHost now declares the container
+(`storageAccount.AddBlobContainer("media-container", "media")`) and references it from the API,
+like the coach key ring. The generated manifest gives the API
+`ConnectionStrings__media-container = Endpoint={storage.outputs.blobEndpoint};ContainerName=media`;
+the API authenticates with `DefaultAzureCredential`, the same path its keyless Foundry calls use.
+The storage account has `allowSharedKeyAccess: false`, so only Entra access works.
+
+**What the API identity needs.** Blob data read and write on `media` (Storage Blob Data
+Contributor, at the container or account scope). No container-create rights.
+
+**Does it already have it? Probably, but unverified.** Evidence gathered locally with
+`dotnet run --project src/SentenceStudio.AppHost -- --publisher manifest --output-path <dir>`
+(no Azure contact), on both `ca4122bf` and this change:
+
+- The AppHost uses the azd manifest path (no `AddAzureContainerAppEnvironment`), where every
+  container app runs as the one UAMI `mi-rsn72awybem6s`. That is the identity holding
+  Cognitive Services OpenAI User above, so the API already runs as it.
+- The generated `storage-roles.module.bicep` assigns **Storage Blob Data Contributor**, Table Data
+  Contributor and Queue Data Contributor on the whole `storage` account to the azd principal
+  (that UAMI). This module is unchanged by the speech cache.
+- So the UAMI has blob data access on `storagersn72awybem6s` **if `azd provision` has run since
+  the storage roles were in the AppHost.** `azd deploy` alone never applies infra, and no Azure
+  command was run to confirm the assignment exists.
+- Before this change, the only container the AppHost declared was `coach-dataprotection`. The
+  `media` in `AddBlobs("media")` is the blob *service* resource name, not a container. The stack
+  table lists a `media` container; confirm it exists before relying on it.
+
+**Read-only checks (run these first):**
+
+```bash
+S=66f9fa8f-604f-4688-bec1-16ff9a86a8e5; RG=rg-sstudio-prod-biz; ACCOUNT=storagersn72awybem6s
+PRINCIPAL=$(az identity show -g $RG -n mi-rsn72awybem6s --subscription $S --query principalId -o tsv)
+SCOPE=$(az storage account show -g $RG -n $ACCOUNT --subscription $S --query id -o tsv)
+
+# 1. Blob data roles the UAMI holds on the account, its resource group or the subscription.
+az role assignment list --assignee "$PRINCIPAL" --scope "$SCOPE" --include-inherited \
+  --subscription $S --query "[].{role:roleDefinitionName, scope:scope}" -o table
+
+# 2. Does the media container exist? (management plane; needs no data access)
+az storage container-rm exists --storage-account $ACCOUNT -g $RG -n media --subscription $S
+
+# 3. The API runs as the UAMI (client ID only; not a secret).
+az containerapp show -g $RG -n api --subscription $S \
+  --query "{identities:identity.userAssignedIdentities, clientId:properties.template.containers[0].env[?name=='AZURE_CLIENT_ID'].value}" -o json
+```
+
+**The Azure change to approve (only what the checks show is missing):**
+
+```bash
+# Container missing:
+az storage container-rm create --storage-account $ACCOUNT -g $RG -n media \
+  --public-access off --subscription $S
+
+# Blob data role missing. Least privilege, container scope:
+az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal \
+  --role "Storage Blob Data Contributor" \
+  --scope "$SCOPE/blobServices/default/containers/media" --subscription $S
+```
+
+`azd provision -e sstudio-prod-biz` would also create the container and re-apply
+`storage-roles` (account scope, the same grant the coach key ring relies on), but it re-applies
+all infrastructure, so prefer the two targeted commands unless a provision is planned anyway.
+Role assignments can take 5 to 10 minutes to take effect.
+
+**Then deploy as usual** (`azd deploy -e sstudio-prod-biz`), which adds the new connection string
+to the API. The order does not matter for safety: with no access or no container the API logs
+`Speech cache: read failed ... Status=403` (or `404` / `ContainerNotFound`) as a warning and
+generates speech exactly as before. `SpeechCache__Enabled=false` on the API turns the cache off
+without a code change.
+
+**After the deploy.** Play the same quiz word on two native clients, for example an iOS
+simulator and an Android emulator. Use two devices because each keeps its own copy after the
+first play and does not ask the API again. App Insights traces should show `Speech cache: stored
+a generated clip` for the first device, `Speech cache: served a stored clip` for the second, and
+no `Speech cache: read failed` or `write failed` warnings. Log lines carry only a 12-character
+hash prefix; text, user and resource never reach the blob name, metadata or the cache logs.
+
+**Not covered yet.** The web and MAUI pages (VocabQuiz, HowDoYouSay, Shadowing, Reading,
+NumberDrill) synthesize in process through `ElevenLabsSpeechService` with the WebApp's or app's
+own `ElevenLabsClient`, so they never reach this endpoint and still pay per clip.
+
+**Data notes.** The clips are audio of learner and resource text, kept in a private container;
+anyone who can read `media` can listen to them, the same exposure as the database that holds
+the text. Clips are small and no lifecycle rule deletes them yet. A changed key format must bump
+`SpeechClipCacheKey.Version` (a new `speech-cache/v2/` prefix) rather than reuse `v1`.
 
 ---
 
@@ -662,6 +762,7 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 | `aspire deploy` creates wrong RG | Check `~/.aspire/deployments/.../production.json` has `rg-sstudio-prod-biz` |
 | `aspire deploy` principal error | Ensure AppHost has `AddAzureContainerAppEnvironment` |
 | `aspire deploy` stale state | Run `aspire deploy --clear-cache` to reset |
+| `Speech cache: read failed` / `write failed` warnings (Status=403 `AuthorizationPermissionMismatch`, or 404 `ContainerNotFound`) | Speech still works; nothing is cached. Run the read-only checks under "Speech clip cache" and apply the missing role or container |
 | AI calls 401 / Unauthorized | UAMI `mi-rsn72awybem6s` missing **Cognitive Services OpenAI User** on `daortin-sstudio-eus2`; or role assignment hasn't propagated yet (wait 5–10 min) |
 | Xcode version mismatch (26.2 vs 26.3) | Verify `dotnet --version` reports a `11.0.100-preview.*` SDK from this directory and that the pack version in the error is `26.2.11*-net11-pN`, NOT `26.2.10*` |
 | Build keeps picking net10 iOS pack | Confirm iOS csproj `<TargetFramework>` is `net11.0-ios`; confirm `dotnet --version` reports `11.0.100-preview.*`; delete `obj/` under `src/SentenceStudio.iOS/` and rebuild |

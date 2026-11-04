@@ -26,7 +26,8 @@ public static class SyncRowOwners
             or "MonitoredChannel" or "VideoImport" or "DailyPlan" or "DailyPlanCompletion"
             or "UserActivity" or "DiaryEntry" or "NumberAttempt" or "NumberMasteryProgress"
             or "WordAssociationScore" or "StreamHistory" or "ConversationMemoryState"
-            or "SceneImage" or "ConversationScenario" or "ExampleSentence" => "UserProfileId",
+            or "SceneImage" or "ConversationScenario" or "ExampleSentence"
+            or "VocabularyLookup" => "UserProfileId",
         _ => null
     };
 
@@ -66,6 +67,7 @@ public static class SyncRowOwners
             "SceneImage" => DirectOwnersAsync<SceneImage>(db, ids, "UserProfileId", ct),
             "ConversationScenario" => DirectOwnersAsync<ConversationScenario>(db, ids, "UserProfileId", ct),
             "ExampleSentence" => DirectOwnersAsync<ExampleSentence>(db, ids, "UserProfileId", ct),
+            "VocabularyLookup" => DirectOwnersAsync<VocabularyLookup>(db, ids, "UserProfileId", ct),
             "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
             "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
             "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),

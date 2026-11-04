@@ -1,5 +1,6 @@
 using System.Reflection;
 using SentenceStudio.Contracts.Theme;
+using SentenceStudio.Native.Features.Settings;
 
 namespace SentenceStudio.Native.Android.Tests;
 
@@ -120,18 +121,56 @@ public sealed class AndroidAppearanceModeTests
 
     [Theory]
     [MemberData(nameof(Themes))]
-    public void EveryThemeKeepsTextAndMarksLegibleOnItsPage(string themeId, bool dark)
+    public void EveryThemeUsesTheSharedExactWebColours(string themeId, bool dark)
+    {
+        // Captain 2026-11-04 (decision 8b): Android paints the web app's exact colours,
+        // from the same shared table iOS reads, for every theme and mode. The web's own
+        // low-contrast pairs (for example Vapor light cards) are kept, as on iOS.
+        var tokens = AndroidThemeTokensCatalog.For(themeId, dark);
+        var web = NativeThemeColorTable.For(themeId, dark);
+        Assert.Equal(
+            (web.Primary, web.OnPrimary, web.Accent, web.Body, web.Text, web.SecondaryText,
+                web.TertiaryText, web.SecondarySurface, web.CardSurface,
+                web.ElevatedSurface, web.Border, web.Secondary, web.IsDarkSurface),
+            (tokens.Primary, tokens.OnPrimary, tokens.Accent, tokens.Background,
+                tokens.Text, tokens.SecondaryText, tokens.TertiaryText,
+                tokens.SecondarySurface, tokens.Card, tokens.Elevated, tokens.Border,
+                tokens.Secondary, tokens.DarkSurface));
+        var page = SrgbColor.Parse(tokens.Background);
+        Assert.True(SrgbColor.Parse(tokens.Text).ContrastRatio(page) >= 4.5, "text on page");
+    }
+
+    [Theory]
+    [MemberData(nameof(Themes))]
+    public void SelectedSegmentsAndTabIndicatorUseTheThemeNotMaterialPurple(
+        string themeId, bool dark)
     {
         var tokens = AndroidThemeTokensCatalog.For(themeId, dark);
-        var page = SrgbColor.Parse(tokens.Background);
-        var card = SrgbColor.Parse(tokens.Card);
-        Assert.True(SrgbColor.Parse(tokens.Text).ContrastRatio(page) >= 4.5, "text on page");
-        Assert.True(SrgbColor.Parse(tokens.Text).ContrastRatio(card) >= 4.5, "text on card");
-        Assert.True(SrgbColor.Parse(tokens.SecondaryText).ContrastRatio(card) >= 4.5,
-            "secondary text on card");
-        Assert.True(SrgbColor.Parse(tokens.Primary).ContrastRatio(page) >= 3.0, "primary on page");
-        Assert.True(SrgbColor.Parse(tokens.OnPrimary).ContrastRatio(
-            SrgbColor.Parse(tokens.Primary)) >= 4.5, "label on primary");
+        Assert.Equal(AndroidThemeTokensCatalog.Blend(tokens.Primary, tokens.Background,
+            AndroidThemeTokensCatalog.SelectedContainerOpacity), tokens.SelectedContainer);
+        // Material 3 baseline secondaryContainer (light #E8DEF8, dark #4A4458).
+        Assert.DoesNotContain(tokens.SelectedContainer, new[] { "#E8DEF8", "#4A4458" });
+        Assert.True(SrgbColor.Parse(tokens.Text).ContrastRatio(
+            SrgbColor.Parse(tokens.SelectedContainer)) >= 4.5, "segment label on selection");
+
+        var theme = Source("AndroidVisualTheme.cs");
+        foreach (var role in new[]
+        {
+            "secondaryContainer: color.SelectedContainer", "onSecondaryContainer: color.Text",
+            "primaryContainer: color.SelectedContainer", "surfaceContainer: color.Card",
+            "surfaceContainerHigh: color.Elevated", "surfaceContainerHighest: color.Elevated",
+            "surfaceContainerLow: color.Card", "surfaceContainerLowest: color.Background",
+        })
+            Assert.Equal(2, Occurrences(theme, role));
+    }
+
+    private static int Occurrences(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0;
+             index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+            count++;
+        return count;
     }
 
     private static string Source(string name)

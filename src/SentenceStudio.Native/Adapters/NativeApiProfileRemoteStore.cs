@@ -103,6 +103,92 @@ public sealed class NativeApiProfileRemoteStore(
         }
     }
 
+    /// <summary>
+    /// Saves the learner's own editable fields through PUT /api/v1/profile/me. The
+    /// server takes the owner from the token, so the call is refused here unless the
+    /// token's owner is the expected owner. Email and API keys are not sent.
+    /// </summary>
+    public async Task<NativeProfileSaveResult> SaveProfileAsync(
+        string owner, NativeProfileFields fields, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(owner) || fields is null)
+            return new(NativeProfileRemoteOutcome.Rejected);
+        var token = await auth.GetAccessTokenAsync([]);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!auth.IsSignedIn
+            || !string.Equals(NativeAuthPresenter.ParseOwnerClaim(token), owner,
+                StringComparison.Ordinal))
+        {
+            logger.LogWarning("Profile write refused an absent or mismatched token owner.");
+            return new(NativeProfileRemoteOutcome.Rejected);
+        }
+
+        var client = clients.CreateClient("AuthClient");
+        try
+        {
+            using var write = new HttpRequestMessage(HttpMethod.Put, "/api/v1/profile/me")
+            {
+                Content = JsonContent.Create(new
+                {
+                    DisplayName = fields.Name,
+                    fields.NativeLanguage,
+                    fields.TargetLanguage,
+                    fields.DisplayLanguage,
+                    fields.PreferredSessionMinutes,
+                    TargetCefrLevel = fields.TargetCefrLevel
+                })
+            };
+            write.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var response = await client.SendAsync(write, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Profile write returned {Status}.", response.StatusCode);
+                return new(response.StatusCode is HttpStatusCode.ServiceUnavailable
+                    or HttpStatusCode.GatewayTimeout or HttpStatusCode.BadGateway
+                    ? NativeProfileRemoteOutcome.TransportFailure
+                    : NativeProfileRemoteOutcome.Rejected);
+            }
+            var saved = await response.Content.ReadFromJsonAsync<SavedProfile>(cancellationToken);
+            if (saved is null || !string.Equals(saved.Id, owner, StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(saved.DisplayName)
+                || string.IsNullOrWhiteSpace(saved.NativeLanguage)
+                || string.IsNullOrWhiteSpace(saved.TargetLanguage)
+                || string.IsNullOrWhiteSpace(saved.DisplayLanguage)
+                || string.IsNullOrWhiteSpace(saved.TargetCefrLevel)
+                || saved.PreferredSessionMinutes <= 0)
+            {
+                logger.LogWarning("Profile write response did not echo the signed-in owner's fields.");
+                return new(NativeProfileRemoteOutcome.Rejected);
+            }
+            return new(NativeProfileRemoteOutcome.Saved,
+                new NativeProfileFields(saved.DisplayName, saved.NativeLanguage,
+                    saved.TargetLanguage, saved.DisplayLanguage,
+                    saved.PreferredSessionMinutes, saved.TargetCefrLevel),
+                saved.Email);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException)
+        {
+            logger.LogWarning("Profile write returned an unreadable body ({FailureType}).",
+                ex.GetType().Name);
+            return new(NativeProfileRemoteOutcome.Rejected);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning("Profile write could not reach the API ({FailureType}).",
+                ex.GetType().Name);
+            return new(NativeProfileRemoteOutcome.TransportFailure);
+        }
+    }
+
     private sealed record RemoteProfile(
         string Id, string? Email, string? OpenAiApiKey, string? ElevenLabsApiKey);
+
+    private sealed record SavedProfile(
+        string Id, string? DisplayName, string? Email, string? NativeLanguage,
+        string? TargetLanguage, string? DisplayLanguage, string? TargetCefrLevel,
+        int PreferredSessionMinutes);
 }

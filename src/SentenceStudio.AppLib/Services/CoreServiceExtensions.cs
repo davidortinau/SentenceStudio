@@ -86,6 +86,7 @@ public static class CoreServiceExtensions
         services.AddSingleton<SkillProfileRepository>();
         services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<StreamHistoryRepository>();
+        services.AddSingleton<VocabularyLookupRepository>();
         services.AddSingleton<VocabularyProgressRepository>();
         services.AddSingleton<VocabularyLearningContextRepository>();
         services.AddSingleton<VocabularyProgressService>();

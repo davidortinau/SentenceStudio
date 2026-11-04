@@ -3,10 +3,14 @@ using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services
 {
+    /// <summary>A lookup's translation and the direction it went.</summary>
+    public sealed record LookupTranslation(string Translation, VocabularyLookupDirection Direction);
+
     public class TranslationService
     {
         private readonly IServiceProvider _serviceProvider;
@@ -17,16 +21,6 @@ namespace SentenceStudio.Services
         private readonly IFileSystemService _fileSystem;
         private readonly ILogger<TranslationService> _logger;
         private readonly IPreferencesService? _preferences;
-
-        private List<VocabularyWord> _words;
-
-        public List<VocabularyWord> Words
-        {
-            get
-            {
-                return _words;
-            }
-        }
 
         private readonly VocabularyProgressService _progressService;
         private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
@@ -105,32 +99,33 @@ namespace SentenceStudio.Services
                 .ToList();
 
             const int MaxVocabSample = 40;
+            List<VocabularyWord> words;
             if (focusWords.Any())
             {
                 var sampledContext = eligibleWords.Count > MaxVocabSample
                     ? eligibleWords.OrderBy(_ => Random.Shared.Next()).Take(MaxVocabSample).ToList()
                     : eligibleWords;
-                _words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, sampledContext, MaxVocabSample);
+                words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, sampledContext, MaxVocabSample);
                 _logger.LogDebug("Sending {FocusCount} required focus words and {TotalCount} total vocabulary words to translation AI",
-                    focusWords.Count, _words.Count);
+                    focusWords.Count, words.Count);
             }
             else if (eligibleWords.Count > MaxVocabSample)
             {
-                _words = eligibleWords
+                words = eligibleWords
                     .OrderBy(_ => Random.Shared.Next())
                     .Take(MaxVocabSample)
                     .ToList();
                 _logger.LogDebug("Sampled {SampleCount} of {EligibleCount} eligible vocabulary words for AI prompt ({Excluded} excluded for grace period)",
-                    _words.Count, eligibleWords.Count, contextVocabulary.Count - eligibleWords.Count);
+                    words.Count, eligibleWords.Count, contextVocabulary.Count - eligibleWords.Count);
             }
             else
             {
-                _words = eligibleWords;
+                words = eligibleWords;
                 _logger.LogDebug("Sending {VocabularyCount} vocabulary words to AI ({Excluded} excluded for grace period)",
-                    _words.Count, contextVocabulary.Count - _words.Count);
+                    words.Count, contextVocabulary.Count - words.Count);
             }
 
-            if (!_words.Any())
+            if (!words.Any())
             {
                 _logger.LogWarning("No eligible translation vocabulary found - returning empty list");
                 return new List<Challenge>();
@@ -146,15 +141,15 @@ namespace SentenceStudio.Services
             var requiredTerms = focusWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
             var requiredIdSet = requiredTerms.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
             var contextTerms = requiredTerms.Any()
-                ? _words.Where(word => !requiredIdSet.Contains(word.Id)).ToList()
-                : _words;
+                ? words.Where(word => !requiredIdSet.Contains(word.Id)).ToList()
+                : words;
             var prompt = string.Empty;
             using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
                 prompt = await template.RenderAsync(new {
-                    terms = _words,
+                    terms = words,
                     required_terms = requiredTerms,
                     context_terms = contextTerms,
                     has_required_terms = requiredTerms.Any(),
@@ -166,65 +161,59 @@ namespace SentenceStudio.Services
             }
 
             _logger.LogTrace("Prompt created, length: {PromptLength}", prompt.Length);
-            try
+            // An AI failure propagates: the page tells the learner loading failed, which is
+            // different from the AI returning no sentences (backport B49, same class as B12).
+            _logger.LogDebug("Sending prompt to AI service");
+            var reply = await _aiService.SendPrompt<TranslationResponse>(prompt);
+
+            if (reply?.Sentences != null)
             {
-                _logger.LogDebug("Sending prompt to AI service");
-                var reply = await _aiService.SendPrompt<TranslationResponse>(prompt);
+                _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
 
-                if (reply?.Sentences != null)
+                // Convert TranslationDto objects to Challenge objects and link vocabulary
+                _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Sentences.Count);
+                var vocabularyByTargetTerm = words
+                    .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+                    .GroupBy(word => word.TargetLanguageTerm!, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                var challenges = new List<Challenge>();
+
+                foreach (var translationDto in reply.Sentences)
                 {
-                    _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
+                    _logger.LogTrace("=== Processing translation DTO ===");
+                    _logger.LogTrace("DTO.SentenceText: '{SentenceText}'", translationDto.SentenceText);
+                    _logger.LogTrace("DTO.RecommendedTranslation: '{RecommendedTranslation}'", translationDto.RecommendedTranslation);
+                    _logger.LogTrace("DTO.TranslationVocabulary: [{TranslationVocabulary}]", string.Join(", ", translationDto.TranslationVocabulary));
 
-                    // Convert TranslationDto objects to Challenge objects and link vocabulary
-                    _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Sentences.Count);
-                    var vocabularyByTargetTerm = _words
-                        .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                        .GroupBy(word => word.TargetLanguageTerm!, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-                    var challenges = new List<Challenge>();
-
-                    foreach (var translationDto in reply.Sentences)
+                    var challenge = new Challenge
                     {
-                        _logger.LogTrace("=== Processing translation DTO ===");
-                        _logger.LogTrace("DTO.SentenceText: '{SentenceText}'", translationDto.SentenceText);
-                        _logger.LogTrace("DTO.RecommendedTranslation: '{RecommendedTranslation}'", translationDto.RecommendedTranslation);
-                        _logger.LogTrace("DTO.TranslationVocabulary: [{TranslationVocabulary}]", string.Join(", ", translationDto.TranslationVocabulary));
+                        SentenceText = translationDto.SentenceText,
+                        RecommendedTranslation = translationDto.RecommendedTranslation,
+                        Vocabulary = translationDto.TranslationVocabulary.Select(word =>
+                            vocabularyByTargetTerm.TryGetValue(word, out var existingWord)
+                                ? existingWord
+                                : new VocabularyWord
+                                {
+                                    TargetLanguageTerm = word,
+                                    NativeLanguageTerm = "",
+                                    CreatedAt = DateTime.UtcNow,
+                                    UpdatedAt = DateTime.UtcNow
+                                }).ToList(),
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
 
-                        var challenge = new Challenge
-                        {
-                            SentenceText = translationDto.SentenceText,
-                            RecommendedTranslation = translationDto.RecommendedTranslation,
-                            Vocabulary = translationDto.TranslationVocabulary.Select(word =>
-                                vocabularyByTargetTerm.TryGetValue(word, out var existingWord)
-                                    ? existingWord
-                                    : new VocabularyWord
-                                    {
-                                        TargetLanguageTerm = word,
-                                        NativeLanguageTerm = "",
-                                        CreatedAt = DateTime.UtcNow,
-                                        UpdatedAt = DateTime.UtcNow
-                                    }).ToList(),
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        };
-
-                        challenges.Add(challenge);
-                        _logger.LogTrace("TranslationService added challenge with {VocabularyCount} vocabulary building blocks", translationDto.TranslationVocabulary.Count);
-                    }
-
-                    watch.Stop();
-                    _logger.LogTrace("TranslationService generated {ChallengeCount} translation challenges in {Elapsed}", challenges.Count, watch.Elapsed);
-                    return challenges;
+                    challenges.Add(challenge);
+                    _logger.LogTrace("TranslationService added challenge with {VocabularyCount} vocabulary building blocks", translationDto.TranslationVocabulary.Count);
                 }
-                else
-                {
-                    _logger.LogTrace("TranslationService reply or Sentences is null");
-                    return new List<Challenge>();
-                }
+
+                watch.Stop();
+                _logger.LogTrace("TranslationService generated {ChallengeCount} translation challenges in {Elapsed}", challenges.Count, watch.Elapsed);
+                return challenges;
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "TranslationService error in GetTranslationSentences");
+                _logger.LogTrace("TranslationService reply or Sentences is null");
                 return new List<Challenge>();
             }
         }
@@ -244,26 +233,36 @@ namespace SentenceStudio.Services
         /// The translation, or an empty string when there is no owner or the AI gave none.
         /// A failed AI call throws, so callers can report it instead of showing a result.
         /// </returns>
-        public async Task<string> TranslateAsync(string text, string? context = null, string? userProfileId = null)
+        public async Task<string> TranslateAsync(string text, string? context = null, string? userProfileId = null) =>
+            (await TranslateLookupAsync(text, context, userProfileId))?.Translation ?? string.Empty;
+
+        /// <summary>
+        /// <see cref="TranslateAsync"/> with the direction the translation went, for the lookup
+        /// history: the owner's word by target term (to native), then by native term (to target),
+        /// then the Translate prompt (to English, the native language). Null when no owner or no
+        /// translation came back.
+        /// </summary>
+        public async Task<LookupTranslation?> TranslateLookupAsync(
+            string text, string? context = null, string? userProfileId = null)
         {
             var userId = string.IsNullOrWhiteSpace(userProfileId) ? ActiveUserId : userProfileId;
             if (string.IsNullOrWhiteSpace(userId))
             {
                 _logger.LogWarning("TranslationService.TranslateAsync refused: no active owner.");
-                return string.Empty;
+                return null;
             }
 
             // Attempt to find an existing translation in the owner's vocabulary
             var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.NativeLanguageTerm))
             {
-                return existingWord.NativeLanguageTerm;
+                return new(existingWord.NativeLanguageTerm, VocabularyLookupDirection.ToNative);
             }
 
             existingWord = await _resourceRepo.GetWordByNativeTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.TargetLanguageTerm))
             {
-                return existingWord.TargetLanguageTerm;
+                return new(existingWord.TargetLanguageTerm, VocabularyLookupDirection.ToTarget);
             }
 
             try
@@ -282,7 +281,9 @@ namespace SentenceStudio.Services
 
                 // Get translation using the AI service
                 var translation = await _aiService.SendPrompt<string>(prompt);
-                return translation?.Trim() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(translation)
+                    ? null
+                    : new(translation.Trim(), VocabularyLookupDirection.ToNative);
             }
             catch (Exception ex)
             {

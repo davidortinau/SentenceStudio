@@ -82,6 +82,10 @@ internal sealed class VocabularyCoordinator : IDisposable
     }
 
     internal event Action? Changed;
+
+    /// <summary>Opens Recent lookups from the list toolbar (decision 4 B); none hides the button.</summary>
+    internal Action? OpenLookups { get; init; }
+
     internal bool IsOpen => _listOpen;
     internal bool IsFormOpen => _listOpen && _formOpen;
     internal bool IsPhoneFilterPresented =>
@@ -189,7 +193,8 @@ internal sealed class VocabularyCoordinator : IDisposable
                 Reload: () => Run(ReloadAsync),
                 Sort: SetSort,
                 SetListMode: SetListMode,
-                ChangeWideFilter: ChangeWideFilter));
+                ChangeWideFilter: ChangeWideFilter,
+                OpenLookups: OpenLookups));
 
     internal SwiftView RenderFilterSheet(SourceUiStyle style) =>
         VocabularyListView.PhoneFilterSheet(ListState, style, _text,

@@ -1,0 +1,63 @@
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using SentenceStudio.Native.Features.Lookups;
+using SentenceStudio.Native.iOS.App;
+
+namespace SentenceStudio.Native.iOS.Tests;
+
+/// <summary>
+/// Recent lookups on iOS (Captain 2026-11-04, decision 4 B): a SwiftUI page pushed above the
+/// Vocabulary list from its toolbar, on the shared coordinator, with an automation ID on every
+/// control. Behavior is covered by NativeLookupHistoryTests on the shared coordinator.
+/// </summary>
+public sealed class NativeRecentLookupsContractTests
+{
+    [Fact]
+    public void VocabularyToolbarOpensRecentLookups_PushedAboveTheListAndPoppedByBack()
+    {
+        var list = Source("Features/Vocabulary/VocabularyListView.cs");
+        Assert.Contains("RecentLookupsAccess.Open", list);
+        Assert.Contains("text(\"Lookups_Title\")", list);
+        Assert.Contains("OpenLookups = OpenRecentLookups", Source("App/ApplicationController.Vocabulary.cs"));
+
+        var scene = Source("App/ApplicationScene.Vocabulary.cs");
+        Assert.Contains("stack.Push(ApplicationFormRoutes.RecentLookups, _lookupsSlot);", scene);
+        Assert.Contains(".WithTabBarHidden();", scene);
+        Assert.Contains("_app.OnRecentLookupsPopped();", scene);
+        Assert.Equal("recent-lookups", ApplicationFormRoutes.RecentLookups);
+    }
+
+    [Fact]
+    public void PageIsSwiftUIOnTheSharedCoordinator_WithAnIdOnEveryControl()
+    {
+        var view = Source("Features/Lookups/RecentLookupsView.cs");
+        var controller = Source("App/ApplicationController.Lookups.cs");
+        foreach (var source in new[] { view, controller })
+        {
+            Assert.DoesNotContain("UIKit", source);
+            Assert.DoesNotContain("UIView", source);
+            Assert.DoesNotMatch(new Regex(@"class\s+RecentLookupsCoordinator\b"), source);
+        }
+        Assert.Contains("new RecentLookupsCoordinator(", controller);
+        Assert.Contains("RecentLookupsCoordinator.SourceLine(", view);
+        // Every Button, Menu and the retry control carries an accessibility identifier.
+        foreach (Match control in Regex.Matches(view,
+                     @"(Views\.(Button|Menu)\(|style\.SecondaryButton\()[\s\S]*?;"))
+            Assert.Contains("WithAccessibilityIdentifier(", control.Value);
+        Assert.Contains("RecentLookupsAccess.Destination(row, destination)", view);
+        Assert.Contains("WithAccessibilityLabel(label)", view);
+    }
+
+    [Fact]
+    public void AutomationIds_AreStableAndSafe()
+    {
+        Assert.Equal("lk-0a1b", RecentLookupsAccess.Key("lk:0a1b"));
+        Assert.Equal("native.vocabulary.lookups.open", RecentLookupsAccess.Open);
+    }
+
+    private static string Source(string relativePath) => File.ReadAllText(
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS", relativePath)));
+
+    private static string CurrentFile([CallerFilePath] string path = "") => path;
+}

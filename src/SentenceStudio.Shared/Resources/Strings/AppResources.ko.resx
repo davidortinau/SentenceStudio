@@ -2086,8 +2086,32 @@
     <comment>Native Profile: owner has no local profile row</comment>
   </data>
   <data name="NativeProfile_SaveUnavailable" xml:space="preserve">
-    <value>여기서 변경한 내용은 임시 초안입니다. 안전한 서버 저장 기능이 준비되기 전에는 저장할 수 없으며, 뒤로 가면 변경 사항이 사라집니다.</value>
-    <comment>Native Profile: disabled Save while server persistence is unavailable</comment>
+    <value>지금은 저장할 수 없습니다. 변경 사항이 저장되지 않았습니다.</value>
+    <comment>Native Profile: Save could not reach a configured server path</comment>
+  </data>
+  <data name="NativeProfile_Saving" xml:space="preserve">
+    <value>프로필을 저장하는 중...</value>
+    <comment>Native Profile: Save in progress</comment>
+  </data>
+  <data name="NativeProfile_SaveInvalid" xml:space="preserve">
+    <value>200자 이내의 이름을 입력하고 각 설정을 선택한 후 다시 저장하세요.</value>
+    <comment>Native Profile: draft failed validation before saving</comment>
+  </data>
+  <data name="NativeProfile_SaveRejected" xml:space="preserve">
+    <value>서버에서 변경 사항을 받아들이지 않았습니다. 프로필이 저장되지 않았습니다.</value>
+    <comment>Native Profile: server refused the profile save</comment>
+  </data>
+  <data name="NativeProfile_SaveFailed" xml:space="preserve">
+    <value>프로필을 저장하지 못했습니다. 다시 시도하세요.</value>
+    <comment>Native Profile: unexpected failure before the server accepted the save</comment>
+  </data>
+  <data name="NativeProfile_SaveLocalFailed" xml:space="preserve">
+    <value>프로필이 계정에 저장되었지만 이 기기의 사본을 업데이트하지 못했습니다. 다음 동기화 때 업데이트됩니다.</value>
+    <comment>Native Profile: server saved, local row not updated</comment>
+  </data>
+  <data name="NativeProfile_EmailReadOnly" xml:space="preserve">
+    <value>이메일 주소는 웹 앱에서 변경할 수 있습니다.</value>
+    <comment>Native Profile: email is shown read-only; Save does not change it</comment>
   </data>
   <data name="NativeProfile_AccountActionUnavailable" xml:space="preserve">
     <value>여기에서는 비밀번호 변경과 계정 삭제를 사용할 수 없습니다. 계정은 변경되지 않습니다.</value>
@@ -3133,6 +3157,30 @@
   <data name="VocabQuiz_AllMasteredSessionComplete" xml:space="preserve">
     <value>모든 단어를 마스터했어요! 세션을 마쳤습니다.</value>
     <comment>Toast when the last words of the quiz are mastered and the session is saved as complete</comment>
+  </data>
+  <data name="VocabQuiz_AllVocabularyMastered" xml:space="preserve">
+    <value>이 자료의 모든 단어를 마스터했어요!</value>
+  </data>
+  <data name="VocabQuiz_OptionLabel" xml:space="preserve">
+    <value>보기 {0}</value>
+  </data>
+  <data name="VocabQuiz_WriteSentenceFirst" xml:space="preserve">
+    <value>먼저 문장을 하나 이상 써 주세요.</value>
+  </data>
+  <data name="VocabQuiz_SomeSentencesUngraded" xml:space="preserve">
+    <value>채점하지 못한 문장은 아래에서 확인하세요.</value>
+  </data>
+  <data name="VocabQuiz_SentencesGradeUnavailable" xml:space="preserve">
+    <value>지금은 문장을 채점할 수 없어요. 다시 시도해 주세요.</value>
+  </data>
+  <data name="VocabQuiz_SentenceTryAnother" xml:space="preserve">
+    <value>아직이에요. {0}을(를) 넣어 다른 문장을 써 보세요.</value>
+  </data>
+  <data name="VocabQuiz_SentenceGradeFailedNoChange" xml:space="preserve">
+    <value>지금은 그 문장을 채점할 수 없어요. 진행 상황은 바뀌지 않았어요. 다시 시도해 주세요.</value>
+  </data>
+  <data name="VocabQuiz_MarkedCorrect" xml:space="preserve">
+    <value>정답으로 표시했어요</value>
   </data>
   <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
     <value>저장된 퀴즈를 안전하게 다시 시작할 수 없습니다. 새 세션을 시작해 주세요.</value>
@@ -9069,5 +9117,45 @@
   <data name="NativeMessage_Warning" xml:space="preserve">
     <value>경고</value>
     <comment>Spoken/visible kind of an activity warning banner</comment>
+  </data>
+  <data name="Lookups_Title" xml:space="preserve">
+    <value>최근 찾아본 단어</value>
+    <comment>Page title and Vocabulary action: words looked up in Writing and Reading</comment>
+  </data>
+  <data name="Lookups_Empty" xml:space="preserve">
+    <value>쓰기와 읽기에서 찾아본 단어가 여기에 표시됩니다.</value>
+    <comment>Empty state of Recent lookups</comment>
+  </data>
+  <data name="Lookups_LoadFailed" xml:space="preserve">
+    <value>최근 찾아본 단어를 불러오지 못했습니다.</value>
+    <comment>Recent lookups load error</comment>
+  </data>
+  <data name="Lookups_AddToVocabulary" xml:space="preserve">
+    <value>어휘에 추가</value>
+    <comment>Button on a lookup row; opens the list of resources</comment>
+  </data>
+  <data name="Lookups_AddToVocabularyFor" xml:space="preserve">
+    <value>어휘에 추가: {0}</value>
+    <comment>Accessible name of a lookup row's add button. {0} = looked-up text</comment>
+  </data>
+  <data name="Lookups_ChooseResource" xml:space="preserve">
+    <value>어느 자료에 추가할까요?</value>
+    <comment>Heading of the resource list in a lookup row's add menu</comment>
+  </data>
+  <data name="Lookups_NoResource" xml:space="preserve">
+    <value>추가할 수 있는 같은 언어의 자료가 없습니다.</value>
+    <comment>Shown when the learner has no resource to add a lookup to</comment>
+  </data>
+  <data name="Lookups_Added" xml:space="preserve">
+    <value>{0}에 추가했습니다.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AlreadyPresent" xml:space="preserve">
+    <value>이미 {0}에 있습니다.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AddFailed" xml:space="preserve">
+    <value>이 단어를 추가하지 못했습니다.</value>
+    <comment>Add to vocabulary failed</comment>
   </data>
 </root>

@@ -251,16 +251,17 @@ public sealed class NativeWritingPresenter(
     /// <summary>
     /// Source TranslationService.TranslateAsync: the owner's own vocabulary
     /// first (target then native term), else the AI Translate prompt. The
-    /// source also saves the AI result as a new resource-less VocabularyWord;
-    /// native does not, because owner-scoped CoreSync refuses a word no owned
-    /// resource maps, and that refusal blocks every other pending upload
-    /// (observed 403 on 2026-11-01). Captain decision pending.
+    /// source also saved the AI result as a new resource-less VocabularyWord;
+    /// native does not (owner-scoped CoreSync refuses such a word). Instead a
+    /// successful translation joins the lookup history (Captain 2026-11-04,
+    /// decision 4 B), after it is shown and outside the gate.
     /// </summary>
     public async Task<NativeWritingState> TranslateAsync(
         CancellationToken cancellationToken = default)
     {
         string text;
         string userId;
+        string? resourceId;
         long generation;
         await _gate.WaitAsync(cancellationToken);
         try
@@ -276,6 +277,7 @@ public sealed class NativeWritingPresenter(
             _notices = [];
             text = _draft;
             userId = _launch!.UserId;
+            resourceId = _launch.ResourceIds.IsDefaultOrEmpty ? null : _launch.ResourceIds[0];
             generation = _generation;
             PublishReady();
         }
@@ -287,6 +289,7 @@ public sealed class NativeWritingPresenter(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _lifetime.Token);
         string? translation = null;
+        var direction = VocabularyLookupDirection.ToNative;
         Exception? failure = null;
         try
         {
@@ -297,9 +300,12 @@ public sealed class NativeWritingPresenter(
             {
                 existing = await resources.GetWordByNativeTermAsync(text, userId);
                 if (!string.IsNullOrEmpty(existing?.TargetLanguageTerm))
+                {
                     translation = existing.TargetLanguageTerm;
+                    direction = VocabularyLookupDirection.ToTarget;
+                }
                 else if (owner.IsActive(userId))
-                    translation = await ai.TranslateAsync(userId, text, linked.Token);
+                    translation = (await ai.TranslateAsync(userId, text, linked.Token))?.Trim();
             }
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
@@ -318,31 +324,68 @@ public sealed class NativeWritingPresenter(
         {
             return _state;
         }
+        NativeWritingState shown;
+        var succeeded = false;
         try
         {
             _translating = false;
+            // Exit or an owner change: nothing is shown or recorded.
             if (Exited)
                 return State;
             if (!Active())
                 return Refuse();
+            succeeded = failure is null && !linked.IsCancellationRequested
+                && !string.IsNullOrWhiteSpace(translation);
             // Continue practice superseded the translation: drop it, but clear its busy state.
+            // The lookup still happened, so it is still recorded.
             if (generation != _generation)
-                return RepublishIdle();
-            if (linked.IsCancellationRequested)
-                return PublishSession();
-            if (failure is not null || string.IsNullOrWhiteSpace(translation))
+                shown = RepublishIdle();
+            else if (linked.IsCancellationRequested)
+                shown = PublishSession();
+            else if (!succeeded)
             {
                 if (failure is not null)
                     logger.LogError(failure, "Writing could not translate the sentence.");
                 _notices = [new(NativeMessageKind.Error, NativeWritingText.TranslateFailed)];
-                return PublishSession();
+                shown = PublishSession();
             }
-            _notices = [new(NativeMessageKind.Info, null, translation)];
-            return PublishSession();
+            else
+            {
+                _notices = [new(NativeMessageKind.Info, null, translation)];
+                shown = PublishSession();
+            }
         }
         finally
         {
             _gate.Release();
+        }
+        if (succeeded)
+            await RecordLookupAsync(userId, new VocabularyLookupEntry(text, translation!,
+                direction, VocabularyLookupActivity.Writing, resourceId));
+        return shown;
+    }
+
+    /// <summary>
+    /// Adds a shown translation to the lookup history. A failure is logged; the learner keeps the
+    /// translation, and nothing else depends on the history entry.
+    /// </summary>
+    private async Task RecordLookupAsync(string userId, VocabularyLookupEntry entry)
+    {
+        if (!owner.IsActive(userId))
+            return;
+        try
+        {
+            using var scope = scopes.CreateScope();
+            var status = await scope.ServiceProvider.GetRequiredService<VocabularyLookupRepository>()
+                .RecordAsync(userId, entry);
+            if (status == VocabularyLookupRecordStatus.Recorded)
+                pendingWrites.MarkPending(userId);
+            else
+                logger.LogWarning("Writing did not record a lookup: {Status}.", status);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Writing could not record a lookup.");
         }
     }
 

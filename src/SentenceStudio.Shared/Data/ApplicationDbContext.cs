@@ -450,6 +450,17 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<NumberAttempt>().HasIndex(e => e.UserProfileId);
         modelBuilder.Entity<NumberAttempt>().Property(e => e.System).HasConversion<string>();
 
+        // Lookup history (decision 4 B): owner-scoped and synced. The ID is derived from owner,
+        // language, direction and text (SyncIds.VocabularyLookup); the resource is a plain
+        // reference with no constraint, so a lookup never fails to sync over a missing resource.
+        modelBuilder.Entity<VocabularyLookup>().ToTable("VocabularyLookup").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyLookup>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<VocabularyLookup>().Property(e => e.Direction).HasConversion<string>();
+        modelBuilder.Entity<VocabularyLookup>().Property(e => e.ResourceId).IsRequired(false);
+        modelBuilder.Entity<VocabularyLookup>().Ignore(e => e.TargetTerm);
+        modelBuilder.Entity<VocabularyLookup>().Ignore(e => e.NativeTerm);
+        modelBuilder.Entity<VocabularyLookup>().HasIndex(e => new { e.UserProfileId, e.LastLookedUpAt });
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -504,5 +515,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NumberSubMode> NumberSubModes => Set<NumberSubMode>();
     public DbSet<NumberMasteryProgress> NumberMasteryProgresses => Set<NumberMasteryProgress>();
     public DbSet<NumberAttempt> NumberAttempts => Set<NumberAttempt>();
+
+    public DbSet<VocabularyLookup> VocabularyLookups => Set<VocabularyLookup>();
 
 }

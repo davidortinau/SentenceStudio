@@ -22,6 +22,8 @@ public sealed class SqliteMigrationApplicationTests
     private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
     private const string Phase2aMigration = "20261103015116_SyncTextIdsPhase2a";
     private const string Phase2bMigration = "20261103151517_SyncTextIdsPhase2b";
+    private const string Phase3Migration = "20261103230000_SyncOwnersPhase3";
+    private const string LookupMigration = "20261104153858_AddVocabularyLookup";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -694,6 +696,76 @@ public sealed class SqliteMigrationApplicationTests
         static string SentenceRow(int id, string word, string? resource, string text) =>
             "INSERT INTO \"ExampleSentence\" (\"Id\", \"VocabularyWordId\", \"LearningResourceId\", \"TargetSentence\", \"IsCore\", \"CreatedAt\", \"UpdatedAt\") "
             + $"VALUES ({id}, '{word}', {(resource is null ? "NULL" : $"'{resource}'")}, '{text}', 0, '2026-11-01 03:0{id}:00', '2026-11-01 03:0{id}:00')";
+    }
+
+    /// <summary>
+    /// Lookup history (Captain 2026-11-04, decision 4 B): a new owner-scoped table. Up keeps every
+    /// existing row, a lookup round-trips its UTC times and direction text, and Down drops only
+    /// the new table.
+    /// </summary>
+    [Fact]
+    public async Task AddVocabularyLookup_CreatesTheTable_KeepsExistingRows_AndDownDropsOnlyIt()
+    {
+        using var scratch = new ScratchDatabase();
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(Phase3Migration);
+            await previous.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"UserProfile\" (\"Id\", \"Name\", \"NativeLanguage\", \"TargetLanguage\", \"PreferredSessionMinutes\", \"CreatedAt\") VALUES ('owner-a', 'A', 'English', 'Korean', 20, '2026-11-01 00:00:00')");
+            await previous.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"UserActivity\" (\"Id\", \"Activity\", \"Input\", \"Accuracy\", \"Fluency\", \"UserProfileId\", \"CreatedAt\", \"UpdatedAt\") VALUES ('act-1', 'Reading', 'Dictionary lookup: 물', 100, 100, 'owner-a', '2026-11-01 00:00:00', '2026-11-01 00:00:00')");
+        }
+
+        var first = new DateTime(2026, 11, 4, 1, 2, 3, DateTimeKind.Utc);
+        var id = SentenceStudio.Services.SyncIds.VocabularyLookup(
+            "owner-a", "Korean", VocabularyLookupDirection.ToNative, "물");
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.Equal(LookupMigration, (await upgraded.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+            Assert.Equal(1, await upgraded.UserActivities.CountAsync());
+            upgraded.VocabularyLookups.Add(new VocabularyLookup
+            {
+                Id = id, UserProfileId = "owner-a", Text = "물", Translation = "water",
+                Language = "Korean", Direction = VocabularyLookupDirection.ToNative,
+                Activity = VocabularyLookupActivity.Reading, ResourceId = null,
+                FirstLookedUpAt = first, LastLookedUpAt = first.AddMinutes(5)
+            });
+            await upgraded.SaveChangesAsync();
+        }
+
+        await using (var reread = CreateContext(scratch.ConnectionString))
+        {
+            var row = await reread.VocabularyLookups.AsNoTracking().SingleAsync();
+            Assert.Equal(first, row.FirstLookedUpAt);
+            Assert.Equal(DateTimeKind.Utc, row.LastLookedUpAt.Kind);
+            Assert.Equal("물", row.TargetTerm);
+            Assert.Equal("water", row.NativeTerm);
+        }
+
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("ToNative", await Scalar("SELECT \"Direction\" FROM \"VocabularyLookup\""));
+        Assert.Equal("1", await Scalar(
+            "SELECT count(*) FROM pragma_index_list('VocabularyLookup') WHERE name = 'IX_VocabularyLookup_UserProfileId_LastLookedUpAt'"));
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM pragma_table_info('VocabularyLookup') WHERE name = 'ResourceId' AND \"notnull\" = 1"));
+        Assert.Equal("", await Scalar("SELECT group_concat(\"table\") FROM pragma_foreign_key_list('VocabularyLookup')"));
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(Phase3Migration);
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'VocabularyLookup'"));
+        Assert.Equal("1", await Scalar("SELECT count(*) FROM \"UserActivity\""));
+        Assert.Equal(Phase3Migration, await Scalar(
+            "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
     }
 
     private static ApplicationDbContext CreateContext(string connectionString) =>

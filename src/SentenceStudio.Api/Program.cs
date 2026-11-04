@@ -9,8 +9,6 @@ using SentenceStudio.Api.Sync;
 using ElevenLabs;
 using Microsoft.EntityFrameworkCore;
 using ElevenLabs.Models;
-using ElevenLabs.TextToSpeech;
-using ElevenLabs.Voices;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -48,6 +46,7 @@ using SentenceStudio.Api.Feedback;
 using SentenceStudio.Api.Platform;
 using SentenceStudio.Api.Plans;
 using SentenceStudio.Api.Security.DataProtection;
+using SentenceStudio.Api.Speech;
 using SentenceStudio.Api.Startup;
 using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
@@ -507,7 +506,12 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     builder.Services.AddSingleton<
         SentenceStudio.Services.Speech.IVoiceDiscoveryService,
         SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+    builder.Services.AddSingleton<ISpeechClipProvider, ElevenLabsSpeechClipProvider>();
 }
+
+// Generated speech clips are kept in the media blob container and reused across clients and
+// learners, so each distinct clip is paid for once. Off when no container is configured.
+builder.Services.AddSpeechClipCache(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
@@ -998,13 +1002,14 @@ SentenceStudio.Api.Sync.SyncResendEndpoint.MapSyncResend(app);
 
 app.MapPost("/api/v1/speech/synthesize", async (
         SynthesizeRequest request,
-        [FromServices] ElevenLabsClient? client,
+        [FromServices] ISpeechClipProvider? provider,
+        [FromServices] SpeechClipCache clipCache,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
     {
         var logger = loggerFactory.CreateLogger("SpeechEndpoints");
 
-        if (client == null)
+        if (provider == null)
         {
             return Results.Problem("ElevenLabs client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
@@ -1016,22 +1021,11 @@ app.MapPost("/api/v1/speech/synthesize", async (
 
         try
         {
-            var voice = new Voice(voiceId, voiceId);
-            var ttsRequest = new TextToSpeechRequest(
-                voice,
-                request.Text,
-                voiceSettings: new VoiceSettings(0.75f, 0.75f)
-                {
-                    SpeakerBoost = true,
-                    Speed = 1.0f,
-                    Style = 0f
-                },
-                model: model);
-
-            var audioBytes = await client.TextToSpeechEndpoint.TextToSpeechAsync(
-                ttsRequest,
-                cancellationToken: cancellationToken);
-            var base64 = Convert.ToBase64String(audioBytes.ClipData.ToArray());
+            // A repeat of the same text, voice, model and settings is served from the media
+            // container without a paid call; see SpeechClipCache.
+            var spec = SpeechClipSpec.ForSynthesize(voiceId, model.Id, request.Text);
+            var audioBytes = await clipCache.GetOrGenerateAsync(spec, provider, cancellationToken);
+            var base64 = Convert.ToBase64String(audioBytes);
 
             return Results.Ok(new SynthesizeResponse
             {
@@ -1111,14 +1105,15 @@ static Model ResolveElevenLabsModel(string? configuredModel, Model fallback)
 app.MapPost("/api/v1/speech/synthesize-timestamped", async (
         SynthesizeTimestampedRequest request,
         ClaimsPrincipal user,
-        [FromServices] ElevenLabsClient? client,
+        [FromServices] ISpeechClipProvider? provider,
+        [FromServices] SpeechClipCache clipCache,
         [FromServices] ApplicationDbContext db,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
     {
         var logger = loggerFactory.CreateLogger("SpeechEndpoints");
 
-        if (client == null)
+        if (provider == null)
         {
             return Results.Problem("ElevenLabs client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
@@ -1176,44 +1171,21 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
 
         try
         {
-            var voice = await client.VoicesEndpoint.GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
-
-            var ttsRequest = new TextToSpeechRequest(
-                voice: voice,
-                text: resource.Transcript,
-                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
-                model: Model.MultiLingualV2,
-                withTimestamps: true);
-
-            var voiceClip = await client.TextToSpeechEndpoint.TextToSpeechAsync(ttsRequest, cancellationToken: cancellationToken);
-
-            var chars = voiceClip.TimestampedTranscriptCharacters;
-            var characters = new List<CharacterTimestamp>(chars?.Length ?? 0);
-            if (chars is not null)
-            {
-                foreach (var c in chars)
-                {
-                    characters.Add(new CharacterTimestamp
-                    {
-                        Char = c.Character.ToString() ?? string.Empty,
-                        StartMs = c.StartTime * 1000.0,
-                        EndMs = c.EndTime * 1000.0
-                    });
-                }
-            }
-
-            var durationSeconds = chars is { Length: > 0 } ? chars[^1].EndTime : 0.0;
-            var base64 = Convert.ToBase64String(voiceClip.ClipData.ToArray());
+            // The owner check above runs first; the cache key is the transcript text and voice
+            // settings only, so learners with the same transcript share one stored clip.
+            var spec = SpeechClipSpec.ForTimestamped(voiceId, stability, similarityBoost, speed, resource.Transcript);
+            var clip = await clipCache.GetOrGenerateTimestampedAsync(spec, provider, cancellationToken);
+            var base64 = Convert.ToBase64String(clip.Audio);
 
             logger.LogInformation(
                 "synthesize-timestamped: resource {ResourceId} user {UserProfileId} voice {VoiceId} chars {CharCount} duration {Duration:F2}s",
-                request.ResourceId, userProfileId, voiceId, characters.Count, durationSeconds);
+                request.ResourceId, userProfileId, voiceId, clip.Characters.Count, clip.DurationSeconds);
 
             return Results.Ok(new SynthesizeTimestampedResponse
             {
                 AudioUrl = $"data:audio/mpeg;base64,{base64}",
-                DurationSeconds = durationSeconds,
-                Characters = characters
+                DurationSeconds = clip.DurationSeconds,
+                Characters = clip.Characters.ToList()
             });
         }
         catch (Exception ex)

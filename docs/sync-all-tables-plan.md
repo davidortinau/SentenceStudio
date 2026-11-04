@@ -464,3 +464,95 @@ container that no code uses yet.
 | B. Upload each device's clip | A new owner-scoped upload/download endpoint, a server media reference column on `StreamHistory` (schema change on both providers), client upload after synthesis and download before regenerating. | Exact bytes travel with the entry, including clips that were not synthesized (recordings). More code, a migration, storage per learner, and a deletion design. |
 
 Both need production blob storage and its access (managed identity) configured in Azure.
+
+### Built: A, the server clip cache (Captain, 2026-11-04)
+
+Cross-device audio that goes through the API is now served from the server cache. The first
+request for a clip pays ElevenLabs once and the API stores the result in the `media`
+container under `speech-cache/v1/`; every later request for the same clip, from any device or
+any learner, gets the stored bytes. So a synced audio-history entry played on a second device
+still regenerates in the entry's voice, as D4 describes, but that regeneration is a cache hit
+rather than a paid call.
+
+- **Who benefits.** Callers of `/api/v1/speech/synthesize` and `/synthesize-timestamped`: the
+  native iOS and Android heads (quiz word audio through `NativeQuizSpeechSource`, Shadowing,
+  How Do You Say, Reading) and anything using `SpeechGatewayClient`/`SpeechApiClient` (the
+  future Flutter port too). **Not yet covered:** the shared Razor pages on the web and in the
+  MAUI apps (VocabQuiz, HowDoYouSay, Shadowing, Reading, NumberDrill) inject
+  `ElevenLabsSpeechService`, which calls ElevenLabs in process with its own `ElevenLabsClient`
+  and never reaches the API. Covering them means routing that service through the API (or
+  giving the WebApp the same store), which is a client change for the Captain to decide.
+- **Key.** SHA-256 of provider, endpoint variant, voice ID, model, voice settings, output
+  format and exact text (`src/SentenceStudio.Api/Speech/SpeechClipSpec.cs`). Blob names and
+  metadata carry no text, user or resource ID. Timestamped clips store their timings with the
+  audio.
+- **No contract change.** Same endpoints, responses and content type; auth and the
+  timestamped owner check run before the cache. No schema change on either provider.
+- **Clients keep their local copies.** `StreamHistory.RegeneratedClipFileName` and
+  `UiSpeechClipCache.ResolveEntry` (and the native equivalents) stay as the offline cache: a
+  device that already holds a clip plays it without the network, and one that does not asks
+  the API, which now answers from storage.
+- **Best effort.** If storage is unreachable or denied, the API logs it and generates as
+  before; a provider failure is never stored.
+- **Azure.** Production needs the API identity's blob data access on `media` confirmed (and the
+  container created if missing). The checks and the change awaiting approval are in
+  `docs/deploy-runbook.md`, "Speech clip cache".
+
+## Lookup history (decision 4 B, 2026-11-04)
+
+Captain, 2026-11-04: "a dedicated lookup table ... seems more efficient and correct long
+term." Words and phrases looked up in Writing (translate helper) and Reading (word lookup)
+are kept in their own synced table, `VocabularyLookup` (migration
+`20261104153858_AddVocabularyLookup`, PostgreSQL + hand-written SQLite). Every client lists
+them as "Recent lookups" with "Add to vocabulary". A lookup is not vocabulary: it never
+enters quizzes or review until the learner adds it.
+
+**Columns.** `Id` (text), `UserProfileId` (owner, required), `Text` (as last looked up,
+trimmed), `Translation`, `Language` (the language being learned, from the lookup's resource,
+else the learner's target language), `Direction` (`ToNative`: the text is target-language;
+`ToTarget`: the text is native-language), `Activity` (`Writing` or `Reading`, of the last
+lookup), `ResourceId` (optional plain reference, no constraint), `FirstLookedUpAt` and
+`LastLookedUpAt` (UTC instants). Index: owner + last lookup.
+
+**One row per learner, language, direction and text.** The ID is
+`"lk:" + hex(first 16 bytes of SHA-256(UTF-8(owner U+001F language U+001F direction U+001F text)))`,
+lower-case hex, where language is trimmed and lower-cased (invariant), direction is
+`ToNative` or `ToTarget`, and text is Unicode NFC, trimmed, every run of white space made one
+space, lower-cased (invariant) (`SyncIds.VocabularyLookup`). Test vectors (checked in
+`VocabularyLookupRepositoryTests`): owner `owner-1`, `Korean`, `ToNative`, `물` is
+`lk:f47f2616cfde663868fd1963db3d1457`; owner `owner-1`, `Korean`, `ToTarget`,
+`Hello   World` is `lk:d763ec34f12a61897324811212e68380`. A repeat lookup updates its row
+(latest text, translation, activity, resource and time); two offline devices that look up the
+same text create the same row ID.
+
+**Owner rule (server).** A device downloads and uploads only its owner's rows; an upload that
+names another owner, or no owner, or reuses another learner's ID is refused
+(`NativeOwnerSyncProvider`).
+
+**Merge rule (server).** When an uploaded copy meets the stored row, the copy with the later
+`LastLookedUpAt` wins, and the earlier of the two `FirstLookedUpAt` values is kept
+(`VocabularyLookupUploadMerge` on `LatestCopyUploadMerge`). A losing copy is dropped from the
+upload (never refused) and the merged row is sent back to the uploader. There is **no lookup
+counter**: a count cannot merge correctly across devices without per-device tallies, so it is
+not stored.
+
+**Writing a lookup (every client).** Record only a lookup that returned a translation, for
+the active learner, after the translation is shown; a failed or empty lookup records nothing;
+a recording failure is logged and the translation stays shown. Reading also keeps its
+`UserActivity` row ("Dictionary lookup: ...") for the activity log.
+
+**Add to vocabulary.** The learner picks one of their resources in the lookup's language (not
+smart resources); the target and native terms come from `Direction`; the shared
+create-and-link path (`CreateAndAttachOwnedVocabularyAsync`) links an existing word instead of
+duplicating it and reports a word the resource already has. The lookup row stays.
+
+**Lists.** Newest 100 lookups, no paging. Web and MAUI: `/vocabulary/lookups`, from the
+Vocabulary page header (desktop button, overflow menu). iOS: clock button in the Vocabulary
+list toolbar, pushed on the same stack. Android: "Recent lookups" in the Vocabulary header.
+
+**Rollout.** `VocabularyLookup` is in `SyncLateTables`, so a device that synced with an older
+app after the API began tracking the table asks for the learner's web lookups again. Deploy
+order: the API (with this migration) ships before any app build that syncs the table; an older
+API refuses uploads containing it.
+
+**Not built yet.** Deleting a lookup (it needs the owner-checked deletes of decision 2).

@@ -231,6 +231,7 @@
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private VocabularyLookupRepository LookupRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -759,16 +760,16 @@
         StateHasChanged();
 
         string definition;
-        var translated = false;
+        LookupTranslation? translation = null;
         try
         {
             string? context = currentSentenceIndex >= 0 && currentSentenceIndex < sentences.Count
                 ? sentences[currentSentenceIndex] : null;
 
             // Reads the owner's vocabulary or asks the AI; the lookup is not saved as a word.
-            definition = await TranslationSvc.TranslateAsync(cleanWord, context, owner);
-            // An empty result (no owner, or the AI returned nothing) is not a lookup.
-            translated = !string.IsNullOrWhiteSpace(definition);
+            // No result (no owner, or the AI returned nothing) is not a lookup.
+            translation = await TranslationSvc.TranslateLookupAsync(cleanWord, context, owner);
+            definition = translation?.Translation ?? string.Empty;
         }
         catch (Exception ex)
         {
@@ -776,24 +777,43 @@
             definition = string.Empty;
         }
 
-        // Every lookup whose translation returned is recorded, even if the panel closed or
-        // another word was tapped meanwhile; never after leaving or for another profile,
-        // and never when the translation failed.
-        if (translated && !_disposed && OwnerStillActive()
-            && string.Equals(owner, _owner, StringComparison.Ordinal))
+        // A later tap or close supersedes this lookup: its result is not shown.
+        if (lookup == _lookupGeneration)
         {
-            await RecordActivityAsync(owner, $"Dictionary lookup: {cleanWord}");
+            isTranslating = false;
+            if (string.IsNullOrEmpty(definition))
+                translationUnavailable = true;
+            else
+                wordDefinition = definition;
         }
 
-        // A later tap or close supersedes this lookup: its result is not shown.
-        if (lookup != _lookupGeneration)
-            return;
+        // Every lookup whose translation returned is recorded, after it is shown, even if the
+        // panel closed or another word was tapped meanwhile; never after leaving or for another
+        // profile, and never when the translation failed.
+        if (translation is not null && !_disposed && OwnerStillActive()
+            && string.Equals(owner, _owner, StringComparison.Ordinal))
+        {
+            StateHasChanged();
+            await RecordActivityAsync(owner, $"Dictionary lookup: {cleanWord}");
+            await RecordLookupAsync(owner, cleanWord, translation);
+        }
+    }
 
-        isTranslating = false;
-        if (string.IsNullOrEmpty(definition))
-            translationUnavailable = true;
-        else
-            wordDefinition = definition;
+    private async Task RecordLookupAsync(string owner, string word, LookupTranslation translation)
+    {
+        try
+        {
+            var status = await LookupRepo.RecordAsync(owner, new VocabularyLookupEntry(
+                word, translation.Translation, translation.Direction,
+                VocabularyLookupActivity.Reading, resource?.Id));
+            if (status != VocabularyLookupRecordStatus.Recorded)
+                Logger.LogWarning("Reading did not record a lookup: {Status}", status);
+        }
+        catch (Exception ex)
+        {
+            // The learner already has the translation; only the history entry is missing.
+            Logger.LogError(ex, "Reading could not record a lookup");
+        }
     }
 
     private Task HandleVocabularyWordClicked(VocabularyWord vw)
@@ -854,34 +874,38 @@
 
         try
         {
-            var newWord = new VocabularyWord
-            {
-                TargetLanguageTerm = selectedWord,
-                NativeLanguageTerm = wordDefinition,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var result = await ResourceRepo.SaveWordAsync(newWord, owner);
-            if (result > 0)
-            {
-                // Associate with current resource
-                if (!string.IsNullOrEmpty(resource?.Id))
-                {
-                    await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, newWord.Id, owner);
-                    vocabularyWords ??= new();
-                    vocabularyWords.Add(newWord);
-                }
-
-                selectedVocabWord = newWord;
-                Toast.ShowSuccess(Localize.Get("Reading_WordSaved", selectedWord));
-
-                await RecordActivityAsync(owner, $"Added vocabulary: {selectedWord}");
-            }
-            else
+            if (resource is null || string.IsNullOrEmpty(resource.Id))
             {
                 Toast.ShowError(Localize["Reading_CouldNotSaveWord"]);
+                return;
             }
+
+            // One step creates (or reuses) the learner's word and links it to this
+            // resource, so a failed link can't leave a word with no resource (backport B48).
+            var word = selectedWord;
+            var status = await ResourceRepo.CreateAndAttachOwnedVocabularyAsync(
+                resource.Id,
+                new VocabularyWord { TargetLanguageTerm = word, NativeLanguageTerm = wordDefinition },
+                string.IsNullOrWhiteSpace(resource.Language) ? null! : resource.Language,
+                owner);
+            if (!OwnerStillActive())
+                return;
+            if (status != ResourceVocabularyWriteStatus.Success)
+            {
+                Logger.LogWarning("Reading could not save a word: {Status}.", status);
+                Toast.ShowError(Localize["Reading_CouldNotSaveWord"]);
+                return;
+            }
+
+            var reloaded = await ResourceRepo.GetResourceAsync(resource.Id, owner);
+            if (reloaded?.Vocabulary is { } vocabulary)
+                vocabularyWords = vocabulary.ToList();
+            if (selectedWord == word)
+                selectedVocabWord = vocabularyWords.FirstOrDefault(v =>
+                    v.TargetLanguageTerm?.Equals(word, StringComparison.OrdinalIgnoreCase) == true);
+            Toast.ShowSuccess(Localize.Get("Reading_WordSaved", word));
+
+            await RecordActivityAsync(owner, $"Added vocabulary: {word}");
         }
         catch (Exception ex)
         {

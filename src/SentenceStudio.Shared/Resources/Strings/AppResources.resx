@@ -2330,8 +2330,32 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <comment>Native Profile: owner has no local profile row</comment>
   </data>
   <data name="NativeProfile_SaveUnavailable" xml:space="preserve">
-    <value>Changes here are drafts. Saving requires a safe server update; going back discards them.</value>
-    <comment>Native Profile: disabled Save while server persistence is unavailable</comment>
+    <value>Saving is not available right now. Your changes were not saved.</value>
+    <comment>Native Profile: Save could not reach a configured server path</comment>
+  </data>
+  <data name="NativeProfile_Saving" xml:space="preserve">
+    <value>Saving your profile...</value>
+    <comment>Native Profile: Save in progress</comment>
+  </data>
+  <data name="NativeProfile_SaveInvalid" xml:space="preserve">
+    <value>Enter a name of up to 200 characters and choose each setting, then save again.</value>
+    <comment>Native Profile: draft failed validation before saving</comment>
+  </data>
+  <data name="NativeProfile_SaveRejected" xml:space="preserve">
+    <value>The server did not accept these changes. Your profile was not saved.</value>
+    <comment>Native Profile: server refused the profile save</comment>
+  </data>
+  <data name="NativeProfile_SaveFailed" xml:space="preserve">
+    <value>Your profile could not be saved. Try again.</value>
+    <comment>Native Profile: unexpected failure before the server accepted the save</comment>
+  </data>
+  <data name="NativeProfile_SaveLocalFailed" xml:space="preserve">
+    <value>Your profile was saved to your account, but this device could not update its copy. It will update at the next sync.</value>
+    <comment>Native Profile: server saved, local row not updated</comment>
+  </data>
+  <data name="NativeProfile_EmailReadOnly" xml:space="preserve">
+    <value>Your email address can be changed in the web app.</value>
+    <comment>Native Profile: email is shown read-only; Save does not change it</comment>
   </data>
   <data name="NativeProfile_AccountActionUnavailable" xml:space="preserve">
     <value>Password changes and account deletion are unavailable here. Your account will not be changed.</value>
@@ -3381,6 +3405,30 @@ For example: {0} ...</value>
   <data name="VocabQuiz_AllMasteredSessionComplete" xml:space="preserve">
     <value>All words mastered! Session complete.</value>
     <comment>Toast when the last words of the quiz are mastered and the session is saved as complete</comment>
+  </data>
+  <data name="VocabQuiz_AllVocabularyMastered" xml:space="preserve">
+    <value>All vocabulary in this resource is mastered!</value>
+  </data>
+  <data name="VocabQuiz_OptionLabel" xml:space="preserve">
+    <value>Option {0}</value>
+  </data>
+  <data name="VocabQuiz_WriteSentenceFirst" xml:space="preserve">
+    <value>Write at least one sentence first.</value>
+  </data>
+  <data name="VocabQuiz_SomeSentencesUngraded" xml:space="preserve">
+    <value>See details below for sentences we couldn't grade.</value>
+  </data>
+  <data name="VocabQuiz_SentencesGradeUnavailable" xml:space="preserve">
+    <value>We couldn't grade your sentences right now. Please try again.</value>
+  </data>
+  <data name="VocabQuiz_SentenceTryAnother" xml:space="preserve">
+    <value>Not yet. Try another sentence using {0}.</value>
+  </data>
+  <data name="VocabQuiz_SentenceGradeFailedNoChange" xml:space="preserve">
+    <value>We couldn't grade that sentence right now. No progress was changed. Please try again.</value>
+  </data>
+  <data name="VocabQuiz_MarkedCorrect" xml:space="preserve">
+    <value>Marked correct</value>
   </data>
   <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
     <value>This saved quiz cannot be resumed safely. Start a fresh session to continue.</value>
@@ -9714,5 +9762,45 @@ For example: {0} ...</value>
   <data name="NativeMessage_Warning" xml:space="preserve">
     <value>Warning</value>
     <comment>Spoken/visible kind of an activity warning banner</comment>
+  </data>
+  <data name="Lookups_Title" xml:space="preserve">
+    <value>Recent lookups</value>
+    <comment>Page title and Vocabulary action: words looked up in Writing and Reading</comment>
+  </data>
+  <data name="Lookups_Empty" xml:space="preserve">
+    <value>Words you look up in Writing and Reading appear here.</value>
+    <comment>Empty state of Recent lookups</comment>
+  </data>
+  <data name="Lookups_LoadFailed" xml:space="preserve">
+    <value>Could not load your recent lookups.</value>
+    <comment>Recent lookups load error</comment>
+  </data>
+  <data name="Lookups_AddToVocabulary" xml:space="preserve">
+    <value>Add to vocabulary</value>
+    <comment>Button on a lookup row; opens the list of resources</comment>
+  </data>
+  <data name="Lookups_AddToVocabularyFor" xml:space="preserve">
+    <value>Add {0} to vocabulary</value>
+    <comment>Accessible name of a lookup row's add button. {0} = looked-up text</comment>
+  </data>
+  <data name="Lookups_ChooseResource" xml:space="preserve">
+    <value>Add to which resource?</value>
+    <comment>Heading of the resource list in a lookup row's add menu</comment>
+  </data>
+  <data name="Lookups_NoResource" xml:space="preserve">
+    <value>No resource in this language to add to.</value>
+    <comment>Shown when the learner has no resource to add a lookup to</comment>
+  </data>
+  <data name="Lookups_Added" xml:space="preserve">
+    <value>Added to {0}.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AlreadyPresent" xml:space="preserve">
+    <value>Already in {0}.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AddFailed" xml:space="preserve">
+    <value>Could not add this word.</value>
+    <comment>Add to vocabulary failed</comment>
   </data>
 </root>

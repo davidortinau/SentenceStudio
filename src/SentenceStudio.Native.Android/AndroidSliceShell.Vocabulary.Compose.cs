@@ -26,6 +26,8 @@ internal sealed partial class AndroidSliceShell
     private ComposableNode RenderVocabulary(AndroidVisualPalette palette)
     {
         var vocabulary = _vocabulary;
+        if (IsRecentLookupsShown)
+            return RecentLookupsPage(palette);
         if (vocabulary is { IsFormOpen: true })
             return VocabularyWordPage(vocabulary, palette);
         var page = VocabularyListPage(vocabulary, palette);
@@ -42,20 +44,29 @@ internal sealed partial class AndroidSliceShell
         var wide = WindowWidthDp >= 768;
         var header = ScreenHeader(Localize("Vocabulary_Title"), palette, back: true,
             backAutomationId: "native.vocabulary.back");
-        if (!wide && vocabulary is not null && header is TopAppBar bar)
+        if (vocabulary is not null && header is TopAppBar bar)
         {
-            var label = Localize("Vocabulary_Filters");
-            var active = state?.Filters.HasActiveFilters == true;
-            var shown = active ? $"{label} ({state!.Filters.ActiveFilterCount})" : label;
-            var filters = new TextButton(vocabulary.OpenPhoneFilters,
-                enabled: state is { Blocked: false, Loading: false })
+            var actions = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
             {
-                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.vocabulary.filters.open")
-                    .Semantics(semantics => semantics.ContentDescription(shown)),
+                // Recent lookups (decision 4 B): words looked up in Writing and Reading.
+                RecentLookupsHeaderAction(palette, enabled: state is { Blocked: false }),
             };
-            filters.Add(new Text(shown) { Color = active ? palette.Primary : palette.Text });
-            bar.Actions = filters;
+            if (!wide)
+            {
+                var label = Localize("Vocabulary_Filters");
+                var active = state?.Filters.HasActiveFilters == true;
+                var shown = active ? $"{label} ({state!.Filters.ActiveFilterCount})" : label;
+                var filters = new TextButton(vocabulary.OpenPhoneFilters,
+                    enabled: state is { Blocked: false, Loading: false })
+                {
+                    Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                        .TestTag("native.vocabulary.filters.open")
+                        .Semantics(semantics => semantics.ContentDescription(shown)),
+                };
+                filters.Add(new Text(shown) { Color = active ? palette.Primary : palette.Text });
+                actions.Add(filters);
+            }
+            bar.Actions = actions;
         }
         var page = new Column
         {

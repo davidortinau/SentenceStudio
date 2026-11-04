@@ -117,14 +117,22 @@ public sealed class AndroidMoreScreensContractTests
     }
 
     [Fact]
-    public void ProfileKeepsAccountActionsDisabledLikeIos()
+    public void ProfileSavesThroughTheSharedCoordinatorAndKeepsAccountActionsDisabledLikeIos()
     {
         var profile = Source("AndroidSliceShell.Profile.Compose.cs");
-        Assert.Contains("\"native.profile.save\",\n            static () => { }, enabled: false", profile);
+        var more = Source("AndroidSliceShell.More.cs");
+        // Save (decision 8d) runs the shared owner-checked save off the UI thread and is
+        // disabled while a save is in flight; the result shows under the button.
+        Assert.Contains("\"native.profile.save\",\n            () => RunMore(() => profile.SaveAsync(_lifetime.Token)), enabled: state.CanSave)", profile);
+        Assert.Contains("\"native.profile.save.status\"", profile);
+        Assert.Contains("NativeProfile_Saving", profile);
+        Assert.Contains("provider.GetRequiredService<INativeProfileRemoteStore>()", more);
+        // Email is not part of the save, so it is read-only with an explanation.
+        Assert.Contains("\"native.profile.email\", profile.SetEmail, enabled: false", profile);
+        Assert.Contains("NativeProfile_EmailReadOnly", profile);
+        Assert.DoesNotContain("NativeProfile_SaveUnavailable", profile);
         Assert.Contains("\"native.profile.password.change\",\n                static () => { }, enabled: false", profile);
         Assert.Contains("new TextButton(static () => { }, enabled: false)", profile);
-        Assert.Contains("NativeProfile_SaveUnavailable", profile);
-        Assert.DoesNotContain("SaveAsync(", profile);
         Assert.DoesNotContain("DeleteAccountAsync(", profile);
         Assert.DoesNotContain("ChangePasswordAsync(", profile);
     }

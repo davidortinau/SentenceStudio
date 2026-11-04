@@ -590,4 +590,67 @@ public class KoreanNumberAnswerGraderTests
     }
 
     #endregion
+
+    #region Disambiguate (exact per choice, Captain 2026-11-04)
+
+    [Fact]
+    public void Disambiguate_BothIntendedChoices_IsCorrect()
+    {
+        foreach (var item in DisambiguateItems())
+        {
+            var result = _grader.Grade(item, $"{item.CorrectAnswerA} | {item.CorrectAnswerB}", latencyMs: 4000);
+
+            Assert.True(result.IsCorrect, $"{item.PromptA} / {item.PromptB}");
+            Assert.Null(result.ErrorClass);
+        }
+    }
+
+    [Fact]
+    public void Disambiguate_AnyOtherChoice_IsWrong_EvenANearForm()
+    {
+        // The lenient number-word grader used to store some of these as correct while
+        // the page showed them as wrong (for example 삼째 날 for 셋째 날).
+        foreach (var item in DisambiguateItems())
+        {
+            foreach (var wrongA in item.ChoicesA!.Where(choice => choice != item.CorrectAnswerA))
+                AssertWrong(item, $"{wrongA} | {item.CorrectAnswerB}");
+            foreach (var wrongB in item.ChoicesB!.Where(choice => choice != item.CorrectAnswerB))
+                AssertWrong(item, $"{item.CorrectAnswerA} | {wrongB}");
+        }
+    }
+
+    [Fact]
+    public void Disambiguate_ThirdDay_NearSinoForm_IsWrong()
+    {
+        var item = DisambiguateItems().First(candidate => candidate.CorrectAnswerB == "셋째 날");
+
+        AssertWrong(item, $"{item.CorrectAnswerA} | 삼째 날");
+    }
+
+    [Fact]
+    public void Disambiguate_ChoicesSwappedOrMissing_IsWrong()
+    {
+        var item = DisambiguateItems().First();
+
+        AssertWrong(item, $"{item.CorrectAnswerB} | {item.CorrectAnswerA}");
+        AssertWrong(item, item.CorrectAnswerA!);
+        AssertWrong(item, "");
+    }
+
+    private void AssertWrong(NumberItem item, string answer)
+    {
+        var result = _grader.Grade(item, answer, latencyMs: 4000);
+
+        Assert.False(result.IsCorrect, $"'{answer}' for {item.PromptA} / {item.PromptB}");
+        Assert.Equal("system_confusion", result.ErrorClass);
+    }
+
+    /// <summary>Every distinct generated pair (the generator picks one of a fixed set).</summary>
+    private List<NumberItem> DisambiguateItems() =>
+        Enumerable.Range(0, 200)
+            .Select(seed => _generator.GenerateItem(new NumberItemRequest("Any", "Disambiguate", RandomSeed: seed)))
+            .DistinctBy(item => item.PromptA + "|" + item.PromptB)
+            .ToList();
+
+    #endregion
 }

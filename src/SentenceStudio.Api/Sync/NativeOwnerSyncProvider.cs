@@ -132,6 +132,7 @@ internal sealed class NativeOwnerSyncProvider(
         IReadOnlySet<string> mergedProgress = new HashSet<string>();
         var mastery = NumberMasteryUploadMerge.Empty;
         var runs = ActivitySessionUploadMerge.RunPlan.Empty;
+        var lookups = VocabularyLookupUploadMerge.Empty;
         if (owner is not null && items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -167,18 +168,24 @@ internal sealed class NativeOwnerSyncProvider(
             runs = await ActivitySessionUploadMerge.PrepareAsync(db, items, owner, ct);
             items = LatestCopyUploadMerge.WithoutLosers(items, runs.Copies);
             await ActivitySessionUploadMerge.KeepReplacedRunsAsync(db, runs, ct);
+
+            // Lookup history: the copy looked up most recently wins; the earliest first lookup is kept.
+            lookups = await VocabularyLookupUploadMerge.PrepareAsync(db, items, owner, ct);
+            items = LatestCopyUploadMerge.WithoutLosers(items, lookups.Copies);
         }
 
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
             changes.TargetAnchor, OrderNativeItems(items));
-        var resolve = mergedProgress.Count == 0 && mastery.IsEmpty && runs.Copies.IsEmpty ? onConflict : item =>
+        var resolve = mergedProgress.Count == 0 && mastery.IsEmpty && runs.Copies.IsEmpty
+            && lookups.Copies.IsEmpty ? onConflict : item =>
             item.TableName == VocabularyProgressConcurrentMerge.ProgressTable
                 && item.ChangeType != ChangeType.Delete
                 && Value(item, "Id") is { } id && mergedProgress.Contains(id)
                 ? ConflictResolution.ForceWrite
                 : LatestCopyUploadMerge.Resolve(mastery, item)
                     ?? LatestCopyUploadMerge.Resolve(runs.Copies, item)
+                    ?? LatestCopyUploadMerge.Resolve(lookups.Copies, item)
                     ?? onConflict?.Invoke(item) ?? ConflictResolution.Skip;
         var anchor = await provider.ApplyChangesAsync(applied, resolve, ct);
 
@@ -188,6 +195,13 @@ internal sealed class NativeOwnerSyncProvider(
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             await LatestCopyUploadMerge.TouchStoredWinnersAsync(db, mastery, owner!, ct);
             await LatestCopyUploadMerge.TouchStoredWinnersAsync(db, runs.Copies, owner!, ct);
+        }
+
+        if (!lookups.IsEmpty)
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await VocabularyLookupUploadMerge.FinishAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), lookups, owner!, ct);
         }
 
         if (mergedProgress.Count > 0)
@@ -832,6 +846,8 @@ internal sealed class NativeOwnerSyncProvider(
                 && keys.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)
                 && (string.IsNullOrEmpty(Value(item, "LearningResourceId"))
                     || keys.ResourceIds.Contains(Value(item, "LearningResourceId")!)),
+            // Lookup history (decision 4 B): only the owner's rows; no owner never matches.
+            "VocabularyLookup" => Value(item, "UserProfileId") == owner,
             _ => false,
         };
     }
