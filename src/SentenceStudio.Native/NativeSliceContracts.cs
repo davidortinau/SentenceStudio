@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using SentenceStudio.Contracts.Plans;
+using SentenceStudio.Contracts.Profiles;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
@@ -141,16 +142,22 @@ public sealed record NativeOnboardingResult(
     NativeOnboardingOutcome Outcome, string? ErrorKey = null,
     int ContentStepsDone = 0);
 
+/// <summary>
+/// Native onboarding and profile pickers, read from the one shared definition
+/// (<see cref="LearnerProfileOptions"/>) that the web pages and the profile API use.
+/// </summary>
 public static class NativeOnboardingOptions
 {
     public static ImmutableArray<string> NativeLanguages { get; } =
-        ["English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese"];
+        [.. LearnerProfileOptions.Languages];
     public static ImmutableArray<string> TargetLanguages { get; } =
-        ["Korean", "English", "French", "German", "Spanish", "Japanese", "Chinese"];
+        [.. LearnerProfileOptions.TargetLanguages];
+    public static ImmutableArray<string> DisplayLanguages { get; } =
+        [.. LearnerProfileOptions.DisplayLanguages];
     public static ImmutableArray<int> SessionMinutes { get; } =
-        [5, 10, 15, 20, 30, 45];
+        [.. LearnerProfileOptions.SessionMinutes];
     public static ImmutableArray<string> CefrLevels { get; } =
-        ["A1", "A2", "B1", "B2", "C1", "C2"];
+        [.. LearnerProfileOptions.CefrLevels];
 }
 
 public sealed record NativePlanCard(

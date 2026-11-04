@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using SentenceStudio.Contracts;
+using SentenceStudio.Contracts.Profiles;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -55,13 +56,6 @@ public sealed record UpdateOwnProfileRequest(
 
 public static class ProfileEndpoints
 {
-    // The choices the web Profile page and native onboarding/profile offer.
-    internal static readonly string[] EditableLanguages =
-        ["English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese"];
-    internal static readonly string[] DisplayLanguages = ["English", "Korean"];
-    internal static readonly int[] SessionMinuteChoices = [5, 10, 15, 20, 30, 45];
-    internal static readonly string[] CefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
-
     private const int MaxDisplayNameLength = 200;
     private const int MaxLanguageLength = 50;
     private const int MinPreferredSessionMinutes = 1;
@@ -190,7 +184,21 @@ public static class ProfileEndpoints
             return Results.Unauthorized();
         }
 
-        var validationErrors = ValidateOwnProfileRequest(request);
+        if (request is null)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["Body"] = ["A profile body is required."]
+            });
+
+        // The stored row decides which out-of-list values are unchanged and so kept.
+        var stored = await repository.GetByIdAsync(owner, cancellationToken);
+        if (stored is null)
+        {
+            logger.LogWarning("UpdateOwnProfile: profile {ProfileId} not found", owner);
+            return Results.NotFound();
+        }
+
+        var validationErrors = ValidateOwnProfileRequest(request, stored);
         if (validationErrors.Count > 0)
         {
             logger.LogInformation(
@@ -200,7 +208,7 @@ public static class ProfileEndpoints
         }
 
         var saved = await repository.SaveEditableProfileForOwnerAsync(
-            owner, request!.DisplayName!.Trim(), request.NativeLanguage!,
+            owner, request.DisplayName!.Trim(), request.NativeLanguage!,
             request.TargetLanguage!, request.DisplayLanguage!,
             request.PreferredSessionMinutes, request.TargetCefrLevel!, cancellationToken);
         if (saved == UserProfileRepository.EditableProfileSaveMissing)
@@ -227,40 +235,43 @@ public static class ProfileEndpoints
         return Results.Ok(MapToDto(reloaded));
     }
 
+    /// <summary>
+    /// Each list field must be one of the shared <see cref="LearnerProfileOptions"/> choices,
+    /// unless it equals the value already stored: a profile that holds an older language, a
+    /// session length such as 25 or different casing can still change its name without being
+    /// forced to change those fields. Only a changed value has to be a listed choice.
+    /// </summary>
     private static Dictionary<string, string[]> ValidateOwnProfileRequest(
-        UpdateOwnProfileRequest? request)
+        UpdateOwnProfileRequest request, UserProfile stored)
     {
         var errors = new Dictionary<string, string[]>();
-        if (request is null)
-        {
-            errors["Body"] = ["A profile body is required."];
-            return errors;
-        }
-
-        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        var name = request.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(name))
             errors[nameof(request.DisplayName)] = ["Display name is required."];
-        else if (request.DisplayName.Trim().Length > MaxDisplayNameLength)
+        else if (name.Length > MaxDisplayNameLength
+                 && !string.Equals(name, stored.Name, StringComparison.Ordinal))
             errors[nameof(request.DisplayName)] =
                 [$"Display name must be {MaxDisplayNameLength} characters or fewer."];
 
-        if (!OneOf(EditableLanguages, request.NativeLanguage))
+        if (!LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.Languages,
+                request.NativeLanguage, stored.NativeLanguage))
             errors[nameof(request.NativeLanguage)] = ["Native language is not a supported choice."];
-        if (!OneOf(EditableLanguages, request.TargetLanguage))
+        if (!LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.Languages,
+                request.TargetLanguage, stored.TargetLanguage))
             errors[nameof(request.TargetLanguage)] = ["Target language is not a supported choice."];
-        if (!OneOf(DisplayLanguages, request.DisplayLanguage))
+        if (!LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.DisplayLanguages,
+                request.DisplayLanguage, stored.DisplayLanguage))
             errors[nameof(request.DisplayLanguage)] = ["Display language must be English or Korean."];
-        if (!SessionMinuteChoices.Contains(request.PreferredSessionMinutes))
+        if (!LearnerProfileOptions.IsAcceptableSessionMinutes(
+                request.PreferredSessionMinutes, stored.PreferredSessionMinutes))
             errors[nameof(request.PreferredSessionMinutes)] =
-                [$"Preferred session minutes must be one of {string.Join(", ", SessionMinuteChoices)}."];
-        if (!OneOf(CefrLevels, request.TargetCefrLevel))
+                [$"Preferred session minutes must be one of {string.Join(", ", LearnerProfileOptions.SessionMinutes)}."];
+        if (!LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.CefrLevels,
+                request.TargetCefrLevel, stored.TargetCEFRLevel))
             errors[nameof(request.TargetCefrLevel)] = ["Target CEFR level must be A1 to C2."];
 
         return errors;
     }
-
-    // Exact, case-sensitive match: the stored values feed language logic elsewhere.
-    private static bool OneOf(string[] options, string? value) =>
-        value is not null && Array.IndexOf(options, value) >= 0;
 
     private static IResult? ResolveOwnership(string profileId, ClaimsPrincipal user)
     {

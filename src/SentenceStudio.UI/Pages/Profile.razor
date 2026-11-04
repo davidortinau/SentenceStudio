@@ -214,9 +214,10 @@ else
         && SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(newPassword)
         && !string.IsNullOrWhiteSpace(confirmNewPassword);
 
-    private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
-    private readonly int[] sessionOptions = { 5, 10, 15, 20, 30, 45 };
-    private readonly string[] cefrLevels = { "A1", "A2", "B1", "B2", "C1", "C2" };
+    // One shared definition with native onboarding/profile and PUT /api/v1/profile/me.
+    private readonly IReadOnlyList<string> languages = SentenceStudio.Contracts.Profiles.LearnerProfileOptions.Languages;
+    private readonly IReadOnlyList<int> sessionOptions = SentenceStudio.Contracts.Profiles.LearnerProfileOptions.SessionMinutes;
+    private readonly IReadOnlyList<string> cefrLevels = SentenceStudio.Contracts.Profiles.LearnerProfileOptions.CefrLevels;
 
     protected override async Task OnInitializedAsync()
     {

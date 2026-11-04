@@ -139,6 +139,88 @@ public sealed class ProfileMeEndpointTests : IClassFixture<ProfileSpeechApiFacto
     }
 
     [Fact]
+    public async Task UnchangedOutOfListValues_AreKept_WhileTheNameChanges()
+    {
+        // Older rows can hold values the pickers no longer list (a language outside the
+        // shared choices, different casing, a 25-minute session, a non-CEFR level).
+        var owner = $"me-legacy-{Guid.NewGuid():N}";
+        await SeedAsync(owner, nativeLanguage: "english", targetLanguage: "Italian",
+            sessionMinutes: 25, cefr: "Advanced");
+        using var client = ClientFor(owner);
+
+        using var response = await client.PutAsJsonAsync("/api/v1/profile/me", new
+        {
+            DisplayName = "Renamed", NativeLanguage = "english", TargetLanguage = "Italian",
+            DisplayLanguage = "English", PreferredSessionMinutes = 25, TargetCefrLevel = "Advanced"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var stored = await GetAsync(owner);
+        stored.Name.Should().Be("Renamed");
+        stored.NativeLanguage.Should().Be("english");
+        stored.TargetLanguage.Should().Be("Italian");
+        stored.PreferredSessionMinutes.Should().Be(25);
+        stored.TargetCEFRLevel.Should().Be("Advanced");
+    }
+
+    public static TheoryData<string, object> ChangedOutOfListBodies() => new()
+    {
+        { "TargetLanguage", new { DisplayName = "Renamed", NativeLanguage = "english",
+            TargetLanguage = "Portuguese", DisplayLanguage = "English",
+            PreferredSessionMinutes = 25, TargetCefrLevel = "Advanced" } },
+        { "NativeLanguage", new { DisplayName = "Renamed", NativeLanguage = "ENGLISH",
+            TargetLanguage = "Italian", DisplayLanguage = "English",
+            PreferredSessionMinutes = 25, TargetCefrLevel = "Advanced" } },
+        { "PreferredSessionMinutes", new { DisplayName = "Renamed", NativeLanguage = "english",
+            TargetLanguage = "Italian", DisplayLanguage = "English",
+            PreferredSessionMinutes = 35, TargetCefrLevel = "Advanced" } },
+        { "TargetCefrLevel", new { DisplayName = "Renamed", NativeLanguage = "english",
+            TargetLanguage = "Italian", DisplayLanguage = "English",
+            PreferredSessionMinutes = 25, TargetCefrLevel = "Expert" } },
+    };
+
+    [Theory]
+    [MemberData(nameof(ChangedOutOfListBodies))]
+    public async Task ChangedOutOfListValue_IsRefused_AndWritesNothing(string field, object body)
+    {
+        var owner = $"me-legacy-bad-{Guid.NewGuid():N}";
+        await SeedAsync(owner, nativeLanguage: "english", targetLanguage: "Italian",
+            sessionMinutes: 25, cefr: "Advanced");
+        using var client = ClientFor(owner);
+
+        using var response = await client.PutAsJsonAsync("/api/v1/profile/me", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationShape>(JsonOptions);
+        problem!.Errors.Should().ContainKey(field);
+        var stored = await GetAsync(owner);
+        stored.Name.Should().Be($"Seed {owner}");
+        stored.TargetLanguage.Should().Be("Italian");
+        stored.PreferredSessionMinutes.Should().Be(25);
+    }
+
+    [Fact]
+    public async Task AnotherOwnersStoredValue_DoesNotMakeItAcceptable()
+    {
+        // The unchanged-value rule compares with the caller's own row only.
+        var legacy = $"me-legacy-a-{Guid.NewGuid():N}";
+        var other = $"me-legacy-b-{Guid.NewGuid():N}";
+        await SeedAsync(legacy, targetLanguage: "Italian");
+        await SeedAsync(other);
+        using var client = ClientFor(other);
+
+        using var response = await client.PutAsJsonAsync("/api/v1/profile/me", new
+        {
+            DisplayName = "B", NativeLanguage = "English", TargetLanguage = "Italian",
+            DisplayLanguage = "English", PreferredSessionMinutes = 20, TargetCefrLevel = "A1"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await GetAsync(other)).TargetLanguage.Should().Be("Korean");
+        (await GetAsync(legacy)).Name.Should().Be($"Seed {legacy}");
+    }
+
+    [Fact]
     public async Task MeLiteral_DoesNotCollideWithProfileIdRoutes()
     {
         var owner = $"me-route-{Guid.NewGuid():N}";
@@ -165,16 +247,18 @@ public sealed class ProfileMeEndpointTests : IClassFixture<ProfileSpeechApiFacto
         return client;
     }
 
-    private async Task SeedAsync(string id, string? email = null, string? openAiKey = null)
+    private async Task SeedAsync(string id, string? email = null, string? openAiKey = null,
+        string nativeLanguage = "English", string targetLanguage = "Korean",
+        int sessionMinutes = 20, string cefr = "A1")
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.UserProfiles.Add(new UserProfile
         {
             Id = id, Name = $"Seed {id}", Email = email ?? $"{id}@test.local",
-            NativeLanguage = "English", TargetLanguage = "Korean", DisplayLanguage = "English",
-            PreferredSessionMinutes = 20, TargetCEFRLevel = "A1", OpenAI_APIKey = openAiKey,
-            CreatedAt = DateTime.UtcNow
+            NativeLanguage = nativeLanguage, TargetLanguage = targetLanguage,
+            DisplayLanguage = "English", PreferredSessionMinutes = sessionMinutes,
+            TargetCEFRLevel = cefr, OpenAI_APIKey = openAiKey, CreatedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
     }
