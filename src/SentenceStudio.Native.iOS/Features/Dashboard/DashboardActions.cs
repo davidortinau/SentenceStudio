@@ -23,4 +23,6 @@ internal sealed record DashboardToolbarActions(
     Action OpenSkills,
     Action OpenVocabulary,
     Action OpenActivityLog,
-    Action SignOut);
+    Action SignOut,
+    // Source NavMenu.razor:49 sidebar item; native tabs approved (D-platform-navigation).
+    Action? OpenMinimalPairs = null);

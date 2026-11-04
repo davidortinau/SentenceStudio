@@ -24,6 +24,15 @@ public sealed partial class NativeDashboardPresenter
         new("numberdrill", "Activity_NumberDrill")
     ];
 
+    /// <summary>
+    /// Whether a Choose My Own Dashboard shows its selectors and tiles. The source
+    /// renders them in every phase of a load (only the plan has a spinner), so a
+    /// reload keeps the already-loaded choices on screen instead of a spinner.
+    /// </summary>
+    public static bool ShowsChooseOwn(NativeDashboardState state) =>
+        state.Phase is NativePhase.Ready or NativePhase.Empty
+        || state.Phase == NativePhase.Loading && state.ChooseOwn is not null;
+
     public async Task<NativeDashboardState> LoadChooseOwnAsync(
         CancellationToken cancellationToken = default)
     {

@@ -29,39 +29,44 @@ internal static class DashboardView
             return DashboardPage(DashboardWelcomeView.Sections(
                 style, busy, text, actions.CreateStarter, starterBusy,
                 starterErrorKey, actions.AddResource, isTablet), style);
-        if (isTablet && !string.IsNullOrWhiteSpace(profileName))
+        // The presenter reads the name on every load, so a rename shows here;
+        // the sign-in name covers the first render before that load.
+        var name = state.ProfileName ?? profileName;
+        if (isTablet && !string.IsNullOrWhiteSpace(name))
             items.Add(style.Text(Views.Text(string.Format(
                     CultureInfo.CurrentCulture,
-                    text("Dashboard_WelcomeGreeting"), profileName)),
+                    text("Dashboard_WelcomeGreeting"), name)),
                     SourceTextRole.Title1, sourceHeading: true)
                 .WithAccessibilityIdentifier("native.dashboard.welcome"));
-        if (state.Phase is NativePhase.Ready or NativePhase.Empty)
+        // Source Index.razor:105-117: every returning-learner Dashboard shows the
+        // mode switch, whatever the plan phase.
+        var switcher = Views.ButtonGroup([
+            ModeButton(style, text(NativeText.Today),
+                state.Mode == NativeDashboardMode.TodaysPlan,
+                () => actions.SelectMode(NativeDashboardMode.TodaysPlan),
+                SourceButtonGroupPosition.First)
+                .WithAccessibilityIdentifier("native.dashboard.mode.today"),
+            ModeButton(style, text("Dashboard_ChooseMyOwn"),
+                state.Mode == NativeDashboardMode.ChooseOwn,
+                () => actions.SelectMode(NativeDashboardMode.ChooseOwn),
+                SourceButtonGroupPosition.Last)
+                .WithAccessibilityIdentifier("native.dashboard.mode.chooseown")],
+                selectedIndex: state.Mode == NativeDashboardMode.TodaysPlan ? 0 : 1)
+            .WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth,
+                fillAvailableWidth: true)
+            .WithFlexibleWidth();
+        items.Add(switcher);
+        // Local plan/progress is shown, but the last sync did not confirm it with the
+        // server (offline or the server did not answer). Same text as the PendingSync phase.
+        if (state.Phase is (NativePhase.Ready or NativePhase.Empty))
         {
-            var switcher = Views.ButtonGroup([
-                ModeButton(style, text(NativeText.Today),
-                    state.Mode == NativeDashboardMode.TodaysPlan,
-                    () => actions.SelectMode(NativeDashboardMode.TodaysPlan),
-                    SourceButtonGroupPosition.First)
-                    .WithAccessibilityIdentifier("native.dashboard.mode.today"),
-                ModeButton(style, text("Dashboard_ChooseMyOwn"),
-                    state.Mode == NativeDashboardMode.ChooseOwn,
-                    () => actions.SelectMode(NativeDashboardMode.ChooseOwn),
-                    SourceButtonGroupPosition.Last)
-                    .WithAccessibilityIdentifier("native.dashboard.mode.chooseown")],
-                    selectedIndex: state.Mode == NativeDashboardMode.TodaysPlan ? 0 : 1)
-                .WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth,
-                    fillAvailableWidth: true)
-                .WithFlexibleWidth();
-            items.Add(switcher);
-            // Local plan/progress is shown, but the last sync did not confirm it with the
-            // server (offline or the server did not answer). Same text as the PendingSync phase.
             if (state.HasPendingSync)
                 items.Add(style.Text(Views.Text(text("Native_SyncPending")),
                         SourceTextRole.Caption1, SourceTextTone.Secondary)
                     .WithAccessibilityIdentifier("native.dashboard.sync.caption"));
         }
         if (state.Mode == NativeDashboardMode.ChooseOwn
-            && state.Phase is (NativePhase.Ready or NativePhase.Empty))
+            && NativeDashboardPresenter.ShowsChooseOwn(state))
             ChooseOwnView.Add(items, state, style, text, actions.OpenResourceSelector,
                 actions.OpenSkillSelector, actions.RetryChooseOwn,
                 actions.ExpandActivities, actions.LaunchChooseOwnActivity, isTablet);
@@ -128,6 +133,10 @@ internal static class DashboardView
             .WithAccessibilityIdentifier("native.dashboard.skills"));
         menuActions.Add(Views.Button(text("Nav_Vocabulary"), actions.OpenVocabulary)
             .WithAccessibilityIdentifier("native.dashboard.vocabulary"));
+        // Follows Vocabulary, as in the source sidebar (NavMenu.razor:48-49).
+        if (actions.OpenMinimalPairs is { } openMinimalPairs)
+            menuActions.Add(Views.Button(text("Nav_MinimalPairs"), openMinimalPairs)
+                .WithAccessibilityIdentifier("native.dashboard.minimal-pairs"));
         menuActions.Add(Views.Button(text("Nav_Activity"), actions.OpenActivityLog)
             .WithAccessibilityIdentifier("native.dashboard.activity-log"));
         menuActions.Add(Views.Button(signOutTitle, actions.SignOut)

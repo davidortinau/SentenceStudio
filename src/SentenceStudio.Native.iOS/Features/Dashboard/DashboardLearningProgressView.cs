@@ -27,7 +27,10 @@ internal static class DashboardLearningProgressView
         items.Add(style.Text(Views.Text(text("Dashboard_VocabularyHeader")),
                 SourceTextRole.Title2, sourceHeading: true)
             .WithAccessibilityIdentifier("native.dashboard.vocab.title"));
-        if (state.Phase == NativePhase.Loading)
+        // The section has its own loading state (source isLoading): the statistics
+        // show as soon as they load, while the plan may still be loading. A plan
+        // error stays in the plan area and never appears under this header.
+        if (state.StatisticsLoading)
         {
             items.Add(Views.IndeterminateProgress(text("Common_Loading"))
                 .WithAccessibilityIdentifier("native.dashboard.vocab.spinner"));
@@ -40,13 +43,6 @@ internal static class DashboardLearningProgressView
         else if (state.VocabErrorKey is { } vocabError)
             items.Add(style.BorderedCard(
                     style.Text(Views.Text(text(vocabError)),
-                            SourceTextRole.Body1, SourceTextTone.Danger)
-                        .WithPadding(SourceUiLayout.CardInset))
-                .WithAccessibilityIdentifier("native.dashboard.vocab.error"));
-        else if (state.Phase is (NativePhase.Error or NativePhase.Blocked))
-            items.Add(style.BorderedCard(
-                    style.Text(Views.Text(text(state.ErrorKey
-                            ?? NativeText.PlanError)),
                             SourceTextRole.Body1, SourceTextTone.Danger)
                         .WithPadding(SourceUiLayout.CardInset))
                 .WithAccessibilityIdentifier("native.dashboard.vocab.error"));
@@ -66,7 +62,7 @@ internal static class DashboardLearningProgressView
                 style.Text(Views.Text(text("NativeDashboard_NumbersMastery")),
                     SourceTextRole.Title2, sourceHeading: true))
             .WithAccessibilityIdentifier("native.dashboard.numbers.title"));
-        if (state.Phase == NativePhase.Loading)
+        if (state.StatisticsLoading)
         {
             items.Add(Views.IndeterminateProgress(text("Common_Loading"))
                 .WithAccessibilityIdentifier("native.dashboard.numbers.spinner"));

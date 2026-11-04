@@ -213,6 +213,13 @@ public sealed record NativeDashboardState(
     public bool NumbersApplicable { get; init; }
     /// <summary>Vocabulary statistics load independently of the plan, as in the source dashboard.</summary>
     public string? VocabErrorKey { get; init; }
+    /// <summary>
+    /// True while the vocabulary and number statistics of this load are still being read
+    /// (source <c>isLoading</c>). They are published before the plan finishes loading.
+    /// </summary>
+    public bool StatisticsLoading { get; init; }
+    /// <summary>The owner's current profile name, read on every load (source WelcomeMessage).</summary>
+    public string? ProfileName { get; init; }
     public NativeChooseOwnState? ChooseOwn { get; init; }
 
     public ImmutableArray<TagInsightDto> StrugglingCategories =>

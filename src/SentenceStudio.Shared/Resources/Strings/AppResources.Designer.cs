@@ -5881,6 +5881,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Doing well with:.
+        /// </summary>
+        internal static string Dashboard_DoingWellWith {
+            get {
+                return ResourceManager.GetString("Dashboard_DoingWellWith", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to ~{0} min.
         /// </summary>
         internal static string Dashboard_EstimateMinutes {
