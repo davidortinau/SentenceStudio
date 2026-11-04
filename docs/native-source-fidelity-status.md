@@ -388,7 +388,13 @@ writes exactly the server's values to the local row, so the next download keeps 
 request per double tap; inputs disabled while saving; email read-only. iOS and Android
 enable Save through it. Tests: API with two owners on throwaway PostgreSQL (B cannot change
 A; no owner claim 401, missing row 404, invalid body 400, none writes), presenter and client
-tests.
+tests. Code review fix: the choices have one shared definition
+(`src/SentenceStudio.Contracts/Profiles/LearnerProfileOptions.cs`) used by the web Profile
+and Onboarding pages, native onboarding/profile and `/me`; on the server and in the native
+check, a field equal to the stored value is kept even when it is not listed, so an older
+profile (for example "Italian", 25 minutes, "english") can still change its name; a changed
+value must be listed. Tests cover keeping legacy values, refusing a new unlisted value, and
+two owners on PostgreSQL (A's stored value does not make it acceptable for B).
 
 Data backups made before installs: Android data tar and an emulator snapshot
 `agent-backup-20261104-preinstall` (listed in the userdata qcow2); both iOS app data

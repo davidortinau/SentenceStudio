@@ -82,6 +82,55 @@ public sealed class NativeProfileSaveTests
     }
 
     [Fact]
+    public async Task UnchangedOutOfListValuesAreKept_WhileTheNameChanges()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        await fixture.SetLegacyChoicesAsync(OwnerA);
+        var remote = new FakeRemote();
+        using var coordinator = fixture.Coordinator(remote);
+        Assert.True(await coordinator.OpenAsync(OwnerA));
+        Assert.True(coordinator.SetName("Renamed"));
+
+        Assert.True(await coordinator.SaveAsync());
+
+        var sent = Assert.Single(remote.Requests);
+        Assert.Equal(new NativeProfileFields("Renamed", "english", "Italian", "English", 25,
+            "Advanced"), sent.Fields);
+        var stored = await fixture.GetAsync(OwnerA);
+        Assert.Equal("Renamed", stored.Name);
+        Assert.Equal("english", stored.NativeLanguage);
+        Assert.Equal("Italian", stored.TargetLanguage);
+        Assert.Equal(25, stored.PreferredSessionMinutes);
+        Assert.Equal("Advanced", stored.TargetCEFRLevel);
+        fixture.AssertUntouched(await fixture.GetAsync(OwnerB), "Owner B");
+    }
+
+    [Fact]
+    public async Task ANewOutOfListValueIsRefused()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        await fixture.SetLegacyChoicesAsync(OwnerA);
+        var remote = new FakeRemote();
+        using var coordinator = fixture.Coordinator(remote);
+        Assert.True(await coordinator.OpenAsync(OwnerA));
+
+        // The pickers only apply listed choices; a changed value must be listed.
+        Assert.False(coordinator.SetTargetLanguage("Portuguese"));
+        Assert.False(coordinator.SetSessionMinutes(35));
+        Assert.False(coordinator.SetTargetCefrLevel("Expert"));
+        Assert.Equal("Italian", coordinator.State.Draft.TargetLanguage);
+
+        var stored = coordinator.State.Draft;
+        Assert.True(ProfileCoordinator.IsSavable(stored with { Name = "Renamed" }, stored));
+        Assert.False(ProfileCoordinator.IsSavable(stored with { TargetLanguage = "Portuguese" }, stored));
+        Assert.False(ProfileCoordinator.IsSavable(stored with { NativeLanguage = "ENGLISH" }, stored));
+        Assert.False(ProfileCoordinator.IsSavable(stored with { PreferredSessionMinutes = 35 }, stored));
+        Assert.False(ProfileCoordinator.IsSavable(stored with { TargetCefrLevel = "Expert" }, stored));
+        Assert.True(ProfileCoordinator.IsSavable(stored with { TargetLanguage = "Korean" }, stored));
+        Assert.Empty(remote.Requests);
+    }
+
+    [Fact]
     public async Task RemoteExceptionIsAnHonestFailureWithoutALocalWrite()
     {
         using var fixture = await Fixture.CreateAsync();
@@ -303,6 +352,19 @@ public sealed class NativeProfileSaveTests
             using var scope = _services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             return await db.UserProfiles.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id);
+        }
+
+        /// <summary>Gives a row values the shared pickers do not list (an older profile).</summary>
+        internal async Task SetLegacyChoicesAsync(string id)
+        {
+            using var scope = _services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var profile = await db.UserProfiles.SingleAsync(p => p.Id == id);
+            profile.NativeLanguage = "english";
+            profile.TargetLanguage = "Italian";
+            profile.PreferredSessionMinutes = 25;
+            profile.TargetCEFRLevel = "Advanced";
+            await db.SaveChangesAsync();
         }
 
         internal async Task DeleteAsync(string id)

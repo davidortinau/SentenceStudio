@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Contracts.Profiles;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
@@ -56,6 +57,8 @@ internal sealed class ProfileCoordinator : IDisposable
     private string? _owner;
     private DeviceUserScopeProvider.ScopeStamp _stamp;
     private ProfileDraft _draft = ProfileDraft.Empty;
+    // The values as last loaded or saved; an unchanged out-of-list value may be kept.
+    private ProfileDraft _stored = ProfileDraft.Empty;
     private ProfilePhase _phase = ProfilePhase.Closed;
     private long _loadGeneration;
     private bool _deleteRequested;
@@ -157,6 +160,7 @@ internal sealed class ProfileCoordinator : IDisposable
             {
                 generation = ++_loadGeneration;
                 _draft = ProfileDraft.Empty;
+                _stored = ProfileDraft.Empty;
                 _deleteRequested = false;
                 _saveStatus = ProfileSaveStatus.Idle;
                 _saveMessageKey = null;
@@ -199,6 +203,7 @@ internal sealed class ProfileCoordinator : IDisposable
                 && IsCurrentOwnerLocked(owner, stamp))
             {
                 _draft = draft;
+                _stored = draft;
                 _phase = phase;
                 ++_viewVersion;
                 changed = true;
@@ -223,7 +228,7 @@ internal sealed class ProfileCoordinator : IDisposable
         && Edit(draft => draft with { TargetLanguage = value });
 
     internal bool SetDisplayLanguage(string value) =>
-        value is ("English" or "Korean")
+        NativeOnboardingOptions.DisplayLanguages.Contains(value)
         && Edit(draft => draft with { DisplayLanguage = value });
 
     internal bool SetSessionMinutes(int value) =>
@@ -330,7 +335,7 @@ internal sealed class ProfileCoordinator : IDisposable
             if (!revoked && _phase == ProfilePhase.Ready
                 && IsCurrentOwnerLocked(owner, stamp))
             {
-                invalid = !IsSavable(draft);
+                invalid = !IsSavable(draft, _stored);
                 _saveStatus = invalid ? ProfileSaveStatus.Failed : ProfileSaveStatus.Saving;
                 _saveMessageKey = invalid ? SaveInvalidKey : null;
                 started = !invalid;
@@ -422,15 +427,27 @@ internal sealed class ProfileCoordinator : IDisposable
             savedDraft);
     }
 
-    private static bool IsSavable(ProfileDraft draft)
+    /// <summary>
+    /// Same rule as PUT /api/v1/profile/me: each list field is a shared
+    /// <see cref="LearnerProfileOptions"/> choice or equals the stored value, so an
+    /// older out-of-list value never blocks saving a name change.
+    /// </summary>
+    internal static bool IsSavable(ProfileDraft draft, ProfileDraft stored)
     {
         var name = draft.Name?.Trim() ?? string.Empty;
-        return name.Length is > 0 and <= MaxNameLength
-            && NativeOnboardingOptions.NativeLanguages.Contains(draft.NativeLanguage)
-            && NativeOnboardingOptions.TargetLanguages.Contains(draft.TargetLanguage)
-            && draft.DisplayLanguage is ("English" or "Korean")
-            && NativeOnboardingOptions.SessionMinutes.Contains(draft.PreferredSessionMinutes)
-            && NativeOnboardingOptions.CefrLevels.Contains(draft.TargetCefrLevel);
+        return name.Length > 0
+            && (name.Length <= MaxNameLength
+                || string.Equals(name, stored.Name, StringComparison.Ordinal))
+            && LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.Languages,
+                draft.NativeLanguage, stored.NativeLanguage)
+            && LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.Languages,
+                draft.TargetLanguage, stored.TargetLanguage)
+            && LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.DisplayLanguages,
+                draft.DisplayLanguage, stored.DisplayLanguage)
+            && LearnerProfileOptions.IsAcceptableSessionMinutes(
+                draft.PreferredSessionMinutes, stored.PreferredSessionMinutes)
+            && LearnerProfileOptions.IsAcceptable(LearnerProfileOptions.CefrLevels,
+                draft.TargetCefrLevel, stored.TargetCefrLevel);
     }
 
     private bool IsSaveCurrent(
@@ -465,7 +482,7 @@ internal sealed class ProfileCoordinator : IDisposable
                 _saveStatus = status;
                 _saveMessageKey = messageKey;
                 if (draft is not null)
-                    _draft = draft;
+                    _draft = _stored = draft;
                 ++_viewVersion;
                 changed = true;
                 applied = status == ProfileSaveStatus.Saved;
@@ -490,6 +507,7 @@ internal sealed class ProfileCoordinator : IDisposable
         _owner = null;
         _stamp = default;
         _draft = ProfileDraft.Empty;
+        _stored = ProfileDraft.Empty;
         _deleteRequested = false;
         _saveStatus = ProfileSaveStatus.Idle;
         _saveMessageKey = null;
@@ -542,6 +560,7 @@ internal sealed class ProfileCoordinator : IDisposable
         _owner = null;
         _stamp = default;
         _draft = ProfileDraft.Empty;
+        _stored = ProfileDraft.Empty;
         _deleteRequested = false;
         _saveStatus = ProfileSaveStatus.Idle;
         _saveMessageKey = null;

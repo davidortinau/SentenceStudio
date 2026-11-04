@@ -100,6 +100,34 @@ public sealed class ProfileMePostgresTests : IClassFixture<ProfileMePostgresFixt
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         _fixture.AssertSeeded(await _fixture.GetAsync(a), a);
     }
+
+    [ApplicationOperationPostgresFact]
+    public async Task UnchangedOutOfListValues_AreKeptForTheirOwnerOnly()
+    {
+        var (a, b) = await _fixture.SeedOwnersAsync();
+        await _fixture.SetLegacyChoicesAsync(a, targetLanguage: "Italian", sessionMinutes: 25);
+        object Body(string name) => new
+        {
+            DisplayName = name, NativeLanguage = "English", TargetLanguage = "Italian",
+            DisplayLanguage = "English", PreferredSessionMinutes = 25, TargetCefrLevel = "A1"
+        };
+
+        // A keeps its stored out-of-list values while changing the name.
+        using (var clientA = _fixture.ClientFor(a))
+        using (var saved = await clientA.PutAsJsonAsync("/api/v1/profile/me", Body("A renamed")))
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var storedA = await _fixture.GetAsync(a);
+        Assert.Equal("A renamed", storedA.Name);
+        Assert.Equal("Italian", storedA.TargetLanguage);
+        Assert.Equal(25, storedA.PreferredSessionMinutes);
+
+        // The same values are a change for B, whose row holds listed values: refused.
+        using (var clientB = _fixture.ClientFor(b))
+        using (var refused = await clientB.PutAsJsonAsync("/api/v1/profile/me", Body("B renamed")))
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        _fixture.AssertSeeded(await _fixture.GetAsync(b), b);
+        Assert.Equal("A renamed", (await _fixture.GetAsync(a)).Name);
+    }
 }
 
 public sealed class ProfileMePostgresFixture : IAsyncLifetime
@@ -158,6 +186,16 @@ public sealed class ProfileMePostgresFixture : IAsyncLifetime
         db.UserProfiles.AddRange(Seed(a, "sk-a"), Seed(b, "sk-b"));
         await db.SaveChangesAsync();
         return (a, b);
+    }
+
+    /// <summary>Gives a seeded row values the shared pickers do not list (an older profile).</summary>
+    internal async Task SetLegacyChoicesAsync(string id, string targetLanguage, int sessionMinutes)
+    {
+        await using var db = NewContext();
+        var profile = await db.UserProfiles.SingleAsync(row => row.Id == id);
+        profile.TargetLanguage = targetLanguage;
+        profile.PreferredSessionMinutes = sessionMinutes;
+        await db.SaveChangesAsync();
     }
 
     internal async Task<UserProfile> GetAsync(string id)
