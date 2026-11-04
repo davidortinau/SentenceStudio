@@ -464,3 +464,36 @@ container that no code uses yet.
 | B. Upload each device's clip | A new owner-scoped upload/download endpoint, a server media reference column on `StreamHistory` (schema change on both providers), client upload after synthesis and download before regenerating. | Exact bytes travel with the entry, including clips that were not synthesized (recordings). More code, a migration, storage per learner, and a deletion design. |
 
 Both need production blob storage and its access (managed identity) configured in Azure.
+
+### Built: A, the server clip cache (Captain, 2026-11-04)
+
+Cross-device audio that goes through the API is now served from the server cache. The first
+request for a clip pays ElevenLabs once and the API stores the result in the `media`
+container under `speech-cache/v1/`; every later request for the same clip, from any device or
+any learner, gets the stored bytes. So a synced audio-history entry played on a second device
+still regenerates in the entry's voice, as D4 describes, but that regeneration is a cache hit
+rather than a paid call.
+
+- **Who benefits.** Callers of `/api/v1/speech/synthesize` and `/synthesize-timestamped`: the
+  native iOS and Android heads (quiz word audio through `NativeQuizSpeechSource`, Shadowing,
+  How Do You Say, Reading) and anything using `SpeechGatewayClient`/`SpeechApiClient` (the
+  future Flutter port too). **Not yet covered:** the shared Razor pages on the web and in the
+  MAUI apps (VocabQuiz, HowDoYouSay, Shadowing, Reading, NumberDrill) inject
+  `ElevenLabsSpeechService`, which calls ElevenLabs in process with its own `ElevenLabsClient`
+  and never reaches the API. Covering them means routing that service through the API (or
+  giving the WebApp the same store), which is a client change for the Captain to decide.
+- **Key.** SHA-256 of provider, endpoint variant, voice ID, model, voice settings, output
+  format and exact text (`src/SentenceStudio.Api/Speech/SpeechClipSpec.cs`). Blob names and
+  metadata carry no text, user or resource ID. Timestamped clips store their timings with the
+  audio.
+- **No contract change.** Same endpoints, responses and content type; auth and the
+  timestamped owner check run before the cache. No schema change on either provider.
+- **Clients keep their local copies.** `StreamHistory.RegeneratedClipFileName` and
+  `UiSpeechClipCache.ResolveEntry` (and the native equivalents) stay as the offline cache: a
+  device that already holds a clip plays it without the network, and one that does not asks
+  the API, which now answers from storage.
+- **Best effort.** If storage is unreachable or denied, the API logs it and generates as
+  before; a provider failure is never stored.
+- **Azure.** Production needs the API identity's blob data access on `media` confirmed (and the
+  container created if missing). The checks and the change awaiting approval are in
+  `docs/deploy-runbook.md`, "Speech clip cache".
