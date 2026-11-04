@@ -40,8 +40,28 @@ public sealed record UpdateProfileRequest(
     string? OpenAiApiKey,
     string? ElevenLabsApiKey);
 
+/// <summary>
+/// Body for PUT /api/v1/profile/me: the learner-editable profile fields the
+/// web Profile page saves, without Email or API keys. The owner is never part
+/// of the body or route; it comes only from the token.
+/// </summary>
+public sealed record UpdateOwnProfileRequest(
+    string? DisplayName,
+    string? NativeLanguage,
+    string? TargetLanguage,
+    string? DisplayLanguage,
+    int PreferredSessionMinutes,
+    string? TargetCefrLevel);
+
 public static class ProfileEndpoints
 {
+    // The choices the web Profile page and native onboarding/profile offer.
+    internal static readonly string[] EditableLanguages =
+        ["English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese"];
+    internal static readonly string[] DisplayLanguages = ["English", "Korean"];
+    internal static readonly int[] SessionMinuteChoices = [5, 10, 15, 20, 30, 45];
+    internal static readonly string[] CefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
     private const int MaxDisplayNameLength = 200;
     private const int MaxLanguageLength = 50;
     private const int MinPreferredSessionMinutes = 1;
@@ -51,6 +71,8 @@ public static class ProfileEndpoints
     {
         var group = app.MapGroup("/api/v1/profile").RequireAuthorization();
 
+        // The literal "me" segment outranks the {profileId} parameter.
+        group.MapPut("/me", UpdateOwnProfile);
         group.MapGet("/{profileId}", GetProfile);
         group.MapPut("/{profileId}", UpdateProfile);
 
@@ -147,6 +169,98 @@ public static class ProfileEndpoints
         logger.LogInformation("UpdateProfile: profile {ProfileId} updated", profileId);
         return Results.Ok(MapToDto(reloaded));
     }
+
+    /// <summary>
+    /// Saves the signed-in learner's own editable profile fields. The owner is
+    /// the token's user_profile_id claim only; Email and the API keys are never
+    /// read or written here, so a concurrent change to them cannot be lost.
+    /// </summary>
+    private static async Task<IResult> UpdateOwnProfile(
+        [FromBody] UpdateOwnProfileRequest? request,
+        ClaimsPrincipal user,
+        [FromServices] UserProfileRepository repository,
+        [FromServices] ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var logger = loggerFactory.CreateLogger("ProfileEndpoints");
+        var owner = user.FindFirstValue(AuthClaimTypes.UserProfileId);
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            logger.LogWarning("UpdateOwnProfile: refused a token without an owner claim");
+            return Results.Unauthorized();
+        }
+
+        var validationErrors = ValidateOwnProfileRequest(request);
+        if (validationErrors.Count > 0)
+        {
+            logger.LogInformation(
+                "UpdateOwnProfile: validation failed for profile {ProfileId} ({ErrorCount} errors)",
+                owner, validationErrors.Count);
+            return TypedResults.ValidationProblem(validationErrors);
+        }
+
+        var saved = await repository.SaveEditableProfileForOwnerAsync(
+            owner, request!.DisplayName!.Trim(), request.NativeLanguage!,
+            request.TargetLanguage!, request.DisplayLanguage!,
+            request.PreferredSessionMinutes, request.TargetCefrLevel!, cancellationToken);
+        if (saved == UserProfileRepository.EditableProfileSaveMissing)
+        {
+            logger.LogWarning("UpdateOwnProfile: profile {ProfileId} not found", owner);
+            return Results.NotFound();
+        }
+        if (saved < 0)
+        {
+            logger.LogError("UpdateOwnProfile: save failed for profile {ProfileId}", owner);
+            return TypedResults.Problem(
+                title: "Save failed",
+                detail: "Unable to save profile changes. Please try again.",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+
+        var reloaded = await repository.GetByIdAsync(owner, cancellationToken);
+        if (reloaded is null)
+        {
+            logger.LogWarning("UpdateOwnProfile: profile {ProfileId} vanished after save", owner);
+            return Results.NotFound();
+        }
+        logger.LogInformation("UpdateOwnProfile: profile {ProfileId} updated", owner);
+        return Results.Ok(MapToDto(reloaded));
+    }
+
+    private static Dictionary<string, string[]> ValidateOwnProfileRequest(
+        UpdateOwnProfileRequest? request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (request is null)
+        {
+            errors["Body"] = ["A profile body is required."];
+            return errors;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+            errors[nameof(request.DisplayName)] = ["Display name is required."];
+        else if (request.DisplayName.Trim().Length > MaxDisplayNameLength)
+            errors[nameof(request.DisplayName)] =
+                [$"Display name must be {MaxDisplayNameLength} characters or fewer."];
+
+        if (!OneOf(EditableLanguages, request.NativeLanguage))
+            errors[nameof(request.NativeLanguage)] = ["Native language is not a supported choice."];
+        if (!OneOf(EditableLanguages, request.TargetLanguage))
+            errors[nameof(request.TargetLanguage)] = ["Target language is not a supported choice."];
+        if (!OneOf(DisplayLanguages, request.DisplayLanguage))
+            errors[nameof(request.DisplayLanguage)] = ["Display language must be English or Korean."];
+        if (!SessionMinuteChoices.Contains(request.PreferredSessionMinutes))
+            errors[nameof(request.PreferredSessionMinutes)] =
+                [$"Preferred session minutes must be one of {string.Join(", ", SessionMinuteChoices)}."];
+        if (!OneOf(CefrLevels, request.TargetCefrLevel))
+            errors[nameof(request.TargetCefrLevel)] = ["Target CEFR level must be A1 to C2."];
+
+        return errors;
+    }
+
+    // Exact, case-sensitive match: the stored values feed language logic elsewhere.
+    private static bool OneOf(string[] options, string? value) =>
+        value is not null && Array.IndexOf(options, value) >= 0;
 
     private static IResult? ResolveOwnership(string profileId, ClaimsPrincipal user)
     {
