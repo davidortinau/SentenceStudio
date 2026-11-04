@@ -450,3 +450,17 @@ Checks so far:
   the first "First Meeting" got `scn:first-meeting`, its second copy a GUID, and both
   conversation links followed their scenario.
 - The API suite with PostgreSQL tests enabled on that server: 5,163 passed.
+
+## Phase 4: audio (options for the Captain, 2026-11-03)
+
+Today (D4) a synced audio-history entry plays on another client by synthesizing the clip
+again in the entry's voice: one ElevenLabs call per client per phrase. The API's
+`/api/v1/speech/synthesize` has no cache, and the AppHost already provisions a `media` blob
+container that no code uses yet.
+
+| Option | What it takes | Effect |
+|---|---|---|
+| **A. Server clip cache (recommended)** | The speech endpoint stores each clip in `media` under a hash of voice, model, settings and text, and serves the stored clip on a repeat request. No schema or client change. | Every client, and every learner asking for the same text and voice, reuses one clip: one ElevenLabs call per distinct clip. Works for quiz audio and How Do You Say alike. The clip is derived from the text, so sharing it across learners exposes nothing the text does not. |
+| B. Upload each device's clip | A new owner-scoped upload/download endpoint, a server media reference column on `StreamHistory` (schema change on both providers), client upload after synthesis and download before regenerating. | Exact bytes travel with the entry, including clips that were not synthesized (recordings). More code, a migration, storage per learner, and a deletion design. |
+
+Both need production blob storage and its access (managed identity) configured in Azure.

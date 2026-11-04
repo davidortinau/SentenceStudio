@@ -83,4 +83,19 @@ public partial class StreamHistory : ObservableObject
 
     [ObservableProperty]
     private string? sourceUrl;
+
+    /// <summary>
+    /// The file name, inside a client's own AudioCache folder, of a clip that client made again
+    /// for this synced entry because the entry's own clip lives on another device (D4). Derived
+    /// from the entry ID, so each client finds its copy without changing the shared row: a row
+    /// rewritten to one device's file name would send every other device to synthesize again.
+    /// </summary>
+    public static string RegeneratedClipFileName(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        var safe = new string(id.Where(c => char.IsAsciiLetterOrDigit(c) || c == '-').ToArray());
+        if (safe.Length == 0)
+            throw new ArgumentException("An entry ID needs letters or digits.", nameof(id));
+        return $"entry_{safe}.mp3";
+    }
 }

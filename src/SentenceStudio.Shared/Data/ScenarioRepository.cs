@@ -164,7 +164,21 @@ public class ScenarioRepository
             scenario.UpdatedAt = now;
         }
         db.ConversationScenarios.AddRange(missing);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Another seeder (a second circuit or startup) stored them first under the same
+            // fixed IDs: nothing is missing any more, so there is nothing to add.
+            db.ChangeTracker.Clear();
+            var nowStored = await db.ConversationScenarios.AsNoTracking()
+                .Where(s => ids.Contains(s.Id)).Select(s => s.Id).ToListAsync();
+            if (missing.Any(s => !nowStored.Contains(s.Id)))
+                throw;
+            return 0;
+        }
         return missing.Count;
     }
 

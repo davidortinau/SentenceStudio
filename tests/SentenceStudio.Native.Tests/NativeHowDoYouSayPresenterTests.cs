@@ -190,12 +190,21 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.Equal((NativeSliceFixture.UserA, "missing", "voice-x"),
             Assert.Single(test.Source.Synthesized));
         Assert.Equal(2, restored.History.Length);
+        // The synced entry is not rewritten to this device's file (another device would then
+        // miss its own copy and synthesize again); this device keeps its copy under the
+        // entry's own name.
         var repaired = (await FindRowAsync(fixture, missing))!;
-        Assert.True(File.Exists(repaired.AudioFilePath));
+        Assert.Equal(Path.Combine(cache, "gone.mp3"), repaired.AudioFilePath);
         Assert.Equal("voice-x", repaired.VoiceId);
+        var copy = Path.Combine(cache, StreamHistory.RegeneratedClipFileName(missing));
+        Assert.True(File.Exists(copy));
+        await test.Presenter.TogglePlayAsync(missing);
+        var replayed = await test.Presenter.TogglePlayAsync(missing);
+        Assert.Equal(missing, replayed.PlayingId);
+        Assert.Single(test.Source.Synthesized);
 
         // Offline, the same entry cannot be restored and says so.
-        File.Delete(repaired.AudioFilePath!);
+        File.Delete(copy);
         test.Source.Fails = true;
         await test.Presenter.TogglePlayAsync(missing);
         var failed = await test.Presenter.TogglePlayAsync(missing);

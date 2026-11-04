@@ -892,7 +892,9 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
                     _text(IsCreating
                         ? "ResourceAdd_ImportedCount" : "ResourceEdit_ImportedCount"),
                     result.Added);
-                PasteText = string.Empty;
+                // Only a paste import consumed the paste box; a file import leaves its text.
+                if (fileName is null)
+                    PasteText = string.Empty;
                 if (fileName is not null)
                     _fileStatus = string.Format(CultureInfo.CurrentCulture,
                         _text(IsCreating

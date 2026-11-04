@@ -174,7 +174,8 @@ public class NumberAudioCacheTests : IDisposable
         var languageCode = "ko";
         var texts = new[] { "한", "두", "세" };
         var progressReports = new List<int>();
-        var progress = new Progress<int>(p => progressReports.Add(p));
+        // Progress<T> posts its callbacks later, so a busy machine could assert before they ran.
+        var progress = new RecordingProgress(progressReports);
 
         // Act
         await _cache.PrewarmAsync(languageCode, texts, progress);
@@ -316,5 +317,15 @@ public class NoOpNumberAudioCacheTests
 
         // Assert
         Assert.Equal(0, size);
+    }
+}
+
+/// <summary>Records progress synchronously; Progress&lt;T&gt; posts its callbacks later.</summary>
+internal sealed class RecordingProgress(List<int> reports) : IProgress<int>
+{
+    public void Report(int value)
+    {
+        lock (reports)
+            reports.Add(value);
     }
 }

@@ -45,6 +45,19 @@ public sealed class ReadingLookupAndAudioTests
     }
 
     [Fact]
+    public async Task Lookup_AiReturnsNothing_RecordsNoLookup()
+    {
+        await using var fixture = await ActivityPageFixture.CreateAsync();
+        var page = await OpenAsync(fixture);
+        fixture.Ai.Respond = _ => "   ";
+
+        await fixture.Renderer.InvokeAsync(page, "HandleWordClicked", "바다");
+
+        Members.Get<bool>(page, "translationUnavailable").Should().BeTrue();
+        (await fixture.RowsAsync<UserActivity>()).Should().BeEmpty("an empty translation is not a lookup (code review 2026-11-03)");
+    }
+
+    [Fact]
     public async Task Lookup_UsesOnlyTheOwnersVocabulary()
     {
         await using var fixture = await ActivityPageFixture.CreateAsync();

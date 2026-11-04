@@ -385,24 +385,13 @@ public class ProgressService : IProgressService
         var planItems = new List<DailyPlanItem>();
         var vocabDueCount = await GetVocabDueCountAsync(today, ct);
 
-        // Try to find a resource with vocabulary for the quiz
-        string? fallbackResourceId = null;
         if (vocabDueCount >= 5)
         {
-            var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
-            // Pick resource with most vocabulary
-            if (resources.Any())
-            {
-                using var scope = _serviceProvider.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var topResource = await db.ResourceVocabularyMappings
-                    .GroupBy(m => m.ResourceId)
-                    .OrderByDescending(g => g.Count())
-                    .Select(g => g.Key)
-                    .FirstOrDefaultAsync(ct);
-                fallbackResourceId = topResource;
-            }
-
+            // The Vocabulary Review card carries no resource, like the deterministic plan
+            // builder's: every client launches it with none and DueOnly
+            // (PlanConverter.BuildRouteParameters), and the plan-item check compares the card's
+            // resource with the launch, so a card with one could never start or complete. (The
+            // resource chosen here before also came from every learner's mappings, unscoped.)
             planItems.Add(new DailyPlanItem(
                 Id: GeneratePlanItemId(today, PlanActivityType.VocabularyReview),
                 TitleKey: "plan_item_vocab_review_title",
@@ -414,7 +403,7 @@ public class ProgressService : IProgressService
                 CompletedAt: null,
                 Route: "/vocabulary-quiz",
                 RouteParameters: new() { ["Mode"] = "SRS", ["DueOnly"] = true },
-                ResourceId: fallbackResourceId,
+                ResourceId: null,
                 ResourceTitle: null,
                 SkillId: null,
                 SkillName: null,

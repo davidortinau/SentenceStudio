@@ -47,6 +47,23 @@ public sealed class AndroidResourceVocabularyImportTests
         Assert.Equal(["강", "산"], created.Draft.StagedVocabulary.Select(word => word.TargetTerm));
     }
 
+    /// <summary>Code review 2026-11-03: a file import must not wipe text typed into the paste box.</summary>
+    [Fact]
+    public async Task FileImportKeepsUnsubmittedPasteText()
+    {
+        var (_, coordinator) = Create();
+        coordinator.OpenCreate();
+        coordinator.ChangeDraft(NativeResourceField.Title, "File words");
+        coordinator.ChangeDraft(NativeResourceField.Language, "Korean");
+        coordinator.PasteTextChanged("하늘, sky");
+
+        var pick = Assert.IsType<long>(coordinator.BeginFilePick());
+        coordinator.ImportFile(pick, Encoding.UTF8.GetBytes("강, river"), "words.txt");
+
+        await Until(() => coordinator.FormState.FileStatus is not null);
+        Assert.Equal("하늘, sky", coordinator.PasteText);
+    }
+
     [Fact]
     public async Task PickedCsvImportsIntoTheOpenResourceThroughTheOwnersStore()
     {

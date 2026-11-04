@@ -280,6 +280,47 @@ public sealed class ProgressServiceFocusVocabularyContractTests : IDisposable
         focus.Should().Equal(focusIds);
     }
 
+    /// <summary>
+    /// Code review 2026-11-03: the fallback plan gave its Vocabulary Review card a resource
+    /// (picked across every learner's mappings). Every client launches that card with no
+    /// resource, and the plan-item check compares the two, so it could never start or complete.
+    /// </summary>
+    [Fact]
+    public async Task FallbackPlan_VocabularyReviewCard_CarriesNoResource()
+    {
+        using (var seed = _provider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = "fallback-resource", Title = "Fallback", UserProfileId = UserA
+            });
+            for (var i = 0; i < 6; i++)
+            {
+                var wordId = $"fallback-word-{i}";
+                db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = $"단어{i}" });
+                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                {
+                    Id = $"fallback-map-{i}", ResourceId = "fallback-resource", VocabularyWordId = wordId
+                });
+                db.VocabularyProgresses.Add(new VocabularyProgress
+                {
+                    Id = $"fallback-progress-{i}", UserId = UserA, VocabularyWordId = wordId,
+                    NextReviewDate = DateTime.UtcNow.AddDays(-2)
+                });
+            }
+            await db.SaveChangesAsync();
+        }
+
+        _llmPlanService.ThrowOnNextCall = true;
+        var plan = await NewService().GenerateTodaysPlanAsync();
+
+        _llmPlanService.ThrowOnNextCall.Should().BeFalse("the fallback path must have run");
+        var card = plan.Items.Should().ContainSingle(
+            item => item.ActivityType == PlanActivityType.VocabularyReview).Which;
+        card.ResourceId.Should().BeNull();
+    }
+
     [Fact]
     public async Task NarrativeFacts_FallbackPlanDoesNotClobberPreviousFacts_SqliteRoundTrip()
     {

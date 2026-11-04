@@ -59,12 +59,13 @@ public sealed class UiSpeechClipCacheTests
     }
 
     [Fact]
-    public async Task EntryWhoseClipIsOnAnotherDevice_IsSynthesizedInItsOwnVoice_AndThatEntryIsRepointed()
+    public async Task EntryWhoseClipIsOnAnotherDevice_IsSynthesizedInItsOwnVoice_AndTheSharedEntryIsUnchanged()
     {
         await using var harness = await ActivityPageHarness.CreateAsync();
         var createdAt = DateTime.UtcNow.AddDays(-2);
+        const string phonePath = "/var/mobile/Containers/Data/Application/PHONE/Library/AudioCache/shadow_phone.mp3";
         var synced = await AddRowAsync(harness, ActivityPageHarness.OwnerA, "감사합니다", "phone-voice",
-            "/var/mobile/Containers/Data/Application/PHONE/Library/AudioCache/shadow_phone.mp3", createdAt);
+            phonePath, createdAt);
         var synth = new CountingSynthesizer(Clip);
 
         var clip = await Cache(harness).GetForEntryAsync(synced, "selected-voice", true, "phrase", synth.Run, default);
@@ -72,21 +73,22 @@ public sealed class UiSpeechClipCacheTests
         clip.Status.Should().Be(UiSpeechClipStatus.Ready);
         clip.Synthesized.Should().BeTrue();
         synth.Calls.Should().Equal("phone-voice");
+        // The synced row is not rewritten to this device's file name: another device would then
+        // miss its own copy and synthesize again, and so on (code review 2026-11-03).
         var row = (await Rows(harness)).Should().ContainSingle("no second entry is added").Which;
         row.Id.Should().Be(synced.Id);
-        row.VoiceId.Should().Be("phone-voice");
-        row.Phrase.Should().Be("감사합니다");
+        row.AudioFilePath.Should().Be(phonePath);
         row.CreatedAt.Should().BeCloseTo(createdAt, TimeSpan.FromSeconds(1));
-        Path.GetDirectoryName(row.AudioFilePath).Should().Be(harness.AudioCacheDirectory);
-        (await File.ReadAllBytesAsync(row.AudioFilePath!)).Should().Equal(Clip);
+        var copy = Path.Combine(harness.AudioCacheDirectory, StreamHistory.RegeneratedClipFileName(synced.Id));
+        (await File.ReadAllBytesAsync(copy)).Should().Equal(Clip);
 
         var replay = await Cache(harness).GetForEntryAsync(row, "selected-voice", true, "phrase", synth.Run, default);
-        replay.Synthesized.Should().BeFalse("the repointed entry now plays from this device");
+        replay.Synthesized.Should().BeFalse("this device's copy of the entry plays");
         synth.Calls.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task LookupByPhrase_RepointsTheOwnersEntryWhenItsClipIsMissing()
+    public async Task LookupByPhrase_ReusesTheOwnersEntryWhenItsClipIsMissing()
     {
         await using var harness = await ActivityPageHarness.CreateAsync();
         var synced = await AddRowAsync(harness, ActivityPageHarness.OwnerA, "다섯 시", "voice-1",

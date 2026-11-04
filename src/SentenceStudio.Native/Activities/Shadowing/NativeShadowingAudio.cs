@@ -108,7 +108,9 @@ public sealed class NativeShadowingSpeech(
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(text, voice);
         if (!owner.IsActive(userId))
             return new(NativeSpeechClipStatus.Failed);
-        if (cached?.UserProfileId == userId && CachedAudioPath(cached.AudioFilePath) is { } cachedPath)
+        if (cached?.UserProfileId == userId
+            && (CachedAudioPath(cached.AudioFilePath)
+                ?? CachedAudioPath(StreamHistory.RegeneratedClipFileName(cached.Id))) is { } cachedPath)
         {
             try
             {
@@ -154,26 +156,20 @@ public sealed class NativeShadowingSpeech(
         {
             var directory = Path.Combine(files.AppDataDirectory, "AudioCache");
             Directory.CreateDirectory(directory);
+            if (cached?.UserProfileId == userId)
+            {
+                // The owner's entry exists but its clip is not on this device (another device
+                // made it): keep this copy under the entry's derived name and leave the synced
+                // entry unchanged, so devices do not keep sending each other to synthesize again.
+                await File.WriteAllBytesAsync(
+                    Path.Combine(directory, StreamHistory.RegeneratedClipFileName(cached.Id)),
+                    audio, cancellationToken);
+                return new(NativeSpeechClipStatus.Ready, audio);
+            }
             var path = Path.Combine(directory, $"shadow_{Guid.NewGuid():N}.mp3");
             await File.WriteAllBytesAsync(path, audio, cancellationToken);
             if (owner.IsActive(userId))
-                await history.SaveStreamHistoryAsync(cached?.UserProfileId == userId
-                    // The owner's entry exists but its clip is not on this device (another
-                    // device made it): point that entry at the new clip, no second entry.
-                    ? new StreamHistory
-                    {
-                        Id = cached.Id,
-                        Phrase = cached.Phrase,
-                        Duration = cached.Duration,
-                        VoiceId = cached.VoiceId,
-                        AudioFilePath = path,
-                        FileName = cached.FileName,
-                        Title = cached.Title,
-                        Source = cached.Source,
-                        SourceUrl = cached.SourceUrl,
-                        CreatedAt = cached.CreatedAt,
-                    }
-                    : new StreamHistory
+                await history.SaveStreamHistoryAsync(new StreamHistory
                     {
                         UserProfileId = userId,
                         Phrase = text,

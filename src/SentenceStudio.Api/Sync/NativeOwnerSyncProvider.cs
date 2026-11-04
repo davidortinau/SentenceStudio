@@ -122,6 +122,7 @@ internal sealed class NativeOwnerSyncProvider(
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var visible = await GetVisibleKeysAsync(db, owner, ct);
+            items = WithoutUnreachableExamples(items, owner, visible);
             if (!await ExistingRowsBelongToOwnerAsync(db, items, owner, visible, ct)
                 || !await OwnerLinkedReferencesMatchAsync(db, items, owner, visible, ct))
             {
@@ -338,6 +339,37 @@ internal sealed class NativeOwnerSyncProvider(
             && (wordOwners.TryGetValue(id, out var storedOwner)
                 ? storedOwner == owner
                 : uploadedWords.Contains(id));
+    }
+
+    /// <summary>
+    /// A device's own example sentence on a word this owner cannot see (an orphan word with no
+    /// resource, a removed mapping), or from a resource that is not theirs, is left out of the
+    /// upload rather than refusing the whole upload: the server would never send it back, and
+    /// the row stays on the device. A sentence naming another owner is not dropped here; the
+    /// owner checks refuse it.
+    /// </summary>
+    internal static IReadOnlyList<SyncItem> WithoutUnreachableExamples(
+        IReadOnlyList<SyncItem> items, string owner, VisibleKeys visible)
+    {
+        bool IsOwnExample(SyncItem item) => item.TableName == "ExampleSentence"
+            && item.ChangeType != ChangeType.Delete && Value(item, "UserProfileId") == owner;
+        if (!items.Any(IsOwnExample))
+            return items;
+
+        var resources = new HashSet<string>(visible.ResourceIds, StringComparer.Ordinal);
+        foreach (var item in items.Where(item => item.TableName == "LearningResource"
+            && Value(item, "UserProfileId") == owner))
+            resources.Add(Value(item, "Id")!);
+        var words = new HashSet<string>(visible.WordIds, StringComparer.Ordinal);
+        foreach (var item in items.Where(item => item.TableName == "ResourceVocabularyMapping"
+            && resources.Contains(Value(item, "ResourceId") ?? string.Empty)))
+            if (Value(item, "VocabularyWordId") is { } word)
+                words.Add(word);
+
+        return items.Where(item => !IsOwnExample(item)
+            || (words.Contains(Value(item, "VocabularyWordId") ?? string.Empty)
+                && (string.IsNullOrEmpty(Value(item, "LearningResourceId"))
+                    || resources.Contains(Value(item, "LearningResourceId")!)))).ToArray();
     }
 
     private static async Task<bool> OwnerLinkedReferencesMatchAsync(
@@ -721,7 +753,7 @@ internal sealed class NativeOwnerSyncProvider(
         };
     }
 
-    private sealed record VisibleKeys(
+    internal sealed record VisibleKeys(
         HashSet<string> ResourceIds, HashSet<string> WordIds, HashSet<string> ProgressIds);
 
     public Task ApplyProvisionAsync(CancellationToken ct = default) =>

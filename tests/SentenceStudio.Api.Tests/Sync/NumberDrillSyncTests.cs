@@ -136,6 +136,36 @@ public sealed class NumberDrillSyncTests
             filtered.Items.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
     }
 
+    /// <summary>
+    /// Code review 2026-11-03: a device's own example sentence on a word the owner cannot see
+    /// (an orphan word, a removed mapping) or from another learner's resource is left out of the
+    /// upload instead of refusing the whole upload. A sentence naming another owner stays, so
+    /// the owner checks still refuse it.
+    /// </summary>
+    [Fact]
+    public void Upload_LeavesOutOwnExamplesOnUnreachableWords_KeepsForeignOnesForRefusal()
+    {
+        var visible = new NativeOwnerSyncProvider.VisibleKeys(
+            new HashSet<string>(["owned-resource"]), new HashSet<string>(["w1"]), new HashSet<string>());
+        var items = new[]
+        {
+            Item("ExampleSentence", "visible", ("UserProfileId", Owner), ("VocabularyWordId", "w1")),
+            Item("ExampleSentence", "orphan-word", ("UserProfileId", Owner), ("VocabularyWordId", "orphan")),
+            Item("ExampleSentence", "foreign-resource", ("UserProfileId", Owner), ("VocabularyWordId", "w1"),
+                ("LearningResourceId", "foreign-resource")),
+            Item("LearningResource", "new-resource", ("UserProfileId", Owner)),
+            Item("ResourceVocabularyMapping", "m-new", ("ResourceId", "new-resource"), ("VocabularyWordId", "w-new")),
+            Item("ExampleSentence", "newly-mapped", ("UserProfileId", Owner), ("VocabularyWordId", "w-new"),
+                ("LearningResourceId", "new-resource")),
+            Item("ExampleSentence", "foreign-owner", ("UserProfileId", Foreign), ("VocabularyWordId", "orphan")),
+        };
+
+        var kept = NativeOwnerSyncProvider.WithoutUnreachableExamples(items, Owner, visible);
+
+        Assert.Equal(["visible", "new-resource", "m-new", "newly-mapped", "foreign-owner"],
+            kept.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
+    }
+
     [Fact]
     public async Task StoredOwnerLookup_ReportsTheForeignOwnerOfAnExistingRow()
     {

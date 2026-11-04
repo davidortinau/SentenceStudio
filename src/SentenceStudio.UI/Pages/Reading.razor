@@ -767,7 +767,8 @@
 
             // Reads the owner's vocabulary or asks the AI; the lookup is not saved as a word.
             definition = await TranslationSvc.TranslateAsync(cleanWord, context, owner);
-            translated = true;
+            // An empty result (no owner, or the AI returned nothing) is not a lookup.
+            translated = !string.IsNullOrWhiteSpace(definition);
         }
         catch (Exception ex)
         {

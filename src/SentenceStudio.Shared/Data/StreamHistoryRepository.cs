@@ -30,40 +30,9 @@ public class StreamHistoryRepository
         _syncService = syncService;
     }
 
-    private bool TryResolveOwner(IServiceProvider services, string operation, out string userId)
-    {
-        var scopedOwner = services.GetService<IUserScopeProvider>();
-        var scopedId = scopedOwner is not null
-            && scopedOwner.TryGetUserProfileId(out var resolvedId)
-                ? resolvedId
-                : string.Empty;
-        var preferenceId = services.GetService<IPreferencesService>()
-            ?.Get("active_profile_id", string.Empty) ?? string.Empty;
-
-        // The native head's active_profile_id is set by the authenticated login
-        // flow. WebApp registers the same device provider but leaves it unset;
-        // its preference implementation instead derives this key from the
-        // authenticated request/circuit. API scopes use claim-backed providers.
-        userId = scopedOwner switch
-        {
-            DeviceUserScopeProvider => preferenceId,
-            null => string.Empty,
-            _ => scopedId
-        };
-        if (string.IsNullOrWhiteSpace(userId)
-            || (!string.IsNullOrWhiteSpace(scopedId)
-                && !string.IsNullOrWhiteSpace(preferenceId)
-                && !string.Equals(scopedId, preferenceId, StringComparison.Ordinal)))
-        {
-            _logger.LogWarning(
-                "StreamHistoryRepository.{Operation} called without an active user or with conflicting identities — refusing access.",
-                operation);
-            userId = string.Empty;
-            return false;
-        }
-
-        return true;
-    }
+    /// <summary>The active learner, by the shared rules in <see cref="ActiveOwner"/>.</summary>
+    private bool TryResolveOwner(IServiceProvider services, string operation, out string userId) =>
+        ActiveOwner.TryResolve(services, _logger, $"StreamHistoryRepository.{operation}", out userId);
 
     private async Task<TResult> WithOwnerAsync<TResult>(
         string operation,

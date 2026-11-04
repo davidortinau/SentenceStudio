@@ -56,19 +56,28 @@ public class ExampleSentenceRepository
     {
         if (ActiveOwner.TryResolve(_serviceProvider, NullLoggerForBackground, "ExampleSentence create", out var active))
             return active;
-        if (!string.IsNullOrWhiteSpace(learningResourceId)
-            && await _context.LearningResources.AsNoTracking()
-                .Where(resource => resource.Id == learningResourceId)
-                .Select(resource => resource.UserProfileId)
-                .FirstOrDefaultAsync(ct) is { Length: > 0 } resourceOwner)
-            return resourceOwner;
-        return await _context.VocabularyWords.AsNoTracking()
-            .Where(word => word.Id == vocabularyWordId)
-            .Select(word => word.UserProfileId)
-            .FirstOrDefaultAsync(ct) is { Length: > 0 } wordOwner
-            ? wordOwner
-            : null;
+        // An import harvests many sentences per resource and word: look each owner up once.
+        if (!string.IsNullOrWhiteSpace(learningResourceId))
+        {
+            if (!_resourceOwners.TryGetValue(learningResourceId, out var resourceOwner))
+                _resourceOwners[learningResourceId] = resourceOwner = await _context.LearningResources
+                    .AsNoTracking()
+                    .Where(resource => resource.Id == learningResourceId)
+                    .Select(resource => resource.UserProfileId)
+                    .FirstOrDefaultAsync(ct);
+            if (!string.IsNullOrEmpty(resourceOwner))
+                return resourceOwner;
+        }
+        if (!_wordOwners.TryGetValue(vocabularyWordId, out var wordOwner))
+            _wordOwners[vocabularyWordId] = wordOwner = await _context.VocabularyWords.AsNoTracking()
+                .Where(word => word.Id == vocabularyWordId)
+                .Select(word => word.UserProfileId)
+                .FirstOrDefaultAsync(ct);
+        return string.IsNullOrEmpty(wordOwner) ? null : wordOwner;
     }
+
+    private readonly Dictionary<string, string?> _resourceOwners = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string?> _wordOwners = new(StringComparer.Ordinal);
 
     // A background import has no active learner by design; that is not worth a warning.
     private static readonly ILogger NullLoggerForBackground =

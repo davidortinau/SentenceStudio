@@ -46,7 +46,10 @@ public sealed class HowDoYouSayPageTests
             StringComparison.Ordinal), "the entry's own voice is used, not the selected one");
         var row = (await Rows(harness)).Should().ContainSingle("no second entry is added").Which;
         row.Id.Should().Be(synced.Id);
-        Path.GetDirectoryName(row.AudioFilePath).Should().Be(harness.AudioCacheDirectory);
+        // The synced entry keeps its path; this device's copy is kept under the entry's own name.
+        row.AudioFilePath.Should().Be(synced.AudioFilePath);
+        File.Exists(Path.Combine(harness.AudioCacheDirectory,
+            StreamHistory.RegeneratedClipFileName(synced.Id))).Should().BeTrue();
         harness.Get<StreamHistory?>("currentPlayingItem")!.Id.Should().Be(synced.Id);
         harness.Get<bool>("isAudioPlaying").Should().BeTrue();
         harness.Audio.Players.Should().ContainSingle();

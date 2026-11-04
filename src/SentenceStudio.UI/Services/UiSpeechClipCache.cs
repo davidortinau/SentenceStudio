@@ -29,7 +29,9 @@ public sealed record UiSpeechClip(
 /// synced from another device names that device's path. Nothing outside the
 /// AudioCache directory is read. When the owner's row exists but its clip is
 /// not on this device, the clip is synthesized again in that row's voice and
-/// the same row is pointed at it; no second row is added (Captain 2026-11-02,
+/// kept under a name derived from the row ID
+/// (<see cref="StreamHistory.RegeneratedClipFileName"/>); the shared row is not
+/// changed and no second row is added (Captain 2026-11-02,
 /// docs/sync-all-tables-plan.md D4; native NativeShadowingSpeech).
 /// </para>
 /// </summary>
@@ -85,7 +87,7 @@ public sealed class UiSpeechClipCache(
         cancellationToken.ThrowIfCancellationRequested();
 
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(phrase, voiceId);
-        if (cached is not null && await ReadCachedAsync(cached.AudioFilePath, cancellationToken) is { } audio)
+        if (cached is not null && await ReadEntryAsync(cached, cancellationToken) is { } audio)
             return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, cached);
 
         return await SynthesizeAsync(phrase, voiceId, cached, isOnline, filePrefix, synthesize,
@@ -110,7 +112,7 @@ public sealed class UiSpeechClipCache(
         ArgumentNullException.ThrowIfNull(synthesize);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (await ReadCachedAsync(entry.AudioFilePath, cancellationToken) is { } audio)
+        if (await ReadEntryAsync(entry, cancellationToken) is { } audio)
             return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, entry);
         if (string.IsNullOrWhiteSpace(entry.Phrase))
             return new UiSpeechClip(UiSpeechClipStatus.Failed);
@@ -163,35 +165,27 @@ public sealed class UiSpeechClipCache(
         {
             var directory = Path.Combine(files.AppDataDirectory, DirectoryName);
             Directory.CreateDirectory(directory);
+            if (existing is not null)
+            {
+                // The owner's row exists but its clip is not on this device: keep this copy
+                // under the row's own derived name and leave the shared row as it is.
+                await File.WriteAllBytesAsync(
+                    Path.Combine(directory, StreamHistory.RegeneratedClipFileName(existing.Id)),
+                    audio, cancellationToken);
+                return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, existing, Synthesized: true);
+            }
+
             var path = Path.Combine(directory, $"{filePrefix}_{Guid.NewGuid():N}.mp3");
             await File.WriteAllBytesAsync(path, audio, cancellationToken);
 
-            var row = existing is not null
-                // The owner's row exists but its clip is not on this device:
-                // point that row at the new clip, no second row.
-                ? new StreamHistory
-                {
-                    Id = existing.Id,
-                    UserProfileId = existing.UserProfileId,
-                    Phrase = existing.Phrase,
-                    Duration = existing.Duration,
-                    VoiceId = string.IsNullOrWhiteSpace(existing.VoiceId) ? voiceId : existing.VoiceId,
-                    AudioFilePath = path,
-                    FileName = existing.FileName,
-                    Title = existing.Title,
-                    Source = existing.Source,
-                    SourceUrl = existing.SourceUrl,
-                    CreatedAt = existing.CreatedAt,
-                    UpdatedAt = DateTime.UtcNow,
-                }
-                : new StreamHistory
-                {
-                    Phrase = phrase,
-                    VoiceId = voiceId,
-                    AudioFilePath = path,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                };
+            var row = new StreamHistory
+            {
+                Phrase = phrase,
+                VoiceId = voiceId,
+                AudioFilePath = path,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
             if (await history.SaveStreamHistoryAsync(row) > 0)
             {
                 stored = row;
@@ -224,6 +218,12 @@ public sealed class UiSpeechClipCache(
             logger.LogWarning(ex, "An unrecorded synthesized clip could not be removed.");
         }
     }
+
+    /// <summary>The entry's own clip, else this client's regenerated copy of it.</summary>
+    private async Task<byte[]?> ReadEntryAsync(StreamHistory entry, CancellationToken cancellationToken) =>
+        await ReadCachedAsync(entry.AudioFilePath, cancellationToken)
+            ?? (string.IsNullOrWhiteSpace(entry.Id) ? null
+                : await ReadCachedAsync(StreamHistory.RegeneratedClipFileName(entry.Id), cancellationToken));
 
     private async Task<byte[]?> ReadCachedAsync(string? storedPath, CancellationToken cancellationToken)
     {
