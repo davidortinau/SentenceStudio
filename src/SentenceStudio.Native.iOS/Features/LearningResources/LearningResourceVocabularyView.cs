@@ -144,9 +144,12 @@ internal static class LearningResourceVocabularyView
         fields.Add(rows);
     }
 
+    // A one-column LazyVGrid is SwiftUI's lazy stack: inside the form's ScrollView
+    // a row (and its divider) is created only when it scrolls into view, so a
+    // resource with thousands of words does not build every row up front (AF-R11).
     internal static SwiftView CreateEditVocabularyRows()
     {
-        var rows = Views.VStack()
+        var rows = Views.LazyVGrid(1)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier(EditVocabularyRowsId);
         rows.Spacing = 0;
@@ -157,7 +160,7 @@ internal static class LearningResourceVocabularyView
         SwiftView rows, LearningResourceWord word, bool isSmartResource, bool busy,
         Action<string> removeWord, SourceUiStyle style, Func<string, string> text)
     {
-        if (rows.Kind != "vstack"
+        if (rows.Kind != "grid"
             || rows.AccessibilityIdentifier != EditVocabularyRowsId)
             throw new ArgumentException("Expected the Resource Edit vocabulary rows.", nameof(rows));
         if (rows.Children.Count > 0)
