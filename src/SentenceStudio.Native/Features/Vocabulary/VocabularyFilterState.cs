@@ -2,7 +2,7 @@ using SentenceStudio.Native;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Native.iOS.Features.Vocabulary;
+namespace SentenceStudio.Native.Features.Vocabulary;
 
 internal sealed class VocabularyFilterState
 {

@@ -1,5 +1,5 @@
 using SentenceStudio.Native;
-using SentenceStudio.Native.iOS.Features.Vocabulary;
+using SentenceStudio.Native.Features.Vocabulary;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.iOS.Tests;

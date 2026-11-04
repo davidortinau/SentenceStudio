@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using SentenceStudio.Native.Features.Settings;
 using SentenceStudio.Native.iOS.Features.Settings;
 
 namespace SentenceStudio.Native.iOS.Tests;
@@ -12,10 +13,12 @@ public sealed class NativeAppearanceSettingsContractTests
         var scene = Read("App/ApplicationScene.cs");
         var appearance = Read("Features/Settings/AppearanceSettingsView.cs");
         var quiz = Read("Features/Settings/QuizSettingsView.cs");
-        var owner = Read("Features/Settings/SettingsCoordinator.cs");
+        var owner = Read("../SentenceStudio.Native/Features/Settings/SettingsCoordinator.cs");
         var dashboard = Read("Features/Dashboard/DashboardView.cs");
 
-        Assert.Contains("SourceUiAppearance.Save(_preferences, selection)", owner);
+        Assert.Contains("var next = save(_preferences, selection);", owner);
+        Assert.Contains("SourceUiAppearance.Save(preferences, value)",
+            Read("Features/Settings/SettingsAppearanceSave.cs"));
         Assert.Contains("QuizSettingsDraft.FromState(", owner);
         Assert.Contains("GetRequiredService<NativeQuizSettings>()", app);
         Assert.Contains("_quiz.Save(owner, draft.ToState(), _stamp)", owner);

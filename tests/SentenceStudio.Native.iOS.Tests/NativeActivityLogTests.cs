@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
-using SentenceStudio.Native.iOS.Features.ActivityLog;
+using SentenceStudio.Native.Features.ActivityLog;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;

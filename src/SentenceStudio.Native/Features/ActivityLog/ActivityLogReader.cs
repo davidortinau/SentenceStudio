@@ -5,7 +5,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Native.iOS.Features.ActivityLog;
+namespace SentenceStudio.Native.Features.ActivityLog;
 
 internal sealed record ActivityLogRead(
     IReadOnlyList<ActivityLogWeek> Weeks, bool HasMore);

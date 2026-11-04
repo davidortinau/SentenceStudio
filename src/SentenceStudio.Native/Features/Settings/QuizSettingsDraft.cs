@@ -1,7 +1,7 @@
 using SentenceStudio.Contracts.Theme;
 using System.Collections.Immutable;
 
-namespace SentenceStudio.Native.iOS.Features.Settings;
+namespace SentenceStudio.Native.Features.Settings;
 
 internal sealed record QuizSettingsDraft(
     string Direction,

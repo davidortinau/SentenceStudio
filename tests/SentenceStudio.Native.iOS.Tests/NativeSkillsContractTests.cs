@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.iOS.App;
-using SentenceStudio.Native.iOS.Features.Skills;
+using SentenceStudio.Native.Features.Skills;
 using SentenceStudio.Native.Tests;
 using SentenceStudio.Shared.Models;
 

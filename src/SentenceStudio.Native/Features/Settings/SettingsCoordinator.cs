@@ -2,10 +2,10 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
-using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Theme;
 
-namespace SentenceStudio.Native.iOS.Features.Settings;
+namespace SentenceStudio.Native.Features.Settings;
 
 internal static class SettingsOwnerAccess
 {
@@ -360,11 +360,18 @@ internal sealed class SettingsCoordinator : IDisposable
             Changed?.Invoke();
     }
 
-    internal SourceUiAppearance? SaveAppearance(
-        AppearanceSelection selection)
+    /// <summary>
+    /// Saves the device appearance for the current owner through the head's own
+    /// appearance writer (iOS SourceUiAppearance, Android DevicePreferencesThemeStore);
+    /// both write the same <see cref="DevicePreferencesThemeStore.AppearanceKey"/> token.
+    /// </summary>
+    internal TAppearance? SaveAppearance<TAppearance>(
+        AppearanceSelection selection,
+        Func<IPreferencesService, AppearanceSelection, TAppearance> save)
+        where TAppearance : class
     {
         bool changed;
-        SourceUiAppearance? saved = null;
+        TAppearance? saved = null;
         lock (_gate)
         {
             changed = RevokeIfStaleLocked();
@@ -372,9 +379,9 @@ internal sealed class SettingsCoordinator : IDisposable
             {
                 try
                 {
-                    var next = SourceUiAppearance.Save(_preferences, selection);
+                    var next = save(_preferences, selection);
                     if (IsCurrentOwnerLocked()
-                        && _preferences.Get(SourceUiAppearance.PreferenceKey,
+                        && _preferences.Get(DevicePreferencesThemeStore.AppearanceKey,
                             string.Empty) == selection.ToToken())
                         saved = next;
                     else if (IsCurrentOwnerLocked())

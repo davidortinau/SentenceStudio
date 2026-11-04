@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Progress;
 
-namespace SentenceStudio.Native.iOS.Features.ActivityLog;
+namespace SentenceStudio.Native.Features.ActivityLog;
 
 internal enum ActivityLogPhase { Closed, Loading, Empty, Ready, LoadError, Blocked }
 
