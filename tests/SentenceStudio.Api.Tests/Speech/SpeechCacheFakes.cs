@@ -117,6 +117,9 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
     /// <summary>Reads never complete until cancelled (an unreachable store).</summary>
     public bool HangReads { get; set; }
 
+    /// <summary>Writes never complete until cancelled (a store that accepts the connection and stalls).</summary>
+    public bool HangWrites { get; set; }
+
     public List<bool> OverwriteFlags { get; } = [];
 
     public void Reset()
@@ -127,6 +130,7 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
         ReadFailure = null;
         WriteFailure = null;
         HangReads = false;
+        HangWrites = false;
         lock (OverwriteFlags)
         {
             OverwriteFlags.Clear();
@@ -149,7 +153,7 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
         return Blobs.TryGetValue(name, out var blob) ? blob.Content.ToArray() : null;
     }
 
-    public Task<bool> WriteAsync(
+    public async Task<bool> WriteAsync(
         string name,
         byte[] content,
         string contentType,
@@ -162,6 +166,11 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
             OverwriteFlags.Add(overwrite);
         }
 
+        if (HangWrites)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+
         if (WriteFailure is not null)
         {
             throw WriteFailure;
@@ -171,10 +180,10 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
         if (overwrite)
         {
             Blobs[name] = blob;
-            return Task.FromResult(true);
+            return true;
         }
 
-        return Task.FromResult(Blobs.TryAdd(name, blob));
+        return Blobs.TryAdd(name, blob);
     }
 
     internal sealed record StoredBlob(byte[] Content, string ContentType);

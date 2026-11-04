@@ -25,10 +25,15 @@ public interface ISpeechClipStore
 /// <summary>Clips in one Azure Blob Storage container (Azurite locally).</summary>
 /// <remarks>
 /// Blobs carry only a content type. No metadata is written: the name is a content hash, and the
-/// text, user and resource must not be recoverable from the blob.
+/// text, user and resource must not be recoverable from the blob. Writes can use their own client
+/// (the API's has retries off); both clients point at the same container.
 /// </remarks>
-public sealed class AzureBlobSpeechClipStore(BlobContainerClient container) : ISpeechClipStore
+public sealed class AzureBlobSpeechClipStore(
+    BlobContainerClient container,
+    BlobContainerClient? writeContainer = null) : ISpeechClipStore
 {
+    private readonly BlobContainerClient _writeContainer = writeContainer ?? container;
+
     public async Task<byte[]?> ReadAsync(string name, CancellationToken cancellationToken)
     {
         try
@@ -65,7 +70,7 @@ public sealed class AzureBlobSpeechClipStore(BlobContainerClient container) : IS
 
         try
         {
-            await container.GetBlobClient(name).UploadAsync(BinaryData.FromBytes(content), options, cancellationToken);
+            await _writeContainer.GetBlobClient(name).UploadAsync(BinaryData.FromBytes(content), options, cancellationToken);
             return true;
         }
         catch (RequestFailedException ex) when (!overwrite

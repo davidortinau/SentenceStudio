@@ -147,6 +147,22 @@ public sealed class SpeechSynthesisCacheEndpointTests : IClassFixture<SpeechCach
     }
 
     [Fact]
+    public async Task Synthesize_with_a_stalled_store_answers_within_the_store_budget()
+    {
+        // The API host's own cache, with the shipped budgets: 2 s read plus 3 s write at most.
+        var client = ClientFor($"speech-stalled-{Guid.NewGuid():N}");
+        _factory.Store.HangReads = true;
+        _factory.Store.HangWrites = true;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var audioUrl = await SynthesizeAsync(client, UniqueText(), "yuna");
+
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(6.5));
+        audioUrl.Should().Be(AudioUrlFor("clip-1:xi3rF0t7dg7uN2M0WUhr"));
+        _factory.Store.Blobs.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Timestamped_repeat_request_returns_the_stored_audio_and_timestamps()
     {
         var owner = $"speech-timed-{Guid.NewGuid():N}";

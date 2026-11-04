@@ -17,8 +17,16 @@ public sealed class SpeechClipCacheTests
     private readonly InMemorySpeechClipStore _store = new();
     private readonly CapturingLogger<SpeechClipCache> _logger = new();
 
-    private SpeechClipCache Cache(TimeSpan? readTimeout = null) =>
-        new(_logger, _store, readTimeout: readTimeout);
+    private SpeechClipCache Cache(SpeechClipCacheTimeouts? timeouts = null) =>
+        new(_logger, _store, timeouts);
+
+    private static readonly SpeechClipCacheTimeouts Short = new()
+    {
+        SynthesizeRead = TimeSpan.FromMilliseconds(100),
+        SynthesizeWrite = TimeSpan.FromMilliseconds(100),
+        TimestampedRead = TimeSpan.FromMilliseconds(100),
+        TimestampedWrite = TimeSpan.FromMilliseconds(100)
+    };
 
     private static SpeechClipSpec Spec(string text = LearnerText, string voice = "yuna-voice") =>
         SpeechClipSpec.ForSynthesize(voice, "eleven_v3", text);
@@ -130,12 +138,68 @@ public sealed class SpeechClipCacheTests
     {
         _store.HangReads = true;
 
-        var audio = await Cache(readTimeout: TimeSpan.FromMilliseconds(100))
+        var audio = await Cache(Short)
             .GetOrGenerateAsync(Spec(), _provider, CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(10));
 
         audio.Should().NotBeEmpty();
         _provider.Calls.Should().Be(1);
+        _logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning
+            && e.Message.Contains("read timed out after 100 ms"));
+    }
+
+    [Fact]
+    public void Plain_clips_wait_on_the_store_for_only_a_few_seconds_by_default()
+    {
+        var defaults = SpeechClipCacheTimeouts.Default;
+
+        defaults.ReadFor(SpeechClipVariant.Synthesize).Should().Be(TimeSpan.FromSeconds(2));
+        defaults.WriteFor(SpeechClipVariant.Synthesize).Should().Be(TimeSpan.FromSeconds(3));
+        defaults.ReadFor(SpeechClipVariant.Timestamped).Should().Be(TimeSpan.FromSeconds(10));
+        defaults.WriteFor(SpeechClipVariant.Timestamped).Should().Be(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Stalled_write_does_not_hold_the_response_beyond_the_default_write_budget()
+    {
+        // The shipped budget, not a test override: ElevenLabs has already answered, and a store
+        // that accepts the upload and stalls may delay the learner by at most 3 s.
+        _store.HangWrites = true;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var audio = await Cache().GetOrGenerateAsync(Spec(), _provider, CancellationToken.None);
+
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(4.5));
+        audio.Should().NotBeEmpty();
+        _store.Blobs.Should().BeEmpty("a write that ran out of budget stores nothing");
+        _logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning
+            && e.Message.Contains("write timed out after 3000 ms"));
+    }
+
+    [Fact]
+    public async Task Stalled_read_does_not_hold_the_request_beyond_the_default_read_budget()
+    {
+        _store.HangReads = true;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var audio = await Cache().GetOrGenerateAsync(Spec(), _provider, CancellationToken.None);
+
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3.5));
+        audio.Should().NotBeEmpty();
+        _provider.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Stalled_timestamped_write_is_bounded_by_its_own_budget()
+    {
+        _store.HangWrites = true;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var clip = await Cache(Short).GetOrGenerateTimestampedAsync(TimedSpec(), _provider, CancellationToken.None);
+
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
+        clip.Audio.Should().NotBeEmpty();
+        _store.Blobs.Should().BeEmpty();
     }
 
     [Fact]

@@ -79,14 +79,15 @@ public static class SpeechClipCacheServiceCollectionExtensions
 
         try
         {
-            var container = target.StartsWith(EndpointSegment, StringComparison.OrdinalIgnoreCase)
-                ? new BlobContainerClient(ContainerUri(target, containerName), new DefaultAzureCredential(), ClientOptions())
-                : new BlobContainerClient(target, containerName, ClientOptions());
+            var useIdentity = target.StartsWith(EndpointSegment, StringComparison.OrdinalIgnoreCase);
+            var credential = useIdentity ? new DefaultAzureCredential() : null;
+            BlobContainerClient Client(BlobClientOptions options) => useIdentity
+                ? new BlobContainerClient(ContainerUri(target, containerName), credential!, options)
+                : new BlobContainerClient(target, containerName, options);
 
-            var mode = target.StartsWith(EndpointSegment, StringComparison.OrdinalIgnoreCase)
-                ? "ManagedIdentity"
-                : "ConnectionString";
-            return (new AzureBlobSpeechClipStore(container), $"Mode={mode} Container={containerName} Prefix={SpeechClipCacheKey.Prefix}");
+            var store = new AzureBlobSpeechClipStore(Client(ReadOptions()), Client(WriteOptions()));
+            var mode = useIdentity ? "ManagedIdentity" : "ConnectionString";
+            return (store, $"Mode={mode} Container={containerName} Prefix={SpeechClipCacheKey.Prefix}");
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException or UriFormatException)
         {
@@ -102,17 +103,27 @@ public static class SpeechClipCacheServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Short retries and timeouts: a slow store must fall back to the provider quickly instead of
-    /// holding the learner's request. <see cref="SpeechClipCache"/> also bounds each call.
+    /// Reads may retry once quickly; <see cref="SpeechClipCacheTimeouts"/> is what bounds the wait.
     /// </summary>
-    private static BlobClientOptions ClientOptions()
+    private static BlobClientOptions ReadOptions()
     {
         var options = new BlobClientOptions();
-        options.Retry.Mode = RetryMode.Exponential;
-        options.Retry.MaxRetries = 2;
-        options.Retry.Delay = TimeSpan.FromMilliseconds(200);
-        options.Retry.MaxDelay = TimeSpan.FromSeconds(2);
-        options.Retry.NetworkTimeout = TimeSpan.FromSeconds(20);
+        options.Retry.Mode = RetryMode.Fixed;
+        options.Retry.MaxRetries = 1;
+        options.Retry.Delay = TimeSpan.FromMilliseconds(100);
+        options.Retry.NetworkTimeout = TimeSpan.FromSeconds(10);
+        return options;
+    }
+
+    /// <summary>
+    /// Writes never retry: the response waits on the write, and a clip that misses its one attempt
+    /// is simply generated again next time.
+    /// </summary>
+    private static BlobClientOptions WriteOptions()
+    {
+        var options = new BlobClientOptions();
+        options.Retry.MaxRetries = 0;
+        options.Retry.NetworkTimeout = TimeSpan.FromSeconds(10);
         return options;
     }
 }

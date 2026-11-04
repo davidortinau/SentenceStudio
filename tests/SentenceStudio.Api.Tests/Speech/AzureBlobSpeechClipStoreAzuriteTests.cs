@@ -1,5 +1,6 @@
 using System.Text;
 using Azure.Storage.Blobs;
+using Microsoft.Extensions.Configuration;
 using SentenceStudio.Api.Speech;
 
 namespace SentenceStudio.Api.Tests.Speech;
@@ -107,6 +108,37 @@ public sealed class AzureBlobSpeechClipStoreAzuriteTests : IAsyncLifetime
         audio.Should().NotBeEmpty();
         provider.Calls.Should().Be(1);
         logger.Entries.Should().Contain(e => e.Message.Contains("ContainerNotFound"));
+    }
+
+    [AzuriteFact]
+    public async Task Store_built_by_the_api_registration_reads_and_writes_the_named_container()
+    {
+        // The API's own construction: separate read and write clients (writes never retry).
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:media-container"] =
+                    $"{AzuriteServer.ConnectionString};ContainerName={_container.Name}"
+            })
+            .Build();
+        var (store, _) = SpeechClipCacheServiceCollectionExtensions.CreateStore(
+            configuration, new DevelopmentEnvironment());
+        const string name = "speech-cache/v1/synthesize/registration.mp3";
+
+        (await store!.WriteAsync(name, [4, 5, 6], SpeechClipCache.AudioContentType, overwrite: false, CancellationToken.None))
+            .Should().BeTrue();
+
+        (await store.ReadAsync(name, CancellationToken.None)).Should().Equal(4, 5, 6);
+        (await _container.GetBlobClient(name).ExistsAsync()).Value.Should().BeTrue();
+    }
+
+    private sealed class DevelopmentEnvironment : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "SentenceStudio.Api.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 
     [AzuriteFact]
