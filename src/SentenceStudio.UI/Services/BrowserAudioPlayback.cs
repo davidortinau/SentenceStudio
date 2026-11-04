@@ -11,7 +11,19 @@ public static class BrowserAudioPlayback
         byte[] audioData,
         CancellationToken cancellationToken = default,
         ILogger? logger = null) =>
-        PlayCoreAsync(js, audioData, null, logger, cancellationToken);
+        PlayCoreAsync(js, audioData, null, null, logger, cancellationToken);
+
+    /// <summary>
+    /// Plays at <paramref name="playbackRate"/> times normal speed: the rate is
+    /// applied to the loaded clip before playback starts.
+    /// </summary>
+    public static Task PlayAtRateAsync(
+        IJSRuntime js,
+        byte[] audioData,
+        double playbackRate,
+        CancellationToken cancellationToken = default,
+        ILogger? logger = null) =>
+        PlayCoreAsync(js, audioData, null, playbackRate, logger, cancellationToken);
 
     public static Task PlayAndTrackAsync<T>(
         IJSRuntime js,
@@ -19,12 +31,13 @@ public static class BrowserAudioPlayback
         DotNetObjectReference<T> callbacks,
         CancellationToken cancellationToken = default,
         ILogger? logger = null) where T : class =>
-        PlayCoreAsync(js, audioData, callbacks, logger, cancellationToken);
+        PlayCoreAsync(js, audioData, callbacks, null, logger, cancellationToken);
 
     private static async Task PlayCoreAsync(
         IJSRuntime js,
         byte[] audioData,
         object? callbacks,
+        double? playbackRate,
         ILogger? logger,
         CancellationToken cancellationToken)
     {
@@ -32,6 +45,8 @@ public static class BrowserAudioPlayback
         ArgumentNullException.ThrowIfNull(audioData);
         if (audioData.Length == 0)
             throw new InvalidOperationException("No audio was returned for browser playback.");
+        if (playbackRate is { } requested && (!double.IsFinite(requested) || requested <= 0))
+            throw new ArgumentOutOfRangeException(nameof(playbackRate));
         cancellationToken.ThrowIfCancellationRequested();
 
         try
@@ -41,6 +56,10 @@ public static class BrowserAudioPlayback
             if (!double.IsFinite(duration) || duration <= 0)
                 throw new InvalidOperationException("The browser could not load the audio.");
 
+            cancellationToken.ThrowIfCancellationRequested();
+            if (playbackRate is { } rate
+                && !await js.InvokeAsync<bool>("audioInterop.setPlaybackRate", cancellationToken, rate))
+                throw new InvalidOperationException("The browser could not apply the playback speed.");
             cancellationToken.ThrowIfCancellationRequested();
             if (!await js.InvokeAsync<bool>("audioInterop.startPlayback", cancellationToken, callbacks, 1000))
                 throw new InvalidOperationException("The browser did not start audio playback.");

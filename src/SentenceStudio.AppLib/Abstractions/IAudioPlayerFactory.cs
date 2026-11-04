@@ -21,4 +21,10 @@ public interface IUiAudioPlayer : IDisposable
     void Pause();
     void Stop();
     void Seek(double seconds);
+
+    /// <summary>
+    /// Plays at <paramref name="rate"/> times normal speed (pitch preserved where
+    /// the platform supports it). False when this player cannot change its rate.
+    /// </summary>
+    bool TrySetPlaybackRate(double rate) => false;
 }

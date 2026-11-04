@@ -49,6 +49,15 @@ public sealed class MauiAudioPlayerFactory : IAudioPlayerFactory
         public void Stop() => player.Stop();
         public void Seek(double seconds) => player.Seek(seconds);
 
+        public bool TrySetPlaybackRate(double rate)
+        {
+            if (!double.IsFinite(rate) || rate <= 0 || !player.CanSetSpeed
+                || rate < player.MinimumSpeed || rate > player.MaximumSpeed)
+                return false;
+            player.Speed = rate;
+            return true;
+        }
+
         public void Dispose()
         {
             player.Dispose();

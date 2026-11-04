@@ -1,4 +1,4 @@
-<div class="waveform-display" @onclick="HandleClick" @ref="_containerRef">
+<div class="waveform-display">
     <div class="waveform-bars">
         @if (_bars is not null)
         {
@@ -20,6 +20,15 @@
         }
     </div>
     <div class="waveform-playhead" style="left: @((CurrentPosition * 100).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+    @* Tap, drag or arrow keys seek: the browser maps the pointer to a value, so
+       the seek lands where the learner tapped. Invisible over the bars. *@
+    <input type="range" class="waveform-seek"
+           min="0" max="@SeekSteps" step="1"
+           value="@SeekValue"
+           aria-label="@SeekLabel"
+           aria-valuetext="@FormatTime(CurrentPosition * Duration.TotalSeconds)"
+           disabled="@(!CanSeek)"
+           @onchange="HandleSeekAsync" />
     <div class="waveform-time">
         <span class="ss-caption2">@FormatTime(CurrentPosition * Duration.TotalSeconds)</span>
         <span class="ss-caption2">@FormatTime(Duration.TotalSeconds)</span>
@@ -31,10 +40,16 @@
     [Parameter] public double CurrentPosition { get; set; }
     [Parameter] public float[]? WaveformData { get; set; }
     [Parameter] public EventCallback<double> OnPositionChanged { get; set; }
+    /// <summary>Accessible name of the seek control.</summary>
+    [Parameter] public string? SeekLabel { get; set; }
 
-    private ElementReference _containerRef;
     private float[]? _bars;
     private const int BarCount = 80;
+    private const int SeekSteps = 1000;
+
+    private bool CanSeek => OnPositionChanged.HasDelegate && Duration > TimeSpan.Zero;
+
+    private int SeekValue => (int)Math.Round(Math.Clamp(CurrentPosition, 0, 1) * SeekSteps);
 
     protected override void OnParametersSet()
     {
@@ -70,17 +85,18 @@
         return result;
     }
 
-    private async Task HandleClick(MouseEventArgs e)
+    /// <summary>The seek control's value as a 0..1 fraction of the clip, or null when it is not a number.</summary>
+    public static double? ToFraction(object? value) =>
+        double.TryParse(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture),
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture,
+            out var steps) && double.IsFinite(steps)
+            ? Math.Clamp(steps / SeekSteps, 0, 1)
+            : null;
+
+    private async Task HandleSeekAsync(ChangeEventArgs e)
     {
-        // Use offsetX relative to the container width
-        // We approximate using clientX but the JS interop would be more accurate
-        // For now, use a simple ratio based on the bar count
-        if (_bars is not null && _bars.Length > 0)
-        {
-            // e.OffsetX is the click position within the element
-            // We don't have element width easily, so we fire with an approximate position
-            await OnPositionChanged.InvokeAsync(CurrentPosition);
-        }
+        if (CanSeek && ToFraction(e.Value) is { } fraction)
+            await OnPositionChanged.InvokeAsync(fraction);
     }
 
     private static string FormatTime(double seconds)
