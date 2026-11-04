@@ -149,7 +149,7 @@ internal sealed partial class AndroidSliceShell
             Alignment.Horizontal.CenterHorizontally)
         {
             Modifier.FillMaxWidth().HeightIn(min: ActivityTileMinHeight).Padding(12)
-                .Alpha(implemented && canSelect ? 1f : 0.55f),
+                .Alpha(implemented ? 1f : 0.55f),
             new Icon(ChooseOwnTileIcon(route), null)
             {
                 Modifier = Modifier.Size(30),

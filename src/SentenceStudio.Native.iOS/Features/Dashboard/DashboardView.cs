@@ -66,7 +66,7 @@ internal static class DashboardView
                     .WithAccessibilityIdentifier("native.dashboard.sync.caption"));
         }
         if (state.Mode == NativeDashboardMode.ChooseOwn
-            && state.Phase is (NativePhase.Ready or NativePhase.Empty))
+            && NativeDashboardPresenter.ShowsChooseOwn(state))
             ChooseOwnView.Add(items, state, style, text, actions.OpenResourceSelector,
                 actions.OpenSkillSelector, actions.RetryChooseOwn,
                 actions.ExpandActivities, actions.LaunchChooseOwnActivity, isTablet);

@@ -310,7 +310,7 @@ internal sealed partial class AndroidSliceShell
         viewport.Add(SelectedPlanMode());
         var chooseMode = !_preview
             && state.Mode == NativeDashboardMode.ChooseOwn
-            && (state.Phase is NativePhase.Ready or NativePhase.Empty)
+            && NativeDashboardPresenter.ShowsChooseOwn(state)
             && HasDashboardOwner(Auth.UserId);
         // Same honest text as the iOS Dashboard and its PendingSync phase.
         if (state.HasPendingSync

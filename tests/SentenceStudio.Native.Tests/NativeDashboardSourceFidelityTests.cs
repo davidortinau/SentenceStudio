@@ -83,6 +83,27 @@ public sealed class NativeDashboardSourceFidelityTests
     }
 
     [Fact]
+    public async Task ChooseOwnChoicesStayVisibleWhileTheDashboardReloads()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var dashboard = fixture.Dashboard;
+        dashboard.SetMode(NativeDashboardMode.ChooseOwn);
+        Assert.True(NativeDashboardPresenter.ShowsChooseOwn(await dashboard.LoadAsync()));
+
+        var published = new List<NativeDashboardState>();
+        dashboard.StateChanged += published.Add;
+        await dashboard.RefreshAsync();
+        Assert.All(published.Where(state => state.Phase == NativePhase.Loading),
+            state => Assert.True(NativeDashboardPresenter.ShowsChooseOwn(state)));
+        Assert.False(NativeDashboardPresenter.ShowsChooseOwn(
+            new NativeDashboardState(NativePhase.Loading)));
+        Assert.False(NativeDashboardPresenter.ShowsChooseOwn(
+            new NativeDashboardState(NativePhase.Error) { ChooseOwn = published[0].ChooseOwn }));
+    }
+
+    [Fact]
     public async Task ProfileNameIsReadOnEveryLoadAndIsOwnerScoped()
     {
         using var fixture = new NativeSliceFixture();
