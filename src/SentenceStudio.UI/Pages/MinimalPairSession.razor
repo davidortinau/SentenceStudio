@@ -116,6 +116,9 @@ else
     private bool _browserAudioAttempted;
     private bool _disposed;
     private readonly CancellationTokenSource _audioLifetime = new();
+    private UiSpeechClipCache? _clipCache;
+    private UiSpeechClipCache ClipCache =>
+        _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
     private bool hasCheckedAnswer;
     private bool isDebouncing;
     private string errorMessage = "";
@@ -256,61 +259,34 @@ else
             var text = promptWord.TargetLanguageTerm;
             var voiceId = VoicePrefs.VoiceId;
 
-            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
-            Stream audioStream;
-
-            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
-            {
-                audioStream = File.OpenRead(cached.AudioFilePath);
-            }
-            else if (Connectivity.IsInternetAvailable)
-            {
-                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
-                Directory.CreateDirectory(cacheDir);
-                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var generatedAudio = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f))
-                using (var fs = File.Create(filePath))
-                {
-                    await generatedAudio.CopyToAsync(fs);
-                }
-
-                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
-                {
-                    Phrase = text, VoiceId = voiceId, AudioFilePath = filePath,
-                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-                });
-
-                audioStream = File.OpenRead(filePath);
-            }
-            else
-            {
-                errorMessage = Localize["NumberDrill_AudioOffline"];
-                isPlayingAudio = false;
-                return;
-            }
-
+            // The owner's cached clip is found by file name under today's AudioCache (the stored
+            // absolute path changes when iOS moves the app container); otherwise it is
+            // synthesized once and cached, pointing the existing row at it (B35).
+            var clip = await ClipCache.GetOrCreateAsync(text, voiceId, Connectivity.IsInternetAvailable, "word",
+                (voice, token) => SpeechService.TextToSpeechAsync(text, voice, 0.5f, 0.75f, 0.85f, cancellationToken: token),
+                _audioLifetime.Token);
             if (_disposed)
-            {
-                audioStream.Dispose();
                 return;
+            switch (clip.Status)
+            {
+                case UiSpeechClipStatus.Offline:
+                    errorMessage = Localize["NumberDrill_AudioOffline"];
+                    return;
+                case UiSpeechClipStatus.Failed:
+                    errorMessage = Localize["NativeMinimalPairs_PlaybackError"];
+                    return;
             }
 
             if (_useJsAudio)
             {
                 // Server-side Blazor: route audio through JS interop
-                using (audioStream)
-                {
-                    _nativeAudio.Stop();
-                    audioStream.Position = 0;
-                    using var ms = new MemoryStream();
-                    await audioStream.CopyToAsync(ms);
-                    _browserAudioAttempted = true;
-                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token);
-                }
+                _nativeAudio.Stop();
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, _audioLifetime.Token);
             }
             else
             {
-                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
             }
         }
         catch (OperationCanceledException) when (_disposed)

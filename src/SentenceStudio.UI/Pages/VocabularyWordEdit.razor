@@ -461,6 +461,9 @@ else
     private bool _browserAudioAttempted;
     private bool _disposed;
     private readonly CancellationTokenSource _audioLifetime = new();
+    private UiSpeechClipCache? _clipCache;
+    private UiSpeechClipCache ClipCache =>
+        _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
     private readonly UiAudioPlayerSession _nativeAudio = new();
     private string errorMessage = "";
     private bool showDeleteConfirm;
@@ -1117,60 +1120,35 @@ else
 
         try
         {
+            var term = targetLanguageTerm;
             var voiceId = VoicePrefs.VoiceId;
-            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(targetLanguageTerm, voiceId);
-            Stream audioStream;
-
-            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
-            {
-                audioStream = File.OpenRead(cached.AudioFilePath);
-            }
-            else if (Connectivity.IsInternetAvailable)
-            {
-                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
-                Directory.CreateDirectory(cacheDir);
-                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var generatedAudio = await SpeechService.TextToSpeechAsync(targetLanguageTerm, voiceId, 0.5f, 0.75f, 0.85f))
-                using (var fs = File.Create(filePath))
-                {
-                    await generatedAudio.CopyToAsync(fs);
-                }
-
-                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
-                {
-                    Phrase = targetLanguageTerm, VoiceId = voiceId, AudioFilePath = filePath,
-                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-                });
-
-                audioStream = File.OpenRead(filePath);
-            }
-            else
-            {
-                Toast.ShowWarning($"{Localize["VocabWordEdit_AudioOffline"]}");
-                return;
-            }
-
+            // The owner's cached clip is found by file name under today's AudioCache (the stored
+            // absolute path changes when iOS moves the app container); otherwise it is
+            // synthesized once and cached, pointing the existing row at it (B35).
+            var clip = await ClipCache.GetOrCreateAsync(term, voiceId, Connectivity.IsInternetAvailable, "word",
+                (voice, token) => SpeechService.TextToSpeechAsync(term, voice, 0.5f, 0.75f, 0.85f, cancellationToken: token),
+                _audioLifetime.Token);
             if (_disposed)
-            {
-                audioStream.Dispose();
                 return;
+            switch (clip.Status)
+            {
+                case UiSpeechClipStatus.Offline:
+                    Toast.ShowWarning($"{Localize["VocabWordEdit_AudioOffline"]}");
+                    return;
+                case UiSpeechClipStatus.Failed:
+                    Toast.ShowError(Localize["NativeVocabulary_AudioUnavailable"]);
+                    return;
             }
 
             if (AudioPlayerFactory.CanPlayLocally)
             {
-                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
             }
             else
             {
-                using (audioStream)
-                {
-                    _nativeAudio.Stop();
-                    audioStream.Position = 0;
-                    using var ms = new MemoryStream();
-                    await audioStream.CopyToAsync(ms);
-                    _browserAudioAttempted = true;
-                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token);
-                }
+                _nativeAudio.Stop();
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, _audioLifetime.Token);
             }
         }
         catch (OperationCanceledException) when (_disposed)
@@ -1181,7 +1159,7 @@ else
             _nativeAudio.Stop();
             Logger.LogError(ex, "Failed to play term audio");
             if (!_disposed)
-                Toast.ShowError("Audio playback failed.");
+                Toast.ShowError(Localize["NativeVocabulary_AudioUnavailable"]);
         }
         finally
         {
