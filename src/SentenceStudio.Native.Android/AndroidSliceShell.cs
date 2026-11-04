@@ -20,8 +20,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private DevicePreferencesThemeStore _appearanceStore =
         new(new AndroidPreferences(activity));
     private AppearanceSelection? _appearance;
-    private bool _appearanceSettingsOpen;
-    private ComposeScrollState _settingsScroll = null!;
     private ComposeScrollState _signInScroll = null!;
     private ComposeScrollState _onboardingScroll = null!;
     private ComposeScrollState _dashboardScroll = null!;
@@ -78,7 +76,10 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     internal MutableState<bool> Busy { get; } = new(false);
 
     internal void RefreshForUiMode() => Post(() =>
-        _revision.Value = unchecked(_revision.Value + 1));
+    {
+        ApplyAppearanceFontScale();
+        _revision.Value = unchecked(_revision.Value + 1);
+    });
 
     private AppearanceSelection CurrentAppearance =>
         _appearance ??= _appearanceStore.TryLoad(out var stored)
@@ -89,34 +90,14 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _appearanceStore = new DevicePreferencesThemeStore(
             new AndroidPreferences(activity, preview));
         _appearance = null;
+        ApplyAppearanceFontScale();
     }
 
-    private void OpenAppearanceSettings() => Publish(() =>
+    public void Start()
     {
-        if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
-            || Busy.Value)
-            return;
-        _dashboardMenuOpen = false;
-        _appearanceSettingsOpen = true;
-        Error.Value = string.Empty;
-        OpenSamSettings();
-    });
-
-    private void SelectAppearanceMode(ThemeMode mode)
-    {
-        if (!_appearanceSettingsOpen)
-            return;
-        var next = CurrentAppearance.WithMode(mode);
-        if (next == CurrentAppearance)
-            return;
-        Execute(async cancellationToken =>
-        {
-            await _appearanceStore.SaveAsync(next, cancellationToken);
-            Publish(() => _appearance = next);
-        });
+        ApplyAppearanceFontScale();
+        Execute(InitializeNormalAsync);
     }
-
-    public void Start() => Execute(InitializeNormalAsync);
 
     private async Task InitializeNormalAsync(CancellationToken cancellationToken)
     {
@@ -133,11 +114,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public bool HandleBack()
     {
-        if (_appearanceSettingsOpen)
-        {
-            Publish(() => _appearanceSettingsOpen = false);
+        if (HandleMoreBack())
             return true;
-        }
         // Back closes the photo viewer or the Learning Details sheet first and
         // returns focus to the control that opened it.
         if (_photoDialog is not null
@@ -242,7 +220,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             ConfirmPassword.Value = string.Empty;
             _insightExpanded = false;
             _dashboardMenuOpen = false;
-            _appearanceSettingsOpen = false;
+            ResetMoreScreens();
             _chooseSelector.Value = (int)ChooseSelector.None;
             ResetResources();
             ClearSamForAccountBoundary();
@@ -292,6 +270,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz = null;
         }
         Post(ResetResources);
+        Post(ResetMoreScreens);
         Post(DetachSam);
         _scope?.Dispose();
         _host?.Dispose();
@@ -634,7 +613,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
                 _displayedQuizTurnId = null;
                 ResetQuizHeadState();
                 _insightExpanded = false;
-                _appearanceSettingsOpen = false;
+                ResetMoreScreens();
                 _chooseSelector.Value = (int)ChooseSelector.None;
                 ResetResources();
                 ClearSamForAccountBoundary();
@@ -696,7 +675,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _displayedQuizTurnId = null;
             ResetQuizHeadState();
             _insightExpanded = false;
-            _appearanceSettingsOpen = false;
+            ResetMoreScreens();
             _chooseSelector.Value = (int)ChooseSelector.None;
             ResetResources();
             ClearSamForAccountBoundary();
@@ -795,7 +774,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         if (_photoDialog is not null
             && Destination != NativeDestination.VocabularyQuiz)
             ClosePhotoDialogWithoutRestore();
-        activity.UpdateBackHandling(_appearanceSettingsOpen
+        activity.UpdateBackHandling(IsMoreScreenOpen
             || AndroidRoutePolicy.HandlesBack(Destination)
             || Destination == NativeDestination.Activity
             || _photoDialog is not null
@@ -837,6 +816,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         ReleaseActivity();
         _activityToasts?.Dispose();
         ResetResources();
+        ResetMoreScreens();
         DetachSam();
         _scope?.Dispose();
         _host?.Dispose();

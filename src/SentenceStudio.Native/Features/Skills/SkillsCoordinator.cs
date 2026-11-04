@@ -4,7 +4,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Native.iOS.Features.Skills;
+namespace SentenceStudio.Native.Features.Skills;
 
 internal enum SkillsListPhase { Loading, Empty, Populated, LoadError, Blocked }
 

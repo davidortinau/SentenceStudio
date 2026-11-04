@@ -23,7 +23,6 @@ internal sealed partial class AndroidSliceShell
         _dashboardScroll = composer.Remember(() => new ComposeScrollState());
         _quizScroll = composer.Remember(() => new ComposeScrollState());
         _detailsScroll = composer.Remember(() => new ComposeScrollState());
-        _settingsScroll = composer.Remember(() => new ComposeScrollState());
         RememberSam(composer);
         var onboardingKey = Destination == NativeDestination.Onboarding
             ? _onboardingStep + 1 : 0;
@@ -72,11 +71,12 @@ internal sealed partial class AndroidSliceShell
         var systemIsDark = MaterialTheme.IsSystemInDarkTheme(composer);
         var dark = CurrentAppearance.Mode.ResolveEffective(systemIsDark)
             == ThemeMode.Dark;
-        var palette = AndroidVisualTheme.For(dark);
+        var themeId = CurrentAppearance.ThemeId;
+        var palette = AndroidVisualTheme.For(dark, themeId);
         var theme = new MaterialTheme
         {
-            Dark = dark,
-            ColorScheme = AndroidVisualTheme.ColorScheme(dark),
+            Dark = AndroidVisualTheme.UsesDarkScheme(dark, themeId),
+            ColorScheme = AndroidVisualTheme.ColorScheme(dark, themeId),
             UseDynamicColor = false,
         };
         if (photoViewer is not null)
@@ -98,7 +98,7 @@ internal sealed partial class AndroidSliceShell
         var screen = Destination switch
         {
             NativeDestination.Dashboard or NativeDestination.TodaysPlan
-                when _appearanceSettingsOpen => RenderAppearanceSettings(palette),
+                when IsMoreScreenOpen => RenderMoreScreen(palette),
             NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
             NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
@@ -107,7 +107,7 @@ internal sealed partial class AndroidSliceShell
             _ => RenderAuthentication(palette),
         };
         if (Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-            && !_appearanceSettingsOpen)
+            && !IsMoreScreenOpen)
         {
             var dashboard = new Box { Modifier.FillMaxSize(), screen };
             if (IsSamEntryVisible)

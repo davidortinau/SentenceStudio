@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
-using SentenceStudio.Native.iOS.Features.Profile;
+using SentenceStudio.Native.Features.Profile;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
@@ -367,7 +367,7 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("NativePreviewFixture.FromAssembly()?.Owner", app);
         Assert.Contains("scope.TryGetUserProfileId(out var activeOwner)", app);
         Assert.Contains("GetByIdAsync(owner, cancellationToken)",
-            Source("Features/Profile/ProfileCoordinator.cs"));
+            Source("../SentenceStudio.Native/Features/Profile/ProfileCoordinator.cs"));
         Assert.Contains("native.dashboard.profile", dashboard);
         Assert.DoesNotContain("ExportAllData", view);
         Assert.DoesNotContain("SaveAsync(", view + app);

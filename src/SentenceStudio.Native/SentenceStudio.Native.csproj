@@ -12,6 +12,11 @@
   <ItemGroup>
     <InternalsVisibleTo Include="SentenceStudio.Native.Tests" />
     <InternalsVisibleTo Include="SentenceStudio.Native.iOS.Tests" />
+    <InternalsVisibleTo Include="SentenceStudio.Native.Android.Tests" />
+    <!-- Both heads use the shared feature coordinators in Features/ (Settings, Profile,
+         Skills, Vocabulary filters, Activity Log). -->
+    <InternalsVisibleTo Include="SentenceStudio.Native.iOS" />
+    <InternalsVisibleTo Include="SentenceStudio.Native.Android" />
   </ItemGroup>
 
   <ItemGroup>

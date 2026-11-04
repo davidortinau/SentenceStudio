@@ -9,6 +9,7 @@ using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Adapters;
+using SentenceStudio.Native.Features.Settings;
 using SentenceStudio.Native.iOS.Features.Settings;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;

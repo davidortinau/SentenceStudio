@@ -54,7 +54,7 @@ public sealed class AndroidSamContractTests
     {
         Assert.Contains("RenderSamSettings(palette)", Code("AndroidSliceShell.Appearance.cs"));
         Assert.Contains("OpenSamSettings();",
-            Between(Code("AndroidSliceShell.cs"), "private void OpenAppearanceSettings()", "\n    });"));
+            Between(Code("AndroidSliceShell.More.cs"), "case MoreScreen.Settings:", "break;"));
         var open = Between(Code("AndroidSliceShell.Sam.cs"), "private void OpenSamSettings()", "\n    }");
         Assert.Contains("RefreshAvailabilityAsync", open);
         Assert.Contains("LoadMemoryAsync", open);

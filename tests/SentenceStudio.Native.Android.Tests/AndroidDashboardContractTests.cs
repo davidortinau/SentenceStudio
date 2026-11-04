@@ -156,7 +156,8 @@ public sealed class AndroidDashboardContractTests
     public void CompletedPlanCardsStayOpenableAndUnregisteredTypesAreUnavailable()
     {
         var compose = Source("AndroidSliceShell.Compose.cs");
-        var theme = Source("AndroidVisualTheme.cs");
+        // Palette roles live in AndroidThemeTokens.cs since Settings themes (W2).
+        var theme = Source("AndroidVisualTheme.cs") + Source("AndroidThemeTokens.cs");
 
         Assert.Contains("card.ResourceTitle", compose);
         Assert.Contains("card.MinutesSpent", compose);
@@ -179,8 +180,9 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("if (canOpen)", compose);
         Assert.Contains("Icons.AutoMirrored.Default.KeyboardArrowRight", compose);
         Assert.Contains("MaterialTheme.IsSystemInDarkTheme(composer)", compose);
-        Assert.Contains("ThemeCatalog.Default.PaletteFor(dark ?", theme);
-        Assert.Contains("Color.FromHex(dark ? \"#FFD77A\" : \"#855900\")", theme);
+        Assert.Contains("theme.PaletteFor(dark ? ThemeMode.Dark : ThemeMode.Light)", theme);
+        Assert.Contains("dark ? \"#FFD77A\" : \"#855900\"", theme);
+        Assert.Contains("Color.FromHex(tokens.WarningText)", theme);
     }
 
     [Fact]

@@ -3,7 +3,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
-namespace SentenceStudio.Native.iOS.Features.Profile;
+namespace SentenceStudio.Native.Features.Profile;
 
 internal enum ProfilePhase { Closed, Loading, Ready, Missing, LoadError, Blocked }
 

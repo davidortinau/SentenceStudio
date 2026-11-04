@@ -17,12 +17,12 @@ internal sealed partial class AndroidSliceShell
 
     private bool IsSamEntryVisible =>
         AndroidSamProjection.IsEntryVisible(Destination, _preview,
-            _appearanceSettingsOpen || IsResourceFormOpen, SamState)
+            IsMoreScreenOpen || IsResourceFormOpen, SamState)
         && HasDashboardOwner(Auth.UserId);
 
     private bool IsSamPresented =>
         AndroidSamProjection.IsPresented(Destination, _preview, SamState)
-        && !_appearanceSettingsOpen && HasDashboardOwner(Auth.UserId);
+        && !IsMoreScreenOpen && HasDashboardOwner(Auth.UserId);
 
     private int WindowWidthDp => activity.Resources?.Configuration?.ScreenWidthDp ?? 0;
 
