@@ -103,14 +103,13 @@ public static class SpeechClipCacheServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Reads may retry once quickly; <see cref="SpeechClipCacheTimeouts"/> is what bounds the wait.
+    /// Reads never retry either: <see cref="SpeechClipCacheTimeouts"/> cancels a plain read after
+    /// 2 s, before a second attempt could start, and a read that fails is simply generated.
     /// </summary>
     private static BlobClientOptions ReadOptions()
     {
         var options = new BlobClientOptions();
-        options.Retry.Mode = RetryMode.Fixed;
-        options.Retry.MaxRetries = 1;
-        options.Retry.Delay = TimeSpan.FromMilliseconds(100);
+        options.Retry.MaxRetries = 0;
         options.Retry.NetworkTimeout = TimeSpan.FromSeconds(10);
         return options;
     }

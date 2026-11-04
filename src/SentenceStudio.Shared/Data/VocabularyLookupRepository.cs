@@ -123,7 +123,7 @@ public sealed class VocabularyLookupRepository
         if (DirectionFor(entry.Origin, profile?.NativeLanguage, text, translation) is not { } direction)
         {
             _logger.LogWarning(
-                "A lookup was not recorded: its direction is unknown ({Origin}, the learner's native language is not English).",
+                "A lookup was not recorded: its direction is unknown ({Origin}; the native language is not English, or the translation repeats the text).",
                 entry.Origin);
             return VocabularyLookupRecordStatus.DirectionUnknown;
         }

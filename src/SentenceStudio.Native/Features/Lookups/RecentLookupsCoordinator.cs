@@ -169,7 +169,7 @@ internal sealed class RecentLookupsCoordinator : IDisposable
             // Never leave the spinner behind: keep the list shown before, or offer Retry.
             _logger.LogInformation("Recent lookups load was cancelled.");
             next = previous.Phase is RecentLookupsPhase.Ready or RecentLookupsPhase.Empty
-                ? previous with { AddingId = null, Notice = null }
+                ? previous with { Notice = null }
                 : new(RecentLookupsPhase.LoadError, [], null, null);
         }
         catch (Exception ex)
@@ -184,7 +184,8 @@ internal sealed class RecentLookupsCoordinator : IDisposable
                 && IsCurrentOwnerLocked(owner, stamp);
             if (applied)
             {
-                _state = next;
+                // An add still running keeps its marker, so a second add cannot start meanwhile.
+                _state = next with { AddingId = _state.AddingId };
                 ++_viewVersion;
             }
         }
