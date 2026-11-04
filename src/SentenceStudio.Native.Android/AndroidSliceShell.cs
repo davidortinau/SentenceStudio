@@ -48,9 +48,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private string? _photoFocusTurnId;
     private int _photoFocusRestoreVersion;
     private string? _displayedQuizTurnId;
-    private string? _feedbackPhotoOwner;
-    private string? _feedbackPhotoTurnId;
-    private string? _feedbackPhotoUri;
     private bool _preview;
     private bool _disposed;
 
@@ -141,7 +138,11 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Publish(() => _appearanceSettingsOpen = false);
             return true;
         }
-        if (_photoDialog is not null || Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto)
+        // Back closes the photo viewer or the Learning Details sheet first and
+        // returns focus to the control that opened it.
+        if (_photoDialog is not null
+            || Destination == NativeDestination.VocabularyQuiz
+                && Quiz.Overlay != NativeQuizOverlay.None)
         {
             DismissOverlay();
             return true;
@@ -167,21 +168,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         }
         if (!AndroidRoutePolicy.HandlesBack(Destination))
             return false;
-        Execute(async cancellationToken =>
-        {
-            if (_quiz is null)
-                return;
-            var state = await _quiz.BackAsync(cancellationToken);
-            if (AndroidRoutePolicy.AfterQuizBack(state) == NativeDestination.Dashboard
-                && state.Destination == NativeDestination.VocabularyQuiz)
-            {
-                Publish(() => Destination = NativeDestination.Dashboard);
-                if (_dashboard is not null)
-                    await _dashboard.LoadAsync(cancellationToken);
-                return;
-            }
-            await ApplyQuizStateAsync(state, cancellationToken);
-        });
+        BackFromQuiz();
         return true;
     }
 
@@ -396,10 +383,12 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz = _scope.ServiceProvider.GetRequiredService<NativeQuizPresenter>();
             _quiz.StateChanged += OnQuizChanged;
         }
+        _quizLaunch = launch;
         Publish(() =>
         {
             Answer.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
             Correction.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
+            ResetQuizHeadState();
             Quiz = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
             Destination = NativeDestination.VocabularyQuiz;
         });
@@ -420,6 +409,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Publish(() => Quiz = Quiz with { SelectedAnswer = response });
         var previous = Quiz.TurnId;
         var state = await RequiredQuiz().AnswerAsync(response, cancellationToken);
+        NoteQuizResult(AndroidQuizFailedCommand.Answer, state);
         await ApplyQuizStateAsync(state, cancellationToken);
         if (!_preview && state.Phase == NativePhase.Feedback && !state.RequiresCorrection
             && state.TurnId == previous)
@@ -433,27 +423,23 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             await RequiredQuiz().NextAsync(cancellationToken), cancellationToken));
 
     public void SubmitCorrection() => Execute(async cancellationToken =>
-        await ApplyQuizStateAsync(
-            await RequiredQuiz().SubmitCorrectionAsync(
-                Correction.Value.Text ?? string.Empty, cancellationToken),
-            cancellationToken));
+    {
+        var state = await RequiredQuiz().SubmitCorrectionAsync(
+            Correction.Value.Text ?? string.Empty, cancellationToken);
+        NoteQuizResult(AndroidQuizFailedCommand.Correction, state);
+        await ApplyQuizStateAsync(state, cancellationToken);
+    });
 
     public void OverrideQuiz() => Execute(async cancellationToken =>
     {
         var turnId = Quiz.TurnId;
         var state = await RequiredQuiz().OverrideAsCorrectAsync(cancellationToken);
+        NoteQuizResult(AndroidQuizFailedCommand.Override, state);
         await ApplyQuizStateAsync(state, cancellationToken);
         if (!_preview && state.Phase == NativePhase.Feedback
             && !state.RequiresCorrection && state.TurnId == turnId)
             _ = AutoAdvanceAsync(turnId);
     });
-
-    public void RetryQuizSave() => Execute(async cancellationToken =>
-        await ApplyQuizStateAsync(
-            Quiz.Destination == NativeDestination.QuizSummary
-                ? await RequiredQuiz().DoneAsync(cancellationToken)
-                : await RequiredQuiz().RetryPendingSaveAsync(cancellationToken),
-            cancellationToken));
 
     public void ContinueRound() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
@@ -465,9 +451,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void OpenPhoto()
     {
-        if (Quiz.Phase != NativePhase.Ready
-            || Quiz.Prompt?.ShowPhoto != true
-            || Quiz.Overlay != NativeQuizOverlay.None
+        if (Busy.Value || !AndroidQuizPhotoPolicy.CanOpenFullScreen(Quiz)
             || !_preview && !HasDashboardOwner(Auth.UserId))
             return;
         var state = RequiredQuiz().OpenPhoto();
@@ -477,20 +461,21 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             return;
         }
         if (state.Prompt?.PhotoUri is not { } uri || _media is null
-            || !_media.TryGetPhoto(uri, out var bitmap) || bitmap is null)
+            || !_media.TryGetPhoto(state.Prompt.Photo, out var bitmap) || bitmap is null)
         {
             ApplyQuizState(RequiredQuiz().DismissOverlay());
             ShowError(Localize(NativeText.QuizUnavailable));
             return;
         }
-        if (ShowPhotoDialog(bitmap, state.TurnId, uri))
+        if (ShowPhotoDialog(bitmap, state.TurnId, uri, state.Phase))
             ApplyQuizState(state);
         else
             ApplyQuizState(RequiredQuiz().DismissOverlay());
     }
 
     private bool ShowPhotoDialog(
-        global::Android.Graphics.Bitmap bitmap, string? turnId, string photoUri)
+        global::Android.Graphics.Bitmap bitmap, string? turnId, string photoUri,
+        NativePhase openedPhase)
     {
         var ownerId = Auth.UserId;
         if (string.IsNullOrWhiteSpace(turnId)
@@ -500,7 +485,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         try
         {
             viewer = new AndroidQuizPhotoDialog(
-                activity, bitmap, ownerId, turnId, photoUri,
+                activity, bitmap, ownerId, turnId, photoUri, openedPhase,
                 Localize("Common_Close"), Localize(NativeText.QuizPhoto),
                 Localize("VocabQuiz_FullscreenPhoto"),
                 () => OnPhotoDismissed(viewer!));
@@ -535,10 +520,13 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         var viewer = _photoDialog;
         _photoDialog = null;
         viewer?.Dispose();
+        var details = _quiz?.State.Overlay == NativeQuizOverlay.LearningDetails;
         if (_quiz?.State.Overlay is not (null or NativeQuizOverlay.None))
             ApplyQuizState(_quiz.DismissOverlay());
         if (viewer is not null)
             QueuePhotoFocusRestore();
+        if (details)
+            QueueDetailsFocusRestore();
     }
 
     private void ClosePhotoDialogWithoutRestore()
@@ -560,8 +548,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             if (Destination == NativeDestination.VocabularyQuiz
                 && HasDashboardOwner(Auth.UserId)
                 && Quiz.TurnId == turn
-                && Quiz.Phase == NativePhase.Ready
-                && Quiz.Prompt?.ShowPhoto == true)
+                && AndroidQuizPhotoPolicy.CanOpenFullScreen(Quiz))
                 _photoFocusRestoreVersion++;
         });
     }
@@ -591,6 +578,26 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             await _actions.WaitAsync(_lifetime.Token);
             try
             {
+                // Source and iOS: the advance closes an open details sheet or photo.
+                if (!_disposed && ReferenceEquals(_quiz, quiz)
+                    && Auth.UserId == owner
+                    && AndroidRoutePolicy.HandlesBack(Destination)
+                    && state is { Phase: NativePhase.Feedback,
+                        Overlay: not NativeQuizOverlay.None }
+                    && state.TurnId == turnId)
+                {
+                    ClosePhotoDialogWithoutRestore();
+                    _detailsFocusTurnId = null;
+                    if (quiz.State is { Phase: NativePhase.Feedback,
+                            Overlay: not NativeQuizOverlay.None }
+                        && quiz.State.TurnId == turnId)
+                        quiz.DismissOverlay();
+                    state = quiz.State is { Phase: NativePhase.Feedback,
+                            Overlay: NativeQuizOverlay.None }
+                        && quiz.State.TurnId == turnId
+                            ? await quiz.NextAsync(turnId, _lifetime.Token)
+                            : quiz.State;
+                }
                 if (!_disposed && ReferenceEquals(_quiz, quiz)
                     && Auth.UserId == owner
                     && AndroidRoutePolicy.HandlesBack(Destination))
@@ -625,7 +632,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
                 Dashboard = new(NativePhase.Loading);
                 Quiz = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
                 _displayedQuizTurnId = null;
-                ClearFeedbackPhoto();
+                ResetQuizHeadState();
                 _insightExpanded = false;
                 _appearanceSettingsOpen = false;
                 _chooseSelector.Value = (int)ChooseSelector.None;
@@ -657,9 +664,11 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private async Task ApplyQuizStateAsync(
         NativeQuizState state, CancellationToken cancellationToken)
     {
-        if (state.Prompt is { ShowPhoto: true, PhotoUri: { } photoUri }
+        // A requested photo this head cannot draw is reported, so the presenter
+        // falls back to the configured text or audio prompt.
+        if (AndroidQuizPhotoPolicy.ShowsThumbnail(state)
             && state.TurnId is { } turnId
-            && (_media is null || !_media.TryGetPhoto(photoUri, out _)))
+            && (_media is null || !_media.TryGetPhoto(state.Prompt!.Photo, out _)))
             state = await RequiredQuiz().PhotoFailedAsync(turnId, cancellationToken);
         ApplyQuizState(state);
         if (state.Destination == NativeDestination.TodaysPlan
@@ -685,7 +694,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Dashboard = new(NativePhase.Loading);
             Quiz = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
             _displayedQuizTurnId = null;
-            ClearFeedbackPhoto();
+            ResetQuizHeadState();
             _insightExpanded = false;
             _appearanceSettingsOpen = false;
             _chooseSelector.Value = (int)ChooseSelector.None;
@@ -710,12 +719,9 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         if (_photoDialog is { } viewer
             && !AndroidQuizPhotoPresentationPolicy.CanPresent(
                 state, Auth.UserId, viewer.OwnerId, viewer.TurnId,
-                viewer.PhotoUri))
+                viewer.PhotoUri, viewer.OpenedPhase))
             ClosePhotoDialogWithoutRestore();
-        if (!AndroidQuizFeedbackPhotoPolicy.CanDisplay(
-                state, Auth.UserId, _feedbackPhotoOwner,
-                _feedbackPhotoTurnId, _feedbackPhotoUri))
-            ClearFeedbackPhoto();
+        RestoreSentenceDraft(state);
         if (AndroidQuizInputPolicy.ShouldClearForNewTurn(_displayedQuizTurnId, state))
         {
             Answer.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
@@ -728,13 +734,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _displayedQuizTurnId = null;
         }
         Quiz = state;
-    }
-
-    private void ClearFeedbackPhoto()
-    {
-        _feedbackPhotoOwner = null;
-        _feedbackPhotoTurnId = null;
-        _feedbackPhotoUri = null;
     }
 
     private void Execute(Func<CancellationToken, Task> action) => _ = ExecuteAsync(action);

@@ -74,9 +74,15 @@ public sealed class AndroidRoutePolicyTests
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!;
         var source = File.ReadAllText(Path.Combine(root, "AndroidSliceShell.cs"));
-        var back = source[source.IndexOf("public bool HandleBack()", StringComparison.Ordinal)
+        var handle = source[source.IndexOf("public bool HandleBack()", StringComparison.Ordinal)
             ..source.IndexOf("public void SignIn()", StringComparison.Ordinal)];
+        Assert.Contains("BackFromQuiz();", handle);
+        var quiz = File.ReadAllText(Path.Combine(root, "AndroidSliceShell.Quiz.cs"));
+        var back = quiz[quiz.IndexOf("private void BackFromQuiz()", StringComparison.Ordinal)
+            ..quiz.IndexOf("private async Task ReportQuizPhotoRenderedAsync(",
+                StringComparison.Ordinal)];
         Assert.Contains("await _quiz.BackAsync(cancellationToken)", back);
+        Assert.Contains("AndroidQuizTurnPolicy.BackLeavesQuiz(state)", back);
         Assert.Contains("await ApplyQuizStateAsync(state, cancellationToken)", back);
         Assert.DoesNotContain("ExitResumeChoiceWithoutSaving", back);
         Assert.DoesNotContain("SaveSnapshot", back);

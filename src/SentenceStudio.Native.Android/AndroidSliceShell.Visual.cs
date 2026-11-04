@@ -265,9 +265,15 @@ internal sealed partial class AndroidSliceShell
         };
     }
 
+    /// <summary>
+    /// One multiple-choice option. With <paramref name="letter"/> (target-language
+    /// answer audio) the option shows only its letter, so the written answer is
+    /// not on screen until it is graded; its accessible name is "Choose option A".
+    /// </summary>
     private static ComposableNode ChoiceAction(IComposer composer,
         AndroidVisualPalette palette, NativeQuizChoice choice, int index,
-        NativeQuizState state, Action<string> answer, bool enabled)
+        NativeQuizState state, Action<string> answer, bool enabled,
+        string? letter = null)
     {
         var graded = state.Phase == NativePhase.Feedback;
         var correct = graded && string.Equals(choice.Text,
@@ -282,7 +288,10 @@ internal sealed partial class AndroidSliceShell
             : selected ? palette.Primary : palette.Border;
         var caption = correct ? $" - {Localize(NativeText.QuizCorrect)}"
             : selectedWrong ? $" - {Localize(NativeText.QuizIncorrect)}" : string.Empty;
-        var label = choice.Text + caption;
+        var label = (letter ?? choice.Text) + caption;
+        var accessibleName = (letter is null ? choice.Text
+            : string.Format(CultureInfo.CurrentCulture,
+                Localize("NativeVocabQuiz_ChooseChoice"), letter)) + caption;
         var button = new ComposeButton(() => answer(choice.Text), enabled: enabled)
         {
             Modifier = Modifier.FillMaxWidth()
@@ -292,7 +301,7 @@ internal sealed partial class AndroidSliceShell
                 .TestTag($"{NativeAccess.QuizChoice}.{index}")
                 .Semantics(semantics =>
                 {
-                    semantics.ContentDescription(label);
+                    semantics.ContentDescription(accessibleName);
                     semantics.Selected(selected);
                 }),
             Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),

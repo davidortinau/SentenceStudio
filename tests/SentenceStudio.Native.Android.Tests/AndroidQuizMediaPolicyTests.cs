@@ -6,24 +6,29 @@ public sealed class AndroidQuizMediaPolicyTests
 {
     private static readonly Uri ApiRoot = new("http://10.0.2.2:5081/");
 
-    [Theory]
-    [InlineData("Korean", "ko-KR")]
-    [InlineData("English", "en-US")]
-    [InlineData("French", "fr-FR")]
-    [InlineData("German", "de-DE")]
-    [InlineData("Spanish", "es-ES")]
-    [InlineData("Japanese", "ja-JP")]
-    [InlineData("Chinese", "zh-CN")]
-    public void PromptSideLanguageSelectsItsOwnSpeechLocale(string language, string tag)
+    [Fact]
+    public void PhotoTypeComesFromTheImageBytesNotTheServerLabel()
     {
-        Assert.Equal(tag, AndroidQuizMediaPolicy.LanguageTag(language));
+        Assert.Equal("image/png", AndroidQuizMediaPolicy.DetectImageContentType(
+            new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0 }));
+        Assert.Equal("image/jpeg", AndroidQuizMediaPolicy.DetectImageContentType(
+            new byte[] { 0xff, 0xd8, 0xff, 0xe0 }));
+        Assert.Equal("image/gif", AndroidQuizMediaPolicy.DetectImageContentType(
+            "GIF89a"u8.ToArray()));
+        Assert.Equal("image/webp", AndroidQuizMediaPolicy.DetectImageContentType(
+            "RIFF\0\0\0\0WEBPVP8 "u8.ToArray()));
     }
 
     [Fact]
-    public void UnknownLanguageCannotSilentlyUseTheWrongVoice()
+    public void TextHtmlOrTruncatedBytesAreNeverAPhoto()
     {
-        Assert.Null(AndroidQuizMediaPolicy.LanguageTag("not-a-language"));
-        Assert.Null(AndroidQuizMediaPolicy.LanguageTag(null));
+        Assert.Null(AndroidQuizMediaPolicy.DetectImageContentType(
+            "<!doctype html><html>"u8.ToArray()));
+        Assert.Null(AndroidQuizMediaPolicy.DetectImageContentType(
+            new byte[] { 137, 80, 78 }));
+        Assert.Null(AndroidQuizMediaPolicy.DetectImageContentType(
+            "RIFF\0\0\0\0WAVEfmt "u8.ToArray()));
+        Assert.Null(AndroidQuizMediaPolicy.DetectImageContentType([]));
     }
 
     [Fact]

@@ -251,13 +251,19 @@ public sealed class AndroidPackagingTests
         Assert.Contains("state.AnswerWasCorrect == true", feedback);
         Assert.Contains("state.CompleteForm", feedback);
         Assert.Contains("NativeVocabQuiz_FullForm", feedback);
-        Assert.Contains("state.FeedbackMnemonicText", feedback);
-        Assert.Contains("NativeVocabQuiz_Mnemonic", feedback);
-        Assert.Contains("native.quiz.feedback.mnemonic", feedback);
+        // Source order: thumbnail, mnemonic, sample sentences, then the answer.
+        var mnemonicStart = composition.IndexOf(
+            "if (state.Phase == NativePhase.Feedback && state.AnswerWasCorrect == true",
+            StringComparison.Ordinal);
+        Assert.True(mnemonicStart >= 0 && mnemonicStart < start);
+        var mnemonic = composition[mnemonicStart..start];
+        Assert.Contains("state.FeedbackMnemonicText", mnemonic);
+        Assert.Contains("NativeVocabQuiz_Mnemonic", mnemonic);
+        Assert.Contains("native.quiz.feedback.mnemonic", mnemonic);
     }
 
     [Fact]
-    public void QuizDetailsSheetIsStagedWithoutLeakingAnswerTermsOrExposingMissingCopy()
+    public void QuizDetailsSheetOpensFromTheInfoButtonWithoutLeakingAnswerTerms()
     {
         var composition = File.ReadAllText(Path.Combine(
             HeadRoot, "AndroidSliceShell.Compose.cs"));
@@ -268,8 +274,14 @@ public sealed class AndroidPackagingTests
             StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
         var details = composition[start..end];
-        Assert.DoesNotContain("\"native.quiz.details.open\"", composition);
-        Assert.DoesNotContain("new IconButton(OpenDetails", composition);
+        // AF-Q08: the info button in the prompt tool row opens the sheet.
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Quiz.Compose.cs"));
+        Assert.Contains("\"native.quiz.details.open\"", quiz);
+        Assert.Contains("OpenQuizDetails, AndroidQuizTurnPolicy.CanOpenDetails(state, Busy.Value)",
+            quiz);
+        Assert.Contains("_quiz.OpenDetails()", File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Quiz.cs")));
         Assert.Contains("state.Overlay == NativeQuizOverlay.LearningDetails",
             composition);
         Assert.Contains("new ModalBottomSheet(onDismissRequest: DismissOverlay)",
@@ -298,7 +310,7 @@ public sealed class AndroidPackagingTests
     [Theory]
     [InlineData("AppResources.resx")]
     [InlineData("AppResources.ko.resx")]
-    public void QuizDetailsLabelsExistButAndroidDetailsAreNotYetExposed(
+    public void QuizDetailsLabelsExistForTheAndroidDetailsControl(
         string culture)
     {
         var resources = XDocument.Load(Path.Combine(HeadRoot, "..",
@@ -316,12 +328,10 @@ public sealed class AndroidPackagingTests
             "RecognitionDemonstrations"
         }.Where(suffix => !keys.Contains("NativeVocabQuiz_Details_" + suffix))
             .ToArray();
-        // The shared Learning Details labels now exist (iOS shows the sheet).
-        // Android parity for the Details control is a tracked follow-up; until
-        // it lands, the Compose head must not expose a half-built control.
+        // The shared Learning Details labels exist; both heads show the sheet.
         Assert.Empty(missing);
-        Assert.DoesNotContain("new IconButton(OpenDetails", File.ReadAllText(
-            Path.Combine(HeadRoot, "AndroidSliceShell.Compose.cs")));
+        Assert.Contains("VocabQuiz_LearningDetails", File.ReadAllText(
+            Path.Combine(HeadRoot, "AndroidSliceShell.Quiz.Compose.cs")));
     }
 
     [Fact]
@@ -338,35 +348,40 @@ public sealed class AndroidPackagingTests
     }
 
     [Fact]
-    public void GradedFeedbackPhotoRequiresDecodedImageButCannotOpenThePromptViewer()
+    public void QuizPhotoIsTheOwnersDecodedBitmapReportedOnceAndOpensFromFeedback()
     {
-        var composition = File.ReadAllText(Path.Combine(
-            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Quiz.Compose.cs"));
+        var commands = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Quiz.cs"));
         var shell = File.ReadAllText(Path.Combine(
             HeadRoot, "AndroidSliceShell.cs"));
-        Assert.Contains("media.CanShowPhotoAsync(candidate.Uri, cancellationToken)",
-            composition);
-        Assert.Contains("Auth.UserId == candidate.Owner", composition);
-        Assert.Contains("Quiz.TurnId == candidate.Turn", composition);
-        Assert.Contains("media.TryGetPhoto(candidate.Uri, out _)", composition);
-        Assert.Contains("AndroidQuizFeedbackPhotoPolicy.CanDisplay(", composition);
-        Assert.Contains("native.quiz.photo.feedback.thumbnail", composition);
-        Assert.Contains("var interactive = !feedback && Quiz.Phase == NativePhase.Ready",
-            composition);
-        Assert.Contains("modifier = interactive", composition);
-        Assert.Contains(".Clickable(OpenPhoto)", composition);
-        Assert.DoesNotContain("OpenFeedbackPhoto", composition);
-        Assert.DoesNotContain("OpenGradedPhoto", shell);
-        Assert.Contains("AndroidQuizPhotoPresentationPolicy.CanPresent(", shell);
+        var media = File.ReadAllText(Path.Combine(HeadRoot, "AndroidQuizMedia.cs"));
+        // AF-Q05: the adapter returns owner-checked bytes that decoded to a bitmap.
+        Assert.Contains("public async Task<NativeQuizPhotoAsset?> LoadPhotoAsync(", media);
+        Assert.Contains("AndroidQuizMediaPolicy.DetectImageContentType(encoded)", media);
+        Assert.Contains("Task.Run(() => Decode(encoded), cancellationToken)", media);
+        Assert.Contains("ReferenceEquals(photo.Asset, asset)", media);
+        // The thumbnail draws the presenter's asset and reports it drawn.
+        Assert.Contains("_media.TryGetPhoto(prompt.Photo, out var bitmap)", quiz);
+        Assert.Contains("AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, owner)", quiz);
+        Assert.Contains("ReportQuizPhotoRenderedAsync(photo.Owner, photo.Turn, photo.Asset)", quiz);
+        Assert.Contains("quiz.PhotoRenderedAsync(turnId, _lifetime.Token)", commands);
+        Assert.Contains("ReferenceEquals(current.Prompt?.Photo, asset)", commands);
+        Assert.Contains("native.quiz.photo.toggle", quiz);
+        Assert.Contains("AndroidQuizPhotoPolicy.CanOpenFullScreen(state) && !Busy.Value", quiz);
+        Assert.Contains(".Clickable(OpenPhoto)", quiz);
+        Assert.DoesNotContain("FeedbackPhotoCandidateUri", quiz);
+        // A requested photo this head cannot draw falls back through the presenter.
+        Assert.Contains("RequiredQuiz().PhotoFailedAsync(turnId, cancellationToken)", shell);
         var open = shell[shell.IndexOf(
             "public void OpenPhoto()", StringComparison.Ordinal)
             ..shell.IndexOf("private void OnPhotoDismissed(",
                 StringComparison.Ordinal)];
-        Assert.Contains("Quiz.Phase != NativePhase.Ready", open);
-        Assert.Contains("Quiz.Overlay != NativeQuizOverlay.None", open);
-        Assert.Contains("_media.TryGetPhoto(uri, out var bitmap)", open);
+        Assert.Contains("AndroidQuizPhotoPolicy.CanOpenFullScreen(Quiz)", open);
+        Assert.Contains("_media.TryGetPhoto(state.Prompt.Photo, out var bitmap)", open);
+        Assert.Contains("ShowPhotoDialog(bitmap, state.TurnId, uri, state.Phase)", open);
         Assert.Contains("ApplyQuizState(RequiredQuiz().DismissOverlay())", open);
-        Assert.DoesNotContain("NativePhase.Feedback", open);
     }
 
     [Theory]
@@ -415,16 +430,18 @@ public sealed class AndroidPackagingTests
         Assert.Contains("Color = palette.Primary", visual);
         Assert.Contains("FontWeight = FontWeight.Bold", visual);
         Assert.Contains("Align = TextAlign.Center", visual);
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Quiz.Compose.cs"));
         Assert.Contains("viewport.Add(QuizPromptHeading(question, palette))", composition);
-        Assert.Contains("native.quiz.tools", composition);
-        Assert.Contains("\"native.quiz.audio\"", composition);
+        Assert.Contains("RenderQuizPromptActions(state, prompt, palette)", composition);
+        Assert.Contains("RenderQuizThumbnail(state, prompt, palette)", composition);
+        Assert.Contains("native.quiz.tools", quiz);
+        Assert.Contains("\"native.quiz.audio\"", quiz);
         Assert.Contains("prompt.ShowPhoto && prompt.CanPlayPromptAudio", composition);
         Assert.Contains("VocabQuiz_ListenLookAnswer", composition);
         Assert.Contains("VocabQuiz_LookAndAnswer", composition);
-        Assert.Contains("viewport.Add(RenderQuizPhoto(photoUri, palette))", composition);
-        Assert.Contains("new Image(painter, Localize(NativeText.QuizPhoto))",
-            composition);
-        Assert.Contains(".Clickable(OpenPhoto)", composition);
+        Assert.Contains("new Image(painter, photoLabel)", quiz);
+        Assert.Contains(".Clickable(OpenPhoto)", quiz);
     }
 
     [Fact]
@@ -481,7 +498,8 @@ public sealed class AndroidPackagingTests
         Assert.Contains("QueuePhotoFocusRestore()", dismiss);
         Assert.Contains("private void ClosePhotoDialogWithoutRestore()", dismiss);
         Assert.Contains("composer.LaunchedEffect(restoreVersion", composition);
-        Assert.Contains(".FocusRequester(_photoFocus!)", composition);
+        Assert.Contains(".FocusRequester(_photoFocus!)", File.ReadAllText(
+            Path.Combine(HeadRoot, "AndroidSliceShell.Quiz.Compose.cs")));
     }
 
     [Fact]
@@ -500,7 +518,9 @@ public sealed class AndroidPackagingTests
         Assert.Contains("_shell?.HandlePhotoEscape()", activity);
         Assert.Contains("base.DispatchKeyEvent(e)", activity);
         Assert.Contains("_shell?.Dispose()", activity);
-        Assert.Contains("Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto", shell);
+        // Back closes the photo viewer or the details sheet before leaving the quiz.
+        Assert.Contains("&& Quiz.Overlay != NativeQuizOverlay.None)", shell);
+        Assert.Contains("Quiz.Overlay != NativeQuizOverlay.FullscreenPhoto", shell);
         Assert.Contains("viewer?.Dispose()", shell);
         Assert.Contains("_lifetime.Cancel()", shell);
         Assert.Contains("if (_disposed)", viewer);

@@ -2,6 +2,7 @@ using AndroidX.Compose;
 using AndroidX.Compose.Runtime;
 using AndroidX.Compose.UI.Graphics;
 using AndroidX.Compose.UI.Graphics.Painter;
+using SentenceStudio.Native;
 using Bitmap = Android.Graphics.Bitmap;
 
 namespace SentenceStudio.Native.Android;
@@ -22,7 +23,7 @@ internal sealed class AndroidQuizPhotoDialog : IDisposable
 
     public AndroidQuizPhotoDialog(
         MainActivity activity, Bitmap bitmap, string ownerId, string turnId,
-        string photoUri, string closeLabel, string imageLabel,
+        string photoUri, NativePhase openedPhase, string closeLabel, string imageLabel,
         string dialogTitle, Action onDismiss)
     {
         _activity = activity;
@@ -30,6 +31,7 @@ internal sealed class AndroidQuizPhotoDialog : IDisposable
         OwnerId = ownerId;
         TurnId = turnId;
         PhotoUri = photoUri;
+        OpenedPhase = openedPhase;
         _closeLabel = closeLabel;
         _imageLabel = imageLabel;
         _title = dialogTitle;
@@ -44,6 +46,8 @@ internal sealed class AndroidQuizPhotoDialog : IDisposable
     public string OwnerId { get; }
     public string TurnId { get; }
     public string PhotoUri { get; }
+    /// <summary>The question or its feedback; grading or advancing closes the viewer.</summary>
+    public NativePhase OpenedPhase { get; }
 
     public void FocusClose()
     {
