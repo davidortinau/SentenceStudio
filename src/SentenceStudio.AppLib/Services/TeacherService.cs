@@ -258,6 +258,10 @@ namespace SentenceStudio.Services
             }
         }
 
+        /// <summary>
+        /// Grades a Describe a Scene description. Throws when the AI call fails or returns no
+        /// grade, so the caller can tell the learner instead of recording a 0% result.
+        /// </summary>
         public async Task<GradeResponse> GradeDescription(string myDescription, string aiDescription, string? targetLanguage = null, string? nativeLanguage = null)
         {
             try
@@ -286,14 +290,15 @@ namespace SentenceStudio.Services
                     // //Debug.WriteLine(prompt);
                 }
 
+                // A failed or missing grade is reported to the caller, never turned into an
+                // empty 0% grade that would be recorded as the learner's result.
                 var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning, reasoningEffort: "minimal");
-                return response;
+                return response ?? throw new InvalidOperationException("AI grading returned no response.");
             }
             catch (Exception ex)
             {
-                // Handle any exceptions that occur during the process
                 _logger.LogError(ex, "Error occurred in GradeDescription");
-                return new GradeResponse();
+                throw;
             }
         }
 

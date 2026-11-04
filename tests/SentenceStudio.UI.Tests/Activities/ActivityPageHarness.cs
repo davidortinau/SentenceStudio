@@ -41,14 +41,15 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
     public ServiceProvider Services { get; private set; } = null!;
     public ActivityTestRenderer Renderer { get; private set; } = null!;
 
-    public static async Task<ActivityPageFixture> CreateAsync()
+    /// <param name="configure">Adds the services a page needs beyond the shared set.</param>
+    public static async Task<ActivityPageFixture> CreateAsync(Action<IServiceCollection>? configure = null)
     {
         var fixture = new ActivityPageFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync(configure);
         return fixture;
     }
 
-    private async Task InitializeAsync()
+    private async Task InitializeAsync(Action<IServiceCollection>? configure)
     {
         Directory.CreateDirectory(_appData);
         await _connection.OpenAsync();
@@ -97,6 +98,7 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         services.AddSingleton(toast);
         services.AddSingleton(new BlazorLocalizationService());
         services.AddSingleton<NavigationManager>(Navigation);
+        configure?.Invoke(services);
         Services = services.BuildServiceProvider();
 
         await using (var scope = Services.CreateAsyncScope())
