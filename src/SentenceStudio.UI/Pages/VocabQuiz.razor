@@ -680,6 +680,7 @@ else
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
     [Inject] private IActivitySessionService SessionService { get; set; } = default!;
+    [Inject] private VocabularyLearningContextRepository LearningContexts { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Plans.IPlanDateContext PlanDateContext { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.PhotoViewerCoordinator PhotoViewer { get; set; } = default!;
     [Inject] private ExampleSentenceRepository ExampleSentenceRepo { get; set; } = default!;
@@ -746,6 +747,10 @@ else
     private string? activeSessionId;
     private string launchContextKey = string.Empty;
     private bool sessionMarkedComplete;
+    // True once this page scored an answer in the current run. Without it, a round summary is
+    // completed only when another client's scored answer on the round's words has synced here
+    // (rule 6 of docs/activity-session-format.md): a summary alone completes nothing.
+    private bool scoredAnswerThisRun;
     private bool activityTimerStarted;
     private string launchError = string.Empty;
     private string activeUserId = string.Empty;
@@ -950,6 +955,7 @@ else
             clearCache: true);
         isBusy = true;
         sessionMarkedComplete = false;
+        scoredAnswerThisRun = false;
         try
         {
             if (string.IsNullOrEmpty(GetActiveUserId()))
@@ -1272,6 +1278,8 @@ else
             userMode = string.IsNullOrWhiteSpace(snapshot.UserMode) ? "MultipleChoice" : snapshot.UserMode;
             activeSessionId = resumableSession.Id;
             sessionMarkedComplete = false;
+            // A resumed run's answers were scored by whichever client gave them, not here.
+            scoredAnswerThisRun = false;
             showResumePrompt = false;
             resumeRejected = false;
 
@@ -1449,6 +1457,20 @@ else
 
         try
         {
+            if (!scoredAnswerThisRun && !await RoundWasScoredAsync(currentUserId))
+            {
+                // Another client saved this summary (or this page moved past the round's last
+                // answer) and none of the round's answers has been scored where this client can
+                // see it. The run stays in progress, so the client that graded it can finish it.
+                Logger.LogWarning("Vocabulary quiz run left in progress: no scored answer on the round's words since the run started.");
+                return;
+            }
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
             await SessionService.CompleteAsync(currentUserId, "VocabularyReview", launchContextKey);
             if (!IsPreferenceUser(currentUserId))
             {
@@ -1463,6 +1485,31 @@ else
         {
             Logger.LogError(ex, "Failed to complete the current vocabulary quiz session.");
         }
+    }
+
+    /// <summary>Clients stamp learning records with their own clocks; allow for drift against the run's start.</summary>
+    private static readonly TimeSpan ClientClockDrift = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// True when a quiz answer on one of the round's words was scored for the learner since the
+    /// in-progress run started (native NativeQuizAttemptCommitterAdapter.RoundWasScoredAsync).
+    /// With no run in progress there is nothing to complete, so nothing is refused.
+    /// </summary>
+    private async Task<bool> RoundWasScoredAsync(string userId)
+    {
+        var run = await SessionService.GetResumableAsync(
+            userId, ActivitySessionTypes.VocabularyReview, launchContextKey);
+        if (run is null)
+            return true;
+
+        // Mastered words leave roundWordOrder mid-round; the round's full list is in
+        // sessionItems and vocabItems.
+        var roundWordIds = roundWordOrder
+            .Concat(vocabItems)
+            .Concat(sessionItems)
+            .Select(item => item.Word.Id);
+        return await LearningContexts.HasScoredAnswerSinceAsync(
+            userId, "VocabularyQuiz", roundWordIds, run.StartedAt - ClientClockDrift);
     }
 
     private bool TryDeserializeSnapshot(string stateJson, out VocabQuizSessionSnapshot? snapshot)
@@ -2025,6 +2072,7 @@ else
                     ExpectedAnswer = currentItem.Word.TargetLanguageTerm,
                     ResponseTimeMs = responseTimeMs
                 });
+                scoredAnswerThisRun = true;
 
                 currentItem.Progress = updatedProgress;
 
@@ -2359,6 +2407,7 @@ else
             var wasKnownBefore = currentItem?.Progress?.IsKnown ?? false;
 
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
+            scoredAnswerThisRun = true;
             if (!IsPreferenceUser(attempt.UserId))
             {
                 RefuseLaunch(1);
