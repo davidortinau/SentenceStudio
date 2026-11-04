@@ -87,6 +87,8 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         services.AddSingleton<ProgressCacheService>();
         services.AddSingleton<WordAssociationService>();
         services.AddSingleton<TranslationService>();
+        // Lookup history; it records only with a trusted user scope (see WithLearnerScope).
+        services.AddSingleton<VocabularyLookupRepository>();
         services.AddSingleton<TeacherService>();
         services.AddSingleton<IActivityTimerService>(new ActivityTimerService());
         services.AddSingleton<IProgressService>(ThrowingStub<IProgressService>.Create());
@@ -112,6 +114,17 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         }
 
         Renderer = new ActivityTestRenderer(Services, Services.GetRequiredService<ILoggerFactory>());
+    }
+
+    /// <summary>
+    /// The device user scope the web and MAUI heads register: the active learner is the
+    /// switchable <c>active_profile_id</c> preference (used by <see cref="ActiveOwner"/>).
+    /// </summary>
+    public static void WithLearnerScope(IServiceCollection services)
+    {
+        services.AddSingleton<DeviceUserScopeProvider>();
+        services.AddSingleton<SentenceStudio.Services.Plans.IUserScopeProvider>(sp =>
+            sp.GetRequiredService<DeviceUserScopeProvider>());
     }
 
     /// <summary>Seeds a resource owned by <paramref name="owner"/> holding the given words.</summary>

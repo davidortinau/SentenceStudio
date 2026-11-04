@@ -165,6 +165,8 @@ internal sealed partial class AndroidSliceShell
                 }
                 break;
             case MoreScreen.Vocabulary when _vocabulary is { } vocabulary:
+                if (HandleRecentLookupsBack())
+                    return true;
                 if (vocabulary.IsNavigationBlocked)
                     return true;
                 if (vocabulary.IsPhoneFilterPresented)
@@ -202,6 +204,7 @@ internal sealed partial class AndroidSliceShell
 
     private void ReleaseMoreCoordinators()
     {
+        CloseRecentLookups();
         if (_settings is { } settings)
         {
             settings.Changed -= OnMoreChanged;

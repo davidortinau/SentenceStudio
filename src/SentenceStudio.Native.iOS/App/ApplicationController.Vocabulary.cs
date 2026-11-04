@@ -41,7 +41,10 @@ internal sealed partial class ApplicationController
             provider.GetRequiredService<IPreferencesService>(),
             provider.GetRequiredService<INativeQuizMedia>(),
             provider.GetRequiredService<ILogger<VocabularyCoordinator>>(),
-            Text);
+            Text)
+        {
+            OpenLookups = OpenRecentLookups
+        };
         _vocabulary.Changed += Publish;
     }
 
@@ -102,6 +105,7 @@ internal sealed partial class ApplicationController
 
     private void ReleaseVocabulary()
     {
+        ReleaseRecentLookups();
         _vocabulary?.Dispose();
         _vocabulary = null;
     }

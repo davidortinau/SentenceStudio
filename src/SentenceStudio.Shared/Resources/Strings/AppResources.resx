@@ -9763,4 +9763,44 @@ For example: {0} ...</value>
     <value>Warning</value>
     <comment>Spoken/visible kind of an activity warning banner</comment>
   </data>
+  <data name="Lookups_Title" xml:space="preserve">
+    <value>Recent lookups</value>
+    <comment>Page title and Vocabulary action: words looked up in Writing and Reading</comment>
+  </data>
+  <data name="Lookups_Empty" xml:space="preserve">
+    <value>Words you look up in Writing and Reading appear here.</value>
+    <comment>Empty state of Recent lookups</comment>
+  </data>
+  <data name="Lookups_LoadFailed" xml:space="preserve">
+    <value>Could not load your recent lookups.</value>
+    <comment>Recent lookups load error</comment>
+  </data>
+  <data name="Lookups_AddToVocabulary" xml:space="preserve">
+    <value>Add to vocabulary</value>
+    <comment>Button on a lookup row; opens the list of resources</comment>
+  </data>
+  <data name="Lookups_AddToVocabularyFor" xml:space="preserve">
+    <value>Add {0} to vocabulary</value>
+    <comment>Accessible name of a lookup row's add button. {0} = looked-up text</comment>
+  </data>
+  <data name="Lookups_ChooseResource" xml:space="preserve">
+    <value>Add to which resource?</value>
+    <comment>Heading of the resource list in a lookup row's add menu</comment>
+  </data>
+  <data name="Lookups_NoResource" xml:space="preserve">
+    <value>No resource in this language to add to.</value>
+    <comment>Shown when the learner has no resource to add a lookup to</comment>
+  </data>
+  <data name="Lookups_Added" xml:space="preserve">
+    <value>Added to {0}.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AlreadyPresent" xml:space="preserve">
+    <value>Already in {0}.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AddFailed" xml:space="preserve">
+    <value>Could not add this word.</value>
+    <comment>Add to vocabulary failed</comment>
+  </data>
 </root>

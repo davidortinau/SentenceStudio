@@ -185,6 +185,7 @@ else
 
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private VocabularyLookupRepository LookupRepo { get; set; } = default!;
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -476,17 +477,19 @@ else
         }
 
         var generation = _generation;
+        var text = userInput;
+        LookupTranslation? lookup = null;
         isTranslating = true;
         try
         {
-            // Reads the owner's vocabulary or asks the AI; nothing is saved.
-            var translation = await TranslationSvc.TranslateAsync(userInput, userProfileId: owner);
+            // Reads the owner's vocabulary or asks the AI; it is not saved as a word.
+            lookup = await TranslationSvc.TranslateLookupAsync(text, userProfileId: owner);
             if (IsSuperseded(generation, owner))
                 return;
-            if (string.IsNullOrWhiteSpace(translation))
+            if (lookup is null)
                 Toast.ShowError(Localize["Writing_TranslateFailed"]);
             else
-                Toast.ShowInfo(translation);
+                Toast.ShowInfo(lookup.Translation);
         }
         catch (Exception ex)
         {
@@ -497,6 +500,31 @@ else
         finally
         {
             isTranslating = false;
+            // A successful translation joins the lookup history (decision 4 B), after it is shown,
+            // even when Continue practice moved on; never after leaving or for another profile.
+            if (lookup is not null && !_leaving && OwnerStillActive()
+                && string.Equals(owner, _owner, StringComparison.Ordinal))
+            {
+                StateHasChanged();
+                await RecordLookupAsync(owner, text, lookup);
+            }
+        }
+    }
+
+    private async Task RecordLookupAsync(string owner, string text, LookupTranslation lookup)
+    {
+        try
+        {
+            var status = await LookupRepo.RecordAsync(owner, new VocabularyLookupEntry(
+                text, lookup.Translation, lookup.Direction, VocabularyLookupActivity.Writing,
+                ResourceIdParam));
+            if (status != VocabularyLookupRecordStatus.Recorded)
+                Logger.LogWarning("Writing did not record a lookup: {Status}", status);
+        }
+        catch (Exception ex)
+        {
+            // The learner already has the translation; only the history entry is missing.
+            Logger.LogError(ex, "Writing could not record a lookup");
         }
     }
 

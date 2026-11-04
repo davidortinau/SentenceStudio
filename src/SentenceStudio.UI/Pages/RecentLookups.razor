@@ -1,0 +1,213 @@
+@page "/vocabulary/lookups"
+@attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
+
+@* Lookup history (Captain 2026-11-04, decision 4 B): words looked up in Writing and Reading,
+   newest first, each with "Add to vocabulary" into one of the learner's resources. *@
+
+<PageHeader Title='@Localize["Lookups_Title"]' ShowBack="true" OnBack="GoBack" />
+
+<div class="list-page" id="recent-lookups">
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status" id="recent-lookups-loading"
+             aria-label='@Localize["Common_Loading"]'></div>
+    </div>
+}
+else if (statusKey is not null)
+{
+    <div class="alert alert-danger" role="alert" id="recent-lookups-status">@Localize[statusKey]</div>
+    @if (statusKey == "Lookups_LoadFailed")
+    {
+        <button class="btn btn-ss-secondary" id="recent-lookups-retry" @onclick="LoadAsync">@Localize["Common_Retry"]</button>
+    }
+}
+else if (lookups.Items.Count == 0)
+{
+    <p class="ss-body1 text-secondary-ss text-center p-5" id="recent-lookups-empty">@Localize["Lookups_Empty"]</p>
+}
+else
+{
+    <ul class="list-unstyled d-flex flex-column gap-2 mb-0" id="recent-lookups-list"
+        aria-label='@Localize["Lookups_Title"]'>
+        @foreach (var item in lookups.Items)
+        {
+            var row = item;
+            var key = AutomationKey(row.Lookup.Id);
+            var destinations = lookups.DestinationsFor(row.Lookup);
+            var adding = addingId == row.Lookup.Id;
+            <li class="card card-ss p-3" id="lookup-@key" data-lookup-id="@row.Lookup.Id">
+                <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                    <div class="flex-grow-1" style="min-width: 0;">
+                        <p class="ss-body1 fw-bold mb-0 text-break" id="lookup-@key-text">@row.Lookup.Text</p>
+                        <p class="ss-body2 mb-1 text-break" id="lookup-@key-translation">@row.Lookup.Translation</p>
+                        <small class="text-secondary-ss" id="lookup-@key-source">@SourceLine(row)</small>
+                    </div>
+                    <div class="dropdown flex-shrink-0">
+                        <button class="btn btn-sm btn-ss-secondary dropdown-toggle" type="button"
+                                id="lookup-@key-add" data-bs-toggle="dropdown" aria-expanded="false"
+                                aria-label='@Localize.Get("Lookups_AddToVocabularyFor", row.Lookup.Text)'
+                                aria-busy='@(adding ? "true" : "false")'
+                                disabled="@(addingId is not null)">
+                            @if (adding)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                            }
+                            @Localize["Lookups_AddToVocabulary"]
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="lookup-@key-add">
+                            @if (destinations.Count == 0)
+                            {
+                                <li><span class="dropdown-item-text text-secondary-ss" id="lookup-@key-no-resource">@Localize["Lookups_NoResource"]</span></li>
+                            }
+                            else
+                            {
+                                <li><h6 class="dropdown-header">@Localize["Lookups_ChooseResource"]</h6></li>
+                                @foreach (var destination in destinations)
+                                {
+                                    var target = destination;
+                                    <li>
+                                        <button class="dropdown-item" type="button"
+                                                id="lookup-@key-add-@AutomationKey(target.ResourceId)"
+                                                @onclick="() => AddAsync(row, target)">@target.Title</button>
+                                    </li>
+                                }
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </li>
+        }
+    </ul>
+}
+</div>
+
+@code {
+    [Inject] private VocabularyLookupRepository LookupRepo { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private ILogger<RecentLookups> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Plans.IPlanDateContext LearnerClock { get; set; } = default!;
+
+    private VocabularyLookupPage lookups = VocabularyLookupPage.Empty;
+    private bool isLoading = true;
+    private string? statusKey;
+    private string? addingId;
+    // The learner the list was loaded for; adds act only for them while they stay active.
+    private string _owner = string.Empty;
+    private bool _disposed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+        await LoadAsync();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        statusKey = null;
+        _owner = Preferences.Get("active_profile_id", string.Empty);
+        if (string.IsNullOrWhiteSpace(_owner))
+        {
+            Logger.LogWarning("Recent lookups opened without an active profile; nothing is loaded.");
+            lookups = VocabularyLookupPage.Empty;
+            statusKey = "Vocabulary_NoActiveProfile";
+            isLoading = false;
+            return;
+        }
+        try
+        {
+            lookups = await LookupRepo.GetRecentAsync(_owner);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Recent lookups could not be loaded");
+            lookups = VocabularyLookupPage.Empty;
+            statusKey = "Lookups_LoadFailed";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task AddAsync(VocabularyLookupItem item, VocabularyLookupDestination destination)
+    {
+        if (addingId is not null)
+            return;
+        var owner = _owner;
+        if (string.IsNullOrWhiteSpace(owner)
+            || !string.Equals(owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal))
+        {
+            Logger.LogWarning("Add to vocabulary refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+        addingId = item.Lookup.Id;
+        try
+        {
+            var status = await LookupRepo.AddToVocabularyAsync(owner, item.Lookup.Id, destination.ResourceId);
+            if (_disposed)
+                return;
+            switch (status)
+            {
+                case ResourceVocabularyWriteStatus.Success:
+                    Toast.ShowSuccess(Localize.Get("Lookups_Added", destination.Title));
+                    break;
+                case ResourceVocabularyWriteStatus.AlreadyPresent:
+                    Toast.ShowInfo(Localize.Get("Lookups_AlreadyPresent", destination.Title));
+                    break;
+                default:
+                    Logger.LogWarning("Add to vocabulary from a lookup was refused: {Status}", status);
+                    Toast.ShowError(Localize["Lookups_AddFailed"]);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Add to vocabulary from a lookup failed");
+            if (!_disposed)
+                Toast.ShowError(Localize["Lookups_AddFailed"]);
+        }
+        finally
+        {
+            addingId = null;
+        }
+    }
+
+    private string SourceLine(VocabularyLookupItem item)
+    {
+        var parts = new List<string>
+        {
+            Localize[item.Lookup.Activity == VocabularyLookupActivity.Reading ? "Activity_Reading" : "Activity_Writing"]
+        };
+        if (!string.IsNullOrWhiteSpace(item.ResourceTitle))
+            parts.Add(item.ResourceTitle);
+        parts.Add(TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.SpecifyKind(item.Lookup.LastLookedUpAt, DateTimeKind.Utc), LearnerClock.TimeZone)
+            .ToString("g", Localize.Culture));
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>A stable element ID part from a row ID ("lk:abc" becomes "lk-abc").</summary>
+    private static string AutomationKey(string id) =>
+        new(id.Select(character => char.IsLetterOrDigit(character) ? character : '-').ToArray());
+
+    private void GoBack() => NavManager.NavigateTo("/vocabulary");
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Localize.CultureChanged -= OnCultureChanged;
+    }
+}
