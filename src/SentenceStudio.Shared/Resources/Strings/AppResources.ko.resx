@@ -9070,4 +9070,44 @@
     <value>경고</value>
     <comment>Spoken/visible kind of an activity warning banner</comment>
   </data>
+  <data name="Lookups_Title" xml:space="preserve">
+    <value>최근 찾아본 단어</value>
+    <comment>Page title and Vocabulary action: words looked up in Writing and Reading</comment>
+  </data>
+  <data name="Lookups_Empty" xml:space="preserve">
+    <value>쓰기와 읽기에서 찾아본 단어가 여기에 표시됩니다.</value>
+    <comment>Empty state of Recent lookups</comment>
+  </data>
+  <data name="Lookups_LoadFailed" xml:space="preserve">
+    <value>최근 찾아본 단어를 불러오지 못했습니다.</value>
+    <comment>Recent lookups load error</comment>
+  </data>
+  <data name="Lookups_AddToVocabulary" xml:space="preserve">
+    <value>어휘에 추가</value>
+    <comment>Button on a lookup row; opens the list of resources</comment>
+  </data>
+  <data name="Lookups_AddToVocabularyFor" xml:space="preserve">
+    <value>어휘에 추가: {0}</value>
+    <comment>Accessible name of a lookup row's add button. {0} = looked-up text</comment>
+  </data>
+  <data name="Lookups_ChooseResource" xml:space="preserve">
+    <value>어느 자료에 추가할까요?</value>
+    <comment>Heading of the resource list in a lookup row's add menu</comment>
+  </data>
+  <data name="Lookups_NoResource" xml:space="preserve">
+    <value>추가할 수 있는 같은 언어의 자료가 없습니다.</value>
+    <comment>Shown when the learner has no resource to add a lookup to</comment>
+  </data>
+  <data name="Lookups_Added" xml:space="preserve">
+    <value>{0}에 추가했습니다.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AlreadyPresent" xml:space="preserve">
+    <value>이미 {0}에 있습니다.</value>
+    <comment>{0} = resource title</comment>
+  </data>
+  <data name="Lookups_AddFailed" xml:space="preserve">
+    <value>이 단어를 추가하지 못했습니다.</value>
+    <comment>Add to vocabulary failed</comment>
+  </data>
 </root>

@@ -9427,6 +9427,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Added to {0}..
+        /// </summary>
+        internal static string Lookups_Added {
+            get {
+                return ResourceManager.GetString("Lookups_Added", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not add this word..
+        /// </summary>
+        internal static string Lookups_AddFailed {
+            get {
+                return ResourceManager.GetString("Lookups_AddFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add to vocabulary.
+        /// </summary>
+        internal static string Lookups_AddToVocabulary {
+            get {
+                return ResourceManager.GetString("Lookups_AddToVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add {0} to vocabulary.
+        /// </summary>
+        internal static string Lookups_AddToVocabularyFor {
+            get {
+                return ResourceManager.GetString("Lookups_AddToVocabularyFor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Already in {0}..
+        /// </summary>
+        internal static string Lookups_AlreadyPresent {
+            get {
+                return ResourceManager.GetString("Lookups_AlreadyPresent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add to which resource?.
+        /// </summary>
+        internal static string Lookups_ChooseResource {
+            get {
+                return ResourceManager.GetString("Lookups_ChooseResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words you look up in Writing and Reading appear here..
+        /// </summary>
+        internal static string Lookups_Empty {
+            get {
+                return ResourceManager.GetString("Lookups_Empty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load your recent lookups..
+        /// </summary>
+        internal static string Lookups_LoadFailed {
+            get {
+                return ResourceManager.GetString("Lookups_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No resource in this language to add to..
+        /// </summary>
+        internal static string Lookups_NoResource {
+            get {
+                return ResourceManager.GetString("Lookups_NoResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recent lookups.
+        /// </summary>
+        internal static string Lookups_Title {
+            get {
+                return ResourceManager.GetString("Lookups_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Collapse sidebar.
         /// </summary>
         internal static string MainLayout_CollapseSidebar {

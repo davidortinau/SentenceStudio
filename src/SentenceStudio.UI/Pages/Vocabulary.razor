@@ -15,12 +15,16 @@
         </button>
     </ToolbarActions>
     <PrimaryActions>
+        <button class="btn btn-ss-secondary" id="vocabulary-recent-lookups" @onclick="OpenRecentLookups">
+            <i class="bi bi-clock-history me-1" aria-hidden="true"></i> @Localize["Lookups_Title"]
+        </button>
         <button class="btn btn-ss-primary" @onclick="AddWord">
             <i class="bi bi-plus-lg me-1"></i> @Localize["Vocabulary_Add"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
         <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>@Localize["Vocabulary_Add"]</button></li>
+        <li><button class="dropdown-item" id="vocabulary-recent-lookups-menu" @onclick="OpenRecentLookups"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>@Localize["Lookups_Title"]</button></li>
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item" @onclick="ToggleViewMode">
             <i class="bi @ViewToggleIcon me-2"></i>@ViewToggleLabel</button></li>
@@ -1073,6 +1077,8 @@ else
         var initialTargetTerm = GetInitialTargetTermForAdd();
         NavManager.NavigateTo(BuildEditUrl("0", initialTargetTerm));
     }
+
+    private void OpenRecentLookups() => NavManager.NavigateTo("/vocabulary/lookups");
 
     private void EditWord(string id) => NavManager.NavigateTo(BuildEditUrl(id));
 

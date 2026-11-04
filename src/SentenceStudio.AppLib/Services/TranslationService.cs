@@ -3,10 +3,14 @@ using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services
 {
+    /// <summary>A lookup's translation and the direction it went.</summary>
+    public sealed record LookupTranslation(string Translation, VocabularyLookupDirection Direction);
+
     public class TranslationService
     {
         private readonly IServiceProvider _serviceProvider;
@@ -244,26 +248,36 @@ namespace SentenceStudio.Services
         /// The translation, or an empty string when there is no owner or the AI gave none.
         /// A failed AI call throws, so callers can report it instead of showing a result.
         /// </returns>
-        public async Task<string> TranslateAsync(string text, string? context = null, string? userProfileId = null)
+        public async Task<string> TranslateAsync(string text, string? context = null, string? userProfileId = null) =>
+            (await TranslateLookupAsync(text, context, userProfileId))?.Translation ?? string.Empty;
+
+        /// <summary>
+        /// <see cref="TranslateAsync"/> with the direction the translation went, for the lookup
+        /// history: the owner's word by target term (to native), then by native term (to target),
+        /// then the Translate prompt (to English, the native language). Null when no owner or no
+        /// translation came back.
+        /// </summary>
+        public async Task<LookupTranslation?> TranslateLookupAsync(
+            string text, string? context = null, string? userProfileId = null)
         {
             var userId = string.IsNullOrWhiteSpace(userProfileId) ? ActiveUserId : userProfileId;
             if (string.IsNullOrWhiteSpace(userId))
             {
                 _logger.LogWarning("TranslationService.TranslateAsync refused: no active owner.");
-                return string.Empty;
+                return null;
             }
 
             // Attempt to find an existing translation in the owner's vocabulary
             var existingWord = await _resourceRepo.GetWordByTargetTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.NativeLanguageTerm))
             {
-                return existingWord.NativeLanguageTerm;
+                return new(existingWord.NativeLanguageTerm, VocabularyLookupDirection.ToNative);
             }
 
             existingWord = await _resourceRepo.GetWordByNativeTermAsync(text, userId);
             if (existingWord != null && !string.IsNullOrEmpty(existingWord.TargetLanguageTerm))
             {
-                return existingWord.TargetLanguageTerm;
+                return new(existingWord.TargetLanguageTerm, VocabularyLookupDirection.ToTarget);
             }
 
             try
@@ -282,7 +296,9 @@ namespace SentenceStudio.Services
 
                 // Get translation using the AI service
                 var translation = await _aiService.SendPrompt<string>(prompt);
-                return translation?.Trim() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(translation)
+                    ? null
+                    : new(translation.Trim(), VocabularyLookupDirection.ToNative);
             }
             catch (Exception ex)
             {

@@ -53,7 +53,8 @@ public sealed record VocabularyLookupPage(
 /// </summary>
 public sealed class VocabularyLookupRepository
 {
-    public const int DefaultLimit = 50;
+    /// <summary>Every client lists the newest 100 lookups (no paging).</summary>
+    public const int DefaultLimit = 100;
     public const int MaxLimit = 200;
 
     private readonly IServiceProvider _serviceProvider;
