@@ -19,6 +19,11 @@ internal sealed partial class ApplicationScene
     {
         if (count == 0 && _vocabularySlot is not null)
         {
+            if (_lookupsSlot is not null)
+            {
+                DropRecentLookupsReferences();
+                _app.OnRecentLookupsPopped();
+            }
             DropVocabularyReferences();
             _app.OnVocabularyListPopped();
         }
@@ -27,6 +32,41 @@ internal sealed partial class ApplicationScene
             DropVocabularyWordReferences();
             _app.OnVocabularyWordPopped();
         }
+        else if (count == 1 && _lookupsSlot is not null)
+        {
+            DropRecentLookupsReferences();
+            _app.OnRecentLookupsPopped();
+        }
+    }
+
+    // Recent lookups (decision 4 B): one page pushed above the Vocabulary list.
+    private SwiftView? _lookupsSlot;
+    private int _renderedLookupsVersion = -1;
+
+    private void UpdateRecentLookups(SwiftView stack, bool appearanceChanged)
+    {
+        if (_app.IsRecentLookupsOpen && _lookupsSlot is null
+            && stack.NavigationPath.Count == 1 && _vocabularyWordSlot is null)
+        {
+            _lookupsSlot = Views.VStack(_app.RenderRecentLookups(_style))
+                .WithNavigationTitle(_app.Localize("Lookups_Title"))
+                .WithInlineNavigationTitle()
+                .WithTabBarHidden();
+            _renderedLookupsVersion = _app.RecentLookupsViewVersion;
+            stack.Push(ApplicationFormRoutes.RecentLookups, _lookupsSlot);
+        }
+        else if (_lookupsSlot is not null
+            && (appearanceChanged || _renderedLookupsVersion != _app.RecentLookupsViewVersion))
+        {
+            Replace(_lookupsSlot, _app.RenderRecentLookups(_style));
+            _renderedLookupsVersion = _app.RecentLookupsViewVersion;
+        }
+    }
+
+    private void DropRecentLookupsReferences()
+    {
+        _lookupsSlot = null;
+        _renderedLookupsVersion = -1;
     }
 
     private void UpdateVocabulary(bool appearanceChanged)
@@ -94,6 +134,8 @@ internal sealed partial class ApplicationScene
             && (appearanceChanged
                 || _renderedVocabularyFormVersion != _app.VocabularyFormVersion))
             UpdateVocabularyWord();
+
+        UpdateRecentLookups(stack, appearanceChanged);
     }
 
     private void UpdateVocabularyList(bool replaceAll = false)
@@ -212,6 +254,7 @@ internal sealed partial class ApplicationScene
     private void DropVocabularyReferences()
     {
         DropVocabularyWordReferences();
+        DropRecentLookupsReferences();
         _vocabularySlot = null;
         _vocabularySearch = null;
         _vocabularyFilterSlot = null;
