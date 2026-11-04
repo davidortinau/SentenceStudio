@@ -32,12 +32,22 @@ public sealed class NativeSwiftUIDashboardFidelityContractTests
     }
 
     [Fact]
-    public void VocabularySectionHasItsOwnLoadingAndNeverShowsThePlanError()
+    public void VocabularySectionHasItsOwnLoadingAndShowsAFailedLoadOnlyWithoutStatistics()
     {
         var progress = Source("Features/Dashboard/DashboardLearningProgressView.cs");
         Assert.Contains("if (state.StatisticsLoading)", progress);
         Assert.DoesNotContain("state.Phase == NativePhase.Loading", progress);
-        Assert.DoesNotContain("NativePhase.Error or NativePhase.Blocked", progress);
+        // Loaded statistics win over a plan error; a failed or blocked load without
+        // statistics shows its message (shared projection), not the empty card.
+        var summary = progress.IndexOf("else if (state.VocabSummary is { } summary)",
+            StringComparison.Ordinal);
+        var error = progress.IndexOf(
+            "else if (NativeDashboardPresenter.VocabularySectionErrorKey(state) is { } vocabError)",
+            StringComparison.Ordinal);
+        var empty = progress.IndexOf("text(\"Dashboard_NoVocabData\")", StringComparison.Ordinal);
+        Assert.True(summary > 0 && summary < error && error < empty);
+        Assert.Contains("Views.Text(DashboardView.DashboardErrorText(vocabError, text))",
+            progress);
         var app = Source("App/ApplicationController.cs");
         Assert.Contains("_dashboard.StateChanged += OnDashboardProgress;", app);
         var entries = Source("App/ApplicationController.DashboardEntries.cs");

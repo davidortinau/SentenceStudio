@@ -83,6 +83,52 @@ public sealed class NativeDashboardSourceFidelityTests
     }
 
     [Fact]
+    public async Task ALoadThatFailsOrIsBlockedBeforeTheStatisticsNeverClaimsNoVocabulary()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        var dashboard = fixture.Dashboard;
+
+        // Blocked: no trusted owner, so no statistics were read.
+        var blocked = await dashboard.LoadAsync();
+        Assert.Equal(NativePhase.Blocked, blocked.Phase);
+        Assert.Null(blocked.VocabSummary);
+        Assert.Null(blocked.VocabErrorKey);
+        Assert.Equal(NativeText.PlanError,
+            NativeDashboardPresenter.VocabularySectionErrorKey(blocked));
+
+        // Error: the refresh fails during sync, before the statistics are read.
+        fixture.Activate(NativeSliceFixture.UserA);
+        fixture.Sync.DuringSynchronization = _ =>
+            throw new HttpRequestException("offline");
+        var failed = await dashboard.RefreshAsync();
+        Assert.Equal(NativePhase.Error, failed.Phase);
+        Assert.Equal(NativeText.PlanNetworkError, failed.ErrorKey);
+        Assert.Null(failed.VocabSummary);
+        Assert.Null(failed.VocabErrorKey);
+        Assert.Equal(NativeText.PlanNetworkError,
+            NativeDashboardPresenter.VocabularySectionErrorKey(failed));
+
+        // Once the statistics load, they are shown even when a later load fails.
+        fixture.Sync.DuringSynchronization = null;
+        var ready = await dashboard.LoadAsync();
+        Assert.NotNull(ready.VocabSummary);
+        Assert.Null(NativeDashboardPresenter.VocabularySectionErrorKey(ready));
+
+        // The section's own states keep their meaning.
+        Assert.Null(NativeDashboardPresenter.VocabularySectionErrorKey(
+            new NativeDashboardState(NativePhase.Error) { StatisticsLoading = true }));
+        Assert.Equal(NativeText.VocabInsightError,
+            NativeDashboardPresenter.VocabularySectionErrorKey(
+                new NativeDashboardState(NativePhase.Error, ErrorKey: NativeText.PlanError)
+                { VocabErrorKey = NativeText.VocabInsightError }));
+        Assert.Null(NativeDashboardPresenter.VocabularySectionErrorKey(
+            new NativeDashboardState(NativePhase.Ready)));
+        Assert.Null(NativeDashboardPresenter.VocabularySectionErrorKey(
+            new NativeDashboardState(NativePhase.Empty, ErrorKey: NativeText.NoPlan)));
+    }
+
+    [Fact]
     public async Task ChooseOwnChoicesStayVisibleWhileTheDashboardReloads()
     {
         using var fixture = new NativeSliceFixture();

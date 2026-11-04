@@ -28,8 +28,9 @@ internal static class DashboardLearningProgressView
                 SourceTextRole.Title2, sourceHeading: true)
             .WithAccessibilityIdentifier("native.dashboard.vocab.title"));
         // The section has its own loading state (source isLoading): the statistics
-        // show as soon as they load, while the plan may still be loading. A plan
-        // error stays in the plan area and never appears under this header.
+        // show as soon as they load, while the plan may still be loading. Loaded
+        // statistics stay when only the plan fails; a load that failed or was blocked
+        // before they were read says so instead of claiming there is no vocabulary.
         if (state.StatisticsLoading)
         {
             items.Add(Views.IndeterminateProgress(text("Common_Loading"))
@@ -40,9 +41,9 @@ internal static class DashboardLearningProgressView
         }
         else if (state.VocabSummary is { } summary)
             AddVocabularySummary(items, summary, style, text);
-        else if (state.VocabErrorKey is { } vocabError)
+        else if (NativeDashboardPresenter.VocabularySectionErrorKey(state) is { } vocabError)
             items.Add(style.BorderedCard(
-                    style.Text(Views.Text(text(vocabError)),
+                    style.Text(Views.Text(DashboardView.DashboardErrorText(vocabError, text)),
                             SourceTextRole.Body1, SourceTextTone.Danger)
                         .WithPadding(SourceUiLayout.CardInset))
                 .WithAccessibilityIdentifier("native.dashboard.vocab.error"));

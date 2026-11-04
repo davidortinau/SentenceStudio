@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Native;
 
@@ -78,16 +79,16 @@ public sealed record NativeClozeChallenge(
     ImmutableArray<string> Options,
     VocabularyWord? Word)
 {
-    public const string BlankMarker = "______";
+    /// <summary>The blank every client shows in place of the answer.</summary>
+    public const string BlankMarker = ClozureAnswerHelper.BlankMarker;
 
-    /// <summary>Source SetCurrentChallenge: blank the as-used form, else the dictionary form.</summary>
+    /// <summary>
+    /// Source SetCurrentChallenge, through the rule every client shares: blank the
+    /// as-used form, else the dictionary form. Null when no blank is possible
+    /// (including an empty or whitespace answer), so the caller drops the sentence.
+    /// </summary>
     public string? BlankedSentence =>
-        !string.IsNullOrEmpty(Answer) && SentenceText.Contains(Answer, StringComparison.Ordinal)
-            ? SentenceText.Replace(Answer, BlankMarker, StringComparison.Ordinal)
-            : !string.IsNullOrEmpty(DictionaryForm)
-                && SentenceText.Contains(DictionaryForm, StringComparison.Ordinal)
-                ? SentenceText.Replace(DictionaryForm, BlankMarker, StringComparison.Ordinal)
-                : null;
+        ClozureAnswerHelper.TryBlankSentence(SentenceText, Answer, DictionaryForm);
 }
 
 /// <summary>

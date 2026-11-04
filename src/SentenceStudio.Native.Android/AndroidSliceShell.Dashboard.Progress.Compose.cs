@@ -23,8 +23,10 @@ internal sealed partial class AndroidSliceShell
             viewport.Add(StatisticsLoading("native.dashboard.vocab.loading", palette));
         else if (state.VocabSummary is { } vocabulary)
             AddVocabularySummary(viewport, vocabulary, palette);
-        else if (state.VocabErrorKey is { } vocabError)
-            viewport.Add(StatusAlert(Localize(vocabError), palette, error: true,
+        // A load that failed or was blocked before the statistics were read says so
+        // instead of claiming there is no vocabulary (shared with iOS).
+        else if (NativeDashboardPresenter.VocabularySectionErrorKey(state) is { } vocabError)
+            viewport.Add(StatusAlert(DashboardErrorText(vocabError), palette, error: true,
                 automationId: "native.dashboard.vocab.error"));
         else
             viewport.Add(Card(palette, "native.dashboard.vocab.empty",
@@ -71,6 +73,20 @@ internal sealed partial class AndroidSliceShell
                     : new Box { Modifier.Weight(1f) });
             viewport.Add(row);
         }
+    }
+
+    /// <summary>
+    /// Dashboard_UnableToLoadPlan carries a {0} reason; fill it as iOS
+    /// DashboardView.DashboardErrorText does instead of showing the placeholder.
+    /// </summary>
+    private static string DashboardErrorText(string? errorKey)
+    {
+        var key = errorKey ?? NativeText.PlanError;
+        var localized = Localize(key);
+        return key == NativeText.PlanError
+            ? string.Format(CultureInfo.CurrentCulture, localized,
+                Localize(NativeText.UnexpectedError))
+            : localized;
     }
 
     private ComposableNode StatisticsLoading(string tag, AndroidVisualPalette palette)

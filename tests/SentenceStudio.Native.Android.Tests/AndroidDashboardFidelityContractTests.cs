@@ -45,8 +45,16 @@ public sealed class AndroidDashboardFidelityContractTests
     {
         var progress = Source("AndroidSliceShell.Dashboard.Progress.Compose.cs");
         Assert.Contains("if (state.StatisticsLoading)", progress);
-        Assert.Contains("else if (state.VocabErrorKey is { } vocabError)", progress);
+        // A failed or blocked load without statistics shows its message (shared
+        // projection), with the {0} reason filled, never the empty card.
+        Assert.Contains(
+            "else if (NativeDashboardPresenter.VocabularySectionErrorKey(state) is { } vocabError)",
+            progress);
+        Assert.Contains("StatusAlert(DashboardErrorText(vocabError)", progress);
         Assert.Contains("\"native.dashboard.vocab.error\"", progress);
+        Assert.Contains("Localize(NativeText.UnexpectedError)", progress);
+        Assert.Contains("StatusAlert(DashboardErrorText(state.ErrorKey),",
+            Source("AndroidSliceShell.Compose.cs"));
         Assert.Contains("Localize(\"Dashboard_NoVocabData\")", progress);
         Assert.Contains("if (!state.NumbersApplicable && state.NumberErrorKey is null)", progress);
         Assert.Contains("Localize(\"NativeDashboard_NumbersMastery\")", progress);
