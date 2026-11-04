@@ -518,7 +518,9 @@ public sealed class AndroidPackagingTests
         Assert.Contains("_shell?.HandlePhotoEscape()", activity);
         Assert.Contains("base.DispatchKeyEvent(e)", activity);
         Assert.Contains("_shell?.Dispose()", activity);
-        Assert.Contains("Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto", shell);
+        // Back closes the photo viewer or the details sheet before leaving the quiz.
+        Assert.Contains("&& Quiz.Overlay != NativeQuizOverlay.None)", shell);
+        Assert.Contains("Quiz.Overlay != NativeQuizOverlay.FullscreenPhoto", shell);
         Assert.Contains("viewer?.Dispose()", shell);
         Assert.Contains("_lifetime.Cancel()", shell);
         Assert.Contains("if (_disposed)", viewer);

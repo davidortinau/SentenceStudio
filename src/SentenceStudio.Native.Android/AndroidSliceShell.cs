@@ -138,7 +138,11 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Publish(() => _appearanceSettingsOpen = false);
             return true;
         }
-        if (_photoDialog is not null || Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto)
+        // Back closes the photo viewer or the Learning Details sheet first and
+        // returns focus to the control that opened it.
+        if (_photoDialog is not null
+            || Destination == NativeDestination.VocabularyQuiz
+                && Quiz.Overlay != NativeQuizOverlay.None)
         {
             DismissOverlay();
             return true;
