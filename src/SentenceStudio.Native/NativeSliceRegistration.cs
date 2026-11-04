@@ -35,6 +35,7 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<INativeQuizSentenceCommitter, UnavailableNativeQuizSentenceCommitter>();
         services.TryAddSingleton<INativeQuizMedia, UnavailableNativeQuizMedia>();
         services.TryAddScoped<ExampleSentenceRepository>();
+        services.TryAddSingleton<VocabularyLookupRepository>();
         services.TryAddSingleton<NativeQuizSettings>();
         services.AddTransient<NativeQuizLaunchService>();
         services.TryAddSingleton<NativeActivityOwner>();
