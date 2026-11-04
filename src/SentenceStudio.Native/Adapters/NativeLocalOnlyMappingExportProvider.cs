@@ -8,9 +8,9 @@ using SentenceStudio.Shared.Models;
 namespace SentenceStudio.Native.Adapters;
 
 /// <summary>
-/// Coalesces native mapping inserts undone before the server saw them. All other
-/// CoreSync changes, including deletes of previously uploaded mappings, retain
-/// their normal fail-closed server behavior. Downloads first reconcile the active
+/// Keeps device-only rows, deletes included, out of native uploads (see
+/// <see cref="IsDeviceOnlyRow"/>), and coalesces mapping inserts undone before the
+/// server saw them. Downloads first reconcile the active
 /// owner's VocabularyProgress rows created concurrently on another device
 /// (see <see cref="NativeProgressIdentityReconciler"/>).
 /// </summary>
@@ -186,8 +186,7 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         var kept = changes.Items.Where(item => !IsDeviceOnlyRow(item)).ToArray();
         if (kept.Length == changes.Items.Count)
             return changes;
-        var deletes = changes.Items.Count(item => item.ChangeType == ChangeType.Delete
-            && item.TableName != MappingTable);
+        var deletes = changes.Items.Count(item => item.ChangeType == ChangeType.Delete);
         logger.LogInformation(
             "Native sync kept {Count} device-only rows local, {Deletes} of them deletes the server does not accept yet.",
             changes.Items.Count - kept.Length, deletes);
@@ -202,11 +201,10 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     /// <item>quiz answer receipts (phase 2b);</item>
     /// <item>phase 3 rows with no owner (saved before these tables had one, D3), photos stored on
     /// this device and built-in scenarios (Captain 2026-11-03);</item>
-    /// <item>deletes: the server refuses every delete from a device (it cannot prove what a
-    /// delete carrying only an ID removes), and one refused item would block the whole upload.
-    /// A delete therefore stays on this device; the server and other clients keep the row.
-    /// Word-link deletes are the exception: the code below proves and resolves local undo
-    /// pairs.</item>
+    /// <item>deletes, word links included (Captain 2026-11-04, decision 2): the server refuses
+    /// every delete from a device (it cannot prove what a delete carrying only an ID removes),
+    /// and one refused item would block the whole upload. A delete therefore stays on this
+    /// device; the server and other clients keep the row.</item>
     /// </list>
     /// </summary>
     internal static bool IsDeviceOnlyRow(SyncItem item)
@@ -215,7 +213,7 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
             item.Values.TryGetValue(column, out var value) ? value?.Value?.ToString() : null;
 
         if (item.ChangeType == ChangeType.Delete)
-            return item.TableName != MappingTable;
+            return true;
         return item.TableName switch
         {
             ActivitySessionTable => ActivitySessionTypes.IsDeviceOnly(Text("ActivityType"), Text("Id")),

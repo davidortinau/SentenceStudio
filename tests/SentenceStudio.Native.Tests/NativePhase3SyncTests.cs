@@ -43,10 +43,10 @@ public sealed class NativePhase3SyncTests
             ("Id", "old"), ("UserProfileId", ""), ("VocabularyWordId", "w1"))));
 
         // The server refuses every delete from a device; one would block the whole upload.
+        // Word links too (Captain 2026-11-04, decision 2).
         Assert.True(Local(Item("MinimalPair", ChangeType.Delete, ("Id", "pair"))));
         Assert.True(Local(Item("SceneImage", ChangeType.Delete, ("Id", "a"))));
-        // Word-link deletes have their own proven undo handling.
-        Assert.False(Local(Item("ResourceVocabularyMapping", ChangeType.Delete, ("Id", Guid.NewGuid().ToString()))));
+        Assert.True(Local(Item("ResourceVocabularyMapping", ChangeType.Delete, ("Id", Guid.NewGuid().ToString()))));
         Assert.False(Local(Item("VocabularyWord", ChangeType.Insert, ("Id", "w1"))));
     }
 

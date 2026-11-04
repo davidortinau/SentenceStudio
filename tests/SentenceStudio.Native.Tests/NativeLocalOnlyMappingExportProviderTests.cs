@@ -112,8 +112,11 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(alreadyUploaded);
         var later = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(later.Items, item => IsMappingDelete(item)
-            && item.Values["Id"].Value?.ToString() == alreadyUploaded);
+        // Decision 2 (Captain 2026-11-04): the delete stays on this device, sync continues.
+        Assert.DoesNotContain(later.Items, IsMappingDelete);
+        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
+        await using var remote = fixture.Remote.OpenContext();
+        Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row => row.Id == alreadyUploaded));
     }
 
     [Fact]
@@ -133,12 +136,13 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(id);
         var exported = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(exported.Items, item => IsMappingDelete(item)
-            && item.Values["Id"].Value?.ToString() == id);
+        Assert.DoesNotContain(exported.Items, IsMappingDelete);
+        await using (var remote = fixture.Remote.OpenContext())
+            Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row => row.Id == id));
     }
 
     [Fact]
-    public async Task DownloadedServerMappingDeletion_RemainsQueuedAndServerRowIntact()
+    public async Task DownloadedServerMappingDeletion_StaysOnDevice_AndServerRowIntact()
     {
         await using var fixture = await Fixture.CreateAsync(seedRemoteMapping: true);
         var anchor = await fixture.LocalAnchorAsync();
@@ -146,11 +150,13 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
 
         var exported = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(exported.Items, item => IsMappingDelete(item)
-            && item.Values["Id"].Value?.ToString() == ServerMapping);
-        await Assert.ThrowsAsync<SynchronizationException>(() =>
-            new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync());
-        Assert.Equal(anchor, await fixture.LocalAnchorAsync());
+        Assert.DoesNotContain(exported.Items, IsMappingDelete);
+        // A refused delete used to stop this device's sync for good; now sync continues.
+        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
+        Assert.True(await fixture.LocalAnchorAsync() > anchor);
+        await using (var local = fixture.Local.OpenContext())
+            Assert.False(await local.ResourceVocabularyMappings.AnyAsync(row =>
+                row.Id == ServerMapping));
         await using var remote = fixture.Remote.OpenContext();
         Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row =>
             row.Id == ServerMapping));
@@ -167,8 +173,7 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(reused);
         var ambiguous = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(ambiguous.Items, item => IsMappingDelete(item)
-            && item.Values["Id"].Value?.ToString() == reused);
+        Assert.DoesNotContain(ambiguous.Items, IsMappingDelete);
 
         var foreignResourceId = Guid.NewGuid().ToString();
         await using (var db = fixture.Local.OpenContext())
@@ -184,12 +189,11 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(wrongOwner);
         var foreignParentPossible = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(foreignParentPossible.Items, item => IsMappingDelete(item)
-            && item.Values["Id"].Value?.ToString() == wrongOwner);
+        Assert.DoesNotContain(foreignParentPossible.Items, IsMappingDelete);
     }
 
     [Fact]
-    public async Task MissingOwnerOrRemoteReceipt_NeverAcknowledgesUnrelatedPendingResource()
+    public async Task MissingOwner_KeepsDeletesOnDevice_AndPendingResourceUploads()
     {
         await using var fixture = await Fixture.CreateAsync();
         var id = Guid.NewGuid().ToString();
@@ -210,15 +214,14 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             NullLogger<NativeLocalOnlyMappingExportProvider>.Instance);
         var unchanged = await noOwner.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.Contains(unchanged.Items, IsMappingDelete);
+        Assert.DoesNotContain(unchanged.Items, IsMappingDelete);
 
-        var anchor = await fixture.LocalAnchorAsync();
+        // No delete leaves the device, so no remote receipt is needed and the pending
+        // resource uploads.
         fixture.Server.FailNextPreflight = true;
-        await Assert.ThrowsAsync<SynchronizationException>(() =>
-            new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync());
-        Assert.Equal(anchor, await fixture.LocalAnchorAsync());
+        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
         await using (var db = fixture.Remote.OpenContext())
-            Assert.False(await db.LearningResources.AnyAsync(row => row.Id == newResource));
+            Assert.True(await db.LearningResources.AnyAsync(row => row.Id == newResource));
     }
 
     [Fact]
