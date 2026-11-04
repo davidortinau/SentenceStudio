@@ -18281,6 +18281,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to All vocabulary in this resource is mastered!.
+        /// </summary>
+        internal static string VocabQuiz_AllVocabularyMastered {
+            get {
+                return ResourceManager.GetString("VocabQuiz_AllVocabularyMastered", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Continue quiz.
         /// </summary>
         internal static string VocabQuiz_ContinueQuiz {
@@ -18416,6 +18425,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Marked correct.
+        /// </summary>
+        internal static string VocabQuiz_MarkedCorrect {
+            get {
+                return ResourceManager.GetString("VocabQuiz_MarkedCorrect", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Mastered.
         /// </summary>
         internal static string VocabQuiz_Mastered {
@@ -18466,6 +18484,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_OnlyMeaningful {
             get {
                 return ResourceManager.GetString("VocabQuiz_OnlyMeaningful", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Option {0}.
+        /// </summary>
+        internal static string VocabQuiz_OptionLabel {
+            get {
+                return ResourceManager.GetString("VocabQuiz_OptionLabel", resourceCulture);
             }
         }
 
@@ -18524,6 +18551,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t grade that sentence right now. No progress was changed. Please try again..
+        /// </summary>
+        internal static string VocabQuiz_SentenceGradeFailedNoChange {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentenceGradeFailedNoChange", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Write one or more sentences using &quot;{0}&quot;.
         ///For example: {0} ....
         /// </summary>
@@ -18534,11 +18570,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t grade your sentences right now. Please try again..
+        /// </summary>
+        internal static string VocabQuiz_SentencesGradeUnavailable {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentencesGradeUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Sentence shortcut.
         /// </summary>
         internal static string VocabQuiz_SentenceShortcut {
             get {
                 return ResourceManager.GetString("VocabQuiz_SentenceShortcut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not yet. Try another sentence using {0}..
+        /// </summary>
+        internal static string VocabQuiz_SentenceTryAnother {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SentenceTryAnother", resourceCulture);
             }
         }
 
@@ -18575,6 +18629,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_ShowText {
             get {
                 return ResourceManager.GetString("VocabQuiz_ShowText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to See details below for sentences we couldn&apos;t grade..
+        /// </summary>
+        internal static string VocabQuiz_SomeSentencesUngraded {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SomeSentencesUngraded", resourceCulture);
             }
         }
 
@@ -18656,6 +18719,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_WriteOneSentence {
             get {
                 return ResourceManager.GetString("VocabQuiz_WriteOneSentence", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Write at least one sentence first..
+        /// </summary>
+        internal static string VocabQuiz_WriteSentenceFirst {
+            get {
+                return ResourceManager.GetString("VocabQuiz_WriteSentenceFirst", resourceCulture);
             }
         }
 
