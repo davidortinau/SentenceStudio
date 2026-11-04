@@ -257,6 +257,11 @@ else
         try
         {
             var text = promptWord.TargetLanguageTerm;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                errorMessage = Localize["NativeMinimalPairs_PlaybackError"];
+                return;
+            }
             var voiceId = VoicePrefs.VoiceId;
 
             // The owner's cached clip is found by file name under today's AudioCache (the stored
