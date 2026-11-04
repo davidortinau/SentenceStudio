@@ -112,11 +112,8 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(alreadyUploaded);
         var later = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        // Decision 2 (Captain 2026-11-04): the delete stays on this device, sync continues.
-        Assert.DoesNotContain(later.Items, IsMappingDelete);
-        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
-        await using var remote = fixture.Remote.OpenContext();
-        Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row => row.Id == alreadyUploaded));
+        Assert.Contains(later.Items, item => IsMappingDelete(item)
+            && item.Values["Id"].Value?.ToString() == alreadyUploaded);
     }
 
     [Fact]
@@ -136,13 +133,12 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(id);
         var exported = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.DoesNotContain(exported.Items, IsMappingDelete);
-        await using (var remote = fixture.Remote.OpenContext())
-            Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row => row.Id == id));
+        Assert.Contains(exported.Items, item => IsMappingDelete(item)
+            && item.Values["Id"].Value?.ToString() == id);
     }
 
     [Fact]
-    public async Task DownloadedServerMappingDeletion_StaysOnDevice_AndServerRowIntact()
+    public async Task DownloadedServerMappingDeletion_RemainsQueuedAndServerRowIntact()
     {
         await using var fixture = await Fixture.CreateAsync(seedRemoteMapping: true);
         var anchor = await fixture.LocalAnchorAsync();
@@ -150,13 +146,11 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
 
         var exported = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.DoesNotContain(exported.Items, IsMappingDelete);
-        // A refused delete used to stop this device's sync for good; now sync continues.
-        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
-        Assert.True(await fixture.LocalAnchorAsync() > anchor);
-        await using (var local = fixture.Local.OpenContext())
-            Assert.False(await local.ResourceVocabularyMappings.AnyAsync(row =>
-                row.Id == ServerMapping));
+        Assert.Contains(exported.Items, item => IsMappingDelete(item)
+            && item.Values["Id"].Value?.ToString() == ServerMapping);
+        await Assert.ThrowsAsync<SynchronizationException>(() =>
+            new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync());
+        Assert.Equal(anchor, await fixture.LocalAnchorAsync());
         await using var remote = fixture.Remote.OpenContext();
         Assert.True(await remote.ResourceVocabularyMappings.AnyAsync(row =>
             row.Id == ServerMapping));
@@ -173,7 +167,8 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(reused);
         var ambiguous = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.DoesNotContain(ambiguous.Items, IsMappingDelete);
+        Assert.Contains(ambiguous.Items, item => IsMappingDelete(item)
+            && item.Values["Id"].Value?.ToString() == reused);
 
         var foreignResourceId = Guid.NewGuid().ToString();
         await using (var db = fixture.Local.OpenContext())
@@ -189,11 +184,12 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         await fixture.DeleteMappingAsync(wrongOwner);
         var foreignParentPossible = await fixture.Native.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.DoesNotContain(foreignParentPossible.Items, IsMappingDelete);
+        Assert.Contains(foreignParentPossible.Items, item => IsMappingDelete(item)
+            && item.Values["Id"].Value?.ToString() == wrongOwner);
     }
 
     [Fact]
-    public async Task MissingOwner_KeepsDeletesOnDevice_AndPendingResourceUploads()
+    public async Task MissingOwnerOrRemoteReceipt_NeverAcknowledgesUnrelatedPendingResource()
     {
         await using var fixture = await Fixture.CreateAsync();
         var id = Guid.NewGuid().ToString();
@@ -214,14 +210,15 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             NullLogger<NativeLocalOnlyMappingExportProvider>.Instance);
         var unchanged = await noOwner.GetChangesAsync(
             fixture.RemoteId, syncDirection: SyncDirection.UploadOnly);
-        Assert.DoesNotContain(unchanged.Items, IsMappingDelete);
+        Assert.Contains(unchanged.Items, IsMappingDelete);
 
-        // No delete leaves the device, so no remote receipt is needed and the pending
-        // resource uploads.
+        var anchor = await fixture.LocalAnchorAsync();
         fixture.Server.FailNextPreflight = true;
-        await new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync();
+        await Assert.ThrowsAsync<SynchronizationException>(() =>
+            new SyncAgent(fixture.Native, fixture.Server).SynchronizeAsync());
+        Assert.Equal(anchor, await fixture.LocalAnchorAsync());
         await using (var db = fixture.Remote.OpenContext())
-            Assert.True(await db.LearningResources.AnyAsync(row => row.Id == newResource));
+            Assert.False(await db.LearningResources.AnyAsync(row => row.Id == newResource));
     }
 
     [Fact]
@@ -736,6 +733,7 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             SyncChangeSet changes, Func<SyncItem, ConflictResolution>? onConflict = null,
             CancellationToken ct = default)
         {
+            // Models an API from before owner-checked deletes (decision 2), which refused them.
             if (changes.Items.Any(IsMappingDelete))
                 throw new UnauthorizedAccessException("Native server refuses Delete (403).");
             if (FailNextUpload)

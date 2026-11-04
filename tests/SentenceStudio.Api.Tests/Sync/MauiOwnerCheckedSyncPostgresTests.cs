@@ -121,6 +121,45 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
     }
 
     [ApplicationOperationPostgresFact]
+    public async Task DeleteOnOneInstall_ReachesTheLearnersOtherInstall()
+    {
+        var (owner, other) = await _fixture.SeedOwnersAsync();
+        await using var phone = await MauiDevice.CreateAsync(_fixture);
+        await using var mac = await MauiDevice.CreateAsync(_fixture);
+        var rows = await phone.SeedMauiShapedRowsAsync(owner, other);
+        await phone.SyncAsync(owner);
+        await mac.SyncAsync(owner);
+        await using (var local = mac.OpenContext())
+        {
+            Assert.True(await local.ResourceVocabularyMappings.AnyAsync(row => row.Id == rows.Mapping));
+            Assert.True(await local.MinimalPairs.AnyAsync(row => row.Id == rows.Pair));
+        }
+
+        // On the phone: remove a word from the resource and delete the minimal pair.
+        await using (var local = phone.OpenContext())
+        {
+            local.ResourceVocabularyMappings.Remove(
+                await local.ResourceVocabularyMappings.SingleAsync(row => row.Id == rows.Mapping));
+            local.MinimalPairs.Remove(await local.MinimalPairs.SingleAsync(row => row.Id == rows.Pair));
+            await local.SaveChangesAsync();
+        }
+        await phone.SyncAsync(owner);
+
+        await using (var server = _fixture.NewContext())
+        {
+            Assert.False(await server.ResourceVocabularyMappings.AnyAsync(row => row.Id == rows.Mapping));
+            Assert.False(await server.MinimalPairs.AnyAsync(row => row.Id == rows.Pair));
+        }
+        await mac.SyncAsync(owner);
+        await using (var local = mac.OpenContext())
+        {
+            Assert.False(await local.ResourceVocabularyMappings.AnyAsync(row => row.Id == rows.Mapping));
+            Assert.False(await local.MinimalPairs.AnyAsync(row => row.Id == rows.Pair));
+            Assert.True(await local.LearningResources.AnyAsync(row => row.Id == rows.Resource));
+        }
+    }
+
+    [ApplicationOperationPostgresFact]
     public async Task NoSignedInLearner_SendsNothing()
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();

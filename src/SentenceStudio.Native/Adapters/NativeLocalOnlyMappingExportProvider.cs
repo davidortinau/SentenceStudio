@@ -8,9 +8,10 @@ using SentenceStudio.Shared.Models;
 namespace SentenceStudio.Native.Adapters;
 
 /// <summary>
-/// Keeps device-only rows, deletes included, out of native uploads (see
-/// <see cref="IsDeviceOnlyRow"/>), and coalesces mapping inserts undone before the
-/// server saw them. Downloads first reconcile the active
+/// Keeps device-only rows out of native uploads (see <see cref="IsDeviceOnlyRow"/>), and
+/// coalesces mapping inserts undone before the server saw them, so such a pair never
+/// sends a delete at all. Other deletes upload; the server applies those of the owner's
+/// own rows. Downloads first reconcile the active
 /// owner's VocabularyProgress rows created concurrently on another device
 /// (see <see cref="NativeProgressIdentityReconciler"/>).
 /// </summary>
@@ -186,10 +187,8 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         var kept = changes.Items.Where(item => !IsDeviceOnlyRow(item)).ToArray();
         if (kept.Length == changes.Items.Count)
             return changes;
-        var deletes = changes.Items.Count(item => item.ChangeType == ChangeType.Delete);
         logger.LogInformation(
-            "Native sync kept {Count} device-only rows local, {Deletes} of them deletes the server does not accept yet.",
-            changes.Items.Count - kept.Length, deletes);
+            "Native sync kept {Count} device-only rows local.", changes.Items.Count - kept.Length);
         return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, kept);
     }
 

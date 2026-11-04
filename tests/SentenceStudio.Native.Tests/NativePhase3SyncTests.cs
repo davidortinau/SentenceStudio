@@ -19,7 +19,7 @@ public sealed class NativePhase3SyncTests
         new(table, change, values.ToDictionary(value => value.Column, value => value.Value));
 
     [Fact]
-    public void Upload_KeepsDevicePhotosBuiltInsUnownedRowsAndDeletesOnTheDevice()
+    public void Upload_KeepsDevicePhotosBuiltInsAndUnownedRowsOnTheDevice_ButSendsDeletes()
     {
         static bool Local(SyncItem item) => NativeLocalOnlyMappingExportProvider.IsDeviceOnlyRow(item);
 
@@ -42,11 +42,14 @@ public sealed class NativePhase3SyncTests
         Assert.True(Local(Item("ExampleSentence", ChangeType.Insert,
             ("Id", "old"), ("UserProfileId", ""), ("VocabularyWordId", "w1"))));
 
-        // The server refuses every delete from a device; one would block the whole upload.
-        // Word links too (Captain 2026-11-04, decision 2).
-        Assert.True(Local(Item("MinimalPair", ChangeType.Delete, ("Id", "pair"))));
-        Assert.True(Local(Item("SceneImage", ChangeType.Delete, ("Id", "a"))));
-        Assert.True(Local(Item("ResourceVocabularyMapping", ChangeType.Delete, ("Id", Guid.NewGuid().ToString()))));
+        // Deletes leave the device (decision 2): the server applies the owner's own and leaves
+        // out the rest without refusing the upload. A delete carries only an ID, so it is not
+        // judged by the owner or photo rules above.
+        Assert.False(Local(Item("MinimalPair", ChangeType.Delete, ("Id", "pair"))));
+        Assert.False(Local(Item("SceneImage", ChangeType.Delete, ("Id", "a"))));
+        Assert.False(Local(Item("ConversationScenario", ChangeType.Delete, ("Id", "custom"))));
+        Assert.False(Local(Item("ExampleSentence", ChangeType.Delete, ("Id", "mine"))));
+        Assert.False(Local(Item("ResourceVocabularyMapping", ChangeType.Delete, ("Id", Guid.NewGuid().ToString()))));
         Assert.False(Local(Item("VocabularyWord", ChangeType.Insert, ("Id", "w1"))));
     }
 

@@ -19,11 +19,12 @@ public static class SyncUploadRules
     /// <list type="bullet">
     /// <item>quiz answer receipts (phase 2b);</item>
     /// <item>phase 3 rows with no owner (saved before these tables had one, D3), photos stored on
-    /// this device and built-in scenarios (Captain 2026-11-03);</item>
-    /// <item>deletes, word links included (Captain 2026-11-04, decision 2): the server cannot yet
-    /// prove what a delete carrying only an ID removes, so a delete stays on this device and the
-    /// server and other clients keep the row.</item>
+    /// this device and built-in scenarios (Captain 2026-11-03).</item>
     /// </list>
+    /// Deletes leave the device (Captain 2026-11-04, decision 2): the server applies a delete of
+    /// the learner's own row and sends it to their other devices, and leaves out any other delete
+    /// without refusing the upload. A delete carries only the row's ID, so only a receipt's delete
+    /// is recognised as device-only.
     /// </summary>
     public static bool IsDeviceOnlyRow(SyncItem item)
     {
@@ -31,7 +32,8 @@ public static class SyncUploadRules
             item.Values.TryGetValue(column, out var value) ? value?.Value?.ToString() : null;
 
         if (item.ChangeType == ChangeType.Delete)
-            return true;
+            return item.TableName == ActivitySessionTable
+                && ActivitySessionTypes.IsDeviceOnly(null, Text("Id"));
         return item.TableName switch
         {
             ActivitySessionTable => ActivitySessionTypes.IsDeviceOnly(Text("ActivityType"), Text("Id")),

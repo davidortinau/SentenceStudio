@@ -9,8 +9,9 @@ namespace SentenceStudio.Services;
 /// prepared for owner-checked sync (Captain 2026-11-04, decision 1). Uploads leave out the rows
 /// <see cref="SyncUploadRules"/> keeps on the device (device-only rows, and rows that are another
 /// learner's, which an installed MAUI app downloaded before owner checks); the server leaves out
-/// the rest it cannot place. Nothing is deleted or re-owned. Without a verified owner nothing
-/// is uploaded. Downloads and every other call pass through.
+/// the rest it cannot place, and applies deletes only of the learner's own rows. Nothing is
+/// deleted or re-owned here. Without a verified owner nothing is uploaded. Downloads and every
+/// other call pass through.
 /// </summary>
 public sealed class OwnerCheckedSyncProvider(
     ISyncProvider local,
