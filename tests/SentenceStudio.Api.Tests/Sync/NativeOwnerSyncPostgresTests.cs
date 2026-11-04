@@ -766,7 +766,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task ExistingReadOnlyLegacyCursor_RejectsUnprovableNativeClaim()
+    public async Task ExistingReadOnlyLegacyCursor_IsAdoptedByTheFirstOwner_AndRefusesTheNext()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         using var client = _fixture.CreateLegacyClient();
@@ -777,16 +777,60 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             client, owner, storeId, legacy.SourceAnchor.Version, nativeHeader: false))
             Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
 
-        foreach (var attemptedOwner in new[] { owner, foreign })
-        {
-            using var native = await _fixture.GetAsync(
-                client, $"/api/sync-agent/changes-bulk/{storeId}", attemptedOwner);
-            Assert.Equal(HttpStatusCode.Forbidden, native.StatusCode);
-        }
+        // A store that only downloaded names nobody: the first owner takes it over, with the
+        // old cursor, so nothing is downloaded again.
+        var adopted = await _fixture.StartDownloadAsync(client, owner, storeId: storeId);
+        Assert.Equal(0, adopted.TotalChanges);
+        using (var second = await _fixture.GetAsync(
+            client, $"/api/sync-agent/changes-bulk/{storeId}", foreign))
+            Assert.Equal(HttpStatusCode.Forbidden, second.StatusCode);
         using var legacyAfter = await _fixture.GetAsync(
             client, $"/api/sync-agent/changes-bulk/{storeId}",
             owner, nativeHeader: false);
         Assert.Equal(HttpStatusCode.OK, legacyAfter.StatusCode);
+    }
+
+    [ApplicationOperationPostgresFact]
+    public async Task MauiShapedLegacyHistory_BindsToAnOwnerItNames_NotToAStranger()
+    {
+        // An installed MAUI app synced headerless for months: its history holds the owner's
+        // rows, rows of a second account used on the same install, a row with no owner, and a
+        // row deleted since. Requiring every row to prove the owner refused every such install.
+        var (owner, secondAccount) = await _fixture.SeedOwnersAsync();
+        var (stranger, _) = await _fixture.SeedOwnersAsync();
+        using var client = _fixture.CreateLegacyClient();
+        var storeId = Guid.NewGuid();
+        var deletedLater = Guid.NewGuid().ToString();
+        var ownerless = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        using (var uploaded = await _fixture.UploadLegacyAsync(client, owner, storeId,
+            Resource(Guid.NewGuid().ToString(), owner),
+            Resource(Guid.NewGuid().ToString(), secondAccount),
+            Resource(deletedLater, owner),
+            new SyncItem("SkillProfile", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = ownerless, ["CreatedAt"] = now, ["UpdatedAt"] = now
+            })))
+            Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
+        await using (var db = _fixture.NewContext())
+        {
+            db.LearningResources.Remove(await db.LearningResources.SingleAsync(row => row.Id == deletedLater));
+            await db.SaveChangesAsync();
+        }
+
+        using (var refused = await _fixture.GetAsync(
+            client, $"/api/sync-agent/changes-bulk/{storeId}", stranger))
+            Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        using (var bound = await _fixture.GetAsync(
+            client, $"/api/sync-agent/changes-bulk/{storeId}", owner))
+            Assert.Equal(HttpStatusCode.OK, bound.StatusCode);
+        // Bound: the second account of the same install is refused, the owner keeps syncing.
+        using (var second = await _fixture.GetAsync(
+            client, $"/api/sync-agent/changes-bulk/{storeId}", secondAccount))
+            Assert.Equal(HttpStatusCode.Forbidden, second.StatusCode);
+        using var again = await _fixture.GetAsync(
+            client, $"/api/sync-agent/changes-bulk/{storeId}", owner);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
     }
 
     [ApplicationOperationPostgresFact]
