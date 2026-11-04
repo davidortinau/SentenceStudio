@@ -347,6 +347,17 @@ else
         }
     }
 
+    /// <summary>
+    /// A message that got no reply leaves the transcript (it was never saved) and goes back in
+    /// the input box, so sending again sends it once; text typed meanwhile is kept.
+    /// </summary>
+    private void ReturnUnansweredMessage(ConversationChunk userChunk, string message)
+    {
+        chunks.Remove(userChunk);
+        if (string.IsNullOrWhiteSpace(userInput))
+            userInput = message;
+    }
+
     private Task<string> StartConversationOpeningAsync(
         ConversationScenario? scenario, string language) =>
         ConversationSvc.StartConversation(scenario, language);
@@ -390,7 +401,10 @@ else
             {
                 Logger.LogError(ex, "Failed to get reply");
                 if (!_disposed && generation == _conversationGeneration)
+                {
+                    ReturnUnansweredMessage(userChunk, message);
                     Toast.ShowError(Localize["NativeConversation_ReplyFailed"]);
+                }
                 return;
             }
 
@@ -400,9 +414,9 @@ else
 
             if (string.IsNullOrWhiteSpace(reply?.Message))
             {
-                // No reply is a failure the learner is told about, not an empty bubble; the
-                // learner's message stays so it can be sent again.
+                // No reply is a failure the learner is told about, not an empty bubble.
                 Logger.LogWarning("Conversation reply was empty.");
+                ReturnUnansweredMessage(userChunk, message);
                 Toast.ShowError(Localize["NativeConversation_ReplyFailed"]);
                 return;
             }

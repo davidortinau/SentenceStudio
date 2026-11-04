@@ -50,46 +50,23 @@ public class VocabularyLearningContextRepository
     }
 
     /// <summary>
-    /// True when an answer on one of <paramref name="wordIds"/> was scored for
-    /// <paramref name="userId"/> in <paramref name="activity"/> at or after
-    /// <paramref name="sinceUtc"/>. False, without a query, when there is no learner or no word.
-    /// A client completing a quiz run from a round summary it holds no proof for checks this
-    /// first: the scoring client's learning records sync with the run (rule 6 of
-    /// docs/activity-session-format.md; native NativeQuizAttemptCommitterAdapter).
+    /// True when a quiz answer on one of the round's words was scored for the learner since the
+    /// run started (<see cref="QuizRoundScoring"/>).
     /// </summary>
-    public async Task<bool> HasScoredAnswerSinceAsync(
-        string userId, string activity, IEnumerable<string> wordIds, DateTime sinceUtc,
+    public async Task<bool> QuizRoundWasScoredAsync(
+        string userId, IEnumerable<string> roundWordIds, DateTime runStartedAt,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
-            _logger.LogWarning("HasScoredAnswerSinceAsync called without a user; reporting no scored answer.");
+            _logger.LogWarning("QuizRoundWasScoredAsync called without a user; reporting no scored answer.");
             return false;
         }
 
-        var words = wordIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (words.Length == 0)
-            return false;
-
-        var since = sinceUtc.Kind switch
-        {
-            DateTimeKind.Local => sinceUtc.ToUniversalTime(),
-            DateTimeKind.Unspecified => DateTime.SpecifyKind(sinceUtc, DateTimeKind.Utc),
-            _ => sinceUtc
-        };
-
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VocabularyLearningContexts.AsNoTracking()
-            .Where(context => context.Activity == activity && context.LearnedAt >= since)
-            .Join(db.VocabularyProgresses.AsNoTracking()
-                    .Where(progress => progress.UserId == userId && words.Contains(progress.VocabularyWordId)),
-                context => context.VocabularyProgressId, progress => progress.Id,
-                (context, _) => context.Id)
-            .AnyAsync(cancellationToken);
+        return await QuizRoundScoring.WasScoredSinceAsync(
+            db, userId, roundWordIds, runStartedAt, cancellationToken);
     }
 
     public async Task<List<VocabularyLearningContext>> GetByActivityAsync(string activity)

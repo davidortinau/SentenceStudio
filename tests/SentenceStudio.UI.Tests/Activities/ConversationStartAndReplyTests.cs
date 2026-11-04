@@ -97,9 +97,9 @@ public sealed class ConversationStartAndReplyTests
 
         fixture.Toasts.Should().Contain(t => t.Text == ReplyFailed && t.Type == ToastType.Error);
         var chunks = Members.Get<List<ConversationChunk>>(page, "chunks");
-        chunks.Should().HaveCount(2, "the opening and the learner's message; no empty reply bubble");
-        chunks.Should().NotContain(chunk => string.IsNullOrWhiteSpace(chunk.Text));
-        chunks[^1].Role.Should().Be(ConversationRole.User);
+        chunks.Should().ContainSingle("only the opening; no empty reply bubble and no unanswered message")
+            .Which.Role.Should().Be(ConversationRole.Assistant);
+        Members.Get<string>(page, "userInput").Should().Be("커피 주세요.");
     }
 
     [Fact]
@@ -112,8 +112,26 @@ public sealed class ConversationStartAndReplyTests
         await SendAsync(fixture, page, "커피 주세요.");
 
         fixture.Toasts.Should().Contain(t => t.Text == ReplyFailed && t.Type == ToastType.Error);
-        Members.Get<List<ConversationChunk>>(page, "chunks").Should().HaveCount(2);
+        Members.Get<List<ConversationChunk>>(page, "chunks").Should().ContainSingle(
+            "the unanswered message goes back to the input box");
+        Members.Get<string>(page, "userInput").Should().Be("커피 주세요.");
         Members.Get<bool>(page, "isWaitingForReply").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Reply_FailsThenSentAgain_SendsTheMessageOnce()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var page = await OpenAsync(fixture);
+        fixture.Ai.Respond = _ => throw new HttpRequestException("AI unavailable");
+        await SendAsync(fixture, page, "커피 주세요.");
+        fixture.Ai.Respond = type => type == typeof(Reply) ? new Reply { Message = "네, 잠시만요." } : null;
+
+        await fixture.Renderer.InvokeAsync(page, "SendMessage");
+
+        var chunks = Members.Get<List<ConversationChunk>>(page, "chunks");
+        chunks.Select(chunk => chunk.Text).Should().Equal("안녕하세요!", "커피 주세요.", "네, 잠시만요.");
+        Members.Get<string>(page, "userInput").Should().BeEmpty();
     }
 
     [Fact]

@@ -66,16 +66,8 @@ public class AiService : IAiService
         return client;
     }
 
-    public async Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null)
-    {
-        if (!_connectivity.IsInternetAvailable)
-        {
-            _logger.LogWarning("No internet connection available for AI prompt");
-            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));
-            return default(T);
-        }
-
-        try
+    public Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null) =>
+        SendWhenOnlineAsync(nameof(SendPrompt), async () =>
         {
             var model = tier == AiTier.Reasoning
                 ? AiClientRegistration.ReasoningModel(_configuration)
@@ -107,24 +99,41 @@ public class AiService : IAiService
             var hasResult = response != null && response.Result != null;
             _logger.LogDebug("AI response received: {HasResult}", hasResult);
             return response.Result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error occurred in SendPrompt");
-            throw;
-        }
-    }
+        });
 
     /// <summary>
     /// Sends <paramref name="instructions"/> as the system instructions and
     /// <paramref name="message"/> as the one user message (gateway: /api/v1/ai/chat-messages).
     /// Azure's prompt shield rejects instructions pasted into the user message ("SYSTEM
-    /// INSTRUCTIONS: ... TASK: ..."), so persona prompts go this way. Returns default(T) when
-    /// offline, like <see cref="SendPrompt{T}"/>; failures are rethrown.
+    /// INSTRUCTIONS: ... TASK: ..."), so persona prompts go this way. Runs on the fast tier, the
+    /// only one that endpoint serves. Returns default(T) when offline, like
+    /// <see cref="SendPrompt{T}"/>; failures are rethrown.
     /// </summary>
-    public async Task<T> SendPromptWithInstructions<T>(string instructions, string message, AiTier tier = AiTier.Fast)
+    public async Task<T> SendPromptWithInstructions<T>(string instructions, string message)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        return await SendWhenOnlineAsync(nameof(SendPromptWithInstructions), async () =>
+        {
+            if (_aiGatewayClient != null)
+            {
+                _logger.LogDebug("Sending instructions and message to AI via gateway");
+                return await _aiGatewayClient.SendMessagesAsync<T>([("user", message)], instructions);
+            }
+
+            _logger.LogDebug("Sending instructions and message to AI via direct client");
+            var response = await ResolveClient(AiTier.Fast).GetResponseAsync<T>(
+                new[] { new ChatMessage(ChatRole.User, message) },
+                AiChatOptionsFactory.Create(instructions: instructions));
+            return response.Result;
+        });
+    }
+
+    /// <summary>
+    /// Offline: tells the app and returns default(T) without sending. Online: sends, and logs and
+    /// rethrows any failure.
+    /// </summary>
+    private async Task<T> SendWhenOnlineAsync<T>(string operation, Func<Task<T>> send)
+    {
         if (!_connectivity.IsInternetAvailable)
         {
             _logger.LogWarning("No internet connection available for AI prompt");
@@ -134,21 +143,11 @@ public class AiService : IAiService
 
         try
         {
-            if (_aiGatewayClient != null)
-            {
-                _logger.LogDebug("Sending instructions and message to AI via gateway");
-                return await _aiGatewayClient.SendMessagesAsync<T>([("user", message)], instructions);
-            }
-
-            _logger.LogDebug("Sending instructions and message to AI via direct client (tier: {Tier})", tier);
-            var response = await ResolveClient(tier).GetResponseAsync<T>(
-                new[] { new ChatMessage(ChatRole.User, message) },
-                AiChatOptionsFactory.Create(instructions: instructions));
-            return response.Result;
+            return await send();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred in SendPromptWithInstructions");
+            _logger.LogError(ex, "Error occurred in {Operation}", operation);
             throw;
         }
     }

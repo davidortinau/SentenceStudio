@@ -69,6 +69,16 @@ public sealed class UiSpeechClipCache(
     }
 
     /// <summary>
+    /// The path of an entry's clip on this device: its own file, else this device's regenerated
+    /// copy (<see cref="StreamHistory.RegeneratedClipFileName"/>); null when neither is here.
+    /// </summary>
+    public static string? ResolveEntry(string? appDataDirectory, StreamHistory? entry, long maxBytes = MaxAudioBytes) =>
+        entry is null ? null
+            : Resolve(appDataDirectory, entry.AudioFilePath, maxBytes)
+                ?? (string.IsNullOrWhiteSpace(entry.Id) ? null
+                    : Resolve(appDataDirectory, StreamHistory.RegeneratedClipFileName(entry.Id), maxBytes));
+
+    /// <summary>
     /// The owner's clip of <paramref name="phrase"/> in <paramref name="voiceId"/>:
     /// the cached clip when this device has it, else synthesized (when online)
     /// and cached. Offline when there is no cached clip and no connection;

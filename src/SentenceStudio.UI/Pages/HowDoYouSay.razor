@@ -307,9 +307,9 @@ else if (history.Any())
             }
 
             // A synced entry whose clip was made on another device (or before a
-            // reinstall) is synthesized again in the entry's own voice, and the
-            // same entry points at the new clip (no second entry).
-            if (UiSpeechClipCache.Resolve(FileSystemService.AppDataDirectory, ownedItem.AudioFilePath) is null)
+            // reinstall) is synthesized again in the entry's own voice and kept on this
+            // device under the entry's own name; the entry itself is unchanged.
+            if (UiSpeechClipCache.ResolveEntry(FileSystemService.AppDataDirectory, ownedItem) is null)
             {
                 restoringItemId = ownedItem.Id;
                 StateHasChanged();

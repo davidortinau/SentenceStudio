@@ -177,6 +177,26 @@ public sealed class ClozeLoadAndRecordTests
         sentences.Should().ContainSingle();
     }
 
+    [Fact]
+    public async Task FocusWordsGiveNoUsableSentence_TheRegularWordPoolIsTried()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var (resource, words) = await fixture.SeedResourceAsync(ActivityPageFixture.OwnerA,
+            ("학교", "school"), ("바다", "sea"));
+        var calls = 0;
+        fixture.Ai.Respond = _ => ++calls == 1
+            // The focus word's sentence cannot be blanked, so the focus attempt fails.
+            ? new ClozureResponse { Sentences = [Sentence("나는 집에 가요.", "학교", "학교에")] }
+            : new ClozureResponse { Sentences = [Sentence("바다가 넓어요.", "바다", "바다가")] };
+        var clozure = fixture.Services.GetRequiredService<ClozureService>();
+
+        var sentences = await clozure.GetSentences(resource.Id, 8, string.Empty,
+            focusVocabularyIds: [words[0].Id]);
+
+        calls.Should().Be(2, "the regular pool is asked after the focus words fail");
+        sentences.Should().ContainSingle().Which.VocabularyWordAsUsed.Should().Be("바다가");
+    }
+
     private static Task<ActivityPageFixture> CreateFixtureAsync() =>
         ActivityPageFixture.CreateAsync(services => services.AddSingleton<ClozureService>());
 }

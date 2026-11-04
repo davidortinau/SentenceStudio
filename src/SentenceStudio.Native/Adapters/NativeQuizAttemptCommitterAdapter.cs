@@ -729,7 +729,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             return false;
         // With no receipt here, the round's answers must still have been scored somewhere: the
         // scoring client's learning records sync with the run. A summary alone completes nothing.
-        if (finalTurn is null && !await RoundWasScoredAsync(
+        if (finalTurn is null && !await QuizRoundScoring.WasScoredSinceAsync(
                 db, launch.UserId, stored.Snapshot.RoundWordOrder, session.StartedAt, cancellationToken))
             return false;
 
@@ -750,26 +750,6 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             launch.UserId, userScope, preferences, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
-    }
-
-    /// <summary>Clients stamp learning records with their own clocks; allow for drift against the run's start.</summary>
-    private static readonly TimeSpan ClientClockDrift = TimeSpan.FromMinutes(5);
-
-    /// <summary>True when a quiz answer on one of the round's words was scored since the run started.</summary>
-    private static Task<bool> RoundWasScoredAsync(
-        ApplicationDbContext db, string userId, IReadOnlyList<string> roundWordIds,
-        DateTime runStartedAt, CancellationToken cancellationToken)
-    {
-        var words = roundWordIds.ToArray();
-        var since = runStartedAt - ClientClockDrift;
-        return db.VocabularyLearningContexts.AsNoTracking()
-            .Where(context => context.Activity == "VocabularyQuiz" && context.LearnedAt >= since)
-            .Join(db.VocabularyProgresses.AsNoTracking()
-                    .Where(progress => progress.UserId == userId
-                        && words.Contains(progress.VocabularyWordId)),
-                context => context.VocabularyProgressId, progress => progress.Id,
-                (context, _) => context.Id)
-            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> CompleteAllMasteredAsync(

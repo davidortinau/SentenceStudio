@@ -126,7 +126,9 @@ client refuses a version it does not know.
    words was scored since the run started: the scoring client's learning records
    (`VocabularyLearningContext`, activity `VocabularyQuiz`) sync with the run. Allow
    5 minutes of clock difference between clients. A summary alone completes
-   nothing.
+   nothing. .NET clients call `QuizRoundScoring.WasScoredSinceAsync`
+   (`src/SentenceStudio.Shared/Data/QuizRoundScoring.cs`); another client (such as
+   the Flutter port) applies the same query.
 
 ## Known limits
 

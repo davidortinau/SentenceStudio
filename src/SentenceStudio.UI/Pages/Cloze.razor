@@ -197,6 +197,8 @@ else
     private int sessionTotalCount;
 
     private List<Challenge> sentences = new();
+    /// <summary>Each sentence in <see cref="sentences"/> with its answer blanked, by index.</summary>
+    private List<string> blankedSentences = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -212,6 +214,7 @@ else
     {
         loadErrorKey = null;
         sentences = new();
+        blankedSentences = new();
         _owner = Preferences.Get("active_profile_id", string.Empty);
         if (string.IsNullOrWhiteSpace(_owner))
         {
@@ -234,16 +237,25 @@ else
             var skillId = SkillIdParam ?? "";
 
             var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly, focusVocabularyIds);
-            // Never show a sentence whose answer cannot be blanked: it would show the answer.
-            var usable = (result ?? new List<Challenge>())
-                .Where(challenge => ClozureAnswerHelper.TryBlankSentence(
-                    challenge.SentenceText, challenge.VocabularyWordAsUsed, challenge.VocabularyWord) is not null)
-                .ToList();
+            // The conjugated form is blanked, else the dictionary form. A sentence where neither
+            // can be blanked is never shown: it would show the answer.
+            var usable = new List<Challenge>();
+            var blanked = new List<string>();
+            foreach (var challenge in result ?? new List<Challenge>())
+            {
+                var text = ClozureAnswerHelper.TryBlankSentence(
+                    challenge.SentenceText, challenge.VocabularyWordAsUsed, challenge.VocabularyWord);
+                if (text is null)
+                    continue;
+                usable.Add(challenge);
+                blanked.Add(text);
+            }
             if (usable.Any())
             {
                 sentences = usable;
+                blankedSentences = blanked;
                 sentences[0].IsCurrent = true;
-                SetCurrentChallenge(sentences[0]);
+                SetCurrentChallenge(0);
             }
             else
             {
@@ -268,13 +280,10 @@ else
         }
     }
 
-    private void SetCurrentChallenge(Challenge challenge)
+    private void SetCurrentChallenge(int index)
     {
-        // The conjugated form is blanked, else the dictionary form. Sentences where neither can
-        // be blanked were dropped at load, so the answer is never shown before it is given.
-        displaySentence = ClozureAnswerHelper.TryBlankSentence(
-            challenge.SentenceText, challenge.VocabularyWordAsUsed, challenge.VocabularyWord)
-            ?? ClozureAnswerHelper.BlankMarker;
+        var challenge = sentences[index];
+        displaySentence = blankedSentences[index];
         translationHint = challenge.RecommendedTranslation ?? "";
         correctWordAnswer = challenge.VocabularyWordAsUsed;
         guessOptions = challenge.VocabularyWordGuesses?
@@ -426,7 +435,7 @@ else
         if (index < 0 || index >= sentences.Count) return;
         foreach (var s in sentences) s.IsCurrent = false;
         sentences[index].IsCurrent = true;
-        SetCurrentChallenge(sentences[index]);
+        SetCurrentChallenge(index);
     }
 
     private void NextSentence()

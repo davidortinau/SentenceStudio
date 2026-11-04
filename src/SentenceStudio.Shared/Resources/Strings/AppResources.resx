@@ -3378,6 +3378,10 @@ For example: {0} ...</value>
     <value>This vocabulary quiz is no longer available for the active profile.</value>
     <comment>Fail-closed route or activity start warning</comment>
   </data>
+  <data name="VocabQuiz_AllMasteredSessionComplete" xml:space="preserve">
+    <value>All words mastered! Session complete.</value>
+    <comment>Toast when the last words of the quiz are mastered and the session is saved as complete</comment>
+  </data>
   <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
     <value>This saved quiz cannot be resumed safely. Start a fresh session to continue.</value>
     <comment>Fail-closed compromised or stale resume warning</comment>

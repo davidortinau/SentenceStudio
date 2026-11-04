@@ -21,7 +21,7 @@ namespace SentenceStudio.UI.Tests.Activities;
 /// client saved completed the run without checking that any of the round's answers had been
 /// scored. The page now completes such a summary only when a quiz answer on one of the round's
 /// words was scored for the learner since the run started (5 minutes of clock drift allowed),
-/// like native NativeQuizAttemptCommitterAdapter.RoundWasScoredAsync. A summary alone completes
+/// through the shared QuizRoundScoring check the native clients use. A summary alone completes
 /// nothing; the run stays in progress.
 /// </summary>
 public sealed class VocabQuizResumedSummaryTests
@@ -108,6 +108,53 @@ public sealed class VocabQuizResumedSummaryTests
         (await fixture.RunAsync()).Status.Should().Be(ActivitySessionStatus.Completed);
     }
 
+    [Fact]
+    public async Task LastWordsMastered_SavedComplete_SaysSoAndLeaves()
+    {
+        await using var fixture = await QuizFixture.CreateAsync();
+        await fixture.AddLearningRecordAsync(fixture.OwnerId, "VocabularyQuiz", TimeSpan.FromMinutes(2));
+        var quiz = await fixture.ResumeSummaryAsync();
+        GetMember<List<VocabularyQuizItem>>(quiz, "batchPool").Clear();
+
+        await Invoke(quiz, "SetupNewRound");
+
+        (await fixture.RunAsync()).Status.Should().Be(ActivitySessionStatus.Completed);
+        fixture.Toasts.Should().ContainSingle(t => t.Type == ToastType.Success)
+            .Which.Text.Should().Be("All words mastered! Session complete.");
+        fixture.Navigation.Visited.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task LastWordsMastered_RunLeftForTheScoringClient_DoesNotClaimItIsComplete()
+    {
+        await using var fixture = await QuizFixture.CreateAsync();
+        var quiz = await fixture.ResumeSummaryAsync();
+        GetMember<List<VocabularyQuizItem>>(quiz, "batchPool").Clear();
+
+        await Invoke(quiz, "SetupNewRound");
+
+        (await fixture.RunAsync()).Status.Should().Be(ActivitySessionStatus.InProgress);
+        fixture.Toasts.Should().NotContain(t => t.Type == ToastType.Success);
+        fixture.Navigation.Visited.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task LastWordsMastered_SaveFails_TellsTheLearnerAndKeepsTheSummaryToRetry()
+    {
+        await using var fixture = await QuizFixture.CreateAsync();
+        var quiz = await fixture.ResumeSummaryAsync();
+        GetMember<List<VocabularyQuizItem>>(quiz, "batchPool").Clear();
+        SetMember(quiz, "scoredAnswerThisRun", true);
+        fixture.BreakDatabase();
+
+        await Invoke(quiz, "SetupNewRound");
+
+        fixture.Toasts.Should().ContainSingle()
+            .Which.Should().Match<ToastMessage>(t => t.Type == ToastType.Error && t.Text == "Could not save. Try again.");
+        GetMember<bool>(quiz, "showSessionSummary").Should().BeTrue("Continue tries the save again");
+        fixture.Navigation.Visited.Should().BeEmpty();
+    }
+
     private static Task Invoke(VocabQuiz quiz, string method) =>
         (Task)typeof(VocabQuiz).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!
             .Invoke(quiz, null)!;
@@ -143,6 +190,7 @@ public sealed class VocabQuizResumedSummaryTests
         public string LaunchContextKey { get; } =
             VocabQuizSessionSnapshot.BuildLaunchContextKey(null, null, null, false, null);
         public RecordingNavigation Navigation { get; } = new();
+        public List<ToastMessage> Toasts { get; } = new();
         private ActivitySessionService Sessions => _provider.GetRequiredService<ActivitySessionService>();
 
         public static async Task<QuizFixture> CreateAsync()
@@ -254,7 +302,9 @@ public sealed class VocabQuizResumedSummaryTests
             var quiz = new VocabQuiz();
             SetMember(quiz, "Localize", new BlazorLocalizationService());
             SetMember(quiz, "Logger", NullLogger<VocabQuiz>.Instance);
-            SetMember(quiz, "Toast", new ToastService());
+            var toast = new ToastService();
+            toast.OnShow += Toasts.Add;
+            SetMember(quiz, "Toast", toast);
             SetMember(quiz, "NavManager", Navigation);
             SetMember(quiz, "ActivityTimer", new IdleTimer());
             SetMember(quiz, "Preferences", _preferences);
@@ -275,6 +325,9 @@ public sealed class VocabQuizResumedSummaryTests
             GetMember<bool>(quiz, "resumeRejected").Should().BeFalse();
             return quiz;
         }
+
+        /// <summary>Closes the in-memory database, so the next save fails.</summary>
+        public void BreakDatabase() => _connection.Close();
 
         public async ValueTask DisposeAsync()
         {

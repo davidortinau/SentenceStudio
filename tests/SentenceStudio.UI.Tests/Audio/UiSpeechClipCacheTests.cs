@@ -85,6 +85,10 @@ public sealed class UiSpeechClipCacheTests
         var replay = await Cache(harness).GetForEntryAsync(row, "selected-voice", true, "phrase", synth.Run, default);
         replay.Synthesized.Should().BeFalse("this device's copy of the entry plays");
         synth.Calls.Should().HaveCount(1);
+        // Offline checks (the quiz's play button, How Do You Say's restore) find the same copy.
+        var appData = Path.GetDirectoryName(harness.AudioCacheDirectory);
+        UiSpeechClipCache.Resolve(appData, row.AudioFilePath).Should().BeNull("the phone's file is not here");
+        UiSpeechClipCache.ResolveEntry(appData, row).Should().Be(copy);
     }
 
     [Fact]

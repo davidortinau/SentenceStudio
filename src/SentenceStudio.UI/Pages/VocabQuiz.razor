@@ -1443,19 +1443,31 @@ else
         ProductionDemonstrationsBaseline = item.ProductionDemonstrationsBaseline
     };
 
-    private async Task CompleteActiveSessionAsync()
+    private enum SessionCompletion
+    {
+        /// <summary>Saved as complete, or there was no plan run to complete.</summary>
+        Completed,
+        /// <summary>Another client scored the round; the run stays in progress for it to finish.</summary>
+        LeftInProgress,
+        /// <summary>The profile changed; the launch was refused and the page says so.</summary>
+        Refused,
+        /// <summary>Saving failed; the learner was told and can try again.</summary>
+        Failed,
+    }
+
+    private async Task<SessionCompletion> CompleteActiveSessionAsync()
     {
         var currentUserId = GetActiveUserId();
         if (string.IsNullOrWhiteSpace(currentUserId))
         {
             RefuseLaunch(1);
-            return;
+            return SessionCompletion.Refused;
         }
 
         if (string.IsNullOrWhiteSpace(launchContextKey))
         {
             sessionMarkedComplete = true;
-            return;
+            return SessionCompletion.Completed;
         }
 
         try
@@ -1466,36 +1478,36 @@ else
                 // answer) and none of the round's answers has been scored where this client can
                 // see it. The run stays in progress, so the client that graded it can finish it.
                 Logger.LogWarning("Vocabulary quiz run left in progress: no scored answer on the round's words since the run started.");
-                return;
+                return SessionCompletion.LeftInProgress;
             }
             if (!IsPreferenceUser(currentUserId))
             {
                 RefuseLaunch(1);
-                return;
+                return SessionCompletion.Refused;
             }
 
             await SessionService.CompleteAsync(currentUserId, "VocabularyReview", launchContextKey);
             if (!IsPreferenceUser(currentUserId))
             {
                 RefuseLaunch(1);
-                return;
+                return SessionCompletion.Refused;
             }
             activeSessionId = null;
             resumableSession = null;
             sessionMarkedComplete = true;
+            return SessionCompletion.Completed;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to complete the current vocabulary quiz session.");
+            Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
+            return SessionCompletion.Failed;
         }
     }
 
-    /// <summary>Clients stamp learning records with their own clocks; allow for drift against the run's start.</summary>
-    private static readonly TimeSpan ClientClockDrift = TimeSpan.FromMinutes(5);
-
     /// <summary>
     /// True when a quiz answer on one of the round's words was scored for the learner since the
-    /// in-progress run started (native NativeQuizAttemptCommitterAdapter.RoundWasScoredAsync).
+    /// in-progress run started (QuizRoundScoring, shared with the native clients).
     /// With no run in progress there is nothing to complete, so nothing is refused.
     /// </summary>
     private async Task<bool> RoundWasScoredAsync(string userId)
@@ -1511,8 +1523,7 @@ else
             .Concat(vocabItems)
             .Concat(sessionItems)
             .Select(item => item.Word.Id);
-        return await LearningContexts.HasScoredAnswerSinceAsync(
-            userId, "VocabularyQuiz", roundWordIds, run.StartedAt - ClientClockDrift);
+        return await LearningContexts.QuizRoundWasScoredAsync(userId, roundWordIds, run.StartedAt);
     }
 
     private bool TryDeserializeSnapshot(string stateJson, out VocabQuizSessionSnapshot? snapshot)
@@ -1832,8 +1843,18 @@ else
 
         if (!batchPool.Any())
         {
-            Toast.ShowSuccess("All words mastered! Session complete.");
-            await CompleteActiveSessionAsync();
+            switch (await CompleteActiveSessionAsync())
+            {
+                case SessionCompletion.Completed:
+                    Toast.ShowSuccess(Localize["VocabQuiz_AllMasteredSessionComplete"]);
+                    break;
+                case SessionCompletion.Failed:
+                    // The summary stays, so Continue tries the save again.
+                    showSessionSummary = true;
+                    return;
+                case SessionCompletion.Refused:
+                    return;
+            }
             await GoBack();
             return;
         }
@@ -3072,9 +3093,9 @@ else
         var voiceId = VoicePrefs.GetVoiceForLanguage(language);
         var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
 
-        // Offline, only a clip this device holds can play (found by file name, B35).
-        return cached != null
-            && UiSpeechClipCache.Resolve(FileSystemService.AppDataDirectory, cached.AudioFilePath) is not null;
+        // Offline, only a clip this device holds can play: the entry's own file (found by file
+        // name, B35) or this device's regenerated copy of it.
+        return UiSpeechClipCache.ResolveEntry(FileSystemService.AppDataDirectory, cached) is not null;
     }
 
     private async Task EnableTextFallbackAsync()

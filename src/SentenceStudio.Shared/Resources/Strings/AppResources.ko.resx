@@ -3130,6 +3130,10 @@
     <value>현재 프로필에서는 이 어휘 퀴즈를 더 이상 사용할 수 없습니다.</value>
     <comment>Fail-closed route or activity start warning</comment>
   </data>
+  <data name="VocabQuiz_AllMasteredSessionComplete" xml:space="preserve">
+    <value>모든 단어를 마스터했어요! 세션을 마쳤습니다.</value>
+    <comment>Toast when the last words of the quiz are mastered and the session is saved as complete</comment>
+  </data>
   <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
     <value>저장된 퀴즈를 안전하게 다시 시작할 수 없습니다. 새 세션을 시작해 주세요.</value>
     <comment>Fail-closed compromised or stale resume warning</comment>

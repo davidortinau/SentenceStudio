@@ -67,7 +67,18 @@ public class ClozureService
 
         if (normalizedFocusIds.Count > 0)
         {
-            var focusSentences = await GetSentencesFromFocusWords(normalizedFocusIds, resourceID, numberOfSentences, skillID, dueOnly);
+            List<Challenge> focusSentences;
+            try
+            {
+                focusSentences = await GetSentencesFromFocusWords(normalizedFocusIds, resourceID, numberOfSentences, skillID, dueOnly);
+            }
+            catch (ClozeGenerationException ex)
+            {
+                // The focus words produced no usable sentence; the regular pool may still work.
+                // If it fails too, that failure reaches the learner.
+                _logger.LogWarning(ex, "Cloze focus words produced no usable sentence; trying the regular word pool");
+                focusSentences = [];
+            }
             if (focusSentences.Any())
             {
                 return focusSentences;
