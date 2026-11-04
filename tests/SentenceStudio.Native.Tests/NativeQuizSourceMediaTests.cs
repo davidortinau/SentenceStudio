@@ -123,8 +123,9 @@ public sealed class NativeQuizSourceMediaTests
         Assert.Equal(NativePhase.Ready, question.Phase);
         Assert.Null(question.Prompt!.PromptText);
         Assert.True(question.Prompt.CanTogglePhotoText);
-        Assert.False(question.Prompt.TargetLanguageEngaged);
-        Assert.False(question.CanSubmit);
+        // AF-Q03 (Captain, 2026-11-03): audio answer letters can be picked at once.
+        Assert.True(question.Prompt.TargetLanguageEngaged);
+        Assert.True(question.CanSubmit);
         Assert.False(question.CanShowSentenceHints);
         Assert.True(question.CanPlayAnswerAudio);
         var played = await quiz.PlayAnswerChoiceAsync(1, question.TurnId!);
@@ -134,9 +135,7 @@ public sealed class NativeQuizSourceMediaTests
         Assert.Null(played.SelectedAnswer);
         Assert.Equal(question.Choices[1].Text, fixture.Media.Played[^1].Text);
         Assert.Equal("Korean", fixture.Media.Played[^1].Language);
-        var unplayed = await quiz.AnswerAsync(question.Choices[0].Text);
-        Assert.Equal(NativeText.AnswerRequired, unplayed.ErrorKey);
-        Assert.Equal(0, unplayed.TotalTurns);
+        Assert.Equal(0, played.TotalTurns);
 
         var shown = await quiz.SetPhotoTextVisibleAsync(true, question.TurnId!);
         Assert.True(shown.Prompt!.ShowTextWithPhoto);
@@ -154,7 +153,10 @@ public sealed class NativeQuizSourceMediaTests
         }
         var hidden = await quiz.SetPhotoTextVisibleAsync(false, question.TurnId!);
         Assert.Null(hidden.Prompt!.PromptText);
-        var feedback = await quiz.AnswerAsync(question.Choices[1].Text);
+        // Choice 0 was never played; it is still accepted, like the source.
+        var feedback = await quiz.AnswerAsync(question.Choices[0].Text);
+        Assert.Equal(NativePhase.Feedback, feedback.Phase);
+        Assert.Equal(1, feedback.TotalTurns);
         Assert.NotNull(feedback.Prompt!.PromptText);
     }
 
@@ -274,7 +276,7 @@ public sealed class NativeQuizSourceMediaTests
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
         Assert.True(question.CanPlayAnswerAudio);
-        Assert.False(question.CanSubmit);
+        Assert.True(question.CanSubmit);
         Assert.False(question.HasPendingSync);
         fixture.Media.PlaySucceeds = false;
 
@@ -289,8 +291,49 @@ public sealed class NativeQuizSourceMediaTests
             (await quiz.AnswerAsync(fallback.Choices[0].Text)).Phase);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NativePromptAudioChoices_CanBePickedAtOnceAndRevealTheTargetForm(
+        bool audioOn)
+    {
+        // AF-Q03 / Learning Value Gate: native prompt (written, default), target-language
+        // options. With audio on, the options are letters with optional play buttons and any
+        // letter can be picked before any audio; feedback then shows the target form.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.DisplayDirection = "NativeToTarget";
+        fixture.QuizPreferences.UseAudioPrompt = audioOn;
+        fixture.QuizPreferences.AutoPlayVocabAudio = false;
+        fixture.Media.AudioAvailable = true;
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+
+        Assert.Equal(NativePhase.Ready, question.Phase);
+        Assert.Equal("MultipleChoice", question.Mode);
+        Assert.False(question.Prompt!.IsTargetLanguagePrompt);
+        Assert.True(question.Prompt.ShowWrittenPrompt);
+        Assert.Equal(audioOn, question.CanPlayAnswerAudio);
+        Assert.Empty(question.HeardAnswerChoiceIndices);
+        Assert.Empty(fixture.Media.Played);
+        Assert.True(question.Prompt.TargetLanguageEngaged);
+        Assert.True(question.CanSubmit);
+
+        var unheard = question.Choices[^1].Text;
+        var feedback = await quiz.AnswerAsync(unheard);
+        Assert.Equal(NativePhase.Feedback, feedback.Phase);
+        Assert.Null(feedback.ErrorKey);
+        Assert.Equal(1, feedback.TotalTurns);
+        Assert.StartsWith("target-", feedback.CorrectAnswerAfterGrading);
+        Assert.Contains(feedback.Choices, choice =>
+            choice.Text == feedback.CorrectAnswerAfterGrading);
+        Assert.Empty(fixture.Media.Played);
+    }
+
     [Fact]
-    public async Task AudioChoice_WaitsForCompletionBeforeEnablingSelectionExactlyOnce()
+    public async Task AudioChoice_MarksHeardOnlyOnCompletionWithoutGatingSelection()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -310,7 +353,7 @@ public sealed class NativeQuizSourceMediaTests
         await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(playing.IsCompleted);
         Assert.Empty(quiz.State.HeardAnswerChoiceIndices);
-        Assert.False(quiz.State.CanSubmit);
+        Assert.True(quiz.State.CanSubmit);
 
         Assert.True(fixture.Media.FinishPlayback(true));
         Assert.False(fixture.Media.FinishPlayback(true));
@@ -486,7 +529,7 @@ public sealed class NativeQuizSourceMediaTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             async () => await playing.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Empty(quiz.State.HeardAnswerChoiceIndices);
-        Assert.False(quiz.State.CanSubmit);
+        Assert.True(quiz.State.CanSubmit);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 

@@ -187,13 +187,18 @@ public sealed partial class NativeDashboardPresenter(
             return null;
         }
 
+        // The web launches a Vocabulary Review card with no resource and DueOnly=true
+        // (Index.razor LaunchPlanItem, PlanConverter.BuildRouteParameters), so its run ID is
+        // AssignedQuizContextKey(item). Native builds the same launch so a run started on one
+        // client resumes on the other (docs/activity-session-format.md, LaunchContextKey).
         return new NativeQuizLaunch(
             userId,
             plan.GeneratedForDate,
             item.Id,
-            item.ResourceId is null ? [] : [item.ResourceId],
+            [],
             item.SkillId,
-            item.FocusVocabularyIds.ToImmutableArray())
+            item.FocusVocabularyIds.ToImmutableArray(),
+            DueOnly: true)
         {
             IsRepractice = item.IsCompleted
         };
@@ -370,10 +375,9 @@ public sealed partial class NativeDashboardPresenter(
                 throw new UnauthorizedAccessException(
                     "Plan owner changed before completed-session reconciliation.");
 
-            var context = VocabQuizSessionSnapshot.BuildLaunchContextKey(
-                card.Id, card.FocusVocabularyIds,
-                card.ResourceId is null ? [] : [card.ResourceId],
-                dueOnly: false, card.SkillId);
+            // A run saved under the native key used before 2026-11-03 (due=false) is left as it
+            // is; NativeQuizPresenter.OpenAsync can still resume it on its own day.
+            var context = AssignedQuizContextKey(card);
             var unfinished = await sessions.GetResumableAsync(
                 owner, nameof(PlanActivityType.VocabularyReview), context);
             if (unfinished is null)
@@ -387,6 +391,14 @@ public sealed partial class NativeDashboardPresenter(
             logger.LogInformation("Completed an interrupted quiz session for an already-completed plan card.");
         }
     }
+
+    /// <summary>
+    /// The run ID text of an assigned Vocabulary Review card, the same on every client: the web's
+    /// plan launch carries the card, its focus words and skill, no resource, and DueOnly=true.
+    /// </summary>
+    internal static string AssignedQuizContextKey(PlanItemDto card) =>
+        VocabQuizSessionSnapshot.BuildLaunchContextKey(
+            card.Id, card.FocusVocabularyIds, [], dueOnly: true, card.SkillId);
 
     private bool TryCurrentUser(out string userId)
     {

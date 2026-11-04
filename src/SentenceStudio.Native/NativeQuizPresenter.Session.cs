@@ -241,6 +241,8 @@ public sealed partial class NativeQuizPresenter
         _photoLoaded = _photoAsset is not null;
         _photoDesired = _photoLoaded && quizPreferences.UsePhotoPrompt;
         _photoVisible = false;
+        if (graded && _pending is not null)
+            ApplyFeedbackPhotoRule(_pending.WasCorrect);
         if (!HasOwner(_launch.UserId))
             return RefuseLaunch();
         if (!NativeQuizModality.CanPresent(
@@ -335,9 +337,11 @@ public sealed partial class NativeQuizPresenter
             _audioAvailable, _photoLoaded && _photoVisible))
             return BlockMediaTurn();
 
+        // A native-language prompt is answered with target-language options: written, or
+        // audio letters that may be picked at once, as in the source (Captain, 2026-11-03).
+        // The target form is shown in feedback either way.
         var responseIsTarget = _mode == "Text"
-            || _promptUsesNative && _choices.Length > 0
-                && (!_answerAudioAvailable || _heardAnswerChoices.Count > 0);
+            || _promptUsesNative && _choices.Length > 0;
         var correctFeedback = graded && _pending?.WasCorrect == true;
         var prompt = NativeQuizModality.Render(
             word, _promptUsesNative, quizPreferences,
@@ -349,14 +353,19 @@ public sealed partial class NativeQuizPresenter
             isAnswerFeedbackVisible: graded) with
         {
             Photo = _photoAsset,
-            PhotoRequested = _photoAsset is not null
-                && (_photoDesired || correctFeedback && quizPreferences.ShowMnemonicImage),
-            CanTogglePhoto = _photoAsset is not null && quizPreferences.UsePhotoPrompt,
+            // The learner's show/hide choice is the only request; grading sets its starting
+            // value (ApplyFeedbackPhotoRule), so Hide image on correct feedback stays hidden.
+            PhotoRequested = _photoAsset is not null && _photoDesired,
+            CanTogglePhoto = _photoAsset is not null
+                && (quizPreferences.UsePhotoPrompt
+                    || graded && quizPreferences.ShowMnemonicImage),
             CanTogglePhotoText = VocabQuizPhotoTextPolicy.IsTextToggleEligible(
                 _photoAsset is not null, quizPreferences.UsePhotoPrompt, _promptUsesNative),
             ShowTextWithPhoto = _profile.VocabQuizShowTextWithPhoto
         };
-        if (correctFeedback && _photoAsset is not null && _photoVisible)
+        // After grading the image may be shown with the photo prompt off (mnemonic reveal or
+        // the learner's Show image); before grading only the photo prompt shows it.
+        if (graded && _photoAsset is not null && _photoVisible)
             prompt = prompt with {
                 ShowPhoto = true,
                 PhotoUri = word.MnemonicImageUri
@@ -408,6 +417,20 @@ public sealed partial class NativeQuizPresenter
                 ? (_feedbackStartedAt ??= DateTimeOffset.UtcNow) : null,
             AutoAdvanceDurationMs = quizPreferences.AutoAdvanceDuration
         };
+    }
+
+    /// <summary>
+    /// Source (VocabQuiz.razor, after grading): with a mnemonic image and Show mnemonic image on,
+    /// the image toggle is offered and the image starts shown if the photo prompt is on or the
+    /// answer was correct, hidden otherwise. With the setting off the learner's choice stands.
+    /// </summary>
+    private void ApplyFeedbackPhotoRule(bool correct)
+    {
+        if (_photoAsset is null || !quizPreferences.ShowMnemonicImage)
+            return;
+        _photoDesired = quizPreferences.UsePhotoPrompt || correct;
+        if (!_photoDesired)
+            _photoVisible = false;
     }
 
     private NativeQuizState BlockMediaTurn()

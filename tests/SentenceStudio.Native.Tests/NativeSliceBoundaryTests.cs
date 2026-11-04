@@ -627,7 +627,9 @@ public sealed class NativeSliceBoundaryTests
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
         Assert.Equal(NativePhase.Ready, question.Phase);
-        Assert.Equal(direction == "TargetToNative", question.CanSubmit);
+        // NativeToTarget: the autoplayed prompt is the cue and the audio letters can be picked
+        // at once (AF-Q03), so both directions can answer immediately.
+        Assert.True(question.CanSubmit);
         var played = Assert.Single(fixture.Media.Played);
         Assert.Equal(expectedLanguage, played.Language);
         Assert.StartsWith(expectedPrefix, played.Text);
@@ -704,7 +706,8 @@ public sealed class NativeSliceBoundaryTests
         Assert.Equal(8, details.TotalAttempts);
         Assert.Equal(.9f, details.MasteryScore);
         Assert.Equal("Text", details.Mode);
-        Assert.False(details.DueOnly);
+        // A plan card launches DueOnly, as on the web (its details read "DueOnly Filter: Yes").
+        Assert.True(details.DueOnly);
         Assert.DoesNotContain("target-", details.ToString());
         Assert.DoesNotContain("native-", details.ToString());
         var dismissed = quiz.DismissOverlay();
@@ -1241,7 +1244,7 @@ public sealed class NativeSliceBoundaryTests
     }
 
     [Fact]
-    public async Task ResourceAssignedQuiz_UsesOnlyWordsMappedToThatResource()
+    public async Task ResourceCarryingVocabularyReviewCard_IsRefusedLikeTheWeb()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -1278,12 +1281,16 @@ public sealed class NativeSliceBoundaryTests
                 fixture.ResourceId(NativeSliceFixture.UserA), null, 10, 1));
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
-        var question = await quiz.OpenAsync(
-            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Ready, question.Phase);
-        Assert.NotEqual("other-word", question.Prompt!.WordId);
-        Assert.DoesNotContain(question.Choices,
-            option => option.Text is "other target" or "other native");
+        // AF-Q01: the plan builder never gives a Vocabulary Review card a resource. The web
+        // launches every such card with no resource and DueOnly=true, so its plan-item check
+        // refuses a card that has one; native builds the same launch and refuses it too.
+        var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!;
+        Assert.True(launch.DueOnly);
+        Assert.Empty(launch.ResourceIds);
+        var refused = await quiz.OpenAsync(launch);
+        Assert.Equal(NativePhase.Blocked, refused.Phase);
+        Assert.Null(refused.Prompt);
+        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
     }
 
     [Fact]

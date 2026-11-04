@@ -149,28 +149,12 @@ internal sealed partial class ApplicationController
             Text, new QuizActions(
             AnswerChanged: value => _answer = value,
             AnswerFocusChanged: focused => _quizInputFocused = focused,
-            CanSelectAudioChoice: index =>
-                !_quizState.HeardAnswerChoiceIndices.IsDefault
-                && _quizState.HeardAnswerChoiceIndices.Contains(index),
             SelectChoice: value =>
             {
+                // An audio answer letter can be picked at once, like the source
+                // (Captain, 2026-11-03); the presenter accepts any shown option.
                 if (_busy || _quizState.Phase != NativePhase.Ready)
                     return;
-                if (_quizState.Prompt?.IsTargetLanguagePrompt == false
-                    && _quizState.CanPlayAnswerAudio)
-                {
-                    var index = -1;
-                    for (var option = 0; option < _quizState.Choices.Length; option++)
-                        if (string.Equals(_quizState.Choices[option].Text, value,
-                                StringComparison.Ordinal))
-                        {
-                            index = option;
-                            break;
-                        }
-                    if (_quizState.HeardAnswerChoiceIndices.IsDefault
-                        || !_quizState.HeardAnswerChoiceIndices.Contains(index))
-                        return;
-                }
                 _quizState = _quizState with { SelectedAnswer = value };
                 Run(async () =>
                 {
@@ -560,9 +544,12 @@ internal sealed partial class ApplicationController
             return;
         }
         _quizState = await _quiz.BackAsync(_lifetime.Token);
+        // Ready: suspended and saved. Error: the answer was scored but the next snapshot was
+        // not saved; the presenter leaves the saved run as is and its receipt restores it on
+        // the next launch (AF-Q16), so Back still leaves the quiz.
         if (_quizState is {
             Destination: NativeDestination.TodaysPlan,
-            Phase: NativePhase.Ready })
+            Phase: NativePhase.Ready or NativePhase.Error })
             await ReturnToDashboardAsync();
     }
 
@@ -580,8 +567,19 @@ internal sealed partial class ApplicationController
         else if (_quizState.Prompt is not null
             && _quizState.ErrorKey == NativeText.SaveFailed)
         {
+            // One Retry for every pending save (answer, override, correction, or the next
+            // question after a scored answer); the presenter repeats only the failed write.
+            var wasCorrecting = _quizState.RequiresCorrection;
             _quizState = await _quiz.RetryPendingSaveAsync(_lifetime.Token);
-            if (_quizState.Phase == NativePhase.Feedback)
+            if (wasCorrecting && _quizState is {
+                Phase: NativePhase.Feedback, RequiresCorrection: false })
+            {
+                _quizCorrectionCompleted = true;
+                _quizInputFocused = false;
+            }
+            if (_quizState.Phase == NativePhase.Summary)
+                _destination = NativeDestination.QuizSummary;
+            else if (_quizState.Phase == NativePhase.Feedback)
                 ScheduleAutoAdvance(restarted: true);
         }
         else if (_quizState.CurrentTurn == 0

@@ -51,6 +51,9 @@ public sealed partial class NativeQuizPresenter(
     private readonly NativeSliceRegistration.NativeQuizClock _clock = new(timerLogger);
     private NativeQuizLaunch? _launch;
     private string? _contextKey;
+    // Set while an unfinished run saved under the pre-2026-11-03 native plan-card key is
+    // offered; Start over leaves it and begins a run under the shared key.
+    private (NativeQuizLaunch Launch, string Key)? _sharedLaunch;
     private string? _planItemRowId;
     private string? _adHocPlanItemId;
     private string? _displayDirection;
@@ -214,11 +217,35 @@ public sealed partial class NativeQuizPresenter(
             _contextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
                 launch.PlanItemId, focus, route.Resources.Select(resource => resource.Id),
                 launch.DueOnly, route.Skill?.Id);
+            _sharedLaunch = null;
             _displayDirection = quizPreferences.DisplayDirection;
             _resumable = await sessions.GetResumableAsync(
                 launch.UserId, ActivityType, _contextKey);
             if (!HasOwner(launch.UserId))
                 return RefuseLaunch();
+            if (_resumable is null && !direct && launch.DueOnly && !launch.IsRepractice
+                && route.Resources.Count == 0)
+            {
+                // Before 2026-11-03 native launched a plan card with DueOnly=false, so an
+                // unfinished run of today's card may be saved under that key. It is resumed as
+                // it was saved (never rewritten); a new run uses the shared key.
+                var legacy = launch with { DueOnly = false };
+                var legacyKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
+                    launch.PlanItemId, focus, [], dueOnly: false, route.Skill?.Id);
+                var legacyRun = await sessions.GetResumableAsync(
+                    launch.UserId, ActivityType, legacyKey);
+                if (!HasOwner(launch.UserId))
+                    return RefuseLaunch();
+                if (legacyRun is not null)
+                {
+                    logger.LogInformation(
+                        "Offering an unfinished plan-card quiz saved under the earlier native launch key.");
+                    _sharedLaunch = (launch, _contextKey);
+                    _launch = legacy;
+                    _contextKey = legacyKey;
+                    _resumable = legacyRun;
+                }
+            }
 
             if (_resumable is null)
                 return await StartNewAsync(cancellationToken);
@@ -290,6 +317,17 @@ public sealed partial class NativeQuizPresenter(
             {
                 await sessions.AbandonAsync(_launch.UserId, _resumable.Id);
                 _resumable = null;
+            }
+            if (_sharedLaunch is { } shared)
+            {
+                // Start over after an earlier-key run: the new run uses the shared key.
+                _launch = shared.Launch;
+                _contextKey = shared.Key;
+                _sharedLaunch = null;
+                _resumable = await sessions.GetResumableAsync(
+                    _launch.UserId, ActivityType, _contextKey);
+                if (!HasOwner(_launch.UserId) || _resumable is not null)
+                    return RefuseLaunch();
             }
             _stored = null;
             return await StartNewAsync(cancellationToken);
@@ -611,6 +649,7 @@ public sealed partial class NativeQuizPresenter(
         media.StopPlayback();
         _launch = null;
         _contextKey = null;
+        _sharedLaunch = null;
         _planItemRowId = null;
         _adHocPlanItemId = null;
         _profile = null;
@@ -638,6 +677,7 @@ public sealed partial class NativeQuizPresenter(
         media.StopPlayback();
         _launch = null;
         _contextKey = null;
+        _sharedLaunch = null;
         _planItemRowId = null;
         _adHocPlanItemId = null;
         _pending = null;
@@ -679,6 +719,7 @@ public sealed partial class NativeQuizPresenter(
         _clock.Dispose();
         _launch = null;
         _contextKey = null;
+        _sharedLaunch = null;
         _planItemRowId = null;
         _adHocPlanItemId = null;
         _profile = null;

@@ -159,15 +159,20 @@ public sealed class NativeQuizSourceLayoutContractTests
     }
 
     [Fact]
-    public void NativeAudioChoices_KeepL2EngagementByRequiringPlayedTargetOption()
+    public void NativeAudioChoices_CanBePickedAtOnceLikeTheSource()
     {
+        // AF-Q03 (Captain, 2026-11-03): no listen-first gate on audio answer letters.
         var feature = Read("Features/Quiz/QuizQuestionView.cs");
         var app = Read("App/ApplicationController.Quiz.cs");
+        var actions = Read("Features/Quiz/QuizActions.cs");
 
         Assert.Contains("state.CanPlayAnswerAudio", feature);
-        Assert.Contains("NativeVocabQuiz_ListenToChoose", feature);
-        Assert.Contains("canSelectAudioChoice(index)", feature);
-        Assert.Contains("_quizState.HeardAnswerChoiceIndices.Contains(index)", app);
+        Assert.Contains("NativeVocabQuiz_ChooseChoice", feature);
+        Assert.Contains("NativeVocabQuiz_PlayChoice", feature);
+        Assert.DoesNotContain("NativeVocabQuiz_ListenToChoose", feature);
+        Assert.DoesNotContain("canSelectAudioChoice", feature);
+        Assert.DoesNotContain("CanSelectAudioChoice", actions);
+        Assert.DoesNotContain("HeardAnswerChoiceIndices", app);
         Assert.Contains("_quiz.PlayAnswerChoiceAsync(", app);
         Assert.DoesNotContain("_heardAudioChoices", app);
     }
