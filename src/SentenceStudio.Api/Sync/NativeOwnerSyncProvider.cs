@@ -137,10 +137,12 @@ internal sealed class NativeOwnerSyncProvider(
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            // A malformed upload, or a row that is another learner's, refuses the whole upload:
-            // a correct client never sends one (it can read the owner of every row it sends).
+            // A malformed upload, or a row that names another learner in its own owner column,
+            // refuses the whole upload: a correct client never sends one. Anything decided from
+            // the server's stored or inferred state is left out instead (below), because a
+            // client's copy can disagree and a refused upload is offered again forever.
             if (IsMalformed(items)
-                || await NamesAnotherOwnerAsync(db, items, owner, ct)
+                || NamesAnotherOwner(items, owner)
                 || !await OwnerProfileExistsAsync(db, items, owner, ct))
             {
                 logger.LogWarning("Native CoreSync upload refused a malformed row or another learner's row.");
@@ -289,11 +291,16 @@ internal sealed class NativeOwnerSyncProvider(
         return ids;
     }
 
-    private static IReadOnlyList<SyncItem> OrderNativeItems(IReadOnlyList<SyncItem> items)
+    /// <summary>
+    /// Deletes first, children before parents, then writes, parents before children. Pinned
+    /// CoreSync can skip a child-first FK insert despite returning a successful completion, so
+    /// writes go parents first. A delete is the reverse: a minimal pair answer references its
+    /// words with ON DELETE RESTRICT, so the answer must go before the word; and an old row
+    /// deleted first frees its unique keys for the row that replaces it in the same upload.
+    /// </summary>
+    internal static IReadOnlyList<SyncItem> OrderNativeItems(IReadOnlyList<SyncItem> items)
     {
-        // Pinned CoreSync can skip a child-first FK insert despite returning a
-        // successful completion. Native uploads apply validated parents first.
-        return items.OrderBy(item => item.TableName switch
+        static int Rank(SyncItem item) => item.TableName switch
         {
             "UserProfile" => 0,
             "SkillProfile" or "Conversation" or "MonitoredChannel"
@@ -304,7 +311,10 @@ internal sealed class NativeOwnerSyncProvider(
             "VocabularyProgress" or "MinimalPair" or "MinimalPairSession" => 4,
             "VocabularyLearningContext" or "MinimalPairAttempt" => 5,
             _ => 6
-        }).ToArray();
+        };
+        return [
+            .. items.Where(item => item.ChangeType == ChangeType.Delete).OrderByDescending(Rank),
+            .. items.Where(item => item.ChangeType != ChangeType.Delete).OrderBy(Rank)];
     }
 
     /// <summary>A row without values or an ID, or one row sent twice with different values.</summary>
@@ -315,27 +325,16 @@ internal sealed class NativeOwnerSyncProvider(
             .Any(group => group.Count() != 1);
 
     /// <summary>
-    /// True when a written row names another learner in its owner column, or has the ID of a
-    /// stored row another learner owns. Deletes are not judged here: a device cannot read the
-    /// owner of a row it already deleted.
+    /// True when a written row names another learner in its own owner column: the one thing a
+    /// client can always check before sending. A stored row that the server records or infers as
+    /// another learner's is left out instead (<see cref="UnplaceableWritesAsync"/>): the client's
+    /// copy may differ (an old shared word the device resolves to no owner, a word the server
+    /// stamped after the device last synced). Deletes are not judged here.
     /// </summary>
-    private static async Task<bool> NamesAnotherOwnerAsync(
-        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct)
-    {
-        var writes = items.Where(item => item.ChangeType != ChangeType.Delete).ToArray();
-        if (writes.Any(item => SyncRowOwners.OwnerColumn(item.TableName) is { } column
-            && Value(item, column) is { Length: > 0 } named && named != owner))
-            return true;
-        foreach (var table in writes.GroupBy(item => item.TableName, StringComparer.Ordinal))
-        {
-            var ids = table.Select(item => Value(item, "Id")!)
-                .Distinct(StringComparer.Ordinal).ToArray();
-            var stored = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
-            if (stored.Values.Any(storedOwner => storedOwner is not null && storedOwner != owner))
-                return true;
-        }
-        return false;
-    }
+    private static bool NamesAnotherOwner(IReadOnlyList<SyncItem> items, string owner) =>
+        items.Any(item => item.ChangeType != ChangeType.Delete
+            && SyncRowOwners.OwnerColumn(item.TableName) is { } column
+            && Value(item, column) is { Length: > 0 } named && named != owner);
 
     private static async Task<bool> OwnerProfileExistsAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct) =>
@@ -400,7 +399,10 @@ internal sealed class NativeOwnerSyncProvider(
                 && !written.Contains((item.TableName, Value(item, "Id"))))
             .ToArray();
         var accepted = new List<SyncItem>();
-        foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal))
+        var deletedIds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        // Words last: whether a word can go depends on the answers this upload deletes.
+        foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal)
+            .OrderBy(group => group.Key == "VocabularyWord"))
         {
             var ids = table.Select(item => Value(item, "Id")!)
                 .Distinct(StringComparer.Ordinal).ToArray();
@@ -408,10 +410,40 @@ internal sealed class NativeOwnerSyncProvider(
             var owned = stored.Where(row => row.Value == owner)
                 .Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
             if (table.Key == "VocabularyWord" && owned.Count > 0)
+            {
                 owned.ExceptWith(await WordsOthersDependOnAsync(db, owned.ToArray(), owner, ct));
+                owned.ExceptWith(await WordsAnswersStillUseAsync(db, owned.ToArray(), deletedIds, ct));
+            }
+            deletedIds[table.Key] = owned;
             accepted.AddRange(table.Where(item => owned.Contains(Value(item, "Id")!)));
         }
         return accepted;
+    }
+
+    /// <summary>
+    /// Words among <paramref name="ids"/> that a minimal pair answer still references and that
+    /// this upload does not remove first (the answer, its pair or its session). An answer
+    /// references its prompt and chosen words with ON DELETE RESTRICT, the only restricting
+    /// references among synced tables (PostgreSQL catalog, 2026-11-04), so deleting such a word
+    /// would fail. The answer may be another learner's or the owner's own.
+    /// </summary>
+    private static async Task<HashSet<string>> WordsAnswersStillUseAsync(
+        ApplicationDbContext db, string[] ids, IReadOnlyDictionary<string, HashSet<string>> deleted,
+        CancellationToken ct)
+    {
+        var answers = await db.MinimalPairAttempts.AsNoTracking()
+            .Where(answer => ids.Contains(answer.PromptWordId) || ids.Contains(answer.SelectedWordId))
+            .Select(answer => new { answer.Id, answer.PairId, answer.SessionId,
+                answer.PromptWordId, answer.SelectedWordId })
+            .ToListAsync(ct);
+        bool Removed(string table, string id) =>
+            deleted.TryGetValue(table, out var removed) && removed.Contains(id);
+        return answers
+            .Where(answer => !Removed("MinimalPairAttempt", answer.Id)
+                && !Removed("MinimalPair", answer.PairId)
+                && !Removed("MinimalPairSession", answer.SessionId))
+            .SelectMany(answer => new[] { answer.PromptWordId, answer.SelectedWordId })
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -452,7 +484,8 @@ internal sealed class NativeOwnerSyncProvider(
 
     /// <summary>
     /// The written rows the server cannot place for <paramref name="owner"/> given the other rows
-    /// of this upload. Rows that are another learner's were refused before this runs.
+    /// of this upload, including rows whose stored copy is recorded or inferred as another
+    /// learner's or nobody's. Rows that name another learner were refused before this runs.
     /// </summary>
     private static async Task<HashSet<SyncItem>> UnplaceableWritesAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
@@ -460,7 +493,8 @@ internal sealed class NativeOwnerSyncProvider(
     {
         var refused = new HashSet<SyncItem>(ReferenceEqualityComparer.Instance);
 
-        // A stored row with no owner (saved before its table had one) is never claimed.
+        // A stored row that is not this owner's (another learner's, or nobody's: saved before
+        // its table had an owner) is never claimed or changed.
         foreach (var table in items.GroupBy(item => item.TableName, StringComparer.Ordinal))
         {
             var ids = table.Select(item => Value(item, "Id")!)
@@ -748,28 +782,35 @@ internal sealed class NativeOwnerSyncProvider(
         if (deletes.Length == 0)
             return result;
 
-        var ids = deletes.Select(item => Value(item, "Id")!).Distinct(StringComparer.Ordinal).ToArray();
-        var logged = await db.Database.SqlQuery<LoggedDeletion>($"""
-            SELECT DISTINCT ON ("TableName", "RowId") "TableName", "RowId", "OwnerId"
-            FROM "SyncDeletion" WHERE "RowId" = ANY({ids})
-            ORDER BY "TableName", "RowId", "Id" DESC
-            """).ToListAsync(ct);
-        var deletedFor = logged.ToDictionary(row => (row.TableName, row.RowId), row => row.OwnerId);
         foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal))
         {
-            var existing = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key,
-                table.Select(item => Value(item, "Id")!).Distinct(StringComparer.Ordinal).ToArray(), ct);
+            var ids = table.Select(item => Value(item, "Id")!).Distinct(StringComparer.Ordinal).ToArray();
+            var logged = await db.Database.SqlQueryRaw<LoggedDeletion>(LatestLoggedDeletionsSql,
+                    new NpgsqlParameter("table", table.Key), new NpgsqlParameter("ids", ids))
+                .ToListAsync(ct);
+            var deletedFor = logged.ToDictionary(row => row.RowId, row => row.OwnerId, StringComparer.Ordinal);
+            var existing = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
             foreach (var item in table)
             {
                 var id = Value(item, "Id")!;
                 if (!existing.ContainsKey(id)
-                    && deletedFor.TryGetValue((table.Key, id), out var deletedOwner)
+                    && deletedFor.TryGetValue(id, out var deletedOwner)
                     && deletedOwner == owner)
                     result.Add(item);
             }
         }
         return result;
     }
+
+    /// <summary>
+    /// The latest logged delete of each row, for one table at a time so PostgreSQL reads it
+    /// through the ("TableName", "RowId") index instead of scanning the whole log.
+    /// </summary>
+    internal const string LatestLoggedDeletionsSql = """
+        SELECT DISTINCT ON ("RowId") "TableName", "RowId", "OwnerId"
+        FROM "SyncDeletion" WHERE "TableName" = @table AND "RowId" = ANY(@ids)
+        ORDER BY "RowId", "Id" DESC
+        """;
 
     private sealed class LoggedDeletion
     {

@@ -9,8 +9,8 @@ namespace SentenceStudio.Api.Tests.Sync;
 /// <summary>
 /// An owner-checked upload applies every row the server can place for its owner and leaves out
 /// the rest (they stay on the device), so one old or unowned row never stops a device's sync
-/// (Captain 2026-11-04, decision 1: the MAUI apps sync with the same owner checks). A row that
-/// is another learner's still refuses the whole upload.
+/// (Captain 2026-11-04, decision 1: the MAUI apps sync with the same owner checks). Only a row
+/// that names another learner in its owner column refuses the whole upload.
 /// </summary>
 public sealed class UnplaceableRowsPostgresTests : IClassFixture<NativeOwnerSyncPostgresFixture>
 {
@@ -73,7 +73,7 @@ public sealed class UnplaceableRowsPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task AnotherLearnersRow_StillRefusesTheWholeUpload()
+    public async Task RowNamingAnotherLearner_RefusesTheUpload_ButAForeignStoredRowIsLeftOut()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var foreignResource = Guid.NewGuid().ToString();
@@ -85,29 +85,30 @@ public sealed class UnplaceableRowsPostgresTests : IClassFixture<NativeOwnerSync
             });
             await db.SaveChangesAsync();
         }
-
-        var ownResource = Guid.NewGuid().ToString();
-        var namedForeign = Guid.NewGuid().ToString();
         var now = DateTime.UtcNow;
-        foreach (var foreignRow in new[]
-        {
-            // A stored row another learner owns, even when the upload names this owner.
+
+        // A row that names another learner: a correct client never sends one.
+        var refusedOwn = Guid.NewGuid().ToString();
+        var namedForeign = Guid.NewGuid().ToString();
+        using (var response = await _fixture.UploadAsync(owner,
+            Resource(refusedOwn, owner, skill: null, now), Resource(namedForeign, foreign, skill: null, now)))
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        // A row whose stored copy is another learner's, though the upload names this owner: the
+        // client's copy can disagree with the server, so it is left out and the rest applies.
+        var appliedOwn = Guid.NewGuid().ToString();
+        using (var response = await _fixture.UploadAsync(owner,
+            Resource(appliedOwn, owner, skill: null, now),
             new SyncItem("LearningResource", ChangeType.Update, new Dictionary<string, object?>
             {
                 ["Id"] = foreignResource, ["UserProfileId"] = owner, ["Title"] = "Mine now"
-            }),
-            // A new row naming another learner.
-            Resource(namedForeign, foreign, skill: null, now)
-        })
-        {
-            using var response = await _fixture.UploadAsync(owner,
-                Resource(ownResource, owner, skill: null, now), foreignRow);
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        }
+            })))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         await using var verified = _fixture.NewContext();
-        Assert.False(await verified.LearningResources.AnyAsync(row => row.Id == ownResource));
+        Assert.False(await verified.LearningResources.AnyAsync(row => row.Id == refusedOwn));
         Assert.False(await verified.LearningResources.AnyAsync(row => row.Id == namedForeign));
+        Assert.True(await verified.LearningResources.AnyAsync(row => row.Id == appliedOwn));
         var theirs = await verified.LearningResources.AsNoTracking()
             .SingleAsync(row => row.Id == foreignResource);
         Assert.Equal(foreign, theirs.UserProfileId);

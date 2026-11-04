@@ -55,7 +55,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 .SingleAsync(resource => resource.Id == foreignId);
             Assert.Equal(foreign, storedAfterAttempt.UserProfileId);
             Assert.Equal("Foreign original", storedAfterAttempt.Title);
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            // Decided from the stored row, so left out rather than refusing the upload.
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         await using var verified = _fixture.NewContext();
@@ -396,10 +397,12 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 })
         };
 
+        // The progress row names this owner and the others name none: each is judged from the
+        // stored row, so it is left out (never applied) rather than refusing the upload.
         foreach (var attempted in attemptedReparents)
         {
             using var response = await _fixture.UploadAsync(owner, attempted);
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         // A forged first mapping must not make B's existing word writable, even
@@ -427,7 +430,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         })
         {
             using var ordered = await _fixture.UploadAsync(owner, orderedItems);
-            Assert.Equal(HttpStatusCode.Forbidden, ordered.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, ordered.StatusCode);
         }
 
         await using var verified = _fixture.NewContext();
@@ -1492,7 +1495,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task RepeatedRowIds_WithDifferentValuesOrForeignOwner_StillFailClosed()
+    public async Task RepeatedRowIds_WithDifferentValuesFailClosed_AndAForeignStoredRowIsNeverApplied()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var foreignCompletion = Guid.NewGuid().ToString();
@@ -1518,8 +1521,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         var foreignInsert = Completion(foreignCompletion, owner);
         var foreignUpdate = new SyncItem("DailyPlanCompletion", ChangeType.Update,
             foreignInsert.Values.ToDictionary(pair => pair.Key, pair => pair.Value.Value));
+        // Identical copies fold into one row, judged from the stored row: left out.
         using (var response = await _fixture.UploadAsync(owner, foreignInsert, foreignUpdate))
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         await using var verified = _fixture.NewContext();
         Assert.False(await verified.DailyPlanCompletions.AsNoTracking()
@@ -1777,8 +1781,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             new[] { forgedChannel, import }
         })
         {
+            // The forged parent is left out, so its child has no owned parent and is left out too.
             using var response = await _fixture.UploadAsync(owner, ordered);
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         await using var verified = _fixture.NewContext();

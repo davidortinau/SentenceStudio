@@ -174,6 +174,110 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
     }
 
     [ApplicationOperationPostgresFact]
+    public async Task OwnWordDelete_WithItsMinimalPairAnswers_RemovesTheAnswersFirst()
+    {
+        var (owner, _) = await _fixture.SeedOwnersAsync();
+        var graph = await SeedOwnedGraphAsync(owner);
+        var attempt = await SeedAttemptAsync(owner, graph.Pair, graph.Word, graph.SecondWord);
+        using var client = _fixture.CreateClient();
+        var phone = new Device(_fixture, client, owner);
+        await phone.DownloadAsync();
+
+        // The device sends the word first; answers reference it with ON DELETE RESTRICT.
+        using (var response = await phone.UploadAsync(
+            Delete("VocabularyWord", graph.Word),
+            Delete("MinimalPairAttempt", attempt)))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var db = _fixture.NewContext();
+        Assert.False(await db.VocabularyWords.AnyAsync(row => row.Id == graph.Word));
+        Assert.False(await db.MinimalPairAttempts.AnyAsync(row => row.Id == attempt));
+        Assert.False(await db.MinimalPairs.AnyAsync(row => row.Id == graph.Pair));
+        Assert.True(await db.VocabularyWords.AnyAsync(row => row.Id == graph.SecondWord));
+        Assert.Equal(owner, await LoggedOwnerAsync("VocabularyWord", graph.Word));
+    }
+
+    [ApplicationOperationPostgresFact]
+    public async Task WordDelete_ThatAnAnswerStillUses_IsLeftOut_AndTheRestApplies()
+    {
+        var (owner, other) = await _fixture.SeedOwnersAsync();
+        var graph = await SeedOwnedGraphAsync(owner);
+        // The owner's own answer, not deleted with the word, and another learner's answer on
+        // the owner's second word.
+        var ownAttempt = await SeedAttemptAsync(owner, graph.Pair, graph.Word, graph.Word);
+        var otherPair = SyncIds.MinimalPair(other, graph.SecondWord, graph.Word);
+        await using (var db = _fixture.NewContext())
+        {
+            db.MinimalPairs.Add(new MinimalPair
+            {
+                Id = otherPair, UserId = other, VocabularyWordAId = graph.SecondWord,
+                VocabularyWordBId = graph.Word, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+        var otherAttempt = await SeedAttemptAsync(other, otherPair, graph.SecondWord, graph.SecondWord);
+        using var client = _fixture.CreateClient();
+        var phone = new Device(_fixture, client, owner);
+        await phone.DownloadAsync();
+
+        var newResource = Guid.NewGuid().ToString();
+        using (var response = await phone.UploadAsync(
+            Delete("VocabularyWord", graph.Word),
+            Delete("VocabularyWord", graph.SecondWord),
+            Resource(newResource, owner)))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.True(await verified.VocabularyWords.AnyAsync(row => row.Id == graph.Word));
+        Assert.True(await verified.VocabularyWords.AnyAsync(row => row.Id == graph.SecondWord));
+        Assert.True(await verified.MinimalPairAttempts.AnyAsync(row => row.Id == ownAttempt));
+        Assert.True(await verified.MinimalPairAttempts.AnyAsync(row => row.Id == otherAttempt));
+        Assert.True(await verified.LearningResources.AnyAsync(row => row.Id == newResource));
+    }
+
+    [ApplicationOperationPostgresFact]
+    public async Task DeletionLog_IsReadThroughItsTableAndRowIndex()
+    {
+        // The download's own query. With a tiny log PostgreSQL would scan it anyway, so the scan
+        // is switched off: the plan must then reach rows through the index by table (a query by
+        // row ID alone can only match "RowId" across the whole index).
+        await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using (var off = new NpgsqlCommand("SET enable_seqscan = off", connection))
+            await off.ExecuteNonQueryAsync();
+        await using var command = new NpgsqlCommand(
+            "EXPLAIN " + SentenceStudio.Api.Sync.NativeOwnerSyncProvider.LatestLoggedDeletionsSql, connection);
+        command.Parameters.AddWithValue("table", "MinimalPair");
+        command.Parameters.AddWithValue("ids", new[] { "a", "b" });
+        var plan = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+            while (await reader.ReadAsync())
+                plan.Add(reader.GetString(0));
+        var text = string.Join("\n", plan);
+        Assert.True(text.Contains("IX_SyncDeletion_TableName_RowId"), text);
+        Assert.True(plan.Any(line => line.Contains("Index Cond") && line.Contains("\"TableName\" =")), text);
+    }
+
+    private async Task<string> SeedAttemptAsync(string owner, string pair, string prompt, string selected)
+    {
+        var now = DateTime.UtcNow;
+        var session = Guid.NewGuid().ToString();
+        var attempt = Guid.NewGuid().ToString();
+        await using var db = _fixture.NewContext();
+        db.MinimalPairSessions.Add(new MinimalPairSession
+        {
+            Id = session, UserId = owner, StartedAt = now, CreatedAt = now, UpdatedAt = now
+        });
+        db.MinimalPairAttempts.Add(new MinimalPairAttempt
+        {
+            Id = attempt, UserId = owner, SessionId = session, PairId = pair,
+            PromptWordId = prompt, SelectedWordId = selected, SequenceNumber = 1, CreatedAt = now
+        });
+        await db.SaveChangesAsync();
+        return attempt;
+    }
+
+    [ApplicationOperationPostgresFact]
     public async Task RowThatExistsAgain_IsNotDeletedOnDevices()
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();
