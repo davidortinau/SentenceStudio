@@ -804,7 +804,7 @@
         try
         {
             var status = await LookupRepo.RecordAsync(owner, new VocabularyLookupEntry(
-                word, translation.Translation, translation.Direction,
+                word, translation.Translation, translation.Origin,
                 VocabularyLookupActivity.Reading, resource?.Id));
             if (status != VocabularyLookupRecordStatus.Recorded)
                 Logger.LogWarning("Reading did not record a lookup: {Status}", status);
@@ -890,7 +890,10 @@
                 owner);
             if (!OwnerStillActive())
                 return;
-            if (status != ResourceVocabularyWriteStatus.Success)
+            // AlreadyPresent: the resource already has this word, which is what the learner
+            // asked for; it is shown as in vocabulary, not as a failure.
+            var alreadyPresent = status == ResourceVocabularyWriteStatus.AlreadyPresent;
+            if (status != ResourceVocabularyWriteStatus.Success && !alreadyPresent)
             {
                 Logger.LogWarning("Reading could not save a word: {Status}.", status);
                 Toast.ShowError(Localize["Reading_CouldNotSaveWord"]);
@@ -903,6 +906,11 @@
             if (selectedWord == word)
                 selectedVocabWord = vocabularyWords.FirstOrDefault(v =>
                     v.TargetLanguageTerm?.Equals(word, StringComparison.OrdinalIgnoreCase) == true);
+            if (alreadyPresent)
+            {
+                Toast.ShowInfo(Localize.Get("Lookups_AlreadyPresent", resource.Title ?? string.Empty));
+                return;
+            }
             Toast.ShowSuccess(Localize.Get("Reading_WordSaved", word));
 
             await RecordActivityAsync(owner, $"Added vocabulary: {word}");

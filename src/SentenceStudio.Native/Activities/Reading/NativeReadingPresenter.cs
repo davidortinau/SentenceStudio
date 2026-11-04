@@ -515,13 +515,13 @@ public sealed class NativeReadingPresenter(
 
         string definition;
         var translated = false;
-        var direction = VocabularyLookupDirection.ToNative;
+        var origin = VocabularyLookupOrigin.OwnedTargetTerm;
         string? resourceId;
         lock (_sync)
             resourceId = _resource?.Id;
         try
         {
-            (definition, direction) = await TranslateAsync(userId, cleanWord, context, cancellationToken);
+            (definition, origin) = await TranslateAsync(userId, cleanWord, context, cancellationToken);
             translated = true;
             if (string.IsNullOrEmpty(definition))
                 definition = TranslationUnavailableMarker;
@@ -566,7 +566,7 @@ public sealed class NativeReadingPresenter(
             // The lookup history keeps only lookups that found a translation (decision 4 B).
             if (definition != TranslationUnavailableMarker && owner.IsActive(userId))
                 await RecordLookupAsync(userId, new VocabularyLookupEntry(cleanWord, definition,
-                    direction, VocabularyLookupActivity.Reading, resourceId));
+                    origin, VocabularyLookupActivity.Reading, resourceId));
         }
         return await SettledStateAsync();
     }
@@ -612,17 +612,17 @@ public sealed class NativeReadingPresenter(
     /// target term, then by native term, then the source Translate prompt
     /// through the owner-bound AI gateway.
     /// </summary>
-    private async Task<(string Text, VocabularyLookupDirection Direction)> TranslateAsync(
+    private async Task<(string Text, VocabularyLookupOrigin Origin)> TranslateAsync(
         string userId, string text, string? context, CancellationToken cancellationToken)
     {
         var byTarget = await resources.GetWordByTargetTermAsync(text, userId);
         if (!string.IsNullOrEmpty(byTarget?.NativeLanguageTerm))
-            return (byTarget.NativeLanguageTerm, VocabularyLookupDirection.ToNative);
+            return (byTarget.NativeLanguageTerm, VocabularyLookupOrigin.OwnedTargetTerm);
         var byNative = await resources.GetWordByNativeTermAsync(text, userId);
         if (!string.IsNullOrEmpty(byNative?.TargetLanguageTerm))
-            return (byNative.TargetLanguageTerm, VocabularyLookupDirection.ToTarget);
+            return (byNative.TargetLanguageTerm, VocabularyLookupOrigin.OwnedNativeTerm);
         if (ai is null || !owner.IsActive(userId))
-            return (string.Empty, VocabularyLookupDirection.ToNative);
+            return (string.Empty, VocabularyLookupOrigin.TranslatedToEnglish);
         using var stream = typeof(NativeReadingPresenter).Assembly
             .GetManifestResourceStream(TranslateTemplate)
             ?? throw new InvalidOperationException("The source Translate template is missing.");
@@ -638,7 +638,7 @@ public sealed class NativeReadingPresenter(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _lifetime.Token);
         return ((await ai.SendPromptAsync<string>(userId, prompt, linked.Token))?.Trim() ?? string.Empty,
-            VocabularyLookupDirection.ToNative);
+            VocabularyLookupOrigin.TranslatedToEnglish);
     }
 
     /// <summary>"Remember this word": create (or reuse) the owner's word and attach it to the resource.</summary>
@@ -673,7 +673,10 @@ public sealed class NativeReadingPresenter(
                     userId, cancellationToken);
                 if (!owner.IsActive(userId))
                     return Refuse();
-                if (status != ResourceVocabularyWriteStatus.Success)
+                // AlreadyPresent: the resource already has this word, which is the outcome the
+                // learner asked for; it is shown as in vocabulary, not as a failure.
+                var alreadyPresent = status == ResourceVocabularyWriteStatus.AlreadyPresent;
+                if (status != ResourceVocabularyWriteStatus.Success && !alreadyPresent)
                 {
                     _logger.LogWarning("Reading could not save a word: {Status}.", status);
                     lock (_sync)
@@ -683,7 +686,8 @@ public sealed class NativeReadingPresenter(
                     }
                     return Publish();
                 }
-                pendingWrites.MarkPending(userId);
+                if (!alreadyPresent)
+                    pendingWrites.MarkPending(userId);
                 var reloaded = await resources.GetResourceAsync(resource.Id, userId);
                 lock (_sync)
                 {
@@ -692,10 +696,13 @@ public sealed class NativeReadingPresenter(
                     RebuildTokens();
                     _panel = _panel is null ? null
                         : _panel with { IsSaving = false, IsInVocabulary = true };
-                    _notice = NativeMessage.Success(NativeReadingText.WordSaved, panel.Word);
+                    _notice = alreadyPresent
+                        ? NativeMessage.Info(NativeReadingText.AlreadyInResource, resource.Title ?? string.Empty)
+                        : NativeMessage.Success(NativeReadingText.WordSaved, panel.Word);
                 }
                 Publish();
-                await RecordActivityAsync(userId, $"Added vocabulary: {panel.Word}");
+                if (!alreadyPresent)
+                    await RecordActivityAsync(userId, $"Added vocabulary: {panel.Word}");
                 return State;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

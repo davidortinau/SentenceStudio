@@ -140,6 +140,7 @@ internal sealed class RecentLookupsCoordinator : IDisposable
         string owner;
         DeviceUserScopeProvider.ScopeStamp stamp;
         long generation;
+        RecentLookupsState previous;
         lock (_gate)
         {
             if (RevokeIfStaleLocked() || !IsCurrentOwnerLocked(_owner ?? "", _stamp))
@@ -147,11 +148,12 @@ internal sealed class RecentLookupsCoordinator : IDisposable
             owner = _owner!;
             stamp = _stamp;
             generation = ++_generation;
+            previous = _state;
             _state = _state with { Phase = RecentLookupsPhase.Loading, Notice = null };
             ++_viewVersion;
         }
         Changed?.Invoke();
-        RecentLookupsState? next;
+        RecentLookupsState next;
         try
         {
             var page = await _lookups.GetRecentAsync(owner, cancellationToken: cancellationToken);
@@ -164,7 +166,11 @@ internal sealed class RecentLookupsCoordinator : IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
+            // Never leave the spinner behind: keep the list shown before, or offer Retry.
+            _logger.LogInformation("Recent lookups load was cancelled.");
+            next = previous.Phase is RecentLookupsPhase.Ready or RecentLookupsPhase.Empty
+                ? previous with { AddingId = null, Notice = null }
+                : new(RecentLookupsPhase.LoadError, [], null, null);
         }
         catch (Exception ex)
         {

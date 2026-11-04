@@ -47,6 +47,32 @@ public sealed class ReadingRememberWordTests
             .Contain(m => m.ResourceId == reading.Id && m.VocabularyWordId == existing[0].Id);
     }
 
+    /// <summary>
+    /// The resource already has the word (for example it arrived from another device after the
+    /// page loaded): that is the outcome the learner asked for, not a failure.
+    /// </summary>
+    [Fact]
+    public async Task RememberWord_AlreadyInTheResource_ShowsItAsInVocabulary_NotAnError()
+    {
+        await using var fixture = await ActivityPageFixture.CreateAsync();
+        var (resource, existing) = await fixture.SeedResourceAsync(ActivityPageFixture.OwnerA, ("바다", "sea"));
+        var page = await OpenAsync(fixture, resource, "바다", "sea");
+        var activitiesBefore = (await fixture.RowsAsync<UserActivity>()).Count;
+
+        await fixture.Renderer.InvokeAsync(page, "SaveWordToVocabulary");
+
+        fixture.Toasts.Should().NotContain(t => t.Type == ToastType.Error);
+        fixture.Toasts.Should().Contain(t => t.Type == ToastType.Info
+            && t.Text == "Already in Fixture resource.");
+        Members.Get<VocabularyWord?>(page, "selectedVocabWord")!.Id.Should().Be(existing[0].Id);
+        Members.Get<List<VocabularyWord>>(page, "vocabularyWords").Should().Contain(w => w.Id == existing[0].Id);
+        (await fixture.RowsAsync<VocabularyWord>()).Where(w => w.TargetLanguageTerm == "바다")
+            .Should().ContainSingle("nothing is duplicated");
+        (await fixture.RowsAsync<UserActivity>()).Should().HaveCount(activitiesBefore,
+            "no vocabulary was added, so no \"Added vocabulary\" row is written");
+        Members.Get<bool>(page, "isSavingWord").Should().BeFalse();
+    }
+
     [Fact]
     public async Task RememberWord_LinkRefused_LeavesNoWordBehind()
     {

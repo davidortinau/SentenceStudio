@@ -66,6 +66,8 @@ public static class NativeReadingText
     /// <summary>Format: {0} is the saved word.</summary>
     public const string WordSaved = "Reading_WordSaved";
     public const string CouldNotSaveWord = "Reading_CouldNotSaveWord";
+    /// <summary>Format: {0} = resource title. "Remember this word" found it already in the resource.</summary>
+    public const string AlreadyInResource = "Lookups_AlreadyPresent";
     public const string ErrorSavingWord = "Reading_ErrorSavingWord";
     public const string TranslationUnavailable = "Reading_TranslationUnavailable";
     public const string Play = "Reading_Play";

@@ -203,13 +203,8 @@ internal sealed partial class AndroidSliceShell
                 : new Icon(Icons.Default.Add, label) { Modifier = Modifier.Size(20), Tint = palette.Primary },
             new Text(Localize("Lookups_AddToVocabulary")) { Color = palette.Primary },
         });
+        // Destination resources only, as on iOS (a heading row would be a do-nothing action).
         var menu = PopupMenu(expanded: _moreMenu == key, onDismissRequest: CloseMoreMenu);
-        menu.Add(new DropdownMenuItem(
-            text: new Text(Localize("Lookups_ChooseResource")) { Color = palette.SecondaryText },
-            onClick: CloseMoreMenu)
-        {
-            Modifier = Modifier.TestTag($"{RecentLookupsAccess.Add(row)}.heading"),
-        });
         foreach (var destination in row.Destinations)
         {
             var target = destination;
