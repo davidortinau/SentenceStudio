@@ -37,7 +37,7 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("result = _allowVoiceDiscovery", owner);
         Assert.Contains("Views.Button(text(\"Settings_Title\"), actions.OpenSettings)",
             dashboard);
-        Assert.Contains("_dashboardStack.Push(\"settings\", _settingsSlot)", scene);
+        Assert.Contains("_dashboardStack.Push(\"settings\", WithSamToolbar(_dashboardStack, \"settings\", _settingsSlot))", scene);
         Assert.Contains("_root.PreferredColorScheme = PreferredSchemeFor(selectedAppearance.Mode)", scene);
         Assert.Contains("SourceUiStyle.RefreshTypography(", scene);
         Assert.Contains("_settingsSlot = Views.VStack(_app.RenderSettings(_style))",

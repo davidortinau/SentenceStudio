@@ -58,7 +58,7 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("Views.TabView(_app.SelectedTab", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
         Assert.Contains("Views.NavigationStack(_resourcesSlot", scene);
-        Assert.Contains("_dashboardStack.Push(\"quiz\", _quizSheet)", scene);
+        Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_resourcesStack.Push(\"resource-form\"", scene);
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);
         Assert.Contains("_app.OnQuizPopped()", scene);

@@ -625,6 +625,33 @@ public sealed class SourceUiAppearanceTests
     }
 
     [Theory]
+    // SwiftDynamicTypeSize: XSmall 0, Large 3, XXXLarge 6, Accessibility1 7, Accessibility5 11.
+    [InlineData(0, 14.0 / 17)]
+    [InlineData(3, 1.0)]
+    [InlineData(6, 23.0 / 17)]
+    [InlineData(7, 28.0 / 17)]
+    [InlineData(11, 53.0 / 17)]
+    [InlineData(-1, 1.0)]
+    [InlineData(12, 1.0)]
+    public void DynamicTypeScale_UsesAppleBodySizes(int size, double scale) =>
+        Assert.Equal(scale, SourceUiLayout.DynamicTypeScale(size), 6);
+
+    [Theory]
+    // AF-D11 follow-up: "SS Agent ipad2" at 1032 pt portrait showed 4 columns with
+    // labels broken mid-word at the largest accessibility size.
+    [InlineData(1032, 3, 1.0, 4)]
+    [InlineData(1032, 11, 1.0, 2)]
+    [InlineData(1032, 7, 1.0, 2)]
+    [InlineData(1032, 3, 1.5, 2)]
+    [InlineData(1366, 3, 1.5, 3)]
+    [InlineData(402, 3, 1.0, 2)]
+    [InlineData(402, 11, 1.0, 1)]
+    public void ActivityGrid_DropsColumnsAsTextGrows(
+        double width, int dynamicType, double fontScale, int columns) =>
+        Assert.Equal(columns, SourceUiLayout.ActivityColumns(width,
+            SourceUiLayout.DynamicTypeScale(dynamicType) * fontScale));
+
+    [Theory]
     [InlineData(402, false)]
     [InlineData(767, false)]
     [InlineData(768, true)]

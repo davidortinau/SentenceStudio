@@ -5,6 +5,10 @@ using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.Features.Onboarding;
 
+/// <summary>The suggested-name list of the name step and its choose action.</summary>
+internal sealed record OnboardingNameSuggestions(
+    bool Loading, System.Collections.Immutable.ImmutableArray<string> Names, Action<string> Choose);
+
 internal static class OnboardingView
 {
     internal static SwiftView Page(
@@ -15,7 +19,8 @@ internal static class OnboardingView
         Func<string, string> text,
         Action<NativeOnboardingDraft> changed,
         Action back, Action next, Action<bool> finish,
-        Action signOut, Action<SwiftView> registerNext)
+        Action signOut, Action<SwiftView> registerNext,
+        OnboardingNameSuggestions? suggestions = null)
     {
         var content = new List<SwiftView>();
         if (pendingSync)
@@ -74,6 +79,8 @@ internal static class OnboardingView
                     .WithAccessibilityIdentifier("native.onboarding.name");
                 nameInput.IsEnabled = !busy;
                 content.Add(nameInput);
+                if (suggestions is { } names)
+                    AddSuggestedNames(content, style, names, busy, text);
                 break;
             case 4:
                 content.Add(Heading(style, text("Onboarding_LearningPreferences")));
@@ -136,12 +143,9 @@ internal static class OnboardingView
                         }
                         : ["Onboarding_SavingProfile"];
                     for (var index = 0; index < steps.Length; index++)
-                        content.Add(Views.HStack(
-                                Views.Image(index < contentStepsDone
-                                    ? "checkmark.circle.fill" : "circle"),
-                                Views.Text(text(steps[index])))
-                            .WithAccessibilityIdentifier(
-                                $"native.onboarding.progress.{index}"));
+                        content.Add(ProgressRow(style, text(steps[index]),
+                            index < contentStepsDone, index == contentStepsDone,
+                            $"native.onboarding.progress.{index}"));
                 }
                 else
                 {
@@ -217,6 +221,65 @@ internal static class OnboardingView
             .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth));
         return style.Page(page)
             .WithAccessibilityIdentifier("native.onboarding.screen");
+    }
+
+    /// <summary>
+    /// Source Onboarding.razor:59-75: while names load, a spinner with
+    /// "Generating names"; then "Or choose a suggested name" over a two-column
+    /// grid whose buttons fill the name field.
+    /// </summary>
+    private static void AddSuggestedNames(List<SwiftView> content, SourceUiStyle style,
+        OnboardingNameSuggestions suggestions, bool busy, Func<string, string> text)
+    {
+        if (suggestions.Loading)
+        {
+            var loading = Views.HStack(
+                    Views.IndeterminateProgress(text("Onboarding_GeneratingNames")),
+                    style.Text(Views.Text(text("Onboarding_GeneratingNames")),
+                        SourceTextRole.Caption1, SourceTextTone.Tertiary))
+                .WithAccessibilityIdentifier("native.onboarding.names.loading");
+            loading.Spacing = 4;
+            content.Add(loading);
+            return;
+        }
+        if (suggestions.Names.IsDefaultOrEmpty)
+            return;
+        content.Add(style.Text(Views.Text(text("Onboarding_OrChooseSuggested")),
+                SourceTextRole.Caption1, SourceTextTone.Tertiary)
+            .WithAccessibilityIdentifier("native.onboarding.names.caption"));
+        var buttons = suggestions.Names.Select((name, index) =>
+        {
+            var choice = style.SecondaryButton(name, () => suggestions.Choose(name),
+                    fullWidth: true)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"native.onboarding.names.{index}");
+            SourceUiStyle.SetCustomButtonAvailability(choice, style.Appearance,
+                SourceButtonRole.FilledSecondary, !busy);
+            return choice;
+        }).ToArray();
+        var grid = Views.LazyVGrid(2, buttons)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier("native.onboarding.names");
+        grid.Spacing = SourceUiLayout.ItemGap;
+        content.Add(grid);
+    }
+
+    /// <summary>Source Onboarding.razor:119-165: done, in progress, or waiting.</summary>
+    private static SwiftView ProgressRow(
+        SourceUiStyle style, string label, bool done, bool current, string id)
+    {
+        var appearance = style.Appearance;
+        SwiftView marker = current
+            ? Views.IndeterminateProgress(label)
+            : Views.Image(done ? "checkmark.circle.fill" : "circle")
+                .WithForegroundColor(
+                    done ? appearance.SuccessAlertText.Light : appearance.InactiveStepDot.Light,
+                    done ? appearance.SuccessAlertText.Dark : appearance.InactiveStepDot.Dark);
+        var row = Views.HStack(marker,
+                style.Text(Views.Text(label), SourceTextRole.Body2))
+            .WithAccessibilityIdentifier(id);
+        row.Spacing = SourceUiLayout.ItemGap;
+        return row;
     }
 
     private static SwiftView Heading(

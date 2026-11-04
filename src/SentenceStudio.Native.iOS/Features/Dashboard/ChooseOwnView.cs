@@ -101,7 +101,7 @@ internal static class ChooseOwnView
             ? NativeDashboardPresenter.ChooseOwnActivities
             : NativeDashboardPresenter.ChooseOwnActivities.Take(6);
         var activities = Views.LazyVGrid(
-            SourceUiLayout.ActivityColumns(style.ViewportWidth),
+            SourceUiLayout.ActivityColumns(style.ViewportWidth, style.TextScale),
             visible.Select(activity =>
             {
                 var content = style.Card(Views.VStack(

@@ -154,7 +154,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("return DashboardPage(items, style)", dashboard);
         Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))",
             dashboard);
-        Assert.Contains("SourceUiLayout.ActivityColumns(style.ViewportWidth)", chooseOwn);
+        Assert.Contains("SourceUiLayout.ActivityColumns(style.ViewportWidth, style.TextScale)", chooseOwn);
         Assert.Contains("var tiles = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 5,",
             progress);
         Assert.Contains(".WithPadding(SourceUiLayout.CardInset)", card);
@@ -279,7 +279,7 @@ public sealed class NativeSourceStylingContractTests
             viewport);
         Assert.Contains("resourceGrid.GridColumns = SourceUiLayout.ResourceColumns(width)",
             viewport);
-        Assert.Contains("activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width)",
+        Assert.Contains("activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width, _style.TextScale)",
             viewport);
         Assert.Contains("if (crossedDesktopBreakpoint)", viewport);
         Assert.Contains("UpdateResources(replaceAll: true);", viewport);

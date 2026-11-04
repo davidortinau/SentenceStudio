@@ -289,6 +289,7 @@ internal sealed partial class ApplicationController : IDisposable
             _onboardingStep = 0;
             _onboardingErrorKey = null;
             _onboardingStepsDone = 0;
+            ResetOnboardingNames();
         }
     }
 
@@ -404,7 +405,8 @@ internal sealed partial class ApplicationController : IDisposable
                 Run(() => FinishOnboardingAsync(createStarter));
             },
             signOut: () => Run(SignOutAsync),
-            registerNext: next => _onboardingNextButton = next);
+            registerNext: next => _onboardingNextButton = next,
+            suggestions: OnboardingSuggestions);
 
     private void NextOnboardingStep()
     {
@@ -416,6 +418,9 @@ internal sealed partial class ApplicationController : IDisposable
                 _ => false
             }))
             return;
+        // Source Onboarding.razor NextStep: leaving the target language step loads names.
+        if (_onboardingStep == 2)
+            LoadOnboardingNames(_onboardingDraft.TargetLanguage);
         _onboardingStep = Math.Min(5, _onboardingStep + 1);
         Publish();
     }
@@ -541,12 +546,17 @@ internal sealed partial class ApplicationController : IDisposable
             }
             if (string.IsNullOrWhiteSpace(profile.TargetLanguage))
             {
-                _dashboardStarterErrorKey = "NativeResources_SetTargetLanguage";
+                // Source Index.razor:804-811: no target language sends the learner to onboarding.
+                if (!await RouteToOnboardingForMissingTargetLanguageAsync())
+                    _dashboardStarterErrorKey = "NativeResources_SetTargetLanguage";
                 return;
             }
             var created = await _services.Provider
                 .GetRequiredService<NativeResourcePresenter>()
                 .CreateStarterAsync(_lifetime.Token);
+            if (created.ErrorKey == "NativeResources_SetTargetLanguage"
+                && await RouteToOnboardingForMissingTargetLanguageAsync())
+                return;
             if (created.Result is NativeResourceMutationResult.Success
                 or NativeResourceMutationResult.AlreadyPresent)
             {

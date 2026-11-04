@@ -490,7 +490,7 @@ public sealed class NativeSkillsContractTests
         var list = Read("Features/Skills/SkillsView.cs");
         var form = Read("Features/Skills/SkillProfileFormView.cs");
 
-        Assert.Contains("stack.Push(\"skills\", _skillsSlot)", scene);
+        Assert.Contains("stack.Push(\"skills\", WithSamToolbar(stack, \"skills\", _skillsSlot))", scene);
         Assert.Contains("stack.Push(\"skill-form\",", scene);
         Assert.Contains("ApplicationFormRoutes.ShouldPopResourceForm(", scene);
         Assert.Contains("ApplicationFormRoutes.ShouldPopSkillForm(", scene);

@@ -71,10 +71,12 @@ internal sealed partial class ApplicationScene
                         .WithSheetDetentFraction(_app.ActivitySheetDetent)
                         .WithTabBarHidden();
                     _activitySheet.IsPresented = _app.IsActivitySheetPresented;
-                    _dashboardStack.Push("activity", _activitySheet);
+                    _dashboardStack.Push("activity",
+                        WithSamToolbar(_dashboardStack, "activity", _activitySheet));
                 }
                 else
-                    _dashboardStack.Push("activity", _app.PresentActivityOver(page));
+                    _dashboardStack.Push("activity",
+                        WithSamToolbar(_dashboardStack, "activity", _app.PresentActivityOver(page)));
             }
             else if (_activitySlot is not null)
             {
@@ -176,7 +178,8 @@ internal sealed partial class ApplicationScene
                 RecordActivityChild();
                 // The toast follows the page on top of the stack.
                 _activityChildToastLayer = Views.VStack().WithFlexibleWidth();
-                stack.Push("activity-child", Views.Overlay(_activityChildSlot, _activityChildToastLayer, SwiftOverlayEdge.Top));
+                stack.Push("activity-child", WithSamToolbar(stack, "activity-child",
+                    Views.Overlay(_activityChildSlot, _activityChildToastLayer, SwiftOverlayEdge.Top)));
                 return;
             }
             if (_renderedActivityChildVersion != _app.ActivityChildVersion
