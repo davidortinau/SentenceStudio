@@ -25,8 +25,10 @@
              Link="AndroidReplacementGuard.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizInputPolicy.cs"
              Link="AndroidQuizInputPolicy.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizFeedbackPhotoPolicy.cs"
-             Link="AndroidQuizFeedbackPhotoPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizPhotoPolicy.cs"
+             Link="AndroidQuizPhotoPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizTurnPolicy.cs"
+             Link="AndroidQuizTurnPolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizPhotoPresentationPolicy.cs"
              Link="AndroidQuizPhotoPresentationPolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizPhotoTransform.cs"

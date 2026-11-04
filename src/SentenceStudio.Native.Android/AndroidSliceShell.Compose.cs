@@ -40,33 +40,7 @@ internal sealed partial class AndroidSliceShell
             if (detailsKey is not null)
                 await _detailsScroll.ScrollToAsync(0, cancellationToken);
         });
-        (string Owner, string Turn, string Uri)? feedbackPhotoLoad = null;
-        if (!_preview && _media is not null
-            && HasDashboardOwner(Auth.UserId)
-            && AndroidQuizFeedbackPhotoPolicy.CanLoad(Quiz, Auth.UserId))
-            feedbackPhotoLoad = (Auth.UserId!, Quiz.TurnId!,
-                Quiz.FeedbackPhotoCandidateUri!);
-        composer.LaunchedEffect(feedbackPhotoLoad, async cancellationToken =>
-        {
-            if (feedbackPhotoLoad is not { } candidate || _media is not { } media
-                || !await media.CanShowPhotoAsync(candidate.Uri, cancellationToken))
-                return;
-            Post(() =>
-            {
-                if (HasDashboardOwner(Auth.UserId)
-                    && AndroidQuizFeedbackPhotoPolicy.CanLoad(Quiz, Auth.UserId)
-                    && Auth.UserId == candidate.Owner
-                    && Quiz.TurnId == candidate.Turn
-                    && Quiz.FeedbackPhotoCandidateUri == candidate.Uri
-                    && media.TryGetPhoto(candidate.Uri, out _))
-                {
-                    _feedbackPhotoOwner = candidate.Owner;
-                    _feedbackPhotoTurnId = candidate.Turn;
-                    _feedbackPhotoUri = candidate.Uri;
-                    _revision.Value = unchecked(_revision.Value + 1);
-                }
-            });
-        });
+        RememberQuizEffects(composer);
         _photoFocus = composer.Remember(() => new FocusRequester());
         var restoreVersion = _photoFocusRestoreVersion;
         composer.LaunchedEffect(restoreVersion, _ =>
@@ -74,9 +48,8 @@ internal sealed partial class AndroidSliceShell
             if (restoreVersion > 0 && restoreVersion == _photoFocusRestoreVersion
                 && Destination == NativeDestination.VocabularyQuiz
                 && HasDashboardOwner(Auth.UserId)
-                && Quiz.Phase == NativePhase.Ready
-                && Quiz.Prompt?.ShowPhoto == true)
-                _photoFocus.RequestFocus();
+                && AndroidQuizPhotoPolicy.CanOpenFullScreen(Quiz))
+                RequestFocusQuietly(_photoFocus);
             return Task.CompletedTask;
         });
         var photoViewer = Destination == NativeDestination.VocabularyQuiz
@@ -84,7 +57,7 @@ internal sealed partial class AndroidSliceShell
             && HasDashboardOwner(Auth.UserId)
             && AndroidQuizPhotoPresentationPolicy.CanPresent(
                 Quiz, Auth.UserId, viewer.OwnerId, viewer.TurnId,
-                viewer.PhotoUri)
+                viewer.PhotoUri, viewer.OpenedPhase)
             ? viewer : null;
         composer.LaunchedEffect(photoViewer, _ =>
         {
@@ -92,7 +65,8 @@ internal sealed partial class AndroidSliceShell
                 && ReferenceEquals(_photoDialog, photoViewer)
                 && AndroidQuizPhotoPresentationPolicy.CanPresent(
                     Quiz, Auth.UserId, photoViewer.OwnerId,
-                    photoViewer.TurnId, photoViewer.PhotoUri))
+                    photoViewer.TurnId, photoViewer.PhotoUri,
+                    photoViewer.OpenedPhase))
                 photoViewer.FocusClose();
             return Task.CompletedTask;
         });
@@ -954,10 +928,11 @@ internal sealed partial class AndroidSliceShell
                     "native.quiz.summary.continue", ContinueRound, !Busy.Value));
             viewport.Add(Action(Localize(NativeText.Done), "native.quiz.summary.done",
                 DoneQuiz, !Busy.Value, primary: false));
-            if (state.Phase == NativePhase.Error)
-                viewport.Add(Action(Localize(NativeText.Retry), "native.quiz.retry",
-                    RetryQuizSave, !Busy.Value));
+            if (QuizRetryAction() is { } retry)
+                viewport.Add(retry);
         }
+        else if (state.Sentence is not null)
+            RenderQuizSentence(viewport, state, palette);
         else if (state.Prompt is { } prompt)
             RenderQuestion(composer, viewport, state, prompt, palette);
         else
@@ -972,18 +947,17 @@ internal sealed partial class AndroidSliceShell
                 : Localize(state.ErrorKey ?? NativeText.QuizUnavailable),
                 palette, error: state.Phase is NativePhase.Error or NativePhase.Blocked,
                 automationId: "native.quiz.status"));
-            if (state.Phase == NativePhase.Error)
-                viewport.Add(Action(Localize(NativeText.Retry), "native.quiz.retry",
-                    RetryQuizSave, !Busy.Value));
+            if (QuizRetryAction() is { } retry)
+                viewport.Add(retry);
         }
 
         var page = new Column
         {
             Modifier.FillMaxSize().TestTag("native.quiz.page"),
-            ScreenHeader(Localize(NativeText.Quiz), palette, back: true),
+            QuizHeader(state, palette),
             viewport,
         };
-        if (state.Prompt is not null
+        if (state.Prompt is not null && state.Sentence is null
             && state.Destination != NativeDestination.QuizSummary)
             page.Add(RenderQuizFooter(state, palette));
         if (state.Overlay == NativeQuizOverlay.LearningDetails
@@ -992,10 +966,17 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
+    /// <summary>Retry for the current error, routed to the command whose save failed.</summary>
+    private ComposableNode? QuizRetryAction() =>
+        AndroidQuizTurnPolicy.Route(Quiz, _quizFailedCommand, _quizLaunch is not null)
+            is AndroidQuizRetry.None or AndroidQuizRetry.Sentence
+            ? null
+            : Action(Localize(NativeText.Retry), "native.quiz.retry",
+                RetryQuiz, !Busy.Value);
+
     private void RenderQuestion(IComposer composer, Column viewport,
         NativeQuizState state, NativeQuizPrompt prompt, AndroidVisualPalette palette)
     {
-        var choices = state.Choices.IsDefault ? [] : state.Choices;
         var isQuestion = state.Phase == NativePhase.Ready;
         var question = prompt.ShowWrittenPrompt && !string.IsNullOrEmpty(prompt.PromptText)
             ? prompt.PromptText
@@ -1005,38 +986,18 @@ internal sealed partial class AndroidSliceShell
                     ? Localize("VocabQuiz_LookAndAnswer")
                     : Localize("VocabQuiz_ListenAndAnswer");
         viewport.Add(QuizPromptHeading(question, palette));
-        if (prompt.CanPlayPromptAudio)
-        {
-            var tools = new Row(Arrangement.Center)
-            {
-                Modifier.FillMaxWidth().TestTag("native.quiz.tools")
-            };
-            var play = Localize("VocabWordEdit_PlayAudio");
-            var button = new IconButton(
-                PlayPrompt, enabled: isQuestion && !Busy.Value)
-            {
-                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .WidthIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.quiz.audio")
-                    .Semantics(semantics => semantics.ContentDescription(play))
-            };
-            button.Add(new Icon(Icons.Default.PlayArrow, play)
-            {
-                Modifier = Modifier.Size(24),
-                Tint = palette.Text
-            });
-            tools.Add(button);
-            viewport.Add(tools);
-        }
-        if (prompt.ShowPhoto && prompt.PhotoUri is { } photoUri)
-            viewport.Add(RenderQuizPhoto(photoUri, palette));
-        else if (HasDashboardOwner(Auth.UserId)
-            && AndroidQuizFeedbackPhotoPolicy.CanDisplay(
-                state, Auth.UserId, _feedbackPhotoOwner,
-                _feedbackPhotoTurnId, _feedbackPhotoUri)
-            && _media?.TryGetPhoto(_feedbackPhotoUri, out _) == true)
-            viewport.Add(RenderQuizPhoto(_feedbackPhotoUri!, palette,
-                feedback: true));
+        if (RenderQuizPromptActions(state, prompt, palette) is { } actions)
+            viewport.Add(actions);
+        if (RenderQuizThumbnail(state, prompt, palette) is { } photo)
+            viewport.Add(photo);
+        if (state.Phase == NativePhase.Feedback && state.AnswerWasCorrect == true
+            && !string.IsNullOrWhiteSpace(state.FeedbackMnemonicText))
+            viewport.Add(StatusAlert(
+                $"{Localize("NativeVocabQuiz_Mnemonic")}: " +
+                state.FeedbackMnemonicText, palette,
+                automationId: "native.quiz.feedback.mnemonic"));
+        if (RenderSentenceHints(state, prompt, palette) is { } hints)
+            viewport.Add(hints);
 
         var answerSlot = new Column
         {
@@ -1060,12 +1021,6 @@ internal sealed partial class AndroidSliceShell
                 error: state.AnswerWasCorrect == false,
                 success: state.AnswerWasCorrect == true,
                 automationId: NativeAccess.QuizFeedback));
-            if (state.AnswerWasCorrect == true
-                && !string.IsNullOrWhiteSpace(state.FeedbackMnemonicText))
-                viewport.Add(StatusAlert(
-                    $"{Localize("NativeVocabQuiz_Mnemonic")}: " +
-                    state.FeedbackMnemonicText, palette,
-                    automationId: "native.quiz.feedback.mnemonic"));
         }
         else
             viewport.Add(new Box
@@ -1078,19 +1033,7 @@ internal sealed partial class AndroidSliceShell
                 error: true, automationId: "native.quiz.error"));
 
         if (state.Mode == "MultipleChoice")
-        {
-            var optionList = new Column(Arrangement.SpacedBy(8))
-            {
-                Modifier = Modifier.FillMaxWidth().TestTag("native.quiz.choices"),
-            };
-            for (var index = 0; index < choices.Length; index++)
-            {
-                var choice = choices[index];
-                optionList.Add(ChoiceAction(composer, palette, choice, index, state,
-                    AnswerQuiz, isQuestion && state.CanSubmit && !Busy.Value));
-            }
-            viewport.Add(optionList);
-        }
+            viewport.Add(RenderQuizChoices(composer, state, palette));
         else if (state.Mode == "Text")
         {
             var needsCorrection = state.RequiresCorrection
@@ -1100,11 +1043,14 @@ internal sealed partial class AndroidSliceShell
                 ? NativeText.CorrectionRequired : NativeText.AnswerRequired);
             viewport.Add(Body(Localize("VocabQuiz_TypeTranslation"), palette, secondary: true));
             var keyboard = KeyboardOptionsCompanion.Default;
+            var fieldModifier = Modifier.FillMaxWidth();
+            if (needsCorrection && _correctionFocus is not null)
+                fieldModifier = fieldModifier.FocusRequester(_correctionFocus);
             viewport.Add(new OutlinedTextField(
                 text, enabled: (isQuestion || needsCorrection) && !Busy.Value,
                 singleLine: true)
             {
-                Modifier = Modifier.FillMaxWidth()
+                Modifier = fieldModifier
                     .TestTag(needsCorrection ? "native.quiz.correction"
                         : NativeAccess.QuizAnswer)
                     .Semantics(semantics => semantics.ContentDescription(label)),
@@ -1147,51 +1093,8 @@ internal sealed partial class AndroidSliceShell
         else if (state.Phase == NativePhase.Feedback)
             viewport.Add(Action(Localize(NativeText.QuizNext), "native.quiz.next",
                 NextQuestion, !Busy.Value));
-        if (state.Phase == NativePhase.Error)
-            viewport.Add(Action(Localize(NativeText.Retry), "native.quiz.retry",
-                RetryQuizSave, !Busy.Value));
-    }
-
-    private ComposableNode RenderQuizPhoto(
-        string photoUri, AndroidVisualPalette palette, bool feedback = false)
-    {
-        if (_media is null || !_media.TryGetPhoto(photoUri, out var bitmap)
-            || bitmap is null)
-            return StatusAlert(Localize(NativeText.QuizUnavailable),
-                palette, error: true, automationId: "native.quiz.photo.error");
-
-        var imageBitmap = AndroidImageBitmap_androidKt.AsImageBitmap(bitmap);
-        var sourceSize = ((long)bitmap.Width << 32) | (uint)bitmap.Height;
-        var painter = BitmapPainterKt.BitmapPainter(
-            image: imageBitmap, srcOffset: 0L,
-            srcSize: sourceSize, filterQuality: 1);
-        var enlarge = Localize("VocabQuiz_EnlargePhoto");
-        var interactive = !feedback && Quiz.Phase == NativePhase.Ready;
-        var modifier = Modifier.FillMaxWidth().HeightIn(min: 160)
-            .TestTag(feedback ? "native.quiz.photo.feedback.thumbnail"
-                : "native.quiz.photo.thumbnail");
-        modifier = interactive
-            ? modifier.FocusRequester(_photoFocus!)
-                .Clickable(OpenPhoto)
-                .Semantics(semantics =>
-                {
-                    semantics.ContentDescription(enlarge);
-                    semantics.Role(SemanticsRole.Button);
-                })
-            : modifier.Semantics(semantics =>
-                semantics.ContentDescription(Localize(NativeText.QuizPhoto)));
-        var photo = new Surface
-        {
-            Modifier = modifier,
-            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-            Color = palette.Elevated
-        };
-        photo.Add(new Image(painter, Localize(NativeText.QuizPhoto))
-        {
-            Modifier = Modifier.FillMaxWidth().Height(160),
-            ContentScale = ContentScale.Fit
-        });
-        return photo;
+        if (QuizRetryAction() is { } retry)
+            viewport.Add(retry);
     }
 
     private ComposableNode RenderQuizFooter(

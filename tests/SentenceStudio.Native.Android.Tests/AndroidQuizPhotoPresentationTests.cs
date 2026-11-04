@@ -22,16 +22,16 @@ public sealed class AndroidQuizPhotoPresentationTests
     {
         var state = OpenPhoto();
         Assert.True(AndroidQuizPhotoPresentationPolicy.CanPresent(state,
-            "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri));
+            "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri, NativePhase.Ready));
         Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(state,
-            null, "owner-a", "owned-turn", PhotoPrompt.PhotoUri));
+            null, "owner-a", "owned-turn", PhotoPrompt.PhotoUri, NativePhase.Ready));
         Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(state,
-            "owner-b", "owner-a", "owned-turn", PhotoPrompt.PhotoUri));
+            "owner-b", "owner-a", "owned-turn", PhotoPrompt.PhotoUri, NativePhase.Ready));
         Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(state,
-            "owner-a", "owner-a", "previous-turn", PhotoPrompt.PhotoUri));
+            "owner-a", "owner-a", "previous-turn", PhotoPrompt.PhotoUri, NativePhase.Ready));
         Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(state,
             "owner-a", "owner-a", "owned-turn",
-            "https://images.example.invalid/other"));
+            "https://images.example.invalid/other", NativePhase.Ready));
     }
 
     [Fact]
@@ -52,7 +52,32 @@ public sealed class AndroidQuizPhotoPresentationTests
         ];
         foreach (var candidate in noViewer)
             Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(candidate,
-                "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri));
+                "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri, NativePhase.Ready));
+    }
+
+    [Fact]
+    public void FeedbackPhotoOpensFullScreenAndTheNextTurnClosesIt()
+    {
+        var feedback = OpenPhoto() with { Phase = NativePhase.Feedback };
+        Assert.True(AndroidQuizPhotoPresentationPolicy.CanPresent(feedback,
+            "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri,
+            NativePhase.Feedback));
+        NativeQuizState[] closes =
+        [
+            feedback with { Phase = NativePhase.Ready, TurnId = "next-turn" },
+            feedback with { TurnId = "next-turn" },
+            feedback with { Destination = NativeDestination.QuizSummary },
+            feedback with { Overlay = NativeQuizOverlay.None },
+            feedback with { Sentence = new NativeQuizSentencePrompt(
+                "owned-word", "target", "gloss", "Korean") },
+        ];
+        foreach (var candidate in closes)
+            Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(candidate,
+                "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri,
+                NativePhase.Feedback));
+        Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(OpenPhoto(),
+            "owner-a", "owner-a", "owned-turn", PhotoPrompt.PhotoUri,
+            NativePhase.Summary));
     }
 
     [Fact]

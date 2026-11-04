@@ -135,17 +135,28 @@ internal sealed class AndroidServiceHost : IDisposable
         services.AddScoped<IPostLoginRouter, PostLoginRouter>();
         services.AddSingleton<INativePlanCreation, NativePlanCreationAdapter>();
         services.AddSingleton<INativeQuizAttemptCommitter, NativeQuizAttemptCommitterAdapter>();
+        // "Use in a sentence": the same owner-scoped receipt writer as iOS.
+        services.AddSingleton<INativeQuizSentenceCommitter, NativeQuizSentenceAttemptCommitter>();
         services.AddScoped<INativeQuizChoices, NativeQuizChoicesAdapter>();
         services.AddScoped<INativeQuizEligibility, NativeQuizEligibilityAdapter>();
         services.AddSingleton<INativeQuizGrader, NativeQuizGraderAdapter>();
         services.AddSingleton<IAudioPlayerFactory>(new AndroidAudioPlayerFactory(activity));
         services.AddSentenceStudioNativeSlice();
         services.AddSentenceStudioNativeIdentityAuth();
+        // Quiz audio: the source speech service with the learner's selected voice and
+        // the owner's StreamHistory cache (as iOS). The isolated preview has no
+        // account or API, so it plays only clips it already has.
         services.AddSingleton(sp => new AndroidQuizMedia(
             activity, apiUri,
             sp.GetRequiredService<DeviceUserScopeProvider>(),
             sp.GetRequiredService<IPreferencesService>(),
             sp.GetRequiredService<IConnectivityService>(),
+            sp.GetRequiredService<IFileSystemService>(),
+            sp.GetRequiredService<SpeechVoicePreferences>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILoggerFactory>(),
+            preview ? null : sp.GetRequiredService<IAuthService>(),
+            preview ? null : sp.GetRequiredService<INativeQuizSpeechSource>(),
             sp.GetRequiredService<ILogger<AndroidQuizMedia>>()));
         services.Replace(ServiceDescriptor.Singleton<INativeQuizMedia>(sp =>
             sp.GetRequiredService<AndroidQuizMedia>()));
@@ -153,6 +164,11 @@ internal sealed class AndroidServiceHost : IDisposable
         {
             services.AddSentenceStudioNativeProductionAdapters();
             services.AddOwnerBoundNativeSyncReadiness();
+            // The source GradeSentence template and Reasoning tier, through the
+            // owner-bound sentence gateway registered above. Scoped because its
+            // LearningResourceRepository is scoped in this head.
+            services.Replace(ServiceDescriptor.Scoped<INativeQuizSentenceGrader,
+                NativeQuizSentenceGrader>());
         }
 
         return new AndroidServiceHost(services.BuildServiceProvider(

@@ -1,229 +1,331 @@
-using Android.Graphics;
-using Android.Speech.Tts;
-using Java.Util;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
+using SentenceStudio.Native.Adapters;
 using SentenceStudio.Services;
+using SentenceStudio.Shared.Models;
+using AudioAttributes = Android.Media.AudioAttributes;
+using AudioContentType = Android.Media.AudioContentType;
+using AudioUsageKind = Android.Media.AudioUsageKind;
+using Bitmap = Android.Graphics.Bitmap;
+using BitmapFactory = Android.Graphics.BitmapFactory;
+using MediaPlayer = Android.Media.MediaPlayer;
 
 namespace SentenceStudio.Native.Android;
 
+/// <summary>
+/// Non-UI quiz media for the Compose quiz. Prompt and answer audio use the
+/// source speech service with the learner's selected voice and the owner's
+/// StreamHistory cache (the shared NativeShadowingSpeech path, as on iOS), and
+/// play through MediaPlayer. Photos are owner-checked, size-bounded bytes that
+/// decode to a Bitmap before the presenter is told a photo exists.
+/// </summary>
 internal sealed class AndroidQuizMedia(
     MainActivity activity,
     Uri apiRoot,
     DeviceUserScopeProvider ownerScope,
     IPreferencesService preferences,
     IConnectivityService connectivity,
+    IFileSystemService files,
+    SpeechVoicePreferences voices,
+    IServiceScopeFactory scopes,
+    ILoggerFactory loggers,
+    IAuthService? auth,
+    INativeQuizSpeechSource? speech,
     ILogger<AndroidQuizMedia> logger) : INativeQuizMedia, IDisposable
 {
     private const int MaxPhotoBytes = 6 * 1024 * 1024;
+    private const int MaxAudioBytes = 8 * 1024 * 1024;
     private const int MaxBitmapEdge = 1600;
-    private readonly SemaphoreSlim _speechGate = new(1, 1);
+    private const int MaxCachedPhotos = 3;
+    private static readonly TimeSpan PlaybackGrace = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxClipLength = TimeSpan.FromSeconds(30);
     private readonly HttpClient _images = new(new HttpClientHandler
     {
-        AllowAutoRedirect = false
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        UseDefaultCredentials = false
     })
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
+    private readonly NativeActivityOwner _owner = new(ownerScope, preferences);
     private readonly object _photosGate = new();
-    private readonly Dictionary<(string Owner, string Uri), Bitmap> _photos = new();
-    private readonly Queue<(string Owner, string Uri)> _photoOrder = new();
-    private TextToSpeech? _speech;
-    private SpeechInitialization? _initialization;
-    private readonly SpeechProgress _progress = new();
+    private readonly List<CachedPhoto> _photos = [];
+    private readonly object _audioGate = new();
+    private Playback? _playback;
+    private long _audioVersion;
     private bool _disposed;
 
     public async Task<bool> CanPlayPromptAsync(
         string text, string language, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_disposed || string.IsNullOrWhiteSpace(text)
-            || AndroidQuizMediaPolicy.LanguageTag(language) is null)
+            || !TryGetCurrentOwner(out var owner))
             return false;
-
-        await _speechGate.WaitAsync(cancellationToken);
-        try
+        var voice = voices.GetVoiceForLanguage(language);
+        // SQLite runs synchronously; keep the owner's cache lookup off the UI thread.
+        var cached = await Task.Run(async () =>
         {
-            return await SelectVoiceAsync(language, cancellationToken);
-        }
-        finally
-        {
-            _speechGate.Release();
-        }
+            using var scope = scopes.CreateScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<StreamHistoryRepository>()
+                .GetStreamHistoryByPhraseAndVoiceAsync(text, voice);
+        }, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_owner.IsActive(owner))
+            return false;
+        return cached?.UserProfileId == owner
+                && NativeAudioCache.Resolve(files.AppDataDirectory,
+                    cached.AudioFilePath, MaxAudioBytes) is not null
+            || connectivity.IsInternetAvailable && speech is not null
+                && auth?.IsSignedIn == true;
     }
 
     public async Task<bool> PlayPromptAsync(
         string text, string language, CancellationToken cancellationToken)
     {
+        long requestedVersion;
+        lock (_audioGate)
+            requestedVersion = _audioVersion;
         if (_disposed || string.IsNullOrWhiteSpace(text)
-            || AndroidQuizMediaPolicy.LanguageTag(language) is null)
+            || !TryGetCurrentOwner(out var owner))
             return false;
 
-        await _speechGate.WaitAsync(cancellationToken);
-        try
+        // The owner's cached clip, else synthesis with the selected voice (then cached);
+        // its SQLite and file work stays off the UI thread. Playback starts on return.
+        var clip = await Task.Run(async () =>
         {
-            if (!await SelectVoiceAsync(language, cancellationToken)
-                || _speech is null)
-                return false;
+            using var scope = scopes.CreateScope();
+            var clips = new NativeShadowingSpeech(_owner, connectivity, files, voices,
+                scope.ServiceProvider.GetRequiredService<StreamHistoryRepository>(),
+                loggers.CreateLogger<NativeShadowingSpeech>(), speech, auth);
+            return await clips.GetAsync(owner, text, language, cancellationToken);
+        }, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (clip is not { Status: NativeSpeechClipStatus.Ready, Audio: { Length: > 0 } audio }
+            || !_owner.IsActive(owner))
+            return false;
+        return await PlayClipAsync(audio, owner, requestedVersion, cancellationToken);
+    }
 
-            var utteranceId = Guid.NewGuid().ToString("N");
-            var completed = _progress.Begin(utteranceId);
-            if ((int)_speech.Speak(text, QueueMode.Flush, null, utteranceId) != 0)
+    private async Task<bool> PlayClipAsync(
+        byte[] audio, string owner, long requestedVersion,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.Combine(
+            activity.CacheDir?.AbsolutePath ?? files.AppDataDirectory, "quiz-audio");
+        Directory.CreateDirectory(directory);
+        // Task-owned playback copy; the cached clip itself stays in AudioCache.
+        var file = Path.Combine(directory, $"prompt_{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(file, audio, cancellationToken);
+
+        Playback playback;
+        TimeSpan limit;
+        long startedVersion;
+        lock (_audioGate)
+        {
+            if (_disposed || requestedVersion != _audioVersion
+                || cancellationToken.IsCancellationRequested
+                || !_owner.IsActive(owner))
+            {
+                DeleteQuietly(file);
                 return false;
+            }
+            StopPlaybackCore();
+            var player = new MediaPlayer();
             try
             {
-                return await completed.WaitAsync(
-                    TimeSpan.FromSeconds(8), cancellationToken);
+                player.SetAudioAttributes(new AudioAttributes.Builder()
+                    .SetUsage(AudioUsageKind.Media)!
+                    .SetContentType(AudioContentType.Speech)!
+                    .Build()!);
+                player.SetDataSource(file);
+                player.Prepare();
+                playback = new Playback(player, file);
+                limit = TimeSpan.FromMilliseconds(Math.Clamp(player.Duration, 0,
+                    (int)MaxClipLength.TotalMilliseconds)) + PlaybackGrace;
+                _playback = playback;
+                player.Start();
+                startedVersion = _audioVersion;
             }
-            catch (TimeoutException)
+            catch (Exception ex) when (ex is Java.Lang.Exception or IOException)
             {
-                _speech.Stop();
+                logger.LogWarning("Quiz audio could not start ({FailureType}).",
+                    ex.GetType().Name);
+                if (_playback is not null && ReferenceEquals(_playback.Player, player))
+                    StopPlaybackCore();
+                else
+                {
+                    player.Release();
+                    player.Dispose();
+                    DeleteQuietly(file);
+                }
                 return false;
             }
-            catch (OperationCanceledException)
-            {
-                _speech.Stop();
-                throw;
-            }
+        }
+
+        using var cancellation = cancellationToken.Register(() =>
+        {
+            lock (_audioGate)
+                if (ReferenceEquals(_playback, playback))
+                    StopPlaybackCore();
+        });
+        try
+        {
+            var finished = await playback.Completed.WaitAsync(limit, cancellationToken);
+            lock (_audioGate)
+                return finished && startedVersion == _audioVersion
+                    && ReferenceEquals(_playback, playback)
+                    && !cancellationToken.IsCancellationRequested
+                    && _owner.IsActive(owner);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning("Quiz audio did not finish in time.");
+            return false;
         }
         finally
         {
-            _progress.End();
-            _speechGate.Release();
+            lock (_audioGate)
+                if (ReferenceEquals(_playback, playback))
+                    StopPlaybackCore();
         }
     }
 
+    public void StopPlayback()
+    {
+        lock (_audioGate)
+            StopPlaybackCore();
+    }
+
+    private void StopPlaybackCore()
+    {
+        _audioVersion++;
+        var playback = _playback;
+        _playback = null;
+        playback?.Release();
+    }
+
     public async Task<bool> CanShowPhotoAsync(
+        string photoUri, CancellationToken cancellationToken) =>
+        await LoadPhotoAsync(photoUri, cancellationToken) is not null;
+
+    public async Task<NativeQuizPhotoAsset?> LoadPhotoAsync(
         string photoUri, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_disposed || string.IsNullOrWhiteSpace(photoUri)
             || !TryGetCurrentOwner(out var owner))
-            return false;
-        if (TryGetPhoto(photoUri, out _))
-            return true;
+            return null;
+        lock (_photosGate)
+            if (FindPhoto(owner, photoUri) is { } cached)
+                return cached.Asset;
 
         try
         {
-            var encoded = await ReadPhotoAsync(photoUri, cancellationToken);
-            if (encoded is null)
-                return false;
-            var options = new BitmapFactory.Options { InJustDecodeBounds = true };
-            BitmapFactory.DecodeByteArray(encoded, 0, encoded.Length, options)?.Dispose();
-            if (options.OutWidth <= 0 || options.OutHeight <= 0)
-                return false;
-            var sample = 1;
-            while (Math.Max(options.OutWidth, options.OutHeight) / sample > MaxBitmapEdge)
-                sample *= 2;
-            options.InJustDecodeBounds = false;
-            options.InSampleSize = sample;
-            var bitmap = BitmapFactory.DecodeByteArray(encoded, 0, encoded.Length, options);
+            var encoded = await ReadPhotoAsync(photoUri, owner, cancellationToken);
+            if (encoded is not { Length: > 0 }
+                || AndroidQuizMediaPolicy.DetectImageContentType(encoded) is not { } type)
+                return null;
+            var bitmap = await Task.Run(() => Decode(encoded), cancellationToken);
             if (bitmap is null)
-                return false;
+                return null;
 
             lock (_photosGate)
             {
-                if (_disposed || !TryGetCurrentOwner(out var currentOwner)
-                    || currentOwner != owner)
+                if (_disposed || !_owner.IsActive(owner))
                 {
                     bitmap.Dispose();
-                    return false;
+                    return null;
                 }
-                var key = (owner, photoUri);
-                if (_photos.TryAdd(key, bitmap))
+                if (FindPhoto(owner, photoUri) is { } raced)
                 {
-                    _photoOrder.Enqueue(key);
-                    if (_photoOrder.Count > 6)
-                        _photos.Remove(_photoOrder.Dequeue());
-                }
-                else
                     bitmap.Dispose();
+                    return raced.Asset;
+                }
+                var asset = new NativeQuizPhotoAsset(encoded, type);
+                _photos.Add(new CachedPhoto(owner, photoUri, asset, bitmap));
+                // Evicted bitmaps are left to the GC: a recycled bitmap could still
+                // back a painter in the current composition.
+                while (_photos.Count > MaxCachedPhotos)
+                    _photos.RemoveAt(0);
+                return asset;
             }
-            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or IOException
+            or FormatException or TaskCanceledException or Java.Lang.Exception)
         {
             logger.LogWarning("Quiz photo is unavailable ({FailureType}).", ex.GetType().Name);
-            return false;
+            return null;
         }
     }
 
-    internal bool TryGetPhoto(string? photoUri, out Bitmap? bitmap)
+    /// <summary>The decoded bitmap for a photo this adapter loaded for the active owner.</summary>
+    internal bool TryGetPhoto(NativeQuizPhotoAsset? asset, out Bitmap? bitmap)
     {
         bitmap = null;
-        if (string.IsNullOrWhiteSpace(photoUri)
-            || !TryGetCurrentOwner(out var owner))
+        if (asset is null || !TryGetCurrentOwner(out var owner))
             return false;
         lock (_photosGate)
-            return _photos.TryGetValue((owner, photoUri), out bitmap)
-                && !bitmap.IsRecycled;
+        {
+            foreach (var photo in _photos)
+                if (photo.Owner == owner && ReferenceEquals(photo.Asset, asset)
+                    && !photo.Bitmap.IsRecycled)
+                {
+                    bitmap = photo.Bitmap;
+                    return true;
+                }
+        }
+        return false;
     }
 
     internal void ClearForSignedOut()
     {
         lock (_photosGate)
-        {
             _photos.Clear();
-            _photoOrder.Clear();
-        }
-        _speech?.Stop();
+        StopPlayback();
     }
 
-    private bool TryGetCurrentOwner(out string owner)
+    private CachedPhoto? FindPhoto(string owner, string uri)
     {
-        if (ownerScope.TryGetUserProfileId(out owner)
-            && preferences.Get(UserProfileRepository.ActiveProfileIdKey,
-                string.Empty) == owner)
-            return true;
-        owner = string.Empty;
-        return false;
-    }
-
-    private async Task<bool> SelectVoiceAsync(
-        string language, CancellationToken cancellationToken)
-    {
-        if (_disposed || AndroidQuizMediaPolicy.LanguageTag(language) is not { } tag)
-            return false;
-        try
-        {
-            if (_speech is null)
+        for (var index = 0; index < _photos.Count; index++)
+            if (_photos[index].Owner == owner && _photos[index].Uri == uri
+                && !_photos[index].Bitmap.IsRecycled)
             {
-                _initialization = new SpeechInitialization();
-                _speech = new TextToSpeech(activity, _initialization);
-                _speech.SetOnUtteranceProgressListener(_progress);
+                var found = _photos[index];
+                _photos.RemoveAt(index);
+                _photos.Add(found);
+                return found;
             }
-            if (!await _initialization!.Ready.WaitAsync(
-                    TimeSpan.FromSeconds(8), cancellationToken))
-                return false;
-            var locale = Locale.ForLanguageTag(tag);
-            if ((int)_speech.IsLanguageAvailable(locale) < 0)
-                return false;
-            var localVoice = _speech.Voices?.FirstOrDefault(voice =>
-                !voice.IsNetworkConnectionRequired
-                && voice.Locale?.Language == locale.Language);
-            if (localVoice is not null)
-                return (int)_speech.SetVoice(localVoice) == 0;
-            return (int)_speech.SetLanguage(locale) >= 0
-                && (_speech.Voice?.IsNetworkConnectionRequired != true
-                    || connectivity.IsInternetAvailable);
-        }
-        catch (TimeoutException)
-        {
-            return false;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning("Quiz speech is unavailable ({FailureType}).", ex.GetType().Name);
-            return false;
-        }
+        return null;
     }
+
+    private static Bitmap? Decode(byte[] encoded)
+    {
+        var options = new BitmapFactory.Options { InJustDecodeBounds = true };
+        BitmapFactory.DecodeByteArray(encoded, 0, encoded.Length, options)?.Dispose();
+        if (options.OutWidth <= 0 || options.OutHeight <= 0)
+            return null;
+        var sample = 1;
+        while (Math.Max(options.OutWidth, options.OutHeight) / sample > MaxBitmapEdge)
+            sample *= 2;
+        options.InJustDecodeBounds = false;
+        options.InSampleSize = sample;
+        return BitmapFactory.DecodeByteArray(encoded, 0, encoded.Length, options);
+    }
+
+    private bool TryGetCurrentOwner(out string owner) => _owner.TryCurrent(out owner);
 
     private async Task<byte[]?> ReadPhotoAsync(
-        string source, CancellationToken cancellationToken)
+        string source, string owner, CancellationToken cancellationToken)
     {
         if (source.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
         {
@@ -241,8 +343,6 @@ internal sealed class AndroidQuizMedia(
             && fileUri.IsFile)
         {
             var root = activity.FilesDir?.AbsolutePath;
-            if (!TryGetCurrentOwner(out var owner))
-                return null;
             if (root is null
                 || !AndroidQuizMediaPolicy.IsPrivatePhoto(
                     fileUri.LocalPath, root, owner))
@@ -273,7 +373,7 @@ internal sealed class AndroidQuizMedia(
             {
                 if (redirects == 3 || response.Headers.Location is not { } location
                     || !AndroidQuizMediaPolicy.TryResolveRemotePhoto(
-                        new Uri(uri, location).AbsoluteUri,
+                        new Uri(request.RequestUri!, location).AbsoluteUri,
                         apiRoot, allowEmulatorHttp, out uri))
                     return null;
                 continue;
@@ -304,75 +404,77 @@ internal sealed class AndroidQuizMedia(
         return null;
     }
 
+    private static void DeleteQuietly(string file)
+    {
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        _speech?.Stop();
-        _speech?.Shutdown();
-        _speech?.Dispose();
-        _initialization?.Dispose();
-        _progress.Dispose();
+        lock (_audioGate)
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            StopPlaybackCore();
+        }
         _images.Dispose();
         lock (_photosGate)
-        {
             _photos.Clear();
-            _photoOrder.Clear();
-        }
     }
 
-    private sealed class SpeechInitialization : Java.Lang.Object, TextToSpeech.IOnInitListener
+    private sealed record CachedPhoto(
+        string Owner, string Uri, NativeQuizPhotoAsset Asset, Bitmap Bitmap);
+
+    /// <summary>One prepared MediaPlayer clip; completes true only when it plays to its end.</summary>
+    private sealed class Playback
     {
-        private readonly TaskCompletionSource<bool> _ready =
+        private readonly TaskCompletionSource<bool> _completed =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly string _file;
 
-        public Task<bool> Ready => _ready.Task;
-        public void OnInit(OperationResult status) => _ready.TrySetResult((int)status == 0);
-    }
-
-    private sealed class SpeechProgress : UtteranceProgressListener
-    {
-        private readonly object _gate = new();
-        private string? _utteranceId;
-        private TaskCompletionSource<bool>? _completed;
-
-        public Task<bool> Begin(string id)
+        public Playback(MediaPlayer player, string file)
         {
-            lock (_gate)
-            {
-                _utteranceId = id;
-                _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                return _completed.Task;
-            }
+            Player = player;
+            _file = file;
+            player.Completion += OnCompletion;
+            player.Error += OnError;
         }
 
-        public void End()
+        public MediaPlayer Player { get; }
+        public Task<bool> Completed => _completed.Task;
+
+        private void OnCompletion(object? sender, EventArgs e) =>
+            _completed.TrySetResult(true);
+
+        private void OnError(object? sender, MediaPlayer.ErrorEventArgs e)
         {
-            lock (_gate)
-            {
-                _completed?.TrySetResult(false);
-                _completed = null;
-                _utteranceId = null;
-            }
+            e.Handled = true;
+            _completed.TrySetResult(false);
         }
 
-        public override void OnStart(string? utteranceId) =>
-            Finish(utteranceId, true);
-        public override void OnDone(string? utteranceId) => Finish(utteranceId, true);
-        public override void OnError(string? utteranceId) => Finish(utteranceId, false);
-        public override void OnError(string? utteranceId, TextToSpeechError errorCode) =>
-            Finish(utteranceId, false);
-        public override void OnStop(string? utteranceId, bool interrupted) =>
-            Finish(utteranceId, false);
-
-        private void Finish(string? id, bool success)
+        public void Release()
         {
-            lock (_gate)
+            _completed.TrySetResult(false);
+            Player.Completion -= OnCompletion;
+            Player.Error -= OnError;
+            try
             {
-                if (_utteranceId == id)
-                    _completed?.TrySetResult(success);
+                if (Player.IsPlaying)
+                    Player.Stop();
             }
+            catch (Java.Lang.IllegalStateException)
+            {
+            }
+            Player.Release();
+            Player.Dispose();
+            DeleteQuietly(_file);
         }
     }
 }
