@@ -90,6 +90,26 @@ public static class ClozureAnswerHelper
         return null;
     }
 
+    /// <summary>The blank shown in place of the answer.</summary>
+    public const string BlankMarker = "______";
+
+    /// <summary>
+    /// The sentence with its answer blanked: the as-used form when the sentence contains it,
+    /// else the dictionary form. Null when neither appears, or the sentence or answer is empty,
+    /// because showing that sentence would show the answer (native NativeClozeChallenge).
+    /// </summary>
+    public static string? TryBlankSentence(string? sentenceText, string? wordAsUsed, string? dictionaryForm)
+    {
+        if (string.IsNullOrWhiteSpace(sentenceText) || string.IsNullOrWhiteSpace(wordAsUsed))
+            return null;
+        if (sentenceText.Contains(wordAsUsed, StringComparison.Ordinal))
+            return sentenceText.Replace(wordAsUsed, BlankMarker, StringComparison.Ordinal);
+        if (!string.IsNullOrEmpty(dictionaryForm)
+            && sentenceText.Contains(dictionaryForm, StringComparison.Ordinal))
+            return sentenceText.Replace(dictionaryForm, BlankMarker, StringComparison.Ordinal);
+        return null;
+    }
+
     /// <summary>
     /// Ensures the guesses list contains the correct answer and has exactly 5 unique,
     /// non-empty entries (padding with the answer if needed). Sets

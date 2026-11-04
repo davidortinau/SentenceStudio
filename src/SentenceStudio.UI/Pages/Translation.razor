@@ -33,7 +33,7 @@
                 </div>
             </div>
         </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">@Localize["Common_ContinuePractice"]</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary" disabled="@isGrading">@Localize["Common_ContinuePractice"]</button>
         <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
@@ -198,11 +198,14 @@ else
 
     @* Nav row *@
     <div class="d-flex justify-content-between align-items-center">
-        <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
+        @* While a grade is in flight the sentence cannot change, so the grade lands on the sentence it was for. *@
+        <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0 || isGrading)"
+                title='@Localize["Common_Previous"]' aria-label='@Localize["Common_Previous"]'>
             <i class="bi bi-chevron-left"></i>
         </button>
         <span class="ss-body2 text-secondary-ss">@(currentIndex + 1) / @sentences.Count</span>
-        <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence">
+        <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence" disabled="@isGrading"
+                title='@Localize["Common_Next"]' aria-label='@Localize["Common_Next"]'>
             <i class="bi bi-chevron-right"></i>
         </button>
     </div>
@@ -242,6 +245,16 @@ else
 
     private bool isBusy;
     private bool isGrading;
+    // The learner the session was loaded for. Grades are recorded and words scored only for this
+    // owner, and only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+    // Bumped by Continue practice and by leaving the page, so a grade that was in flight lands
+    // nowhere and records nothing.
+    private long _generation;
+    private bool _leaving;
+    // The owner's vocabulary. Only these words are scored: a challenge's other blocks are
+    // unsaved words the AI suggested.
+    private HashSet<string> _ownedWordIds = new(StringComparer.Ordinal);
     private bool showFeedback;
     private bool showSessionSummary;
     private bool showIntro;
@@ -278,6 +291,15 @@ else
 
     private async Task LoadSentences()
     {
+        _owner = Preferences.Get("active_profile_id", string.Empty);
+        if (string.IsNullOrWhiteSpace(_owner))
+        {
+            Logger.LogWarning("Activity {ActivityName} opened without an active profile; nothing is loaded.", nameof(Translation));
+            sentences = new();
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         isBusy = true;
         try
         {
@@ -293,19 +315,21 @@ else
             if (result?.Any() == true)
             {
                 sentences = result;
-                await BuildIntroAsync(resourceId, skillId);
+                var ownerVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(_owner);
+                _ownedWordIds = ownerVocabulary.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
+                await BuildIntroAsync(resourceId, skillId, ownerVocabulary);
                 showIntro = introVocabulary.Any() || introGrammarBullets.Any() || !string.IsNullOrEmpty(introResourceTitle);
                 SetCurrentSentence();
             }
             else
             {
-                Toast.ShowWarning("No sentences returned from the translation service.");
+                Toast.ShowWarning(Localize["Translation_NoSentencesReturned"]);
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading sentences");
-            Toast.ShowError($"Error loading sentences: {ex.Message}");
+            Toast.ShowError(Localize["NativeActivity_LoadFailed"]);
         }
         finally
         {
@@ -313,7 +337,7 @@ else
         }
     }
 
-    private async Task BuildIntroAsync(string resourceId, string skillId)
+    private async Task BuildIntroAsync(string resourceId, string skillId, List<VocabularyWord> ownerVocabulary)
     {
         introResourceTitle = "";
         introVocabulary = new List<VocabularyWord>();
@@ -323,14 +347,13 @@ else
         {
             if (!string.IsNullOrEmpty(resourceId))
             {
-                var resource = await ResourceRepo.GetResourceAsync(resourceId);
+                var resource = await ResourceRepo.GetResourceAsync(resourceId, _owner);
                 introResourceTitle = resource?.Title ?? "";
             }
 
             if (focusVocabularyIds.Count > 0)
             {
-                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                focusVocabularyWords = FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds);
+                focusVocabularyWords = FocusVocabularySelection.SelectFocusWords(ownerVocabulary, focusVocabularyIds);
             }
             else
             {
@@ -339,7 +362,7 @@ else
 
             if (!string.IsNullOrEmpty(skillId))
             {
-                var profile = await SkillProfileRepo.GetSkillProfileAsync(skillId);
+                var profile = await SkillProfileRepo.GetSkillProfileAsync(skillId, _owner);
                 introGrammarBullets = ParseGrammarBullets(profile?.Description);
             }
 
@@ -412,23 +435,60 @@ else
 
     private async Task GradeMe()
     {
-        if (string.IsNullOrWhiteSpace(userInput)) return;
+        // The field stays enabled while grading, so Enter can submit again: one grade at a time.
+        if (isGrading || string.IsNullOrWhiteSpace(userInput)) return;
+        if (currentIndex < 0 || currentIndex >= sentences.Count) return;
 
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Translation grade refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
+        // The grade belongs to the sentence and the text that were submitted, not to whatever
+        // is typed while it is in flight.
+        var submitted = userInput;
+        var prompt = currentSentence;
+        var challenge = sentences[currentIndex];
+        var vocabulary = (currentVocabulary ?? new List<VocabularyWord>())
+            .Where(word => _ownedWordIds.Contains(word.Id))
+            .ToList();
+        var generation = _generation;
         isGrading = true;
         showFeedback = false;
-        lastSubmittedInput = userInput;
+        lastSubmittedInput = submitted;
         StateHasChanged();
 
         try
         {
-            var challenge = sentences[currentIndex];
+            GradeResponse feedback;
+            try
+            {
+                // Use TeacherSvc.GradeTranslation which uses the proper Scriban template
+                // with vocabulary_analysis support
+                feedback = await TeacherSvc.GradeTranslation(
+                    userInput: submitted,
+                    originalSentence: prompt,
+                    recommendedTranslation: challenge.SentenceText ?? "");
+            }
+            catch (Exception ex)
+            {
+                // No grade: nothing is shown as a score and nothing is recorded.
+                Logger.LogError(ex, "Error grading translation");
+                if (!IsSuperseded(generation, owner))
+                    Toast.ShowError(Localize["Translation_GradeFailed"]);
+                return;
+            }
 
-            // Use TeacherSvc.GradeTranslation which uses the proper Scriban template
-            // with vocabulary_analysis support
-            var feedback = await TeacherSvc.GradeTranslation(
-                userInput: userInput,
-                originalSentence: currentSentence,
-                recommendedTranslation: challenge.SentenceText ?? "");
+            // Leaving the page or a profile change while the grade was in flight supersedes it:
+            // the late result is not shown and nothing is recorded.
+            if (IsSuperseded(generation, owner))
+            {
+                Logger.LogInformation("Translation grade discarded: superseded while it was in flight.");
+                return;
+            }
 
             // The AI typically writes the suggested translation into GrammarNotes.RecommendedTranslation.
             // Fall back there if the top-level property is empty.
@@ -444,35 +504,46 @@ else
             sessionAccuracySum += feedback.Accuracy;
             sessionFluencySum += feedback.Fluency;
 
-            // Record activity
-            await ActivityRepo.SaveAsync(new UserActivity
+            var saveFailed = false;
+            var saved = await ActivityRepo.SaveAsync(new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.Translation.ToString(),
-                Input = userInput,
+                Input = submitted,
                 Accuracy = feedback.Accuracy,
                 Fluency = feedback.Fluency,
+                UserProfileId = owner,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
-
-            // Record vocabulary progress via shared extraction pipeline
-            if (currentVocabulary?.Any() == true)
+            if (saved < 0)
             {
-                var activeUserId = Preferences.Get("active_profile_id", "");
-                var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
-                    feedback.VocabularyAnalysis, currentVocabulary, activeUserId,
-                    activity: "Translation", difficultyWeight: 1.5f);
-
-                if (scoringResults.Any())
-                    CacheService.InvalidateVocabSummary();
+                Logger.LogError("Translation could not save its UserActivity row.");
+                saveFailed = true;
             }
 
-            Toast.ShowSuccess($"Graded! Accuracy: {accuracy}%");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error grading translation");
-            Toast.ShowError("Error grading your translation. Please try again.");
+            // Record vocabulary progress via shared extraction pipeline, for the owner's words only.
+            if (vocabulary.Count > 0 && OwnerStillActive())
+            {
+                try
+                {
+                    var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                        feedback.VocabularyAnalysis, vocabulary, owner,
+                        activity: "Translation", difficultyWeight: 1.5f);
+
+                    if (scoringResults.Any())
+                        CacheService.InvalidateVocabSummary();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Translation could not score vocabulary for a grade.");
+                    saveFailed = true;
+                }
+            }
+
+            if (saveFailed)
+                Toast.ShowError(Localize["Translation_SaveFailed"]);
+            else
+                Toast.ShowSuccess(Localize.Get("Translation_GradedAccuracy", accuracy));
         }
         finally
         {
@@ -480,8 +551,18 @@ else
         }
     }
 
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
+
+    private bool IsSuperseded(long generation, string owner) =>
+        _leaving || generation != _generation
+        || !string.Equals(owner, _owner, StringComparison.Ordinal) || !OwnerStillActive();
+
     private void NextSentence()
     {
+        // The sentence cannot change while its grade is in flight.
+        if (isGrading) return;
         if (currentIndex < sentences.Count - 1)
         {
             currentIndex++;
@@ -495,6 +576,7 @@ else
 
     private void PreviousSentence()
     {
+        if (isGrading) return;
         if (currentIndex > 0)
         {
             currentIndex--;
@@ -504,6 +586,9 @@ else
 
     private async Task ContinueAfterSummary()
     {
+        // Wait for an in-flight grade, so it counts in the session it was submitted in.
+        if (isGrading) return;
+        _generation++;
         showSessionSummary = false;
         sessionGradedCount = 0;
         sessionAccuracySum = 0;
@@ -553,12 +638,16 @@ else
 
     private void GoBack()
     {
+        _leaving = true;
+        _generation++;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         NavManager.NavigateTo("/");
     }
 
     public ValueTask DisposeAsync()
     {
+        _leaving = true;
+        _generation++;
         Localize.CultureChanged -= OnCultureChanged;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         return ValueTask.CompletedTask;

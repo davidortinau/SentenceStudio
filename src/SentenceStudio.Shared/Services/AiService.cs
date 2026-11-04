@@ -115,6 +115,44 @@ public class AiService : IAiService
         }
     }
 
+    /// <summary>
+    /// Sends <paramref name="instructions"/> as the system instructions and
+    /// <paramref name="message"/> as the one user message (gateway: /api/v1/ai/chat-messages).
+    /// Azure's prompt shield rejects instructions pasted into the user message ("SYSTEM
+    /// INSTRUCTIONS: ... TASK: ..."), so persona prompts go this way. Returns default(T) when
+    /// offline, like <see cref="SendPrompt{T}"/>; failures are rethrown.
+    /// </summary>
+    public async Task<T> SendPromptWithInstructions<T>(string instructions, string message, AiTier tier = AiTier.Fast)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        if (!_connectivity.IsInternetAvailable)
+        {
+            _logger.LogWarning("No internet connection available for AI prompt");
+            WeakReferenceMessenger.Default.Send(new ConnectivityChangedMessage(false));
+            return default(T);
+        }
+
+        try
+        {
+            if (_aiGatewayClient != null)
+            {
+                _logger.LogDebug("Sending instructions and message to AI via gateway");
+                return await _aiGatewayClient.SendMessagesAsync<T>([("user", message)], instructions);
+            }
+
+            _logger.LogDebug("Sending instructions and message to AI via direct client (tier: {Tier})", tier);
+            var response = await ResolveClient(tier).GetResponseAsync<T>(
+                new[] { new ChatMessage(ChatRole.User, message) },
+                AiChatOptionsFactory.Create(instructions: instructions));
+            return response.Result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred in SendPromptWithInstructions");
+            throw;
+        }
+    }
+
     public async Task<string> SendImage(string imagePath, string prompt)
     {
         if (!_connectivity.IsInternetAvailable)

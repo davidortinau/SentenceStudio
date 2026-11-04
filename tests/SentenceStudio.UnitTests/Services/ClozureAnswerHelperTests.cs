@@ -171,4 +171,30 @@ public class ClozureAnswerHelperTests
         var repaired = ClozureAnswerHelper.TryRepairWordAsUsed(sentence, "버스", "버스");
         repaired.Should().Be("버스로");
     }
+
+    // ------- TryBlankSentence (B13: never show the answer) -------
+
+    [Fact]
+    public void TryBlankSentence_BlanksTheAsUsedForm()
+    {
+        ClozureAnswerHelper.TryBlankSentence("바다가 넓어요.", "바다가", "바다")
+            .Should().Be("______ 넓어요.");
+    }
+
+    [Fact]
+    public void TryBlankSentence_FallsBackToTheDictionaryForm()
+    {
+        ClozureAnswerHelper.TryBlankSentence("바다는 넓어요.", "바다가", "바다")
+            .Should().Be("______는 넓어요.");
+    }
+
+    [Theory]
+    [InlineData("나는 집에 가요.", "학교에", "학교")]   // neither form appears: the answer would show
+    [InlineData("나는 집에 가요.", "", "집")]           // no answer to blank
+    [InlineData("", "바다가", "바다")]                  // no sentence
+    public void TryBlankSentence_ReturnsNullWhenTheAnswerCannotBeBlanked(
+        string sentence, string asUsed, string dictionaryForm)
+    {
+        ClozureAnswerHelper.TryBlankSentence(sentence, asUsed, dictionaryForm).Should().BeNull();
+    }
 }

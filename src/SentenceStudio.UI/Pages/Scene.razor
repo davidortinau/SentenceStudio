@@ -10,7 +10,7 @@
 
 <PageHeader Title='@Localize["Activity_DescribeScene"]' ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
-        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="OpenGallery" title="Image gallery">
+        <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="OpenGallery" title='@Localize["Scene_ImageGallery"]' aria-label='@Localize["Scene_ImageGallery"]'>
             <i class="bi bi-images" style="font-size: 1.25rem;"></i>
         </button>
     </ToolbarActions>
@@ -36,7 +36,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
             @* Scene image *@
             <div class="col-md-6">
                 <div class="card card-ss p-2 text-center">
-                    <img src="@imageUrl" alt="Scene" class="img-fluid rounded" style="max-height: 400px; object-fit: contain;" />
+                    <img src="@imageUrl" alt='@Localize["NativeScene_SceneImage"]' class="img-fluid rounded" style="max-height: 400px; object-fit: contain;" />
                 </div>
             </div>
 
@@ -85,7 +85,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
 
                                 <button class="btn btn-sm btn-link p-0 mt-1 text-secondary-ss text-start"
                                         @onclick="() => ToggleExpand(gradedSentences.IndexOf(sentence))">
-                                    @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? "Less ▲" : "More ▼")
+                                    @(expandedSentenceIndex == gradedSentences.IndexOf(sentence) ? Localize["NativeScene_Less"] + " ▲" : Localize["NativeScene_More"] + " ▼")
                                 </button>
                             </div>
                         }
@@ -109,7 +109,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
             <button type="submit" class="btn btn-ss-primary"
-                    disabled="@isGrading" title="Grade">
+                    disabled="@isGrading" title='@Localize["Writing_Grade"]' aria-label='@Localize["Writing_Grade"]'>
                 @if (isGrading)
                 {
                     <span class="spinner-border spinner-border-sm"></span>
@@ -149,7 +149,7 @@ else
                         <i class="bi bi-trash me-1"></i> @string.Format(Localize["Scene_Delete"], selectedImageIds.Count)
                     </button>
                 }
-                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="ToggleSelectMode" title="Select multiple">
+                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="ToggleSelectMode" title='@Localize["NativeScene_SelectMultiple"]' aria-label='@Localize["NativeScene_SelectMultiple"]'>
                     <i class="bi bi-check2-square" style="font-size: 1.25rem;"></i>
                 </button>
                 <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="CloseGallery" title='@Localize["Common_Cancel"]'>
@@ -179,7 +179,7 @@ else
             else if (!galleryImages.Any())
             {
                 <div class="text-center p-4">
-                    <p class="text-secondary-ss ss-body2">No cached images yet. Paste a URL above to add one.</p>
+                    <p class="text-secondary-ss ss-body2">@Localize["Scene_GalleryEmpty"]</p>
                 </div>
             }
             else
@@ -190,7 +190,7 @@ else
                     var isChecked = selectedImageIds.Contains(img.Id);
                     <div class="scene-gallery-item @(isActive ? "active" : "") @(isChecked ? "selected" : "")"
                          @onclick="() => OnGalleryItemClick(img)">
-                        <img src="@img.Url" alt="@(img.Description ?? "Scene")" loading="lazy" />
+                        <img src="@img.Url" alt="@(img.Description ?? Localize["NativeScene_SceneImage"])" loading="lazy" />
                         @if (isActive)
                         {
                             <span class="scene-gallery-active-badge">@Localize["Scene_Current"]</span>
@@ -242,6 +242,13 @@ else
 
     private bool isBusy;
     private bool isGrading;
+    // The learner the page was opened for. Grades are recorded and words scored only for this
+    // owner, and only while it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+    // Bumped when the scene changes and when the learner leaves, so a grade that was in flight
+    // lands nowhere and records nothing.
+    private long _generation;
+    private bool _leaving;
     private bool fromPlan;
     private int targetMinutes;
     private string imageUrl = "";
@@ -271,40 +278,68 @@ else
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 10;
 
+        _owner = Preferences.Get("active_profile_id", string.Empty);
+        if (string.IsNullOrWhiteSpace(_owner))
+        {
+            Logger.LogWarning("Activity {ActivityName} opened without an active profile; nothing is loaded.", nameof(Scene));
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         try
         {
-            var profile = await ProfileRepo.GetAsync();
+            var profile = await ProfileRepo.GetByIdAsync(_owner);
             targetLanguage = profile?.TargetLanguage ?? "Korean";
             nativeLanguage = profile?.NativeLanguage ?? "English";
-
-            userVocabulary = await ResourceRepo.GetAllVocabularyWordsAsync() ?? new();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Describe a Scene could not read the learner's languages; using the defaults.");
+        }
+
+        try
+        {
+            // Only the owner's words (those in the owner's resources) can be scored.
+            userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(_owner) ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Describe a Scene could not load vocabulary; grades will not score words.");
+            userVocabulary = new();
+        }
 
         await LoadNewScene();
     }
 
     private async Task LoadNewScene()
     {
+        if (!OwnerStillActive())
+        {
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         isBusy = true;
         try
         {
             var scene = await SceneSvc.GetRandomAsync();
             if (scene is not null)
             {
+                // A grade in flight belongs to the scene it was written for.
+                _generation++;
                 imageUrl = scene.Url ?? "";
                 sceneDescription = scene.Description ?? "";
                 currentSceneId = scene.Id;
             }
             else
             {
-                Toast.ShowWarning("No scene images found. Please add some first.");
+                Toast.ShowWarning(Localize["NativeScene_NoImagesFound"]);
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load scene");
-            Toast.ShowError("Error loading scene image.");
+            Toast.ShowError(Localize["NativeScene_LoadFailed"]);
         }
         finally
         {
@@ -316,14 +351,44 @@ else
     {
         if (string.IsNullOrWhiteSpace(userInput) || isGrading) return;
 
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Describe a Scene grade refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         var input = userInput.Trim();
+        var scene = sceneDescription;
+        var generation = _generation;
         userInput = "";
         isGrading = true;
         StateHasChanged();
 
         try
         {
-            var grade = await TeacherSvc.GradeDescription(input, sceneDescription, targetLanguage, nativeLanguage);
+            GradeResponse grade;
+            try
+            {
+                grade = await TeacherSvc.GradeDescription(input, scene, targetLanguage, nativeLanguage);
+            }
+            catch (Exception ex)
+            {
+                // No grade: nothing is shown as a score and nothing is recorded.
+                Logger.LogError(ex, "Error grading description");
+                if (!IsSuperseded(generation, owner))
+                    Toast.ShowError(Localize["NativeScene_GradeFailed"]);
+                return;
+            }
+
+            // Leaving the page, another scene, or a profile change while the grade was in
+            // flight supersedes it: the late result is not shown and nothing is recorded.
+            if (IsSuperseded(generation, owner))
+            {
+                Logger.LogInformation("Describe a Scene grade discarded: superseded while it was in flight.");
+                return;
+            }
 
             var sentence = new Sentence
             {
@@ -337,39 +402,60 @@ else
             };
             gradedSentences.Insert(0, sentence);
 
-            await ActivityRepo.SaveAsync(new UserActivity
+            var saveFailed = false;
+            var saved = await ActivityRepo.SaveAsync(new UserActivity
             {
                 Activity = SentenceStudio.Shared.Models.Activity.SceneDescription.ToString(),
                 Input = input,
                 Accuracy = grade.Accuracy,
                 Fluency = grade.Fluency,
+                UserProfileId = owner,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
-
-            // Record vocabulary progress via shared extraction pipeline
-            if (userVocabulary?.Any() == true)
+            if (saved < 0)
             {
-                var activeUserId = Preferences.Get("active_profile_id", "");
-                var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
-                    grade.VocabularyAnalysis, userVocabulary, activeUserId,
-                    activity: "SceneDescription", difficultyWeight: 1.5f);
-                CacheService.InvalidateVocabSummary();
+                Logger.LogError("Describe a Scene could not save its UserActivity row.");
+                saveFailed = true;
             }
 
-            var label = grade.Accuracy >= 80 ? "Excellent" : grade.Accuracy >= 50 ? "Good effort" : "Keep practicing";
-            Toast.ShowSuccess($"{label} — Accuracy: {(int)grade.Accuracy}%");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error grading description");
-            Toast.ShowError("Could not grade your description. Please try again.");
+            // Record vocabulary progress via shared extraction pipeline, for the owner's words only.
+            if (userVocabulary.Count > 0 && OwnerStillActive())
+            {
+                try
+                {
+                    await ProgressService.ExtractAndScoreVocabularyAsync(
+                        grade.VocabularyAnalysis, userVocabulary, owner,
+                        activity: "SceneDescription", difficultyWeight: 1.5f);
+                    CacheService.InvalidateVocabSummary();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Describe a Scene could not score vocabulary for a grade.");
+                    saveFailed = true;
+                }
+            }
+
+            var labelKey = grade.Accuracy >= 80 ? "NativeScene_GradeExcellent"
+                : grade.Accuracy >= 50 ? "NativeScene_GradeGood"
+                : "NativeScene_GradeKeepPracticing";
+            Toast.ShowSuccess(Localize.Get(labelKey, (int)grade.Accuracy));
+            if (saveFailed)
+                Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
         }
         finally
         {
             isGrading = false;
         }
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
+
+    private bool IsSuperseded(long generation, string owner) =>
+        _leaving || generation != _generation
+        || !string.Equals(owner, _owner, StringComparison.Ordinal) || !OwnerStillActive();
 
     private void ToggleExpand(int index)
     {
@@ -393,7 +479,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load gallery images");
-            Toast.ShowError("Could not load gallery.");
+            Toast.ShowError(Localize["NativeScene_GalleryLoadFailed"]);
         }
         finally
         {
@@ -425,6 +511,7 @@ else
         }
         else
         {
+            _generation++;
             imageUrl = img.Url ?? "";
             sceneDescription = img.Description ?? "";
             currentSceneId = img.Id;
@@ -446,12 +533,12 @@ else
             var sceneImage = new SceneImage { Url = url };
             await SceneSvc.SaveAsync(sceneImage);
             galleryImages = await SceneSvc.ListAsync() ?? new();
-            Toast.ShowSuccess("Image added to gallery.");
+            Toast.ShowSuccess(Localize["NativeScene_ImageAdded"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to add image");
-            Toast.ShowError("Could not save image.");
+            Toast.ShowError(Localize["NativeScene_ImageSaveFailed"]);
         }
     }
 
@@ -474,16 +561,17 @@ else
             // If we deleted the current image, clear the scene
             if (toDelete.Any(i => i.Url == imageUrl))
             {
+                _generation++;
                 imageUrl = "";
                 sceneDescription = "";
             }
 
-            Toast.ShowSuccess($"Deleted {toDelete.Count} image(s).");
+            Toast.ShowSuccess(Localize.Get("NativeScene_Deleted", toDelete.Count));
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete images");
-            Toast.ShowError("Could not delete images.");
+            Toast.ShowError(Localize["NativeScene_DeleteFailed"]);
         }
     }
 
@@ -491,12 +579,16 @@ else
 
     private void GoBack()
     {
+        _leaving = true;
+        _generation++;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         NavManager.NavigateTo("/");
     }
 
     public ValueTask DisposeAsync()
     {
+        _leaving = true;
+        _generation++;
         Localize.CultureChanged -= OnCultureChanged;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         return ValueTask.CompletedTask;

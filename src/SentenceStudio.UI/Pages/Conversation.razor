@@ -14,7 +14,7 @@
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                     type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                    title="Change language">
+                    title='@Localize["NativeConversation_ChangeLanguage"]' aria-label='@Localize["NativeConversation_ChangeLanguage"]'>
                 <i class="bi bi-translate"></i>
                 <span class="d-none d-md-inline ss-caption1">@targetLanguage</span>
             </button>
@@ -155,7 +155,7 @@ else
                    placeholder='@Localize["Conversation_TypeMessage"]'
                    disabled="@isWaitingForReply" />
             <button class="btn btn-ss-secondary btn-sm px-2" @onclick="ToggleQuickPhrases"
-                    title='@Localize["Conversation_TypeMessage"]' disabled="@isWaitingForReply">
+                    title='@Localize["NativeConversation_QuickPhrases"]' aria-label='@Localize["NativeConversation_QuickPhrases"]' disabled="@isWaitingForReply">
                 <i class="bi bi-chat-quote"></i>
             </button>
             <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
@@ -207,6 +207,12 @@ else
 
     private bool isBusy;
     private bool isWaitingForReply;
+    // The learner the page was opened for. Words are scored only for this owner, and only while
+    // it is still the active profile (fail closed).
+    private string _owner = string.Empty;
+    // Bumped by every new conversation (scenario or language change), so an opening line or a
+    // reply that was in flight never lands in the next conversation.
+    private long _conversationGeneration;
     private bool isPlayingAudio;
     private bool showQuickPhrases;
     private bool fromPlan;
@@ -257,9 +263,17 @@ else
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
+        _owner = Preferences.Get("active_profile_id", string.Empty);
+        if (string.IsNullOrWhiteSpace(_owner))
+        {
+            Logger.LogWarning("Activity {ActivityName} opened without an active profile; nothing is loaded.", nameof(Conversation));
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         try
         {
-            var profile = await ProfileRepo.GetAsync();
+            var profile = await ProfileRepo.GetByIdAsync(_owner);
             targetLanguage = profile?.TargetLanguage ?? "Korean";
             voiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
 
@@ -272,14 +286,14 @@ else
             // ResourceId/SkillId are accepted for future resource-aware scenario matching.
             activeScenario ??= scenarios.FirstOrDefault();
 
-            userVocabulary = await ResourceRepo.GetAllVocabularyWordsAsync() ?? new();
+            userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(_owner) ?? new();
 
             await StartConversation();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to initialize conversation");
-            Toast.ShowError("Could not start conversation.");
+            Toast.ShowError(Localize["NativeConversation_LoadFailed"]);
         }
     }
 
@@ -296,30 +310,40 @@ else
         await StopAudioAsync();
         if (_disposed) return;
 
+        var generation = ++_conversationGeneration;
         isBusy = true;
         try
         {
             chunks.Clear();
-            var opening = await StartConversationOpeningAsync(activeScenario, targetLanguage);
-            if (!string.IsNullOrEmpty(opening))
+            var scenario = activeScenario;
+            var opening = await StartConversationOpeningAsync(scenario, targetLanguage);
+            if (_disposed || generation != _conversationGeneration)
+                return;
+            if (string.IsNullOrWhiteSpace(opening))
             {
-                chunks.Add(new ConversationChunk
-                {
-                    Text = opening,
-                    Author = activeScenario?.PersonaName ?? "AI",
-                    Role = ConversationRole.Assistant,
-                    SentTime = DateTime.Now
-                });
+                // No opening line is a failure the learner is told about, not an empty chat.
+                Logger.LogWarning("Conversation opening line was empty.");
+                Toast.ShowError(Localize["NativeConversation_StartFailed"]);
+                return;
             }
+            chunks.Add(new ConversationChunk
+            {
+                Text = opening,
+                Author = scenario?.PersonaName ?? "AI",
+                Role = ConversationRole.Assistant,
+                SentTime = DateTime.UtcNow
+            });
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to start conversation");
-            Toast.ShowError("Error starting conversation.");
+            if (!_disposed && generation == _conversationGeneration)
+                Toast.ShowError(Localize["NativeConversation_StartFailed"]);
         }
         finally
         {
-            isBusy = false;
+            if (generation == _conversationGeneration)
+                isBusy = false;
         }
     }
 
@@ -331,6 +355,14 @@ else
     {
         if (string.IsNullOrWhiteSpace(userInput) || isWaitingForReply) return;
 
+        var owner = _owner;
+        if (!OwnerStillActive())
+        {
+            Logger.LogWarning("Conversation message refused: the active profile changed or is absent.");
+            Toast.ShowError(Localize["Vocabulary_NoActiveProfile"]);
+            return;
+        }
+
         var message = userInput.Trim();
         userInput = "";
 
@@ -339,55 +371,85 @@ else
             Text = message,
             Author = "Me",
             Role = ConversationRole.User,
-            SentTime = DateTime.Now
+            SentTime = DateTime.UtcNow
         };
         chunks.Add(userChunk);
+        var scenario = activeScenario;
+        var generation = _conversationGeneration;
         isWaitingForReply = true;
         StateHasChanged();
 
         try
         {
-            var reply = await ConversationSvc.ContinueConversation(chunks, activeScenario, targetLanguage);
-            if (reply is not null)
+            Reply? reply;
+            try
             {
-                // Apply grammar corrections to user chunk
-                if (reply.GrammarCorrections?.Any() == true)
-                {
-                    userChunk.GrammarCorrections = reply.GrammarCorrections;
-                }
-                userChunk.Comprehension = Reply.NormalizeComprehension(reply.Comprehension);
+                reply = await ConversationSvc.ContinueConversation(chunks.ToList(), scenario, targetLanguage);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to get reply");
+                if (!_disposed && generation == _conversationGeneration)
+                    Toast.ShowError(Localize["NativeConversation_ReplyFailed"]);
+                return;
+            }
 
-                var aiChunk = new ConversationChunk
-                {
-                    Text = reply.Message ?? "",
-                    Author = activeScenario?.PersonaName ?? "AI",
-                    Role = ConversationRole.Assistant,
-                    SentTime = DateTime.Now
-                };
-                chunks.Add(aiChunk);
+            // A reply to a conversation the learner has left lands nowhere.
+            if (_disposed || generation != _conversationGeneration)
+                return;
 
-                // Record vocabulary progress via shared extraction pipeline (softer penalty for chat)
-                if (userVocabulary?.Any() == true)
+            if (string.IsNullOrWhiteSpace(reply?.Message))
+            {
+                // No reply is a failure the learner is told about, not an empty bubble; the
+                // learner's message stays so it can be sent again.
+                Logger.LogWarning("Conversation reply was empty.");
+                Toast.ShowError(Localize["NativeConversation_ReplyFailed"]);
+                return;
+            }
+
+            // Apply grammar corrections to user chunk
+            if (reply.GrammarCorrections?.Any() == true)
+            {
+                userChunk.GrammarCorrections = reply.GrammarCorrections;
+            }
+            userChunk.Comprehension = Reply.NormalizeComprehension(reply.Comprehension);
+
+            chunks.Add(new ConversationChunk
+            {
+                Text = reply.Message,
+                Author = scenario?.PersonaName ?? "AI",
+                Role = ConversationRole.Assistant,
+                SentTime = DateTime.UtcNow
+            });
+
+            // Record vocabulary progress via shared extraction pipeline (softer penalty for chat),
+            // for the owner's words only.
+            if (userVocabulary.Count > 0 && OwnerStillActive())
+            {
+                try
                 {
-                    var activeUserId = Preferences.Get("active_profile_id", "");
-                    var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
-                        reply.VocabularyAnalysis, userVocabulary, activeUserId,
+                    await ProgressService.ExtractAndScoreVocabularyAsync(
+                        reply.VocabularyAnalysis, userVocabulary, owner,
                         activity: "Conversation", difficultyWeight: 1.2f,
                         penaltyOverride: 0.8f);
                     CacheService.InvalidateVocabSummary();
                 }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Conversation could not score vocabulary for a reply.");
+                    Toast.ShowError(Localize["NativeCommon_SaveFailed"]);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to get reply");
-            Toast.ShowError("Error getting response. Please try again.");
         }
         finally
         {
             isWaitingForReply = false;
         }
     }
+
+    private bool OwnerStillActive() =>
+        !string.IsNullOrWhiteSpace(_owner)
+        && string.Equals(_owner, Preferences.Get("active_profile_id", string.Empty), StringComparison.Ordinal);
 
     private async Task PlayChunkAudio(ConversationChunk chunk)
     {
@@ -466,7 +528,7 @@ else
             isPlayingAudio = false;
         }
         if (!_disposed)
-            Toast.ShowError("Audio playback failed.");
+            Toast.ShowError(Localize["NativeConversation_AudioFailed"]);
     }
 
     private bool IsCurrentAudioRequest(CancellationTokenSource? request, long generation) =>

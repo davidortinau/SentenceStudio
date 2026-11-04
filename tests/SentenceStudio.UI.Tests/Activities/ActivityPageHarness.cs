@@ -41,14 +41,15 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
     public ServiceProvider Services { get; private set; } = null!;
     public ActivityTestRenderer Renderer { get; private set; } = null!;
 
-    public static async Task<ActivityPageFixture> CreateAsync()
+    /// <param name="configure">Adds the services a page needs beyond the shared set.</param>
+    public static async Task<ActivityPageFixture> CreateAsync(Action<IServiceCollection>? configure = null)
     {
         var fixture = new ActivityPageFixture();
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync(configure);
         return fixture;
     }
 
-    private async Task InitializeAsync()
+    private async Task InitializeAsync(Action<IServiceCollection>? configure)
     {
         Directory.CreateDirectory(_appData);
         await _connection.OpenAsync();
@@ -97,6 +98,7 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         services.AddSingleton(toast);
         services.AddSingleton(new BlazorLocalizationService());
         services.AddSingleton<NavigationManager>(Navigation);
+        configure?.Invoke(services);
         Services = services.BuildServiceProvider();
 
         await using (var scope = Services.CreateAsyncScope())
@@ -372,9 +374,21 @@ internal sealed class ScriptedAiGateway : IAiGatewayClient
         return (T?)Respond(typeof(T));
     }
 
-    public Task<T?> SendMessagesAsync<T>(List<(string role, string content)> messages,
-        string? instructions = null, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException();
+    /// <summary>Calls that sent system instructions separately from the messages (/api/v1/ai/chat-messages).</summary>
+    public List<(string? Instructions, List<(string Role, string Content)> Messages)> MessageCalls { get; } = new();
+
+    public async Task<T?> SendMessagesAsync<T>(List<(string role, string content)> messages,
+        string? instructions = null, CancellationToken cancellationToken = default)
+    {
+        lock (MessageCalls)
+            MessageCalls.Add((instructions, messages.Select(m => (m.role, m.content)).ToList()));
+        if (_hold is { } hold)
+        {
+            _started.TrySetResult();
+            await hold.Task;
+        }
+        return (T?)Respond(typeof(T));
+    }
 
     public Task<string> AnalyzeImageAsync(string prompt, string imageBase64, string mediaType = "image/jpeg",
         CancellationToken cancellationToken = default) =>

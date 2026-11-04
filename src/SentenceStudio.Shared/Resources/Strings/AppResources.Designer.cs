@@ -7906,6 +7906,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Audio unavailable..
+        /// </summary>
+        internal static string HowDoYouSay_AudioUnavailable {
+            get {
+                return ResourceManager.GetString("HowDoYouSay_AudioUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Enter a phrase in {0}.
         /// </summary>
         internal static string HowDoYouSay_EnterPhrase {
@@ -9594,6 +9603,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string MinimalPair_ContrastLabel {
             get {
                 return ResourceManager.GetString("MinimalPair_ContrastLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to e.g., ㅂ vs ㅃ.
+        /// </summary>
+        internal static string MinimalPair_ContrastLabelPlaceholder {
+            get {
+                return ResourceManager.GetString("MinimalPair_ContrastLabelPlaceholder", resourceCulture);
             }
         }
 
@@ -13909,6 +13927,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Double-click or double-tap a sentence to jump to it!.
+        /// </summary>
+        internal static string Reading_JumpHintWeb {
+            get {
+                return ResourceManager.GetString("Reading_JumpHintWeb", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Loading passage....
         /// </summary>
         internal static string Reading_LoadingPassage {
@@ -16036,6 +16063,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Scene_DescribeWhatYouSee {
             get {
                 return ResourceManager.GetString("Scene_DescribeWhatYouSee", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No cached images yet. Paste a URL above to add one..
+        /// </summary>
+        internal static string Scene_GalleryEmpty {
+            get {
+                return ResourceManager.GetString("Scene_GalleryEmpty", resourceCulture);
             }
         }
 

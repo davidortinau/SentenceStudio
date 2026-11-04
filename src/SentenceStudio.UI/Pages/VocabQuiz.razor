@@ -680,6 +680,7 @@ else
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
     [Inject] private IActivitySessionService SessionService { get; set; } = default!;
+    [Inject] private VocabularyLearningContextRepository LearningContexts { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Plans.IPlanDateContext PlanDateContext { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.PhotoViewerCoordinator PhotoViewer { get; set; } = default!;
     [Inject] private ExampleSentenceRepository ExampleSentenceRepo { get; set; } = default!;
@@ -715,6 +716,9 @@ else
     private bool activityTimerStartInFlight;
     private readonly UiAudioPlayerSession _nativeAudio = new();
     private readonly CancellationTokenSource _audioLifetime = new();
+    private UiSpeechClipCache? _clipCache;
+    private UiSpeechClipCache ClipCache =>
+        _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
     private bool _browserAudioAttempted;
     private bool _audioDisposed;
     private bool _disposeStarted;
@@ -746,6 +750,10 @@ else
     private string? activeSessionId;
     private string launchContextKey = string.Empty;
     private bool sessionMarkedComplete;
+    // True once this page scored an answer in the current run. Without it, a round summary is
+    // completed only when another client's scored answer on the round's words has synced here
+    // (rule 6 of docs/activity-session-format.md): a summary alone completes nothing.
+    private bool scoredAnswerThisRun;
     private bool activityTimerStarted;
     private string launchError = string.Empty;
     private string activeUserId = string.Empty;
@@ -950,6 +958,7 @@ else
             clearCache: true);
         isBusy = true;
         sessionMarkedComplete = false;
+        scoredAnswerThisRun = false;
         try
         {
             if (string.IsNullOrEmpty(GetActiveUserId()))
@@ -1272,6 +1281,8 @@ else
             userMode = string.IsNullOrWhiteSpace(snapshot.UserMode) ? "MultipleChoice" : snapshot.UserMode;
             activeSessionId = resumableSession.Id;
             sessionMarkedComplete = false;
+            // A resumed run's answers were scored by whichever client gave them, not here.
+            scoredAnswerThisRun = false;
             showResumePrompt = false;
             resumeRejected = false;
 
@@ -1449,6 +1460,20 @@ else
 
         try
         {
+            if (!scoredAnswerThisRun && !await RoundWasScoredAsync(currentUserId))
+            {
+                // Another client saved this summary (or this page moved past the round's last
+                // answer) and none of the round's answers has been scored where this client can
+                // see it. The run stays in progress, so the client that graded it can finish it.
+                Logger.LogWarning("Vocabulary quiz run left in progress: no scored answer on the round's words since the run started.");
+                return;
+            }
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
             await SessionService.CompleteAsync(currentUserId, "VocabularyReview", launchContextKey);
             if (!IsPreferenceUser(currentUserId))
             {
@@ -1463,6 +1488,31 @@ else
         {
             Logger.LogError(ex, "Failed to complete the current vocabulary quiz session.");
         }
+    }
+
+    /// <summary>Clients stamp learning records with their own clocks; allow for drift against the run's start.</summary>
+    private static readonly TimeSpan ClientClockDrift = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// True when a quiz answer on one of the round's words was scored for the learner since the
+    /// in-progress run started (native NativeQuizAttemptCommitterAdapter.RoundWasScoredAsync).
+    /// With no run in progress there is nothing to complete, so nothing is refused.
+    /// </summary>
+    private async Task<bool> RoundWasScoredAsync(string userId)
+    {
+        var run = await SessionService.GetResumableAsync(
+            userId, ActivitySessionTypes.VocabularyReview, launchContextKey);
+        if (run is null)
+            return true;
+
+        // Mastered words leave roundWordOrder mid-round; the round's full list is in
+        // sessionItems and vocabItems.
+        var roundWordIds = roundWordOrder
+            .Concat(vocabItems)
+            .Concat(sessionItems)
+            .Select(item => item.Word.Id);
+        return await LearningContexts.HasScoredAnswerSinceAsync(
+            userId, "VocabularyQuiz", roundWordIds, run.StartedAt - ClientClockDrift);
     }
 
     private bool TryDeserializeSnapshot(string stateJson, out VocabQuizSessionSnapshot? snapshot)
@@ -2025,6 +2075,7 @@ else
                     ExpectedAnswer = currentItem.Word.TargetLanguageTerm,
                     ResponseTimeMs = responseTimeMs
                 });
+                scoredAnswerThisRun = true;
 
                 currentItem.Progress = updatedProgress;
 
@@ -2359,6 +2410,7 @@ else
             var wasKnownBefore = currentItem?.Progress?.IsKnown ?? false;
 
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
+            scoredAnswerThisRun = true;
             if (!IsPreferenceUser(attempt.UserId))
             {
                 RefuseLaunch(1);
@@ -2700,60 +2752,35 @@ else
         try
         {
             var voiceId = VoicePrefs.GetVoiceForLanguage(language);
-            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
-            Stream audioStream;
-
-            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
-            {
-                audioStream = File.OpenRead(cached.AudioFilePath);
-            }
-            else if (Connectivity.IsInternetAvailable)
-            {
-                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
-                Directory.CreateDirectory(cacheDir);
-                var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var generatedAudio = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f))
-                using (var fs = File.Create(filePath))
-                {
-                    await generatedAudio.CopyToAsync(fs);
-                }
-
-                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
-                {
-                    Phrase = text, VoiceId = voiceId, AudioFilePath = filePath,
-                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-                });
-
-                audioStream = File.OpenRead(filePath);
-            }
-            else
-            {
-                await EnableTextFallbackAsync();
-                Toast.ShowWarning("Audio unavailable offline.");
-                return;
-            }
-
+            // The owner's cached clip is found by file name under today's AudioCache (the stored
+            // absolute path changes when iOS moves the app container); otherwise it is
+            // synthesized once and cached, pointing the existing row at it (B35).
+            var clip = await ClipCache.GetOrCreateAsync(text, voiceId, Connectivity.IsInternetAvailable, "word",
+                (voice, token) => SpeechService.TextToSpeechAsync(text, voice, 0.5f, 0.75f, 0.85f, cancellationToken: token),
+                _audioLifetime.Token);
             if (_audioDisposed)
-            {
-                audioStream.Dispose();
                 return;
+            switch (clip.Status)
+            {
+                case UiSpeechClipStatus.Offline:
+                    await EnableTextFallbackAsync();
+                    Toast.ShowWarning(Localize["OfflineAudioUnavailable"]);
+                    return;
+                case UiSpeechClipStatus.Failed:
+                    Logger.LogWarning("Quiz audio could not be synthesized; showing the text instead.");
+                    await EnableTextFallbackAsync();
+                    return;
             }
 
             if (AudioPlayerFactory.CanPlayLocally)
             {
-                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
             }
             else
             {
-                using (audioStream)
-                {
-                    _nativeAudio.Stop();
-                    audioStream.Position = 0;
-                    using var ms = new MemoryStream();
-                    await audioStream.CopyToAsync(ms);
-                    _browserAudioAttempted = true;
-                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token, Logger);
-                }
+                _nativeAudio.Stop();
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, _audioLifetime.Token, Logger);
             }
         }
         catch (OperationCanceledException) when (_audioDisposed)
@@ -3045,9 +3072,9 @@ else
         var voiceId = VoicePrefs.GetVoiceForLanguage(language);
         var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
 
+        // Offline, only a clip this device holds can play (found by file name, B35).
         return cached != null
-            && !string.IsNullOrWhiteSpace(cached.AudioFilePath)
-            && File.Exists(cached.AudioFilePath);
+            && UiSpeechClipCache.Resolve(FileSystemService.AppDataDirectory, cached.AudioFilePath) is not null;
     }
 
     private async Task EnableTextFallbackAsync()

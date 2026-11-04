@@ -85,6 +85,12 @@ namespace SentenceStudio.Services
         public async Task SaveConversationChunk(ConversationChunk chunk)
             => await Repository.SaveConversationChunkAsync(chunk);
 
+        /// <summary>
+        /// The persona's opening line. The persona prompt goes as the system instructions and the
+        /// start prompt as the user message (B15: Azure's content filter rejected the two pasted
+        /// into one message, so the chat opened empty). Failures are rethrown so the caller can
+        /// tell the learner; an empty string means the AI returned no line.
+        /// </summary>
         public async Task<string> StartConversation(ConversationScenario? scenario = null, string? targetLanguage = null)
         {
             try
@@ -133,18 +139,21 @@ namespace SentenceStudio.Services
                     userPrompt = await template.RenderAsync(new { target_language = targetLanguage });
                 }
 
-                var combinedPrompt = $"SYSTEM INSTRUCTIONS:\n{systemPrompt}\n\nTASK:\n{userPrompt}";
-                var response = await _aiService.SendPrompt<string>(combinedPrompt);
+                var response = await _aiService.SendPromptWithInstructions<string>(systemPrompt, userPrompt);
                 return response ?? string.Empty;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred in StartConversation");
-                return string.Empty;
+                throw;
             }
         }
 
-        public async Task<Reply> ContinueConversation(List<ConversationChunk> chunks, ConversationScenario? scenario = null, string? targetLanguage = null)
+        /// <summary>
+        /// The persona's reply with grammar corrections and vocabulary analysis. Failures are
+        /// rethrown so the caller can tell the learner; null means the AI returned no reply.
+        /// </summary>
+        public async Task<Reply?> ContinueConversation(List<ConversationChunk> chunks, ConversationScenario? scenario = null, string? targetLanguage = null)
         {
             try
             {
@@ -193,13 +202,12 @@ namespace SentenceStudio.Services
                     });  // Include ALL chunks
                 }
 
-                var response = await _aiService.SendPrompt<Reply>(prompt);
-                return response ?? new Reply { Message = string.Empty };
+                return await _aiService.SendPrompt<Reply>(prompt);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred in ContinueConversation");
-                return new Reply { Message = string.Empty };
+                throw;
             }
         }
 

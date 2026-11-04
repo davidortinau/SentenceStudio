@@ -821,7 +821,8 @@
 
         if (!hasShownJumpHint)
         {
-            Toast.ShowSuccess(Localize["Reading_JumpHint"]);
+            // The Razor page runs in browsers (double-click) and the MAUI app (double-tap).
+            Toast.ShowSuccess(Localize["Reading_JumpHintWeb"]);
             hasShownJumpHint = true;
             Preferences.Set("ReadingActivity_HasShownJumpHint", true);
         }
