@@ -160,6 +160,89 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
     }
 
     [ApplicationOperationPostgresFact]
+    public async Task SharedOldWord_TheServerInfersIsAnothersLearners_IsLeftOut_AndSyncIsNotStuck()
+    {
+        // An old word with no recorded owner, linked from another learner's resource. On the
+        // MAUI install the learner also practised it, so locally it names two learners (no owner)
+        // and is uploaded; the server, without that new progress row yet, infers the other
+        // learner. The client and server disagree, and the row must not stop this install's sync.
+        var (owner, other) = await _fixture.SeedOwnersAsync();
+        var word = Guid.NewGuid().ToString();
+        var otherResource = Guid.NewGuid().ToString();
+        var link = Guid.NewGuid().ToString();
+        await using (var server = _fixture.NewContext())
+        {
+            server.LearningResources.Add(new LearningResource { Id = otherResource, UserProfileId = other, Title = "Theirs" });
+            await server.SaveChangesAsync();
+            // SQL, so the server records no owner for the old word.
+            await server.Database.ExecuteSqlRawAsync("""
+                INSERT INTO "VocabularyWord" ("Id", "TargetLanguageTerm", "CreatedAt", "UpdatedAt", "LexicalUnitType")
+                    VALUES ({0}, 'shared', now(), now(), 0);
+                INSERT INTO "ResourceVocabularyMapping" ("Id", "ResourceId", "VocabularyWordId")
+                    VALUES ({1}, {2}, {0});
+                """, word, link, otherResource);
+        }
+
+        await using var device = await MauiDevice.CreateAsync(_fixture);
+        var progress = Guid.NewGuid().ToString();
+        var ownResource = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        // Separate saves: a device records an owner only for a word created in the same save.
+        await using (var local = device.OpenContext())
+        {
+            local.LearningResources.Add(new LearningResource { Id = otherResource, UserProfileId = other, Title = "Theirs", CreatedAt = now, UpdatedAt = now });
+            local.VocabularyWords.Add(new VocabularyWord { Id = word, TargetLanguageTerm = "shared", CreatedAt = now, UpdatedAt = now });
+            await local.SaveChangesAsync();
+        }
+        await using (var local = device.OpenContext())
+        {
+            local.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping { Id = link, ResourceId = otherResource, VocabularyWordId = word });
+            await local.SaveChangesAsync();
+        }
+        await using (var local = device.OpenContext())
+        {
+            local.VocabularyProgresses.Add(new VocabularyProgress { Id = progress, UserId = owner, VocabularyWordId = word, CreatedAt = now, UpdatedAt = now });
+            local.LearningResources.Add(new LearningResource { Id = ownResource, UserProfileId = owner, Title = "Mine", CreatedAt = now, UpdatedAt = now });
+            await local.SaveChangesAsync();
+        }
+        await using (var local = device.OpenContext())
+        {
+            var stored = await local.VocabularyWords.SingleAsync(row => row.Id == word);
+            Assert.Null(stored.UserProfileId);
+            stored.TargetLanguageTerm = "edited on MAUI";
+            await local.SaveChangesAsync();
+        }
+        await using (var local = device.OpenContext())
+            Assert.Null((await SyncRowOwners.GetStoredWordOwnersAsync(local, [word], default))[word]);
+
+        await device.SyncAsync(owner);
+
+        await using (var server = _fixture.NewContext())
+        {
+            Assert.Equal("shared", (await server.VocabularyWords.AsNoTracking()
+                .SingleAsync(row => row.Id == word)).TargetLanguageTerm);
+            Assert.False(await server.VocabularyProgresses.AnyAsync(row => row.Id == progress));
+            Assert.True(await server.LearningResources.AnyAsync(row => row.Id == ownResource));
+        }
+        // Not stuck: the next change syncs too, and the device kept its own copies.
+        await using (var local = device.OpenContext())
+        {
+            (await local.LearningResources.SingleAsync(row => row.Id == ownResource)).Title = "Renamed";
+            await local.SaveChangesAsync();
+        }
+        await device.SyncAsync(owner);
+        await using (var server = _fixture.NewContext())
+            Assert.Equal("Renamed", (await server.LearningResources.AsNoTracking()
+                .SingleAsync(row => row.Id == ownResource)).Title);
+        await using (var local = device.OpenContext())
+        {
+            Assert.Equal("edited on MAUI", (await local.VocabularyWords.AsNoTracking()
+                .SingleAsync(row => row.Id == word)).TargetLanguageTerm);
+            Assert.True(await local.VocabularyProgresses.AnyAsync(row => row.Id == progress));
+        }
+    }
+
+    [ApplicationOperationPostgresFact]
     public async Task NoSignedInLearner_SendsNothing()
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();

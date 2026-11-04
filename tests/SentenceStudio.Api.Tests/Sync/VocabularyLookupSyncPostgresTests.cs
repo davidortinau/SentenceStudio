@@ -113,13 +113,13 @@ public sealed class VocabularyLookupSyncPostgresTests : IClassFixture<NativeOwne
         Assert.Contains(await DownloadAsync(client, owner, Guid.NewGuid()),
             item => item.TableName == "VocabularyLookup" && Id(item) == id);
 
-        // Overwriting the owner's row (claiming it as the foreign learner's) is refused, even
-        // with a newer lookup time, and the row is unchanged.
+        // Overwriting the owner's row (claiming it as the foreign learner's) is never applied,
+        // even with a newer lookup time: judged from the stored row, it is left out.
         foreach (var changeType in new[] { ChangeType.Insert, ChangeType.Update })
         {
             using var stolen = await UploadFromStoreAsync(client, foreign, Guid.NewGuid(),
                 Lookup(id, foreign, "stolen", Day, Day.AddDays(1), changeType));
-            Assert.Equal(HttpStatusCode.Forbidden, stolen.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, stolen.StatusCode);
         }
         // Writing a row in the owner's name is refused too.
         var planted = SyncIds.VocabularyLookup(owner, "Korean", VocabularyLookupDirection.ToNative, "산");
