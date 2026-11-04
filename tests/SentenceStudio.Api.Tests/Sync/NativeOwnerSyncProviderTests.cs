@@ -94,7 +94,7 @@ public sealed class NativeOwnerSyncProviderTests
                    ('legacy-link', 'owned-resource', 'legacy-word')
             """);
 
-        var owners = await NativeOwnerSyncProvider.GetStoredOwnersAsync(
+        var owners = await SentenceStudio.Services.SyncRowOwners.GetStoredOwnersAsync(
             db, "VocabularyWord", ["recorded-word", "legacy-word"], default);
 
         Assert.Equal(Owner, owners["recorded-word"]);

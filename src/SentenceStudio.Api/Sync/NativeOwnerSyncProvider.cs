@@ -136,16 +136,21 @@ internal sealed class NativeOwnerSyncProvider(
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var visible = await GetVisibleKeysAsync(db, owner, ct);
-            items = WithoutUnreachableExamples(items, owner, visible);
-            if (!await ExistingRowsBelongToOwnerAsync(db, items, owner, visible, ct)
-                || !await OwnerLinkedReferencesMatchAsync(db, items, owner, visible, ct))
+            // A malformed upload, or a row that is another learner's, refuses the whole upload:
+            // a correct client never sends one (it can read the owner of every row it sends).
+            if (IsMalformed(items)
+                || await NamesAnotherOwnerAsync(db, items, owner, ct)
+                || !await OwnerProfileExistsAsync(db, items, owner, ct))
             {
-                logger.LogWarning("Native CoreSync upload refused an existing row or parent outside the authenticated owner.");
+                logger.LogWarning("Native CoreSync upload refused a malformed row or another learner's row.");
                 throw new BadHttpRequestException(
                     "Native sync refused a row outside the authenticated owner.",
                     StatusCodes.Status403Forbidden);
             }
+
+            // Every other row the server cannot place for this owner stays on the device.
+            var visible = await GetVisibleKeysAsync(db, owner, ct);
+            items = await PlaceableItemsAsync(db, items, owner, visible, ct);
 
             // Last-writer-wins would drop attempts another device or the web app counted
             // since this device's copy. Merge them while the upload lock is held; the merged
@@ -288,27 +293,97 @@ internal sealed class NativeOwnerSyncProvider(
         }).ToArray();
     }
 
-    private static async Task<bool> ExistingRowsBelongToOwnerAsync(
+    /// <summary>A row without values or an ID, or one row sent twice with different values.</summary>
+    private static bool IsMalformed(IReadOnlyList<SyncItem> items) =>
+        items.Any(item => item.Values is null || string.IsNullOrWhiteSpace(Value(item, "Id")))
+        || items.Where(item => item.ChangeType != ChangeType.Delete)
+            .GroupBy(item => (item.TableName, Value(item, "Id")))
+            .Any(group => group.Count() != 1);
+
+    /// <summary>
+    /// True when a written row names another learner in its owner column, or has the ID of a
+    /// stored row another learner owns. Deletes are not judged here: a device cannot read the
+    /// owner of a row it already deleted.
+    /// </summary>
+    private static async Task<bool> NamesAnotherOwnerAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct)
+    {
+        var writes = items.Where(item => item.ChangeType != ChangeType.Delete).ToArray();
+        if (writes.Any(item => SyncRowOwners.OwnerColumn(item.TableName) is { } column
+            && Value(item, column) is { Length: > 0 } named && named != owner))
+            return true;
+        foreach (var table in writes.GroupBy(item => item.TableName, StringComparer.Ordinal))
+        {
+            var ids = table.Select(item => Value(item, "Id")!)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            var stored = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
+            if (stored.Values.Any(storedOwner => storedOwner is not null && storedOwner != owner))
+                return true;
+        }
+        return false;
+    }
+
+    private static async Task<bool> OwnerProfileExistsAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct) =>
+        await db.UserProfiles.AsNoTracking().AnyAsync(profile => profile.Id == owner, ct)
+        || items.Any(item => item.TableName == "UserProfile"
+            && item.ChangeType != ChangeType.Delete && Value(item, "Id") == owner);
+
+    /// <summary>
+    /// The rows of this upload the server applies. A row the server cannot place for the owner
+    /// (it names no owner, its stored copy has none, its parent or word is not the owner's, or
+    /// its table does not sync from devices) is left out instead of refusing the upload: it stays
+    /// on the device, as native keeps its device-only rows, and everything else syncs. Leaving a
+    /// row out can leave its children without a parent, so the check repeats until nothing more
+    /// is left out. Deletes are left out: the server cannot yet prove what a delete removes.
+    /// </summary>
+    private async Task<IReadOnlyList<SyncItem>> PlaceableItemsAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
         VisibleKeys visibleBeforeUpload, CancellationToken ct)
     {
+        IReadOnlyList<SyncItem> writes = WithoutUnreachableExamples(
+            items.Where(item => item.ChangeType != ChangeType.Delete).ToArray(),
+            owner, visibleBeforeUpload);
+        while (writes.Count > 0)
+        {
+            var unplaceable = await UnplaceableWritesAsync(
+                db, writes, owner, visibleBeforeUpload.Copy(), ct);
+            if (unplaceable.Count == 0)
+                break;
+            writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
+        }
+
+        var kept = new HashSet<SyncItem>(writes, ReferenceEqualityComparer.Instance);
+        var leftOut = items.Where(item => !kept.Contains(item)).ToArray();
+        if (leftOut.Length > 0)
+            logger.LogInformation(
+                "Native CoreSync upload left {Count} rows on the device that the server cannot place for its owner: {Tables}.",
+                leftOut.Length,
+                string.Join(", ", leftOut.GroupBy(item => (item.TableName, item.ChangeType))
+                    .Select(group => $"{group.Key.TableName} {group.Key.ChangeType} x{group.Count()}")));
+        return writes;
+    }
+
+    /// <summary>
+    /// The written rows the server cannot place for <paramref name="owner"/> given the other rows
+    /// of this upload. Rows that are another learner's were refused before this runs.
+    /// </summary>
+    private static async Task<HashSet<SyncItem>> UnplaceableWritesAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
+        VisibleKeys visible, CancellationToken ct)
+    {
+        var refused = new HashSet<SyncItem>(ReferenceEqualityComparer.Instance);
+
+        // A stored row with no owner (saved before its table had one) is never claimed.
         foreach (var table in items.GroupBy(item => item.TableName, StringComparer.Ordinal))
         {
-            if (table.Any(item => item.Values is null
-                || string.IsNullOrWhiteSpace(Value(item, "Id"))
-                || item.ChangeType is not (ChangeType.Insert or ChangeType.Update))
-                || table.GroupBy(item => Value(item, "Id"), StringComparer.Ordinal)
-                    .Any(group => group.Count() != 1))
-                return false;
-
-            var ids = table.Select(item => Value(item, "Id"))
-                .Select(id => id!)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-
-            var existing = await GetStoredOwnersAsync(db, table.Key, ids, ct);
-            if (existing.Values.Any(storedOwner => storedOwner != owner))
-                return false;
+            var ids = table.Select(item => Value(item, "Id")!)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            var existing = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
+            foreach (var item in table)
+                if (existing.TryGetValue(Value(item, "Id")!, out var storedOwner)
+                    && storedOwner != owner)
+                    refused.Add(item);
         }
 
         var referencedWords = items
@@ -321,7 +396,7 @@ internal sealed class NativeOwnerSyncProvider(
             .Select(id => id!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var wordOwners = await GetStoredWordOwnersAsync(db, referencedWords, ct);
+        var wordOwners = await SyncRowOwners.GetStoredWordOwnersAsync(db, referencedWords, ct);
         var uploadedWords = items
             .Where(item => item.TableName == "VocabularyWord")
             .Select(item => Value(item, "Id"))
@@ -333,20 +408,18 @@ internal sealed class NativeOwnerSyncProvider(
         {
             if ((item.TableName is "ResourceVocabularyMapping" or "VocabularyProgress")
                 && !CanReferenceWord(Value(item, "VocabularyWordId")))
-                return false;
+                refused.Add(item);
             if (item.TableName == "PhraseConstituent"
                 && (!OwnsPhraseWord(Value(item, "PhraseWordId"))
                     || Value(item, "ConstituentWordId") is { Length: > 0 } constituentId
                     && !CanReferenceWord(constituentId)))
-                return false;
+                refused.Add(item);
         }
-
-        return true;
 
         bool CanReferenceWord(string? id) =>
             !string.IsNullOrWhiteSpace(id)
             && (wordOwners.TryGetValue(id, out var storedOwner)
-                ? storedOwner == owner || visibleBeforeUpload.WordIds.Contains(id)
+                ? storedOwner == owner || visible.WordIds.Contains(id)
                 : uploadedWords.Contains(id));
 
         bool OwnsPhraseWord(string? id) =>
@@ -354,6 +427,124 @@ internal sealed class NativeOwnerSyncProvider(
             && (wordOwners.TryGetValue(id, out var storedOwner)
                 ? storedOwner == owner
                 : uploadedWords.Contains(id));
+
+        await RefuseUnlinkedReferencesAsync(db, items, owner, visible, refused, ct);
+        return refused;
+    }
+
+    /// <summary>
+    /// Adds to <paramref name="refused"/> every row whose owner-linked parent (a resource's
+    /// skill, a chunk's conversation, an import's channel or resource, a plan item's resource or
+    /// skill, a learning record's progress row or resource) is not the owner's, and every row
+    /// the owner could not download (<see cref="IsVisible"/>).
+    /// </summary>
+    private static async Task RefuseUnlinkedReferencesAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
+        VisibleKeys visible, HashSet<SyncItem> refused, CancellationToken ct)
+    {
+        var resources = items.Where(item => item.TableName == "LearningResource").ToArray();
+        var chunks = items.Where(item => item.TableName == "ConversationChunk").ToArray();
+        var videos = items.Where(item => item.TableName == "VideoImport").ToArray();
+        var completions = items.Where(item => item.TableName == "DailyPlanCompletion").ToArray();
+        var contexts = items.Where(item => item.TableName == "VocabularyLearningContext").ToArray();
+
+        var resourceSkills = await StoredReferencesAsync<LearningResource>(
+            db, resources, "SkillID", ct);
+        var chunkConversations = await StoredReferencesAsync<ConversationChunk>(
+            db, chunks, "ConversationId", ct);
+        var videoChannels = await StoredReferencesAsync<VideoImport>(
+            db, videos, "MonitoredChannelId", ct);
+        var videoResources = await StoredReferencesAsync<VideoImport>(
+            db, videos, "LearningResourceId", ct);
+        var completionResources = await StoredReferencesAsync<DailyPlanCompletion>(
+            db, completions, "ResourceId", ct);
+        var completionSkills = await StoredReferencesAsync<DailyPlanCompletion>(
+            db, completions, "SkillId", ct);
+        var contextResources = await StoredReferencesAsync<VocabularyLearningContext>(
+            db, contexts, "LearningResourceId", ct);
+
+        var skills = await OwnedParentsAsync(db, "SkillProfile",
+            resources.Select(item => Reference(item, "SkillID", resourceSkills))
+                .Concat(completions.Select(item => Reference(item, "SkillId", completionSkills))),
+            owner, ct);
+        foreach (var item in items.Where(item => item.TableName == "SkillProfile"
+            && Value(item, "UserProfileId") == owner && !refused.Contains(item)))
+            skills.Add(Value(item, "Id")!);
+
+        foreach (var item in resources)
+        {
+            if (Value(item, "UserProfileId") != owner
+                || !OptionalParentIsOwned(Reference(item, "SkillID", resourceSkills), skills))
+                refused.Add(item);
+            else if (!refused.Contains(item))
+                visible.ResourceIds.Add(Value(item, "Id")!);
+        }
+
+        var conversations = await OwnedParentsAsync(db, "Conversation",
+            chunks.Select(item => Reference(item, "ConversationId", chunkConversations)),
+            owner, ct);
+        foreach (var item in items.Where(item => item.TableName == "Conversation"
+            && Value(item, "UserProfileId") == owner && !refused.Contains(item)))
+            conversations.Add(Value(item, "Id")!);
+        foreach (var item in chunks.Where(item => Value(item, "UserProfileId") != owner
+            || !conversations.Contains(
+                Reference(item, "ConversationId", chunkConversations) ?? string.Empty)))
+            refused.Add(item);
+
+        var channels = await OwnedParentsAsync(db, "MonitoredChannel",
+            videos.Select(item => Reference(item, "MonitoredChannelId", videoChannels)),
+            owner, ct);
+        foreach (var item in items.Where(item => item.TableName == "MonitoredChannel"
+            && Value(item, "UserProfileId") == owner && !refused.Contains(item)))
+            channels.Add(Value(item, "Id")!);
+        foreach (var item in videos.Where(item => Value(item, "UserProfileId") != owner
+            || !OptionalParentIsOwned(
+                Reference(item, "MonitoredChannelId", videoChannels), channels)
+            || !OptionalParentIsOwned(
+                Reference(item, "LearningResourceId", videoResources), visible.ResourceIds)))
+            refused.Add(item);
+
+        foreach (var item in completions.Where(item => Value(item, "UserProfileId") != owner
+            || !OptionalParentIsOwned(
+                Reference(item, "ResourceId", completionResources), visible.ResourceIds)
+            || !OptionalParentIsOwned(
+                Reference(item, "SkillId", completionSkills), skills)))
+            refused.Add(item);
+
+        foreach (var item in items.Where(item =>
+            item.TableName == "ResourceVocabularyMapping" && !refused.Contains(item)
+            && visible.ResourceIds.Contains(Value(item, "ResourceId") ?? string.Empty)))
+        {
+            if (Value(item, "VocabularyWordId") is { } wordId)
+                visible.WordIds.Add(wordId);
+        }
+        foreach (var item in items.Where(item => item.TableName == "VocabularyProgress"
+            && !refused.Contains(item) && Value(item, "UserId") == owner
+            && visible.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)))
+            visible.ProgressIds.Add(Value(item, "Id")!);
+
+        var referencedProgress = contexts
+            .Select(item => Value(item, "VocabularyProgressId"))
+            .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if (referencedProgress.Length > 0)
+        {
+            var storedProgress = await db.VocabularyProgresses.AsNoTracking()
+                .Where(progress => referencedProgress.Contains(progress.Id)
+                    && progress.UserId == owner
+                    && visible.WordIds.Contains(progress.VocabularyWordId))
+                .Select(progress => progress.Id).ToListAsync(ct);
+            visible.ProgressIds.UnionWith(storedProgress);
+        }
+
+        foreach (var item in contexts.Where(item => !visible.ProgressIds.Contains(
+                    Value(item, "VocabularyProgressId") ?? string.Empty)
+                || !OptionalParentIsOwned(
+                    Reference(item, "LearningResourceId", contextResources),
+                    visible.ResourceIds)))
+            refused.Add(item);
+        foreach (var item in items.Where(item => !IsVisible(item, owner, visible)))
+            refused.Add(item);
     }
 
     /// <summary>
@@ -387,117 +578,6 @@ internal sealed class NativeOwnerSyncProvider(
                     || resources.Contains(Value(item, "LearningResourceId")!)))).ToArray();
     }
 
-    private static async Task<bool> OwnerLinkedReferencesMatchAsync(
-        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
-        VisibleKeys visible, CancellationToken ct)
-    {
-        if (!await db.UserProfiles.AsNoTracking().AnyAsync(profile => profile.Id == owner, ct)
-            && !items.Any(item => item.TableName == "UserProfile"
-                && Value(item, "Id") == owner))
-            return false;
-
-        var resources = items.Where(item => item.TableName == "LearningResource").ToArray();
-        var chunks = items.Where(item => item.TableName == "ConversationChunk").ToArray();
-        var videos = items.Where(item => item.TableName == "VideoImport").ToArray();
-        var completions = items.Where(item => item.TableName == "DailyPlanCompletion").ToArray();
-        var contexts = items.Where(item => item.TableName == "VocabularyLearningContext").ToArray();
-
-        var resourceSkills = await StoredReferencesAsync<LearningResource>(
-            db, resources, "SkillID", ct);
-        var chunkConversations = await StoredReferencesAsync<ConversationChunk>(
-            db, chunks, "ConversationId", ct);
-        var videoChannels = await StoredReferencesAsync<VideoImport>(
-            db, videos, "MonitoredChannelId", ct);
-        var videoResources = await StoredReferencesAsync<VideoImport>(
-            db, videos, "LearningResourceId", ct);
-        var completionResources = await StoredReferencesAsync<DailyPlanCompletion>(
-            db, completions, "ResourceId", ct);
-        var completionSkills = await StoredReferencesAsync<DailyPlanCompletion>(
-            db, completions, "SkillId", ct);
-        var contextResources = await StoredReferencesAsync<VocabularyLearningContext>(
-            db, contexts, "LearningResourceId", ct);
-
-        var skills = await OwnedParentsAsync(db, "SkillProfile",
-            resources.Select(item => Reference(item, "SkillID", resourceSkills))
-                .Concat(completions.Select(item => Reference(item, "SkillId", completionSkills))),
-            owner, ct);
-        foreach (var item in items.Where(item => item.TableName == "SkillProfile"
-            && Value(item, "UserProfileId") == owner))
-            skills.Add(Value(item, "Id")!);
-
-        foreach (var item in resources)
-        {
-            if (Value(item, "UserProfileId") != owner
-                || !OptionalParentIsOwned(Reference(item, "SkillID", resourceSkills), skills))
-                return false;
-            visible.ResourceIds.Add(Value(item, "Id")!);
-        }
-
-        var conversations = await OwnedParentsAsync(db, "Conversation",
-            chunks.Select(item => Reference(item, "ConversationId", chunkConversations)),
-            owner, ct);
-        foreach (var item in items.Where(item => item.TableName == "Conversation"
-            && Value(item, "UserProfileId") == owner))
-            conversations.Add(Value(item, "Id")!);
-        if (chunks.Any(item => Value(item, "UserProfileId") != owner
-            || !conversations.Contains(
-                Reference(item, "ConversationId", chunkConversations) ?? string.Empty)))
-            return false;
-
-        var channels = await OwnedParentsAsync(db, "MonitoredChannel",
-            videos.Select(item => Reference(item, "MonitoredChannelId", videoChannels)),
-            owner, ct);
-        foreach (var item in items.Where(item => item.TableName == "MonitoredChannel"
-            && Value(item, "UserProfileId") == owner))
-            channels.Add(Value(item, "Id")!);
-        if (videos.Any(item => Value(item, "UserProfileId") != owner
-            || !OptionalParentIsOwned(
-                Reference(item, "MonitoredChannelId", videoChannels), channels)
-            || !OptionalParentIsOwned(
-                Reference(item, "LearningResourceId", videoResources), visible.ResourceIds)))
-            return false;
-
-        if (completions.Any(item => Value(item, "UserProfileId") != owner
-            || !OptionalParentIsOwned(
-                Reference(item, "ResourceId", completionResources), visible.ResourceIds)
-            || !OptionalParentIsOwned(
-                Reference(item, "SkillId", completionSkills), skills)))
-            return false;
-
-        foreach (var item in items.Where(item =>
-            item.TableName == "ResourceVocabularyMapping"
-            && visible.ResourceIds.Contains(Value(item, "ResourceId") ?? string.Empty)))
-        {
-            if (Value(item, "VocabularyWordId") is { } wordId)
-                visible.WordIds.Add(wordId);
-        }
-        foreach (var item in items.Where(item => item.TableName == "VocabularyProgress"
-            && Value(item, "UserId") == owner
-            && visible.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)))
-            visible.ProgressIds.Add(Value(item, "Id")!);
-
-        var referencedProgress = contexts
-            .Select(item => Value(item, "VocabularyProgressId"))
-            .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!)
-            .Distinct(StringComparer.Ordinal).ToArray();
-        if (referencedProgress.Length > 0)
-        {
-            var storedProgress = await db.VocabularyProgresses.AsNoTracking()
-                .Where(progress => referencedProgress.Contains(progress.Id)
-                    && progress.UserId == owner
-                    && visible.WordIds.Contains(progress.VocabularyWordId))
-                .Select(progress => progress.Id).ToListAsync(ct);
-            visible.ProgressIds.UnionWith(storedProgress);
-        }
-
-        return contexts.All(item => visible.ProgressIds.Contains(
-                    Value(item, "VocabularyProgressId") ?? string.Empty)
-                && OptionalParentIsOwned(
-                    Reference(item, "LearningResourceId", contextResources),
-                    visible.ResourceIds))
-            && items.All(item => IsVisible(item, owner, visible));
-    }
-
     private static Task<Dictionary<string, string?>> StoredReferencesAsync<TEntity>(
         ApplicationDbContext db, SyncItem[] items, string column, CancellationToken ct)
         where TEntity : class
@@ -506,7 +586,7 @@ internal sealed class NativeOwnerSyncProvider(
             .Select(item => Value(item, "Id")!).ToArray();
         return ids.Length == 0
             ? Task.FromResult(new Dictionary<string, string?>(StringComparer.Ordinal))
-            : DirectOwnersAsync<TEntity>(db, ids, column, ct);
+            : SyncRowOwners.DirectOwnersAsync<TEntity>(db, ids, column, ct);
     }
 
     private static async Task<HashSet<string>> OwnedParentsAsync(
@@ -517,7 +597,7 @@ internal sealed class NativeOwnerSyncProvider(
             .Select(id => id!).Distinct(StringComparer.Ordinal).ToArray();
         if (ids.Length == 0)
             return new HashSet<string>(StringComparer.Ordinal);
-        var stored = await GetStoredOwnersAsync(db, table, ids, ct);
+        var stored = await SyncRowOwners.GetStoredOwnersAsync(db, table, ids, ct);
         return stored.Where(row => row.Value == owner)
             .Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
     }
@@ -532,139 +612,6 @@ internal sealed class NativeOwnerSyncProvider(
 
     private static bool OptionalParentIsOwned(string? parentId, HashSet<string> owned) =>
         string.IsNullOrWhiteSpace(parentId) || owned.Contains(parentId);
-
-    internal static Task<Dictionary<string, string?>> GetStoredOwnersAsync(
-        ApplicationDbContext db, string table, string[] ids, CancellationToken ct) =>
-        table switch
-        {
-            "UserProfile" => DirectOwnersAsync<UserProfile>(db, ids, "Id", ct),
-            "LearningResource" => DirectOwnersAsync<LearningResource>(db, ids, "UserProfileId", ct),
-            "SkillProfile" => DirectOwnersAsync<SkillProfile>(db, ids, "UserProfileId", ct),
-            "Conversation" => DirectOwnersAsync<Conversation>(db, ids, "UserProfileId", ct),
-            "ConversationChunk" => DirectOwnersAsync<ConversationChunk>(db, ids, "UserProfileId", ct),
-            "MonitoredChannel" => DirectOwnersAsync<MonitoredChannel>(db, ids, "UserProfileId", ct),
-            "VideoImport" => DirectOwnersAsync<VideoImport>(db, ids, "UserProfileId", ct),
-            "DailyPlan" => DirectOwnersAsync<DailyPlan>(db, ids, "UserProfileId", ct),
-            "DailyPlanCompletion" => DirectOwnersAsync<DailyPlanCompletion>(db, ids, "UserProfileId", ct),
-            "UserActivity" => DirectOwnersAsync<UserActivity>(db, ids, "UserProfileId", ct),
-            "DiaryEntry" => DirectOwnersAsync<DiaryEntry>(db, ids, "UserProfileId", ct),
-            "NumberAttempt" => DirectOwnersAsync<NumberAttempt>(db, ids, "UserProfileId", ct),
-            "NumberMasteryProgress" => DirectOwnersAsync<NumberMasteryProgress>(db, ids, "UserProfileId", ct),
-            "WordAssociationScore" => DirectOwnersAsync<WordAssociationScore>(db, ids, "UserProfileId", ct),
-            "MinimalPair" => DirectOwnersAsync<MinimalPair>(db, ids, "UserId", ct),
-            "MinimalPairSession" => DirectOwnersAsync<MinimalPairSession>(db, ids, "UserId", ct),
-            "MinimalPairAttempt" => DirectOwnersAsync<MinimalPairAttempt>(db, ids, "UserId", ct),
-            "StreamHistory" => DirectOwnersAsync<StreamHistory>(db, ids, "UserProfileId", ct),
-            "ConversationMemoryState" => DirectOwnersAsync<ConversationMemoryState>(db, ids, "UserProfileId", ct),
-            "ActivitySession" => DirectOwnersAsync<ActivitySession>(db, ids, "UserId", ct),
-            "SceneImage" => DirectOwnersAsync<SceneImage>(db, ids, "UserProfileId", ct),
-            "ConversationScenario" => DirectOwnersAsync<ConversationScenario>(db, ids, "UserProfileId", ct),
-            "ExampleSentence" => DirectOwnersAsync<ExampleSentence>(db, ids, "UserProfileId", ct),
-            "VocabularyProgress" => DirectOwnersAsync<VocabularyProgress>(db, ids, "UserId", ct),
-            "ResourceVocabularyMapping" => MappingOwnersAsync(db, ids, ct),
-            "VocabularyLearningContext" => ContextOwnersAsync(db, ids, ct),
-            "VocabularyWord" => GetStoredWordOwnersAsync(db, ids, ct),
-            "PhraseConstituent" => PhraseOwnersAsync(db, ids, ct),
-            _ => Task.FromResult(new Dictionary<string, string?>(StringComparer.Ordinal))
-        };
-
-    private static async Task<Dictionary<string, string?>> DirectOwnersAsync<TEntity>(
-        ApplicationDbContext db, string[] ids, string ownerProperty, CancellationToken ct)
-        where TEntity : class
-    {
-        var rows = await db.Set<TEntity>().AsNoTracking()
-            .Where(row => ids.Contains(EF.Property<string>(row, "Id")))
-            .Select(row => new StoredRowOwner(
-                EF.Property<string>(row, "Id"), EF.Property<string?>(row, ownerProperty)))
-            .ToListAsync(ct);
-        return rows.ToDictionary(row => row.Id, row => row.Owner, StringComparer.Ordinal);
-    }
-
-    private static async Task<Dictionary<string, string?>> MappingOwnersAsync(
-        ApplicationDbContext db, string[] ids, CancellationToken ct)
-    {
-        var rows = await (
-            from mapping in db.ResourceVocabularyMappings.AsNoTracking()
-            join resource in db.LearningResources.AsNoTracking()
-                on mapping.ResourceId equals resource.Id into resources
-            from resource in resources.DefaultIfEmpty()
-            where ids.Contains(mapping.Id)
-            select new StoredRowOwner(mapping.Id,
-                resource == null ? null : resource.UserProfileId))
-            .ToListAsync(ct);
-        return rows.ToDictionary(row => row.Id, row => row.Owner, StringComparer.Ordinal);
-    }
-
-    private static async Task<Dictionary<string, string?>> ContextOwnersAsync(
-        ApplicationDbContext db, string[] ids, CancellationToken ct)
-    {
-        var rows = await (
-            from context in db.VocabularyLearningContexts.AsNoTracking()
-            join progress in db.VocabularyProgresses.AsNoTracking()
-                on context.VocabularyProgressId equals progress.Id into progresses
-            from progress in progresses.DefaultIfEmpty()
-            where ids.Contains(context.Id)
-            select new StoredRowOwner(context.Id,
-                progress == null ? null : progress.UserId))
-            .ToListAsync(ct);
-        return rows.ToDictionary(row => row.Id, row => row.Owner, StringComparer.Ordinal);
-    }
-
-    private static async Task<Dictionary<string, string?>> PhraseOwnersAsync(
-        ApplicationDbContext db, string[] ids, CancellationToken ct)
-    {
-        var rows = await db.PhraseConstituents.AsNoTracking()
-            .Where(phrase => ids.Contains(phrase.Id))
-            .Select(phrase => new { phrase.Id, phrase.PhraseWordId })
-            .ToListAsync(ct);
-        var owners = await GetStoredWordOwnersAsync(
-            db, rows.Select(row => row.PhraseWordId).Distinct(StringComparer.Ordinal).ToArray(), ct);
-        return rows.ToDictionary(
-            row => row.Id, row => owners.GetValueOrDefault(row.PhraseWordId), StringComparer.Ordinal);
-    }
-
-    private static async Task<Dictionary<string, string?>> GetStoredWordOwnersAsync(
-        ApplicationDbContext db, string[] ids, CancellationToken ct)
-    {
-        var stored = await db.VocabularyWords.AsNoTracking()
-            .Where(word => ids.Contains(word.Id))
-            .Select(word => new { word.Id, word.UserProfileId })
-            .ToListAsync(ct);
-        if (stored.Count == 0)
-            return new Dictionary<string, string?>(StringComparer.Ordinal);
-        var recorded = stored.Where(word => word.UserProfileId != null)
-            .ToDictionary(word => word.Id, word => word.UserProfileId, StringComparer.Ordinal);
-        var existing = stored.Where(word => word.UserProfileId == null)
-            .Select(word => word.Id).ToList();
-        if (existing.Count == 0)
-            return recorded;
-
-        var mappingOwners = await (
-            from mapping in db.ResourceVocabularyMappings.AsNoTracking()
-            join resource in db.LearningResources.AsNoTracking()
-                on mapping.ResourceId equals resource.Id into resources
-            from resource in resources.DefaultIfEmpty()
-            where existing.Contains(mapping.VocabularyWordId)
-            select new WordOwner(mapping.VocabularyWordId,
-                resource == null ? null : resource.UserProfileId))
-            .ToListAsync(ct);
-        var progressOwners = await db.VocabularyProgresses.AsNoTracking()
-            .Where(progress => existing.Contains(progress.VocabularyWordId))
-            .Select(progress => new WordOwner(progress.VocabularyWordId, progress.UserId))
-            .ToListAsync(ct);
-        var ownersByWord = mappingOwners.Concat(progressOwners)
-            .GroupBy(reference => reference.WordId, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key,
-                group => group.Select(reference => reference.Owner).Distinct().ToArray(),
-                StringComparer.Ordinal);
-        foreach (var id in existing)
-            recorded[id] = ownersByWord.TryGetValue(id, out var owners) && owners.Length == 1
-                ? owners[0] : null;
-        return recorded;
-    }
-
-    private sealed record StoredRowOwner(string Id, string? Owner);
-    private sealed record WordOwner(string WordId, string? Owner);
 
     internal static string? GetNativeOwner(HttpContext? context)
     {
@@ -769,7 +716,13 @@ internal sealed class NativeOwnerSyncProvider(
     }
 
     internal sealed record VisibleKeys(
-        HashSet<string> ResourceIds, HashSet<string> WordIds, HashSet<string> ProgressIds);
+        HashSet<string> ResourceIds, HashSet<string> WordIds, HashSet<string> ProgressIds)
+    {
+        internal VisibleKeys Copy() => new(
+            new HashSet<string>(ResourceIds, StringComparer.Ordinal),
+            new HashSet<string>(WordIds, StringComparer.Ordinal),
+            new HashSet<string>(ProgressIds, StringComparer.Ordinal));
+    }
 
     public Task ApplyProvisionAsync(CancellationToken ct = default) =>
         provider.ApplyProvisionAsync(ct);

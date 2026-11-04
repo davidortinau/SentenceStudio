@@ -182,7 +182,7 @@ public sealed class NumberDrillSyncTests
             ("NumberMasteryProgress", "shared-id"), ("NumberAttempt", "attempt"),
             ("WordAssociationScore", "score") })
         {
-            var owners = await NativeOwnerSyncProvider.GetStoredOwnersAsync(db, table, [id], default);
+            var owners = await SentenceStudio.Services.SyncRowOwners.GetStoredOwnersAsync(db, table, [id], default);
             Assert.Equal(Foreign, owners[id]);
         }
     }

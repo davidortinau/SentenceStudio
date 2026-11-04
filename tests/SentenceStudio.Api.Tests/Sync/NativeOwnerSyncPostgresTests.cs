@@ -185,7 +185,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 {
                     ["Id"] = wordId, ["TargetLanguageTerm"] = "Overwritten"
                 }));
-        Assert.Equal(HttpStatusCode.Forbidden, wordUpdate.StatusCode);
+        // No single owner: left out (stays on the device), never applied.
+        Assert.Equal(HttpStatusCode.OK, wordUpdate.StatusCode);
         Assert.Equal("Shared original", (await verified.VocabularyWords.AsNoTracking()
             .SingleAsync(word => word.Id == wordId)).TargetLanguageTerm);
     }
@@ -257,7 +258,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task MissingOwnerAndSameOwnerReparentAttempt_AreRejected()
+    public async Task MissingOwnerAndSameOwnerReparentAttempt_AreNeverApplied()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var resourceId = Guid.NewGuid().ToString();
@@ -287,7 +288,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
 
             using var response = await _fixture.UploadAsync(
                 owner, new SyncItem("LearningResource", ChangeType.Update, values));
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            // Naming another learner refuses the upload; naming no owner leaves the row out.
+            Assert.Equal(assertedOwner == foreign ? HttpStatusCode.Forbidden : HttpStatusCode.OK,
+                response.StatusCode);
         }
 
         using var unowned = await _fixture.UploadAsync(owner, new SyncItem(
@@ -295,7 +298,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             {
                 ["Id"] = unownedId, ["UserProfileId"] = owner, ["Title"] = "Claimed"
             }));
-        Assert.Equal(HttpStatusCode.Forbidden, unowned.StatusCode);
+        // An ownerless stored row is never claimed: left out.
+        Assert.Equal(HttpStatusCode.OK, unowned.StatusCode);
 
         await using var verified = _fixture.NewContext();
         Assert.Equal("Unchanged", (await verified.LearningResources.AsNoTracking()
@@ -413,8 +417,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             {
                 ["Id"] = foreignWordId, ["TargetLanguageTerm"] = "Stolen"
             });
+        // A new link to a word the owner cannot see is left out, not applied.
         using (var graft = await _fixture.UploadAsync(owner, forgedMapping))
-            Assert.Equal(HttpStatusCode.Forbidden, graft.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, graft.StatusCode);
         foreach (var orderedItems in new[]
         {
             new[] { forgedMapping, forgedWordUpdate },
@@ -439,7 +444,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task ExistingTransitiveRowsWithMissingParent_FailClosed()
+    public async Task ExistingTransitiveRowsWithMissingParent_AreLeftOutUnchanged()
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();
         var resourceId = Guid.NewGuid().ToString();
@@ -490,14 +495,14 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 ["Id"] = orphanMappingId,
                 ["ResourceId"] = resourceId, ["VocabularyWordId"] = wordId
             }));
-        Assert.Equal(HttpStatusCode.Forbidden, mapping.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, mapping.StatusCode);
         using var context = await _fixture.UploadAsync(owner, new SyncItem(
             "VocabularyLearningContext", ChangeType.Update, new Dictionary<string, object?>
             {
                 ["Id"] = orphanContextId,
                 ["VocabularyProgressId"] = progressId, ["Activity"] = "Stolen"
             }));
-        Assert.Equal(HttpStatusCode.Forbidden, context.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, context.StatusCode);
 
         await using var verified = _fixture.NewContext();
         Assert.Equal(missingResourceId, (await verified.ResourceVocabularyMappings.AsNoTracking()
@@ -949,7 +954,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task NativeChildRows_RejectForeignOwnerLinkedParents()
+    public async Task NativeChildRows_WithForeignOwnerLinkedParents_AreLeftOut()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var conversationId = Guid.NewGuid().ToString();
@@ -979,7 +984,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 ["ConversationId"] = conversationId, ["SentTime"] = DateTime.UtcNow,
                 ["Role"] = 0
             })))
-            Assert.Equal(HttpStatusCode.Forbidden, chunk.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
         using (var video = await _fixture.UploadAsync(owner, new SyncItem(
             "VideoImport", ChangeType.Insert, new Dictionary<string, object?>
             {
@@ -987,11 +992,14 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 ["MonitoredChannelId"] = channelId, ["LearningResourceId"] = resourceId,
                 ["Status"] = 0
             })))
-            Assert.Equal(HttpStatusCode.Forbidden, video.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, video.StatusCode);
+        await using var verified = _fixture.NewContext();
+        Assert.False(await verified.ConversationChunks.AnyAsync(row => row.ConversationId == conversationId));
+        Assert.False(await verified.VideoImports.AnyAsync(row => row.MonitoredChannelId == channelId));
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task EveryOwnerLinkedParent_RejectsForeignAndOwnerlessReferences()
+    public async Task EveryOwnerLinkedParent_LeavesOutForeignAndOwnerlessReferences()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var ownConversation = Guid.NewGuid().ToString();
@@ -1121,7 +1129,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             foreach (var (reference, item) in cases)
             {
                 using var response = await _fixture.UploadAsync(owner, item);
-                Assert.True(response.StatusCode == HttpStatusCode.Forbidden,
+                // Left out (stays on the device); the row is never created below.
+                Assert.True(response.StatusCode == HttpStatusCode.OK,
                     $"{reference} with {(useForeign ? "foreign" : "ownerless")} parent returned {response.StatusCode}");
                 attemptedIds.Add((item.TableName, item.Values["Id"].Value!.ToString()!));
             }
@@ -1242,15 +1251,22 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 .SingleAsync(row => row.Id == resourceId)).OldVocabularyListID);
         }
 
+        // Legacy tables with no owner never sync from a device: left out, not created.
+        var legacyIds = new List<string>();
         foreach (var table in new[] { "Challenge", "VocabularyList" })
         {
+            var id = Guid.NewGuid().ToString();
+            legacyIds.Add(id);
             using var ownerless = await _fixture.UploadAsync(owner, new SyncItem(
                 table, ChangeType.Insert, new Dictionary<string, object?>
                 {
-                    ["Id"] = Guid.NewGuid().ToString()
+                    ["Id"] = id
                 }));
-            Assert.Equal(HttpStatusCode.Forbidden, ownerless.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, ownerless.StatusCode);
         }
+        await using var after = _fixture.NewContext();
+        Assert.False(await after.VocabularyLists.AnyAsync(row => legacyIds.Contains(row.Id)));
+        Assert.False(await after.Challenges.AnyAsync(row => legacyIds.Contains(row.Id)));
     }
 
     [ApplicationOperationPostgresFact]
@@ -1562,7 +1578,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         foreach (var (reference, item) in cases)
         {
             using var response = await _fixture.UploadAsync(owner, item);
-            Assert.True(response.StatusCode == HttpStatusCode.Forbidden,
+            // Left out (stays on the device); the stored rows are unchanged below.
+            Assert.True(response.StatusCode == HttpStatusCode.OK,
                 $"{reference} foreign reparent returned {response.StatusCode}");
         }
 
@@ -1732,7 +1749,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task NativeDeletes_FailClosedEvenWhenAParentHasAnOwnedId()
+    public async Task NativeDeletes_AreLeftOutEvenWhenAParentHasAnOwnedId()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var ownId = Guid.NewGuid().ToString();
@@ -1752,7 +1769,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 {
                     ["Id"] = id, ["UserProfileId"] = owner
                 }));
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
         await using var verified = _fixture.NewContext();
         Assert.Equal(2, await verified.LearningResources.AsNoTracking()

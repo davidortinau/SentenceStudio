@@ -138,7 +138,7 @@ internal sealed class NativeSyncStoreBindings(
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         foreach (var (table, ids) in idsByTable)
         {
-            var stored = await NativeOwnerSyncProvider.GetStoredOwnersAsync(
+            var stored = await SentenceStudio.Services.SyncRowOwners.GetStoredOwnersAsync(
                 db, table, ids.ToArray(), ct);
             if (ids.Any(id => !stored.TryGetValue(id, out var rowOwner)
                 || !string.Equals(rowOwner, owner, StringComparison.Ordinal)))
