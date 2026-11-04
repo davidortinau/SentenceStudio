@@ -70,6 +70,54 @@ public static class SyncIds
             System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// One lookup per learner, language, direction and normalized text (Captain 2026-11-04,
+    /// decision 4 B). "lk:" and the first 16 bytes, as lower-case hex, of the SHA-256 of the
+    /// UTF-8 text <c>owner U+001F language U+001F direction U+001F text</c>, where language is
+    /// trimmed and lower-cased (invariant), direction is "ToNative" or "ToTarget" and text is
+    /// <see cref="NormalizeLookupText"/>. Every client (including the Flutter port) must build
+    /// it the same way (docs/sync-all-tables-plan.md, "Lookup history").
+    /// </summary>
+    public static string VocabularyLookup(
+        string userId, string? language,
+        SentenceStudio.Shared.Models.VocabularyLookupDirection direction, string text)
+    {
+        Require(userId, nameof(userId));
+        var normalized = NormalizeLookupText(text);
+        Require(normalized, nameof(text));
+        var key = string.Join('\u001f', userId,
+            (language ?? string.Empty).Trim().ToLowerInvariant(), direction.ToString(), normalized);
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(key));
+        return "lk:" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// The text a lookup is keyed by: Unicode NFC, trimmed, every run of white space made one
+    /// space, lower-cased (invariant), so "  Hello   World " and "hello world" are one lookup.
+    /// </summary>
+    public static string NormalizeLookupText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+        var composed = text.Normalize(System.Text.NormalizationForm.FormC).Trim();
+        var builder = new System.Text.StringBuilder(composed.Length);
+        var inSpace = false;
+        foreach (var character in composed)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                if (!inSpace)
+                    builder.Append(' ');
+                inSpace = true;
+                continue;
+            }
+            builder.Append(character);
+            inSpace = false;
+        }
+        return builder.ToString().ToLowerInvariant();
+    }
+
     private static void Require(string value, string name)
     {
         if (string.IsNullOrWhiteSpace(value))

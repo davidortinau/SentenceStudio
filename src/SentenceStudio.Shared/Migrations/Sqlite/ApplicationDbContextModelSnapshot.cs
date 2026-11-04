@@ -1695,6 +1695,51 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.ToTable("VocabularyList", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyLookup", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Activity")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FirstLookedUpAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastLookedUpAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResourceId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Translation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "LastLookedUpAt");
+
+                    b.ToTable("VocabularyLookup", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyProgress", b =>
                 {
                     b.Property<string>("Id")
