@@ -503,23 +503,5 @@ public sealed partial class NativeAuthPresenter(
         return State;
     }
 
-    internal static string? ParseOwnerClaim(string? jwt)
-    {
-        if (string.IsNullOrWhiteSpace(jwt))
-            return null;
-        try
-        {
-            var token = new JwtSecurityTokenHandler().ReadJwtToken(jwt);
-            var owners = token.Claims
-                .Where(claim => claim.Type == AuthClaimTypes.UserProfileId)
-                .ToArray();
-            return token.ValidTo > DateTime.UtcNow && owners.Length == 1
-                && !string.IsNullOrWhiteSpace(owners[0].Value)
-                ? owners[0].Value : null;
-        }
-        catch (Exception ex) when (ex is ArgumentException or SecurityTokenException)
-        {
-            return null;
-        }
-    }
+    internal static string? ParseOwnerClaim(string? jwt) => JwtOwnerClaim.Parse(jwt);
 }

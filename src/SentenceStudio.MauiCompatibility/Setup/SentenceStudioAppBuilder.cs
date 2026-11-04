@@ -133,13 +133,17 @@ public static class SentenceStudioAppBuilder
         // CoreSync server is hosted on the API (not the separate 'web' service) so
         // mobile clients can reach it through the existing dev tunnel / service discovery.
         var syncServerUri = new Uri("https+http://api");
+        // Owner-checked sync (Captain 2026-11-04, decision 1): the server refuses sync without the
+        // signed-in learner's owner header, and this install's database is bound to one learner.
 #if DEBUG
         if (validationConnection is null)
         {
             builder.Services.AddSyncServices(dbPath, syncServerUri);
+            builder.Services.AddOwnerCheckedSync();
         }
 #else
         builder.Services.AddSyncServices(dbPath, syncServerUri);
+        builder.Services.AddOwnerCheckedSync();
 #endif
 
         var apiBaseUri = new Uri("https+http://api");

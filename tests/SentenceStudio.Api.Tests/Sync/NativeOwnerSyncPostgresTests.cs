@@ -2045,6 +2045,10 @@ public sealed class NativeOwnerSyncPostgresFixture : IAsyncLifetime
 
     public string ConnectionString => Database.ConnectionString;
 
+    /// <summary>The in-process API (switch closed), for a real CoreSync HTTP client.</summary>
+    internal HttpMessageHandler CreateServerHandler() => Api.Server.CreateHandler();
+    internal Uri ServerAddress => Api.Server.BaseAddress;
+
     public async Task<(string Owner, string Foreign)> SeedOwnersAsync()
     {
         var owner = Guid.NewGuid().ToString();

@@ -425,11 +425,15 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
 
         await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
 
-        var scopeProvider = scope.ServiceProvider
-            .GetService<SentenceStudio.Services.Plans.IUserScopeProvider>();
+        // A head with one database for every account (MAUI) names the verified sync owner;
+        // native heads use the device scope's readiness lease.
         string? owner = null;
-        if (scopeProvider is null || !scopeProvider.TryGetUserProfileId(out owner)
-            || string.IsNullOrWhiteSpace(owner))
+        if (scope.ServiceProvider.GetService<ISyncOwnerSource>() is { } owners)
+            owner = (await owners.GetAsync(cancellationToken))?.Owner;
+        else if (scope.ServiceProvider.GetService<SentenceStudio.Services.Plans.IUserScopeProvider>()
+            is { } scopeProvider && scopeProvider.TryGetUserProfileId(out var scoped))
+            owner = scoped;
+        if (string.IsNullOrWhiteSpace(owner))
         {
             if (untracked.Count > 0)
                 // Fail closed: without an owner nothing is queued, and these rows stay local.

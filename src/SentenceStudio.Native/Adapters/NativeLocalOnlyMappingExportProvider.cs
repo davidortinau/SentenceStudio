@@ -193,38 +193,8 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, kept);
     }
 
-    private const string ActivitySessionTable = "ActivitySession";
-
-    /// <summary>
-    /// Rows that never leave this device:
-    /// <list type="bullet">
-    /// <item>quiz answer receipts (phase 2b);</item>
-    /// <item>phase 3 rows with no owner (saved before these tables had one, D3), photos stored on
-    /// this device and built-in scenarios (Captain 2026-11-03);</item>
-    /// <item>deletes, word links included (Captain 2026-11-04, decision 2): the server refuses
-    /// every delete from a device (it cannot prove what a delete carrying only an ID removes),
-    /// and one refused item would block the whole upload. A delete therefore stays on this
-    /// device; the server and other clients keep the row.</item>
-    /// </list>
-    /// </summary>
-    internal static bool IsDeviceOnlyRow(SyncItem item)
-    {
-        string? Text(string column) =>
-            item.Values.TryGetValue(column, out var value) ? value?.Value?.ToString() : null;
-
-        if (item.ChangeType == ChangeType.Delete)
-            return true;
-        return item.TableName switch
-        {
-            ActivitySessionTable => ActivitySessionTypes.IsDeviceOnly(Text("ActivityType"), Text("Id")),
-            "SceneImage" => string.IsNullOrEmpty(Text("UserProfileId"))
-                || SceneImage.IsDevicePhoto(Text("Url")),
-            "ConversationScenario" => string.IsNullOrEmpty(Text("UserProfileId"))
-                || SentenceStudio.Services.SyncIds.IsBuiltInScenario(Text("Id")),
-            "ExampleSentence" => string.IsNullOrEmpty(Text("UserProfileId")),
-            _ => false
-        };
-    }
+    /// <summary>The shared rule every client applies (<see cref="SyncUploadRules.IsDeviceOnlyRow"/>).</summary>
+    internal static bool IsDeviceOnlyRow(SyncItem item) => SyncUploadRules.IsDeviceOnlyRow(item);
 
     private static bool IsMappingDelete(SyncItem item) =>
         item.TableName == MappingTable

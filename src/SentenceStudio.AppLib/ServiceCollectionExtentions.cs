@@ -2,10 +2,12 @@
 using CoreSync.Http.Client;
 using CoreSync.Sqlite;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Observability;
@@ -16,6 +18,9 @@ namespace SentenceStudio;
 
 public static class ServiceCollectionExtentions
 {
+    /// <summary>The named HttpClient CoreSync uses to reach the API.</summary>
+    public const string SyncHttpClientName = "HttpClientToServer";
+
     public static void AddSyncServices(
         this IServiceCollection services, string databasePath, Uri serverUri,
         bool downloadOnlyProfile = false)
@@ -32,7 +37,7 @@ public static class ServiceCollectionExtentions
 
         services.TryAddApiActivityHandler();
 
-        services.AddHttpClient("HttpClientToServer", httpClient =>
+        services.AddHttpClient(SyncHttpClientName, httpClient =>
         {
             httpClient.BaseAddress = serverUri;
             httpClient.Timeout = TimeSpan.FromMinutes(10);
@@ -45,9 +50,47 @@ public static class ServiceCollectionExtentions
 
         services.AddCoreSyncHttpClient(options =>
         {
-            options.HttpClientName = "HttpClientToServer";
+            options.HttpClientName = SyncHttpClientName;
             //options.UseBinaryFormat = true;
         });
+    }
+
+    /// <summary>
+    /// Owner-checked sync for a head with one database for every account (the MAUI heads,
+    /// Captain 2026-11-04, decision 1). Call after <see cref="AddSyncServices"/>. Every sync
+    /// request carries the signed-in learner's verified owner header (none is sent without
+    /// one); uploads keep device-only rows and other learners' rows on the device
+    /// (<see cref="OwnerCheckedSyncProvider"/>); newly synced tables queue and re-request the
+    /// learner's rows. The server binds this install's store to the first learner that syncs;
+    /// a second account on the same install is refused and its work stays on the device.
+    /// Native heads use <c>AddOwnerBoundNativeSyncReadiness</c> instead.
+    /// </summary>
+    public static IServiceCollection AddOwnerCheckedSync(this IServiceCollection services)
+    {
+        var localRegistration = services.LastOrDefault(
+            descriptor => descriptor.ServiceType == typeof(ISyncProvider))
+            ?? throw new InvalidOperationException("Call AddSyncServices before AddOwnerCheckedSync.");
+        var createLocal = localRegistration.ImplementationFactory
+            ?? throw new InvalidOperationException("The local sync provider must be factory-registered.");
+        services[services.IndexOf(localRegistration)] = ServiceDescriptor.Singleton<ISyncProvider>(provider =>
+        {
+            var local = (ISyncProvider)createLocal(provider);
+            var connectionString = (local as SqliteSyncProvider)?.Configuration.ConnectionString
+                ?? throw new InvalidOperationException("Owner-checked sync needs the local SQLite store.");
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlite(connectionString).Options;
+            return new OwnerCheckedSyncProvider(
+                local, () => new ApplicationDbContext(options),
+                provider.GetRequiredService<ISyncOwnerSource>(),
+                provider.GetRequiredService<ILogger<OwnerCheckedSyncProvider>>());
+        });
+
+        services.TryAddSingleton<ISyncOwnerSource, SignedInSyncOwnerSource>();
+        services.TryAddTransient<SyncOwnerHeaderHandler>();
+        // Innermost, so it sets the bearer and the owner header from the same verified token.
+        services.AddHttpClient(SyncHttpClientName).AddHttpMessageHandler<SyncOwnerHeaderHandler>();
+        services.Replace(ServiceDescriptor.Singleton<ISyncResendRequester, OwnerCheckedSyncResendRequester>());
+        return services;
     }
 
     public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration, Uri? apiBaseUri = null)
