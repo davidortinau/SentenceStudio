@@ -347,9 +347,15 @@ Merged on `native-platform-heads` (local, not pushed):
 | W4b Android quiz | Q02 to Q12, Q16, Q20 | Android: server speech and cache, details sheet, Use in a sentence with grade, receipt and credit, resume after restart; Release/R8 keeps the new calls | lettered audio answers (needs a direction setting Android lacks until W2), photos, Hide Text, sample sentences, Type-correct focus, save-failure Retry |
 | W5 Resources | R06, R11, R12, R14, A01 | Android: file import through the system picker (Add form), lazy rows, quick-add focus | iOS lazy rows (no signed-in simulator); Android arrow and Escape keys are not possible with the Compose facade |
 
-Not started: W1 (sign-in, onboarding; Sam on every signed-in screen per decision 6),
-W2 (Android Settings and the four new Android screens), W3 (Dashboard).
+| W3 Dashboard | D01 to D11, N08 iOS | iOS: mode switch in every phase, Minimal Pairs in the More menu, separate statistics loading; Android: Choose My Own grid, media icons, Numbers Mastery cards, statistics loading | D01 new-learner rule and starter skill, D05 re-practice from a completed card, D08 insight tiers (test account has no such plan), D11 rename; the iPad layout check is not done |
+| W2 Android Settings and screens | Q14, Q15, N08 Android | Android: full Settings (themes, mode, text size, every quiz setting, 1 to 10 s auto-advance), Profile, Skills (empty state and Add/Cancel), Vocabulary (list, filters, word editor), Activity Log; the lettered audio-answer turn with native-language direction; Release/R8 keeps the new calls | Skills save/edit/delete and vocabulary Save (would write data), Korean input |
 
-Runtime checks still owed on a signed-in iOS simulator: AF-R11 lazy rows (empty resource,
-smart resource, quick add), and the Android lettered-answer turn once W2 adds the
-direction setting.
+Shared code: the Settings, Profile, Skills, Activity Log and vocabulary-filter logic moved
+from the iOS head into `src/SentenceStudio.Native/Features/` (namespace only), and
+`VocabularyBrowser` is the platform-neutral vocabulary core; both platforms use them.
+
+Not started: W1 (sign-in, onboarding; Sam on every signed-in screen per decision 6).
+Questions raised by W2 and W3 are in `docs/captain-decisions-2026-11-03.md` (sections 7, 8).
+
+Runtime checks still owed: AF-R11 iOS lazy rows on a signed-in iOS simulator (empty
+resource, smart resource, quick add); the iPad layout check (AF-D11).
