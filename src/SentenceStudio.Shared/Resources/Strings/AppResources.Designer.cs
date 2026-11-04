@@ -18272,6 +18272,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to All words mastered! Session complete..
+        /// </summary>
+        internal static string VocabQuiz_AllMasteredSessionComplete {
+            get {
+                return ResourceManager.GetString("VocabQuiz_AllMasteredSessionComplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Continue quiz.
         /// </summary>
         internal static string VocabQuiz_ContinueQuiz {
