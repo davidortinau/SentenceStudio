@@ -48,6 +48,7 @@ namespace SentenceStudio.Shared.Migrations
             ("StreamHistory", "UserProfileId"),
             ("UserActivity", "UserProfileId"),
             ("VideoImport", "UserProfileId"),
+            ("VocabularyLookup", "UserProfileId"),
             ("VocabularyProgress", "UserId"),
             ("WordAssociationScore", "UserProfileId"),
         ];

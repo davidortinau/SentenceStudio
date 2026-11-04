@@ -38,11 +38,14 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         await tablet.DownloadAsync();
         await otherPhone.DownloadAsync();
 
-        // Removing a word from a resource, deleting a minimal pair and a scene image.
+        // Removing a word from a resource, deleting a minimal pair, a scene image, a skill and
+        // a lookup (lookups have no delete in the apps yet; the same owner rule covers them).
         using (var response = await phone.UploadAsync(
             Delete("ResourceVocabularyMapping", graph.Mapping),
             Delete("MinimalPair", graph.Pair),
-            Delete("SceneImage", graph.Image)))
+            Delete("SceneImage", graph.Image),
+            Delete("SkillProfile", graph.Skill),
+            Delete("VocabularyLookup", graph.Lookup)))
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         await using (var db = _fixture.NewContext())
@@ -50,6 +53,8 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
             Assert.False(await db.ResourceVocabularyMappings.AnyAsync(row => row.Id == graph.Mapping));
             Assert.False(await db.MinimalPairs.AnyAsync(row => row.Id == graph.Pair));
             Assert.False(await db.SceneImages.AnyAsync(row => row.Id == graph.Image));
+            Assert.False(await db.SkillProfiles.AnyAsync(row => row.Id == graph.Skill));
+            Assert.False(await db.VocabularyLookups.AnyAsync(row => row.Id == graph.Lookup));
             Assert.True(await db.LearningResources.AnyAsync(row => row.Id == graph.Resource));
             Assert.True(await db.VocabularyWords.AnyAsync(row => row.Id == graph.Word));
         }
@@ -61,6 +66,8 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         Assert.Contains(onTablet, item => IsDelete(item, "ResourceVocabularyMapping", graph.Mapping));
         Assert.Contains(onTablet, item => IsDelete(item, "MinimalPair", graph.Pair));
         Assert.Contains(onTablet, item => IsDelete(item, "SceneImage", graph.Image));
+        Assert.Contains(onTablet, item => IsDelete(item, "SkillProfile", graph.Skill));
+        Assert.Contains(onTablet, item => IsDelete(item, "VocabularyLookup", graph.Lookup));
         Assert.DoesNotContain(await otherPhone.DownloadAsync(), item => graph.Ids.Contains(Id(item)));
         // The device that deleted them is not sent its own deletes back.
         Assert.DoesNotContain(await phone.DownloadAsync(), item => item.ChangeType == ChangeType.Delete
@@ -108,6 +115,7 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
             Delete("LearningResource", graph.Resource),
             Delete("ResourceVocabularyMapping", graph.Mapping),
             Delete("MinimalPair", graph.Pair),
+            Delete("VocabularyLookup", graph.Lookup),
             Resource(theirNewResource, other)))
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -115,6 +123,7 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         Assert.True(await db.LearningResources.AnyAsync(row => row.Id == graph.Resource));
         Assert.True(await db.ResourceVocabularyMappings.AnyAsync(row => row.Id == graph.Mapping));
         Assert.True(await db.MinimalPairs.AnyAsync(row => row.Id == graph.Pair));
+        Assert.True(await db.VocabularyLookups.AnyAsync(row => row.Id == graph.Lookup));
         Assert.True(await db.LearningResources.AnyAsync(row =>
             row.Id == theirNewResource && row.UserProfileId == other));
         Assert.Null(await LoggedOwnerAsync("LearningResource", graph.Resource));
@@ -199,8 +208,8 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         await using var database = await ApplicationOperationPostgresHarness.CreateAsync(
             "sync_deletion_log", migrate: true);
         await using var db = database.NewContext();
-        Assert.Contains("20261104161154_AddSyncDeletionLog", await db.Database.GetAppliedMigrationsAsync());
-        Assert.Equal(27L, await TriggerCountAsync(database.ConnectionString));
+        Assert.Contains("20261104162953_AddSyncDeletionLog", await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(28L, await TriggerCountAsync(database.ConnectionString));
 
         var owner = Guid.NewGuid().ToString();
         var resource = Guid.NewGuid().ToString();
@@ -240,11 +249,11 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         Assert.Equal(owner, await LoggedOwnerAsync(database.ConnectionString, "ResourceVocabularyMapping", legacyLink));
 
         var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync("20261103230000_SyncOwnersPhase3");
+        await migrator.MigrateAsync("20261104153858_AddVocabularyLookup");
         Assert.Equal(0L, await TriggerCountAsync(database.ConnectionString));
         Assert.False(await TableExistsAsync(database.ConnectionString));
         await migrator.MigrateAsync();
-        Assert.Equal(27L, await TriggerCountAsync(database.ConnectionString));
+        Assert.Equal(28L, await TriggerCountAsync(database.ConnectionString));
         Assert.True(await TableExistsAsync(database.ConnectionString));
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
     }
@@ -267,6 +276,12 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
             VocabularyWordBId = graph.SecondWord, CreatedAt = now, UpdatedAt = now
         });
         db.SceneImages.Add(new SceneImage { Id = graph.Image, UserProfileId = owner, Url = "https://example.test/a.jpg" });
+        db.SkillProfiles.Add(new SkillProfile { Id = graph.Skill, UserProfileId = owner });
+        db.VocabularyLookups.Add(new VocabularyLookup
+        {
+            Id = graph.Lookup, UserProfileId = owner, Text = "물", Translation = "water",
+            Language = "Korean", Activity = "Reading", FirstLookedUpAt = now, LastLookedUpAt = now
+        });
         await db.SaveChangesAsync();
         return graph;
     }
@@ -332,8 +347,10 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         public string SecondMapping { get; } = Guid.NewGuid().ToString();
         public string Pair => SyncIds.MinimalPair(Owner, Word, SecondWord);
         public string Image { get; } = Guid.NewGuid().ToString();
+        public string Skill { get; } = Guid.NewGuid().ToString();
+        public string Lookup { get; } = Guid.NewGuid().ToString();
         public IReadOnlySet<string> Ids => new HashSet<string>
-            { Resource, Word, SecondWord, Mapping, SecondMapping, Pair, Image };
+            { Resource, Word, SecondWord, Mapping, SecondMapping, Pair, Image, Skill, Lookup };
     }
 
     /// <summary>One device: its own store, and the server version it last downloaded.</summary>

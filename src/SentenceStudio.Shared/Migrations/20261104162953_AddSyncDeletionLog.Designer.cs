@@ -12,7 +12,7 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20261104161154_AddSyncDeletionLog")]
+    [Migration("20261104162953_AddSyncDeletionLog")]
     partial class AddSyncDeletionLog
     {
         /// <inheritdoc />
@@ -2153,6 +2153,51 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("VocabularyList", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyLookup", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Activity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("FirstLookedUpAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastLookedUpAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResourceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Translation")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "LastLookedUpAt");
+
+                    b.ToTable("VocabularyLookup", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyProgress", b =>
