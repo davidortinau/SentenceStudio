@@ -28,6 +28,7 @@ public class AudioFailureLifecycleTests
         toast.OnShow += toasts.Add;
         var logger = new RecordingLogger<Conversation>();
         var conversation = new Conversation();
+        SetMember(conversation, "Localize", new BlazorLocalizationService());
         SetMember(conversation, "JS", js);
         SetMember(conversation, "Toast", toast);
         SetMember(conversation, "Logger", logger);
@@ -106,6 +107,7 @@ public class AudioFailureLifecycleTests
         var original = new ConversationScenario { Id = "1", Name = "First", PersonaName = "First guide" };
         var selected = new ConversationScenario { Id = "2", Name = "Second", PersonaName = "Second guide" };
         SetMember(conversation, "ConversationSvc", services.GetRequiredService<ConversationService>());
+        SetMember(conversation, "Localize", new BlazorLocalizationService());
         SetMember(conversation, "JS", js);
         SetMember(conversation, "Logger", logger);
         SetMember(conversation, "Toast", toast);
@@ -159,6 +161,7 @@ public class AudioFailureLifecycleTests
         var original = new ConversationScenario { Id = "1", Name = "First", PersonaName = "First guide" };
         var selected = new ConversationScenario { Id = "2", Name = "Second", PersonaName = "Second guide" };
         SetMember(conversation, "ConversationSvc", services.GetRequiredService<ConversationService>());
+        SetMember(conversation, "Localize", new BlazorLocalizationService());
         SetMember(conversation, "JS", js);
         SetMember(conversation, "Logger", logger);
         SetMember(conversation, "Toast", toast);
@@ -308,10 +311,14 @@ public class AudioFailureLifecycleTests
             return Task.FromResult<T?>((T)(object)"New opening");
         }
 
+        /// <summary>The opening sends the persona prompt as system instructions (B15).</summary>
         public Task<T?> SendMessagesAsync<T>(
             List<(string role, string content)> messages,
             string? instructions = null, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            Prompts.Add(instructions + "\n" + string.Join("\n", messages.Select(message => message.content)));
+            return Task.FromResult<T?>((T)(object)"New opening");
+        }
 
         public Task<string> AnalyzeImageAsync(
             string prompt, string imageBase64, string mediaType = "image/jpeg",
