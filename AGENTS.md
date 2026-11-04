@@ -124,6 +124,14 @@ Do not:
 - allow transitional MAUI projects to become dependencies of shared, server,
   web, or new native projects.
 
+**The MAUI apps still ship (Captain, 2026-11-04).** "I will still ship MAUI
+versions and use them in addition to native platform versions." A change to the
+API, sync, schema, shared services or the shared Razor UI must keep the MAUI
+heads correct: they build, migrate an existing device database without losing
+rows, and sync with the same owner checks as the native heads. This does not
+lift the rule against new MAUI-only product UI; the MAUI heads get new features
+through the shared Razor UI, like the web app.
+
 `SentenceStudio.MauiCompatibility` and `SentenceStudio.MauiServiceDefaults`
 exist only to keep the old reference heads buildable. They are forbidden
 dependencies for the active WebApp, API, Workers, shared libraries, tests, and

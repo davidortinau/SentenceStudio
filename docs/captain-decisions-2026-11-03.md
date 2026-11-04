@@ -15,6 +15,25 @@ options, what I recommend, and the short answer I need. Facts come from the code
 | 7 | Four Dashboard questions from the native fidelity work | Low | Accept a and b; yes to c and d |
 | 8 | Four Android Settings and Profile questions from the native fidelity work | Low to medium | Accept a for now; yes to b and c; yes to d as a separate piece of work |
 
+## Captain's answers (2026-11-04)
+
+1. **A**, and make the MAUI apps correct: "I will still ship MAUI versions and use them in
+   addition to native platform versions." The MAUI apps send the owner header and sync with
+   the same owner checks; headerless sync is refused.
+2. **A**, with the recommended steps: keep word-link deletes on the device right away (C),
+   then build owner-checked deletes that reach the learner's other devices.
+3. **A**, the server clip cache.
+4. **B**, a dedicated lookup table: "seems more efficient and correct long term. Challenge me
+   if there's a negative trade off long term."
+5. **A**, exact grading for Disambiguate.
+6. **A**, the native create-and-link path on the web.
+7. All recommended: accept a and b; regenerate Kaylee's plan (c); use "SS Agent ipad2" (d).
+8. a: accept for now, and fix the Compose library gap with an upstream issue and PR.
+   b, c, d: yes.
+
+Also: fix the three bugs under "Fixes I will make next". Push approved (pushed `6e7a950f`).
+Restarting emulators and simulators is approved without asking.
+
 ---
 
 ## 1. Headerless sync (GitHub #204) and the installed MAUI apps
