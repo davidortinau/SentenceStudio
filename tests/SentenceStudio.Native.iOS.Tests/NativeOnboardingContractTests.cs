@@ -26,7 +26,11 @@ public sealed class NativeOnboardingContractTests
         Assert.Contains("suggestions.Choose(name)", view);
         Assert.Contains("if (_onboardingStep == 2)\n            LoadOnboardingNames(_onboardingDraft.TargetLanguage);",
             app);
-        Assert.Contains("_auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token)", onboarding);
+        Assert.Contains("auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token)", onboarding);
+        // Not async void (AGENTS.md): the load is a Task that observes its own failures.
+        Assert.DoesNotContain("async void", onboarding);
+        Assert.Contains("_ = LoadOnboardingNamesAsync(auth, targetLanguage, load);", onboarding);
+        Assert.Contains("private async Task LoadOnboardingNamesAsync(", onboarding);
         Assert.Contains("_onboardingDraft = _onboardingDraft with { Name = name };", onboarding);
         // Names arriving while the learner types keep the field focused.
         Assert.Contains("var focusedId = FindFocusedInput(_onboardingSlot!)?.AccessibilityIdentifier;",

@@ -77,14 +77,36 @@ public sealed class NativeSamContractTests
         Assert.Contains("SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open)", scene);
         Assert.Contains("UpdateSamToolbars();", scene);
         Assert.Contains("\"native.sam.toolbar\"", Source("Features/Sam/SamView.cs"));
+        // Every push gets a slot whatever Sam's state: a facade toolbar's actions are
+        // fixed once built, so the entry is a toolbar host added to (and removed from)
+        // the slot as availability changes, never decided once at push time.
+        var withToolbar = scene[scene.IndexOf("private SwiftView WithSamToolbar(", StringComparison.Ordinal)..
+            scene.IndexOf("private void UpdateSamToolbars()", StringComparison.Ordinal)];
+        Assert.DoesNotContain("IsSamAvailable", withToolbar);
+        Assert.DoesNotContain("return page;", withToolbar);
+        Assert.Contains("return Views.Overlay(page, slot, SwiftOverlayEdge.Top);", withToolbar);
+        var update = scene[scene.IndexOf("private void UpdateSamToolbars()", StringComparison.Ordinal)..
+            scene.IndexOf("private SwiftView SamToolbarHost()", StringComparison.Ordinal)];
+        Assert.Contains("var available = _app.IsSamAvailable;", update);
+        Assert.Contains("slot.Add(SamToolbarHost());", update);
+        Assert.Contains("slot.RemoveAt(0);", update);
 
         var controller = Source("App/ApplicationController.Sam.cs");
         Assert.Contains("destination is NativeDestination.Dashboard or NativeDestination.VocabularyQuiz\n"
             + "            or NativeDestination.QuizSummary or NativeDestination.Activity", controller);
         Assert.Contains("IsSamShellDestination(_destination) && !_preview", controller);
         Assert.Contains("internal bool IsSamPresented => IsSamShellDestination(_destination)", controller);
-        // Start review away from the Dashboard root asks to close the screen instead of doing nothing.
+        // Start review away from the Dashboard root asks to close the screen instead of doing
+        // nothing; an open resource form (unsaved edits) and Recent lookups block it too.
         Assert.Contains("_sam?.ReportVocabularyReviewBlockedByScreen();", controller);
+        Assert.Contains("if (IsSamReviewBlockedByScreen)", controller);
+        var guard = controller[controller.IndexOf("internal bool IsSamReviewBlockedByScreen =>",
+            StringComparison.Ordinal)..];
+        guard = guard[..guard.IndexOf(';')];
+        foreach (var screen in new[] { "_destination != NativeDestination.Dashboard", "_settingsOpen",
+            "IsProfileOpen", "IsSkillsOpen", "IsVocabularyOpen", "IsRecentLookupsOpen",
+            "IsActivityLogOpen", "IsResourcesFormOpen" })
+            Assert.Contains(screen, guard);
     }
 
     [Theory]

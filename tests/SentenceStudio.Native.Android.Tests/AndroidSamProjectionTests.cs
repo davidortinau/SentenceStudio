@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Collections.Immutable;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Native;
@@ -12,6 +13,10 @@ namespace SentenceStudio.Native.Android.Tests;
 /// </summary>
 public sealed class AndroidSamProjectionTests
 {
+    private static readonly string HeadRoot = Path.GetFullPath(typeof(AndroidSamProjectionTests)
+        .Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+        .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!);
+
     private static NativeSamEntry Entry(string id, NativeSamEntryKind kind, string text = "x",
         bool pending = false) =>
         new(id, kind, text, DateTime.UtcNow, 1, [], [], null, [], IsPending: pending);
@@ -114,6 +119,37 @@ public sealed class AndroidSamProjectionTests
         Assert.Equal(expected, AndroidSamProjection.EntryPlacement(destination, preview, screenOverTab, state));
         Assert.Equal(expected != AndroidSamEntryPlacement.None,
             AndroidSamProjection.IsEntryVisible(destination, preview, screenOverTab, state));
+    }
+
+    [Theory]
+    // Tab roots start the review.
+    [InlineData(NativeDestination.Dashboard, false, false)]
+    [InlineData(NativeDestination.TodaysPlan, false, false)]
+    [InlineData(NativeDestination.Resources, false, false)]
+    // A More screen (Settings, Profile, Skills, Vocabulary, Activity Log) or the
+    // resource form, an activity or the quiz must close first, as on iOS.
+    [InlineData(NativeDestination.Dashboard, true, true)]
+    [InlineData(NativeDestination.Resources, true, true)]
+    [InlineData(NativeDestination.Activity, false, true)]
+    [InlineData(NativeDestination.VocabularyQuiz, false, true)]
+    [InlineData(NativeDestination.QuizSummary, false, true)]
+    public void SamReviewStartsOnlyFromATabRoot(NativeDestination destination, bool screenOverTab,
+        bool blocked) =>
+        Assert.Equal(blocked, AndroidSamProjection.ReviewBlockedByScreen(destination, screenOverTab));
+
+    [Fact]
+    public void ShellUsesTheReviewGuardAndDocumentsTheFab()
+    {
+        var shell = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Sam.cs"));
+        Assert.Contains("AndroidSamProjection.ReviewBlockedByScreen(Destination,\n"
+            + "                IsMoreScreenOpen || IsResourceFormOpen)", shell);
+        var compose = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Sam.Compose.cs"));
+        Assert.Contains("/// <summary>Source SamFab: the one entry, bottom trailing, labelled \"Ask {name}\".</summary>\n"
+            + "    private ComposableNode RenderSamFab(", compose);
+        Assert.Equal(1, compose.Split("private ComposableNode WithSam(").Length - 1);
+        var withSam = compose[..compose.IndexOf("private ComposableNode WithSam(", StringComparison.Ordinal)];
+        var lastSummary = withSam.LastIndexOf("/// <summary>", StringComparison.Ordinal);
+        Assert.DoesNotContain("Source SamFab", withSam[lastSummary..]);
     }
 
     [Theory]

@@ -39,22 +39,29 @@ internal sealed partial class ApplicationController
     }
 
     /// <summary>
-    /// Runs beside the onboarding steps, never through the busy gate, so the
-    /// learner can type a name or go on while the names load. A newer request,
-    /// or leaving onboarding, drops an older result.
+    /// Starts the name load beside the onboarding steps, never through the busy
+    /// gate, so the learner can type a name or go on while the names load. A newer
+    /// request, or leaving onboarding, drops an older result.
     /// </summary>
-    private async void LoadOnboardingNames(string targetLanguage)
+    private void LoadOnboardingNames(string targetLanguage)
     {
-        if (_auth is null || _disposed)
+        if (_auth is not { } auth || _disposed)
             return;
         ResetOnboardingNames();
         var load = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _onboardingNamesLoad = load;
         _onboardingNamesLoading = true;
+        _ = LoadOnboardingNamesAsync(auth, targetLanguage, load);
+    }
+
+    /// <summary>Observes every failure itself (logged; the step falls back to no names).</summary>
+    private async Task LoadOnboardingNamesAsync(
+        NativeAuthPresenter auth, string targetLanguage, CancellationTokenSource load)
+    {
         var names = ImmutableArray<string>.Empty;
         try
         {
-            names = await _auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token);
+            names = await auth.SuggestOnboardingNamesAsync(targetLanguage, load.Token);
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
@@ -64,11 +71,18 @@ internal sealed partial class ApplicationController
         {
             _logger?.LogWarning(ex, "Onboarding name suggestions could not be loaded.");
         }
-        if (!ReferenceEquals(_onboardingNamesLoad, load) || _disposed)
-            return;
-        _onboardingNamesLoading = false;
-        _onboardingNames = _destination == NativeDestination.Onboarding ? names : [];
-        Publish();
+        try
+        {
+            if (!ReferenceEquals(_onboardingNamesLoad, load) || _disposed)
+                return;
+            _onboardingNamesLoading = false;
+            _onboardingNames = _destination == NativeDestination.Onboarding ? names : [];
+            Publish();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Onboarding name suggestions could not be shown.");
+        }
     }
 
     /// <summary>

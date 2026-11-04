@@ -35,6 +35,17 @@ internal sealed partial class ApplicationController
 
     internal bool IsSamEntryVisible => IsSamAvailable && !SamState.IsOpen;
 
+    /// <summary>
+    /// The review quiz opens over the Dashboard tab's root, so an activity, the quiz,
+    /// a screen pushed over the Dashboard (Settings, Profile, Skills, Vocabulary,
+    /// Recent lookups, Activity Log) or an open resource form on the Resources tab
+    /// (unsaved edits) must close first, as on Android.
+    /// </summary>
+    internal bool IsSamReviewBlockedByScreen =>
+        _destination != NativeDestination.Dashboard || _settingsOpen || IsProfileOpen
+        || IsSkillsOpen || IsVocabularyOpen || IsRecentLookupsOpen || IsActivityLogOpen
+        || IsResourcesFormOpen;
+
     internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;
 
@@ -226,10 +237,7 @@ internal sealed partial class ApplicationController
     /// </summary>
     private void OnSamVocabularyReview(string owner, string resourceId)
     {
-        // The quiz opens over the Dashboard tab's root, so a screen open over it
-        // (an activity, the quiz, or a pushed Dashboard screen) must close first.
-        if (_destination != NativeDestination.Dashboard || _settingsOpen || IsProfileOpen
-            || IsSkillsOpen || IsVocabularyOpen || IsActivityLogOpen)
+        if (IsSamReviewBlockedByScreen)
         {
             if (IsSamShellDestination(_destination))
                 _sam?.ReportVocabularyReviewBlockedByScreen();
