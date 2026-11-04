@@ -180,7 +180,11 @@ internal sealed partial class AndroidSliceShell
                     return;
                 if (created.Result is NativeResourceMutationResult.Success
                     or NativeResourceMutationResult.AlreadyPresent)
+                {
+                    if (created.Result == NativeResourceMutationResult.Success)
+                        await _dashboard.EnsureStarterSkillAsync(cancellationToken);
                     await _dashboard.LoadAsync(cancellationToken);
+                }
                 else
                     errorKey = created.ErrorKey switch
                     {

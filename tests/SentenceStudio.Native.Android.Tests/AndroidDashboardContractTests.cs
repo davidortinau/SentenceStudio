@@ -23,10 +23,12 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("DashboardAppBar(palette),\n            viewport", compose);
         Assert.Contains(".VerticalScroll(_dashboardScroll)", compose);
         Assert.Contains("SelectedPlanMode()", compose);
-        Assert.Contains("AddVocabularySummary(viewport, vocabulary, palette)", compose);
+        Assert.Contains("AddLearningProgress(viewport, state, palette);", compose);
+        var progress = Source("AndroidSliceShell.Dashboard.Progress.Compose.cs");
+        Assert.Contains("AddVocabularySummary(viewport, vocabulary, palette)", progress);
         Assert.Contains("state.NumberContexts.IsDefault ? [] : state.NumberContexts",
-            compose);
-        Assert.Contains("NumberMasteryCard(number, palette)", compose);
+            progress);
+        Assert.Contains("NumberMasteryCard(numbers[index], palette)", progress);
         Assert.Contains("_preview && Destination is not (NativeDestination.Dashboard",
             compose);
         Assert.Contains("viewport.Add(StatusAlert(\"Debug preview - isolated sample",
@@ -84,7 +86,7 @@ public sealed class AndroidDashboardContractTests
         var welcome = compose[compose.IndexOf(
             "private ComposableNode RenderNewLearner(",
             StringComparison.Ordinal)..compose.IndexOf(
-            "private static ComposableNode NumberMasteryCard(",
+            "private ComposableNode SelectedPlanMode()",
             StringComparison.Ordinal)];
         Assert.Contains("Dashboard_NewUserTitle", welcome);
         Assert.Contains("Dashboard_NewUserDescription", welcome);
@@ -151,7 +153,7 @@ public sealed class AndroidDashboardContractTests
     }
 
     [Fact]
-    public void CompletedQuizCardsAreVisiblyUnavailableUntilSharedScoringSupportsReplay()
+    public void CompletedPlanCardsStayOpenableAndUnregisteredTypesAreUnavailable()
     {
         var compose = Source("AndroidSliceShell.Compose.cs");
         var theme = Source("AndroidVisualTheme.cs");
@@ -159,9 +161,10 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("card.ResourceTitle", compose);
         Assert.Contains("card.MinutesSpent", compose);
         Assert.Contains("card.IsCompleted", compose);
-        Assert.Contains("var canOpen = card.Activity == PlanActivityType.VocabularyReview",
-            compose);
-        Assert.Contains("&& !card.IsCompleted", compose);
+        // AF-D05: a completed Vocabulary Review card opens as re-practice.
+        Assert.Contains("var canOpen = card.Activity == PlanActivityType.VocabularyReview\n"
+            + "            || NativeActivityCatalog.IsImplemented(card.Activity);", compose);
+        Assert.DoesNotContain("&& !card.IsCompleted", compose);
         // Other plan types open only when registered in NativeActivityCatalog.
         Assert.Contains("|| NativeActivityCatalog.IsImplemented(card.Activity);", compose);
         Assert.Contains("canOpen && !Busy.Value", compose);

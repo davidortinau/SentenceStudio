@@ -124,9 +124,12 @@ internal static class PlanInsightView
                             text("Dashboard_NewToYou"),
                             "native.plan.insight.new",
                             style, CategoryKind.New));
+                    // The source tier is green badges only; the heading keeps the
+                    // tier from being conveyed by color alone (AGENTS.md).
                     if (!state.DoingWellCategories.IsEmpty)
                         insight.Add(CategoryRow(
-                            state.DoingWellCategories, null,
+                            state.DoingWellCategories,
+                            text("Dashboard_DoingWellWith"),
                             "native.plan.insight.doingwell",
                             style, CategoryKind.DoingWell));
                     if (!string.IsNullOrWhiteSpace(vocab.PatternInsight))
@@ -204,7 +207,7 @@ internal static class PlanInsightView
 
     private static SwiftView CategoryRow(
         ImmutableArray<TagInsightDto> categories,
-        string? heading, string identifier, SourceUiStyle style,
+        string heading, string identifier, SourceUiStyle style,
         CategoryKind kind)
     {
         var fill = kind switch
@@ -232,17 +235,19 @@ internal static class PlanInsightView
         }).ToArray();
         var grid = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 3, pills);
         grid.Spacing = SourceUiLayout.ItemGap;
-        var group = heading is null
-            ? Views.VStack(grid)
-            : Views.VStack(
-                Views.HStack(
-                    Views.Image(kind == CategoryKind.Struggling
-                            ? "exclamationmark.triangle" : "sparkles")
-                        .WithForegroundColor(style.Appearance.SecondaryText.Light,
-                            style.Appearance.SecondaryText.Dark),
-                    style.Text(Views.Text(heading),
-                        SourceTextRole.Small, SourceTextTone.Secondary)),
-                grid);
+        var group = Views.VStack(
+            Views.HStack(
+                Views.Image(kind switch
+                    {
+                        CategoryKind.Struggling => "exclamationmark.triangle",
+                        CategoryKind.New => "sparkles",
+                        _ => "checkmark.circle"
+                    })
+                    .WithForegroundColor(style.Appearance.SecondaryText.Light,
+                        style.Appearance.SecondaryText.Dark),
+                style.Text(Views.Text(heading),
+                    SourceTextRole.Small, SourceTextTone.Secondary)),
+            grid);
         group.Spacing = SourceUiLayout.ItemGap;
         return group.WithAccessibilityIdentifier(identifier);
     }

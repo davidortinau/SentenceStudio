@@ -37,6 +37,7 @@ public sealed partial class NativeDashboardPresenter(
     private bool _numbersApplicable;
     private VocabProgressSummary? _vocabSummary;
     private string? _vocabErrorKey;
+    private string? _profileName;
     private NativeChooseOwnState? _chooseOwn;
     private long _chooseOwnGeneration;
 
@@ -93,7 +94,10 @@ public sealed partial class NativeDashboardPresenter(
         EnsureMode(owner);
         if (_mode != NativeDashboardMode.TodaysPlan)
             return State;
-        SetState(new(NativePhase.Loading, HasPendingSync: pendingWrites.IsPending(owner)), owner);
+        SetState(new(NativePhase.Loading, HasPendingSync: pendingWrites.IsPending(owner))
+        {
+            StatisticsLoading = true
+        }, owner);
         try
         {
             using var lease = plans.ForOwner(owner);
@@ -105,6 +109,9 @@ public sealed partial class NativeDashboardPresenter(
             if (!TryCurrentUser(out var currentOwner) || currentOwner != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
+            // The statistics show while the replacement plan is generated.
+            SetState(new(NativePhase.Loading, HasPendingSync: pendingWrites.IsPending(owner)),
+                owner);
 
             await using var transaction = await lease.Database.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable, cancellationToken);
@@ -216,7 +223,10 @@ public sealed partial class NativeDashboardPresenter(
         EnsureMode(owner);
         var pendingSync = State.Phase == NativePhase.Idle
             || State.HasPendingSync || pendingWrites.IsPending(owner);
-        SetState(new(NativePhase.Loading, HasPendingSync: pendingSync), owner);
+        SetState(new(NativePhase.Loading, HasPendingSync: pendingSync)
+        {
+            StatisticsLoading = true
+        }, owner);
         try
         {
             var syncOutcome = NativeSyncOutcome.Unconfirmed;
@@ -254,9 +264,11 @@ public sealed partial class NativeDashboardPresenter(
                         .AnyAsync(resource => resource.UserProfileId == owner,
                             cancellationToken);
                 }
-                var hasVocabulary = await lease.Database.VocabularyProgresses
+                // Source CheckNewUserAsync: a new learner owns no resources and no
+                // vocabulary words (Index.razor:778-782); progress rows alone do not count.
+                var hasVocabulary = await lease.Database.VocabularyWords
                     .AsNoTracking()
-                    .AnyAsync(progress => progress.UserId == owner,
+                    .AnyAsync(word => word.UserProfileId == owner,
                         cancellationToken);
                 if (!hasResources && pendingSync)
                     return SetState(new(NativePhase.PendingSync,
@@ -272,6 +284,11 @@ public sealed partial class NativeDashboardPresenter(
             if (!TryCurrentUser(out current) || current != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
+            // Publish the statistics now: the source renders them as soon as they load,
+            // while the plan (and its create-if-absent) is still loading.
+            SetState(new(NativePhase.Loading, HasPendingSync: pendingSync), owner);
+            if (!TryCurrentUser(out current) || current != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             if (_mode == NativeDashboardMode.ChooseOwn)
                 await LoadChooseOwnDataAsync(owner, cancellationToken);
             var plan = await planService.GetTodayAsync(cancellationToken);
@@ -478,12 +495,14 @@ public sealed partial class NativeDashboardPresenter(
         _numberErrorKey = null;
         try
         {
-            var targetLanguage = await db.UserProfiles.AsNoTracking()
+            var owned = await db.UserProfiles.AsNoTracking()
                 .Where(profile => profile.Id == owner)
-                .Select(profile => profile.TargetLanguage)
+                .Select(profile => new { profile.TargetLanguage, profile.Name })
                 .SingleOrDefaultAsync(cancellationToken);
+            // Read on every load so a rename shows in the welcome heading.
+            _profileName = owned?.Name;
             _numbersApplicable = string.Equals(
-                targetLanguage, "Korean", StringComparison.OrdinalIgnoreCase);
+                owned?.TargetLanguage, "Korean", StringComparison.OrdinalIgnoreCase);
             if (!_numbersApplicable)
                 return;
             var rows = await db.NumberMasteryProgresses.AsNoTracking()
@@ -568,6 +587,7 @@ public sealed partial class NativeDashboardPresenter(
                 NumbersApplicable = _numbersApplicable,
                 VocabSummary = value.VocabSummary ?? _vocabSummary,
                 VocabErrorKey = value.VocabSummary is null ? _vocabErrorKey : null,
+                ProfileName = _profileName,
                 ChooseOwn = _chooseOwn
             };
         }
@@ -587,6 +607,7 @@ public sealed partial class NativeDashboardPresenter(
         _numbersApplicable = false;
         _vocabSummary = null;
         _vocabErrorKey = null;
+        _profileName = null;
         _chooseOwn = null;
         _chooseOwnGeneration++;
         _mode = preferences.Get(ModeKeyPrefix + owner, "TodaysPlan") == "ChooseOwn"

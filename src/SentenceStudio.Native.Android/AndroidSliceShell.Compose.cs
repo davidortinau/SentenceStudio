@@ -391,33 +391,7 @@ internal sealed partial class AndroidSliceShell
             }
         }
 
-        if (state.VocabSummary is { } vocabulary)
-            AddVocabularySummary(viewport, vocabulary, palette);
-        else
-        {
-            viewport.Add(Heading(Localize("Dashboard_VocabularyHeader"), palette, 22,
-                Modifier.FillMaxWidth().Padding(vertical: 12)
-                    .TestTag("native.dashboard.vocab.title")));
-            viewport.Add(Card(palette, "native.dashboard.vocab.empty",
-                Body(Localize(state.Phase == NativePhase.Loading
-                    ? "Common_Loading" : "Dashboard_NoVocabData"), palette)));
-        }
-
-        var numbers = state.NumberContexts.IsDefault ? [] : state.NumberContexts;
-        if (numbers.Length > 0 || state.NumberErrorKey is not null)
-        {
-            viewport.Add(Heading(
-                $"{Localize("Activity_NumberDrill")} — {Localize("VocabQuiz_Mastered")}",
-                palette, 22,
-                Modifier.FillMaxWidth().Padding(vertical: 12)
-                    .TestTag("native.dashboard.numbers.title")));
-            if (state.NumberErrorKey is { } numberError)
-                viewport.Add(StatusAlert(Localize(numberError), palette,
-                    error: true, automationId: "native.dashboard.numbers.error"));
-            else
-                foreach (var number in numbers)
-                    viewport.Add(NumberMasteryCard(number, palette));
-        }
+        AddLearningProgress(viewport, state, palette);
 
         var page = new Column
         {
@@ -458,20 +432,6 @@ internal sealed partial class AndroidSliceShell
             Action(Localize("Dashboard_AddAResource"), "native.dashboard.newuser.add",
                 OpenResourceAddFromDashboard, available, primary: false)));
         return column;
-    }
-
-    private static ComposableNode NumberMasteryCard(
-        NativeNumberContextStat number, AndroidVisualPalette palette)
-    {
-        var title = number.ContextCode;
-        var percent = number.MasteryPercentage;
-        return Card(palette, $"native.dashboard.numbers.{title}",
-            Heading(title, palette, 17),
-            Body($"{number.DueCount} {Localize("DueNow")}", palette,
-                secondary: true),
-            ProgressBar(percent / 100f, palette),
-            Body($"{number.CorrectCount}/{number.TotalCount} " +
-                Localize(NativeText.QuizCorrect), palette, secondary: true));
     }
 
     private ComposableNode SelectedPlanMode()
@@ -578,9 +538,7 @@ internal sealed partial class AndroidSliceShell
                     Alignment.Vertical.CenterVertically)
                 {
                     Modifier.FillMaxWidth(),
-                    new Icon(resource.MediaType.Contains("Video",
-                            StringComparison.OrdinalIgnoreCase)
-                            ? Icons.Default.PlayArrow : Icons.Default.Info,
+                    new Icon(ResourceMediaIcon(resource.MediaType),
                         resource.MediaType)
                     {
                         Modifier = Modifier.Size(20),
@@ -629,20 +587,21 @@ internal sealed partial class AndroidSliceShell
                         !_preview && !Busy.Value && HasDashboardOwner(Auth.UserId),
                         primary: false));
                 if (!state.StrugglingCategories.IsDefaultOrEmpty)
-                    content.Add(CategoryInsight(
-                        Localize("Dashboard_StrugglingWith"),
+                    content.Add(CategoryTier(
+                        Localize("Dashboard_StrugglingWith"), Icons.Default.Warning,
                         state.StrugglingCategories.Select(tag =>
                             $"{tag.Tag} ({tag.AverageAccuracy:P0})"),
-                        palette, "struggling"));
+                        palette.WarningText, palette, "struggling"));
                 if (!state.NewCategories.IsDefaultOrEmpty)
-                    content.Add(CategoryInsight(Localize("Dashboard_NewToYou"),
-                        state.NewCategories.Select(tag => tag.Tag), palette, "new"));
+                    content.Add(CategoryTier(Localize("Dashboard_NewToYou"),
+                        Icons.Default.Star, state.NewCategories.Select(tag => tag.Tag),
+                        palette.SecondaryText, palette, "new"));
                 if (!state.DoingWellCategories.IsDefaultOrEmpty)
-                    content.Add(CategoryInsight(
-                        null,
+                    content.Add(CategoryTier(
+                        Localize("Dashboard_DoingWellWith"), Icons.Default.CheckCircle,
                         state.DoingWellCategories.Select(tag =>
                             $"{tag.Tag} ({tag.AverageAccuracy:P0})"),
-                        palette, "doing-well"));
+                        palette.KnownText, palette, "doing-well"));
                 if (!string.IsNullOrWhiteSpace(vocab.PatternInsight))
                     content.Add(StatusAlert(vocab.PatternInsight, palette));
                 if (vocab.SampleStrugglingWords.Count > 0)
@@ -687,89 +646,6 @@ internal sealed partial class AndroidSliceShell
         return surface;
     }
 
-    private static ComposableNode CategoryInsight(
-        string? heading, IEnumerable<string> categories,
-        AndroidVisualPalette palette, string tier)
-    {
-        var column = new Column(Arrangement.SpacedBy(3))
-        {
-            Modifier.FillMaxWidth().TestTag($"native.plan.insight.category.{tier}"),
-        };
-        if (!string.IsNullOrWhiteSpace(heading))
-            column.Add(Body(heading, palette, secondary: true));
-        column.Add(Body(string.Join(", ", categories), palette));
-        return column;
-    }
-
-    private void AddVocabularySummary(
-        Column viewport, VocabProgressSummary summary, AndroidVisualPalette palette)
-    {
-        viewport.Add(Heading(Localize("Dashboard_VocabularyHeader"), palette, 22,
-            Modifier.FillMaxWidth().Padding(vertical: 12)
-                .TestTag("native.dashboard.vocab.title")));
-        viewport.Add(new Row(Arrangement.SpacedBy(12))
-        {
-            Modifier.FillMaxWidth(),
-            VocabularyTile(summary.New, "Dashboard_VocabNew", "new",
-                palette.Primary, palette),
-            VocabularyTile(summary.Learning, "Dashboard_VocabLearning", "learning",
-                palette.WarningText, palette),
-        });
-        viewport.Add(new Row(Arrangement.SpacedBy(12))
-        {
-            Modifier.FillMaxWidth(),
-            VocabularyTile(summary.Familiar, "Dashboard_VocabFamiliar", "familiar",
-                palette.Primary, palette),
-            VocabularyTile(summary.Review, "Dashboard_VocabReview", "review",
-                palette.WarningText, palette),
-        });
-        viewport.Add(new Row(Arrangement.SpacedBy(12))
-        {
-            Modifier.FillMaxWidth(),
-            VocabularyTile(summary.Known, "Dashboard_VocabKnown", "known",
-                palette.KnownText, palette),
-            new Box { Modifier.Weight(1f) },
-        });
-        var total = summary.New + summary.Learning + summary.Familiar
-            + summary.Review + summary.Known;
-        if (total > 0)
-            viewport.Add(Card(palette, "native.dashboard.vocab.summary",
-                Body($"{Localize("Dashboard_TotalWordsLabel")} " +
-                    total.ToString(CultureInfo.CurrentCulture), palette),
-                Body($"{Localize("Dashboard_WeeklyAccuracyLabel")} " +
-                    $"{Math.Round(summary.SuccessRate7d * 100).ToString(CultureInfo.CurrentCulture)}%",
-                    palette, secondary: true)));
-    }
-
-    private ComposableNode VocabularyTile(
-        int count, string labelKey, string name, AndroidX.Compose.Color numberColor,
-        AndroidVisualPalette palette)
-    {
-        var label = Localize(labelKey);
-        var number = Heading(count.ToString(CultureInfo.CurrentCulture), palette, 24);
-        number.Color = numberColor;
-        number.Align = TextAlign.Center;
-        var caption = Body(label, palette, secondary: true);
-        caption.Align = TextAlign.Center;
-        var tile = new Surface
-        {
-            Modifier = Modifier.Weight(1f).HeightIn(min: 88)
-                .TestTag($"native.dashboard.vocab.stat.{name}")
-                .Semantics(semantics =>
-                    semantics.ContentDescription($"{count} {label}")),
-            Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
-            Color = palette.Card,
-        };
-        tile.Add(new Column(Arrangement.SpacedBy(4),
-            Alignment.Horizontal.CenterHorizontally)
-        {
-            Modifier.FillMaxWidth().Padding(12),
-            number,
-            caption,
-        });
-        return tile;
-    }
-
     private ComposableNode RenderPlanCard(
         NativePlanCard card, AndroidVisualPalette palette)
     {
@@ -787,8 +663,9 @@ internal sealed partial class AndroidSliceShell
         var label = card.IsCompleted
             ? $"{title}. {Localize("PlanSummary_Completed")}. {metadata}"
             : $"{title}. {metadata}";
+        // A completed card opens too (source LaunchPlanItem); a completed
+        // Vocabulary Review opens as re-practice (SelectAssignedQuizAsync).
         var canOpen = card.Activity == PlanActivityType.VocabularyReview
-                && !card.IsCompleted
             || NativeActivityCatalog.IsImplemented(card.Activity);
         if (!canOpen)
             label += $". {Localize("NativeResources_Unavailable")}";

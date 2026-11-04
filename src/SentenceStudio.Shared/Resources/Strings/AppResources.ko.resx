@@ -2289,6 +2289,10 @@
     <value>{0}일 연속</value>
     <comment>Dashboard: current streak badge. {0}=days</comment>
   </data>
+  <data name="Dashboard_DoingWellWith" xml:space="preserve">
+    <value>잘하고 있는 항목:</value>
+    <comment>Dashboard insight: heading for tags answered at 60% accuracy or better, beside "Struggling with:" and "New to you:".</comment>
+  </data>
   <data name="Dashboard_BestStreak" xml:space="preserve">
     <value>최고: {0}일</value>
     <comment>Dashboard: longest streak. {0}=days</comment>

@@ -194,6 +194,7 @@ internal sealed partial class ApplicationController : IDisposable
                 _auth.StateChanged += OnAuthProgress;
                 _dashboard = _services.Provider
                     .GetRequiredService<NativeDashboardPresenter>();
+                _dashboard.StateChanged += OnDashboardProgress;
                 _authState = await _auth.RestoreAsync(_lifetime.Token);
                 await RouteAfterAuthAsync();
             }
@@ -513,7 +514,7 @@ internal sealed partial class ApplicationController : IDisposable
             CanRegeneratePlan, SignOutTitle,
             new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,
                 OpenSettings, OpenProfile, OpenSkills, OpenVocabulary,
-                OpenActivityLog, SignOut));
+                OpenActivityLog, SignOut, OpenMinimalPairs));
 
     private async Task CreateDashboardStarterAsync()
     {
@@ -549,6 +550,8 @@ internal sealed partial class ApplicationController : IDisposable
             if (created.Result is NativeResourceMutationResult.Success
                 or NativeResourceMutationResult.AlreadyPresent)
             {
+                if (created.Result == NativeResourceMutationResult.Success)
+                    await _dashboard.EnsureStarterSkillAsync(_lifetime.Token);
                 _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
                 _resources?.OnBrowserAppeared();
             }

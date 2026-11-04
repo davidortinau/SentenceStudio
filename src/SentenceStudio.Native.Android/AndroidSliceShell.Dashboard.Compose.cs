@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using AndroidX.Compose;
 using SentenceStudio.Native;
 
@@ -63,70 +64,134 @@ internal sealed partial class AndroidSliceShell
         section.Add(Card(palette, "native.dashboard.choose.filters",
             content.ToArray()));
 
-        var toggleLabel = Localize(choose.ShowAllActivities
-            ? "Dashboard_ShowLess" : "Dashboard_SeeAll");
-        var toggle = new TextButton(ToggleActivityCatalog, enabled: !Busy.Value)
-        {
-            Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                .TestTag("native.dashboard.choose.activities.toggle")
-                .Semantics(semantics =>
-                {
-                    semantics.ContentDescription(toggleLabel);
-                    semantics.StateDescription(toggleLabel);
-                }),
-        };
-        toggle.Add(new Text(toggleLabel));
-        section.Add(new Row(Arrangement.SpaceBetween,
+        // Source Index.razor:445-471: the See All toggle exists below md (768) only;
+        // from md every tile shows. Tiles are col-6 / col-md-4 / col-lg-3 cards.
+        var compact = WindowWidthDp < 768;
+        var header = new Row(Arrangement.SpaceBetween,
             Alignment.Vertical.CenterVertically)
         {
             Modifier.FillMaxWidth(),
-            Heading(Localize("Dashboard_Activities"), palette, 18),
-            toggle
-        });
-
-        var visibleCount = choose.ShowAllActivities
-            ? NativeDashboardPresenter.ChooseOwnActivities.Length : 6;
-        foreach (var activity in NativeDashboardPresenter.ChooseOwnActivities
-            .Take(visibleCount))
+            Heading(Localize("Dashboard_Activities"), palette, 18,
+                Modifier.Semantics(semantics => semantics.Heading())),
+        };
+        if (compact && NativeDashboardPresenter.ChooseOwnActivities.Length > 6)
         {
-            var activityName = Localize(activity.LabelKey);
-            if (activity.Route == "vocab-quiz"
-                || NativeActivityCatalog.IsImplemented(activity.Route))
+            var toggleLabel = Localize(choose.ShowAllActivities
+                ? "Dashboard_ShowLess" : "Dashboard_SeeAll");
+            var toggle = new OutlinedButton(ToggleActivityCatalog, enabled: !Busy.Value)
             {
-                var route = activity.Route;
-                var launchModifier = Modifier.FillMaxWidth()
-                    .HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag($"native.dashboard.choose.activity.{activity.Route}");
-                launchModifier = canSelect
-                    ? launchModifier.Clickable(route == "vocab-quiz"
-                        ? OpenChooseOwnQuiz : () => OpenChooseOwnActivity(route))
-                        .Semantics(semantics =>
-                        {
-                            semantics.ContentDescription(activityName);
-                            semantics.Role(SemanticsRole.Button);
-                        })
-                    : launchModifier.Semantics(semantics =>
-                        semantics.ContentDescription(activityName));
-                section.Add(new Column(Arrangement.SpacedBy(2))
-                {
-                    launchModifier.Padding(vertical: 4),
-                    Heading(activityName, palette, 16)
-                });
-                continue;
-            }
-            var unavailable = Localize("NativeResources_Unavailable");
-            section.Add(new Column(Arrangement.SpacedBy(2))
-            {
-                Modifier.FillMaxWidth().Padding(vertical: 4)
-                    .TestTag($"native.dashboard.choose.activity.{activity.Route}.unavailable")
+                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag("native.dashboard.choose.activities.toggle")
                     .Semantics(semantics =>
-                        semantics.ContentDescription($"{activityName}. {unavailable}")),
-                Heading(activityName, palette, 16),
-                Body(unavailable, palette, secondary: true)
-            });
+                    {
+                        semantics.ContentDescription(toggleLabel);
+                        semantics.StateDescription(toggleLabel);
+                    }),
+                Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+            };
+            toggle.Add(new Text(toggleLabel));
+            header.Add(toggle);
+        }
+        section.Add(header);
+
+        var visible = !compact || choose.ShowAllActivities
+            ? NativeDashboardPresenter.ChooseOwnActivities
+            : NativeDashboardPresenter.ChooseOwnActivities.Take(6).ToImmutableArray();
+        var columns = WindowWidthDp >= 992 ? 4 : compact ? 2 : 3;
+        for (var start = 0; start < visible.Length; start += columns)
+        {
+            var row = new Row(Arrangement.SpacedBy(12))
+            {
+                Modifier.FillMaxWidth(),
+            };
+            for (var index = start; index < start + columns; index++)
+                row.Add(index < visible.Length
+                    ? ActivityTile(visible[index], canSelect, palette)
+                    : new Box { Modifier.Weight(1f) });
+            section.Add(row);
         }
         return section;
     }
+
+    /// <summary>One- and two-line labels share this height, so a row stays even (source h-100).</summary>
+    private const int ActivityTileMinHeight = 116;
+
+    /// <summary>
+    /// One source activity card: icon over the label, the whole card launches.
+    /// The Compose facade carries only the core Material icons, so each is the
+    /// closest available stand-in for the source Bootstrap icon.
+    /// </summary>
+    private ComposableNode ActivityTile(
+        NativeChooseOwnActivity activity, bool canSelect, AndroidVisualPalette palette)
+    {
+        var activityName = Localize(activity.LabelKey);
+        var route = activity.Route;
+        var implemented = route == "vocab-quiz"
+            || NativeActivityCatalog.IsImplemented(route);
+        var unavailable = Localize("NativeResources_Unavailable");
+        var modifier = Modifier.Weight(1f).HeightIn(min: ActivityTileMinHeight)
+            .TestTag(implemented
+                ? $"native.dashboard.choose.activity.{route}"
+                : $"native.dashboard.choose.activity.{route}.unavailable");
+        modifier = implemented && canSelect
+            ? modifier.Clickable(route == "vocab-quiz"
+                    ? OpenChooseOwnQuiz : () => OpenChooseOwnActivity(route))
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(activityName);
+                    semantics.Role(SemanticsRole.Button);
+                })
+            : modifier.Semantics(semantics => semantics.ContentDescription(
+                implemented ? activityName : $"{activityName}. {unavailable}"));
+        var label = Heading(activityName, palette, 16, Modifier.Padding(top: 6));
+        label.Align = TextAlign.Center;
+        var content = new Column(Arrangement.Center,
+            Alignment.Horizontal.CenterHorizontally)
+        {
+            Modifier.FillMaxWidth().HeightIn(min: ActivityTileMinHeight).Padding(12)
+                .Alpha(implemented && canSelect ? 1f : 0.55f),
+            new Icon(ChooseOwnTileIcon(route), null)
+            {
+                Modifier = Modifier.Size(30),
+                Tint = palette.Primary,
+            },
+            label,
+        };
+        if (!implemented)
+        {
+            var caption = Body(unavailable, palette, secondary: true);
+            caption.Align = TextAlign.Center;
+            content.Add(caption);
+        }
+        var tile = new Surface
+        {
+            Modifier = modifier,
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
+            Color = palette.Card,
+        };
+        tile.Add(content);
+        return tile;
+    }
+
+    private static AndroidX.Compose.UI.Graphics.Vector.ImageVector ChooseOwnTileIcon(
+        string route) => route switch
+    {
+        "conversation" => Icons.Default.Face,
+        "scene" => Icons.Default.AccountBox,
+        "translation" => Icons.AutoMirrored.Default.ArrowForward,
+        "cloze" => Icons.Default.Build,
+        "writing" => Icons.Default.Create,
+        "diary" => Icons.Default.DateRange,
+        "reading" => Icons.Default.Info,
+        "vocab-quiz" => Icons.Default.Check,
+        "vocab-matching" => Icons.Default.Search,
+        "shadowing" => Icons.Default.PlayArrow,
+        "how-do-you-say" => Icons.AutoMirrored.Default.Send,
+        "minimal-pairs" => Icons.Default.Call,
+        "word-association" => Icons.Default.Star,
+        "numberdrill" => Icons.Default.Add,
+        _ => Icons.Default.Info,
+    };
 
     private ComposableNode RenderChooseSelector(AndroidVisualPalette palette)
     {

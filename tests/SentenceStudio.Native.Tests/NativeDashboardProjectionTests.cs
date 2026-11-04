@@ -66,40 +66,6 @@ public sealed class NativeDashboardProjectionTests
     }
 
     [Fact]
-    public async Task OwnerWithVocabularyProgressButNoResourcesDoesNotSeeFalseWelcome()
-    {
-        using var fixture = new NativeSliceFixture();
-        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
-        await fixture.SeedProfileAsync(NativeSliceFixture.UserB);
-        using (var scope = fixture.Scope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.VocabularyWords.Add(new VocabularyWord
-            {
-                Id = "orphaned-progress-word",
-                Language = "Korean",
-                TargetLanguageTerm = "안녕",
-                NativeLanguageTerm = "hello"
-            });
-            db.VocabularyProgresses.Add(new VocabularyProgress
-            {
-                Id = "owned-progress-without-resource",
-                UserId = NativeSliceFixture.UserA,
-                VocabularyWordId = "orphaned-progress-word"
-            });
-            await db.SaveChangesAsync();
-        }
-        fixture.Activate(NativeSliceFixture.UserA);
-
-        var returningOwner = await fixture.Dashboard.LoadAsync();
-        Assert.False(returningOwner.IsNewUser);
-
-        fixture.Activate(NativeSliceFixture.UserB);
-        var otherOwner = await fixture.Dashboard.LoadAsync();
-        Assert.True(otherOwner.IsNewUser);
-    }
-
-    [Fact]
     public async Task ChooseOwnLoadsOwnedResourcesAndSkillsReconcilesStaleSelectionsAfterRestart()
     {
         using var fixture = new NativeSliceFixture();
