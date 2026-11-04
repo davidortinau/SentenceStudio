@@ -23,7 +23,6 @@ internal static class QuizQuestionView
         Action<string> answerChanged,
         Action<bool> answerFocusChanged,
         bool answerShouldFocus,
-        Func<int, bool> canSelectAudioChoice,
         Action<string> selectChoice,
         Action playPrompt,
         Action<int> playChoiceAudio,
@@ -158,8 +157,10 @@ internal static class QuizQuestionView
                     .WithFlexibleWidth(560, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.quiz.feedback.mnemonic"));
             }
+            // Source: the answer sits in the centered prompt block (text-center).
             if (state.CorrectAnswerAfterGrading is { Length: > 0 } correct)
                 items.Add(style.Text(Views.Text(correct), SourceTextRole.Title2)
+                    .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.quiz.correct-answer"));
             var status = state.CompleteForm is { Length: > 0 } fullForm
                 && state.AnswerWasCorrect == true
@@ -189,19 +190,17 @@ internal static class QuizQuestionView
                 var id = $"{NativeAccess.QuizChoice}.{index}";
                 var choiceButton = QuizChoice(style, state, choice.Text,
                         busy || state.Phase == NativePhase.Ready
-                            && !state.CanSubmit
-                            || audioChoices && !canSelectAudioChoice(index),
+                            && !state.CanSubmit,
                         () => selectChoice(choice.Text),
                         audioChoices ? ((char)('A' + index)).ToString() : null)
                     .WithAccessibilityIdentifier(id);
                 if (audioChoices)
                 {
                     var letter = ((char)('A' + index)).ToString();
+                    // Source: a letter can be chosen at once; its play button is optional.
                     choiceButton.WithAccessibilityLabel(
                         string.Format(CultureInfo.CurrentCulture,
-                            text(canSelectAudioChoice(index)
-                                ? "NativeVocabQuiz_ChooseChoice"
-                                : "NativeVocabQuiz_ListenToChoose"), letter));
+                            text("NativeVocabQuiz_ChooseChoice"), letter));
                     var play = Views.Button(
                             Views.Image("speaker.wave.2"),
                             () => playChoiceAudio(optionIndex))

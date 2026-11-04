@@ -195,8 +195,11 @@ public sealed partial class NativeQuizPresenter
             if (_turnId != turnId || _turnIndex >= _round.Count
                 || State.Phase is not (NativePhase.Ready or NativePhase.Feedback))
                 return State;
+            // Only an offered toggle may show the image: before grading that needs the photo
+            // prompt, so a mnemonic image cannot leak the answer (AF-Q20).
             if (_launch is null || !HasOwner(_launch.UserId)
-                || State.Overlay != NativeQuizOverlay.None || !_photoLoaded)
+                || State.Overlay != NativeQuizOverlay.None || !_photoLoaded
+                || State.Prompt?.CanTogglePhoto != true)
                 return RefuseInvalidAction();
             _photoDesired = visible;
             _photoVisible = false;
@@ -361,14 +364,6 @@ public sealed partial class NativeQuizPresenter
                 logger.LogWarning("Quiz answer refused an option outside the visible choice set.");
                 return SetState(State with { ErrorKey = NativeText.QuizUnavailable });
             }
-            if (_mode == "MultipleChoice" && _answerAudioAvailable
-                && _promptUsesNative
-                && !_heardAnswerChoices.Contains(answerChoiceIndex))
-            {
-                logger.LogWarning("Quiz refused an answer-choice letter before its target audio played.");
-                return SetState(State with { ErrorKey = NativeText.AnswerRequired });
-            }
-
             FuzzyMatchResult grade;
             try
             {
@@ -425,6 +420,7 @@ public sealed partial class NativeQuizPresenter
             if (correct)
                 _correctCount++;
             _requiresCorrection = !correct && _mode == "Text";
+            ApplyFeedbackPhotoRule(correct);
 
             try
             {
@@ -448,23 +444,55 @@ public sealed partial class NativeQuizPresenter
         }
     }
 
+    /// <summary>
+    /// Retry for every save failure that keeps the turn on screen (AF-Q16): the graded answer,
+    /// an override to correct, a typed correction, or the next question's snapshot after the
+    /// answer was already scored. Each retry repeats only the write that failed.
+    /// </summary>
     public async Task<NativeQuizState> RetryPendingSaveAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
         try
         {
             if (_launch is null || !HasOwner(_launch.UserId)
-                || _pending is null || State.Phase != NativePhase.Error
-                || _overrideRetryPending || _correctionRetryPending)
+                || State.Phase != NativePhase.Error)
                 return RefuseInvalidAction();
+            if (_pending is null)
+                return _needsResumeAfterCommitFailure
+                    ? await RetryAdvancedSnapshotAsync(cancellationToken)
+                    : RefuseInvalidAction();
+            if (_overrideRetryPending)
+                return await OverrideCoreAsync(cancellationToken);
+            if (_correctionRetryPending)
+                return await SaveCorrectionAsync(cancellationToken);
             await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
             return SetState(QuestionState(graded: true)
                 with { HasPendingSync = _pendingSync });
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "Quiz save retry failed; the turn stays pending.");
+            return SetState(State with {
+                Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
+                CanSubmit = false, HasPendingSync = _pendingSync });
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// The answer was scored (its receipt is durable) but the next question's or the summary's
+    /// snapshot was not saved. The advanced position is still in memory; save it now.
+    /// </summary>
+    private async Task<NativeQuizState> RetryAdvancedSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        var summary = _turnIndex >= _round.Count;
+        await SaveSnapshotAsync(summaryVisible: summary, cancellationToken);
+        return SetState((summary ? SummaryState() : QuestionState(graded: false))
+            with { HasPendingSync = _pendingSync });
     }
 
     public async Task<NativeQuizState> OverrideAsCorrectAsync(
@@ -473,51 +501,57 @@ public sealed partial class NativeQuizPresenter
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_launch is null || !HasOwner(_launch.UserId)
-                || State.Phase != NativePhase.Feedback
-                    && !(State.Phase == NativePhase.Error && _overrideRetryPending)
-                || _pending is null || _pending.WasCorrect)
-                return RefuseInvalidAction();
-
-            var item = _round[_turnIndex];
-            var previousCorrect = item.SessionCorrectCount;
-            var previousMultipleChoice = item.SessionMCCorrect;
-            var previousText = item.SessionTextCorrect;
-            var previousRecognitionCheck = item.PendingRecognitionCheck;
-            var previousWasCorrect = item.WasCorrectThisSession;
-            var previousCorrection = _requiresCorrection;
-            item.ApplyOverrideAsCorrect(_mode);
-            _pending.WasCorrect = true;
-            _correctCount++;
-            _requiresCorrection = false;
-            try
-            {
-                await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
-                _overrideRetryPending = false;
-                _feedbackStartedAt = null;
-                return SetState(QuestionState(graded: true)
-                    with { HasPendingSync = _pendingSync });
-            }
-            catch (DbUpdateException ex)
-            {
-                logger.LogError(ex, "Quiz override was not saved; the previous graded result remains pending.");
-                item.SessionCorrectCount = previousCorrect;
-                item.SessionMCCorrect = previousMultipleChoice;
-                item.SessionTextCorrect = previousText;
-                item.PendingRecognitionCheck = previousRecognitionCheck;
-                item.WasCorrectThisSession = previousWasCorrect;
-                _pending.WasCorrect = false;
-                _correctCount--;
-                _requiresCorrection = previousCorrection;
-                _overrideRetryPending = true;
-                return SetState(State with {
-                    Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
-                    CanSubmit = false });
-            }
+            return await OverrideCoreAsync(cancellationToken);
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>Applies Override as correct; the caller holds the gate. Also its save retry.</summary>
+    private async Task<NativeQuizState> OverrideCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_launch is null || !HasOwner(_launch.UserId)
+            || State.Phase != NativePhase.Feedback
+                && !(State.Phase == NativePhase.Error && _overrideRetryPending)
+            || _pending is null || _pending.WasCorrect)
+            return RefuseInvalidAction();
+
+        var item = _round[_turnIndex];
+        var previousCorrect = item.SessionCorrectCount;
+        var previousMultipleChoice = item.SessionMCCorrect;
+        var previousText = item.SessionTextCorrect;
+        var previousRecognitionCheck = item.PendingRecognitionCheck;
+        var previousWasCorrect = item.WasCorrectThisSession;
+        var previousCorrection = _requiresCorrection;
+        item.ApplyOverrideAsCorrect(_mode);
+        _pending.WasCorrect = true;
+        _correctCount++;
+        _requiresCorrection = false;
+        try
+        {
+            await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
+            _overrideRetryPending = false;
+            _feedbackStartedAt = null;
+            return SetState(QuestionState(graded: true)
+                with { HasPendingSync = _pendingSync });
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "Quiz override was not saved; the previous graded result remains pending.");
+            item.SessionCorrectCount = previousCorrect;
+            item.SessionMCCorrect = previousMultipleChoice;
+            item.SessionTextCorrect = previousText;
+            item.PendingRecognitionCheck = previousRecognitionCheck;
+            item.WasCorrectThisSession = previousWasCorrect;
+            _pending.WasCorrect = false;
+            _correctCount--;
+            _requiresCorrection = previousCorrection;
+            _overrideRetryPending = true;
+            return SetState(State with {
+                Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
+                CanSubmit = false });
         }
     }
 
@@ -569,28 +603,37 @@ public sealed partial class NativeQuizPresenter
                 return SetState(State with { ErrorKey = NativeText.CorrectionRequired });
             }
 
-            _requiresCorrection = false;
-            try
-            {
-                await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
-                _correctionRetryPending = false;
-                _feedbackStartedAt = null;
-                return SetState(QuestionState(graded: true)
-                    with { HasPendingSync = _pendingSync });
-            }
-            catch (DbUpdateException ex)
-            {
-                logger.LogError(ex, "Quiz correction confirmation was not saved.");
-                _requiresCorrection = true;
-                _correctionRetryPending = true;
-                return SetState(State with {
-                    Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
-                    CanSubmit = false });
-            }
+            return await SaveCorrectionAsync(cancellationToken);
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Saves a correction that already matched the shown answer; the caller holds the gate.
+    /// A failed save keeps the correction pending so Retry can repeat only this write.
+    /// </summary>
+    private async Task<NativeQuizState> SaveCorrectionAsync(CancellationToken cancellationToken)
+    {
+        _requiresCorrection = false;
+        try
+        {
+            await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
+            _correctionRetryPending = false;
+            _feedbackStartedAt = null;
+            return SetState(QuestionState(graded: true)
+                with { HasPendingSync = _pendingSync });
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "Quiz correction confirmation was not saved.");
+            _requiresCorrection = true;
+            _correctionRetryPending = true;
+            return SetState(State with {
+                Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
+                CanSubmit = false });
         }
     }
 

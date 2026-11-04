@@ -649,7 +649,9 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         ArgumentNullException.ThrowIfNull(launch);
         NativeQuizOwnerGuard.RequireActiveOwner(
             launch.UserId, userScope, preferences, cancellationToken);
-        if (launch.DueOnly || string.IsNullOrWhiteSpace(launch.PlanItemId)
+        // An assigned card launches like the web: DueOnly with no resource (AF-Q01).
+        if (launch.DueOnly && !launch.ResourceIds.IsDefaultOrEmpty
+            || string.IsNullOrWhiteSpace(launch.PlanItemId)
             || string.IsNullOrWhiteSpace(planItemRowId)
             || string.IsNullOrWhiteSpace(launchContextKey)
             || launchContextKey != VocabQuizSessionSnapshot.BuildLaunchContextKey(
@@ -777,7 +779,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         ArgumentNullException.ThrowIfNull(launch);
         NativeQuizOwnerGuard.RequireActiveOwner(
             launch.UserId, userScope, preferences, cancellationToken);
-        if (launch.DueOnly || !launch.FocusVocabularyIds.IsDefaultOrEmpty
+        if (launch.DueOnly && !launch.ResourceIds.IsDefaultOrEmpty
+            || !launch.FocusVocabularyIds.IsDefaultOrEmpty
             || string.IsNullOrWhiteSpace(planItemRowId)
             || string.IsNullOrWhiteSpace(launch.PlanItemId)
             || (!launch.ResourceIds.IsDefault && launch.ResourceIds.Length > 1))
@@ -808,7 +811,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         var contextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
             launch.PlanItemId, Array.Empty<string>(),
             launch.ResourceIds.IsDefault
-                ? Array.Empty<string>() : launch.ResourceIds, false, launch.SkillId);
+                ? Array.Empty<string>() : launch.ResourceIds, launch.DueOnly, launch.SkillId);
         if (plan is null || card is null
             || card.ActivityType != QuizSessionActivityType
             || card.ResourceId != resourceId || card.SkillId != launch.SkillId

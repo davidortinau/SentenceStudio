@@ -334,7 +334,9 @@ public sealed class NativeHeadContractTests
             "if (state.Mode == \"MultipleChoice\")", StringComparison.Ordinal);
         Assert.True(feedback >= 0 && term > feedback && choices > term);
         Assert.Contains("QuizChoice(style, state, choice.Text,", question);
-        Assert.Contains("audioChoices && !canSelectAudioChoice(index)", question);
+        // AF-Q03: audio letters follow CanSubmit only (no per-choice listen gate).
+        Assert.Contains("&& !state.CanSubmit,", question);
+        Assert.DoesNotContain("canSelectAudioChoice", question);
         Assert.Contains("else if (state.Mode == \"Text\")", question);
         Assert.Contains("state.SelectedAnswer ?? answer", question);
         Assert.Contains("NativeText.CorrectionRequired : NativeText.AnswerRequired",

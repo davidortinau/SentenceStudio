@@ -405,9 +405,9 @@ public sealed class NativeDashboardProjectionTests
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         await fixture.SeedAsync(NativeSliceFixture.UserB);
+        // Vocabulary Review is vocabulary-driven: the plan builder gives it no resource.
         fixture.SetPlanActivities(NativeSliceFixture.UserA,
-            (nameof(PlanActivityType.VocabularyReview),
-                fixture.ResourceId(NativeSliceFixture.UserA), null, 6, 1),
+            (nameof(PlanActivityType.VocabularyReview), null, null, 6, 1),
             (nameof(PlanActivityType.Listening),
                 fixture.ResourceId(NativeSliceFixture.UserA), null, 10, 2),
             (nameof(PlanActivityType.Writing),
@@ -428,7 +428,9 @@ public sealed class NativeDashboardProjectionTests
         Assert.Equal(
             ["Activity_VocabularyReview", "Activity_Listening", "Activity_Writing"],
             plan.Cards.Select(card => card.TitleKey));
-        Assert.All(plan.Cards, card => Assert.Equal("Synthetic vocabulary", card.ResourceTitle));
+        Assert.Null(plan.Cards[0].ResourceTitle);
+        Assert.All(plan.Cards.Skip(1),
+            card => Assert.Equal("Synthetic vocabulary", card.ResourceTitle));
         var activeLaunch = await dashboard.SelectAssignedQuizAsync(plan.Cards[0].Id);
         Assert.NotNull(activeLaunch);
         Assert.False(activeLaunch.IsRepractice);

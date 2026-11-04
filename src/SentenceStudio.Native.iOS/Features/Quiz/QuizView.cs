@@ -27,7 +27,6 @@ internal static class QuizView
         var sentenceInput = inputs.SentenceInput;
         var answerChanged = actions.AnswerChanged;
         var answerFocusChanged = actions.AnswerFocusChanged;
-        var canSelectAudioChoice = actions.CanSelectAudioChoice;
         var selectChoice = actions.SelectChoice;
         var playPrompt = actions.PlayPrompt;
         var playChoiceAudio = actions.PlayChoiceAudio;
@@ -108,7 +107,7 @@ internal static class QuizView
                 }
                 QuizQuestionView.Add(items, state, answer, correctionCompleted,
                     busy, style, text, answerChanged,
-                    answerFocusChanged, answerShouldFocus, canSelectAudioChoice,
+                    answerFocusChanged, answerShouldFocus,
                     selectChoice, playPrompt, playChoiceAudio,
                     submitText, submitCorrection,
                     openDetails, toggleSentenceHints, photoRendered, photoFailed,
@@ -122,7 +121,6 @@ internal static class QuizView
                 QuizQuestionView.Add(items, state, answer, correctionCompleted,
                     busy, style, text,
                     answerChanged, answerFocusChanged, answerShouldFocus,
-                    canSelectAudioChoice,
                     selectChoice, playPrompt, playChoiceAudio,
                     submitText, submitCorrection,
                     openDetails, toggleSentenceHints, photoRendered, photoFailed,

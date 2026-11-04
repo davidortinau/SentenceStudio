@@ -3,7 +3,6 @@ namespace SentenceStudio.Native.iOS.Features.Quiz;
 internal sealed record QuizActions(
     Action<string> AnswerChanged,
     Action<bool> AnswerFocusChanged,
-    Func<int, bool> CanSelectAudioChoice,
     Action<string> SelectChoice,
     Action PlayPrompt,
     Action<int> PlayChoiceAudio,
