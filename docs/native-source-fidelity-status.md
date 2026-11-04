@@ -329,3 +329,27 @@ or keep new code in new partial files and limit edits here to small hooks.
   and W4a (quiz records).
 - AF-Q01 spans W3 (`NativeDashboardPresenter.cs`) and W4a
   (`NativeQuizPresenter.cs` and the committers). Land both halves together.
+
+## Progress after the audit (2026-11-03)
+
+Captain's decisions on the eight questions above are in the squad decision inbox
+(2026-11-03): pick an audio answer at once; Android server speech; the Android document
+picker approved for vocabulary import only; Android Profile, Skills, Vocabulary and
+Activity Log screens to build; What's New, update banner and import indicator deferred;
+Sam on every signed-in screen; inline starter progress kept; lazy vocabulary rows
+(AGENTS.md).
+
+Merged on `native-platform-heads` (local, not pushed):
+
+| Stream | Findings | Runtime-verified | Test- or code-only |
+|---|---|---|---|
+| W4a shared quiz + iOS | Q01, Q03, Q16, Q20 | iOS: pick an unheard letter, play then pick, centered answer, persistence | Q01 plan key (test derives the web key), Q16 save retry, Q20 mnemonic toggle |
+| W4b Android quiz | Q02 to Q12, Q16, Q20 | Android: server speech and cache, details sheet, Use in a sentence with grade, receipt and credit, resume after restart; Release/R8 keeps the new calls | lettered audio answers (needs a direction setting Android lacks until W2), photos, Hide Text, sample sentences, Type-correct focus, save-failure Retry |
+| W5 Resources | R06, R11, R12, R14, A01 | Android: file import through the system picker (Add form), lazy rows, quick-add focus | iOS lazy rows (no signed-in simulator); Android arrow and Escape keys are not possible with the Compose facade |
+
+Not started: W1 (sign-in, onboarding; Sam on every signed-in screen per decision 6),
+W2 (Android Settings and the four new Android screens), W3 (Dashboard).
+
+Runtime checks still owed on a signed-in iOS simulator: AF-R11 lazy rows (empty resource,
+smart resource, quick add), and the Android lettered-answer turn once W2 adds the
+direction setting.
