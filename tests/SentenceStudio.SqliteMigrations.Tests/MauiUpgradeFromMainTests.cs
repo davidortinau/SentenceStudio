@@ -56,6 +56,9 @@ public sealed class MauiUpgradeFromMainTests
             }
             Assert.Equal(before, await CountRowsAsync(connectionString));
             await AssertConvertedRowsAsync(connectionString);
+            // Devices now upload deletes, so the table rebuilds must record none: a recorded
+            // delete would remove the learner's row on the server at the next sync.
+            Assert.Equal(0L, await TrackedDeletesAsync(connectionString));
 
             // Next sync: CoreSync tracks the head's tables, and the MAUI upload rules choose rows.
             var local = new SqliteSyncProvider(
@@ -209,6 +212,15 @@ public sealed class MauiUpgradeFromMainTests
         Assert.Equal("Legacy list", (await db.VocabularyLists.AsNoTracking().SingleAsync()).Name);
         Assert.Equal(Other, (await db.LearningResources.AsNoTracking()
             .SingleAsync(row => row.Id == "res-other")).UserProfileId);
+    }
+
+    private static async Task<long> TrackedDeletesAsync(string connectionString)
+    {
+        await using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM __CORE_SYNC_CT WHERE OP = 'D'";
+        return (long)(await command.ExecuteScalarAsync())!;
     }
 
     private static readonly string[] SeededTables =
