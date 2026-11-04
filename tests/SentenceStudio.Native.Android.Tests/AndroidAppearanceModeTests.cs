@@ -26,13 +26,43 @@ public sealed class AndroidAppearanceModeTests
         Assert.Contains("steps: 12", settings);
         // The shared SettingsCoordinator gates the write on the verified owner.
         Assert.Contains("settings.SaveAppearance(selection, SaveDeviceAppearance)", more);
-        Assert.Contains("new DevicePreferencesThemeStore(preferences).SaveAsync(selection)", more);
-        Assert.Contains("AndroidFontScale.Apply(activity, saved.FontScale)", more);
+        // The same AppAppearance token DevicePreferencesThemeStore and iOS write.
+        Assert.Contains(
+            "preferences.Set(DevicePreferencesThemeStore.AppearanceKey, selection.ToToken())", more);
+        Assert.Contains("AndroidFontScale.Apply(activity, selection.FontScale)", more);
         Assert.Contains("new AndroidPreferences(activity, preview)", shell);
         Assert.Contains("if (HandleMoreBack())", shell);
         Assert.Contains("IsMoreScreenOpen\n            || AndroidRoutePolicy.HandlesBack(Destination)", shell);
         Assert.Contains("when IsMoreScreenOpen => RenderMoreScreen(palette)", compose);
         Assert.DoesNotContain("Android.Widget", settings);
+    }
+
+    [Fact]
+    public void TextSizeAppliesLiveAndSavesOnceTheDragSettlesOffTheUiThread()
+    {
+        var settings = Source("AndroidSliceShell.Appearance.cs");
+        var more = Source("AndroidSliceShell.More.cs");
+
+        // Each step applies live; the facade Slider has no onValueChangeFinished,
+        // so the save waits until no further step arrives.
+        Assert.Contains("raw => PreviewTextSize(SettingsInput.SnapFontScale(raw))", settings);
+        Assert.Contains("ChangeAppearance(CurrentAppearance.WithFontScale(fontScale), settle: true)",
+            more);
+        Assert.Contains("TimeSpan.FromMilliseconds(500)", more);
+        Assert.Contains("await Task.Delay(TextSizeSettleDelay, settle)", more);
+        // Theme and mode taps save at once; every save runs on the thread pool, in order.
+        Assert.Contains("ChangeAppearance(selection, settle: false)", more);
+        Assert.Contains("var save = Task.Run(async () =>", more);
+        Assert.Contains("await previous.ConfigureAwait(false);", more);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", more);
+        // A failed save restores the stored appearance (the coordinator shows SaveFailed).
+        Assert.Contains("_appearance = null;\n            AndroidFontScale.Apply(activity, CurrentAppearance.FontScale);",
+            more);
+        // Closing Settings saves a pending text size before the coordinator is disposed.
+        var release = more[more.IndexOf("private void ReleaseMoreCoordinators()",
+            StringComparison.Ordinal)..];
+        Assert.True(release.IndexOf("FlushAppearanceSave(settings)", StringComparison.Ordinal)
+            < release.IndexOf("settings.Dispose()", StringComparison.Ordinal));
     }
 
     [Fact]

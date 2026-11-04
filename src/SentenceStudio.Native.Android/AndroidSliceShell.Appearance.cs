@@ -97,9 +97,9 @@ internal sealed partial class AndroidSliceShell
             (int)Math.Round(selection.FontScale * 100));
         rows.Add(Body(sizeLabel, palette,
             modifier: Modifier.TestTag("native.settings.scale.label")));
+        // Applied live on each step; saved once the drag settles.
         rows.Add(new Slider((float)selection.FontScale,
-            raw => SetAppearance(CurrentAppearance.WithFontScale(
-                SettingsInput.SnapFontScale(raw))),
+            raw => PreviewTextSize(SettingsInput.SnapFontScale(raw)),
             enabled: !Busy.Value,
             // 85% to 150% in 5% steps: 14 values, 12 between the ends.
             steps: 12)

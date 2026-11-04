@@ -27,6 +27,10 @@ internal sealed partial class AndroidSliceShell
     private MoreScreen _more;
     private string? _moreMenu;
     private SettingsCoordinator? _settings;
+    private static readonly TimeSpan TextSizeSettleDelay = TimeSpan.FromMilliseconds(500);
+    private CancellationTokenSource? _textSizeSettle;
+    private Task _appearanceSaves = Task.CompletedTask;
+    private int _appearanceRequest;
     private ProfileCoordinator? _profile;
     private SkillsCoordinator? _skills;
     private VocabularyBrowser? _vocabulary;
@@ -200,7 +204,13 @@ internal sealed partial class AndroidSliceShell
         if (_settings is { } settings)
         {
             settings.Changed -= OnMoreChanged;
-            settings.Dispose();
+            // A text size chosen just before closing is still saved (owner-gated).
+            var saves = FlushAppearanceSave(settings);
+            if (saves.IsCompleted)
+                settings.Dispose();
+            else
+                _ = saves.ContinueWith(_ => settings.Dispose(), CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
         if (_profile is { } profile)
         {
@@ -327,24 +337,126 @@ internal sealed partial class AndroidSliceShell
 
     private void SaveQuizSettings() => _settings?.SaveQuiz();
 
-    private void SetAppearance(AppearanceSelection selection)
+    /// <summary>A theme or mode tap: shown now, saved now off the UI thread.</summary>
+    private void SetAppearance(AppearanceSelection selection) =>
+        ChangeAppearance(selection, settle: false);
+
+    /// <summary>
+    /// A text-size slider step: applied live, saved once the drag settles. The
+    /// Compose facade's Slider passes no onValueChangeFinished, so a step that no
+    /// other step follows within <see cref="TextSizeSettleDelay"/> ends the drag.
+    /// </summary>
+    private void PreviewTextSize(double fontScale) =>
+        ChangeAppearance(CurrentAppearance.WithFontScale(fontScale), settle: true);
+
+    // UI-thread state: each change supersedes any pending text-size save, and
+    // saves run on the thread pool one at a time in request order.
+    private void ChangeAppearance(AppearanceSelection selection, bool settle)
     {
         if (_settings is not { } settings || selection == CurrentAppearance)
             return;
-        if (settings.SaveAppearance(selection, SaveDeviceAppearance) is { } saved)
-        {
-            _appearance = saved;
-            AndroidFontScale.Apply(activity, saved.FontScale);
-        }
+        _appearance = selection;
+        AndroidFontScale.Apply(activity, selection.FontScale);
         RenderMoreNow();
+        CancelTextSizeSettle();
+        var request = ++_appearanceRequest;
+        if (!settle)
+        {
+            QueueAppearanceSave(settings, selection, request);
+            return;
+        }
+        var delay = new CancellationTokenSource();
+        _textSizeSettle = delay;
+        _ = SaveTextSizeWhenSettledAsync(settings, selection, request, delay.Token);
+    }
+
+    private async Task SaveTextSizeWhenSettledAsync(SettingsCoordinator settings,
+        AppearanceSelection selection, int request, CancellationToken settle)
+    {
+        try
+        {
+            await Task.Delay(TextSizeSettleDelay, settle).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // A newer change, or closing Settings, took over this save.
+        }
+        Post(() =>
+        {
+            if (request != _appearanceRequest || settle.IsCancellationRequested)
+                return;
+            CancelTextSizeSettle();
+            QueueAppearanceSave(settings, selection, request);
+        });
+    }
+
+    private void CancelTextSizeSettle()
+    {
+        if (_textSizeSettle is not { } settle)
+            return;
+        _textSizeSettle = null;
+        settle.Cancel();
+        settle.Dispose();
+    }
+
+    private void QueueAppearanceSave(
+        SettingsCoordinator settings, AppearanceSelection selection, int request)
+    {
+        var previous = _appearanceSaves;
+        var save = Task.Run(async () =>
+        {
+            await previous.ConfigureAwait(false);
+            // Owner-gated; on failure it shows NativeText.SaveFailed and returns null.
+            return settings.SaveAppearance(selection, SaveDeviceAppearance);
+        });
+        // A failed save never stops the saves queued after it.
+        _appearanceSaves = save.ContinueWith(static _ => { }, CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        _ = ReportAppearanceSaveAsync(save, request);
+    }
+
+    private async Task ReportAppearanceSaveAsync(
+        Task<AppearanceSelection?> save, int request)
+    {
+        AppearanceSelection? saved;
+        try
+        {
+            saved = await save.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            ShowFailure(ex);
+            saved = null;
+        }
+        if (saved is not null)
+            return;
+        Post(() =>
+        {
+            if (request != _appearanceRequest)
+                return; // A newer change decides what is shown.
+            // Not saved: show the stored appearance again instead of an unsaved one.
+            _appearance = null;
+            AndroidFontScale.Apply(activity, CurrentAppearance.FontScale);
+            RenderMoreNow();
+        });
+    }
+
+    /// <summary>Closing Settings saves a pending text size now; returns the save queue.</summary>
+    private Task FlushAppearanceSave(SettingsCoordinator settings)
+    {
+        if (_textSizeSettle is not null)
+        {
+            CancelTextSizeSettle();
+            QueueAppearanceSave(settings, CurrentAppearance, _appearanceRequest);
+        }
+        return _appearanceSaves;
     }
 
     /// <summary>The same AppAppearance token the source device store and iOS write.</summary>
     private static AppearanceSelection SaveDeviceAppearance(
         IPreferencesService preferences, AppearanceSelection selection)
     {
-        new DevicePreferencesThemeStore(preferences).SaveAsync(selection)
-            .AsTask().GetAwaiter().GetResult();
+        preferences.Set(DevicePreferencesThemeStore.AppearanceKey, selection.ToToken());
         return selection;
     }
 
