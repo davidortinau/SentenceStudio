@@ -48,6 +48,26 @@ public sealed class NativeRecentLookupsContractTests
         Assert.Contains("WithAccessibilityLabel(label)", view);
     }
 
+    /// <summary>
+    /// The facade refuses a Menu action that is not a Button (a heading Text left the page on
+    /// Loading on the simulator, 2026-11-04). The menu takes only DestinationButtons, and the
+    /// real-facade view host (tests/SentenceStudio.Native.SwiftUIViews.Tests, a macOS
+    /// executable) builds this view.
+    /// </summary>
+    [Fact]
+    public void AddMenu_HoldsOnlyDestinationButtons_AndTheRealFacadeHostBuildsTheView()
+    {
+        var view = Source("Features/Lookups/RecentLookupsView.cs");
+        Assert.Contains("Views.Menu(face, DestinationButtons(row, add))", view);
+        var buttons = view[view.IndexOf("internal static SwiftView[] DestinationButtons(", StringComparison.Ordinal)..];
+        Assert.DoesNotMatch(new Regex(@"Views\.(?!Button\()[A-Z][A-Za-z]*\("), buttons);
+
+        var host = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
+            "../SentenceStudio.Native.SwiftUIViews.Tests/SentenceStudio.Native.SwiftUIViews.Tests.csproj")));
+        Assert.Contains("Features/Lookups/RecentLookupsView.cs", host);
+        Assert.Contains("<TargetFramework>net11.0-macos</TargetFramework>", host);
+    }
+
     [Fact]
     public void AutomationIds_AreStableAndSafe()
     {
