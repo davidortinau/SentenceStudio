@@ -22,6 +22,14 @@ public sealed class MainActivity : ComponentActivity
     private NativeBackCallback? _backCallback;
     private ActivityResultLauncher? _photoPicker;
     private Action<global::Android.Net.Uri?>? _photoPicked;
+    private ActivityResultLauncher? _vocabularyFilePicker;
+    private Action<global::Android.Net.Uri?>? _vocabularyFilePicked;
+
+    // Plain text and CSV only (source accept=".txt,.csv"). Providers label .csv
+    // inconsistently, so every common CSV type is listed; the shared importer
+    // still checks the .txt/.csv extension and the 1 MB limit.
+    internal static readonly string[] VocabularyFileMimeTypes =
+        ["text/plain", "text/csv", "text/comma-separated-values", "application/csv"];
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -34,6 +42,10 @@ public sealed class MainActivity : ComponentActivity
         // Registered before STARTED as the Activity Result API requires.
         _photoPicker = RegisterForActivityResult(
             new ActivityResultContracts.PickVisualMedia(), new PhotoPickedCallback(this));
+        // System Open Document picker (Storage Access Framework) for a .txt/.csv
+        // vocabulary import up to 1 MB only (Captain-approved 2026-11-03, AF-R06/R14).
+        _vocabularyFilePicker = RegisterForActivityResult(
+            new ActivityResultContracts.OpenDocument(), new VocabularyFilePickedCallback(this));
         this.SetContent(_shell.Build);
         _shell.Start();
     }
@@ -88,6 +100,40 @@ public sealed class MainActivity : ComponentActivity
             callback?.Invoke(result as global::Android.Net.Uri);
         }
 
+    }
+
+    /// <summary>
+    /// Launches the system Open Document picker for a vocabulary file. The
+    /// picker is system UI, not an app-authored view; the chosen content URI
+    /// (or null when cancelled) arrives on the main thread. Only read access to
+    /// that one document is granted, for this activity's lifetime.
+    /// </summary>
+    internal bool LaunchVocabularyFilePicker(Action<global::Android.Net.Uri?> onPicked)
+    {
+        if (_vocabularyFilePicker is null || _vocabularyFilePicked is not null)
+            return false;
+        _vocabularyFilePicked = onPicked;
+        try
+        {
+            _vocabularyFilePicker.Launch(VocabularyFileMimeTypes);
+            return true;
+        }
+        catch (Java.Lang.Exception)
+        {
+            _vocabularyFilePicked = null;
+            return false;
+        }
+    }
+
+    private sealed class VocabularyFilePickedCallback(MainActivity activity)
+        : Java.Lang.Object, IActivityResultCallback
+    {
+        public void OnActivityResult(Java.Lang.Object? result)
+        {
+            var callback = activity._vocabularyFilePicked;
+            activity._vocabularyFilePicked = null;
+            callback?.Invoke(result as global::Android.Net.Uri);
+        }
     }
 
     public override bool DispatchKeyEvent(KeyEvent? e)

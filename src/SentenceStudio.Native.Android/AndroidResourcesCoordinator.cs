@@ -40,6 +40,7 @@ internal sealed record AndroidResourceFormState
     internal IReadOnlyList<AndroidResourceWord> QuickAddResults { get; init; } = [];
     internal string? ErrorKey { get; init; }
     internal string? Status { get; init; }
+    internal string? FileStatus { get; init; }
     internal NativeResourceSyncPhase Sync { get; init; }
     internal string? SyncErrorKey { get; init; }
     internal bool ShowDeleteConfirmation { get; init; }
@@ -80,10 +81,12 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
     private string? _selectedId;
     private string? _formStatus;
     private string? _formErrorKey;
+    private string? _fileStatus;
     private bool _loadingList;
     private bool _generating;
     private bool _importing;
     private bool _quickAdding;
+    private bool _filePicking;
     private bool _disposed;
 
     internal AndroidResourcesCoordinator(
@@ -109,6 +112,18 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
     internal NativeResourceListState ListState => _presenter.List;
     internal bool IsStarterBusy => _presenter.List.StarterBusy;
     internal bool CanQuickAdd => _presenter.CanQuickAdd;
+
+    /// <summary>Identity of the open form; a file pick result applies only to the form that launched it.</summary>
+    internal long FormGeneration => Interlocked.Read(ref _formGeneration);
+
+    /// <summary>
+    /// Bumped after a quick-add attach or create succeeds, so the Compose field
+    /// takes focus back for the next word (source FocusQuickAddInputAsync).
+    /// </summary>
+    internal int QuickFocusVersion { get; private set; }
+
+    /// <summary>A system document pick is in flight for this form.</summary>
+    internal bool IsFilePickPending => _filePicking;
 
     internal bool IsNavigationBlocked
     {
@@ -208,6 +223,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         _presenter.ChangeDraft(field, value);
         _formStatus = null;
         _formErrorKey = null;
+        _fileStatus = null;
         if (field == NativeResourceField.Language)
         {
             _quickSearch?.Cancel();
@@ -330,6 +346,58 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
 
     internal void ImportText() => Run(() => ImportVocabularyTextAsync(PasteText, Delimiter));
 
+    /// <summary>
+    /// Choose File: marks a system document pick in flight and returns the form
+    /// it belongs to, or null when the form cannot take a file now.
+    /// </summary>
+    internal long? BeginFilePick()
+    {
+        if (!IsFormOpen || IsNavigationBlocked || _filePicking
+            || !IsCreating && (ProjectFormState().IsSmartResource || !BulkExpanded))
+            return null;
+        _fileStatus = null;
+        _filePicking = true;
+        Publish();
+        return Interlocked.Read(ref _formGeneration);
+    }
+
+    /// <summary>The picker was cancelled: nothing is imported and no status is shown.</summary>
+    internal void CancelFilePick(long formGeneration)
+    {
+        if (!IsPickForCurrentForm(formGeneration))
+            return;
+        _filePicking = false;
+        Publish();
+    }
+
+    /// <summary>The picker could not open or the picked file could not be read.</summary>
+    internal void FilePickFailed(long formGeneration, string errorKey)
+    {
+        if (!IsPickForCurrentForm(formGeneration))
+            return;
+        _filePicking = false;
+        _fileStatus = _text(errorKey);
+        Publish();
+    }
+
+    /// <summary>
+    /// The picked .txt/.csv bytes (at most one byte over the 1 MB limit, so the
+    /// shared reader can report an oversize file) for the form that launched the pick.
+    /// </summary>
+    internal void ImportFile(long formGeneration, byte[] content, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        if (!IsPickForCurrentForm(formGeneration))
+            return;
+        _filePicking = false;
+        Publish();
+        Run(() => ImportVocabularyFileAsync(content, fileName, Delimiter));
+    }
+
+    private bool IsPickForCurrentForm(long formGeneration) =>
+        !_disposed && _filePicking && IsFormOpen
+        && Interlocked.Read(ref _formGeneration) == formGeneration;
+
     private async Task LoadListAsync()
     {
         if (_loadingList || _disposed)
@@ -377,6 +445,8 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         _selectedId = null;
         _formStatus = null;
         _formErrorKey = null;
+        _fileStatus = null;
+        _filePicking = false;
         QuickQuery = string.Empty;
         QuickNativeTerm = string.Empty;
         PasteText = string.Empty;
@@ -438,6 +508,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
             QuickAddResults = suggestions.Select(AsWord).ToArray(),
             ErrorKey = _formErrorKey ?? state.ErrorKey ?? state.VocabularySearch?.ErrorKey,
             Status = _formStatus,
+            FileStatus = _fileStatus,
             Sync = state.Sync,
             SyncErrorKey = state.SyncErrorKey,
             ShowDeleteConfirmation = state.ShowDeleteConfirmation,
@@ -497,6 +568,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         _selectedId = null;
         IsCreating = false;
         CreateWordExpanded = false;
+        _filePicking = false;
         _quickSearch?.Cancel();
         _quickSearch?.Dispose();
         _quickSearch = null;
@@ -535,6 +607,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         }
         _formStatus = null;
         _formErrorKey = null;
+        _fileStatus = null;
         var save = _presenter.SaveAsync(_lifetime.Token);
         Publish();
         var saved = await save;
@@ -706,6 +779,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
             return;
         var formGeneration = Interlocked.Read(ref _formGeneration);
         var selectedId = _selectedId;
+        var restoreFocus = false;
         _quickAdding = true;
         _formErrorKey = null;
         Publish();
@@ -727,6 +801,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
                     QuickNativeTerm = string.Empty;
                     CreateWordExpanded = false;
                     await _presenter.SearchVocabularyAsync(string.Empty, _lifetime.Token);
+                    restoreFocus = true;
                 }
             }
             else if (_presenter.Detail.ErrorKey is null)
@@ -736,7 +811,13 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         {
             _quickAdding = false;
             if (IsCurrentForm(formGeneration, selectedId))
+            {
+                // The field was disabled while attaching, which cleared its focus;
+                // the next composition (field enabled again) takes it back.
+                if (restoreFocus)
+                    QuickFocusVersion++;
                 Publish();
+            }
         }
     }
 
@@ -768,7 +849,38 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         }
     }
 
-    private void ShowImportResult(NativeResourceImportResult result)
+    /// <summary>Same outcome as the iOS file importer path: the shared presenter validates type, size and owner.</summary>
+    private async Task ImportVocabularyFileAsync(
+        byte[] content, string fileName, string delimiter)
+    {
+        if (!IsFormOpen || IsNavigationBlocked)
+            return;
+        var formGeneration = Interlocked.Read(ref _formGeneration);
+        var selectedId = _selectedId;
+        _importing = true;
+        _fileStatus = null;
+        Publish();
+        try
+        {
+            using var stream = new MemoryStream(content, writable: false);
+            var result = IsCreating
+                ? await _presenter.StageVocabularyFromFileAsync(
+                    stream, content.Length, fileName, delimiter, _lifetime.Token)
+                : await _presenter.ImportVocabularyFromFileAsync(
+                    stream, content.Length, fileName, delimiter, _lifetime.Token);
+            if (IsCurrentForm(formGeneration, selectedId))
+                ShowImportResult(result, fileName);
+        }
+        finally
+        {
+            _importing = false;
+            if (IsCurrentForm(formGeneration, selectedId))
+                Publish();
+        }
+    }
+
+    private void ShowImportResult(
+        NativeResourceImportResult result, string? fileName = null)
     {
         if (result.Result is NativeResourceMutationResult.Success
             or NativeResourceMutationResult.AlreadyPresent)
@@ -781,14 +893,32 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
                         ? "ResourceAdd_ImportedCount" : "ResourceEdit_ImportedCount"),
                     result.Added);
                 PasteText = string.Empty;
+                if (fileName is not null)
+                    _fileStatus = string.Format(CultureInfo.CurrentCulture,
+                        _text(IsCreating
+                            ? "ResourceAdd_FileImportStatus"
+                            : "ResourceEdit_FileImportStatus"),
+                        result.Added, fileName);
             }
             else
-                _formStatus = _text("ResourceAdd_NoDuplicates");
+                _formStatus = _text(fileName is not null
+                    ? IsCreating ? "ResourceAdd_NoDuplicatesInFile"
+                        : "ResourceEdit_NoDuplicatesInFile"
+                    : "ResourceAdd_NoDuplicates");
         }
         else
         {
             _formStatus = null;
-            _formErrorKey = result.ErrorKey ?? "NativeResources_SaveError";
+            var key = result.ErrorKey ?? "NativeResources_SaveError";
+            if (key is "ResourceAdd_FileImportFailed"
+                or "ResourceEdit_FileImportFailed")
+            {
+                _formErrorKey = null;
+                _fileStatus = string.Format(CultureInfo.CurrentCulture,
+                    _text(key), _text("Common_Error"));
+            }
+            else
+                _formErrorKey = key;
         }
         Publish();
     }

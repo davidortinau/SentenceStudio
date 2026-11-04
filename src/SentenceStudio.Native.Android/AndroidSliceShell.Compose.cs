@@ -24,7 +24,6 @@ internal sealed partial class AndroidSliceShell
         _quizScroll = composer.Remember(() => new ComposeScrollState());
         _detailsScroll = composer.Remember(() => new ComposeScrollState());
         _settingsScroll = composer.Remember(() => new ComposeScrollState());
-        _resourceFormScroll = composer.Remember(() => new ComposeScrollState());
         RememberSam(composer);
         var onboardingKey = Destination == NativeDestination.Onboarding
             ? _onboardingStep + 1 : 0;
