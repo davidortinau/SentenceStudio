@@ -98,11 +98,13 @@ lock makes first use exclusive across API replicas. Native uploads, downloads,
 and version saves use an owner-derived server-side store ID; the HTTP target
 anchor is translated back to the unchanged client ID. This keeps native
 cursors separate from headerless MAUI/Web cursors even when both send the same
-raw store ID. If a raw cursor already exists but has no native binding, every
-row historically attributed to that store in CoreSync change tracking must
-resolve to the authenticated owner in PostgreSQL. A foreign, ownerless, deleted,
-or unprovable source row refuses native adoption; headerless legacy use still
-works. Once ownership is proved, its local and remote versions are copied to
+raw store ID. If a raw cursor already exists but has no native binding, the
+claim is refused when the rows that store uploaded name learners and none of
+them is the authenticated owner; ownerless, deleted and unprovable rows prove
+nothing either way (2026-11-04: an installed MAUI app's history always holds
+some, and requiring every row to prove the owner left no MAUI install able to
+sync; see docs/sync-all-tables-plan.md, "Owner-checked sync for every client").
+Once the claim is allowed, its local and remote versions are copied to
 the derived ID without advancing or resetting the raw cursor. This avoids
 replaying a populated SQLite store: historical rows contain a mix of local
 and UTC wall-time representations. A genuinely new store with no previous

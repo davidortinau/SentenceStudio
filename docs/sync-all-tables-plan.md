@@ -424,19 +424,16 @@ What changed:
   converted scenario links. The server's table is altered in place and stays tracked.
 
 Known limits:
-- **Deletes do not sync from a device.** The server refuses every delete in a device
-  upload (a delete carries only an ID), and one refused item blocked the whole upload. This
-  already affected deleting a Minimal Pair (phase 2a) and would have hit deleting a scene
-  image. Native uploads now keep deletes on the device (except word-link undo pairs, which
-  have their own handling): the server and other clients keep the row. Making deletes sync
-  needs a server design and a Captain decision.
+- **Deletes do not sync from a device.** The server refused every delete in a device
+  upload (a delete carries only an ID), and one refused item blocked the whole upload, so native
+  uploads kept deletes on the device. Resolved by owner-checked deletes, see "Owner-checked sync
+  for every client" below.
 - A scene image has no timestamp, so the gallery orders by ID (stable, not creation order).
 - **Release-blocking: installed MAUI apps.** Their build reads `Conversation.ScenarioId`
-  as a number. Once the production API has phase 3, a conversation linked to a scenario
-  (for example a built-in, `scn:first-meeting`) downloads to them as text, which their
-  conversation page cannot read. Before phase 3 ships to production, retire or update the
-  MAUI apps on DX24, Pixel 5 and the Mac, or stop headerless sync (GitHub #204), which also
-  stops their sync. Captain decision.
+  as a number, so a phase 3 conversation linked to a scenario cannot be read by them. Resolved
+  by decision 1: headerless sync is refused (old builds stop downloading) and new MAUI builds
+  sync with the owner checks; see "Owner-checked sync for every client" below and its
+  deployment order.
 
 Checks so far:
 - Both migration validation scripts pass (pinned 2b to 3; the schema contract checks the
@@ -526,7 +523,8 @@ space, lower-cased (invariant) (`SyncIds.VocabularyLookup`). Test vectors (check
 same text create the same row ID.
 
 **Owner rule (server).** A device downloads and uploads only its owner's rows; an upload that
-names another owner, or no owner, or reuses another learner's ID is refused
+names another owner or reuses another learner's ID is refused; a row with no owner is left
+out and stays on the device
 (`NativeOwnerSyncProvider`).
 
 **Merge rule (server).** When an uploaded copy meets the stored row, the copy with the later
@@ -555,4 +553,157 @@ app after the API began tracking the table asks for the learner's web lookups ag
 order: the API (with this migration) ships before any app build that syncs the table; an older
 API refuses uploads containing it.
 
-**Not built yet.** Deleting a lookup (it needs the owner-checked deletes of decision 2).
+**Not built yet.** Deleting a lookup in the apps. The server side exists: owner-checked
+deletes and the deletion log cover `VocabularyLookup` like every synced table.
+
+## Owner-checked sync for every client (decisions 1 and 2, 2026-11-04)
+
+Captain, 2026-11-04: "do A, and you should also do what is necessary to make the MAUI app
+correct. I will still ship MAUI versions and use them in addition to native platform
+versions." Decision 2: A, with word-link deletes kept on the device first.
+
+### What the server does now
+
+- **Headerless sync is refused.** `Sync:AllowHeaderlessClients` (false unless configured, in
+  every environment) makes every CoreSync route (store-id, downloads in JSON and binary, upload
+  begin, chunks and complete, save-version) answer 403 to a request without
+  `X-SentenceStudio-Native-Owner`; the provider repeats the check
+  (`src/SentenceStudio.Api/Sync/SyncAccessOptions.cs`). A headerless request had no owner
+  checks: a download returned every learner's rows (GitHub #204). Opening the switch exists only
+  for a deliberate, temporary rollout of old builds.
+- **A row the server cannot place stays on the device.** An upload is refused as a whole (403)
+  only for a malformed row or a row that is another learner's: it names another learner in its
+  owner column, or the stored row with its ID belongs to one. Every other row the server cannot
+  place for the uploading learner (it names no owner, its stored copy has none, its parent or
+  word is not theirs, a legacy table such as `VocabularyList`) is left out and the rest applies,
+  repeating until the kept rows are consistent, so a left-out parent's children stay too. Before,
+  one such row refused the whole upload and stopped that device's sync for good. Nothing foreign
+  or ownerless is ever applied.
+- **A store binds to its first learner.** A device database's CoreSync store is bound to the
+  first learner that syncs it with the owner header; every other account is then refused (403).
+  A store that synced before without the header (an installed MAUI app) used to need every row
+  it ever uploaded to prove the claimant; an old MAUI database always holds rows that prove
+  nothing, so no MAUI install could have synced again. Now the claim is refused only when that
+  history names learners and none of them is the claimant. Such a store downloaded every
+  learner's rows unfiltered, so its cursor is valid for any owner and is copied once.
+- **Owner-checked deletes.** A device delete is applied only when the stored row, looked up by
+  its ID first, is the uploading learner's. A learner profile is never deleted from a device, and
+  a word only when no other learner's link, progress, example, pair or phrase uses it. A delete
+  of a row the same upload writes again is not applied. Any other delete (another learner's row,
+  an unowned row, a row the server never had) is left out without refusing the upload: a device
+  cannot know the owner of a row it already deleted. CoreSync still skips a delete of a row
+  changed on the server since the device last synced (an update elsewhere wins).
+- **Deletes reach the learner's other devices.** Migration `20261104162953_AddSyncDeletionLog`
+  adds a server-only log, `"SyncDeletion"` (table, row ID, owner, time), filled by a
+  `BEFORE DELETE` trigger on each of the 28 synced tables that have an owner, so every delete
+  path is captured: the web app, bulk deletes, foreign-key cascades (a child takes its owner from
+  its parent's log row) and device deletes. A download sends a delete only when the row is gone
+  from the server and the log names that device's learner; nobody else's devices learn of it,
+  and a row that exists again is not deleted.
+
+Why a server-only log, filled by triggers: CoreSync already carries deletes to devices (it
+records each delete's ID and devices apply them), so the server only needs to prove whose row
+it was, which needs the owner from before the row was gone. Triggers capture every delete path,
+including cascades and CoreSync's own SQL, which an EF SaveChanges interceptor would miss. A
+synced table that clients apply would need every client (MAUI, native, Flutter) to implement
+it. The log is PostgreSQL only and not in the EF model: devices never read it, so a SQLite
+table would be dead schema and one more migration on every device database
+(`validate-migration-attributes.sh` warns that it has no SQLite counterpart; that is
+intended).
+
+### What a client does (contract for every client, Flutter included)
+
+1. Every sync request carries `Authorization: Bearer <token>` and
+   `X-SentenceStudio-Native-Owner: <the token's user_profile_id>`, both from the same verified,
+   unexpired token. With no signed-in learner, or a token whose owner is not the active
+   profile, send nothing (fail closed). Never send a headerless sync request.
+2. Uploads leave out, and keep on the device: quiz answer receipts; scene images, custom
+   scenarios and example sentences with no owner; device photos; built-in scenarios; and any
+   row that is another learner's (its owner column names another learner, or its owner resolved
+   from local parent rows does: a link from its resource, a learning record from its progress,
+   a phrase part from its phrase word, a word from its recorded owner or the one learner its
+   links and progress name; `SyncRowOwners`, `SyncUploadRules`). Leaving a row out still moves
+   the upload cursor past it; it is offered again only when it changes.
+3. Send every other change, deletes included. The server applies what it can place and leaves
+   out the rest without failing the upload.
+4. Apply downloaded deletes (CoreSync does), forcing them over local changes as `SyncService`
+   does today.
+5. After tracking a newly synced table for the first time, queue the learner's existing rows
+   and ask `POST /api/v1/sync/resend` for the server's (`SyncLateTables`).
+6. Keep one database (one store) per learner if the client lets several accounts sign in, as
+   native does; a single-database client must expect a second account to be refused.
+
+### What the MAUI apps do now
+
+`AddOwnerCheckedSync` (AppLib), called by `SentenceStudioAppBuilder` after `AddSyncServices`:
+
+- **Owner header.** `SignedInSyncOwnerSource` reads the owner from the sign-in token (the same
+  parser native uses, `JwtOwnerClaim`) and requires it to be the active profile;
+  `SyncOwnerHeaderHandler` adds the bearer and owner header from that one token or refuses to
+  send.
+- **Rows the server refuses stay on the device, unchanged.** `OwnerCheckedSyncProvider` leaves
+  out device-only rows and other learners' rows (an installed MAUI app downloaded every
+  learner's rows before owner checks, and its startup backfills may touch them); the server
+  leaves out rows with no owner, legacy tables and rows whose parent it lacks. Nothing is
+  deleted, re-owned or guessed; they stay visible on that install as before.
+- **Deletes sync.** A delete on MAUI reaches the server and the learner's other devices when the
+  row is theirs; otherwise it stays a local delete.
+- **Newly synced tables** (phases 1 to 3, quiz runs, lookups) queue the learner's rows and ask
+  the server to re-send its rows (`OwnerCheckedSyncResendRequester`).
+- **A second account on the same install.** The install's store binds to the first learner who
+  syncs it with this build; a second account signed in on that install gets 403 on sync, keeps
+  working offline, and its work stays on that install (when the first learner syncs again, the
+  second account's rows are left out as another learner's). The first learner keeps syncing.
+  To use a second account, use another install or a native app (one database per account). If
+  the wrong account syncs first, the binding can only be cleared on the server
+  (`__core_sync_remote_anchor` row `sentencestudio:native-store:v1:<store>:<owner>`), which
+  needs the Captain's approval.
+- **Upgrade.** An installed MAUI database at main's newest migration
+  (`20260903175044_AddApplicationOperationLedger`) migrates to this branch with every row kept,
+  through the same verified-backup step, and then uploads only its learner's rows
+  (`MauiUpgradeFromMainTests`, against the iOS and Android models).
+
+### Deployment order (Captain)
+
+1. Ship the new MAUI builds to DX24, Pixel 5 and the Mac (each first install migrates real
+   data: verified backup and your permission in that turn), and the native builds.
+2. Deploy the API with this branch, `Sync:AllowHeaderlessClients` left unset (closed), together
+   with or after step 1. The API migration adds the deletion log; nothing else in the database
+   changes.
+3. Sign in on each MAUI install with your own account first: the first account that syncs an
+   install owns its sync.
+
+An installed old MAUI build that syncs with the new API gets 403 and keeps working offline with
+the data on the device; its changes stay pending and upload once it is updated (rows it changed
+while offline included). A new MAUI or native build against an older API: the older API ignores
+the header (main) or refuses deletes (earlier builds of this branch), so ship the API with or
+before the apps that send deletes.
+
+### Known limits
+
+- Deletes made by a native build while deletes were kept on the device (2026-11-03 and the first
+  commit of this work) were left out of uploads and their place in the upload queue has passed:
+  they do not reach the server now. Delete such a row again on the web.
+- A row left out of an upload stays left out until it changes on the device.
+- The deletion log has no retention rule yet; rows are small.
+- A delete of a row whose owner nobody can prove (an old word linked from two learners, a phrase
+  on such a word) reaches no device.
+- A delete can cascade only into the learner's own rows, except legacy cross-owner links: a
+  `SET NULL` child of another learner (an import or learning record pointing at the deleted
+  resource) has that link cleared.
+
+### Checks
+
+- PostgreSQL 16 on a throwaway container (`APP_OPERATION_PG_TEST_CONNECTION`): every CoreSync
+  route refuses a headerless request and changes nothing, the owner path still works
+  (`HeaderlessSyncSwitchPostgresTests`); a mixed upload applies the learner's rows and leaves out
+  the rest, a foreign row still refuses it (`UnplaceableRowsPostgresTests`); a MAUI-shaped
+  database syncs through the shared `SyncService` with the MAUI rules and header, is not stuck,
+  and a second account is refused while the first keeps syncing; a delete on one MAUI install
+  reaches the learner's other install (`MauiOwnerCheckedSyncPostgresTests`); two learners and
+  several devices for device, web and cascaded deletes, foreign and unprovable deletes, and a
+  recreated row; the migration is discovered, applied, rolled back and re-applied
+  (`OwnerCheckedDeletesPostgresTests`).
+- Both migration validation scripts (`validate-mobile-migrations.sh` in its EF-only and native
+  SQLite modes; its full mode launches the MAUI macOS head, which this Mac's real MAUI app and
+  data rule out).
