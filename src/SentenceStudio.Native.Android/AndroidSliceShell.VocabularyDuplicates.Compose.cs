@@ -104,7 +104,12 @@ internal sealed partial class AndroidSliceShell
         })
         {
             Modifier = Modifier.TestTag("native.vocabulary.edit.delete"),
-            Icon = new Icon(Icons.Default.Warning, null) { Tint = palette.Danger },
+            // The facade's Icon needs a Modifier (a null one throws in Material's Icon).
+            Icon = new Icon(Icons.Default.Warning, null)
+            {
+                Modifier = Modifier.Size(24),
+                Tint = palette.Danger,
+            },
             Title = new Text(Localize("VocabWordEdit_ConfirmDelete")),
             Text = new Text(VocabularyWordCommands.DeleteMessage(detail, Localize)),
             ConfirmButton = confirm,

@@ -184,7 +184,7 @@ internal static class VocabularyDuplicatesView
     private static SwiftView Badge(SourceUiStyle style, string value, SourceColorPair fill,
         SourceColorPair foreground, string id) =>
         style.Text(Views.Text(value), SourceTextRole.BadgeSmall)
-            .WithPadding(4, 8, 4, 8)
+            .WithPadding(5, 10, 5, 10)
             .WithRoundedSurface(fill.Light, fill.Dark, 12)
             .WithForegroundColor(foreground.Light, foreground.Dark)
             .WithAccessibilityIdentifier(id);
