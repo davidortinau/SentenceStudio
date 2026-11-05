@@ -355,6 +355,8 @@ internal sealed class NativeSliceFixture : IDisposable
                 options.UseSqlite($"Data Source={_database};Pooling=False")
                     .ConfigureWarnings(w =>
                         w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+        // Every query in these tests also runs the CoreCLR iOS interpreter check.
+        DeviceInterpreterQueryGuard.Register(services);
         services.AddSingleton<IPreferencesService>(_preferences);
         services.AddSingleton<ISecureStorageService>(_secureStorage);
         services.AddSingleton<IConnectivityService>(_connectivity);

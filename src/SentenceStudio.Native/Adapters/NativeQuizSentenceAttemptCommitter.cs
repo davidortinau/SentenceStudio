@@ -256,13 +256,16 @@ public sealed class NativeQuizSentenceAttemptCommitter(
                 row => snapshot.ResourceIds.Contains(row.Id), cancellationToken)
             != snapshot.ResourceIds.Count)
             throw new InvalidOperationException("Sentence resource is not owned.");
+        // Resource-independent, so read it before the query: inside it, EF evaluates it through
+        // the LINQ interpreter, and IReadOnlyList.Count (an interface member) crashes CoreCLR's
+        // iOS interpreter (docs/native-shared-foundation.md).
+        var anyOwnedResource = snapshot.ResourceIds.Count == 0
+            || string.IsNullOrWhiteSpace(snapshot.PlanItemId)
+                && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0);
         var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
             .Join(ownedResources, mapping => mapping.ResourceId, resource => resource.Id,
                 (mapping, resource) => new { mapping.VocabularyWordId, resource.Id })
-            .Where(row => snapshot.ResourceIds.Count == 0
-                || string.IsNullOrWhiteSpace(snapshot.PlanItemId)
-                    && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0)
-                || snapshot.ResourceIds.Contains(row.Id))
+            .Where(row => anyOwnedResource || snapshot.ResourceIds.Contains(row.Id))
             .Select(row => row.VocabularyWordId)
             .Distinct()
             .ToArrayAsync(cancellationToken);

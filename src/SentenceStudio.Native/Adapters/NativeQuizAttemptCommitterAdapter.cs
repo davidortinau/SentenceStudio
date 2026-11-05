@@ -496,13 +496,16 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         // Session words include a word mastered mid-round, which a client may already have
         // removed from the batch (the web does); it must still be owned.
         var checkedIds = batchIds.Union(snapshot.SessionItemsWordIds, StringComparer.Ordinal).ToArray();
+        // Resource-independent, so read it before the query: inside it, EF evaluates it through
+        // the LINQ interpreter, and IReadOnlyList.Count (an interface member) crashes CoreCLR's
+        // iOS interpreter (docs/native-shared-foundation.md).
+        var anyOwnedResource = selectedResourceIds.Count == 0
+            || card.PlanItemId.StartsWith("adhoc-")
+                && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0);
         var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
             .Join(db.LearningResources.AsNoTracking().Where(resource =>
                     resource.UserProfileId == userId
-                    && (selectedResourceIds.Count == 0
-                        || card.PlanItemId.StartsWith("adhoc-")
-                            && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0)
-                        || selectedResourceIds.Contains(resource.Id))),
+                    && (anyOwnedResource || selectedResourceIds.Contains(resource.Id))),
                 mapping => mapping.ResourceId, resource => resource.Id,
                 (mapping, resource) => mapping.VocabularyWordId)
             .Where(wordId => checkedIds.Contains(wordId))
