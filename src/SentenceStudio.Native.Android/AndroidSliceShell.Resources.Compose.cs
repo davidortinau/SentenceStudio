@@ -73,6 +73,9 @@ internal sealed partial class AndroidSliceShell
 
     private ComposableNode RenderResources(AndroidVisualPalette palette)
     {
+        // Set again while the list or grid composes; a screen without one cannot scroll.
+        _resourcesListScroll = null;
+        _resourcesGridScroll = null;
         if (EnsureResources() is not { } resources)
             return new Column
             {
@@ -210,17 +213,28 @@ internal sealed partial class AndroidSliceShell
                 .TestTag("native.resources.count"));
         count.FontSize = new Sp(AndroidVisualTheme.CaptionSize);
         page.Add(count);
+        // The last card or row scrolls clear of the floating Sam button, and its
+        // hide-on-scroll rule reads this list's edges (docs/sam-entry.md). Each state is
+        // remembered inside the list's own slot, so it lives exactly as long as the list.
+        var room = SamFloatingContentPadding();
         if (state.ViewMode == NativeResourceViewMode.Grid)
-            page.Add(new LazyVerticalGrid<NativeResourceItem>(GridCells.Adaptive(300), items,
-                item => ResourceCard(item, resources, palette, list: false, enabled))
+            page.Add(new Composed(composer =>
             {
-                Key = item => item.Id,
-                Modifier = Modifier.FillMaxWidth().Weight(1f)
-                    .Padding(horizontal: AndroidVisualTheme.PagePadding)
-                    .TestTag("native.resources.grid"),
-                VerticalArrangement = Arrangement.SpacedBy(10),
-                HorizontalArrangement = Arrangement.SpacedBy(10),
-            });
+                var scroll = composer.RememberLazyGridState();
+                _resourcesGridScroll = scroll;
+                return new LazyVerticalGrid<NativeResourceItem>(GridCells.Adaptive(300), items,
+                    item => ResourceCard(item, resources, palette, list: false, enabled))
+                {
+                    Key = item => item.Id,
+                    State = scroll,
+                    ContentPadding = room,
+                    Modifier = Modifier.FillMaxWidth().Weight(1f)
+                        .Padding(horizontal: AndroidVisualTheme.PagePadding)
+                        .TestTag("native.resources.grid"),
+                    VerticalArrangement = Arrangement.SpacedBy(10),
+                    HorizontalArrangement = Arrangement.SpacedBy(10),
+                };
+            }));
         else
         {
             var listSurface = new Surface
@@ -231,12 +245,19 @@ internal sealed partial class AndroidSliceShell
                 Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
                 Color = palette.Elevated,
             };
-            listSurface.Add(new LazyColumn<NativeResourceItem>(items,
-                item => ResourceCard(item, resources, palette, list: true, enabled))
+            listSurface.Add(new Composed(composer =>
             {
-                Key = item => item.Id,
-                Modifier = Modifier.FillMaxSize().TestTag("native.resources.list"),
-            });
+                var scroll = composer.RememberLazyListState();
+                _resourcesListScroll = scroll;
+                return new LazyColumn<NativeResourceItem>(items,
+                    item => ResourceCard(item, resources, palette, list: true, enabled))
+                {
+                    Key = item => item.Id,
+                    State = scroll,
+                    ContentPadding = room,
+                    Modifier = Modifier.FillMaxSize().TestTag("native.resources.list"),
+                };
+            }));
             page.Add(listSurface);
         }
         return page;

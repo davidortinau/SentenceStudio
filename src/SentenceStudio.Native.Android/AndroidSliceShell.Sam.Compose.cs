@@ -9,8 +9,9 @@ using ComposeButton = AndroidX.Compose.Button;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// Jetpack Compose presentation of the one Sam experience: the Dashboard entry
-/// (Extended FAB), and a Material 3 ModalBottomSheet holding the chat stream,
+/// Jetpack Compose presentation of the one Sam experience: the entry (a round,
+/// icon-only FAB on the tab roots that slides away on scroll, docs/sam-entry.md;
+/// a top app bar icon elsewhere), and a Material 3 ModalBottomSheet holding the chat stream,
 /// the conversation shelf, state notices and the composer. Rendered only
 /// through the Microsoft.AndroidX.Compose facade; no Android views. Source:
 /// SentenceStudio.UI Shared/Sam and Shared/Coach (frozen reference 59c72262),
@@ -40,6 +41,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Remembers Sam's Compose state holders and schedules the follow-newest scroll.</summary>
     private void RememberSam(IComposer composer)
     {
+        RememberSamEntryMotion(composer);
         _samList = composer.Remember(() => new LazyListState());
         _samConversationsList = composer.Remember(() => new LazyListState());
         // The panel's own height is the compact/expanded size, so the sheet never
@@ -124,9 +126,17 @@ internal sealed partial class AndroidSliceShell
         var placement = SamEntryPlacement;
         if (placement == AndroidSamEntryPlacement.TopBar)
             AddSamTopBarAction(palette);
-        var host = new Box { Modifier.FillMaxSize(), screen };
-        if (placement == AndroidSamEntryPlacement.Floating)
-            host.Add(RenderSamFab(palette));
+        var floating = ShowSamFloatingScreen(placement);
+        // The host observes every vertical scroll of the screen without consuming it.
+        var host = new Box
+        {
+            floating != AndroidSamFloatingScreen.None && _samEntryScroll is { } observer
+                ? Modifier.FillMaxSize().NestedScroll(observer)
+                : Modifier.FillMaxSize(),
+            screen,
+        };
+        if (floating != AndroidSamFloatingScreen.None)
+            host.Add(RenderSamFab(floating, palette));
         if (IsSamPresented)
             host.Add(RenderSamSheet(palette));
         return host;
@@ -170,23 +180,46 @@ internal sealed partial class AndroidSliceShell
             bar.Actions = sam;
     }
 
-    /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
-    private ComposableNode RenderSamFab(AndroidVisualPalette palette)
+    /// <summary>
+    /// Source SamFab: the one entry, bottom trailing, round and icon only, named "Ask {name}".
+    /// It slides off the bottom edge and fades when the screen scrolls down or the keyboard
+    /// is up, and returns on scroll up, at the top and at the end (docs/sam-entry.md).
+    /// </summary>
+    private ComposableNode RenderSamFab(AndroidSamFloatingScreen floating, AndroidVisualPalette palette)
     {
         var label = AndroidSamProjection.EntryLabel(SamPersona(SamState), Localize);
-        return new ExtendedFloatingActionButton(OpenSam, expanded: true)
+        return new Box
         {
-            Modifier = Modifier.Align(Alignment.BottomEnd).Padding(16)
-                .TestTag("native.sam.fab")
-                .Semantics(semantics =>
+            // Clipped, so the slide ends at the screen's bottom edge, above the tab bar.
+            Modifier.Align(Alignment.BottomEnd).ClipToBounds(),
+            new Composed(composer =>
+            {
+                // Only this box recomposes when the button moves: scrolling never
+                // rebuilds the screen, and the IME inset is read here, not at the root.
+                _ = _samEntryMotion.Value;
+                var entry = SamEntry(floating);
+                entry.SetKeyboardVisible(composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f);
+                var (atStart, atEnd) = SamEntryEdges(floating);
+                entry.OnScroll(0, atStart, atEnd);
+                var fab = new FloatingActionButton(OpenSam)
                 {
-                    semantics.ContentDescription(label);
-                    semantics.Role(SemanticsRole.Button);
-                }),
-            ContainerColor = palette.Primary,
-            ContentColor = palette.OnPrimary,
-            Icon = new Icon(Icons.Default.Face, null) { Modifier = Modifier.Size(22), Tint = palette.OnPrimary },
-            Text = new Text(label) { Color = palette.OnPrimary },
+                    Modifier = Modifier.Padding(AndroidSamProjection.FabMarginDp)
+                        .TestTag("native.sam.fab")
+                        .Semantics(semantics =>
+                        {
+                            semantics.ContentDescription(label);
+                            semantics.Role(SemanticsRole.Button);
+                        }),
+                    // Round, as on every client (docs/sam-entry.md); M3's default is a rounded square.
+                    Shape = Shape.Circle(),
+                    ContainerColor = palette.Primary,
+                    ContentColor = palette.OnPrimary,
+                };
+                fab.Add(new Icon(Icons.Default.Face, null) { Modifier = Modifier.Size(24), Tint = palette.OnPrimary });
+                // Once hidden it leaves composition: not tappable, not in the semantics tree.
+                var (enter, exit) = SamEntryTransitions();
+                return new AnimatedVisibility(entry.IsShown, enter, exit) { fab };
+            }),
         };
     }
 

@@ -122,6 +122,63 @@ public sealed class AndroidSamProjectionTests
     }
 
     [Theory]
+    // Today's Plan is the Dashboard's own mode on Android: one screen, one hide state.
+    [InlineData(NativeDestination.Dashboard, "Floating", "Dashboard")]
+    [InlineData(NativeDestination.TodaysPlan, "Floating", "Dashboard")]
+    [InlineData(NativeDestination.Resources, "Floating", "Resources")]
+    // A screen over a tab, the quiz and activities use the top bar; nothing floats.
+    [InlineData(NativeDestination.Dashboard, "TopBar", "None")]
+    [InlineData(NativeDestination.Resources, "TopBar", "None")]
+    [InlineData(NativeDestination.Activity, "TopBar", "None")]
+    [InlineData(NativeDestination.Dashboard, "None", "None")]
+    public void EachFloatingScreenKeepsItsOwnHideState(NativeDestination destination,
+        string placement, string expected) =>
+        Assert.Equal(Enum.Parse<AndroidSamFloatingScreen>(expected), AndroidSamProjection.FloatingScreen(
+            destination, Enum.Parse<AndroidSamEntryPlacement>(placement)));
+
+    [Fact]
+    public void FloatingScreensLeaveTheButtonItsMarginAndAGap()
+    {
+        Assert.Equal(56, AndroidSamProjection.FabSizeDp);
+        Assert.Equal(16, AndroidSamProjection.FabMarginDp);
+        Assert.Equal(88, AndroidSamProjection.FloatingBottomRoomDp);
+        Assert.Equal(200, AndroidSamProjection.EntryMotionMillis);
+    }
+
+    [Theory]
+    // Compose content offset falls (content moves up) when the learner scrolls down.
+    [InlineData(0f, -48f, 2f, 24d)]
+    [InlineData(-48f, 0f, 2f, -24d)]
+    [InlineData(-100f, -100f, 3f, 0d)]
+    [InlineData(0f, -10f, 0f, 0d)]
+    [InlineData(0f, float.NaN, 2f, 0d)]
+    [InlineData(float.NegativeInfinity, 0f, 2f, 0d)]
+    public void ScrollDeltaIsDpAndPositiveTowardTheEnd(float previous, float offset, float density,
+        double expected) =>
+        Assert.Equal(expected, AndroidSamProjection.ScrollDeltaDp(previous, offset, density), 3);
+
+    [Fact]
+    public void ScrollingDownTheThresholdInDpHidesTheButtonOnAnyDensity()
+    {
+        foreach (var density in new[] { 1f, 2.625f, 3.5f })
+        {
+            var entry = new NativeSamEntryAutoHide();
+            var offset = 0f;
+            var down = (float)(NativeSamEntryAutoHide.Threshold * density / 4);
+            for (var step = 0; step < 4; step++)
+            {
+                var next = offset - down;
+                entry.OnScroll(AndroidSamProjection.ScrollDeltaDp(offset, next, density), false, false);
+                offset = next;
+            }
+            Assert.False(entry.IsShown);
+            var up = offset + (float)(NativeSamEntryAutoHide.Threshold * density);
+            entry.OnScroll(AndroidSamProjection.ScrollDeltaDp(offset, up, density), false, false);
+            Assert.True(entry.IsShown);
+        }
+    }
+
+    [Theory]
     // Tab roots start the review.
     [InlineData(NativeDestination.Dashboard, false, false)]
     [InlineData(NativeDestination.TodaysPlan, false, false)]
@@ -144,8 +201,8 @@ public sealed class AndroidSamProjectionTests
         Assert.Contains("AndroidSamProjection.ReviewBlockedByScreen(Destination,\n"
             + "                IsMoreScreenOpen || IsResourceFormOpen)", shell);
         var compose = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Sam.Compose.cs"));
-        Assert.Contains("/// <summary>Source SamFab: the one entry, bottom trailing, labelled \"Ask {name}\".</summary>\n"
-            + "    private ComposableNode RenderSamFab(", compose);
+        Assert.Contains("    /// Source SamFab: the one entry, bottom trailing, round and icon only, named \"Ask {name}\".\n", compose);
+        Assert.Contains("    /// </summary>\n    private ComposableNode RenderSamFab(", compose);
         Assert.Equal(1, compose.Split("private ComposableNode WithSam(").Length - 1);
         var withSam = compose[..compose.IndexOf("private ComposableNode WithSam(", StringComparison.Ordinal)];
         var lastSummary = withSam.LastIndexOf("/// <summary>", StringComparison.Ordinal);
