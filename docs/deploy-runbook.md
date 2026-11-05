@@ -738,9 +738,20 @@ When the Captain says **"publish"**, **"deploy"**, or **"push to my phone"**, ex
 
 ```bash
 # Ensure VPN is OFF (management.azure.com times out on VPN)
-cd /Users/davidortinau/work/SentenceStudio
-azd deploy -e sstudio-prod-biz
+cd <checkout of the commit you are shipping>   # it needs the .azure folder; see below
+# feedbackhmackey is not in .azure/sstudio-prod-biz/config.json; azd reads it from
+# AZURE_FEEDBACKHMACKEY. Pass it inline from Key Vault so it is never printed or saved.
+AZURE_FEEDBACKHMACKEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
+  -n feedback-hmac-key --query value -o tsv)" azd deploy -e sstudio-prod-biz --no-prompt
 ```
+
+Without it, `azd deploy` stops with `parameter feedbackhmackey not found`. That happened on
+2026-11-05, after the marketing app had already been updated; nothing else changed. The Key
+Vault value matched the API's deployed secret that day.
+
+The azd environment (`.azure/`, git-ignored) lives in the main checkout
+`/Users/davidortinau/work/SentenceStudio`. To deploy from a worktree, symlink it:
+`ln -s /Users/davidortinau/work/SentenceStudio/.azure .azure`.
 
 ### Option B: `aspire deploy` (Preview)
 

@@ -236,3 +236,48 @@ first on each.
 3. Redeploy main's previous images.
 
 Writes made after the deploy are lost in a rollback, which is another reason for a quiet window.
+
+## Deployed 2026-11-05
+
+- **Speech container (C3):** created `media` (private) at the Captain's go. The app identity
+  already had Storage Blob Data Contributor.
+- **Git:**
+  - pushed `native-platform-heads` and fast-forwarded `main` on GitHub to `07f3db00`;
+  - the main checkout was left as it was, at the old `main` with its uncommitted changes.
+- **First `azd deploy`** stopped with `parameter feedbackhmackey not found`.
+  - Only marketing had updated; the API, WebApp, Workers and cache were untouched, and no
+    migration ran.
+  - The value comes from `AZURE_FEEDBACKHMACKEY`. The runbook now passes it inline from Key Vault;
+    its fingerprint matched the API's deployed secret.
+- **Second `azd deploy`** succeeded at 14:47 UTC with new revisions api--0000029,
+  webapp--0000028, workers--0000028 and marketing--0000034. The old revisions were retired.
+- **API startup:**
+  - it was listening about 10 s after start;
+  - `/api/version/info` reports `20261104162953_AddSyncDeletionLog`;
+  - the log matched the C2 rehearsal: "Vocabulary word owners: 4753 stamped, 96 shared, 213
+    unlinked, 28 left ownerless (only owner is not a profile)" and "Example sentence owners: 89
+    stamped with their words, 0 stamped after".
+- **WebApp and Workers** waited for the API's schema, then started.
+- **Sticky sessions (5a):** re-applied (`sticky`).
+- **Database checks (read-only):**
+  - 32 migrations applied;
+  - VocabularyWord|VocabularyProgress|UserProfile = 5090|2760|24, equal to the C1 dump;
+  - 0 words owned by a non-profile, 0 of 89 example sentences unowned, 0 SyncDeletion rows.
+- **Audio (E4):** with the Captain re-confirmed and no one using the web app, 237 ownerless rows.
+  - The dry run (exit 0) changed nothing.
+  - The apply (exit 0) gave all 237 to his profile and left 0 ownerless.
+  - Access was closed afterwards, with the lock restored and verified.
+- **Validation script (Step 5):** 17 pass, 0 fail.
+  - 2 warnings: the workers status and migration log lines (both confirmed above).
+  - 2 skips: the auth smoke tests, which need a deploy-test password.
+- **CI on `main` after the merge:** builds and all four test jobs in `ci.yml` passed. Two failures:
+  - `Server and shared dependency closure` (new with this branch) cannot start its `bwrap`
+    sandbox on GitHub's runner ("setting up uid map: Permission denied");
+  - `test.yml` Unit Tests hit the flaky `ApplicationOperationConcurrencyTests` (it was already
+    failing on `main` in September).
+  Neither deploys anything.
+- **Still to do:**
+  - the Captain signs in on the web and plays audio, which confirms the speech cache stores a
+    clip;
+  - the new MAUI builds for DX24, the Pixel 5 and the Mac (G), each with his go. Until then the
+    installed MAUI apps get 403 on sync and keep their data offline.
