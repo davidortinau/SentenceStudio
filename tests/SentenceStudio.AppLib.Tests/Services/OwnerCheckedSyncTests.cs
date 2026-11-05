@@ -2,6 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
 using CoreSync;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -97,6 +100,83 @@ public sealed class OwnerCheckedSyncTests
                 Guid.NewGuid().ToString(), ["MinimalPair"], CancellationToken.None))
             .Should().ThrowAsync<UnauthorizedAccessException>();
         captured.Request.Should().BeNull();
+    }
+
+    [Fact]
+    public void TheRealMauiRegistration_ResolvesSyncAndSignIn_WithoutACycle()
+    {
+        // B54 regression: AddOwnerCheckedSync resolved the owner source while building the sync
+        // provider. The owner source takes the sign-in service, IdentityAuthService takes
+        // ISyncService, and SyncService takes the provider, so the MAUI app stopped at launch with
+        // "A circular dependency was detected for the service of type ISyncService".
+        using var maui = RealMauiServices();
+
+        maui.Provider.GetRequiredService<ISyncService>().Should().BeOfType<SyncService>();
+        maui.Provider.GetRequiredService<IAuthService>().Should().BeOfType<IdentityAuthService>();
+        maui.Provider.GetRequiredService<ISyncProvider>().Should().BeOfType<OwnerCheckedSyncProvider>();
+    }
+
+    [Fact]
+    public async Task TheRealMauiRegistration_WithNoSignedInLearner_RefusesTheUpload()
+    {
+        // The owner source is now resolved when sync runs; with nobody signed in it still names
+        // no owner, so a store with changes refuses to upload them (fail closed, as before).
+        using var maui = RealMauiServices();
+        await using (var db = maui.OpenDb())
+        {
+            // The tables are all this needs; migration discovery is covered by the migration tests.
+            await db.Database.EnsureCreatedAsync();
+        }
+        var sync = maui.Provider.GetRequiredService<ISyncProvider>();
+        await sync.ApplyProvisionAsync();
+        await using (var db = maui.OpenDb())
+        {
+            db.UserProfiles.Add(new SentenceStudio.Shared.Models.UserProfile
+            {
+                Id = Owner, Name = "Learner", CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await FluentActions.Awaiting(() => sync.GetChangesAsync(
+                Guid.NewGuid(), syncDirection: SyncDirection.UploadOnly))
+            .Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// The MAUI app's own registrations (SentenceStudioAppBuilder): sync, owner-checked sync, the
+    /// real sign-in service, the profile repository and the sync service.
+    /// </summary>
+    private static RealMaui RealMauiServices()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"owner-checked-real-{Guid.NewGuid():N}.db3");
+        var api = new Uri("https://api.example.test");
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(Preferences(Owner).Object);
+        services.AddSingleton(new Mock<ISecureStorageService>().Object);
+        services.AddSyncServices(path, api);
+        services.AddOwnerCheckedSync();
+        services.AddAuthServices(new ConfigurationBuilder().Build(), api);
+        services.AddSingleton<UserProfileRepository>();
+        services.AddSingleton<ISyncService, SyncService>();
+        return new RealMaui(
+            services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true }),
+            path);
+    }
+
+    private sealed record RealMaui(ServiceProvider Provider, string DatabasePath) : IDisposable
+    {
+        public ApplicationDbContext OpenDb() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(new SqliteConnectionStringBuilder { DataSource = DatabasePath, Pooling = false }.ToString())
+            .Options);
+
+        public void Dispose()
+        {
+            Provider.Dispose();
+            SqliteConnection.ClearAllPools();
+            File.Delete(DatabasePath);
+        }
     }
 
     /// <summary>The MAUI registration order: sync, owner-checked sync, then auth.</summary>

@@ -81,7 +81,10 @@ public static class ServiceCollectionExtentions
                 .UseSqlite(connectionString).Options;
             return new OwnerCheckedSyncProvider(
                 local, () => new ApplicationDbContext(options),
-                provider.GetRequiredService<ISyncOwnerSource>(),
+                // Resolved when sync runs, not here. The owner source needs the sign-in service,
+                // which takes ISyncService, which takes this provider: resolving it during
+                // construction is a cycle that stops the MAUI app at launch.
+                new DeferredSyncOwnerSource(provider),
                 provider.GetRequiredService<ILogger<OwnerCheckedSyncProvider>>());
         });
 
@@ -91,6 +94,13 @@ public static class ServiceCollectionExtentions
         services.AddHttpClient(SyncHttpClientName).AddHttpMessageHandler<SyncOwnerHeaderHandler>();
         services.Replace(ServiceDescriptor.Singleton<ISyncResendRequester, OwnerCheckedSyncResendRequester>());
         return services;
+    }
+
+    /// <summary>The registered <see cref="ISyncOwnerSource"/>, resolved on each use rather than at construction.</summary>
+    private sealed class DeferredSyncOwnerSource(IServiceProvider services) : ISyncOwnerSource
+    {
+        public Task<SyncOwnerCredentials?> GetAsync(CancellationToken cancellationToken) =>
+            services.GetRequiredService<ISyncOwnerSource>().GetAsync(cancellationToken);
     }
 
     public static IServiceCollection AddAuthServices(this IServiceCollection services, IConfiguration configuration, Uri? apiBaseUri = null)
