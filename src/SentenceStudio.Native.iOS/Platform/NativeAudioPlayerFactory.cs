@@ -60,7 +60,6 @@ public sealed class NativeAudioPlayerFactory : IAudioPlayerFactory
         {
             if (_disposed)
                 return;
-            NativeAudioSession.UsePlayback();
             _player.Play();
         }
 

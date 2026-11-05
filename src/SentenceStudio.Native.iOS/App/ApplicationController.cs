@@ -172,6 +172,7 @@ internal sealed partial class ApplicationController : IDisposable
             _services = NativeServices.Create();
             _logger = _services.Provider
                 .GetRequiredService<ILogger<ApplicationController>>();
+            NativeAudioSession.UsePlayback(_logger);
             var preferences = _services.Provider.GetRequiredService<IPreferencesService>();
             _rememberMe = preferences.Get("remember_me", false);
             if (_rememberMe)

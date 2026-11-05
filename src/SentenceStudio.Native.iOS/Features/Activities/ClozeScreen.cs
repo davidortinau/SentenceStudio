@@ -199,13 +199,9 @@ internal sealed class ClozeScreen : IActivityScreen
             .WithAccessibilityIdentifier(NativeClozeAccess.Position);
         rows.Add(Views.HStack(previous, position, next).WithFlexibleWidth());
 
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        var bar = Views.VStack(rows.ToArray())
-            .WithPadding(8, gutter, 8, gutter)
-            .WithFlexibleWidth()
-            .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
+        var bar = Views.VStack(rows.ToArray());
         bar.Spacing = 8;
-        return bar;
+        return style.DockedBar(bar).WithAccessibilityIdentifier(NativeClozeAccess.InputBar);
     }
 
     private SwiftView Choice(NativeClozeState state, SourceUiStyle style, string option, int index)

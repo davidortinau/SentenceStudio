@@ -296,13 +296,9 @@ internal sealed class WritingScreen : IActivityScreen
                     () => Fire(_presenter.EndSessionAsync))
                 .WithAccessibilityIdentifier(NativeWritingAccess.EndSession));
         var footerRow = Views.HStack(footer.ToArray()).WithFlexibleWidth();
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        var bar = Views.VStack(inputRow, footerRow)
-            .WithPadding(8, gutter, 8, gutter)
-            .WithFlexibleWidth()
-            .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
+        var bar = Views.VStack(inputRow, footerRow);
         bar.Spacing = 8;
-        return bar;
+        return style.DockedBar(bar);
     }
 
     private void UpdateAvailability(SourceUiStyle style, string? draft)

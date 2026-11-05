@@ -319,8 +319,6 @@ internal sealed class NativeSliceFixture : IDisposable
 
     public void Dispose()
     {
-        // Read the findings first, so a failed file cleanup cannot hide them.
-        var findings = _queryGuardFindings.Drain();
         try
         {
             _provider.Dispose();
@@ -343,8 +341,11 @@ internal sealed class NativeSliceFixture : IDisposable
         }
         finally
         {
-            // A throw here replaces an exception the test is already failing with; the message
-            // names the query, and the test's own failure shows once the query is fixed.
+            // Read after the provider is gone, so a query that ran during disposal counts too,
+            // and in finally, so a failed file cleanup cannot hide them. A throw here replaces
+            // an exception the test is already failing with; the message names the query, and
+            // the test's own failure shows once the query is fixed.
+            var findings = _queryGuardFindings.Drain();
             if (findings.Count > 0)
                 throw new InvalidOperationException(
                     "A query evaluates a virtual or interface member on the client (see "

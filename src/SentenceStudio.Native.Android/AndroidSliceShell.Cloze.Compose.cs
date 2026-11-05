@@ -151,7 +151,7 @@ internal sealed partial class AndroidSliceShell
             {
                 Modifier.FillMaxWidth()
                     .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8)
-                    .TestTag("native.cloze.input-bar"),
+                    .TestTag(NativeClozeAccess.InputBar),
             };
             ClozeInputBar(bar, state, palette);
             page.Add(bar);
