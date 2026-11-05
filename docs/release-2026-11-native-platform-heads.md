@@ -38,7 +38,9 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
   Startup now stamps sentence owners right after word owners (`VocabularyWordOwnership.StampExampleSentencesAsync`;
   the log line reads `Example sentence owners: {WithWords} stamped with their words, {AfterWords} stamped after`),
   and stamping a word stamps its ownerless sentences. Tests cover both; the new test fails without
-  the fix.
+  the fix. **Re-run with the fix** on a fresh restore: all 89 sentences owned (each by its word's
+  owner), 0 rows lost, all 37 foreign keys valid, the same sync queue as before (338 rows, +5570
+  tracking rows), startup 3.2 s with the lock held 2.4 s; a second start changed nothing.
 - **Hidden, not deleted:** 217 audio history (StreamHistory) rows and 1 scene image have no
   recorded owner, so the owner checks hide them on the web and API. 424 shared or unlinked words
   stay ownerless by rule. Decision for the Captain: leave hidden, or name the owner explicitly.
