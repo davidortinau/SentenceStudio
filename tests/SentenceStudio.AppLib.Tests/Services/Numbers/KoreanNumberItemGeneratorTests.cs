@@ -710,6 +710,26 @@ public class KoreanNumberItemGeneratorTests
         }
     }
 
+    /// <summary>
+    /// Accepted Korean for a prompt that the drill teaches another way. Offering one as a wrong
+    /// choice marks a valid answer wrong (Captain 2026-11-04: 삼 일 and 오 일 are everyday Korean
+    /// for 3 and 5 days, as 삼층 is for 삼 층). Add to this list when a reviewer finds another.
+    /// </summary>
+    [Theory]
+    [InlineData("3 days (duration)", "삼 일")]
+    [InlineData("5 days (duration)", "오 일")]
+    public void GenerateDisambiguateItem_NeverOffersAnAcceptedAnswerAsWrong(string prompt, string accepted)
+    {
+        var item = Assert.Single(AllDisambiguateItems(),
+            candidate => candidate.PromptA == prompt || candidate.PromptB == prompt);
+        var (answer, choices) = item.PromptA == prompt
+            ? (item.CorrectAnswerA!, item.ChoicesA!)
+            : (item.CorrectAnswerB!, item.ChoicesB!);
+
+        Assert.NotEqual(accepted, answer);
+        Assert.DoesNotContain(choices, choice => WithoutSpaces(choice) == WithoutSpaces(accepted));
+    }
+
     [Fact]
     public void GenerateDisambiguateItem_MatchesSeedPairs()
     {

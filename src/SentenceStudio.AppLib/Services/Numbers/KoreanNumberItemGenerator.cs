@@ -911,8 +911,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         // Paired prompts that test same digit in different contexts (Sino vs Native systems)
         // Matches seed: lib/content/numbers/ko.json -> disambiguatePairs (choices included).
         // Every wrong choice is wrong for its prompt (wrong system, counter or native form).
-        // Never a spacing variant: 삼층 for 삼 층 is accepted Korean, and choices are graded
-        // exactly (B61).
+        // Never a spacing variant (삼층 for 삼 층) or another accepted answer (삼 일 for "3 days",
+        // 오 일 for "5 days"): choices are graded exactly, so a valid answer must not be offered as
+        // wrong (B61).
         var pairs = new[]
         {
             new { Digit = 3, ContextA = "3rd floor", ContextB = "3 floors of stairs", AnswerA = "삼 층", AnswerB = "세 층", 
@@ -925,7 +926,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             
             new { Digit = 3, ContextA = "3 days (duration)", ContextB = "the 3rd day", AnswerA = "사흘", AnswerB = "셋째 날",
                   HintA = "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)", HintB = "Ordinal day uses Native + 째",
-                  ChoicesA = new[] { "사흘", "삼 일", "세 일", "나흘" }, ChoicesB = new[] { "셋째 날", "삼째 날", "세째 날", "삼 번째 날" } },
+                  ChoicesA = new[] { "사흘", "이틀", "세 일", "나흘" }, ChoicesB = new[] { "셋째 날", "삼째 날", "세째 날", "삼 번째 날" } },
             
             new { Digit = 3, ContextA = "3 people", ContextB = "person number 3", AnswerA = "세 명", AnswerB = "삼 번",
                   HintA = "Counting people uses Native + 명", HintB = "Numbering (ID, jersey number) uses Sino + 번",
@@ -937,7 +938,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             
             new { Digit = 5, ContextA = "5 days (duration)", ContextB = "5th day of the month", AnswerA = "닷새", AnswerB = "오 일",
                   HintA = "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)", HintB = "Calendar dates use Sino numbers + 일",
-                  ChoicesA = new[] { "닷새", "오 일", "다섯 일", "엿새" }, ChoicesB = new[] { "오 일", "닷새", "다섯 일", "닷 일" } },
+                  ChoicesA = new[] { "닷새", "나흘", "다섯 일", "엿새" }, ChoicesB = new[] { "오 일", "닷새", "다섯 일", "닷 일" } },
             
             new { Digit = 2, ContextA = "2 bottles of water", ContextB = "February (month 2)", AnswerA = "두 병", AnswerB = "이월",
                   HintA = "Counting bottles uses Native + 병 (두 = sound change of 둘)", HintB = "Months use Sino numbers + 월",

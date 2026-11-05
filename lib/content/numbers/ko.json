@@ -239,7 +239,7 @@
       "hintB": "Ordinal day uses Native + 째",
       "audioTextA": "사흘",
       "audioTextB": "셋째 날",
-      "choicesA": ["사흘", "삼 일", "세 일", "나흘"],
+      "choicesA": ["사흘", "이틀", "세 일", "나흘"],
       "choicesB": ["셋째 날", "삼째 날", "세째 날", "삼 번째 날"]
     },
     {
@@ -278,7 +278,7 @@
       "hintB": "Calendar dates use Sino numbers + 일",
       "audioTextA": "닷새",
       "audioTextB": "오 일",
-      "choicesA": ["닷새", "오 일", "다섯 일", "엿새"],
+      "choicesA": ["닷새", "나흘", "다섯 일", "엿새"],
       "choicesB": ["오 일", "닷새", "다섯 일", "닷 일"]
     },
     {
