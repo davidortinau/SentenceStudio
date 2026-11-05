@@ -31,8 +31,9 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         }
 
         // Disambiguate: the learner picks one choice per prompt ("A | B"). Every distractor
-        // is a near form of the answer, so each choice is graded exactly and the pair is
-        // both-or-nothing, matching what every client shows.
+        // is a near form that is wrong for its prompt (never a spacing variant of the answer,
+        // B61), so each choice is graded exactly and the pair is both-or-nothing, matching
+        // what every client shows.
         if (item.SubModeCode == "Disambiguate")
             return GradeDisambiguate(item, userAnswer);
 
