@@ -452,13 +452,15 @@ state was merged or committed as part of this foundation.
 
 ## iOS devices run CoreCLR's interpreter; the simulator does not (2026-11-05)
 
-The net11 iOS SDK builds the native and MAUI iOS heads on CoreCLR with ReadyToRun. An iPhone
-has no JIT, so code that ReadyToRun did not precompile runs in CoreCLR's interpreter; the
-simulator JITs it instead. Two device-only failures came from this, and neither showed on a
-simulator, even with `DOTNET_InterpMode=1`:
+The net11 iOS SDK builds the native and MAUI iOS heads on CoreCLR with ReadyToRun. In Release
+(device and simulator alike) code that ReadyToRun did not precompile runs in CoreCLR's
+interpreter; a Debug simulator build JITs it instead. So reproduce device-runtime problems
+with a **Release simulator build**, not Debug (a Debug build with `DOTNET_InterpMode=1` did not
+reproduce the crash below; the Release simulator build did). Two failures came from this:
 
 - **Mixed assembly builds.** CoreCLR on a device refuses an assembly older than the build a
-  reference asks for (SQLitePCLRaw 2.1.12; fixed by pinning 2.1.13, B64).
+  reference asks for (SQLitePCLRaw 2.1.12; fixed by pinning 2.1.13, B64). This one did not
+  show on the simulator Release build; only DX24 failed.
 - **Virtual or interface members inside EF query expressions.** EF evaluates captured
   sub-expressions through the LINQ expression interpreter. A virtual or interface member there,
   for example `db.Database.IsSqlite()` inside a `Select`, is called through an open virtual
@@ -467,5 +469,5 @@ simulator, even with `DOTNET_InterpMode=1`:
   values into a local before building the query. `NativeResourceStore.DetailQuery` does this, and
   `NativeResourcePresenterTests` guards it.
 
-Verify iOS changes on a device before calling them done. NativeAOT, the planned release mode for
+Verify iOS changes on a Release simulator build, then on a device, before calling them done. NativeAOT, the planned release mode for
 the native iOS head, removes the interpreter from the device.
