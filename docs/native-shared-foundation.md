@@ -469,14 +469,24 @@ reproduce the crash below; the Release simulator build did). Two failures came f
   values into a local before building the query. `NativeResourceStore.DetailQuery` and the two
   quiz committers do this.
 
-  `tests/SentenceStudio.Native.Tests/DeviceInterpreterQueryGuard.cs` checks every query the
-  native tests run (`NativeSliceFixture` and the tests that build their own contexts). It flags
-  any virtual or interface member that EF would evaluate on the client, throws, and records the
-  finding, so a test still fails when app code catches the exception (the fixture checks the
-  list when it is disposed). Set `SS_QUERY_GUARD_LOG=<file>` to also write findings to a file.
-  It is deliberately strict: it also flags shapes EF reads by reflection, and final virtual
-  members. Exempt: `db.Set<T>()` subqueries (they ran on DX24 under the interpreter) and
-  `collection.Contains(row.Column)` (EF translates it to SQL `IN`).
+  `tests/SentenceStudio.Native.Tests/DeviceInterpreterQueryGuard.cs` checks the queries run
+  through `NativeSliceFixture` and `NativeProfileSaveTests`: it flags any virtual or interface
+  member, captured delegate or collection initializer that EF would evaluate on the client,
+  throws, and records the finding, so the test still fails when app code catches the exception
+  (each harness checks the list when it is disposed). Contexts that tests build themselves
+  (`DeviceInterpreterQueryGuard.Guard`, used by the sync, merge, export and owner-store tests)
+  report by the throw only. Other harnesses (activity log, settings, profile slice and
+  bootstrap) are not guarded yet. Set `SS_QUERY_GUARD_LOG=<file>` to also write findings to a
+  file. It is deliberately strict: it also flags shapes EF reads by reflection, and final
+  virtual members. Exempt: `db.Set<T>()` subqueries (they ran on DX24 under the interpreter),
+  and `Contains`, `Equals` and `CompareTo` calls whose arguments use the row (EF translates
+  them to SQL).
+
+  Upstream: the interpreter's delegate shuffle thunk called `CID_VirtualOpenDelegateDispatch`
+  without its hidden argument (dotnet/runtime#134733); the spin afterwards is #134720. Fixed by
+  dotnet/runtime#134699 (main) and #134751 (release/11.0). The rc.2 runtime we build with
+  (SDK 11.0.100-rc.2.26504.105) predates that backport. Keep the hoists and the guard after
+  moving to a fixed runtime; they also suit NativeAOT's precompiled queries.
 
 Verify iOS changes on a Release simulator build, then on a device, before calling them done. NativeAOT, the planned release mode for
 the native iOS head, removes the interpreter from the device.

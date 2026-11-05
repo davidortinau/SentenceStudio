@@ -74,6 +74,7 @@ public sealed class NativeShadowingPlayer : INativeShadowingPlayer
             if (_player is not { } player)
                 return false;
             player.Rate = Math.Clamp(rate, 0.5f, 2f);
+            NativeAudioSession.UsePlayback();
             return player.Play();
         }
     }

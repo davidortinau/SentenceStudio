@@ -29,12 +29,19 @@ internal sealed record VocabularyBrowserEdit(
     /// <summary>Source Delete, for a word only this owner uses.</summary>
     internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting, Detail);
 
-    /// <summary>Source VocabularyWordEdit: Save needs both terms and an editable (owned) word.</summary>
-    internal bool CanSave => !Saving
-        && Detail is { IsSharedWithAnotherOwner: false }
-        && Draft is { } draft
-        && !string.IsNullOrWhiteSpace(draft.TargetTerm)
-        && !string.IsNullOrWhiteSpace(draft.NativeTerm);
+    internal bool CanSave => CanSaveWord(Saving || Deleting, Detail, Draft);
+
+    /// <summary>
+    /// Source VocabularyWordEdit: Save needs both terms and an editable (owned) word. The iOS
+    /// VocabularyCoordinator uses the same rule.
+    /// </summary>
+    internal static bool CanSaveWord(bool saving, NativeVocabularyDetail? detail,
+        NativeVocabularyEditDraft? draft) =>
+        !saving
+        && detail is { IsSharedWithAnotherOwner: false }
+        && draft is { } current
+        && !string.IsNullOrWhiteSpace(current.TargetTerm)
+        && !string.IsNullOrWhiteSpace(current.NativeTerm);
 }
 
 /// <summary>

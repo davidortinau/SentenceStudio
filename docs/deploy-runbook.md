@@ -736,38 +736,39 @@ When the Captain says **"publish"**, **"deploy"**, or **"push to my phone"**, ex
 
 ### Option A: `azd deploy` (stable)
 
-Run these in order, in one shell. The deploy line runs only if both checks pass.
+Run this block as written. It runs in a subshell, so the production `Coach__*` values and the
+feedback key never stay in your shell, and `azd deploy` runs only if both checks pass.
 
-**1. Carry the live Sam (Coach) settings into the deploy.** In publish mode the AppHost reads every
-`Coach__*` value only from the deploying shell's environment (`CoachConfigurationReader`), and
-anything missing fails closed: `Coach__Enabled=false`, no allowed profiles, and no Data
-Protection or durable-history settings. On 2026-11-05 a deploy without them turned Sam off for
-everyone. Export the API's current values, without printing them:
+- **Sam (Coach) settings.** In publish mode the AppHost reads every `Coach__*` value only from
+  the deploying shell's environment (`CoachConfigurationReader`), and anything missing fails
+  closed: `Coach__Enabled=false`, no allowed profiles, and no Data Protection or
+  durable-history settings. On 2026-11-05 a deploy without them turned Sam off for everyone. The
+  block clears any `Coach__*` left in the shell, exports the API's current values without
+  printing them, and compares the exported names with the live names (11 on 2026-11-05). A
+  `secretRef` entry is not exported, so it fails the check; handle it by hand.
+- **Feedback key.** `feedbackhmackey` is not in `.azure/sstudio-prod-biz/config.json`; azd
+  reads it from `AZURE_FEEDBACKHMACKEY`, which the block reads from Key Vault.
 
 ```bash
 # Ensure VPN is OFF (management.azure.com times out on VPN)
 cd <checkout of the commit you are shipping>   # it needs the .azure folder; see below
-COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
-COACH_LIVE=$(az containerapp show -g rg-sstudio-prod-biz -n api --query "length($COACH_QUERY)" -o tsv)
-eval "$(az containerapp show -g rg-sstudio-prod-biz -n api --query "$COACH_QUERY" -o json \
-  | python3 -c 'import json,shlex,sys; [print("export %s=%s" % (e["name"], shlex.quote(e["value"]))) for e in json.load(sys.stdin) if "value" in e]')"
-echo "live: $COACH_LIVE exported: $(env | grep -c '^Coach__')"   # 11 on 2026-11-05; must match
-```
-
-**2. Deploy.** `feedbackhmackey` is not in `.azure/sstudio-prod-biz/config.json`; azd reads it
-from `AZURE_FEEDBACKHMACKEY`. Read it from Key Vault into an unexported variable so it is never
-printed or saved:
-
-```bash
-FEEDBACK_KEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
-  -n feedback-hmac-key --query value -o tsv)"
-if [ -n "$FEEDBACK_KEY" ] && [ "${COACH_LIVE:-0}" -gt 0 ] \
-    && [ "$(env | grep -c '^Coach__')" -eq "$COACH_LIVE" ]; then
-  AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" azd deploy -e sstudio-prod-biz --no-prompt
-else
-  echo "STOP: the feedback key or the Coach__ settings are missing; do not deploy"
-fi
-unset FEEDBACK_KEY
+(
+  for name in $(env | sed -n 's/^\(Coach__[^=]*\)=.*/\1/p'); do unset "$name"; done
+  COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
+  LIVE_NAMES=$(az containerapp show -g rg-sstudio-prod-biz -n api \
+    --query "$COACH_QUERY.name" -o tsv | sort)
+  eval "$(az containerapp show -g rg-sstudio-prod-biz -n api --query "$COACH_QUERY" -o json \
+    | python3 -c 'import json,shlex,sys; [print("export %s=%s" % (e["name"], shlex.quote(e["value"]))) for e in json.load(sys.stdin) if "value" in e]')"
+  EXPORTED_NAMES=$(env | sed -n 's/^\(Coach__[^=]*\)=.*/\1/p' | sort)
+  echo "live: $(echo "$LIVE_NAMES" | grep -c .) exported: $(echo "$EXPORTED_NAMES" | grep -c .)"
+  FEEDBACK_KEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
+    -n feedback-hmac-key --query value -o tsv)"
+  if [ -n "$FEEDBACK_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
+    AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" azd deploy -e sstudio-prod-biz --no-prompt
+  else
+    echo "STOP: the feedback key or a Coach__ setting is missing; do not deploy"
+  fi
+)
 ```
 
 After the deploy, compare the API's `Coach__*` settings with the previous revision's (names and

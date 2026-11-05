@@ -453,6 +453,8 @@ src/.claude/settings.local.json
 # Playwright MCP snapshots
 .playwright-mcp/
 *.png
+# App artwork in asset catalogs is source, not a snapshot.
+!src/SentenceStudio.Native.iOS/Resources/Assets.xcassets/**/*.png
 *.lscache
 
 # e2e testing scratch/rehearsal artifacts

@@ -60,15 +60,7 @@ public sealed class NativeAudioPlayerFactory : IAudioPlayerFactory
         {
             if (_disposed)
                 return;
-            try
-            {
-                AVAudioSession.SharedInstance().SetCategory(AVAudioSessionCategory.Playback);
-                AVAudioSession.SharedInstance().SetActive(true);
-            }
-            catch (Exception)
-            {
-                // Playback still uses the default session.
-            }
+            NativeAudioSession.UsePlayback();
             _player.Play();
         }
 
