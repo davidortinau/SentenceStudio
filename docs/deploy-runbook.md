@@ -745,7 +745,8 @@ feedback key never stay in your shell, and `azd deploy` runs only if both checks
   durable-history settings. On 2026-11-05 a deploy without them turned Sam off for everyone. The
   block clears any `Coach__*` left in the shell, exports the API's current values without
   printing them, and compares the exported names with the live names (11 on 2026-11-05). A
-  `secretRef` entry is not exported, so it fails the check; handle it by hand.
+  `secretRef` entry has no value to export, so the block stops. All 11 were plain values on
+  2026-11-05; if one becomes a secret, update this block (and the AppHost) before deploying.
 - **Feedback key.** `feedbackhmackey` is not in `.azure/sstudio-prod-biz/config.json`; azd
   reads it from `AZURE_FEEDBACKHMACKEY`, which the block reads from Key Vault.
 

@@ -324,13 +324,9 @@ internal sealed class WordAssociationScreen : IActivityScreen
         }
         rows.Add(Views.HStack(previous, position, advance).WithFlexibleWidth());
 
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        var bar = Views.VStack(rows.ToArray())
-            .WithPadding(8, gutter, 8, gutter)
-            .WithFlexibleWidth()
-            .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
+        var bar = Views.VStack(rows.ToArray());
         bar.Spacing = 8;
-        return bar;
+        return style.DockedBar(bar);
     }
 
     private void UpdateAvailability(SourceUiStyle style, string? draft)

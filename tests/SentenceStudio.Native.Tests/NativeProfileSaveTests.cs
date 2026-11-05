@@ -395,13 +395,19 @@ public sealed class NativeProfileSaveTests
 
         public void Dispose()
         {
-            var findings = _queryGuardFindings.Drain();
-            _services.Dispose();
-            _connection.Dispose();
-            if (findings.Count > 0)
-                throw new InvalidOperationException(
-                    "A query evaluates a virtual or interface member on the client (see "
-                    + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
+            try
+            {
+                _services.Dispose();
+                _connection.Dispose();
+            }
+            finally
+            {
+                var findings = _queryGuardFindings.Drain();
+                if (findings.Count > 0)
+                    throw new InvalidOperationException(
+                        "A query evaluates a virtual or interface member on the client (see "
+                        + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
+            }
         }
     }
 }

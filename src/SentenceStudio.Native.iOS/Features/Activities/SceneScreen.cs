@@ -330,11 +330,7 @@ internal sealed class SceneScreen : IActivityScreen
         UpdateGradeAvailability(style);
         var row = Views.HStack(field, newScene, grade).WithFlexibleWidth();
         row.Spacing = 8;
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        return row
-            .WithPadding(8, gutter, 8, gutter)
-            .WithFlexibleWidth()
-            .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
+        return style.DockedBar(row);
     }
 
     private void UpdateGradeAvailability(SourceUiStyle style)

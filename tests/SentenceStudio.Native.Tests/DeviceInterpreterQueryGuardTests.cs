@@ -49,6 +49,47 @@ public sealed class DeviceInterpreterQueryGuardTests
     }
 
     [Fact]
+    public void Flags_AVirtualCallInsideALambdaThatEfEvaluatesOnTheClient()
+    {
+        using var db = Context();
+        List<List<string>> lists = [["resource"]];
+
+        // lists.Any(...) uses no row, so EF interprets it, calling List<T>.Count for each l.
+        var query = db.LearningResources.Where(resource =>
+            lists.Any(list => list.Count > 0) || resource.Id == "resource");
+
+        Assert.Contains("Count", DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
+    }
+
+    [Fact]
+    public void Flags_AComparerCallEvenWhenItsArgumentsUseTheRow()
+    {
+        using var db = Context();
+        IEqualityComparer<string> comparer = StringComparer.Ordinal;
+
+        // EF cannot translate a comparer, so the projection runs it on the client.
+        var query = db.LearningResources.Select(resource =>
+            comparer.Equals(resource.Title, resource.Description));
+
+        Assert.Contains("Equals", DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
+    }
+
+    [Fact]
+    public void Ignores_AnInlineLambdaInvokedWithTheRow()
+    {
+        using var db = Context();
+        System.Linq.Expressions.Expression<Func<LearningResource, bool>> owned =
+            resource => resource.UserProfileId == "owner";
+        var row = System.Linq.Expressions.Expression.Parameter(typeof(LearningResource), "row");
+        var predicate = System.Linq.Expressions.Expression.Lambda<Func<LearningResource, bool>>(
+            System.Linq.Expressions.Expression.Invoke(owned, row), row);
+
+        var query = db.LearningResources.Where(predicate);
+
+        Assert.Null(DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
+    }
+
+    [Fact]
     public void Flags_ACapturedDelegateInvokedInsideTheQuery()
     {
         using var db = Context();

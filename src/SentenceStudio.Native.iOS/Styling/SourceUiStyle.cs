@@ -85,6 +85,19 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
                 appearance.BodyBackground.Dark)
             .WithTintColor(appearance.Primary.Light, appearance.Primary.Dark);
 
+    /// <summary>
+    /// Source activity-input-bar: the controls docked under an activity's content
+    /// (Views.BottomInset), with the page gutter and the page background.
+    /// </summary>
+    internal SwiftView DockedBar(SwiftView content)
+    {
+        var gutter = SourceUiLayout.PageGutter(ViewportWidth);
+        return content
+            .WithPadding(8, gutter, 8, gutter)
+            .WithFlexibleWidth()
+            .WithBackgroundColor(Appearance.BodyBackground.Light, Appearance.BodyBackground.Dark);
+    }
+
     internal SwiftView GroupedForm(SwiftView form) =>
         Page(form.WithNativeListColors(
             appearance.BodyBackground.Light, appearance.BodyBackground.Dark,

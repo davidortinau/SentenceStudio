@@ -14,6 +14,8 @@ public static class NativeClozeAccess
     public const string Notice = "native.cloze.notice";
     /// <summary>Choice buttons are "native.cloze.choice.{index}".</summary>
     public const string Choice = "native.cloze.choice";
+    /// <summary>The docked input bar (answer, choices, GO, previous/next), outside <see cref="Screen"/>.</summary>
+    public const string InputBar = "native.cloze.input-bar";
     public const string Answer = "native.cloze.answer";
     public const string ModeToggle = "native.cloze.mode";
     public const string Submit = "native.cloze.go";

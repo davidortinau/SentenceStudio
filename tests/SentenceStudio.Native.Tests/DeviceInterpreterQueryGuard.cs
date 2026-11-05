@@ -95,61 +95,116 @@ internal sealed class DeviceInterpreterQueryGuard(
     /// <summary>The first finding in <paramref name="query"/>, or null.</summary>
     internal static string? FindClientDispatch(Expression query) => ClientDispatchFinder.Find(query);
 
+    /// <summary>
+    /// Mirrors EF's funcletizer: a subtree that uses no outer lambda parameter and no query
+    /// source is evaluated on the client, through the LINQ interpreter, so every virtual or
+    /// interface call inside it is flagged, including calls inside its own lambdas
+    /// (<c>lists.Any(l =&gt; l.Count &gt; 0)</c>). Outside those subtrees a call on a captured
+    /// instance is flagged unless EF translates it with the row (<c>ids.Contains(x.Id)</c>).
+    /// </summary>
     private sealed class ClientDispatchFinder : ExpressionVisitor
     {
-        // Calls EF translates when an argument uses the row (ids.Contains(x.Id) becomes SQL IN),
-        // so they never run on the client. Other calls that use the row can still be
-        // client-evaluated (a final projection), so they stay flagged.
+        // One-argument calls EF translates when the argument uses the row, so they never run
+        // on the client (ids.Contains(x.Id) becomes SQL IN). comparer.Equals(a, b) does not.
         private static readonly HashSet<string> TranslatedWithRow =
             [nameof(ICollection<int>.Contains), nameof(Equals), nameof(IComparable.CompareTo)];
 
-        private readonly FreeParameters _free = new();
+        private readonly ExpressionFacts _facts;
         private string? _finding;
+
+        private ClientDispatchFinder(ExpressionFacts facts) => _facts = facts;
 
         public static string? Find(Expression query)
         {
-            var finder = new ClientDispatchFinder();
+            var finder = new ClientDispatchFinder(ExpressionFacts.Of(query));
             finder.Visit(query);
             return finder._finding;
         }
 
+        public override Expression? Visit(Expression? node)
+        {
+            if (node is null || _finding is not null)
+                return node;
+            if (_facts.IsClientEvaluated(node))
+            {
+                _finding = ClientEvaluatedScan.Find(node);
+                return node;
+            }
+            return base.Visit(node);
+        }
+
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (_finding is null && node.Expression is { } instance && !_free.Has(instance)
-                && node.Member is PropertyInfo { GetMethod: { } getter } property && Dispatches(getter))
+            if (_finding is null && node.Expression is { } instance
+                && node.Member is PropertyInfo { GetMethod: { } getter } property && Dispatches(getter)
+                && !_facts.UsesOuterParameter(instance))
                 _finding = $"{property.DeclaringType?.FullName}.{property.Name} on `{instance}`";
             return base.VisitMember(node);
         }
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            // db.Set<T>() inside a query is exempt on device evidence: DX24 ran
-            // VocabularyProgressRepository.GetVocabSummaryCountsAsync's nested db.Set<T>()
-            // subqueries under the interpreter on 2026-11-05 without a crash.
-            if (_finding is null && node.Object is { } instance && !_free.Has(instance)
-                && !(TranslatedWithRow.Contains(node.Method.Name) && node.Arguments.Any(_free.Has))
-                && Dispatches(node.Method)
-                && !(node.Method.Name == nameof(DbContext.Set)
-                    && typeof(DbContext).IsAssignableFrom(node.Method.DeclaringType)))
+            if (_finding is null && node.Object is { } instance && Dispatches(node.Method)
+                && !IsQuerySource(node)
+                && !(node.Arguments.Count == 1 && TranslatedWithRow.Contains(node.Method.Name)
+                    && _facts.UsesOuterParameter(node.Arguments[0]))
+                && !_facts.UsesOuterParameter(instance))
                 _finding = $"{node.Method.DeclaringType?.FullName}.{node.Method.Name}() on `{instance}`";
             return base.VisitMethodCall(node);
         }
 
-        // A captured delegate called inside the query: its Invoke is virtual.
-        protected override Expression VisitInvocation(InvocationExpression node)
+        /// <summary>Everything in a client-evaluated subtree runs in the interpreter.</summary>
+        private sealed class ClientEvaluatedScan : ExpressionVisitor
         {
-            if (_finding is null && !_free.Has(node.Expression))
-                _finding = $"delegate invocation of `{node.Expression}`";
-            return base.VisitInvocation(node);
+            private string? _finding;
+
+            public static string? Find(Expression node)
+            {
+                var scan = new ClientEvaluatedScan();
+                scan.Visit(node);
+                return scan._finding;
+            }
+
+            public override Expression? Visit(Expression? node) =>
+                _finding is null ? base.Visit(node) : node;
+
+            protected override Expression VisitMember(MemberExpression node)
+            {
+                if (node.Member is PropertyInfo { GetMethod: { } getter } property && Dispatches(getter))
+                    _finding ??= $"{property.DeclaringType?.FullName}.{property.Name} on `{node.Expression}`";
+                return base.VisitMember(node);
+            }
+
+            protected override Expression VisitMethodCall(MethodCallExpression node)
+            {
+                if (node.Object is not null && Dispatches(node.Method))
+                    _finding ??= $"{node.Method.DeclaringType?.FullName}.{node.Method.Name}() on `{node.Object}`";
+                return base.VisitMethodCall(node);
+            }
+
+            // A captured delegate's Invoke is virtual; an inline lambda is not a delegate call.
+            protected override Expression VisitInvocation(InvocationExpression node)
+            {
+                if (node.Expression is not LambdaExpression)
+                    _finding ??= $"delegate invocation of `{node.Expression}`";
+                return base.VisitInvocation(node);
+            }
+
+            // A collection initializer (new HashSet<string> { a, b }) calls a virtual Add.
+            protected override ElementInit VisitElementInit(ElementInit node)
+            {
+                if (Dispatches(node.AddMethod))
+                    _finding ??= $"{node.AddMethod.DeclaringType?.FullName}.{node.AddMethod.Name}() in a collection initializer";
+                return base.VisitElementInit(node);
+            }
         }
 
-        // A collection initializer (new HashSet<string> { a, b }) calls a virtual Add.
-        protected override ElementInit VisitElementInit(ElementInit node)
-        {
-            if (_finding is null && Dispatches(node.AddMethod))
-                _finding = $"{node.AddMethod.DeclaringType?.FullName}.{node.AddMethod.Name}() in a collection initializer";
-            return base.VisitElementInit(node);
-        }
+        // db.Set<T>() is a query source, never evaluated as a value. Nested db.Set<T>()
+        // subqueries also ran on DX24 under the interpreter on 2026-11-05 without a crash
+        // (VocabularyProgressRepository.GetVocabSummaryCountsAsync).
+        private static bool IsQuerySource(MethodCallExpression node) =>
+            node.Method.Name == nameof(DbContext.Set)
+            && typeof(DbContext).IsAssignableFrom(node.Method.DeclaringType);
 
         // Any virtual method, including final ones (List<T>.Count implements an interface) and
         // members of sealed types: nothing shows the interpreter binds those without virtual
@@ -159,60 +214,64 @@ internal sealed class DeviceInterpreterQueryGuard(
     }
 
     /// <summary>
-    /// Whether a subtree uses a parameter it does not bind itself (the query's row). A lambda
-    /// inside the subtree binds its own parameters: in <c>ids.Where(i =&gt; i != "").Count()</c>
-    /// nothing is free, so EF evaluates the whole thing on the client.
+    /// One bottom-up pass over the query: for each node, whether it uses a lambda parameter
+    /// bound outside it, and whether it contains a query source (an <see cref="IQueryable"/>).
     /// </summary>
-    private sealed class FreeParameters
+    private sealed class ExpressionFacts : ExpressionVisitor
     {
-        private readonly Dictionary<Expression, bool> _cache = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<Expression, bool> _usesOuter = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<Expression, bool> _hasQuery = new(ReferenceEqualityComparer.Instance);
+        private readonly Stack<HashSet<ParameterExpression>> _frames = new();
+        private readonly Stack<bool> _queryFrames = new();
 
-        public bool Has(Expression expression)
+        public static ExpressionFacts Of(Expression query)
         {
-            if (!_cache.TryGetValue(expression, out var found))
-                _cache[expression] = found = Walker.Finds(expression);
-            return found;
+            var facts = new ExpressionFacts();
+            facts._frames.Push([]);
+            facts._queryFrames.Push(false);
+            facts.Visit(query);
+            return facts;
         }
 
-        private sealed class Walker : ExpressionVisitor
+        public bool UsesOuterParameter(Expression node) => _usesOuter.GetValueOrDefault(node);
+
+        /// <summary>EF evaluates this subtree on the client (EF's funcletizer rule).</summary>
+        public bool IsClientEvaluated(Expression node) =>
+            node.NodeType is not (ExpressionType.Constant or ExpressionType.Parameter
+                or ExpressionType.Lambda or ExpressionType.Quote)
+            && !_usesOuter.GetValueOrDefault(node)
+            && !_hasQuery.GetValueOrDefault(node);
+
+        public override Expression? Visit(Expression? node)
         {
-            private readonly HashSet<ParameterExpression> _bound = [];
-            private bool _found;
-
-            public static bool Finds(Expression expression)
-            {
-                var walker = new Walker();
-                walker.Visit(expression);
-                return walker._found;
-            }
-
-            public override Expression? Visit(Expression? node) => _found ? node : base.Visit(node);
-
-            protected override Expression VisitLambda<T>(Expression<T> node)
-            {
-                var added = node.Parameters.Where(_bound.Add).ToList();
-                Visit(node.Body);
-                foreach (var parameter in added)
-                    _bound.Remove(parameter);
+            if (node is null)
                 return node;
-            }
-
-            protected override Expression VisitBlock(BlockExpression node)
+            _frames.Push([]);
+            _queryFrames.Push(false);
+            base.Visit(node);
+            var free = _frames.Pop();
+            var hasQuery = _queryFrames.Pop() || typeof(IQueryable).IsAssignableFrom(node.Type);
+            switch (node)
             {
-                var added = node.Variables.Where(_bound.Add).ToList();
-                foreach (var expression in node.Expressions)
-                    Visit(expression);
-                foreach (var variable in added)
-                    _bound.Remove(variable);
-                return node;
+                case LambdaExpression lambda:
+                    free.ExceptWith(lambda.Parameters);
+                    break;
+                case BlockExpression block:
+                    free.ExceptWith(block.Variables);
+                    break;
+                case ParameterExpression parameter:
+                    free.Add(parameter);
+                    break;
             }
-
-            protected override Expression VisitParameter(ParameterExpression node)
+            _usesOuter[node] = free.Count > 0;
+            _hasQuery[node] = hasQuery;
+            _frames.Peek().UnionWith(free);
+            if (hasQuery)
             {
-                if (!_bound.Contains(node))
-                    _found = true;
-                return node;
+                _queryFrames.Pop();
+                _queryFrames.Push(true);
             }
+            return node;
         }
     }
 }
