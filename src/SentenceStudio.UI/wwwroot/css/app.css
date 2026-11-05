@@ -3543,8 +3543,9 @@ html[data-sam-entry-away] .sam-fab {
 }
 
 /* Room at the bottom: a page with the floating button leaves the button's size, its offset and
-   a gap after its last item, so the last card can always scroll clear of it. */
-body:has(.sam-fab) main.main-content {
+   a gap after its last item, so the last card can always scroll clear of it. Keyed to the page's
+   marker (SamOverlayHost), not to the button, so opening the panel never moves the page. */
+body:has(.sam-entry-room) main.main-content {
     padding-bottom: calc(48px + 1.5rem + 1rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
@@ -3831,7 +3832,7 @@ body:has(.sam-fab) .shared-ingest-toast {
         right: calc(1rem + env(safe-area-inset-right, 0px));
     }
 
-    body:has(.sam-fab) main.main-content {
+    body:has(.sam-entry-room) main.main-content {
         padding-bottom: calc(48px + 1rem + 1rem + env(safe-area-inset-bottom, 0px)) !important;
     }
 

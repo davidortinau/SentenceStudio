@@ -198,9 +198,16 @@ internal sealed partial class AndroidSliceShell
                 // rebuilds the screen, and the IME inset is read here, not at the root.
                 _ = _samEntryMotion.Value;
                 var entry = SamEntry(floating);
-                entry.SetKeyboardVisible(composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f);
+                // Read here (so the box recomposes when they change), applied to the rule only
+                // once this pass commits: a discarded pass edits nothing. A change moves the
+                // button on the next frame.
+                var keyboardUp = composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f;
                 var (atStart, atEnd) = SamEntryEdges(floating);
-                entry.OnScroll(0, atStart, atEnd);
+                composer.SideEffect(() =>
+                {
+                    if (entry.SetKeyboardVisible(keyboardUp) | entry.OnScroll(0, atStart, atEnd))
+                        MoveSamEntry();
+                });
                 var fab = new FloatingActionButton(OpenSam)
                 {
                     Modifier = Modifier.Padding(AndroidSamProjection.FabMarginDp)

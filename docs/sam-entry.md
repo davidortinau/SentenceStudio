@@ -34,7 +34,8 @@ it is not needed.
 
 ## Accessibility
 
-- Native: while VoiceOver or TalkBack runs, scrolling does not hide the button.
+- Native: while VoiceOver or TalkBack runs, scrolling does not hide the button. When it
+  stops, the button stays shown until the next scroll down.
 - Web: a hidden button stays in the accessibility tree; when it receives focus it comes
   back.
 - With reduced motion the button fades or switches instead of sliding.
@@ -44,3 +45,10 @@ it is not needed.
 
 The button slides down off the bottom edge and fades, in about 200 ms, and returns the
 same way.
+
+## Known gaps
+
+- iOS: returning to Resources with its search field focused brings the keyboard back, but
+  SwiftUI does not report that keyboard again, so the button stays in place behind the
+  keyboard (out of sight and untouchable, but still in the accessibility tree) until the
+  keyboard closes. Seen on the simulator, 2026-11-04.

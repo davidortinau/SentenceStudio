@@ -67,11 +67,17 @@ public static class SamEntryPlacementRule
     public static SamEntryPlacement For(NavigationManager navigation)
     {
         var uri = navigation.Uri;
-        var baseUri = navigation.BaseUri;
-
-        var relative = uri.StartsWith(baseUri, StringComparison.OrdinalIgnoreCase)
-            ? uri[baseUri.Length..]
-            : Uri.TryCreate(uri, UriKind.Absolute, out var absolute) ? absolute.AbsolutePath : uri;
+        string relative;
+        try
+        {
+            // The framework's own rule, including the base address without its trailing slash
+            // (https://host/app for a base of https://host/app/), which is the Dashboard.
+            relative = navigation.ToBaseRelativePath(uri);
+        }
+        catch (ArgumentException)
+        {
+            relative = Uri.TryCreate(uri, UriKind.Absolute, out var absolute) ? absolute.AbsolutePath : uri;
+        }
 
         return ForPath(relative);
     }

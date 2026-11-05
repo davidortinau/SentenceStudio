@@ -132,8 +132,13 @@ public sealed class AndroidSamContractTests
         var compose = Code("AndroidSliceShell.Sam.Compose.cs");
         var fab = Between(compose, "private ComposableNode RenderSamFab(", "\n    }\n");
         Assert.Contains("new AnimatedVisibility(entry.IsShown, enter, exit) { fab }", fab);
-        Assert.Contains("entry.SetKeyboardVisible(composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f);", fab);
-        Assert.Contains("entry.OnScroll(0, atStart, atEnd);", fab);
+        Assert.Contains("var keyboardUp = composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f;", fab);
+        // The rule changes only after the pass commits (Compose: no side effects in composition).
+        var effect = Between(fab, "composer.SideEffect(() =>", "});");
+        Assert.Contains("entry.SetKeyboardVisible(keyboardUp) | entry.OnScroll(0, atStart, atEnd)", effect);
+        Assert.Contains("MoveSamEntry();", effect);
+        Assert.DoesNotContain("entry.SetKeyboardVisible(keyboardUp)",
+            fab.Replace(effect, string.Empty, StringComparison.Ordinal));
         Assert.Contains("_ = _samEntryMotion.Value;", fab);
         Assert.Contains(".ClipToBounds()", fab);
         var withSam = Between(compose, "private ComposableNode WithSam(", "\n    }\n");

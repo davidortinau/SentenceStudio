@@ -57,6 +57,11 @@ internal sealed class SamFloatingEntry
         internal void Appeared()
         {
             _lastOffset = null;
+            // The keyboard state is kept on purpose. Returning to Resources gives its search
+            // field focus back, and the keyboard with it, at the same overlap the bridge last
+            // reported, so no new report arrives; clearing the flag here showed the button
+            // behind the keyboard (observed on the simulator, 2026-11-04). A keyboard that
+            // closes while the page is visible is always reported.
             _rule.Reset();
             Apply();
         }

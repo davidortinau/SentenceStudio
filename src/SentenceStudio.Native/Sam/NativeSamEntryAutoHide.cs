@@ -43,8 +43,10 @@ public sealed class NativeSamEntryAutoHide
             _scrolledAway = false;
             _travel = 0;
         }
-        else if (double.IsFinite(delta) && delta != 0)
+        else if (!_screenReaderRunning && double.IsFinite(delta) && delta != 0)
         {
+            // While a screen reader runs nothing counts toward hiding, so turning it off
+            // never makes the button vanish on its own.
             if (Math.Sign(delta) != Math.Sign(_travel))
                 _travel = 0;
             _travel += delta;
@@ -68,12 +70,18 @@ public sealed class NativeSamEntryAutoHide
     /// <summary>
     /// A screen reader (VoiceOver, TalkBack) started or stopped. While one runs the button
     /// does not slide away: those learners move through the screen by swiping, and a
-    /// button that keeps leaving is hard to find.
+    /// button that keeps leaving is hard to find. When it stops, the button stays shown until
+    /// the learner next scrolls down.
     /// </summary>
     /// <returns>True when <see cref="IsShown"/> changed.</returns>
     public bool SetScreenReaderRunning(bool running)
     {
         var before = IsShown;
+        if (running != _screenReaderRunning)
+        {
+            _scrolledAway = false;
+            _travel = 0;
+        }
         _screenReaderRunning = running;
         return before != IsShown;
     }

@@ -77,6 +77,12 @@ internal sealed partial class AndroidSliceShell
     /// Records which floating screen is composing; a new screen or tab starts with the
     /// button shown (keyboard and TalkBack state belong to the device and are kept).
     /// </summary>
+    /// <remarks>
+    /// Runs during the host's composition, before the button reads the rule, so a returning
+    /// screen shows its button at once rather than animating it in. It is guarded by the
+    /// screen change, so a pass that is re-run resets nothing twice, and a reset only ever
+    /// brings the button back.
+    /// </remarks>
     private AndroidSamFloatingScreen ShowSamFloatingScreen(AndroidSamEntryPlacement placement)
     {
         var floating = AndroidSamProjection.FloatingScreen(Destination, placement);

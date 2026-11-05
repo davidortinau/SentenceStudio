@@ -172,8 +172,38 @@ let _autoHide = null;
 let _scrollHandler = null;
 let _focusInHandler = null;
 let _focusOutHandler = null;
+let _pointerDownHandler = null;
 let _lastScroller = null;
 let _lastScrollTop = 0;
+let _shell = null;
+
+/** The app shell's main content, found once per page rather than on every scroll event. */
+function shellElement() {
+    if (typeof document === 'undefined') return null;
+    if (!_shell || _shell.isConnected === false) {
+        _shell = document.querySelector(APP_SHELL_SELECTOR);
+    }
+    return _shell;
+}
+
+/** Whether this page draws the floating button; the header pages have none to move. */
+function hasFloatingButton() {
+    return typeof document.getElementsByClassName === 'function'
+        && document.getElementsByClassName(SAM_FAB_SELECTOR.slice(1)).length > 0;
+}
+
+/**
+ * Sets the keyboard flag from what has focus now. Focus events alone are not enough: a focused
+ * field that is removed from the page fires no focusout in Chromium, which would leave the
+ * button away until something else took focus.
+ */
+function syncKeyboardWithFocus() {
+    if (!_autoHide || typeof document === 'undefined') return;
+    const active = document.activeElement;
+    if (_autoHide.setKeyboardVisible(isTextField(active) && isTouchDevice())) {
+        applySamEntryState();
+    }
+}
 
 /**
  * The element that scrolls the page: the app shell's main content, or the document when the
@@ -187,7 +217,7 @@ function pageScrollerFor(target) {
         return document.scrollingElement || document.documentElement;
     }
 
-    const shell = document.querySelector(APP_SHELL_SELECTOR);
+    const shell = shellElement();
     return target && target === shell ? shell : null;
 }
 
@@ -221,8 +251,17 @@ export function attachSamEntryAutoHide() {
     _autoHide = new SamEntryAutoHide();
 
     _scrollHandler = (e) => {
+        // A page without the floating button has nothing to move: no lookups, no layout reads.
+        // The next page with one starts from a fresh baseline.
+        if (!hasFloatingButton()) {
+            _lastScroller = null;
+            return;
+        }
+
         const scroller = pageScrollerFor(e.target);
         if (!scroller) return;
+
+        syncKeyboardWithFocus();
 
         // A horizontal scroll moves nothing vertically: a zero step, which the rule ignores
         // between the top and the end.
@@ -268,6 +307,11 @@ export function attachSamEntryAutoHide() {
     };
     document.addEventListener('focusout', _focusOutHandler);
 
+    // Any tap re-reads focus, so a field that vanished while focused does not keep the button
+    // away. A tap that focuses a field fires that field's focusin straight after.
+    _pointerDownHandler = () => syncKeyboardWithFocus();
+    document.addEventListener('pointerdown', _pointerDownHandler, { capture: true, passive: true });
+
     resetSamEntry();
 }
 
@@ -275,8 +319,9 @@ export function attachSamEntryAutoHide() {
 export function resetSamEntry() {
     if (!_autoHide) return;
 
+    _shell = null;
     const scroller = typeof document !== 'undefined'
-        ? (document.querySelector(APP_SHELL_SELECTOR) || document.scrollingElement)
+        ? (shellElement() || document.scrollingElement)
         : null;
     _lastScroller = scroller;
     _lastScrollTop = scroller ? scroller.scrollTop : 0;
@@ -284,8 +329,7 @@ export function resetSamEntry() {
     _autoHide.reset();
     // The keyboard is the device's, so it is read rather than cleared: a field the new page
     // focused for the learner keeps the button away.
-    const active = typeof document !== 'undefined' ? document.activeElement : null;
-    _autoHide.setKeyboardVisible(isTextField(active) && isTouchDevice());
+    syncKeyboardWithFocus();
     applySamEntryState();
 }
 
@@ -295,11 +339,14 @@ export function detachSamEntryAutoHide() {
         if (_scrollHandler) document.removeEventListener('scroll', _scrollHandler, { capture: true });
         if (_focusInHandler) document.removeEventListener('focusin', _focusInHandler);
         if (_focusOutHandler) document.removeEventListener('focusout', _focusOutHandler);
+        if (_pointerDownHandler) document.removeEventListener('pointerdown', _pointerDownHandler, { capture: true });
         document.documentElement?.removeAttribute?.(SAM_ENTRY_AWAY_ATTRIBUTE);
     }
     _scrollHandler = null;
     _focusInHandler = null;
     _focusOutHandler = null;
+    _pointerDownHandler = null;
+    _shell = null;
     _autoHide = null;
     _lastScroller = null;
     _lastScrollTop = 0;

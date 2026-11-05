@@ -63,12 +63,15 @@ let listeners;
 let shell;
 let root;
 let coarse;
+let fabPresent;
 
 function installDom() {
     listeners = [];
     shell = new MockElement({ tag: 'main', classes: ['main-content'] });
     root = new MockElement({ tag: 'html' });
     coarse = false;
+    fabPresent = true;
+    const fab = new MockElement({ tag: 'button', classes: ['sam-fab'] });
 
     globalThis.document = {
         documentElement: root,
@@ -80,7 +83,8 @@ function installDom() {
             listeners = listeners.filter(l => !(l.type === type && l.fn === fn));
         },
         querySelector: (selector) => (selector === '.main-content' ? shell : null),
-        getElementById: () => null
+        getElementById: () => null,
+        getElementsByClassName: (name) => (name === 'sam-fab' && fabPresent ? [fab] : [])
     };
 
     globalThis.window = {
@@ -293,6 +297,48 @@ describe('page wiring', () => {
         assert.equal(isAway(), false);
     });
 
+    it('a page without the floating button ignores scrolling, then starts fresh when one appears', () => {
+        fabPresent = false;
+        scrollShellTo(300);
+        scrollShellTo(400);
+        assert.equal(isAway(), false);
+
+        fabPresent = true;
+        scrollShellTo(410);
+        scrollShellTo(420);
+        assert.equal(isAway(), false, 'the 400 px scrolled without a button do not count');
+        scrollShellTo(440);
+        assert.equal(isAway(), true);
+    });
+
+    it('a focused field that is removed does not keep it away: the next tap brings it back', () => {
+        coarse = true;
+        const field = new MockElement({ tag: 'input', type: 'search' });
+        document.activeElement = field;
+        fire('focusin', { target: field });
+        assert.equal(isAway(), true);
+
+        // Chromium removes the field without a focusout; focus falls back to the body.
+        document.activeElement = document.body;
+        fire('pointerdown', {});
+
+        assert.equal(isAway(), false);
+    });
+
+    it('a focused field that is removed does not keep it away: the next scroll brings it back', () => {
+        coarse = true;
+        const field = new MockElement({ tag: 'input', type: 'search' });
+        document.activeElement = field;
+        fire('focusin', { target: field });
+        scrollShellTo(5);
+        assert.equal(isAway(), true, 'still focused: the keyboard is up');
+
+        document.activeElement = document.body;
+        scrollShellTo(10);
+
+        assert.equal(isAway(), false);
+    });
+
     it('a new page starts shown', () => {
         scrollShellTo(300);
         scrollShellTo(400);
@@ -322,6 +368,7 @@ describe('page wiring', () => {
         assert.equal(listeners.filter(l => l.type === 'scroll').length, 1);
         assert.equal(listeners.filter(l => l.type === 'focusin').length, 1);
         assert.equal(listeners.filter(l => l.type === 'focusout').length, 1);
+        assert.equal(listeners.filter(l => l.type === 'pointerdown').length, 1);
     });
 });
 
@@ -333,7 +380,7 @@ describe('overlay lifecycle', () => {
 
         disposeSamOverlay();
 
-        assert.equal(listeners.filter(l => ['scroll', 'focusin', 'focusout'].includes(l.type)).length, 0);
+        assert.equal(listeners.filter(l => ['scroll', 'focusin', 'focusout', 'pointerdown'].includes(l.type)).length, 0);
         assert.equal(isAway(), false);
     });
 });

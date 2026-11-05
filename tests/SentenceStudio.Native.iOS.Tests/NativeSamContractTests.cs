@@ -248,6 +248,9 @@ public sealed class NativeSamContractTests
                      "_entry.WithHidden(hidden, SwiftHideTransition.SlideDown);",
                  })
             Assert.Contains(call, entry);
+        // Appearing keeps the keyboard state: Resources gets its search focus (and keyboard)
+        // back on return, at an overlap the bridge does not report again.
+        Assert.DoesNotContain("_rule.SetKeyboardVisible(false)", entry);
         // SwiftUI-only: no keyboard notifications or UIKit accessibility queries.
         Assert.DoesNotMatch(@"UIKeyboard|UIAccessibility|NSNotificationCenter|KeyboardWillShow", entry);
     }

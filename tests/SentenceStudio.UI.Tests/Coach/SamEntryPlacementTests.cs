@@ -271,6 +271,34 @@ public class SamEntryPlacementTests
         harness.Renderer.Unhandled.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The bottom room belongs to the page (app.css keys it to .sam-entry-room), so opening the
+    /// panel, which takes the floating button away, never moves the page.
+    /// </summary>
+    [Fact]
+    public async Task The_main_pages_keep_their_room_while_the_panel_is_open()
+    {
+        await using var harness = new Harness();
+        var host = await harness.RenderSignedInHostAsync();
+        harness.Renderer.HasElementWithId(host, SamElementIds.EntryRoom).Should().BeTrue();
+
+        await harness.Renderer.ClickButtonByIdAsync(host, SamElementIds.Fab);
+
+        harness.Renderer.HasElementWithId(host, SamElementIds.Fab).Should().BeFalse();
+        harness.Renderer.HasElementWithId(host, SamElementIds.EntryRoom).Should().BeTrue();
+        harness.Renderer.Unhandled.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_header_page_has_no_room_for_a_floating_button()
+    {
+        await using var harness = new Harness();
+        harness.Nav.GoTo("/settings");
+        var host = await harness.RenderSignedInHostAsync();
+
+        harness.Renderer.HasElementWithId(host, SamElementIds.EntryRoom).Should().BeFalse();
+    }
+
     [Fact]
     public async Task An_unread_answer_marks_the_header_icon_like_the_floating_button()
     {

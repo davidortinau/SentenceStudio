@@ -113,15 +113,40 @@ public sealed class NativeSamEntryAutoHideTests
     }
 
     [Fact]
-    public void TheScreenReaderStopping_LeavesItWhereTheScrollSays()
+    public void TheScreenReaderStopping_LeavesItShownUntilTheNextScrollDown()
     {
         var entry = new NativeSamEntryAutoHide();
         entry.SetScreenReaderRunning(true);
         entry.OnScroll(100, atStart: false, atEnd: false);
 
-        Assert.True(entry.SetScreenReaderRunning(false));
+        Assert.False(entry.SetScreenReaderRunning(false), "nothing scrolled, so nothing moves");
+        Assert.True(entry.IsShown);
 
+        entry.OnScroll(NativeSamEntryAutoHide.Threshold, atStart: false, atEnd: false);
         Assert.False(entry.IsShown);
+    }
+
+    [Fact]
+    public void TheScreenReaderStarting_BringsAHiddenButtonBack()
+    {
+        var entry = Hidden();
+
+        Assert.True(entry.SetScreenReaderRunning(true));
+
+        Assert.True(entry.IsShown);
+    }
+
+    [Fact]
+    public void ScrollWhileAScreenReaderRuns_DoesNotCountAfterItStops()
+    {
+        var entry = new NativeSamEntryAutoHide();
+        entry.SetScreenReaderRunning(true);
+        entry.OnScroll(20, atStart: false, atEnd: false);
+        entry.SetScreenReaderRunning(false);
+
+        entry.OnScroll(10, atStart: false, atEnd: false);
+
+        Assert.True(entry.IsShown, "the 20 scrolled with the screen reader on do not count");
     }
 
     [Fact]

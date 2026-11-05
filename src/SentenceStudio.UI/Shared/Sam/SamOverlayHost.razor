@@ -27,9 +27,16 @@
 
 @if (RendererInfo.IsInteractive && _isAuthenticated)
 {
+    var floatingPage = SamEntryPlacementRule.For(Nav) == SamEntryPlacement.Floating;
+    @if (floatingPage)
+    {
+        @* The page's room for the floating button (app.css .sam-entry-room). It belongs to the
+           page, not to the button, so opening and closing the panel never moves the page. *@
+        <span id="@SamElementIds.EntryRoom" class="sam-entry-room" hidden></span>
+    }
     @if (_visualState == SamOverlayVisualState.Collapsed)
     {
-        @if (SamEntryPlacementRule.For(Nav) == SamEntryPlacement.Floating)
+        @if (floatingPage)
         {
             <SamFab OnOpen="OpenFromFabAsync"
                     HasUnread="_hasUnread"
@@ -453,11 +460,7 @@
         // so the host re-renders to draw it, or not, for the page now showing.
         // The existing /coach route takes over when navigating there.
         var uri = Nav.ToAbsoluteUri(e.Location);
-        if (!uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
-        {
-            RequestRender();
-        }
-        else
+        if (uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
         {
             var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
             _visualState = SamOverlayVisualState.Collapsed;
@@ -469,9 +472,9 @@
             {
                 _ = InvokeScrollLockAsync("exitFullscreenScrollLock");
             }
-
-            RequestRender();
         }
+
+        RequestRender();
     }
 
     private async Task ResetEntryAutoHideAsync()

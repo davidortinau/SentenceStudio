@@ -11,6 +11,12 @@ public static class SamElementIds
     /// <summary>The Sam icon in the page header, on every page without the floating button.</summary>
     public const string HeaderEntry = "sam-header-entry";
 
+    /// <summary>
+    /// The hidden marker a main page carries for the floating button's bottom room (app.css
+    /// .sam-entry-room); it stays while the panel is open, so the page never moves.
+    /// </summary>
+    public const string EntryRoom = "sam-entry-room";
+
     public const string Panel = "sam-panel";
     public const string PanelTitle = "sam-panel-title";
 
