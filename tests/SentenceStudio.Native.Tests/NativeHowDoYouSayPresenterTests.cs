@@ -105,6 +105,35 @@ public sealed class NativeHowDoYouSayPresenterTests
     }
 
     [Fact]
+    public async Task Speak_InTheApisDefaultVoice_PlaysButKeepsNoClipOrRowUnderTheRequestedVoice()
+    {
+        // The API answered with its default voice (VoiceSubstituted): caching it under the
+        // learner's voice would replay the wrong voice from then on.
+        using var fixture = new NativeSliceFixture();
+        using var audio = new ScratchAudioCache(fixture);
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        var test = Create(fixture, new ScratchHowDoYouSaySource { Substituted = true });
+        using var _ = test.Presenter;
+        await test.Presenter.OpenAsync(Launch(fixture));
+
+        test.Presenter.SetInput("안녕하세요");
+        await test.Presenter.SpeakAsync();
+        test.Player.Finish();
+        await WaitAsync(test.Presenter, state => state.PlayingId is null);
+        test.Presenter.SetInput("안녕하세요");
+        await test.Presenter.SpeakAsync();
+
+        Assert.Equal([1.0f, 1.0f], test.Player.Rates);
+        Assert.Equal(2, test.Source.Synthesized.Count);
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .StreamHistories.AnyAsync(row => row.Phrase == "안녕하세요"));
+        var cache = Path.Combine(fixture.Root, "AudioCache");
+        Assert.True(!Directory.Exists(cache) || Directory.GetFiles(cache).Length == 0);
+    }
+
+    [Fact]
     public async Task SelectVoice_SavesImmediatelyForTheTargetLanguageAndSpeaksWithIt()
     {
         using var fixture = new NativeSliceFixture();
@@ -481,6 +510,8 @@ internal sealed class ScratchHowDoYouSaySource : INativeQuizSpeechSource
     public bool HangVoices { get; set; }
     public bool HangSynthesis { get; set; }
     public bool Fails { get; set; }
+    /// <summary>Answer as the API does when it used its default voice instead of the one asked for.</summary>
+    public bool Substituted { get; set; }
     public List<(string Owner, string Language)> VoiceRequests { get; } = [];
     public List<(string Owner, string Text, string Voice)> Synthesized { get; } = [];
 
@@ -492,7 +523,9 @@ internal sealed class ScratchHowDoYouSaySource : INativeQuizSpeechSource
         if (Fails)
             throw new HttpRequestException("Scratch speech failed.", null, System.Net.HttpStatusCode.BadGateway);
         Synthesized.Add((owner, promptText, voiceId));
-        return new MemoryStream([1, 2, 3]);
+        return Substituted
+            ? new SentenceStudio.Services.Api.SpeechClipStream([1, 2, 3], "default-voice", voiceSubstituted: true)
+            : new MemoryStream([1, 2, 3]);
     }
 
     public async Task<IReadOnlyList<NativeQuizVoice>> GetVoicesAsync(

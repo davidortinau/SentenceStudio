@@ -34,7 +34,8 @@ public sealed class SpeechGatewayClient(ISpeechApiClient speechApiClient, ILogge
         {
             var base64 = response.AudioUrl[(delimiter + 1)..];
             var bytes = Convert.FromBase64String(base64);
-            return new MemoryStream(bytes, writable: false);
+            // Callers that keep clips by voice must not keep a substituted one (SpeechClipStream).
+            return new SpeechClipStream(bytes, response.VoiceId, response.VoiceSubstituted == true);
         }
         catch (FormatException ex)
         {

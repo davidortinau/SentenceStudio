@@ -211,6 +211,47 @@ public sealed class UiSpeechClipCacheTests
             return row;
         });
 
+    [Fact]
+    public async Task A_clip_in_the_apis_default_voice_plays_but_is_never_kept_under_the_requested_voice()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        var calls = 0;
+        Task<Stream> Substituted(string voice, CancellationToken token)
+        {
+            calls++;
+            return Task.FromResult<Stream>(new SentenceStudio.Services.Api.SpeechClipStream(
+                Clip, "21m00Tcm4TlvDq8ikWAM", voiceSubstituted: true));
+        }
+
+        var first = await Cache(harness).GetOrCreateAsync("안녕하세요", "voice-1", true, "phrase", Substituted, default);
+        var second = await Cache(harness).GetOrCreateAsync("안녕하세요", "voice-1", true, "phrase", Substituted, default);
+
+        first.Status.Should().Be(UiSpeechClipStatus.Ready);
+        first.Audio.Should().Equal(Clip, "the clip still plays");
+        first.Entry.Should().BeNull();
+        (await Rows(harness)).Should().BeEmpty("no row may name voice-1 for a clip in another voice");
+        Directory.GetFiles(harness.AudioCacheDirectory).Should().BeEmpty();
+        second.Status.Should().Be(UiSpeechClipStatus.Ready);
+        calls.Should().Be(2, "nothing was cached, so the next play asks again");
+    }
+
+    [Fact]
+    public async Task A_synced_entry_regenerated_in_the_apis_default_voice_gets_no_local_copy()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        var synced = await AddRowAsync(harness, ActivityPageHarness.OwnerA, "감사합니다", "phone-voice",
+            "/var/mobile/Containers/Data/Application/PHONE/Library/AudioCache/phrase_phone.mp3");
+
+        var clip = await Cache(harness).GetForEntryAsync(synced, "voice-1", true, "phrase",
+            (voice, token) => Task.FromResult<Stream>(new SentenceStudio.Services.Api.SpeechClipStream(
+                Clip, "21m00Tcm4TlvDq8ikWAM", voiceSubstituted: true)), default);
+
+        clip.Status.Should().Be(UiSpeechClipStatus.Ready);
+        clip.Audio.Should().Equal(Clip);
+        File.Exists(Path.Combine(harness.AudioCacheDirectory, StreamHistory.RegeneratedClipFileName(synced.Id)))
+            .Should().BeFalse("the entry's own voice was not used");
+    }
+
     private sealed class CountingSynthesizer(byte[] audio)
     {
         public List<string> Calls { get; } = new();

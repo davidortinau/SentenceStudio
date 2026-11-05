@@ -8,6 +8,7 @@ using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Data;
 using SentenceStudio.Models;
 using SentenceStudio.Services.Api;
+using SentenceStudio.Services.Speech;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
@@ -51,7 +52,8 @@ public static class Voices
 /// <para>
 /// Voices are sent as the pages hold them (an ElevenLabs voice ID or a slug such as
 /// <c>jiyoung</c>); the API resolves them and falls back to its default voice for any voice it does
-/// not offer.
+/// not offer. Such a clip comes back as a <see cref="SpeechClipStream"/> with
+/// <see cref="SpeechClipStream.VoiceSubstituted"/> set, and is never kept under the requested voice.
 /// </para>
 /// </remarks>
 public class ElevenLabsSpeechService
@@ -123,8 +125,14 @@ public class ElevenLabsSpeechService
 
         RequireSameOwner(owner, "Speech synthesis");
         var audio = DecodeAudio(response.AudioUrl);
+        var substituted = response.VoiceSubstituted == true;
+        if (substituted)
+        {
+            // Played, but callers must not keep it under the requested voice (SpeechClipStream).
+            _logger.LogWarning("The API used its default voice instead of {VoiceId}; the clip will not be cached.", voiceId);
+        }
         _logger.LogDebug("TextToSpeech: received {Bytes} bytes for voice {VoiceId}", audio.Length, voiceId);
-        return new MemoryStream(audio, writable: false);
+        return new SpeechClipStream(audio, response.VoiceId, substituted);
     }
 
     /// <summary>
@@ -160,7 +168,10 @@ public class ElevenLabsSpeechService
         if (string.IsNullOrWhiteSpace(resource.Transcript))
             throw new InvalidOperationException("This resource has no transcript to read aloud.");
 
-        // Same AppData names as the in-process service used, so existing clips are reused.
+        // Same AppData names as the in-process service used. A cached clip is used only when it was
+        // made from this exact transcript (its fingerprint is in the metadata); a clip cached before
+        // the fingerprint existed is made again once.
+        var transcriptSha256 = TimestampedSpeech.TranscriptSha256(resource.Transcript);
         var cacheKey = $"timestamped_{resource.Id}_{voiceId}_{speed:F1}";
         var cacheFilePath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.mp3");
         var cacheMetaPath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.json");
@@ -170,16 +181,28 @@ public class ElevenLabsSpeechService
             try
             {
                 var metaJson = await File.ReadAllTextAsync(cacheMetaPath, cancellationToken);
-                var cachedResult = JsonSerializer.Deserialize<TimestampedAudioResult>(metaJson);
+                var meta = JsonSerializer.Deserialize<ReadingAudioMeta>(metaJson);
 
-                if (cachedResult != null)
+                if (meta is not null && string.Equals(meta.TranscriptSha256, transcriptSha256, StringComparison.Ordinal))
                 {
                     var audioData = await File.ReadAllBytesAsync(cacheFilePath, cancellationToken);
-                    cachedResult.AudioData = new ReadOnlyMemory<byte>(audioData);
-                    cachedResult.CacheFilePath = cacheFilePath;
-
-                    _logger.LogDebug("Using cached timestamped audio for resource {ResourceId}", resource.Id);
-                    return cachedResult;
+                    if (audioData.Length > 0)
+                    {
+                        _logger.LogDebug("Using cached timestamped audio for resource {ResourceId}", resource.Id);
+                        return new TimestampedAudioResult
+                        {
+                            AudioData = audioData,
+                            Characters = meta.Characters ?? [],
+                            Duration = meta.Duration,
+                            CacheFilePath = cacheFilePath
+                        };
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Cached reading audio for resource {ResourceId} is not for this transcript; generating again.",
+                        resource.Id);
                 }
             }
             catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
@@ -212,26 +235,49 @@ public class ElevenLabsSpeechService
         }
 
         RequireSameOwner(owner, "Reading audio");
+
+        // The API synthesized its own copy of the transcript. Timings for different text would not
+        // line up with what this page shows, so such a clip is neither played nor kept.
+        var verified = !string.IsNullOrEmpty(response.TranscriptSha256);
+        if (verified && !string.Equals(response.TranscriptSha256, transcriptSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Reading audio for resource {ResourceId} is for a different transcript than this device has; not used.",
+                resource.Id);
+            throw new InvalidOperationException(
+                "This reading's text differs from the copy on the server. Sync, then try the audio again.");
+        }
+
         var audio = DecodeAudio(response.AudioUrl);
         var result = new TimestampedAudioResult
         {
             AudioData = audio,
-            Characters = ToCharacters(response.Characters ?? []),
+            Characters = TimestampedSpeech.ToCharacters(response.Characters ?? []),
             Duration = TimeSpan.FromSeconds(response.DurationSeconds),
             CacheFilePath = cacheFilePath
         };
+
+        if (!verified || response.VoiceSubstituted == true)
+        {
+            // An older server (no fingerprint) or the API's default voice instead of the requested
+            // one: play it, but do not keep it under this resource and voice.
+            _logger.LogWarning(
+                "Reading audio for resource {ResourceId} will not be cached (transcript verified: {Verified}, voice substituted: {Substituted}).",
+                resource.Id, verified, response.VoiceSubstituted == true);
+            result.CacheFilePath = string.Empty;
+            return result;
+        }
 
         try
         {
             await File.WriteAllBytesAsync(cacheFilePath, audio, cancellationToken);
 
-            // Metadata without the audio, as before.
-            var metaJson = JsonSerializer.Serialize(new TimestampedAudioResult
+            // Metadata without the audio, with the transcript it belongs to.
+            var metaJson = JsonSerializer.Serialize(new ReadingAudioMeta
             {
-                AudioData = ReadOnlyMemory<byte>.Empty,
                 Characters = result.Characters,
                 Duration = result.Duration,
-                CacheFilePath = result.CacheFilePath
+                TranscriptSha256 = transcriptSha256
             });
             await File.WriteAllTextAsync(cacheMetaPath, metaJson, cancellationToken);
 
@@ -272,19 +318,14 @@ public class ElevenLabsSpeechService
         return audio;
     }
 
-    /// <summary>
-    /// The API's millisecond timings as the ElevenLabs characters the Reading page already uses.
-    /// Their setters are JSON-only, so they are built through the SDK's own wire names.
-    /// </summary>
-    internal static TimestampedTranscriptCharacter[] ToCharacters(IEnumerable<CharacterTimestamp> characters)
+    /// <summary>The AppData metadata kept beside a cached Reading clip.</summary>
+    private sealed class ReadingAudioMeta
     {
-        var json = JsonSerializer.Serialize(characters.Select(c => new Dictionary<string, object>
-        {
-            ["character"] = c.Char,
-            ["character_start_times_seconds"] = c.StartMs / 1000.0,
-            ["character_end_times_seconds"] = c.EndMs / 1000.0
-        }));
-        return JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(json) ?? [];
+        public TimestampedTranscriptCharacter[]? Characters { get; set; }
+        public TimeSpan Duration { get; set; }
+
+        /// <summary>The transcript fingerprint the clip was made from (TimestampedSpeech.TranscriptSha256).</summary>
+        public string? TranscriptSha256 { get; set; }
     }
 
     private static object DescribeStatus(HttpRequestException ex) =>

@@ -139,14 +139,17 @@ public static class ServiceCollectionExtentions
         services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        // Speech synthesis is a paid ElevenLabs generation on every attempt the API does not serve
+        // from its cache. The standard pipeline (ServiceDefaults) retries 5xx and 408, which would pay
+        // for one clip several times, so neither speech client has resilience handlers. Each request
+        // is one attempt; the page reports a failure and the learner can play again.
+#pragma warning disable EXTEXP0001
         services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<ApiActivityHandler>()
-            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
+            .RemoveAllResilienceHandlers();
         // Reading's timestamped audio: a long transcript can take minutes on the server (which allows
-        // ElevenLabs five), and every attempt is a paid generation. The standard pipeline's attempt
-        // timeout would abandon a slow-but-valid request and its retry would pay for it again, so
-        // this client has no resilience handlers and the server's own five-minute bound.
-#pragma warning disable EXTEXP0001
+        // ElevenLabs five), so this client also has the server's own five-minute bound.
         services.AddHttpClient<ITimestampedSpeechApiClient, TimestampedSpeechApiClient>(client =>
         {
             client.BaseAddress = baseUri;

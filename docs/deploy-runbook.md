@@ -292,14 +292,24 @@ Do You Say voice lists come from `GET /api/v1/speech/voices` (`ApiVoiceDiscovery
   value is a 400). A request without them is handled exactly as before and finds the same stored
   clip (pinned by `SpeechSynthesizeSettingsEndpointTests`). Both endpoints now also accept a raw
   ElevenLabs voice ID that the API offers: the slug voices, the client default voices,
-  `AI:ElevenLabs:Voices`, or an account voice listed by `/speech/voices`, read through the voices
-  endpoint's own cache and kept for 10 minutes. Any other ID still falls back to the default
-  voice, logged at Information without its value. This changes native audio too: native quiz and
-  shadowing send the stored ID (JiYoung for Korean), which the API used to answer in its default
-  voice (Rachel).
-- **Reading on MAUI** needs the resource on the server. One created on the device and not synced
-  yet gets a 404, which the page shows as an audio error. A clip already in the device's AppData
-  (`timestamped_<resource>_<voice>_<speed>.mp3/.json`, same names as before) still plays.
+  `AI:ElevenLabs:Voices`, or an account voice listed by `/speech/voices`. The account list is one
+  ElevenLabs call per load, shared by concurrent requests, kept for 10 minutes from when it loaded;
+  a failed load is never kept and is retried on a later request after 30 seconds. Any other ID, or
+  an account voice while the list cannot be read, falls back to the default voice, logged without
+  its value. This changes native audio too: native quiz and shadowing send the stored ID (JiYoung
+  for Korean), which the API used to answer in its default voice (Rachel).
+- **No client keeps a clip under a voice the API did not use.** Both responses now carry `VoiceId`
+  (the voice used) and `VoiceSubstituted` (true when the API used its default voice instead of the
+  one asked for). Web, MAUI and native play such a clip but keep no file, StreamHistory row or
+  AppData entry for it.
+- **Reading** clips are for the server's copy of the transcript. The timestamped response carries
+  `TranscriptSha256`; web, MAUI and native neither play nor keep a clip whose fingerprint differs
+  from their own transcript, and the cached AppData metadata
+  (`timestamped_<resource>_<voice>_<speed>.mp3/.json`) records it, so a clip for older text is made
+  again. A resource created on the device and not synced yet gets a 404, which the page shows as an
+  audio error.
+- **No retries.** Each speech request is one attempt (no resilience pipeline), so one clip is never
+  paid for twice by a client retry.
 - **Failures** surface on the page: an API refusal throws with its status, and a missing or empty
   clip throws. The old service returned an empty stream instead.
 
@@ -320,11 +330,11 @@ the API is updated. Nothing is lost.
 4. MAUI builds (iOS, Android, Mac) once the API is live. Installed older MAUI builds keep calling
    ElevenLabs directly with their embedded key until they are replaced.
 
-**Config that can go once the new builds are out** (none of it is read for speech any more):
-the WebApp's `ElevenLabsKey` environment variable (`AppHost.cs` still passes it to `webapp`, and
-to `workers`, which does not use it), `Settings:ElevenLabsKey` in the WebApp's configuration, and
-`Settings:ElevenLabsKey` in the MAUI `src/SentenceStudio.AppLib/appsettings.json`, which is
-embedded in every MAUI build. The API keeps `ElevenLabsKey`. Shipped MAUI binaries contain the
+**Key removal.** `AppHost.cs` no longer passes `ElevenLabsKey` to `webapp` or `workers`; nothing in
+either reads it. After the next deploy their container apps no longer carry the secret. The API keeps
+`ElevenLabsKey`. Once the new builds are out, also remove `Settings:ElevenLabsKey` from the WebApp's
+configuration (user secrets) and from the MAUI `src/SentenceStudio.AppLib/appsettings.json`, which is
+embedded in every MAUI build. Shipped MAUI binaries contain the
 key, so rotating it after the MAUI devices are updated is worth considering. Rotation changes the
 API's `elevenlabskey` secret and is an Azure step for the Captain.
 

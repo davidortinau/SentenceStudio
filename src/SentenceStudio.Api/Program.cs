@@ -503,9 +503,13 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
     var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
-    builder.Services.AddSingleton<
-        SentenceStudio.Services.Speech.IVoiceDiscoveryService,
-        SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+    // One instance serves the voices endpoint and the speech voice check (one shared, cached
+    // account voice list).
+    builder.Services.AddSingleton<SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+    builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService>(sp =>
+        sp.GetRequiredService<SentenceStudio.Services.Speech.VoiceDiscoveryService>());
+    builder.Services.AddSingleton<SentenceStudio.Services.Speech.IAccountVoiceSource>(sp =>
+        sp.GetRequiredService<SentenceStudio.Services.Speech.VoiceDiscoveryService>());
     builder.Services.AddSingleton<ISpeechClipProvider, ElevenLabsSpeechClipProvider>();
 }
 
@@ -1030,7 +1034,8 @@ app.MapPost("/api/v1/speech/synthesize", async (
         var similarityBoost = Math.Clamp(request.SimilarityBoost ?? SpeechClipSpec.DefaultSynthesizeSimilarityBoost, 0f, 1f);
         var speed = Math.Clamp(request.Speed ?? SpeechClipSpec.DefaultSynthesizeSpeed, 0.7f, 1.2f);
 
-        var voiceId = await voices.ResolveAsync(request.VoiceId, cancellationToken);
+        var voice = await voices.ResolveAsync(request.VoiceId, cancellationToken);
+        var voiceId = voice.VoiceId;
         var model = ResolveElevenLabsModel(
             app.Configuration["AI:ElevenLabs:InteractiveModel"],
             new Model("eleven_v3"));
@@ -1045,7 +1050,9 @@ app.MapPost("/api/v1/speech/synthesize", async (
 
             return Results.Ok(new SynthesizeResponse
             {
-                AudioUrl = $"data:audio/mpeg;base64,{base64}"
+                AudioUrl = $"data:audio/mpeg;base64,{base64}",
+                VoiceId = voiceId,
+                VoiceSubstituted = voice.Substituted
             });
         }
         catch (Exception ex)
@@ -1149,7 +1156,8 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             });
         }
 
-        var voiceId = await voices.ResolveAsync(request.VoiceId, cancellationToken);
+        var voice = await voices.ResolveAsync(request.VoiceId, cancellationToken);
+        var voiceId = voice.VoiceId;
 
         // Clamp VoiceSettings to documented ElevenLabs ranges so callers can't
         // pass NaN / out-of-band values that either error from upstream or
@@ -1174,7 +1182,11 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             {
                 AudioUrl = $"data:audio/mpeg;base64,{base64}",
                 DurationSeconds = clip.DurationSeconds,
-                Characters = clip.Characters.ToList()
+                Characters = clip.Characters.ToList(),
+                VoiceId = voiceId,
+                VoiceSubstituted = voice.Substituted,
+                // Clients check that their copy of the transcript is the one these timings belong to.
+                TranscriptSha256 = SentenceStudio.Services.Speech.TimestampedSpeech.TranscriptSha256(resource.Transcript)
             });
         }
         catch (Exception ex)

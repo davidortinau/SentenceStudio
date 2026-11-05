@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Services.Api;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.WebUI.Services;
@@ -147,10 +148,12 @@ public sealed class UiSpeechClipCache(
             return new UiSpeechClip(UiSpeechClipStatus.Offline);
 
         byte[]? audio;
+        bool substituted;
         try
         {
             await using var stream = await synthesize(voiceId, cancellationToken);
             audio = await ReadLimitedAsync(stream, cancellationToken);
+            substituted = SpeechClipStream.IsSubstituted(stream);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -169,6 +172,14 @@ public sealed class UiSpeechClipCache(
         {
             logger.LogWarning("Speech synthesis returned no audio.");
             return new UiSpeechClip(UiSpeechClipStatus.Failed);
+        }
+
+        if (substituted)
+        {
+            // The API used its default voice, not voiceId: play it, but keep no file and no row
+            // that would later serve it as the requested voice.
+            logger.LogWarning("A clip in the API's default voice was played without caching it.");
+            return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, existing, Synthesized: true);
         }
 
         StreamHistory? stored = null;

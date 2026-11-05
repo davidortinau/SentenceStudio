@@ -5,18 +5,51 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services.Speech;
 
+/// <summary>The account's voices, and whether ElevenLabs could actually be read.</summary>
+/// <param name="Loaded">
+/// True when the list came from ElevenLabs. False when it could not be read (an outage, an error, or
+/// the retry back-off after one); <paramref name="Voices"/> is then empty.
+/// </param>
+public sealed record AccountVoiceSnapshot(bool Loaded, IReadOnlyList<VoiceInfo> Voices)
+{
+    public static AccountVoiceSnapshot Unavailable { get; } = new(false, []);
+}
+
+/// <summary>The voices available to the API's ElevenLabs account (the API's speech voice check uses it).</summary>
+public interface IAccountVoiceSource
+{
+    /// <summary>The account's voices from one shared, cached load.</summary>
+    Task<AccountVoiceSnapshot> GetAccountVoicesAsync(CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Discovers available voices from ElevenLabs API, with language filtering and caching.
 /// </summary>
-public class VoiceDiscoveryService : IVoiceDiscoveryService
+/// <remarks>
+/// Safe for concurrent use; the API holds one instance for every learner. The account's voice list
+/// is read with one ElevenLabs call per load, shared by concurrent callers, kept for
+/// <see cref="AccountVoicesLifetime"/> and used for every language. A failed load is not kept: callers
+/// get the fallback voices, and ElevenLabs is asked again on a later request once
+/// <see cref="FailureBackoff"/> has passed.
+/// </remarks>
+public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
 {
+    /// <summary>How long a successfully read account voice list is used.</summary>
+    public static TimeSpan AccountVoicesLifetime { get; } = TimeSpan.FromHours(24);
+
+    /// <summary>How long after a failed read the account list is not asked for again.</summary>
+    public static TimeSpan FailureBackoff { get; } = TimeSpan.FromSeconds(30);
+
     private readonly ElevenLabsClient _client;
     private readonly ILogger<VoiceDiscoveryService> _logger;
-    
-    private readonly Dictionary<string, List<VoiceInfo>> _voiceCache = new();
-    private readonly Dictionary<string, DateTime> _cacheTimestamps = new();
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromHours(24);
-    
+    private readonly TimeProvider _time;
+
+    private readonly object _gate = new();
+    private IReadOnlyList<VoiceInfo>? _accountVoices;
+    private DateTimeOffset _accountVoicesLoadedAt;
+    private DateTimeOffset? _lastFailureAt;
+    private Task<AccountVoiceSnapshot>? _load;
+
     /// <summary>
     /// Language name to ElevenLabs language code mapping.
     /// </summary>
@@ -28,7 +61,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
         { "Korean", "ko" },
         { "Spanish", "es" }
     };
-    
+
     /// <summary>
     /// Fallback voices when API is unavailable or returns no results.
     /// Populated from config (AI:ElevenLabs:Voices) with hardcoded defaults as last resort.
@@ -73,10 +106,15 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
         }
     };
 
-    public VoiceDiscoveryService(ElevenLabsClient client, ILogger<VoiceDiscoveryService> logger, IConfiguration? configuration = null)
+    public VoiceDiscoveryService(
+        ElevenLabsClient client,
+        ILogger<VoiceDiscoveryService> logger,
+        IConfiguration? configuration = null,
+        TimeProvider? time = null)
     {
         _client = client;
         _logger = logger;
+        _time = time ?? TimeProvider.System;
         _fallbackVoices = BuildFallbackVoices(configuration);
     }
 
@@ -89,40 +127,100 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
 
     public async Task<List<VoiceInfo>> GetVoicesForLanguageAsync(string language, bool forceRefresh = false)
     {
-        // Check cache first
-        if (!forceRefresh && _voiceCache.TryGetValue(language, out var cachedVoices))
-        {
-            if (_cacheTimestamps.TryGetValue(language, out var timestamp) && 
-                DateTime.UtcNow - timestamp < _cacheDuration)
-            {
-                _logger.LogDebug("🎙️ Using cached voices for {Language} ({Count} voices)", language, cachedVoices.Count);
-                return cachedVoices;
-            }
-        }
-
         var languageCode = GetLanguageCode(language);
         if (languageCode == null)
         {
-            _logger.LogWarning("⚠️ Unsupported language for voice discovery: {Language}", language);
-            return _fallbackVoices.TryGetValue(language, out var fallback) ? fallback : new List<VoiceInfo>();
+            _logger.LogWarning("Unsupported language for voice discovery: {Language}", language);
+            return Fallback(language);
         }
 
+        var account = await LoadAccountVoicesAsync(forceRefresh, CancellationToken.None);
+        if (!account.Loaded)
+        {
+            _logger.LogWarning("Voice list unavailable; using the fallback voices for {Language}", language);
+            return Fallback(language);
+        }
+
+        // The account's voices are offered for every language; most are multilingual.
+        if (account.Voices.Count == 0)
+        {
+            _logger.LogWarning("No voices returned from ElevenLabs; using the fallback voices for {Language}", language);
+            return Fallback(language);
+        }
+
+        return account.Voices
+            .Select(v => new VoiceInfo
+            {
+                VoiceId = v.VoiceId,
+                Name = v.Name,
+                Language = languageCode,
+                Gender = v.Gender,
+                Accent = v.Accent,
+                Description = v.Description,
+                PreviewUrl = v.PreviewUrl,
+                Category = v.Category
+            })
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public Task<AccountVoiceSnapshot> GetAccountVoicesAsync(CancellationToken cancellationToken) =>
+        LoadAccountVoicesAsync(forceRefresh: false, cancellationToken);
+
+    public void ClearCache()
+    {
+        lock (_gate)
+        {
+            _accountVoices = null;
+            _lastFailureAt = null;
+        }
+        _logger.LogInformation("Voice cache cleared");
+    }
+
+    private Task<AccountVoiceSnapshot> LoadAccountVoicesAsync(bool forceRefresh, CancellationToken cancellationToken)
+    {
+        Task<AccountVoiceSnapshot> load;
+        lock (_gate)
+        {
+            var now = _time.GetUtcNow();
+            if (!forceRefresh && _accountVoices is { } cached && now - _accountVoicesLoadedAt < AccountVoicesLifetime)
+                return Task.FromResult(new AccountVoiceSnapshot(true, cached));
+
+            if (_load is { IsCompleted: false } running)
+            {
+                load = running;
+            }
+            else if (!forceRefresh && _lastFailureAt is { } failedAt && now - failedAt < FailureBackoff)
+            {
+                return Task.FromResult(AccountVoiceSnapshot.Unavailable);
+            }
+            else
+            {
+                load = _load = ReadAccountVoicesAsync();
+            }
+        }
+
+        // One shared read for every caller; a caller's cancellation stops only its own wait.
+        return load.WaitAsync(cancellationToken);
+    }
+
+    private async Task<AccountVoiceSnapshot> ReadAccountVoicesAsync()
+    {
+        // Run the read off the caller's lock-holding stack.
+        await Task.Yield();
         try
         {
-            _logger.LogInformation("🎙️ Fetching user's available voices from ElevenLabs for language: {Language} ({Code})", language, languageCode);
-            
-            // Use GetAllVoicesAsync to get only voices actually available to this account
-            // (not the shared voice library which requires adding voices first)
-            var allVoices = await _client.VoicesEndpoint.GetAllVoicesAsync();
-            
-            // Filter voices by language - ElevenLabs voices have language labels
-            // Most default voices are multilingual, so we include those too
+            _logger.LogInformation("Fetching the account's voices from ElevenLabs");
+
+            // GetAllVoicesAsync returns the voices this account can use (not the shared library).
+            // Without downloadSettings: false the SDK also fetches every voice's settings, one more
+            // ElevenLabs call per voice; nothing here uses them.
+            var allVoices = await _client.VoicesEndpoint.GetAllVoicesAsync(downloadSettings: false);
             var voices = allVoices
                 .Select(v => new VoiceInfo
                 {
                     VoiceId = v.Id,
                     Name = v.Name,
-                    Language = languageCode,
                     Gender = v.Labels?.TryGetValue("gender", out var gender) == true ? CapitalizeFirst(gender) : "",
                     Accent = v.Labels?.TryGetValue("accent", out var accent) == true ? CapitalizeFirst(accent) : "",
                     Description = v.Labels?.TryGetValue("description", out var desc) == true ? desc : "",
@@ -130,37 +228,33 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
                     Category = v.Category ?? ""
                 })
                 .OrderBy(v => v.Name)
-                .ToList();
+                .ToList()
+                .AsReadOnly();
 
-            // If no voices available, use fallback
-            if (voices.Count == 0)
+            lock (_gate)
             {
-                _logger.LogWarning("⚠️ No voices returned from API, using fallback for {Language}", language);
-                voices = _fallbackVoices.TryGetValue(language, out var fallbackList) 
-                    ? fallbackList.ToList() 
-                    : new List<VoiceInfo>();
+                _accountVoices = voices;
+                _accountVoicesLoadedAt = _time.GetUtcNow();
+                _lastFailureAt = null;
             }
 
-            // Update cache
-            _voiceCache[language] = voices;
-            _cacheTimestamps[language] = DateTime.UtcNow;
-
-            _logger.LogInformation("🎙️ Found {Count} available voices for {Language}", voices.Count, language);
-            return voices;
+            _logger.LogInformation("Found {Count} voices for this account", voices.Count);
+            return new AccountVoiceSnapshot(true, voices);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to fetch voices for {Language}, using fallback", language);
-            return _fallbackVoices.TryGetValue(language, out var fallback2) ? fallback2 : new List<VoiceInfo>();
+            // Reported as not loaded, never as an empty account; see AccountVoiceSnapshot.
+            lock (_gate)
+            {
+                _lastFailureAt = _time.GetUtcNow();
+            }
+            _logger.LogError(ex, "Failed to fetch the account's voices from ElevenLabs");
+            return AccountVoiceSnapshot.Unavailable;
         }
     }
 
-    public void ClearCache()
-    {
-        _voiceCache.Clear();
-        _cacheTimestamps.Clear();
-        _logger.LogInformation("🗑️ Voice cache cleared");
-    }
+    private List<VoiceInfo> Fallback(string language) =>
+        _fallbackVoices.TryGetValue(language, out var fallback) ? fallback.ToList() : new List<VoiceInfo>();
 
     private static string CapitalizeFirst(string? value)
     {

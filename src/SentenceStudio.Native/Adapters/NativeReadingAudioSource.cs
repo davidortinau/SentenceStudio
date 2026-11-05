@@ -9,6 +9,7 @@ using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Data;
 using SentenceStudio.Models;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Speech;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Adapters;
@@ -96,6 +97,15 @@ public sealed class NativeReadingAudioSource(
             throw new UnauthorizedAccessException("Reading audio owner changed during synthesis.");
         if (response is null || !TryDecode(response.AudioUrl, out var bytes))
             return null;
+        // The API synthesized its own copy of the transcript; timings for other text would not line
+        // up with what this device shows, so such a clip is neither played nor kept.
+        var verified = !string.IsNullOrEmpty(response.TranscriptSha256);
+        if (verified && !string.Equals(response.TranscriptSha256,
+                TimestampedSpeech.TranscriptSha256(resource.Transcript), StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("Timestamped speech is for a different transcript than this device has; not used.");
+            return null;
+        }
 
         var characters = ToCharacters(response.Characters
             .Select(item => (item.Char, item.StartMs / 1000.0, item.EndMs / 1000.0)));
@@ -106,7 +116,12 @@ public sealed class NativeReadingAudioSource(
             FullTranscript = resource.Transcript,
             Duration = response.DurationSeconds
         };
-        await WriteCacheAsync(audioPath, metaPath, audio, cancellationToken);
+        // An older server (no fingerprint) or the API's default voice instead of the source voice:
+        // play it, but do not keep it under this resource and voice.
+        if (verified && response.VoiceSubstituted != true)
+            await WriteCacheAsync(audioPath, metaPath, audio, cancellationToken);
+        else
+            logger.LogWarning("Timestamped speech was not cached (transcript verified: {Verified}).", verified);
         return audio;
     }
 
@@ -128,18 +143,10 @@ public sealed class NativeReadingAudioSource(
         }
     }
 
-    /// <summary>ElevenLabs characters have JSON-only setters; build them through their own contract.</summary>
+    /// <summary>ElevenLabs characters from second timings (the shared <see cref="TimestampedSpeech"/> helper).</summary>
     internal static TimestampedTranscriptCharacter[] ToCharacters(
-        IEnumerable<(string Character, double Start, double End)> items)
-    {
-        var json = JsonSerializer.Serialize(items.Select(item => new Dictionary<string, object>
-        {
-            ["character"] = item.Character,
-            ["character_start_times_seconds"] = item.Start,
-            ["character_end_times_seconds"] = item.End
-        }));
-        return JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(json) ?? [];
-    }
+        IEnumerable<(string Character, double Start, double End)> items) =>
+        TimestampedSpeech.ToCharacters(items);
 
     private async Task<TimestampedAudio?> ReadCacheAsync(
         string audioPath, string metaPath, string transcript, CancellationToken cancellationToken)

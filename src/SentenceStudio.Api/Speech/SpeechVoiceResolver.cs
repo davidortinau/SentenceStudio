@@ -3,6 +3,14 @@ using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Api.Speech;
 
+/// <summary>The voice a speech request is synthesized with.</summary>
+/// <param name="VoiceId">The ElevenLabs voice ID used.</param>
+/// <param name="Substituted">
+/// True when the request named a voice and the API's default voice is used instead. Clients must not
+/// keep such a clip under the voice they asked for (it is returned to them as <c>VoiceSubstituted</c>).
+/// </param>
+public sealed record ResolvedSpeechVoice(string VoiceId, bool Substituted);
+
 /// <summary>
 /// Turns the voice a speech request names into the ElevenLabs voice ID the API synthesizes with.
 /// </summary>
@@ -15,10 +23,12 @@ namespace SentenceStudio.Api.Speech;
 /// cannot send an arbitrary voice ID through the API.
 /// </para>
 /// <para>
-/// The account voices come from <see cref="IVoiceDiscoveryService"/>, which caches each language's
-/// list for a day. This resolver keeps its own snapshot for <see cref="AccountVoicesLifetime"/>, so
-/// even while that list fails to load the ElevenLabs voice list is asked at most once per lifetime,
-/// and only when a request names a voice outside the built-in set.
+/// The account voices come from <see cref="IAccountVoiceSource"/> (the voices endpoint's
+/// <c>VoiceDiscoveryService</c>, one ElevenLabs call per load, with its own retry back-off). A list
+/// that loaded is kept for <see cref="AccountVoicesLifetime"/> from when its load completed; while a
+/// load is running every request waits on it; a list that failed to load is never kept, and is asked
+/// for again on a later request once <see cref="FailureBackoff"/> has passed. Only requests naming a
+/// voice outside the built-in set ever ask.
 /// </para>
 /// </remarks>
 public sealed class SpeechVoiceResolver
@@ -26,11 +36,13 @@ public sealed class SpeechVoiceResolver
     /// <summary>Rachel: the API's default voice when <c>AI:ElevenLabs:DefaultVoice</c> is unset.</summary>
     public const string BuiltInDefaultVoiceId = "21m00Tcm4TlvDq8ikWAM";
 
-    /// <summary>How long one snapshot of the account's voice IDs is used.</summary>
+    /// <summary>How long one loaded snapshot of the account's voice IDs is used, from when it loaded.</summary>
     public static TimeSpan AccountVoicesLifetime { get; } = TimeSpan.FromMinutes(10);
 
-    // Friendly slugs used by Flutter and the MAUI/web pages. Mirrors
-    // ElevenLabsSpeechService.VoiceOptions in AppLib. Matched exactly, as before.
+    /// <summary>How long after a failed load the list is not asked for again.</summary>
+    public static TimeSpan FailureBackoff { get; } = TimeSpan.FromSeconds(30);
+
+    // Friendly slugs used by Flutter and the MAUI/web pages. Matched exactly, as before.
     private static readonly FrozenDictionary<string, string> Slugs = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         // Korean
@@ -60,23 +72,25 @@ public sealed class SpeechVoiceResolver
     /// </summary>
     private const string MultilingualAdam = "pNInz6obpgDQGcFmaJgB";
 
-    private readonly IVoiceDiscoveryService? _discovery;
+    private readonly IAccountVoiceSource? _accountVoices;
     private readonly ILogger<SpeechVoiceResolver> _logger;
     private readonly TimeProvider _time;
     private readonly string _fallback;
     private readonly FrozenSet<string> _builtIn;
     private readonly object _gate = new();
-    private Task<FrozenSet<string>>? _accountVoices;
-    private DateTimeOffset _accountVoicesExpire;
+    private FrozenSet<string>? _snapshot;
+    private DateTimeOffset _snapshotExpires;
+    private DateTimeOffset? _lastFailureAt;
+    private Task<FrozenSet<string>?>? _load;
 
     public SpeechVoiceResolver(
         IConfiguration configuration,
         ILogger<SpeechVoiceResolver> logger,
-        IVoiceDiscoveryService? discovery = null,
+        IAccountVoiceSource? accountVoices = null,
         TimeProvider? time = null)
     {
         _logger = logger;
-        _discovery = discovery;
+        _accountVoices = accountVoices;
         _time = time ?? TimeProvider.System;
         _fallback = configuration["AI:ElevenLabs:DefaultVoice"] ?? BuiltInDefaultVoiceId;
 
@@ -93,68 +107,98 @@ public sealed class SpeechVoiceResolver
         _builtIn = builtIn.ToFrozenSet(StringComparer.Ordinal);
     }
 
-    /// <summary>The ElevenLabs voice ID for <paramref name="requested"/>; the default voice when it is not one this API offers.</summary>
-    public async Task<string> ResolveAsync(string? requested, CancellationToken cancellationToken)
+    /// <summary>The voice for <paramref name="requested"/>; the default voice when it is not one this API offers.</summary>
+    public async Task<ResolvedSpeechVoice> ResolveAsync(string? requested, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(requested))
-            return _fallback;
+            return new(_fallback, Substituted: false);
 
         if (Slugs.TryGetValue(requested, out var slugVoice))
-            return slugVoice;
+            return new(slugVoice, Substituted: false);
 
         if (_builtIn.Contains(requested))
-            return requested;
+            return new(requested, Substituted: false);
 
-        if (_discovery is not null
-            && (await AccountVoiceIdsAsync().WaitAsync(cancellationToken)).Contains(requested))
-            return requested;
+        var accountVoices = _accountVoices is null ? null : await AccountVoiceIdsAsync(cancellationToken);
+        if (accountVoices?.Contains(requested) == true)
+            return new(requested, Substituted: false);
 
         // The voice field is not learner content, but a caller controls it: only its length is logged.
-        _logger.LogInformation(
-            "Speech voice is not one this API offers; using the default voice. RequestedVoiceLength={RequestedVoiceLength}",
-            requested.Length);
-        return _fallback;
+        if (_accountVoices is not null && accountVoices is null)
+        {
+            _logger.LogWarning(
+                "Speech voice could not be checked (the account voice list is unavailable); using the default voice. RequestedVoiceLength={RequestedVoiceLength}",
+                requested.Length);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Speech voice is not one this API offers; using the default voice. RequestedVoiceLength={RequestedVoiceLength}",
+                requested.Length);
+        }
+
+        return new(_fallback, Substituted: true);
     }
 
-    /// <summary>One shared load per lifetime: concurrent requests wait on the same task.</summary>
-    private Task<FrozenSet<string>> AccountVoiceIdsAsync()
+    /// <summary>
+    /// The account's voice IDs, or null when they could not be read (that result is never kept).
+    /// Concurrent requests share one load.
+    /// </summary>
+    private Task<FrozenSet<string>?> AccountVoiceIdsAsync(CancellationToken cancellationToken)
     {
+        Task<FrozenSet<string>?> load;
         lock (_gate)
         {
             var now = _time.GetUtcNow();
-            if (_accountVoices is null || now >= _accountVoicesExpire)
-            {
-                _accountVoices = LoadAccountVoiceIdsAsync();
-                _accountVoicesExpire = now + AccountVoicesLifetime;
-            }
+            if (_snapshot is { } snapshot && now < _snapshotExpires)
+                return Task.FromResult<FrozenSet<string>?>(snapshot);
 
-            return _accountVoices;
+            if (_load is { IsCompleted: false } running)
+                load = running;
+            else if (_lastFailureAt is { } failedAt && now - failedAt < FailureBackoff)
+                return Task.FromResult<FrozenSet<string>?>(null);
+            else
+                load = _load = LoadAccountVoiceIdsAsync();
         }
+
+        return load.WaitAsync(cancellationToken);
     }
 
-    private async Task<FrozenSet<string>> LoadAccountVoiceIdsAsync()
+    private async Task<FrozenSet<string>?> LoadAccountVoiceIdsAsync()
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        // Leave the caller's lock before the load runs.
+        await Task.Yield();
+        AccountVoiceSnapshot account;
         try
         {
-            // VoiceDiscoveryService is not safe for concurrent use, so the languages are read one
-            // at a time. Each list is cached by the service, the same cache the voices endpoint uses.
-            foreach (var language in _discovery!.SupportedLanguages)
-            {
-                foreach (var voice in await _discovery.GetVoicesForLanguageAsync(language))
-                {
-                    if (!string.IsNullOrWhiteSpace(voice.VoiceId))
-                        ids.Add(voice.VoiceId);
-                }
-            }
+            account = await _accountVoices!.GetAccountVoicesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            // The request still synthesizes: a voice that cannot be checked gets the default voice,
-            // exactly as an unknown voice does. The snapshot expires and is loaded again.
-            _logger.LogWarning(ex, "Speech voice list could not be loaded; only built-in voices are accepted until it is retried.");
+            _logger.LogWarning(ex, "Speech voice list could not be loaded.");
+            account = AccountVoiceSnapshot.Unavailable;
         }
 
-        return ids.ToFrozenSet(StringComparer.Ordinal);
+        if (!account.Loaded)
+        {
+            lock (_gate)
+            {
+                _snapshot = null;
+                _lastFailureAt = _time.GetUtcNow();
+            }
+            return null;
+        }
+
+        var ids = account.Voices
+            .Select(voice => voice.VoiceId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToFrozenSet(StringComparer.Ordinal);
+        lock (_gate)
+        {
+            _snapshot = ids;
+            _snapshotExpires = _time.GetUtcNow() + AccountVoicesLifetime;
+            _lastFailureAt = null;
+        }
+        return ids;
     }
 }

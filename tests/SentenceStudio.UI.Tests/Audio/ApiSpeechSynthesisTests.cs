@@ -30,6 +30,7 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
     private const string Token = "learner-a-access-token";
     private const string JiYoung = "AW5wrnG1jVizOYY7R1Oo";
     private static readonly byte[] Clip = [0x49, 0x44, 0x33, 0x04, 0x07];
+    private const string ResourceTranscript = "가나";
 
     private readonly DirectoryInfo _appData = Directory.CreateTempSubdirectory("ss-api-speech-");
     private readonly ActivityPageHarness.MemoryPreferences _preferences = new();
@@ -247,6 +248,95 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
     }
 
     [Fact]
+    public async Task A_clip_carries_the_voice_the_api_used_and_whether_it_was_substituted()
+    {
+        _api.VoiceIdUsed = "21m00Tcm4TlvDq8ikWAM";
+        _api.VoiceSubstituted = true;
+
+        await using var audio = await Speech.TextToSpeechAsync("사과", "account-voice-gone");
+
+        var clip = audio.Should().BeOfType<SpeechClipStream>().Subject;
+        clip.VoiceId.Should().Be("21m00Tcm4TlvDq8ikWAM");
+        clip.VoiceSubstituted.Should().BeTrue("callers must not keep it under the requested voice");
+        (await ReadAllAsync(clip)).Should().Equal(Clip, "it still plays");
+    }
+
+    [Fact]
+    public async Task A_page_clip_is_one_attempt_with_no_retry()
+    {
+        // The standard pipeline retries 5xx; each retry the API could not serve from its cache
+        // would be another paid generation.
+        _api.Status = HttpStatusCode.ServiceUnavailable;
+
+        var speak = () => Speech.TextToSpeechAsync("사과", JiYoung);
+
+        await speak.Should().ThrowAsync<HttpRequestException>();
+        _api.Requests.Should().ContainSingle("one press is one paid attempt at most");
+    }
+
+    [Fact]
+    public async Task Reading_audio_for_another_copy_of_the_transcript_is_neither_used_nor_kept()
+    {
+        // The server synthesized its copy, which is not the text this device shows (an edit that has
+        // not synced): the timings would not line up with the page.
+        _api.ServerTranscript = ResourceTranscript + " (edited elsewhere)";
+        _api.Characters = [new() { Char = "가", StartMs = 0, EndMs = 250 }];
+
+        var read = () => Speech.GenerateTimestampedAudioAsync(Resource(Owner));
+
+        await read.Should().ThrowAsync<InvalidOperationException>();
+        Directory.GetFiles(_appData.FullName, "timestamped_*").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_cached_reading_clip_for_other_text_is_not_used()
+    {
+        var resource = Resource(Owner);
+        _api.Characters = [new() { Char = "가", StartMs = 0, EndMs = 250 }];
+        await Speech.GenerateTimestampedAudioAsync(resource);
+        _api.Requests.Should().ContainSingle();
+
+        // The transcript changed on this device (and the server has the new text too).
+        resource.Transcript = "가나다라";
+        _api.ServerTranscript = resource.Transcript;
+        await Speech.GenerateTimestampedAudioAsync(resource);
+
+        _api.Requests.Should().HaveCount(2, "the clip cached for the old text is not played");
+    }
+
+    [Fact]
+    public async Task A_reading_clip_cached_before_the_fingerprint_existed_is_made_again()
+    {
+        var resource = Resource(Owner);
+        var name = Path.Combine(_appData.FullName, $"timestamped_{resource.Id}_jiyoung_1.0");
+        await File.WriteAllBytesAsync(name + ".mp3", [1, 2, 3]);
+        // What the in-process service wrote: no transcript fingerprint.
+        await File.WriteAllTextAsync(name + ".json", """{"Characters":[],"Duration":"00:00:01","CacheFilePath":""}""");
+        _api.Characters = [new() { Char = "가", StartMs = 0, EndMs = 250 }];
+
+        var result = await Speech.GenerateTimestampedAudioAsync(resource);
+
+        _api.Requests.Should().ContainSingle();
+        result.AudioData.ToArray().Should().Equal(Clip);
+    }
+
+    [Theory]
+    [InlineData(false, true)]  // an older server sends no fingerprint
+    [InlineData(true, false)]  // the API used its default voice
+    public async Task Reading_audio_that_cannot_be_trusted_under_this_name_plays_but_is_not_kept(
+        bool fingerprinted, bool requestedVoiceUsed)
+    {
+        _api.ServerTranscript = fingerprinted ? ResourceTranscript : null;
+        _api.VoiceSubstituted = !requestedVoiceUsed;
+        _api.Characters = [new() { Char = "가", StartMs = 0, EndMs = 250 }];
+
+        var result = await Speech.GenerateTimestampedAudioAsync(Resource(Owner));
+
+        result.AudioData.ToArray().Should().Equal(Clip);
+        Directory.GetFiles(_appData.FullName, "timestamped_*").Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Voice_lists_come_from_the_api_and_are_kept_for_a_day()
     {
         _api.Voices = [new("AW5wrnG1jVizOYY7R1Oo", "Ji-Young", "ko", "Female", null), new("acct-voice", "Mina", "ko", null, null)];
@@ -324,7 +414,7 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
         Id = Guid.NewGuid().ToString(),
         UserProfileId = owner,
         Title = "Speech test",
-        Transcript = "가나",
+        Transcript = ResourceTranscript,
         Language = "Korean"
     };
 
@@ -340,6 +430,10 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
         public string? AudioUrl { get; set; } = "data:audio/mpeg;base64," + Convert.ToBase64String(Clip);
         public List<CharacterTimestamp> Characters { get; set; } = new();
         public double DurationSeconds { get; set; }
+        public string? VoiceIdUsed { get; set; } = JiYoung;
+        public bool? VoiceSubstituted { get; set; } = false;
+        /// <summary>The transcript the fake server "read"; null answers like an older server.</summary>
+        public string? ServerTranscript { get; set; } = ResourceTranscript;
         public SpeechApiVoice[] Voices { get; set; } = [];
         public TimeSpan Delay { get; set; }
 
@@ -363,12 +457,19 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
 
                 object payload = request.RequestUri.AbsolutePath switch
                 {
-                    "/api/v1/speech/synthesize" => new SynthesizeResponse { AudioUrl = api.AudioUrl },
+                    "/api/v1/speech/synthesize" => new SynthesizeResponse
+                    {
+                        AudioUrl = api.AudioUrl, VoiceId = api.VoiceIdUsed, VoiceSubstituted = api.VoiceSubstituted
+                    },
                     "/api/v1/speech/synthesize-timestamped" => new SynthesizeTimestampedResponse
                     {
                         AudioUrl = api.AudioUrl ?? string.Empty,
                         Characters = api.Characters,
-                        DurationSeconds = api.DurationSeconds
+                        DurationSeconds = api.DurationSeconds,
+                        VoiceId = api.VoiceIdUsed,
+                        VoiceSubstituted = api.VoiceSubstituted,
+                        TranscriptSha256 = api.ServerTranscript is null
+                            ? null : TimestampedSpeech.TranscriptSha256(api.ServerTranscript)
                     },
                     "/api/v1/speech/voices" => new { voices = api.Voices },
                     _ => throw new InvalidOperationException("Unexpected route " + request.RequestUri)

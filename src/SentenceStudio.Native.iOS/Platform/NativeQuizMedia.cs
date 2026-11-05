@@ -90,7 +90,9 @@ public sealed class NativeQuizMedia(
             if (stream is not null)
             {
                 bytes = await ReadLimitedAsync(stream, MaxAudioBytes, cancellationToken);
-                if (bytes is { Length: > 0 } && TryOwner(out var current) && current == owner)
+                // A clip in the API's default voice plays but is not kept under this voice.
+                if (bytes is { Length: > 0 } && TryOwner(out var current) && current == owner
+                    && !SentenceStudio.Services.Api.SpeechClipStream.IsSubstituted(stream))
                 {
                     try
                     {

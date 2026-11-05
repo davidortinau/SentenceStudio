@@ -174,8 +174,9 @@ dotnet user-secrets set "ElevenLabsKey" "sk_your-key-here"
 ```bash
 cd src/SentenceStudio.WebApp
 dotnet user-secrets set "Settings:OpenAIKey" "sk-proj-your-key-here"
-dotnet user-secrets set "Settings:ElevenLabsKey" "sk_your-key-here"
 ```
+
+The WebApp needs no ElevenLabs key: speech goes through the API's `/api/v1/speech/*` endpoints.
 
 #### Option C: MAUI mobile/desktop apps (without Aspire)
 

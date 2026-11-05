@@ -185,11 +185,11 @@ public sealed class SpeechSynthesizeSettingsEndpointTests : IClassFixture<Speech
     [Fact]
     public async Task An_account_voice_listed_by_voice_discovery_is_synthesized_in_that_voice()
     {
-        var discovery = new SpeechVoiceResolverTests.FakeVoiceDiscovery { Voices = ["AccountPickedVoice0001"] };
+        var discovery = new SpeechVoiceResolverTests.FakeAccountVoices { Voices = ["AccountPickedVoice0001"] };
         using var withDiscovery = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
-            services.RemoveAll<IVoiceDiscoveryService>();
-            services.AddSingleton<IVoiceDiscoveryService>(discovery);
+            services.RemoveAll<IAccountVoiceSource>();
+            services.AddSingleton<IAccountVoiceSource>(discovery);
         }));
         var client = ClientFor($"speech-account-{Guid.NewGuid():N}", new(withDiscovery.CreateClient));
 
@@ -199,7 +199,7 @@ public sealed class SpeechSynthesizeSettingsEndpointTests : IClassFixture<Speech
             new SynthesizeRequest { Text = $"voice {Guid.NewGuid():N}", VoiceId = "AccountPickedVoice0001" }));
 
         _factory.Provider.Requests.Should().HaveCount(2).And.OnlyContain(spec => spec.VoiceId == "AccountPickedVoice0001");
-        discovery.Calls.Should().Be(discovery.SupportedLanguages.Count, "the voice list is read once, not per request");
+        discovery.Calls.Should().Be(1, "the voice list is read once, not per request");
     }
 
     [Fact]
@@ -217,6 +217,43 @@ public sealed class SpeechSynthesizeSettingsEndpointTests : IClassFixture<Speech
             new SynthesizeTimestampedRequest { ResourceId = resourceId, VoiceId = JiYoung });
         own.StatusCode.Should().Be(HttpStatusCode.OK);
         _factory.Provider.Requests.Should().ContainSingle().Which.VoiceId.Should().Be(JiYoung);
+    }
+
+    [Theory]
+    [InlineData("yuna", Yuna, false)]
+    [InlineData(JiYoung, JiYoung, false)]
+    [InlineData(null, Rachel, false)]
+    [InlineData("not-a-voice-this-api-offers", Rachel, true)]
+    public async Task The_response_names_the_voice_used_and_whether_it_replaced_the_requested_one(
+        string? requested, string used, bool substituted)
+    {
+        var response = await Learner().PostAsJsonAsync("/api/v1/speech/synthesize",
+            new SynthesizeRequest { Text = $"voice {Guid.NewGuid():N}", VoiceId = requested });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = (await response.Content.ReadFromJsonAsync<SynthesizeResponse>())!;
+        body.AudioUrl.Should().StartWith("data:audio/mpeg;base64,");
+        body.VoiceId.Should().Be(used);
+        body.VoiceSubstituted.Should().Be(substituted,
+            "a client must not keep a clip under a voice the API did not use");
+    }
+
+    [Fact]
+    public async Task Timestamped_response_names_the_voice_and_fingerprints_the_transcript_it_read()
+    {
+        const string Transcript = "가나다라 마바사";
+        var owner = $"speech-timed-fp-{Guid.NewGuid():N}";
+        var resourceId = await SeedResourceAsync(owner, Transcript);
+
+        var response = await ClientFor(owner).PostAsJsonAsync("/api/v1/speech/synthesize-timestamped",
+            new SynthesizeTimestampedRequest { ResourceId = resourceId, VoiceId = "jiyoung" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = (await response.Content.ReadFromJsonAsync<SynthesizeTimestampedResponse>())!;
+        body.VoiceId.Should().Be(JiYoung);
+        body.VoiceSubstituted.Should().BeFalse();
+        body.TranscriptSha256.Should().Be(SentenceStudio.Services.Speech.TimestampedSpeech.TranscriptSha256(Transcript))
+            .And.MatchRegex("^[0-9a-f]{64}$");
     }
 
     private async Task<string> SeedResourceAsync(string owner, string transcript)

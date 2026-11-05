@@ -127,10 +127,12 @@ public sealed class NativeShadowingSpeech(
         if (!connectivity.IsInternetAvailable || speech is null || auth?.IsSignedIn != true)
             return new(NativeSpeechClipStatus.Offline);
         byte[]? audio;
+        bool substituted;
         try
         {
             using var stream = await speech.SynthesizeAsync(userId, text, voice, cancellationToken);
             audio = stream is null ? null : await ReadLimitedAsync(stream, cancellationToken);
+            substituted = SentenceStudio.Services.Api.SpeechClipStream.IsSubstituted(stream);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is null)
         {
@@ -151,6 +153,13 @@ public sealed class NativeShadowingSpeech(
         }
         if (audio is not { Length: > 0 } || !owner.IsActive(userId))
             return new(NativeSpeechClipStatus.Failed);
+        if (substituted)
+        {
+            // The API used its default voice, not this voice: play it, but keep no file or entry
+            // that would later serve it as this voice.
+            logger.LogWarning("Shadowing played a clip in the API's default voice without caching it.");
+            return new(NativeSpeechClipStatus.Ready, audio);
+        }
 
         try
         {
