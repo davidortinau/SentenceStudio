@@ -22,12 +22,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.36" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.37" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <!-- The views under test and the iOS styling they use (SwiftUI facade only, no UIKit). -->
     <Compile Include="../../src/SentenceStudio.Native.iOS/Styling/*.cs" LinkBase="Styling" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Lookups/RecentLookupsView.cs"
              Link="Features/RecentLookupsView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Sam/SamFloatingEntry.cs"
+             Link="Features/SamFloatingEntry.cs" />
   </ItemGroup>
 </Project>
