@@ -116,8 +116,14 @@ public sealed partial class NativeResourceStore(
     }
 
     internal static IQueryable<NativeResourceDetail> DetailQuery(
-        ApplicationDbContext db, string owner, string resourceId) =>
-        db.LearningResources.AsNoTracking()
+        ApplicationDbContext db, string owner, string resourceId)
+    {
+        // Read the provider before building the query. Inside the expression tree, EF evaluates
+        // db.Database (a virtual property) through the LINQ expression interpreter, and on an iOS
+        // device (no JIT) CoreCLR's interpreter crashed dispatching that open virtual delegate
+        // (DX24, 2026-11-05: opening any resource froze the app). A captured bool is a plain field.
+        var isSqlite = db.Database.IsSqlite();
+        return db.LearningResources.AsNoTracking()
             .Where(resource => resource.UserProfileId == owner && resource.Id == resourceId)
             .Select(resource => new NativeResourceDetail(
                 resource.Id,
@@ -142,11 +148,12 @@ public sealed partial class NativeResourceStore(
                     mapping.ResourceId == resource.Id),
                 new ResourceMetadataSnapshot(resource.UpdatedAt, resource.Title,
                     resource.Description, resource.Tags,
-                    db.Database.IsSqlite() ? resource.UpdatedAt.ToString() : null))
+                    isSqlite ? resource.UpdatedAt.ToString() : null))
             {
                 Transcript = resource.Transcript,
                 Translation = resource.Translation
             });
+    }
 
     public Task<ResourceMetadataUpdateResult> SaveMetadataAsync(
         string owner, string resourceId, ResourceMetadataSnapshot original,

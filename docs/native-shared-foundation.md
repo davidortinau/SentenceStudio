@@ -449,3 +449,23 @@ The Squad state MCP backend in this session was scoped to the source checkout,
 not this target worktree, and exposes no team-root selector. Do not write
 target decisions/history through it until its scope is corrected. No Squad
 state was merged or committed as part of this foundation.
+
+## iOS devices run CoreCLR's interpreter; the simulator does not (2026-11-05)
+
+The net11 iOS SDK builds the native and MAUI iOS heads on CoreCLR with ReadyToRun. An iPhone
+has no JIT, so code that ReadyToRun did not precompile runs in CoreCLR's interpreter; the
+simulator JITs it instead. Two device-only failures came from this, and neither showed on a
+simulator, even with `DOTNET_InterpMode=1`:
+
+- **Mixed assembly builds.** CoreCLR on a device refuses an assembly older than the build a
+  reference asks for (SQLitePCLRaw 2.1.12; fixed by pinning 2.1.13, B64).
+- **Virtual or interface members inside EF query expressions.** EF evaluates captured
+  sub-expressions through the LINQ expression interpreter. A virtual or interface member there,
+  for example `db.Database.IsSqlite()` inside a `Select`, is called through an open virtual
+  delegate, and CoreCLR's device interpreter crashed on it (`CID_VirtualOpenDelegateDispatch`,
+  then a spin in its crash logger). Opening any resource froze the native app on DX24. Read such
+  values into a local before building the query. `NativeResourceStore.DetailQuery` does this, and
+  `NativeResourcePresenterTests` guards it.
+
+Verify iOS changes on a device before calling them done. NativeAOT, the planned release mode for
+the native iOS head, removes the interpreter from the device.

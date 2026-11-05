@@ -12,6 +12,41 @@ namespace SentenceStudio.Native.Tests;
 
 public sealed class NativeResourcePresenterTests
 {
+    /// <summary>
+    /// DX24, 2026-11-05: with <c>db.Database.IsSqlite()</c> inside the detail projection, EF
+    /// evaluated the virtual <c>DbContext.Database</c> getter through the LINQ expression
+    /// interpreter, and CoreCLR's iOS device interpreter crashed on that open virtual delegate,
+    /// freezing the app whenever a resource was opened. The provider check now happens before the
+    /// query is built; nothing in the tree may read <c>DbContext.Database</c> again.
+    /// </summary>
+    [Fact]
+    public void DetailQuery_DoesNotReadTheContextsDatabaseInsideTheExpression()
+    {
+        using var fixture = new NativeSliceFixture();
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var finder = new DatabaseFacadeAccessFinder();
+
+        finder.Visit(NativeResourceStore.DetailQuery(db, NativeSliceFixture.UserA, "resource").Expression);
+
+        Assert.False(finder.Found);
+    }
+
+    private sealed class DatabaseFacadeAccessFinder : System.Linq.Expressions.ExpressionVisitor
+    {
+        public bool Found { get; private set; }
+
+        protected override System.Linq.Expressions.Expression VisitMember(
+            System.Linq.Expressions.MemberExpression node)
+        {
+            if (node.Member.Name == nameof(DbContext.Database)
+                && node.Member.DeclaringType is { } declaring
+                && typeof(DbContext).IsAssignableFrom(declaring))
+                Found = true;
+            return base.VisitMember(node);
+        }
+    }
+
     [Fact]
     public async Task List_UsesSourceSmartFirstOrderingAndFullSourceFilterCatalog()
     {

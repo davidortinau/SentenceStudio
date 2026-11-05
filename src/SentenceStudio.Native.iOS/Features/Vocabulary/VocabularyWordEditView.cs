@@ -113,9 +113,25 @@ internal static class VocabularyWordEditView
             .WithAccessibilityIdentifier("native.vocabulary.edit.actions");
         buttons.Spacing = SourceUiLayout.ItemGap;
         fields.Add(buttons);
-        var toolbarSave = SaveButton(state, style, text, actions, readOnly)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.save.toolbar");
-        return Views.Toolbar(PageContent(fields, style), toolbarSave)
+        // Source PageHeader: the primary Save shows only from the md breakpoint (768 pt); a phone
+        // gets the More menu instead, as in the resource editor. The filled primary button in a
+        // phone's navigation bar was squeezed to "S..." beside the long title.
+        SwiftView toolbarAction;
+        if (style.ViewportWidth >= 768)
+        {
+            toolbarAction = SaveButton(state, style, text, actions, readOnly)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.save.toolbar");
+        }
+        else
+        {
+            var menuSave = Views.Button(text("Common_Save"), actions.Save)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.save.menu");
+            // Not registered: registered buttons are restyled as primary (blue) buttons.
+            menuSave.IsEnabled = CanSave(state, readOnly);
+            toolbarAction = Views.Menu(text("More"), menuSave)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.more");
+        }
+        return Views.Toolbar(PageContent(fields, style), toolbarAction)
             .WithAccessibilityIdentifier("native.vocabulary.edit.page");
     }
 
@@ -418,11 +434,14 @@ internal static class VocabularyWordEditView
         Func<string, string> text, VocabularyEditActions actions, bool readOnly)
     {
         var button = style.PrimaryButton(text("Common_Save"), actions.Save);
-        button.IsEnabled = !readOnly && !state.Saving
-            && state.Draft is { } draft
-            && !string.IsNullOrWhiteSpace(draft.TargetTerm)
-            && !string.IsNullOrWhiteSpace(draft.NativeTerm);
+        button.IsEnabled = CanSave(state, readOnly);
         actions.RegisterSave(button);
         return button;
     }
+
+    private static bool CanSave(VocabularyEditPresentation state, bool readOnly) =>
+        !readOnly && !state.Saving
+            && state.Draft is { } draft
+            && !string.IsNullOrWhiteSpace(draft.TargetTerm)
+            && !string.IsNullOrWhiteSpace(draft.NativeTerm);
 }
