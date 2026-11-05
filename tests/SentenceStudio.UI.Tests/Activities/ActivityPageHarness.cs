@@ -100,6 +100,9 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         services.AddSingleton(toast);
         services.AddSingleton(new BlazorLocalizationService());
         services.AddSingleton<NavigationManager>(Navigation);
+        // Every page's header carries Sam's entry; with no overlay host attached it draws nothing.
+        services.AddSingleton<SentenceStudio.WebUI.Shared.Sam.SamEntryState>();
+        services.AddSingleton<CoachPersona>();
         configure?.Invoke(services);
         Services = services.BuildServiceProvider();
 

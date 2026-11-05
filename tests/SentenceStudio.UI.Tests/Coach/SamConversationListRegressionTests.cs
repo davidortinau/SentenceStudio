@@ -55,6 +55,7 @@ public class SamConversationListRegressionTests
             services.AddScoped<CoachMemoryDirectory>();
             services.AddScoped<CoachWorkspaceState>();
             services.AddScoped<CoachAccountBoundary>();
+            services.AddScoped<SamEntryState>();
 
             _provider = services.BuildServiceProvider();
 

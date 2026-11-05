@@ -65,6 +65,7 @@ public class SamOverlayHostRenderTests
             services.AddScoped<CoachMemoryDirectory>();
             services.AddScoped<CoachWorkspaceState>();
             services.AddScoped<CoachAccountBoundary>();
+            services.AddScoped<SamEntryState>();
 
             _provider = services.BuildServiceProvider();
 
@@ -182,7 +183,16 @@ public class SamOverlayHostRenderTests
 /// <summary>A <see cref="NavigationManager"/> a test can construct and point anywhere.</summary>
 internal sealed class TestNavigationManager : NavigationManager
 {
-    public TestNavigationManager() => Initialize("https://localhost/", "https://localhost/dashboard");
+    // Starts on the Dashboard, one of the two pages that draw the floating button
+    // (SamEntryPlacementRule). A test about the header entry navigates elsewhere first.
+    public TestNavigationManager() => Initialize("https://localhost/", "https://localhost/");
+
+    /// <summary>Moves to <paramref name="relativeUri"/> and raises LocationChanged, as a link would.</summary>
+    public void GoTo(string relativeUri)
+    {
+        Uri = ToAbsoluteUri(relativeUri).ToString();
+        NotifyLocationChanged(isInterceptedLink: false);
+    }
 
     /// <summary>The last location this was asked to navigate to.</summary>
     public string? LastNavigatedTo { get; private set; }

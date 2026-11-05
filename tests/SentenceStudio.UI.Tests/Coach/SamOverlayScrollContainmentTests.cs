@@ -71,6 +71,7 @@ public class SamOverlayScrollContainmentTests
             services.AddScoped<CoachWorkspaceState>();
             services.AddScoped<CoachAccountBoundary>();
             services.AddScoped<CoachPersona>();
+            services.AddScoped<SamEntryState>();
 
             _provider = services.BuildServiceProvider();
 

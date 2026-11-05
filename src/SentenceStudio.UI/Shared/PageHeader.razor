@@ -28,6 +28,8 @@
             <h1 class="ss-title1 mb-0 text-truncate">@Title</h1>
         </div>
         <div class="d-flex align-items-center gap-1 flex-shrink-0">
+            @* Sam, first in the actions, on every page that has no floating Sam button *@
+            <SamHeaderEntry />
             @* Toolbar actions — icon buttons in the header on all sizes *@
             @if (ToolbarActions != null)
             {
