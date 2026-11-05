@@ -268,6 +268,96 @@ public sealed class VocabularyWordOwnershipTests
         Assert.Null(await OwnerAsync(fixture, "ownerless-orphan"));
     }
 
+    /// <summary>
+    /// Found rehearsing the deploy on a production copy (2026-11-04): SyncOwnersPhase3 copies a
+    /// sentence's owner from its word, but the server stamps word owners after the migration, so
+    /// every example sentence stayed ownerless and the server hid them all. Stamping a word now
+    /// gives its ownerless sentences the same owner.
+    /// </summary>
+    [Fact]
+    public async Task StampingAWord_GivesItsOwnerlessExampleSentencesTheSameOwner()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.VocabularyWords.Add(new VocabularyWord { Id = "legacy-a", TargetLanguageTerm = "가", NativeLanguageTerm = "a" });
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId) VALUES ('m-a', {0}, 'legacy-a')",
+                fixture.ResourceId(NativeSliceFixture.UserA));
+            await InsertSentenceAsync(db, "s-plain", "legacy-a", resourceId: null, owner: null);
+            await InsertSentenceAsync(db, "s-owned", "legacy-a", resourceId: null, owner: NativeSliceFixture.UserB);
+        }
+
+        using (var scope = fixture.Scope())
+            await VocabularyWordOwnership.BackfillAsync(Db(scope));
+
+        Assert.Equal(NativeSliceFixture.UserA, await OwnerAsync(fixture, "legacy-a"));
+        Assert.Equal(NativeSliceFixture.UserA, await SentenceOwnerAsync(fixture, "s-plain"));
+        Assert.Equal(NativeSliceFixture.UserB, await SentenceOwnerAsync(fixture, "s-owned"));
+    }
+
+    /// <summary>
+    /// The startup pass: an ownerless sentence takes its resource's owner, or else its word's,
+    /// and one with neither stays ownerless (never guessed). A second run changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ExampleSentenceBackfill_UsesTheResourceOwnerThenTheWordOwner_AndChangesNothingTwice()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = "owned-a", TargetLanguageTerm = "가", NativeLanguageTerm = "a" },
+                new VocabularyWord { Id = "unowned", TargetLanguageTerm = "나", NativeLanguageTerm = "b" });
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE VocabularyWord SET UserProfileId = {0} WHERE Id = 'owned-a'", NativeSliceFixture.UserA);
+            await InsertSentenceAsync(db, "s-word", "owned-a", resourceId: null, owner: null);
+            await InsertSentenceAsync(db, "s-resource", "unowned", fixture.ResourceId(NativeSliceFixture.UserB), owner: null);
+            await InsertSentenceAsync(db, "s-none", "unowned", resourceId: null, owner: "");
+        }
+
+        using (var scope = fixture.Scope())
+            Assert.Equal(2, await VocabularyWordOwnership.StampExampleSentencesAsync(Db(scope)));
+
+        Assert.Equal(NativeSliceFixture.UserA, await SentenceOwnerAsync(fixture, "s-word"));
+        Assert.Equal(NativeSliceFixture.UserB, await SentenceOwnerAsync(fixture, "s-resource"));
+        Assert.True(string.IsNullOrEmpty(await SentenceOwnerAsync(fixture, "s-none")));
+
+        using (var scope = fixture.Scope())
+            Assert.Equal(0, await VocabularyWordOwnership.StampExampleSentencesAsync(Db(scope)));
+    }
+
+    /// <summary>Writes a sentence the way CoreSync and old rows arrive: raw, past every save hook.</summary>
+    private static Task InsertSentenceAsync(
+        ApplicationDbContext db, string id, string wordId, string? resourceId, string? owner) =>
+        db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO ExampleSentence (Id, VocabularyWordId, LearningResourceId, TargetSentence, IsCore,
+                CreatedAt, UpdatedAt, Source, Status, Register, IsFlagged, UserProfileId)
+            VALUES (@id, @word, @resource, '문장', 0, '2026-11-04 00:00:00', '2026-11-04 00:00:00', 0, 0, 0, 0, @owner)
+            """,
+            new Microsoft.Data.Sqlite.SqliteParameter("@id", id),
+            new Microsoft.Data.Sqlite.SqliteParameter("@word", wordId),
+            new Microsoft.Data.Sqlite.SqliteParameter("@resource", (object?)resourceId ?? DBNull.Value),
+            new Microsoft.Data.Sqlite.SqliteParameter("@owner", (object?)owner ?? DBNull.Value));
+
+    private static async Task<string?> SentenceOwnerAsync(NativeSliceFixture fixture, string sentenceId)
+    {
+        using var scope = fixture.Scope();
+        return await Db(scope).ExampleSentences.AsNoTracking()
+            .Where(sentence => sentence.Id == sentenceId)
+            .Select(sentence => sentence.UserProfileId)
+            .SingleAsync();
+    }
+
     private static ApplicationDbContext Db(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

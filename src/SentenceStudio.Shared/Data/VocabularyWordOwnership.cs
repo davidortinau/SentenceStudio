@@ -75,6 +75,9 @@ public static class VocabularyWordOwnership
                 .Where(word => ids.Contains(word.Id) && word.UserProfileId == null)
                 .ExecuteUpdateAsync(set => set.SetProperty(
                     word => word.UserProfileId, batch.Owner), cancellationToken);
+            await OwnerlessSentencesOf(db, ids)
+                .ExecuteUpdateAsync(set => set.SetProperty(
+                    sentence => sentence.UserProfileId, batch.Owner), cancellationToken);
         }
 
         return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared));
@@ -98,10 +101,58 @@ public static class VocabularyWordOwnership
             db.VocabularyWords
                 .Where(word => ids.Contains(word.Id) && word.UserProfileId == null)
                 .ExecuteUpdate(set => set.SetProperty(word => word.UserProfileId, batch.Owner));
+            OwnerlessSentencesOf(db, ids)
+                .ExecuteUpdate(set => set.SetProperty(sentence => sentence.UserProfileId, batch.Owner));
         }
 
         return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared));
     }
+
+    /// <summary>
+    /// Gives every ownerless example sentence the owner its resource, or else its word, has
+    /// (SyncOwnersPhase3's rule). The migration can only use word owners that already exist, and
+    /// on the server they are stamped after it, at startup; this runs right after that step, so
+    /// sentences whose word has just gained an owner are not left hidden. Idempotent: a sentence
+    /// with an owner is never changed, and one with no provable owner stays ownerless.
+    /// </summary>
+    /// <returns>How many sentences gained an owner.</returns>
+    public static async Task<int> StampExampleSentencesAsync(
+        ApplicationDbContext db, Action? assertSession = null,
+        CancellationToken cancellationToken = default)
+    {
+        assertSession?.Invoke();
+        var fromResource = await db.ExampleSentences
+            .Where(sentence => (sentence.UserProfileId == null || sentence.UserProfileId == "")
+                && db.LearningResources.Any(resource => resource.Id == sentence.LearningResourceId
+                    && resource.UserProfileId != null && resource.UserProfileId != ""))
+            .ExecuteUpdateAsync(set => set.SetProperty(sentence => sentence.UserProfileId,
+                sentence => db.LearningResources
+                    .Where(resource => resource.Id == sentence.LearningResourceId)
+                    .Select(resource => resource.UserProfileId)
+                    .First()), cancellationToken);
+        assertSession?.Invoke();
+        var fromWord = await db.ExampleSentences
+            .Where(sentence => (sentence.UserProfileId == null || sentence.UserProfileId == "")
+                && db.VocabularyWords.Any(word => word.Id == sentence.VocabularyWordId
+                    && word.UserProfileId != null && word.UserProfileId != ""))
+            .ExecuteUpdateAsync(set => set.SetProperty(sentence => sentence.UserProfileId,
+                sentence => db.VocabularyWords
+                    .Where(word => word.Id == sentence.VocabularyWordId)
+                    .Select(word => word.UserProfileId)
+                    .First()), cancellationToken);
+        return fromResource + fromWord;
+    }
+
+    /// <summary>
+    /// The ownerless example sentences of words just given an owner, outside any owned resource
+    /// (a sentence in a resource follows the resource's owner, which the migration already set).
+    /// </summary>
+    private static IQueryable<ExampleSentence> OwnerlessSentencesOf(
+        ApplicationDbContext db, string[] wordIds) =>
+        db.ExampleSentences.Where(sentence => wordIds.Contains(sentence.VocabularyWordId)
+            && (sentence.UserProfileId == null || sentence.UserProfileId == "")
+            && !db.LearningResources.Any(resource => resource.Id == sentence.LearningResourceId
+                && resource.UserProfileId != null && resource.UserProfileId != ""));
 
     private static readonly Result Empty =
         new(new Dictionary<string, string>(StringComparer.Ordinal), 0, 0);

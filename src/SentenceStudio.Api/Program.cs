@@ -570,6 +570,12 @@ if (!skipDatabaseInitialization)
         app.Logger.LogInformation(
             "Vocabulary word owners: {Stamped} stamped, {Shared} shared, {Unlinked} unlinked",
             wordOwnership.Stamped.Count, wordOwnership.Shared, wordOwnership.Unlinked);
+        // Example sentences take their resource's or word's owner (SyncOwnersPhase3's rule), which
+        // the migration could not apply to words stamped only just now; unowned rows are hidden.
+        var sentenceOwners = await VocabularyWordOwnership.StampExampleSentencesAsync(
+            db, assertSession, startupToken);
+        assertSession();
+        app.Logger.LogInformation("Example sentence owners: {Stamped} stamped", sentenceOwners);
 
         // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
         var numberSeeder = new SentenceStudio.Services.Numbers.NumberContentSeeder(
