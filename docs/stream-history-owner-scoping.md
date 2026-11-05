@@ -40,6 +40,16 @@ procedure; no automatic inference or bulk assignment from an active profile
 is safe with the data currently stored. Until a durable proof source is
 identified, there is no automatically recoverable native case.
 
+**Production recovery (Captain, 2026-11-05).** The Captain owns the production
+database and named the owner of its legacy rows himself: "assign the audio to my
+account." `scripts/assign-legacy-audio-history.sql` is that one explicitly
+authorized procedure. It runs once against the server after the API migrates, as a
+dry run first. It resolves exactly one profile from the named sign-in email and
+refuses unless the ownerless count matches the count taken just before. It changes
+only `UserProfileId`. The steps are in `docs/release-2026-11-native-platform-heads.md`.
+It is not an automatic rule. Device-local legacy rows are untouched and stay
+hidden on each device.
+
 The How Do You Say page rechecks the active owner before playing or deleting a
 row and refreshes a stale list after a denied action. Deleting a history row
 does **not** remove its audio file: a path may be shared by another owner or

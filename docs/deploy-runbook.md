@@ -100,6 +100,16 @@ replica's migration, backfill, and CoreSync writes before the next replica write
 The currently drafted fault-test fixture is rejected for execution; do not run
 it or infer safety from healthy-connection tests.
 
+**Waived by the Captain for the November 2026 release only (2026-11-05).** Basis, from
+read-only checks that day:
+- every container app is in single revision mode, with 1 running replica;
+- the API allows up to 10 replicas but has no custom scale rule, so it scales only on HTTP
+  load. A new revision starts at 1 replica and gets no traffic until it is ready, so only one
+  new replica runs startup;
+- the deploy happens in a quiet window, after a verified fresh dump.
+
+The hold stands for later releases until the fault test passes.
+
 **Production HOLD — CoreSync package distribution:** `CoreSync.PostgreSQL` uses
 the exact range `[0.1.129-local3]` from the reviewed local CoreSync commit
 `d611359` (the provider nuspec records that commit). The staged provider-only
@@ -142,13 +152,12 @@ dotnet test tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj \
 The provenance test checks effective mappings, both resolved package IDs,
 the one-package reviewed feed, the cached provider archive's SHA-256, and the
 caller-owned overload. The CI workflows disable `localnugets`; CI has no
-access to `$HOME/work/LocalNuGets`. The reviewed provider archive is present
-in this worktree, not yet published or proven present in a CI checkout.
-**Do not deploy** until the dedicated feed archive is committed into the
-approved CI checkout or supplied through an approved CI-accessible feed,
-CI passes a cold exact-version restore and integrity test, and the separate
-lock-survivability and rollout gates above also pass. No package was
-published and no production release is authorized by this local change.
+access to `$HOME/work/LocalNuGets`. **Committed 2026-11-05** with the Captain's
+approval (`7b0b8931`, explicit `.gitignore` exception). In a clean checkout of that
+commit, the cold restore above passed with an empty package cache and
+`localnugets` disabled, and the provenance test passed 2 of 2. The remaining
+check for this hold is the first CI run on `main`. The separate lock-survivability
+and rollout gates above still apply. No package was published to any feed.
 
 **Rollout hold — older revisions:** a new WebApp will not run these backfills,
 but a previously deployed WebApp or API revision still contains the old startup
@@ -380,7 +389,19 @@ For infrastructure changes (like provisioning the Flexible Server), use `azd pro
 
 Azure keeps automatic restore points for **7 days** (`backup.backupRetentionDays`),
 which is a fallback, not a substitute. Before any deploy that includes a migration or
-data change, take your own full dump. This procedure was verified on 2026-10-20.
+data change, take your own full dump. This procedure was verified on 2026-10-20 and again on 2026-11-05
+(68 tables).
+
+**Use the `connectionstrings--sentencestudio` secret.** The admin password changed on
+2026-10-24 and only that secret (the one the API uses) holds the current one;
+`connectionstrings--db` still holds the old password and fails with "password
+authentication failed".
+
+**Run step 4 as written, at the top level of your shell.** Do not wrap it in a function
+that runs from another `trap ... EXIT`: macOS bash 3.2 then never runs the subshell's
+EXIT trap, so the lock stays lifted (this happened once on 2026-11-05 and the post-check
+caught it). Always read the lock list at the end, and recreate the lock with the Step 3
+command if it is missing.
 
 ```bash
 S=66f9fa8f-604f-4688-bec1-16ff9a86a8e5
@@ -391,7 +412,7 @@ PG=postgres:16                            # client major version >= the server's
 
 # 1. Credentials stay in a private file, never on a command line.
 umask 077
-az keyvault secret show --vault-name dbkv-rsn72awybem6s -n connectionstrings--db \
+az keyvault secret show --vault-name dbkv-rsn72awybem6s -n connectionstrings--sentencestudio \
   --query value -o tsv > $BACKUP/conn.txt
 python3 - "$BACKUP/conn.txt" > $BACKUP/pg.env <<'PY'
 import sys

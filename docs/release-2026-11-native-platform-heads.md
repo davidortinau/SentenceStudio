@@ -43,7 +43,45 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
   tracking rows), startup 3.2 s with the lock held 2.4 s; a second start changed nothing.
 - **Hidden, not deleted:** 217 audio history (StreamHistory) rows and 1 scene image have no
   recorded owner, so the owner checks hide them on the web and API. 424 shared or unlinked words
-  stay ownerless by rule. Decision for the Captain: leave hidden, or name the owner explicitly.
+  stay ownerless by rule.
+- **Captain's decision (2026-11-05): "assign the audio to my account."** Nothing in a row proves
+  its owner, so the code never guesses. `scripts/assign-legacy-audio-history.sql` applies the
+  Captain's explicit choice once, after the API has migrated:
+  - it resolves exactly one profile from his sign-in email and refuses otherwise;
+  - it refuses unless the ownerless count equals the number counted just before;
+  - it touches only StreamHistory.UserProfileId, and the CoreSync trigger then syncs the rows to
+    his devices;
+  - a dry run rolls back.
+  The scene image stays hidden; he named only the audio.
+  What the rows are: mostly the old web app's quiz and drill audio cache, plus How Do You Say
+  entries, from 2026-05 to 2026-10, in 3 voices. Once he owns them they appear in his How Do
+  You Say history, as they did on `main`. Each stores a file path from the machine that made
+  it, so another device regenerates the clip the first time it is played.
+  The script passed a synthetic test (dry run, apply, and each refusal leaves the data unchanged).
+  **Open:** production has 24 profiles behind 7 logins, and the old web app saved ownerless audio
+  for every signed-in learner, so the rows alone cannot show they are all his. Before E4, count
+  on the dump copy how many other accounts were active from 2026-05 to 2026-10, and show him.
+  The script keeps no list of the rows it changed, so undoing it exactly means restoring the
+  C1 dump.
+
+## Rehearsal on the fresh 2026-11-05 dump (C2, code `7b0b8931`)
+
+Same method as above, on the dump taken in C1 (SHA-256 checked; counts equal the live counts).
+- **Migrations:** all 8 applied in 119 ms, each in its own transaction, 0 errors.
+- **Startup:** 3.5 s to the first response, with the lock held 2.5 s.
+  - Word owners: 4781 stamped, 96 shared, 213 unlinked.
+  - Example sentences: "89 stamped with their words, 0 stamped after"; 0 unowned.
+  - CoreSync: 18 tracked tables became 31.
+  - 359 rows queued for devices.
+  - A second start changed nothing.
+- **Data:** 0 rows lost, 66 of 66 original tables unchanged outside the intended columns, and
+  37 of 37 foreign keys valid.
+- **Audio:** 237 ownerless rows: the same 217 plus 20 from late October. The dry run (exit 0)
+  changed nothing. The apply (exit 0) gave all 237 to his profile and changed only the owner
+  column; the sync tracking table grew by exactly 237 rows.
+- **Found and fixed (B63):** the word-owner backfill stamped 28 words with an owner ID that is no
+  profile. Their only link was progress left by deleted accounts. Now only an existing profile
+  can own a word, so those 28 stay ownerless. No rows were lost either way.
 
 ## Risks and how this plan handles them
 
@@ -59,35 +97,79 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
 
 ## Production holds in `docs/deploy-runbook.md`
 
-1. **Lock survivability fault test** (killing the lock backend stops an old replica's writes) has
-   no passing result. Decision for the Captain: build the test first, or waive it for this deploy
-   on the grounds of a single API replica (to be confirmed), a quiet window, and a verified dump.
-2. **CoreSync package distribution:** `CoreSync.PostgreSQL 0.1.129-local3` comes from the
-   untracked repo-local feed `lib/coresync-postgresql-local3` (one 40 KB SHA-verified package that
-   `.gitignore` excludes). `azd deploy` from this Mac can build with it; CI on `main` and any other
-   checkout cannot. Proposed: commit that one package (with a `.gitignore` exception) so CI is green
-   and builds are reproducible. Needs the Captain's OK (a binary in the repo).
+1. **Lock survivability fault test: waived for this release** (Captain, 2026-11-05: "waive it").
+   Basis: single revision mode and 1 running API replica, a new revision starting at 1
+   replica with no traffic until ready, a quiet window, and a verified dump. See the runbook hold.
+2. **CoreSync package distribution: resolved.** With the Captain's OK (2026-11-05), the one
+   37 KB SHA-verified package is committed (`7b0b8931`, explicit `.gitignore` exception).
+   Checked in a clean checkout of that commit, with an empty package cache and `localnugets`
+   disabled as CI does:
+   - the runbook's cold restore of Api.Tests passed, and Api.Tests built;
+   - `CoreSyncProviderPackageTests` passed 2 of 2;
+   - Api, SamOpportunityDigest, WebApp, AppLib, UnitTests and UI.Tests restored;
+   - WebApp, SamOpportunityDigest and AppLib built with 0 errors.
+   Not tried locally: WebApp.Tests and the dependency-closure job. The first CI run on `main`
+   covers them.
 3. **Older revisions during rollout:** answered by the read-only revision and replica check below.
 
 ## Order (each Azure step needs the Captain's go)
 
 **A. Local, no Azure**
 1. Fix and test the example-sentence owner ordering. Done.
-2. Commit the CoreSync package if approved.
+2. Commit the CoreSync package. Done (`7b0b8931`).
 3. Final full test pass and builds.
 
-**B. Azure, read-only**
+**B. Azure, read-only** (done 2026-11-05, Captain's go)
 1. Runbook Step 2 (server Ready) and Step 3 (CanNotDelete lock present).
 2. API, WebApp and Workers container apps: revision mode, min/max replicas, startup probe:
    `az containerapp show -g rg-sstudio-prod-biz -n <app> --query "{mode:properties.configuration.activeRevisionsMode, scale:properties.template.scale, probes:properties.template.containers[0].probes}"`.
 3. Speech cache checks (runbook "Speech clip cache", read-only part).
 
-**C. Azure, protective changes**
+Results:
+- **Server:** Ready, PG 16, B1ms, HA off, 7-day backups (earliest restore 2026-10-30).
+- **Lock and firewall:** the CanNotDelete lock is present; the only firewall rule is
+  AllowAllAzureIps.
+- **Container apps** (api, webapp, workers, marketing, cache):
+  - all in Single revision mode with 1 running, healthy replica each;
+  - scale min 1, max 10, no custom rules;
+  - no probes configured, so the platform default applies;
+  - webapp sticky sessions are on;
+  - the active revisions date from 2026-09-06.
+- **Speech cache:**
+  - the app identity `mi-rsn72awybem6s` (the API's only identity) holds Storage Blob Data
+    Contributor on the storage account;
+  - the `media` container does **not** exist; the only container is `coach-dataprotection`;
+  - without it the API still speaks, but it caches nothing: every clip is a paid generation,
+    and each one logs a "Speech cache: ... failed" warning.
+  - Creating the container is step C3 and needs the Captain's go.
+- **Role check:** the directory lookup in `az role assignment list --assignee` is blocked by a
+  conditional-access token policy. Use `--fill-principal-name false` and filter by principalId.
+
+**C. Azure, protective changes** (C1 done 2026-11-05)
 1. Runbook Step 1: fresh verified dump (temporary firewall rule; lock lifted and restored for
    about a minute). This also shows production's actual migration history.
 2. Runbook Step 4c on that dump, plus the API startup rehearsal (Production mode against the
-   local copy), comparing every table's counts. Delete the copy after.
-3. Create the `media` container and blob role only if the checks show them missing.
+   local copy), comparing every table's counts. Then run the audio script on the copy, first as
+   a dry run and then for real, and record its ownerless count; it becomes `expected` in E4.
+   Delete the copy after.
+3. Create the `media` container (missing; the role is already there). Needs the Captain's go.
+
+C1 result:
+- **Dump:** `~/sstudio-prod-backup-20261105/sentencestudio.dump`, 10.4 MB, 68 tables, SHA-256
+  recorded beside it. pg_dump took 18 s.
+- **Live counts:** VocabularyWord 5090, VocabularyProgress 2760, UserProfile 24.
+- **Migration history:** 24 applied, latest `20260903175044_AddApplicationOperationLedger`. So
+  the 8 rehearsed migrations are exactly what is pending.
+- **Access:** the temporary firewall rule was removed and the lock restored. The final state was
+  verified.
+- **First attempt failed:**
+  - The `connectionstrings--db` secret holds the admin password from before 2026-10-24. The
+    runbook now names `connectionstrings--sentencestudio`.
+  - That attempt also left the lock lifted: my wrapper ran the runbook's re-lock from inside an
+    EXIT trap, where macOS bash 3.2 skips it.
+  - The post-check showed the lock missing, and it was recreated and verified within about two
+    minutes.
+  - Nothing else changed in that window. The runbook now warns about this.
 
 **D. Merge:** fast-forward `main` to the branch and push (CI runs).
 
@@ -98,6 +180,20 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
    - `Vocabulary word owners: …`
    - `Example sentence owners: … stamped with their words, … stamped after` (89 with their words on the 2026-10-20 copy)
    - CoreSync provisioning
+4. Once the API, WebApp and Workers all run their new revisions (the old WebApp writes
+   ownerless audio rows, so this must wait for it to be replaced), and before any device
+   installs (G), run `scripts/assign-legacy-audio-history.sql`.
+   - **Count first.** Take a read-only count of the ownerless StreamHistory rows. If it
+     differs from the C2 count, report the difference to the Captain. Rows added since the
+     dump came from the old web app's audio cache. Use the live count as `expected` only
+     after he confirms.
+   - **Run it:**
+     - use the database access of runbook Step 1 (temporary firewall rule; lock lifted and
+       restored);
+     - pass `-v owner_email="$OWNER_EMAIL"` (his sign-in, kept in a variable) and
+       `-v expected=<count>`;
+     - run first without `apply` (dry run), then with `-v apply=true`.
+   It prints counts only. If any check refuses, nothing changes. Stop and report.
 
 **F. Verify:**
 1. Runbook Step 5 validation script, and Step 5a sticky sessions.
