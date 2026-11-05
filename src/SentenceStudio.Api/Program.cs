@@ -568,8 +568,8 @@ if (!skipDatabaseInitialization)
             db, assertSession, startupToken);
         assertSession();
         app.Logger.LogInformation(
-            "Vocabulary word owners: {Stamped} stamped, {Shared} shared, {Unlinked} unlinked",
-            wordOwnership.Stamped.Count, wordOwnership.Shared, wordOwnership.Unlinked);
+            "Vocabulary word owners: {Stamped} stamped, {Shared} shared, {Unlinked} unlinked, {NotAProfile} left ownerless (only owner is not a profile)",
+            wordOwnership.Stamped.Count, wordOwnership.Shared, wordOwnership.Unlinked, wordOwnership.OwnerNotAProfile);
         // Example sentences take their resource's or word's owner (SyncOwnersPhase3's rule), which
         // the migration could not apply to words stamped only just now; unowned rows are hidden.
         var sentenceOwners = await VocabularyWordOwnership.StampExampleSentencesAsync(

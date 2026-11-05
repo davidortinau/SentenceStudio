@@ -270,7 +270,8 @@ public partial class LearningResourceRepository
     }
 
     // Reuse only a word available to this learner (VocabularyWordOwnership.AvailableTo):
-    // never another account's word or an ownerless one carrying someone's memory aids.
+    // never another account's word, or an ownerless one carrying memory aids or sentences
+    // that are not this learner's own.
     private static Task<VocabularyWord?> FindReusableWordAsync(
         ApplicationDbContext db, string owner, string targetTerm, string? language,
         CancellationToken cancellationToken) =>

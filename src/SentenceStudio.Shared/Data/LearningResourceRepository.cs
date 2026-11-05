@@ -1232,7 +1232,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Only unlinked words available to this learner; another account's word, or an
-        // ownerless one with memory aids, is never offered.
+        // ownerless one with memory aids or sentences not the learner's own, is never offered.
         return await VocabularyWordOwnership.AvailableTo(db, userId)
             .Where(vw => !db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
             .ToListAsync();

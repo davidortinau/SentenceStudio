@@ -23,6 +23,12 @@ public static class VocabularyWordOwnership
     {
         /// <summary>Ownerless example sentences of the stamped words that took the same owner.</summary>
         public int SentencesStamped { get; init; }
+
+        /// <summary>
+        /// Ownerless words whose only link names an account that is not a profile (for example
+        /// progress left behind by a deleted account). Left ownerless: only a profile can own a word.
+        /// </summary>
+        public int OwnerNotAProfile { get; init; }
     }
 
     private sealed record OwnerLink(string WordId, string Owner);
@@ -30,8 +36,11 @@ public static class VocabularyWordOwnership
     /// <summary>
     /// Words a learner may see, link, or reuse: words they own, or ownerless legacy words
     /// no other account uses that are either already this learner's (by resource link or
-    /// progress) or carry no memory aids. Never another account's word, and never an
-    /// ownerless word holding someone's memory aids.
+    /// progress) or carry nothing of anyone else's: no memory aids, and no example sentence
+    /// except the learner's own. Never another account's word. Linking an unlinked ownerless
+    /// word stamps it, and its ownerless sentences, with the linker's owner (see
+    /// <see cref="Stamp"/>), so one holding memory aids, ownerless sentences or another
+    /// learner's sentences is offered to no one.
     /// </summary>
     public static IQueryable<VocabularyWord> AvailableTo(ApplicationDbContext db, string userId) =>
         db.VocabularyWords.Where(word =>
@@ -46,7 +55,10 @@ public static class VocabularyWordOwnership
                 && (db.ResourceVocabularyMappings.Any(mapping => mapping.VocabularyWordId == word.Id)
                     || db.VocabularyProgresses.Any(progress => progress.VocabularyWordId == word.Id)
                     || (word.MnemonicText == null || word.MnemonicText == "")
-                        && (word.MnemonicImageUri == null || word.MnemonicImageUri == "")));
+                        && (word.MnemonicImageUri == null || word.MnemonicImageUri == "")
+                        // EF keeps C# null semantics: a null or '' owner differs from userId.
+                        && !db.ExampleSentences.Any(sentence => sentence.VocabularyWordId == word.Id
+                            && sentence.UserProfileId != userId)));
 
     /// <summary>Stamps every ownerless word that has exactly one owner.</summary>
     public static Task<Result> BackfillAsync(
@@ -70,6 +82,10 @@ public static class VocabularyWordOwnership
         links.AddRange(await ProgressLinks(db, ownerless).ToListAsync(cancellationToken));
         var ownerlessCount = await ownerless.CountAsync(cancellationToken);
         var (stamped, shared) = Plan(links);
+        var candidates = stamped.Values.Distinct(StringComparer.Ordinal).ToArray();
+        var notAProfile = DropOwnersWithoutProfile(stamped, await db.UserProfiles.AsNoTracking()
+            .Where(profile => candidates.Contains(profile.Id))
+            .Select(profile => profile.Id).ToListAsync(cancellationToken));
         var sentences = 0;
 
         foreach (var batch in Batches(stamped))
@@ -85,9 +101,10 @@ public static class VocabularyWordOwnership
                     sentence => sentence.UserProfileId, batch.Owner), cancellationToken);
         }
 
-        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared))
+        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared - notAProfile))
         {
-            SentencesStamped = sentences
+            SentencesStamped = sentences,
+            OwnerNotAProfile = notAProfile
         };
     }
 
@@ -102,6 +119,10 @@ public static class VocabularyWordOwnership
         links.AddRange(ProgressLinks(db, ownerless).ToList());
         var ownerlessCount = ownerless.Count();
         var (stamped, shared) = Plan(links);
+        var candidates = stamped.Values.Distinct(StringComparer.Ordinal).ToArray();
+        var notAProfile = DropOwnersWithoutProfile(stamped, db.UserProfiles.AsNoTracking()
+            .Where(profile => candidates.Contains(profile.Id))
+            .Select(profile => profile.Id).ToList());
         var sentences = 0;
 
         foreach (var batch in Batches(stamped))
@@ -114,9 +135,10 @@ public static class VocabularyWordOwnership
                 .ExecuteUpdate(set => set.SetProperty(sentence => sentence.UserProfileId, batch.Owner));
         }
 
-        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared))
+        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared - notAProfile))
         {
-            SentencesStamped = sentences
+            SentencesStamped = sentences,
+            OwnerNotAProfile = notAProfile
         };
     }
 
@@ -213,6 +235,18 @@ public static class VocabularyWordOwnership
                 shared++;
         }
         return (stamped, shared);
+    }
+
+    /// <summary>Removes planned stamps whose owner is not an existing profile; returns how many.</summary>
+    private static int DropOwnersWithoutProfile(
+        Dictionary<string, string> stamped, IReadOnlyCollection<string> profileIds)
+    {
+        var profiles = profileIds.ToHashSet(StringComparer.Ordinal);
+        var orphaned = stamped.Where(pair => !profiles.Contains(pair.Value))
+            .Select(pair => pair.Key).ToList();
+        foreach (var wordId in orphaned)
+            stamped.Remove(wordId);
+        return orphaned.Count;
     }
 
     private static IEnumerable<(string Owner, string[] Ids)> Batches(

@@ -337,6 +337,117 @@ public sealed class VocabularyWordOwnershipTests
             Assert.Equal(0, await VocabularyWordOwnership.StampExampleSentencesAsync(Db(scope)));
     }
 
+    /// <summary>
+    /// Review findings (2026-11-05): linking an unlinked ownerless word stamps it, and its
+    /// ownerless sentences follow it, so such a word is offered only when every sentence on it
+    /// is the learner's own, like the memory-aid rule. A word carrying an ownerless sentence or
+    /// another learner's sentence is offered to no one.
+    /// </summary>
+    [Fact]
+    public async Task UnlinkedOwnerlessWord_IsOfferedOnlyWhenEverySentenceIsTheLearnersOwn()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = "orphan-loose-sentence", TargetLanguageTerm = "문장", NativeLanguageTerm = "sentence" },
+                new VocabularyWord { Id = "orphan-b-sentence", TargetLanguageTerm = "남의", NativeLanguageTerm = "someone else's" },
+                new VocabularyWord { Id = "orphan-own-sentence", TargetLanguageTerm = "내것", NativeLanguageTerm = "mine" });
+            await db.SaveChangesAsync();
+            await InsertSentenceAsync(db, "s-loose", "orphan-loose-sentence", resourceId: null, owner: null);
+            await InsertSentenceAsync(db, "s-b", "orphan-b-sentence", resourceId: null, owner: NativeSliceFixture.UserB);
+            await InsertSentenceAsync(db, "s-a", "orphan-own-sentence", resourceId: null, owner: NativeSliceFixture.UserA);
+        }
+        var repository = fixture.Provider.GetRequiredService<LearningResourceRepository>();
+        var aResource = fixture.ResourceId(NativeSliceFixture.UserA);
+
+        var orphans = await repository.GetOrphanedVocabularyWordsAsync(NativeSliceFixture.UserA);
+        Assert.Equal(new[] { "orphan-own-sentence" }, orphans.Select(word => word.Id));
+        Assert.Null(await repository.GetWordByTargetTermAsync("문장", NativeSliceFixture.UserA));
+        Assert.Null(await repository.GetWordByTargetTermAsync("남의", NativeSliceFixture.UserA));
+        Assert.False(await repository.AddVocabularyToResourceAsync(aResource, "orphan-loose-sentence", NativeSliceFixture.UserA));
+        Assert.False(await repository.AddVocabularyToResourceAsync(aResource, "orphan-b-sentence", NativeSliceFixture.UserA));
+
+        Assert.True(string.IsNullOrEmpty(await SentenceOwnerAsync(fixture, "s-loose")));
+        Assert.Equal(NativeSliceFixture.UserB, await SentenceOwnerAsync(fixture, "s-b"));
+    }
+
+    /// <summary>
+    /// Found rehearsing on the 2026-11-05 production dump: 28 words were linked only by progress
+    /// rows naming accounts that no longer exist, and the backfill stamped those IDs as owners.
+    /// Only a profile can own a word, so such words stay ownerless. A word shared by a learner
+    /// and a deleted account still counts as shared.
+    /// </summary>
+    [Fact]
+    public async Task Backfill_NeverStampsAnOwnerThatIsNotAProfile()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = "ghost-only", TargetLanguageTerm = "유령", NativeLanguageTerm = "ghost" },
+                new VocabularyWord { Id = "ghost-and-a", TargetLanguageTerm = "함께", NativeLanguageTerm = "together" });
+            await db.SaveChangesAsync();
+            db.VocabularyProgresses.AddRange(
+                new VocabularyProgress { VocabularyWordId = "ghost-only", UserId = "deleted-account" },
+                new VocabularyProgress { VocabularyWordId = "ghost-and-a", UserId = "deleted-account" });
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId) VALUES ('m-a', {0}, 'ghost-and-a')",
+                fixture.ResourceId(NativeSliceFixture.UserA));
+        }
+
+        VocabularyWordOwnership.Result result;
+        using (var scope = fixture.Scope())
+            result = await VocabularyWordOwnership.BackfillAsync(Db(scope));
+
+        Assert.Empty(result.Stamped);
+        Assert.Equal(1, result.OwnerNotAProfile);
+        Assert.Equal(1, result.Shared);
+        Assert.Equal(0, result.Unlinked);
+        Assert.Null(await OwnerAsync(fixture, "ghost-only"));
+        Assert.Null(await OwnerAsync(fixture, "ghost-and-a"));
+    }
+
+    /// <summary>
+    /// Review finding (2026-11-05): a sentence whose resource belongs to B keeps B as its
+    /// owner even when its word is stamped to A. The word pass skips it; the sentence pass
+    /// gives it the resource owner first.
+    /// </summary>
+    [Fact]
+    public async Task SentenceOnAnotherLearnersResource_TakesTheResourceOwner_NotTheWordOwner()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.VocabularyWords.Add(new VocabularyWord { Id = "linked-a", TargetLanguageTerm = "가", NativeLanguageTerm = "a" });
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId) VALUES ('m-a', {0}, 'linked-a')",
+                fixture.ResourceId(NativeSliceFixture.UserA));
+            await InsertSentenceAsync(db, "s-b-resource", "linked-a", fixture.ResourceId(NativeSliceFixture.UserB), owner: null);
+        }
+
+        VocabularyWordOwnership.Result result;
+        using (var scope = fixture.Scope())
+            result = await VocabularyWordOwnership.BackfillAsync(Db(scope));
+        Assert.Equal(NativeSliceFixture.UserA, await OwnerAsync(fixture, "linked-a"));
+        Assert.Equal(0, result.SentencesStamped);
+        Assert.True(string.IsNullOrEmpty(await SentenceOwnerAsync(fixture, "s-b-resource")));
+
+        using (var scope = fixture.Scope())
+            Assert.Equal(1, await VocabularyWordOwnership.StampExampleSentencesAsync(Db(scope)));
+        Assert.Equal(NativeSliceFixture.UserB, await SentenceOwnerAsync(fixture, "s-b-resource"));
+    }
+
     /// <summary>Writes a sentence the way CoreSync and old rows arrive: raw, past every save hook.</summary>
     private static Task InsertSentenceAsync(
         ApplicationDbContext db, string id, string wordId, string? resourceId, string? owner) =>
