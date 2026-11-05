@@ -27,8 +27,8 @@ internal sealed partial class AndroidSliceShell
     private MoreScreen _more;
     private string? _moreMenu;
     private SettingsCoordinator? _settings;
-    private static readonly TimeSpan TextSizeSettleDelay = TimeSpan.FromMilliseconds(500);
-    private CancellationTokenSource? _textSizeSettle;
+    // The size a text-size drag shows until release applies it; null when none.
+    private double? _textSizePreview;
     private Task _appearanceSaves = Task.CompletedTask;
     private int _appearanceRequest;
     private ProfileCoordinator? _profile;
@@ -205,11 +205,13 @@ internal sealed partial class AndroidSliceShell
     private void ReleaseMoreCoordinators()
     {
         CloseRecentLookups();
+        // A text-size drag still held when Settings closes was never released: not applied.
+        _textSizePreview = null;
         if (_settings is { } settings)
         {
             settings.Changed -= OnMoreChanged;
-            // A text size chosen just before closing is still saved (owner-gated).
-            var saves = FlushAppearanceSave(settings);
+            // Appearance saves already queued finish (owner-gated) before disposal.
+            var saves = _appearanceSaves;
             if (saves.IsCompleted)
                 settings.Dispose();
             else
@@ -341,66 +343,39 @@ internal sealed partial class AndroidSliceShell
 
     private void SaveQuizSettings() => _settings?.SaveQuiz();
 
-    /// <summary>A theme or mode tap: shown now, saved now off the UI thread.</summary>
-    private void SetAppearance(AppearanceSelection selection) =>
-        ChangeAppearance(selection, settle: false);
-
-    /// <summary>
-    /// A text-size slider step: applied live, saved once the drag settles. The
-    /// Compose facade's Slider passes no onValueChangeFinished, so a step that no
-    /// other step follows within <see cref="TextSizeSettleDelay"/> ends the drag.
-    /// </summary>
-    private void PreviewTextSize(double fontScale) =>
-        ChangeAppearance(CurrentAppearance.WithFontScale(fontScale), settle: true);
-
-    // UI-thread state: each change supersedes any pending text-size save, and
-    // saves run on the thread pool one at a time in request order.
-    private void ChangeAppearance(AppearanceSelection selection, bool settle)
+    /// <summary>A theme or mode tap or a released text size: shown now, saved off the UI thread.</summary>
+    private void SetAppearance(AppearanceSelection selection)
     {
         if (_settings is not { } settings || selection == CurrentAppearance)
             return;
         _appearance = selection;
         AndroidFontScale.Apply(activity, selection.FontScale);
         RenderMoreNow();
-        CancelTextSizeSettle();
-        var request = ++_appearanceRequest;
-        if (!settle)
-        {
-            QueueAppearanceSave(settings, selection, request);
-            return;
-        }
-        var delay = new CancellationTokenSource();
-        _textSizeSettle = delay;
-        _ = SaveTextSizeWhenSettledAsync(settings, selection, request, delay.Token);
+        QueueAppearanceSave(settings, selection, ++_appearanceRequest);
     }
 
-    private async Task SaveTextSizeWhenSettledAsync(SettingsCoordinator settings,
-        AppearanceSelection selection, int request, CancellationToken settle)
+    /// <summary>
+    /// A text-size slider move (drag, tap, D-pad key down): shown on the slider and its
+    /// label only. The app-wide scale is not changed until <see cref="CommitTextSize"/>.
+    /// </summary>
+    private void PreviewTextSize(double fontScale)
     {
-        try
-        {
-            await Task.Delay(TextSizeSettleDelay, settle).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            return; // A newer change, or closing Settings, took over this save.
-        }
-        Post(() =>
-        {
-            if (request != _appearanceRequest || settle.IsCancellationRequested)
-                return;
-            CancelTextSizeSettle();
-            QueueAppearanceSave(settings, selection, request);
-        });
+        if (_settings is null || _textSizePreview == fontScale)
+            return;
+        _textSizePreview = fontScale;
+        RenderMoreNow();
     }
 
-    private void CancelTextSizeSettle()
+    /// <summary>
+    /// The slider's onValueChangeFinished: a released drag or tap, a D-pad key up, or an
+    /// accessibility set-progress. Applies the previewed size app-wide once and saves it.
+    /// </summary>
+    private void CommitTextSize()
     {
-        if (_textSizeSettle is not { } settle)
+        if (_textSizePreview is not { } fontScale)
             return;
-        _textSizeSettle = null;
-        settle.Cancel();
-        settle.Dispose();
+        _textSizePreview = null;
+        SetAppearance(CurrentAppearance.WithFontScale(fontScale));
     }
 
     private void QueueAppearanceSave(
@@ -443,17 +418,6 @@ internal sealed partial class AndroidSliceShell
             AndroidFontScale.Apply(activity, CurrentAppearance.FontScale);
             RenderMoreNow();
         });
-    }
-
-    /// <summary>Closing Settings saves a pending text size now; returns the save queue.</summary>
-    private Task FlushAppearanceSave(SettingsCoordinator settings)
-    {
-        if (_textSizeSettle is not null)
-        {
-            CancelTextSizeSettle();
-            QueueAppearanceSave(settings, CurrentAppearance, _appearanceRequest);
-        }
-        return _appearanceSaves;
     }
 
     /// <summary>The same AppAppearance token the source device store and iOS write.</summary>

@@ -92,23 +92,27 @@ internal sealed partial class AndroidSliceShell
                     SetAppearance(CurrentAppearance.WithMode(mode));
             }, !Busy.Value));
 
+        // While the finger is down the slider and label show the dragged size; the app
+        // scale changes once, on release (Captain 2026-11-04, decision A). Applying it per
+        // step, as the source's @oninput does, changes the density, and Compose then resets
+        // the slider's pointer input, ending the drag after one step.
+        var shownScale = _textSizePreview ?? selection.FontScale;
         var sizeLabel = string.Format(CultureInfo.CurrentCulture,
             Localize("Settings_TextSizeLabel"),
-            (int)Math.Round(selection.FontScale * 100));
+            (int)Math.Round(shownScale * 100));
         rows.Add(Body(sizeLabel, palette,
             modifier: Modifier.TestTag("native.settings.scale.label")));
-        // Applied live on each step; saved once the drag settles.
-        rows.Add(new Slider((float)selection.FontScale,
+        // No FillMaxWidth: the Material 3 track already fills the row's width.
+        rows.Add(new AndroidReleaseSlider((float)shownScale,
             raw => PreviewTextSize(SettingsInput.SnapFontScale(raw)),
+            CommitTextSize,
+            new FloatRange((float)AppearanceSelection.MinFontScale,
+                (float)AppearanceSelection.MaxFontScale),
             enabled: !Busy.Value,
             // 85% to 150% in 5% steps: 14 values, 12 between the ends.
-            steps: 12)
-        {
-            ValueRange = new FloatRange((float)AppearanceSelection.MinFontScale,
-                (float)AppearanceSelection.MaxFontScale),
-            Modifier = Modifier.FillMaxWidth().TestTag("native.settings.text-size")
-                .Semantics(semantics => semantics.ContentDescription(sizeLabel)),
-        });
+            steps: 12,
+            testTag: "native.settings.text-size",
+            contentDescription: sizeLabel));
         rows.Add(new Row(Arrangement.SpaceBetween)
         {
             Modifier.FillMaxWidth(),

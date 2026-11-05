@@ -39,31 +39,82 @@ public sealed class AndroidAppearanceModeTests
     }
 
     [Fact]
-    public void TextSizeAppliesLiveAndSavesOnceTheDragSettlesOffTheUiThread()
+    public void TextSizePreviewsWhileDraggingAndAppliesAndSavesOnRelease()
     {
         var settings = Source("AndroidSliceShell.Appearance.cs");
         var more = Source("AndroidSliceShell.More.cs");
 
-        // Each step applies live; the facade Slider has no onValueChangeFinished,
-        // so the save waits until no further step arrives.
-        Assert.Contains("raw => PreviewTextSize(SettingsInput.SnapFontScale(raw))", settings);
-        Assert.Contains("ChangeAppearance(CurrentAppearance.WithFontScale(fontScale), settle: true)",
-            more);
-        Assert.Contains("TimeSpan.FromMilliseconds(500)", more);
-        Assert.Contains("await Task.Delay(TextSizeSettleDelay, settle)", more);
-        // Theme and mode taps save at once; every save runs on the thread pool, in order.
-        Assert.Contains("ChangeAppearance(selection, settle: false)", more);
+        // Captain 2026-11-04 (decision A): a font-scale change resets Compose pointer
+        // input, so a move only previews; onValueChangeFinished (release, key up,
+        // accessibility set-progress) applies the app-wide scale and saves it once.
+        Assert.Contains("var shownScale = _textSizePreview ?? selection.FontScale;", settings);
+        Assert.Contains("(int)Math.Round(shownScale * 100)", settings);
+        Assert.Contains("new AndroidReleaseSlider((float)shownScale,", settings);
+        Assert.Contains("raw => PreviewTextSize(SettingsInput.SnapFontScale(raw)),\n"
+            + "            CommitTextSize,", settings);
+        Assert.DoesNotContain("new Slider((float)selection.FontScale", settings);
+        // The tag and label stay on the slider's own node, as with the facade Slider.
+        Assert.Contains("testTag: \"native.settings.text-size\",\n"
+            + "            contentDescription: sizeLabel));", settings);
+
+        var preview = Method(more, "private void PreviewTextSize(double fontScale)");
+        Assert.Contains("_textSizePreview = fontScale;", preview);
+        Assert.Contains("RenderMoreNow();", preview);
+        Assert.DoesNotContain("AndroidFontScale", preview);
+        Assert.DoesNotContain("SetAppearance", preview);
+        Assert.DoesNotContain("QueueAppearanceSave", preview);
+        var commit = Method(more, "private void CommitTextSize()");
+        Assert.Contains("_textSizePreview = null;", commit);
+        Assert.Contains("SetAppearance(CurrentAppearance.WithFontScale(fontScale));", commit);
+        // No idle-timer save any more: release is the end of the gesture.
+        Assert.DoesNotContain("TextSizeSettleDelay", more);
+        Assert.DoesNotContain("Task.Delay", more);
+
+        // Theme, mode and a released text size save at once, on the thread pool, in order.
+        var set = Method(more, "private void SetAppearance(AppearanceSelection selection)");
+        Assert.Contains("AndroidFontScale.Apply(activity, selection.FontScale);", set);
+        Assert.Contains("QueueAppearanceSave(settings, selection, ++_appearanceRequest);", set);
         Assert.Contains("var save = Task.Run(async () =>", more);
         Assert.Contains("await previous.ConfigureAwait(false);", more);
         Assert.DoesNotContain("GetAwaiter().GetResult()", more);
         // A failed save restores the stored appearance (the coordinator shows SaveFailed).
         Assert.Contains("_appearance = null;\n            AndroidFontScale.Apply(activity, CurrentAppearance.FontScale);",
             more);
-        // Closing Settings saves a pending text size before the coordinator is disposed.
-        var release = more[more.IndexOf("private void ReleaseMoreCoordinators()",
-            StringComparison.Ordinal)..];
-        Assert.True(release.IndexOf("FlushAppearanceSave(settings)", StringComparison.Ordinal)
+        // Closing Settings drops an unreleased preview and lets queued saves finish
+        // before the coordinator is disposed.
+        var release = Method(more, "private void ReleaseMoreCoordinators()");
+        Assert.Contains("_textSizePreview = null;", release);
+        Assert.True(release.IndexOf("var saves = _appearanceSaves;", StringComparison.Ordinal)
             < release.IndexOf("settings.Dispose()", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ReleaseSliderIsTheMaterialSliderWithOnlyOnValueChangeFinishedAdded()
+    {
+        var slider = Source("AndroidReleaseSlider.cs");
+
+        // The same bound overload the facade Slider calls (kept by Release/R8 for it),
+        // with onValueChangeFinished supplied instead of null.
+        Assert.Contains("SliderKt.Slider(", slider);
+        Assert.Contains("onValueChangeFinished: finished,", slider);
+        Assert.Contains("p7: steps,", slider);
+        Assert.Contains("valueRange: range,", slider);
+        Assert.Contains("_changed1: KotlinDefaults);", slider);
+        // Defaults only for colors, interactionSource, thumb and track; value, onValueChange,
+        // modifier, enabled, onValueChangeFinished, steps and valueRange are passed.
+        Assert.Contains("KotlinDefaults = (1 << 5) | (1 << 6) | (1 << 8) | (1 << 9);", slider);
+        // The slider's own modifier: test tag, then a fresh content-description lambda.
+        Assert.Contains("TestTagKt.TestTag(EmptyModifier(), testTag)", slider);
+        Assert.Contains("new ContentDescriptionCallback(contentDescription)", slider);
+        Assert.Contains("SemanticsPropertiesKt.SetContentDescription(", slider);
+        // R8: the facade keeps only semantics$default, so the app keeps the overload it calls.
+        var r8 = Source("proguard-compose-jni.cfg");
+        Assert.Contains("public static androidx.compose.ui.Modifier semantics("
+            + "androidx.compose.ui.Modifier, boolean, kotlin.jvm.functions.Function1);", r8);
+        Assert.Contains("composer.Remember(() => new FloatCallback())", slider);
+        Assert.Contains("composer.Remember(() => new UnitCallback())", slider);
+        Assert.DoesNotContain("Android.Widget", slider);
+        Assert.DoesNotContain("Android.Views", slider);
     }
 
     [Fact]
@@ -171,6 +222,22 @@ public sealed class AndroidAppearanceModeTests
              index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
             count++;
         return count;
+    }
+
+    private static string Method(string source, string signature)
+    {
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, signature);
+        var open = source.IndexOf('{', start);
+        var depth = 0;
+        for (var index = open; index < source.Length; index++)
+        {
+            if (source[index] == '{')
+                depth++;
+            else if (source[index] == '}' && --depth == 0)
+                return source[start..(index + 1)];
+        }
+        throw new InvalidOperationException(signature);
     }
 
     private static string Source(string name)
