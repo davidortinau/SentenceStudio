@@ -575,7 +575,9 @@ if (!skipDatabaseInitialization)
         var sentenceOwners = await VocabularyWordOwnership.StampExampleSentencesAsync(
             db, assertSession, startupToken);
         assertSession();
-        app.Logger.LogInformation("Example sentence owners: {Stamped} stamped", sentenceOwners);
+        app.Logger.LogInformation(
+            "Example sentence owners: {WithWords} stamped with their words, {AfterWords} stamped after",
+            wordOwnership.SentencesStamped, sentenceOwners);
 
         // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
         var numberSeeder = new SentenceStudio.Services.Numbers.NumberContentSeeder(

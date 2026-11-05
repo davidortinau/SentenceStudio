@@ -292,9 +292,11 @@ public sealed class VocabularyWordOwnershipTests
             await InsertSentenceAsync(db, "s-owned", "legacy-a", resourceId: null, owner: NativeSliceFixture.UserB);
         }
 
+        VocabularyWordOwnership.Result result;
         using (var scope = fixture.Scope())
-            await VocabularyWordOwnership.BackfillAsync(Db(scope));
+            result = await VocabularyWordOwnership.BackfillAsync(Db(scope));
 
+        Assert.Equal(1, result.SentencesStamped);
         Assert.Equal(NativeSliceFixture.UserA, await OwnerAsync(fixture, "legacy-a"));
         Assert.Equal(NativeSliceFixture.UserA, await SentenceOwnerAsync(fixture, "s-plain"));
         Assert.Equal(NativeSliceFixture.UserB, await SentenceOwnerAsync(fixture, "s-owned"));

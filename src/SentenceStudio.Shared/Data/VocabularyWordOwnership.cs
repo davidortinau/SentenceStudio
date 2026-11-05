@@ -19,7 +19,11 @@ public static class VocabularyWordOwnership
     /// <param name="Shared">Ownerless words linked to more than one account.</param>
     /// <param name="Unlinked">Ownerless words linked to no account.</param>
     public sealed record Result(
-        IReadOnlyDictionary<string, string> Stamped, int Shared, int Unlinked);
+        IReadOnlyDictionary<string, string> Stamped, int Shared, int Unlinked)
+    {
+        /// <summary>Ownerless example sentences of the stamped words that took the same owner.</summary>
+        public int SentencesStamped { get; init; }
+    }
 
     private sealed record OwnerLink(string WordId, string Owner);
 
@@ -66,6 +70,7 @@ public static class VocabularyWordOwnership
         links.AddRange(await ProgressLinks(db, ownerless).ToListAsync(cancellationToken));
         var ownerlessCount = await ownerless.CountAsync(cancellationToken);
         var (stamped, shared) = Plan(links);
+        var sentences = 0;
 
         foreach (var batch in Batches(stamped))
         {
@@ -75,12 +80,15 @@ public static class VocabularyWordOwnership
                 .Where(word => ids.Contains(word.Id) && word.UserProfileId == null)
                 .ExecuteUpdateAsync(set => set.SetProperty(
                     word => word.UserProfileId, batch.Owner), cancellationToken);
-            await OwnerlessSentencesOf(db, ids)
+            sentences += await OwnerlessSentencesOf(db, ids)
                 .ExecuteUpdateAsync(set => set.SetProperty(
                     sentence => sentence.UserProfileId, batch.Owner), cancellationToken);
         }
 
-        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared));
+        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared))
+        {
+            SentencesStamped = sentences
+        };
     }
 
     /// <summary>Synchronous twin of <see cref="StampAsync"/> for <c>SaveChanges()</c>.</summary>
@@ -94,6 +102,7 @@ public static class VocabularyWordOwnership
         links.AddRange(ProgressLinks(db, ownerless).ToList());
         var ownerlessCount = ownerless.Count();
         var (stamped, shared) = Plan(links);
+        var sentences = 0;
 
         foreach (var batch in Batches(stamped))
         {
@@ -101,11 +110,14 @@ public static class VocabularyWordOwnership
             db.VocabularyWords
                 .Where(word => ids.Contains(word.Id) && word.UserProfileId == null)
                 .ExecuteUpdate(set => set.SetProperty(word => word.UserProfileId, batch.Owner));
-            OwnerlessSentencesOf(db, ids)
+            sentences += OwnerlessSentencesOf(db, ids)
                 .ExecuteUpdate(set => set.SetProperty(sentence => sentence.UserProfileId, batch.Owner));
         }
 
-        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared));
+        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared))
+        {
+            SentencesStamped = sentences
+        };
     }
 
     /// <summary>

@@ -35,7 +35,8 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
   start). A second start changed nothing.
 - **Found and fixed:** the owner migration copies an example sentence's owner from its word, but
   the server stamps word owners only later, at startup, so all 89 sentences would have been hidden.
-  Startup now stamps sentence owners right after word owners (`VocabularyWordOwnership.StampExampleSentencesAsync`),
+  Startup now stamps sentence owners right after word owners (`VocabularyWordOwnership.StampExampleSentencesAsync`;
+  the log line reads `Example sentence owners: {WithWords} stamped with their words, {AfterWords} stamped after`),
   and stamping a word stamps its ownerless sentences. Tests cover both; the new test fails without
   the fix.
 - **Hidden, not deleted:** 217 audio history (StreamHistory) rows and 1 scene image have no
@@ -93,7 +94,7 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
 2. `azd deploy -e sstudio-prod-biz` (azd only; runbook Step 0).
 3. Watch the API log for the migration and backfill lines:
    - `Vocabulary word owners: …`
-   - `Example sentence owners: … stamped`
+   - `Example sentence owners: … stamped with their words, … stamped after` (89 with their words on the 2026-10-20 copy)
    - CoreSync provisioning
 
 **F. Verify:**
