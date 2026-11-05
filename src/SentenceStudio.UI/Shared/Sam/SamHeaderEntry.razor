@@ -1,0 +1,67 @@
+@*
+    Sam's entry in the page header, on every signed-in page except the main pages, which have the
+    floating button instead (docs/sam-entry.md, SamEntryPlacementRule). Shown under the same gate
+    as the floating button and hidden while the panel is open (SamEntryState). Opens the panel
+    through the overlay host's own open path, so session resume, sizing and focus are the same.
+*@
+
+@inject SamEntryState Entry
+@inject NavigationManager Nav
+@inject BlazorLocalizationService Localize
+@inject CoachPersona Persona
+@implements IDisposable
+
+@if (Entry.IsAvailable && SamEntryPlacementRule.For(Nav) == SamEntryPlacement.Header)
+{
+    var name = Localize.Get("Coach_OpenNamed", Persona.DisplayName);
+    <button type="button"
+            id="@SamElementIds.HeaderEntry"
+            class="btn btn-sm btn-icon text-primary-ss sam-header-entry"
+            aria-label="@name"
+            title="@name"
+            aria-expanded="false"
+            aria-controls="@SamElementIds.Panel"
+            @onclick="OpenAsync">
+        <i class="bi bi-chat-dots-fill" aria-hidden="true" style="font-size: 1.25rem;"></i>
+        @if (Entry.HasUnread)
+        {
+            <span class="sam-header-entry__badge" aria-label="@Localize["Coach_Unread"]"></span>
+        }
+    </button>
+}
+
+@code {
+    private volatile bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        Entry.Changed += OnChanged;
+        Localize.CultureChanged += OnChanged;
+        Persona.Changed += OnChanged;
+    }
+
+    private Task OpenAsync() => Entry.OpenAsync(SamElementIds.HeaderEntry);
+
+    /// <summary>
+    /// Every caller is an event raised by a service that outlives this header, so a notification
+    /// that lands mid-teardown must not render into a disposed component.
+    /// </summary>
+    private void OnChanged()
+    {
+        if (_disposed) return;
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed) return;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Entry.Changed -= OnChanged;
+        Localize.CultureChanged -= OnChanged;
+        Persona.Changed -= OnChanged;
+    }
+}

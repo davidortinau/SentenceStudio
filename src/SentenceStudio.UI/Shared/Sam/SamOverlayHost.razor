@@ -5,6 +5,7 @@
 @inject CoachFeatureFlags Flags
 @inject CoachAccountBoundary Boundary
 @inject CoachPersona Persona
+@inject SamEntryState Entry
 @inject ILogger<SamOverlayHost> Log
 
 @*
@@ -15,6 +16,11 @@
     Manages: FAB visibility, Compact/Expanded panel state, Escape/Back collapse,
     session resume on FAB tap, and navigation survival.
 
+    The floating button is drawn only on the main pages (SamEntryPlacementRule); every other
+    page shows Sam in its PageHeader, which opens the panel through SamEntryState into the same
+    OpenPanelAsync. The button slides away on scroll by the shared rule (docs/sam-entry.md,
+    sam-overlay.js).
+
     NOT a modal. No focus trap. The learner can interact with page content while Sam
     is visible.
 *@
@@ -23,9 +29,12 @@
 {
     @if (_visualState == SamOverlayVisualState.Collapsed)
     {
-        <SamFab OnOpen="OpenPanelAsync"
-                HasUnread="_hasUnread"
-                Id="@SamElementIds.Fab" />
+        @if (SamEntryPlacementRule.For(Nav) == SamEntryPlacement.Floating)
+        {
+            <SamFab OnOpen="OpenFromFabAsync"
+                    HasUnread="_hasUnread"
+                    Id="@SamElementIds.Fab" />
+        }
     }
     else
     {
@@ -95,6 +104,10 @@
         Boundary.Changed += OnBoundaryChanged;
         Boundary.Crossed += OnAccountCrossed;
 
+        // The header icon opens the panel through this host. It shows nothing until a render
+        // below publishes that an entry may show.
+        Entry.Attach(this, OpenPanelAsync);
+
         // Authentication is READ, never assumed. The previous version set this to true on the
         // grounds that the layout only mounted the host inside its authenticated branch — which
         // was not true, and even where it is true, a component that hardcodes the answer cannot
@@ -119,7 +132,14 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !RendererInfo.IsInteractive) return;
+        if (!RendererInfo.IsInteractive) return;
+
+        // After every render, so the header icon follows exactly what this host just drew: shown
+        // whenever the floating button would be (signed in, panel closed), gone while the panel
+        // is open.
+        PublishEntry();
+
+        if (!firstRender) return;
 
         _module = await JS.InvokeAsync<IJSObjectReference>(
             "import", "./_content/SentenceStudio.UI/js/sam-overlay.js");
@@ -184,7 +204,11 @@
         return Task.CompletedTask;
     }
 
-    private async Task OpenPanelAsync()
+    private Task OpenFromFabAsync() => OpenPanelAsync(SamElementIds.Fab);
+
+    /// <summary>Opens the panel. The floating button and the header icon both come here.</summary>
+    /// <param name="invokerElementId">The entry control that asked.</param>
+    private async Task OpenPanelAsync(string invokerElementId)
     {
         // Defence in depth against a stale render: the gate above already refuses to draw the FAB
         // for a signed-out shell, but a click queued a frame before the account changed would
@@ -214,7 +238,7 @@
         // the learner who is signed in now.
         if (!Coach.IsOpen)
         {
-            await Coach.ResumeMostRecentAsync(CoachPresentation.Overlay, SamElementIds.Fab);
+            await Coach.ResumeMostRecentAsync(CoachPresentation.Overlay, invokerElementId);
         }
 
         _visualState = _viewportWidth >= 992
@@ -264,8 +288,34 @@
         await SetInertAsync(false);
         await InvokeAsync(StateHasChanged);
 
-        // Restore focus to the control that opened the panel.
-        await FocusAsync(SamElementIds.Fab);
+        // Restore focus to this page's entry. The panel survives navigation, so that is not
+        // always the control that opened it. The header icon is drawn by another component, so
+        // it hears that it may show before focus is sent to it.
+        PublishEntry();
+        if (EntryElementId() is { } entryId)
+        {
+            await FocusAsync(entryId);
+        }
+    }
+
+    /// <summary>The id of the entry control on the current page, if it has one.</summary>
+    private string? EntryElementId() => SamEntryPlacementRule.For(Nav) switch
+    {
+        SamEntryPlacement.Floating => SamElementIds.Fab,
+        SamEntryPlacement.Header => SamElementIds.HeaderEntry,
+        _ => null
+    };
+
+    /// <summary>
+    /// Tells the header icon whether it may show: under the same conditions this host draws the
+    /// floating button, the learner signed in and the panel closed.
+    /// </summary>
+    private void PublishEntry()
+    {
+        if (_disposed) return;
+
+        var available = _isAuthenticated && _visualState == SamOverlayVisualState.Collapsed;
+        Entry.Publish(this, available, _hasUnread);
     }
 
     /// <summary>
@@ -396,10 +446,18 @@
     {
         if (_disposed) return;
 
-        // Sam overlay survives navigation — no action needed.
+        // A new page starts with the floating button shown, wherever the last one was scrolled.
+        _ = ResetEntryAutoHideAsync();
+
+        // Sam overlay survives navigation. The floating button belongs to the main pages only,
+        // so the host re-renders to draw it, or not, for the page now showing.
         // The existing /coach route takes over when navigating there.
         var uri = Nav.ToAbsoluteUri(e.Location);
-        if (uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
+        if (!uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
+        {
+            RequestRender();
+        }
+        else
         {
             var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
             _visualState = SamOverlayVisualState.Collapsed;
@@ -413,6 +471,28 @@
             }
 
             RequestRender();
+        }
+    }
+
+    private async Task ResetEntryAutoHideAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("resetSamEntry");
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (TaskCanceledException) { }
+        catch (JSException ex)
+        {
+            // Nobody awaits this, so a failure must end here. The button then keeps the state it
+            // had on the last page until the next scroll, which is not worth more than a log line.
+            Log.LogWarning(ex, "Sam entry auto-hide reset failed after navigation.");
         }
     }
 
@@ -502,6 +582,7 @@
         Coach.Changed -= OnCoachChanged;
         Boundary.Changed -= OnBoundaryChanged;
         Boundary.Crossed -= OnAccountCrossed;
+        Entry.Detach(this);
 
         try
         {

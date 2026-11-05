@@ -3526,15 +3526,43 @@ body.coach-open .toast-container-ss {
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.15s ease;
     /* Safe area for notched devices */
     bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
     right: calc(1.5rem + env(safe-area-inset-right, 0px));
 }
 
+/* Hide on scroll (docs/sam-entry.md). sam-overlay.js sets data-sam-entry-away on <html> while
+   the learner scrolls down; the button slides down past the bottom edge and fades. It is not
+   display:none or visibility:hidden: it stays in the accessibility tree, and focus brings it
+   back. A hidden button cannot be tapped. */
+html[data-sam-entry-away] .sam-fab {
+    transform: translateY(calc(100% + 1.5rem + env(safe-area-inset-bottom, 0px)));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Room at the bottom: a page with the floating button leaves the button's size, its offset and
+   a gap after its last item, so the last card can always scroll clear of it. */
+body:has(.sam-fab) main.main-content {
+    padding-bottom: calc(48px + 1.5rem + 1rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Toasts sit above the floating button, never under or over it: the toast stack in the same
+   corner, and the shared-import status, which spans a phone's width. */
+body:has(.sam-fab) .toast-container-ss,
+body:has(.sam-fab) .shared-ingest-toast {
+    bottom: calc(48px + 1.5rem + 0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
 @media (prefers-reduced-motion: reduce) {
+    /* Fades, and the hover grows without animating; nothing slides. */
     .sam-fab {
-        transition: none;
+        transition: opacity 0.2s ease;
+    }
+
+    html[data-sam-entry-away] .sam-fab {
+        transform: none;
     }
 }
 
@@ -3564,6 +3592,21 @@ body.coach-open .toast-container-ss {
     /* The ring separates the badge from the button beneath it, so it belongs to the button's
        colour, not to a literal white that disappears on a light primary. */
     border: 2px solid var(--ss-on-primary, #fff);
+}
+
+/* --- Header entry: Sam in the PageHeader on every page without the floating button --- */
+.sam-header-entry {
+    position: relative;
+}
+
+.sam-header-entry__badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bs-danger);
 }
 
 /* --- Panel (non-modal aside) --- */
@@ -3786,6 +3829,15 @@ body.coach-open .toast-container-ss {
     .sam-fab {
         bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
         right: calc(1rem + env(safe-area-inset-right, 0px));
+    }
+
+    body:has(.sam-fab) main.main-content {
+        padding-bottom: calc(48px + 1rem + 1rem + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    body:has(.sam-fab) .toast-container-ss,
+    body:has(.sam-fab) .shared-ingest-toast {
+        bottom: calc(48px + 1rem + 0.75rem + env(safe-area-inset-bottom, 0px));
     }
 
     .sam-panel--compact,

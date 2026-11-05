@@ -64,6 +64,7 @@ public class SamOverlayPersonaAndFullScreenTests
             services.AddScoped<CoachAccountBoundary>();
             services.AddScoped<ICoachPersonaLanguageSource>(_ => Languages);
             services.AddScoped<CoachPersona>();
+            services.AddScoped<SamEntryState>();
 
             _provider = services.BuildServiceProvider();
 

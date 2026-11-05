@@ -74,6 +74,9 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         services.AddSingleton<IActivityTimerService>(harness.Timer);
         services.AddSingleton<IPlanDateContext>(harness.Clock);
         services.AddScoped<BlazorLocalizationService>();
+        // Every page's header carries Sam's entry; with no overlay host attached it draws nothing.
+        services.AddScoped<SentenceStudio.WebUI.Shared.Sam.SamEntryState>();
+        services.AddScoped<CoachPersona>();
         var toast = new ToastService();
         toast.OnShow += harness.Toasts.Add;
         services.AddSingleton(toast);

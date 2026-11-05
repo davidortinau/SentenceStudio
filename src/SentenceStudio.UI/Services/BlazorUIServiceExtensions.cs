@@ -39,6 +39,9 @@ public static class BlazorUIServiceExtensions
         // change. TryAdd on the source so a host with a cheaper answer can register its own first.
         services.TryAddScoped<ICoachPersonaLanguageSource, UserProfileCoachPersonaLanguageSource>();
         services.AddScoped<CoachPersona>();
+        // How the page header's Sam icon opens the overlay's panel. Scoped with the overlay host
+        // that attaches to it, so one learner's header can never open another's Sam.
+        services.AddScoped<SentenceStudio.WebUI.Shared.Sam.SamEntryState>();
         if (useCircuitScopedActivityTimer)
         {
             services.AddScoped<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();

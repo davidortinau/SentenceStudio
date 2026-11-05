@@ -7,6 +7,10 @@ namespace SentenceStudio.WebUI.Shared.Sam;
 public static class SamElementIds
 {
     public const string Fab = "sam-fab";
+
+    /// <summary>The Sam icon in the page header, on every page without the floating button.</summary>
+    public const string HeaderEntry = "sam-header-entry";
+
     public const string Panel = "sam-panel";
     public const string PanelTitle = "sam-panel-title";
 
