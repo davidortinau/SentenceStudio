@@ -3,7 +3,7 @@
   "profiles": {
     "native-ios": {
       "description": "Run native iOS regressions and the real-facade SwiftUI view host (a local macOS process), then compile the simulator app. No install or runtime acceptance.",
-      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "tests/SentenceStudio.Native.SwiftUIViews.Tests", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.37"],
+      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "tests/SentenceStudio.Native.SwiftUIViews.Tests", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.38"],
       "tools": [["dotnet", "--version"], ["xcodebuild", "-version"]],
       "steps": [
         {
@@ -47,7 +47,7 @@
     },
     "native-ios-build": {
       "description": "Compile the current native iOS simulator app with restored packages. No deployment or runtime acceptance.",
-      "inputs": ["src", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.37"],
+      "inputs": ["src", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.38"],
       "tools": [["dotnet", "--version"], ["xcodebuild", "-version"]],
       "steps": [
         {
