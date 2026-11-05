@@ -251,6 +251,9 @@ PublishScripts/
 
 # NuGet Packages
 *.nupkg
+# Repo-local CoreSync feeds (reviewed, SHA-verified; see docs/deploy-runbook.md)
+!lib/coresync/*.nupkg
+!lib/coresync-postgresql-local3/CoreSync.PostgreSQL.0.1.129-local3.nupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
