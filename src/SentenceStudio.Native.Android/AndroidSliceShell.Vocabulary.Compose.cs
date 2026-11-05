@@ -149,6 +149,9 @@ internal sealed partial class AndroidSliceShell
                         automationId: "native.vocabulary.feedback")
                     : StatusAlert(state.Feedback!, palette, success: true,
                         automationId: "native.vocabulary.feedback")));
+            if (state.Duplicates is { } duplicates)
+                rows.Add(new("duplicates", () =>
+                    VocabularyDuplicatesPanel(vocabulary!, duplicates, palette)));
             if (state.FilteredWords.Count == 0)
                 rows.Add(new("empty", () =>
                 {
@@ -171,6 +174,27 @@ internal sealed partial class AndroidSliceShell
                 {
                     var item = word;
                     rows.Add(new($"word.{item.Id}", () => VocabularyCard(item, vocabulary!, palette)));
+                }
+                page.Add(VocabularyLazyList(rows, wide, listMode: true));
+            }
+            else if (state.Duplicates is not null)
+            {
+                // One scroll container while the duplicate manager is open (the source panel
+                // scrolls with the page): the grid's rows become lazy rows below it.
+                var columns = WindowWidthDp < 992 ? 2 : 3;
+                var words = state.FilteredWords;
+                for (var start = 0; start < words.Count; start += columns)
+                {
+                    var slice = words.Skip(start).Take(columns).ToArray();
+                    rows.Add(new($"grid.{slice[0].Id}", () =>
+                    {
+                        var row = new Row(Arrangement.SpacedBy(12)) { Modifier.FillMaxWidth() };
+                        foreach (var word in slice)
+                            row.Add(new Box { Modifier.Weight(1f), VocabularyCard(word, vocabulary!, palette) });
+                        for (var pad = slice.Length; pad < columns; pad++)
+                            row.Add(new Box { Modifier.Weight(1f) });
+                        return row;
+                    }));
                 }
                 page.Add(VocabularyLazyList(rows, wide, listMode: true));
             }
@@ -512,16 +536,7 @@ internal sealed partial class AndroidSliceShell
             backAutomationId: "native.vocabulary.edit.back");
         var readOnly = state.Detail?.IsSharedWithAnotherOwner == true;
         if (state.Detail is not null && state.Draft is not null && header is TopAppBar bar)
-        {
-            var save = new TextButton(() => RunMoreOnUi(vocabulary.SaveAsync), enabled: state.CanSave)
-            {
-                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.vocabulary.edit.save.toolbar")
-                    .Semantics(semantics => semantics.ContentDescription(Localize("Common_Save"))),
-            };
-            save.Add(new Text(Localize("Common_Save")));
-            bar.Actions = save;
-        }
+            bar.Actions = VocabularyWordActions(vocabulary, state, palette);
         var rows = new List<VocabularyRow>();
         void Add(string key, Func<ComposableNode> content) => rows.Add(new(key, content));
         if (state.Loading)
@@ -534,6 +549,9 @@ internal sealed partial class AndroidSliceShell
         if (state.ErrorKey is { } error)
             Add("error", () => StatusAlert(Localize(error), palette, error: true,
                 automationId: "native.vocabulary.edit.error"));
+        if (state.DeleteError is { } deleteError)
+            Add("delete.error", () => StatusAlert(deleteError, palette, error: true,
+                automationId: "native.vocabulary.edit.delete.error"));
         if (state.Detail is not { } detail || state.Draft is not { } draft)
         {
             if (!state.Loading)
@@ -556,7 +574,7 @@ internal sealed partial class AndroidSliceShell
             });
 
         Add("terms", () => Card(palette, "native.vocabulary.edit.terms",
-            WordSectionHeading("VocabWordEdit_VocabularyTerms", palette),
+            VocabularyTermsHeading(vocabulary, state, palette),
             VocabularyTargetField(vocabulary, state, draft, readOnly, palette),
             WordField(vocabulary, "VocabWordEdit_NativeLanguageTerm", "VocabWordEdit_NativePlaceholder",
                 "native.vocabulary.edit.native", draft.NativeTerm, nameof(draft.NativeTerm),
@@ -615,10 +633,13 @@ internal sealed partial class AndroidSliceShell
             new Box { Modifier.Weight(1f), Action(Localize("Common_Save"),
                 "native.vocabulary.edit.save", () => RunMoreOnUi(vocabulary.SaveAsync), state.CanSave) },
         });
-        return VocabularyWordColumn(header, rows);
+        var page = VocabularyWordColumn(header, rows);
+        if (vocabulary.IsDeleteConfirmationPresented)
+            page.Add(VocabularyDeleteDialog(vocabulary, state, detail, palette));
+        return page;
     }
 
-    private static ComposableNode VocabularyWordColumn(ComposableNode header, List<VocabularyRow> rows) =>
+    private static Column VocabularyWordColumn(ComposableNode header, List<VocabularyRow> rows) =>
         new Column
         {
             Modifier.FillMaxSize().TestTag("native.vocabulary.edit.page"),
