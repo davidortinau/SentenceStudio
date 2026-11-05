@@ -43,6 +43,7 @@ internal sealed class NativeSliceFixture : IDisposable
     private readonly ScratchAuthHandler _authHandler = new();
     private readonly ScratchPlanGenerator _generator = new();
     private readonly ScratchConnectivity _connectivity = new();
+    private readonly QueryGuardFindings _queryGuardFindings = new();
     private readonly ScratchAmbientSync _ambientSync = new();
     private readonly bool _productionAdapters;
     private readonly bool _realPlanGenerator;
@@ -313,6 +314,9 @@ internal sealed class NativeSliceFixture : IDisposable
     public string ResourceId(string userId) => $"resource-{userId}";
     public string WordId(string userId, int index) => $"word-{userId}-{index}";
 
+    /// <summary>Returns and clears the query-guard findings, for a test that expects one.</summary>
+    public IReadOnlyList<string> TakeQueryGuardFindings() => _queryGuardFindings.Drain();
+
     public void Dispose()
     {
         _provider.Dispose();
@@ -320,16 +324,22 @@ internal sealed class NativeSliceFixture : IDisposable
         {
             SqliteConnection.ClearAllPools();
             Directory.Delete(_directory, recursive: true);
-            return;
         }
-        foreach (var name in new[] {
-            "native-slice.sqlite", "native-slice.sqlite-wal", "native-slice.sqlite-shm" })
+        else
         {
-            var file = Path.Combine(_directory, name);
-            if (File.Exists(file))
-                File.Delete(file);
+            foreach (var name in new[] {
+                "native-slice.sqlite", "native-slice.sqlite-wal", "native-slice.sqlite-shm" })
+            {
+                var file = Path.Combine(_directory, name);
+                if (File.Exists(file))
+                    File.Delete(file);
+            }
+            Directory.Delete(_directory);
         }
-        Directory.Delete(_directory);
+        if (_queryGuardFindings.Drain() is { Count: > 0 } findings)
+            throw new InvalidOperationException(
+                "A query evaluates a virtual or interface member on the client (see "
+                + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
     }
 
     private SqliteConnection OpenConnection()
@@ -355,8 +365,9 @@ internal sealed class NativeSliceFixture : IDisposable
                 options.UseSqlite($"Data Source={_database};Pooling=False")
                     .ConfigureWarnings(w =>
                         w.Ignore(RelationalEventId.PendingModelChangesWarning)));
-        // Every query in these tests also runs the CoreCLR iOS interpreter check.
-        DeviceInterpreterQueryGuard.Register(services);
+        // Every query in these tests also runs the CoreCLR iOS interpreter check; Dispose fails
+        // the test if any query tripped it, even when app code caught the exception.
+        DeviceInterpreterQueryGuard.Register(services, _queryGuardFindings);
         services.AddSingleton<IPreferencesService>(_preferences);
         services.AddSingleton<ISecureStorageService>(_secureStorage);
         services.AddSingleton<IConnectivityService>(_connectivity);

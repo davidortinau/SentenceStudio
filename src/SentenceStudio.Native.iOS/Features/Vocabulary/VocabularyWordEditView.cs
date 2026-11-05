@@ -13,6 +13,7 @@ internal sealed record VocabularyEditActions(
     Action<string, bool> ToggleResource,
     Action Save, Action Cancel, Action Retry, Action PlayAudio,
     Action<SwiftView> RegisterSave,
+    Action<SwiftView> RegisterMenuSave,
     Action<SwiftView> RegisterResourceCount);
 
 internal static class VocabularyWordEditView
@@ -106,7 +107,7 @@ internal static class VocabularyWordEditView
                 actions.Cancel)
             .WithAccessibilityIdentifier("native.vocabulary.edit.cancel");
         cancel.IsEnabled = !state.Saving;
-        var save = SaveButton(state, style, text, actions, readOnly)
+        var save = SaveButton(style, text, actions)
             .WithAccessibilityIdentifier("native.vocabulary.edit.save");
         var buttons = Views.HStack(cancel, save)
             .WithFlexibleWidth()
@@ -119,15 +120,15 @@ internal static class VocabularyWordEditView
         SwiftView toolbarAction;
         if (style.ViewportWidth >= 768)
         {
-            toolbarAction = SaveButton(state, style, text, actions, readOnly)
+            toolbarAction = SaveButton(style, text, actions)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.save.toolbar");
         }
         else
         {
             var menuSave = Views.Button(text("Common_Save"), actions.Save)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.save.menu");
-            // Not registered: registered buttons are restyled as primary (blue) buttons.
-            menuSave.IsEnabled = CanSave(state, readOnly);
+            // A plain menu item: RegisterSave would restyle it as a primary (blue) button.
+            actions.RegisterMenuSave(menuSave);
             toolbarAction = Views.Menu(text("More"), menuSave)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.more");
         }
@@ -430,18 +431,11 @@ internal static class VocabularyWordEditView
             .WithAccessibilityIdentifier($"{id}.row");
 
     private static SwiftView SaveButton(
-        VocabularyEditPresentation state, SourceUiStyle style,
-        Func<string, string> text, VocabularyEditActions actions, bool readOnly)
+        SourceUiStyle style, Func<string, string> text, VocabularyEditActions actions)
     {
+        // VocabularyCoordinator.UpdateSaveButtons sets whether it's enabled, now and on each edit.
         var button = style.PrimaryButton(text("Common_Save"), actions.Save);
-        button.IsEnabled = CanSave(state, readOnly);
         actions.RegisterSave(button);
         return button;
     }
-
-    private static bool CanSave(VocabularyEditPresentation state, bool readOnly) =>
-        !readOnly && !state.Saving
-            && state.Draft is { } draft
-            && !string.IsNullOrWhiteSpace(draft.TargetTerm)
-            && !string.IsNullOrWhiteSpace(draft.NativeTerm);
 }

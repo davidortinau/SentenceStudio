@@ -285,7 +285,7 @@ public sealed class NativeOwnerStoresTests
             ? id?.Value as string : null;
 
     private static ApplicationDbContext Context(string path) =>
-        new(new DbContextOptionsBuilder<ApplicationDbContext>()
+        new(DeviceInterpreterQueryGuard.Guard(new DbContextOptionsBuilder<ApplicationDbContext>())
             .UseSqlite($"Data Source={path};Pooling=False").Options);
 
     private static UserProfile Profile(string id) => new()

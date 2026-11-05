@@ -53,6 +53,8 @@
              Link="NativePreviewFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/NativeSliceFixture.cs"
              Link="NativeSliceFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
+    <Compile Include="../SentenceStudio.Native.Tests/DeviceInterpreterQueryGuard.cs"
+             Link="DeviceInterpreterQueryGuard.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/ScratchPorts.cs"
              Link="ScratchPorts.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/ScratchResourceAiGateway.cs"

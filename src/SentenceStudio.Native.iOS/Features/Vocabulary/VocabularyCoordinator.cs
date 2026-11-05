@@ -35,6 +35,7 @@ internal sealed class VocabularyCoordinator : IDisposable
     private readonly Func<string, string> _text;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<SwiftView> _saveButtons = [];
+    private readonly List<SwiftView> _menuSaveButtons = [];
     private SwiftView? _resourceCount;
     private SourceUiAppearance? _saveAppearance;
     private NativeVocabularyCatalog _catalog = new(false, [], []);
@@ -206,6 +207,7 @@ internal sealed class VocabularyCoordinator : IDisposable
     internal SwiftView RenderForm(SourceUiStyle style)
     {
         _saveButtons.Clear();
+        _menuSaveButtons.Clear();
         _resourceCount = null;
         _saveAppearance = style.Appearance;
         var form = VocabularyWordEditView.Page(EditState, style, _text,
@@ -217,6 +219,7 @@ internal sealed class VocabularyCoordinator : IDisposable
                 Retry: () => Run(() => OpenWordAsync(_selectedWordId ?? "")),
                 PlayAudio: () => Run(PlayAudioAsync),
                 RegisterSave: view => _saveButtons.Add(view),
+                RegisterMenuSave: view => _menuSaveButtons.Add(view),
                 RegisterResourceCount: view => _resourceCount = view));
         UpdateSaveButtons();
         return form;
@@ -661,6 +664,8 @@ internal sealed class VocabularyCoordinator : IDisposable
         foreach (var button in _saveButtons)
             SourceUiStyle.SetCustomButtonAvailability(button,
                 _saveAppearance, SourceButtonRole.Primary, enabled);
+        foreach (var item in _menuSaveButtons)
+            item.IsEnabled = enabled;
     }
 
     private void Publish(bool listChanged = false, bool formChanged = false,

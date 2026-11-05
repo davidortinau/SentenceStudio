@@ -320,6 +320,7 @@ public sealed class NativeProfileSaveTests
             _connection.Open();
             var services = new ServiceCollection();
             services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+            DeviceInterpreterQueryGuard.Register(services);
             services.AddSingleton(Scope);
             services.AddSingleton<ILogger<UserProfileRepository>>(
                 NullLogger<UserProfileRepository>.Instance);

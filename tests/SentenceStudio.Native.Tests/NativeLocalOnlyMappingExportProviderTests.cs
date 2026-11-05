@@ -693,7 +693,7 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
                 $"Data Source=native-undo-{Guid.NewGuid():N};Mode=Memory;Cache=Shared;Pooling=False";
             var keepAlive = new SqliteConnection(connectionString);
             await keepAlive.OpenAsync();
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            var options = DeviceInterpreterQueryGuard.Guard(new DbContextOptionsBuilder<ApplicationDbContext>())
                 .UseSqlite(connectionString).Options;
             await using (var db = new ApplicationDbContext(options))
                 await db.Database.EnsureCreatedAsync();

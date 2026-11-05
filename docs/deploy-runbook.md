@@ -736,26 +736,38 @@ When the Captain says **"publish"**, **"deploy"**, or **"push to my phone"**, ex
 
 ### Option A: `azd deploy` (stable)
 
-```bash
-# Ensure VPN is OFF (management.azure.com times out on VPN)
-cd <checkout of the commit you are shipping>   # it needs the .azure folder; see below
-# feedbackhmackey is not in .azure/sstudio-prod-biz/config.json; azd reads it from
-# AZURE_FEEDBACKHMACKEY. Pass it inline from Key Vault so it is never printed or saved.
-AZURE_FEEDBACKHMACKEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
-  -n feedback-hmac-key --query value -o tsv)" azd deploy -e sstudio-prod-biz --no-prompt
-```
+Run these in order, in one shell. The deploy line runs only if both checks pass.
 
-**Carry the live Sam (Coach) settings into the deploy.** In publish mode the AppHost reads every
+**1. Carry the live Sam (Coach) settings into the deploy.** In publish mode the AppHost reads every
 `Coach__*` value only from the deploying shell's environment (`CoachConfigurationReader`), and
 anything missing fails closed: `Coach__Enabled=false`, no allowed profiles, and no Data
 Protection or durable-history settings. On 2026-11-05 a deploy without them turned Sam off for
-everyone. Export the API's current values first, in the same shell, without printing them:
+everyone. Export the API's current values, without printing them:
 
 ```bash
-eval "$(az containerapp show -g rg-sstudio-prod-biz -n api \
-  --query "properties.template.containers[0].env[?starts_with(name,'Coach__')]" -o json \
-  | python3 -c 'import json,shlex,sys; [print(f"export {e[\"name\"]}={shlex.quote(e[\"value\"])}") for e in json.load(sys.stdin) if "value" in e]')"
-env | grep -c '^Coach__'   # expect 11 since 2026-11-05 (four allow-list entries)
+# Ensure VPN is OFF (management.azure.com times out on VPN)
+cd <checkout of the commit you are shipping>   # it needs the .azure folder; see below
+COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
+COACH_LIVE=$(az containerapp show -g rg-sstudio-prod-biz -n api --query "length($COACH_QUERY)" -o tsv)
+eval "$(az containerapp show -g rg-sstudio-prod-biz -n api --query "$COACH_QUERY" -o json \
+  | python3 -c 'import json,shlex,sys; [print("export %s=%s" % (e["name"], shlex.quote(e["value"]))) for e in json.load(sys.stdin) if "value" in e]')"
+echo "live: $COACH_LIVE exported: $(env | grep -c '^Coach__')"   # 11 on 2026-11-05; must match
+```
+
+**2. Deploy.** `feedbackhmackey` is not in `.azure/sstudio-prod-biz/config.json`; azd reads it
+from `AZURE_FEEDBACKHMACKEY`. Read it from Key Vault into an unexported variable so it is never
+printed or saved:
+
+```bash
+FEEDBACK_KEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
+  -n feedback-hmac-key --query value -o tsv)"
+if [ -n "$FEEDBACK_KEY" ] && [ "${COACH_LIVE:-0}" -gt 0 ] \
+    && [ "$(env | grep -c '^Coach__')" -eq "$COACH_LIVE" ]; then
+  AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" azd deploy -e sstudio-prod-biz --no-prompt
+else
+  echo "STOP: the feedback key or the Coach__ settings are missing; do not deploy"
+fi
+unset FEEDBACK_KEY
 ```
 
 After the deploy, compare the API's `Coach__*` settings with the previous revision's (names and
