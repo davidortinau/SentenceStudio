@@ -99,9 +99,9 @@ Native fix references are commits on `native-platform-heads`.
 
 ## Found while backporting (open)
 
-- Speech (B60, open): StreamHistory rows that native clients recorded before B60 with a requested voice
-  ID but default-voice (Rachel) audio are never cleaned up; removing or regenerating them is a data
-  decision for the Captain.
+- Speech (B60, won't fix): StreamHistory rows that native clients recorded before B60 with a requested
+  voice ID but default-voice (Rachel) audio are never cleaned up. Captain 2026-11-04: "Ignore the
+  wrong-voice clips."
 - Speech (B60, open): during an outage, How Do You Say clips that come back substituted (or from an
   older API) play but are not recorded, so they are missing from History.
 - Speech (B60, possible improvement): the client could send its `TranscriptSha256` with a Reading

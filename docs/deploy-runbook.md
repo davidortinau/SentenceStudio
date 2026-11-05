@@ -347,8 +347,7 @@ resource that has not synced. Open items (not fixed):
 
 - Wrong-voice clips cached before B60. Native clients sent raw voice IDs that the old API answered
   in its default voice, and kept those clips in StreamHistory rows (and files) tagged with the
-  requested voice. Nothing cleans them up; whether to remove or regenerate them is a data decision
-  for the Captain.
+  requested voice. Nothing cleans them up. Captain 2026-11-04: ignore them (no cleanup).
 - How Do You Say during an outage. A clip that comes back substituted (or from an older API) is
   played but not recorded, so it does not appear in History.
 - A server-side transcript check. The client could send its own `TranscriptSha256` and the API answer
