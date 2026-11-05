@@ -58,7 +58,7 @@ Counts only; the copy was deleted. Summary: `scratchpad/migration-rehearsal-2026
   You Say history, as they did on `main`. Each stores a file path from the machine that made
   it, so another device regenerates the clip the first time it is played.
   The script passed a synthetic test (dry run, apply, and each refusal leaves the data unchanged).
-  **Open:** production has 24 profiles behind 7 logins, and the old web app saved ownerless audio
+  **Checked (see the f617d608 re-run below):** production has 24 profiles behind 7 logins, and the old web app saved ownerless audio
   for every signed-in learner, so the rows alone cannot show they are all his. Before E4, count
   on the dump copy how many other accounts were active from 2026-05 to 2026-10, and show him.
   The script keeps no list of the rows it changed, so undoing it exactly means restoring the
@@ -82,6 +82,27 @@ Same method as above, on the dump taken in C1 (SHA-256 checked; counts equal the
 - **Found and fixed (B63):** the word-owner backfill stamped 28 words with an owner ID that is no
   profile. Their only link was progress left by deleted accounts. Now only an existing profile
   can own a word, so those 28 stay ownerless. No rows were lost either way.
+
+**Re-run at `f617d608`** (the final server code; `e85c7f94` changes only device saves):
+- Startup took 3.2 s, with the lock held 2.3 s.
+- Word owners logged "4753 stamped, 96 shared, 213 unlinked, 28 left ownerless (only owner is
+  not a profile)". 0 words now have an owner that is not a profile.
+- The 28 words trace back to 1 owner ID. That ID matches no profile and no login, even
+  compared case-insensitively and trimmed.
+- Example sentences: 89 stamped with their words, 0 after.
+- `__core_sync_ct` grew by 5112. 0 rows lost; 37 of 37 foreign keys valid.
+- A second start changed nothing.
+
+**Who made the audio** (read-only counts on the same copy):
+- **Logins and profiles:** only 2 of the 24 profiles have a login: his, and one test-domain
+  account. The one other real-domain login points at a deleted profile and last signed in in
+  April, before the audio began.
+- **Phrases:** 202 of the 237 rows match only his vocabulary and 0 match only someone else's.
+  23 match both; the other side is always a profile with no login or a deleted account,
+  never the test account. 12 match neither.
+- **Timing:** every row falls on a day he was active, and 188 have his activity within 10
+  minutes. No one else has activity within 10 minutes of any row.
+- **Conclusion:** no sign that any row came from another account.
 
 ## Risks and how this plan handles them
 
@@ -177,8 +198,10 @@ C1 result:
 1. Optionally scale the WebApp and Workers to zero.
 2. `azd deploy -e sstudio-prod-biz` (azd only; runbook Step 0).
 3. Watch the API log for the migration and backfill lines:
-   - `Vocabulary word owners: …`
-   - `Example sentence owners: … stamped with their words, … stamped after` (89 with their words on the 2026-10-20 copy)
+   - `Vocabulary word owners: …`. The 2026-11-05 copy gave 4753 stamped, 96 shared, 213 unlinked,
+     28 left ownerless (only owner is not a profile).
+   - `Example sentence owners: … stamped with their words, … stamped after`. The 2026-11-05 copy
+     gave 89 and 0.
    - CoreSync provisioning
 4. Once the API, WebApp and Workers all run their new revisions (the old WebApp writes
    ownerless audio rows, so this must wait for it to be replaced), and before any device
