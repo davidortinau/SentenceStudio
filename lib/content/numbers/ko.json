@@ -212,7 +212,9 @@
       "hintA": "Ordinal (which floor?) uses Sino numbers",
       "hintB": "Counting floors uses Native numbers",
       "audioTextA": "삼 층",
-      "audioTextB": "세 층"
+      "audioTextB": "세 층",
+      "choicesA": ["삼 층", "세 층", "석 층", "셋 층"],
+      "choicesB": ["세 층", "삼 층", "셋 층", "석 층"]
     },
     {
       "digit": 3,
@@ -223,7 +225,9 @@
       "hintA": "Hours use Native numbers",
       "hintB": "Minutes use Sino numbers",
       "audioTextA": "세 시",
-      "audioTextB": "삼 분"
+      "audioTextB": "삼 분",
+      "choicesA": ["세 시", "삼 시", "석 시", "셋 시"],
+      "choicesB": ["삼 분", "세 분", "석 분", "셋 분"]
     },
     {
       "digit": 3,
@@ -234,7 +238,9 @@
       "hintA": "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)",
       "hintB": "Ordinal day uses Native + 째",
       "audioTextA": "사흘",
-      "audioTextB": "셋째 날"
+      "audioTextB": "셋째 날",
+      "choicesA": ["사흘", "삼 일", "세 일", "나흘"],
+      "choicesB": ["셋째 날", "삼째 날", "세째 날", "삼 번째 날"]
     },
     {
       "digit": 3,
@@ -245,7 +251,9 @@
       "hintA": "Counting people uses Native + 명",
       "hintB": "Numbering (ID, jersey number) uses Sino + 번",
       "audioTextA": "세 명",
-      "audioTextB": "삼 번"
+      "audioTextB": "삼 번",
+      "choicesA": ["세 명", "삼 명", "석 명", "셋 명"],
+      "choicesB": ["삼 번", "세 번", "석 번", "셋 번"]
     },
     {
       "digit": 20,
@@ -256,7 +264,9 @@
       "hintA": "Age uses Native numbers + 살 (스물 → 스무 sound change)",
       "hintB": "Calendar years use Sino numbers + 년",
       "audioTextA": "스무 살",
-      "audioTextB": "이십 년"
+      "audioTextB": "이십 년",
+      "choicesA": ["스무 살", "이십 살", "스물 살", "이십 년"],
+      "choicesB": ["이십 년", "스무 년", "스물 년", "스무 살"]
     },
     {
       "digit": 5,
@@ -267,7 +277,9 @@
       "hintA": "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)",
       "hintB": "Calendar dates use Sino numbers + 일",
       "audioTextA": "닷새",
-      "audioTextB": "오 일"
+      "audioTextB": "오 일",
+      "choicesA": ["닷새", "오 일", "다섯 일", "엿새"],
+      "choicesB": ["오 일", "닷새", "다섯 일", "닷 일"]
     },
     {
       "digit": 2,
@@ -278,7 +290,9 @@
       "hintA": "Counting bottles uses Native + 병 (두 = sound change of 둘)",
       "hintB": "Months use Sino numbers + 월",
       "audioTextA": "두 병",
-      "audioTextB": "이월"
+      "audioTextB": "이월",
+      "choicesA": ["두 병", "이 병", "둘 병", "이월"],
+      "choicesB": ["이월", "두 월", "둘 월", "두 달"]
     },
     {
       "digit": 4,
@@ -289,7 +303,9 @@
       "hintA": "Hours use Native numbers (네 = sound change of 넷)",
       "hintB": "Months use Sino numbers + 월",
       "audioTextA": "네 시",
-      "audioTextB": "사월"
+      "audioTextB": "사월",
+      "choicesA": ["네 시", "사 시", "넷 시", "넉 시"],
+      "choicesB": ["사월", "네 월", "넷 월", "넉 달"]
     }
   ],
   "listenAndPlaceItems": [

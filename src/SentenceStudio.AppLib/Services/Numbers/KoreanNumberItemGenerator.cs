@@ -909,40 +909,43 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
     private NumberItem GenerateDisambiguateItem(NumberItemRequest request, Random random)
     {
         // Paired prompts that test same digit in different contexts (Sino vs Native systems)
-        // Matches seed: lib/content/numbers/ko.json -> disambiguatePairs
+        // Matches seed: lib/content/numbers/ko.json -> disambiguatePairs (choices included).
+        // Every wrong choice is wrong for its prompt (wrong system, counter or native form).
+        // Never a spacing variant: 삼층 for 삼 층 is accepted Korean, and choices are graded
+        // exactly (B61).
         var pairs = new[]
         {
             new { Digit = 3, ContextA = "3rd floor", ContextB = "3 floors of stairs", AnswerA = "삼 층", AnswerB = "세 층", 
                   HintA = "Ordinal (which floor?) uses Sino numbers", HintB = "Counting floors uses Native numbers",
-                  ChoicesA = new[] { "삼 층", "세 층", "석 층", "삼층" }, ChoicesB = new[] { "세 층", "삼 층", "셋 층", "세층" } },
+                  ChoicesA = new[] { "삼 층", "세 층", "석 층", "셋 층" }, ChoicesB = new[] { "세 층", "삼 층", "셋 층", "석 층" } },
             
             new { Digit = 3, ContextA = "3 o'clock", ContextB = "3 minutes", AnswerA = "세 시", AnswerB = "삼 분",
                   HintA = "Hours use Native numbers", HintB = "Minutes use Sino numbers",
-                  ChoicesA = new[] { "세 시", "삼 시", "석 시", "세시" }, ChoicesB = new[] { "삼 분", "세 분", "석 분", "삼분" } },
+                  ChoicesA = new[] { "세 시", "삼 시", "석 시", "셋 시" }, ChoicesB = new[] { "삼 분", "세 분", "석 분", "셋 분" } },
             
             new { Digit = 3, ContextA = "3 days (duration)", ContextB = "the 3rd day", AnswerA = "사흘", AnswerB = "셋째 날",
                   HintA = "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)", HintB = "Ordinal day uses Native + 째",
-                  ChoicesA = new[] { "사흘", "삼 일", "세 일", "삼일" }, ChoicesB = new[] { "셋째 날", "삼째 날", "세째 날", "삼 번째 날" } },
+                  ChoicesA = new[] { "사흘", "삼 일", "세 일", "나흘" }, ChoicesB = new[] { "셋째 날", "삼째 날", "세째 날", "삼 번째 날" } },
             
             new { Digit = 3, ContextA = "3 people", ContextB = "person number 3", AnswerA = "세 명", AnswerB = "삼 번",
                   HintA = "Counting people uses Native + 명", HintB = "Numbering (ID, jersey number) uses Sino + 번",
-                  ChoicesA = new[] { "세 명", "삼 명", "석 명", "세명" }, ChoicesB = new[] { "삼 번", "세 번", "석 번", "삼번" } },
+                  ChoicesA = new[] { "세 명", "삼 명", "석 명", "셋 명" }, ChoicesB = new[] { "삼 번", "세 번", "석 번", "셋 번" } },
             
             new { Digit = 20, ContextA = "20 years old", ContextB = "year 20 (calendar)", AnswerA = "스무 살", AnswerB = "이십 년",
                   HintA = "Age uses Native numbers + 살 (스물 → 스무 sound change)", HintB = "Calendar years use Sino numbers + 년",
-                  ChoicesA = new[] { "스무 살", "이십 살", "스물 살", "스무살" }, ChoicesB = new[] { "이십 년", "스무 년", "스물 년", "이십년" } },
+                  ChoicesA = new[] { "스무 살", "이십 살", "스물 살", "이십 년" }, ChoicesB = new[] { "이십 년", "스무 년", "스물 년", "스무 살" } },
             
             new { Digit = 5, ContextA = "5 days (duration)", ContextB = "5th day of the month", AnswerA = "닷새", AnswerB = "오 일",
                   HintA = "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)", HintB = "Calendar dates use Sino numbers + 일",
-                  ChoicesA = new[] { "닷새", "오 일", "다섯 일", "오일" }, ChoicesB = new[] { "오 일", "닷새", "다섯 일", "오일" } },
+                  ChoicesA = new[] { "닷새", "오 일", "다섯 일", "엿새" }, ChoicesB = new[] { "오 일", "닷새", "다섯 일", "닷 일" } },
             
             new { Digit = 2, ContextA = "2 bottles of water", ContextB = "February (month 2)", AnswerA = "두 병", AnswerB = "이월",
                   HintA = "Counting bottles uses Native + 병 (두 = sound change of 둘)", HintB = "Months use Sino numbers + 월",
-                  ChoicesA = new[] { "두 병", "이 병", "둘 병", "두병" }, ChoicesB = new[] { "이월", "두 월", "둘 월", "이 월" } },
+                  ChoicesA = new[] { "두 병", "이 병", "둘 병", "이월" }, ChoicesB = new[] { "이월", "두 월", "둘 월", "두 달" } },
             
             new { Digit = 4, ContextA = "4 o'clock", ContextB = "April (month 4)", AnswerA = "네 시", AnswerB = "사월",
                   HintA = "Hours use Native numbers (네 = sound change of 넷)", HintB = "Months use Sino numbers + 월",
-                  ChoicesA = new[] { "네 시", "사 시", "넷 시", "네시" }, ChoicesB = new[] { "사월", "네 월", "넷 월", "사 월" } }
+                  ChoicesA = new[] { "네 시", "사 시", "넷 시", "넉 시" }, ChoicesB = new[] { "사월", "네 월", "넷 월", "넉 달" } }
         };
 
         var pair = pairs[random.Next(pairs.Length)];

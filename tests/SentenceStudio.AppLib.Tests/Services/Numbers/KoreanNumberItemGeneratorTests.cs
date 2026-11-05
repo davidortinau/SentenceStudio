@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SentenceStudio.Services.Numbers;
 using SentenceStudio.Shared.Models.Numbers;
 using Xunit;
@@ -680,6 +681,85 @@ public class KoreanNumberItemGeneratorTests
         
         // At least one should differ due to random selection
         Assert.True(differentPairs || differentDigits, "Different seeds should produce variety");
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_NoChoiceIsASpacingVariant()
+    {
+        // B61: attached spellings (삼층 for 삼 층) are accepted Korean, and Disambiguate is
+        // graded exactly per choice, so a spacing variant would mark a valid answer wrong.
+        var items = AllDisambiguateItems();
+        Assert.Equal(8, items.Count);
+
+        foreach (var item in items)
+        {
+            AssertSide(item.PromptA!, item.CorrectAnswerA!, item.ChoicesA!);
+            AssertSide(item.PromptB!, item.CorrectAnswerB!, item.ChoicesB!);
+        }
+
+        static void AssertSide(string prompt, string answer, List<string> choices)
+        {
+            Assert.True(choices.Count == 4, $"{prompt}: {choices.Count} choices");
+            Assert.True(choices.Contains(answer), $"{prompt}: answer {answer} is not a choice");
+            Assert.True(choices.Distinct(StringComparer.Ordinal).Count() == 4, $"{prompt}: repeated choice");
+            Assert.True(choices.Select(WithoutSpaces).Distinct(StringComparer.Ordinal).Count() == 4,
+                $"{prompt}: two choices differ only by spacing ({string.Join(", ", choices)})");
+            foreach (var wrong in choices.Where(choice => choice != answer))
+                Assert.True(WithoutSpaces(wrong) != WithoutSpaces(answer),
+                    $"{prompt}: {wrong} is a spacing variant of {answer}");
+        }
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_MatchesSeedPairs()
+    {
+        // The seed is the written contract for clients that cannot run this generator
+        // (the Flutter port), so its pairs and choices must stay the same.
+        using var seed = JsonDocument.Parse(File.ReadAllText(SeedPath()));
+        var seedPairs = seed.RootElement.GetProperty("disambiguatePairs").EnumerateArray().ToList();
+        var items = AllDisambiguateItems();
+        Assert.Equal(seedPairs.Count, items.Count);
+
+        foreach (var pair in seedPairs)
+        {
+            var contextA = pair.GetProperty("contextA").GetString();
+            var item = Assert.Single(items, candidate => candidate.PromptA == contextA
+                && candidate.PromptB == pair.GetProperty("contextB").GetString());
+            Assert.Equal(pair.GetProperty("digit").GetInt32(), item.DigitValue);
+            Assert.Equal(pair.GetProperty("answerA").GetString(), item.CorrectAnswerA);
+            Assert.Equal(pair.GetProperty("answerB").GetString(), item.CorrectAnswerB);
+            Assert.Equal(pair.GetProperty("hintA").GetString(), item.HintA);
+            Assert.Equal(pair.GetProperty("hintB").GetString(), item.HintB);
+            Assert.Equal(Strings(pair.GetProperty("choicesA")).Order(StringComparer.Ordinal),
+                item.ChoicesA!.Order(StringComparer.Ordinal));
+            Assert.Equal(Strings(pair.GetProperty("choicesB")).Order(StringComparer.Ordinal),
+                item.ChoicesB!.Order(StringComparer.Ordinal));
+        }
+
+        static IEnumerable<string> Strings(JsonElement array) =>
+            array.EnumerateArray().Select(element => element.GetString()!);
+    }
+
+    /// <summary>Every distinct pair (the generator picks one of a fixed set).</summary>
+    private List<NumberItem> AllDisambiguateItems() =>
+        Enumerable.Range(0, 200)
+            .Select(seed => _generator.GenerateItem(new NumberItemRequest("Any", "Disambiguate", RandomSeed: seed)))
+            .DistinctBy(item => item.PromptA + "|" + item.PromptB)
+            .ToList();
+
+    private static string WithoutSpaces(string value) =>
+        string.Concat(value.Where(character => !char.IsWhiteSpace(character)));
+
+    private static string SeedPath()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var path = Path.Combine(dir.FullName, "lib", "content", "numbers", "ko.json");
+            if (File.Exists(path))
+                return path;
+        }
+
+        throw new FileNotFoundException("lib/content/numbers/ko.json not found above " + AppContext.BaseDirectory);
     }
 
     #endregion
