@@ -292,24 +292,27 @@ Do You Say voice lists come from `GET /api/v1/speech/voices` (`ApiVoiceDiscovery
   value is a 400). A request without them is handled exactly as before and finds the same stored
   clip (pinned by `SpeechSynthesizeSettingsEndpointTests`). Both endpoints now also accept a raw
   ElevenLabs voice ID that the API offers: the slug voices, the client default voices,
-  `AI:ElevenLabs:Voices`, or an account voice listed by `/speech/voices`. The account list is one
-  ElevenLabs call per load, shared by concurrent requests, kept for 10 minutes from when it loaded;
+  `AI:ElevenLabs:Voices`, or an account voice listed by `/speech/voices`. One layer owns the
+  account list, the API's `VoiceDiscoveryService`: one ElevenLabs call per load, shared by concurrent
+  requests, kept for 24 hours from when the load completed (the same list `/speech/voices` shows);
   a failed load is never kept and is retried on a later request after 30 seconds. Any other ID, or
   an account voice while the list cannot be read, falls back to the default voice, logged without
   its value. This changes native audio too: native quiz and shadowing send the stored ID (JiYoung
   for Korean), which the API used to answer in its default voice (Rachel).
 - **No client keeps a clip under a voice the API did not use.** Both responses now carry `VoiceId`
   (the voice used) and `VoiceSubstituted` (true when the API used its default voice instead of the
-  one asked for). Web, MAUI and native play such a clip but keep no file, StreamHistory row or
-  AppData entry for it.
+  one asked for). Web, MAUI and native keep a clip only when the response names the voice and says
+  it was not substituted; a substituted clip, or one from an older API that sends neither field,
+  plays but leaves no file, StreamHistory row or AppData entry.
 - **Reading** clips are for the server's copy of the transcript. The timestamped response carries
   `TranscriptSha256`; web, MAUI and native neither play nor keep a clip whose fingerprint differs
   from their own transcript, and the cached AppData metadata
   (`timestamped_<resource>_<voice>_<speed>.mp3/.json`) records it, so a clip for older text is made
   again. A resource created on the device and not synced yet gets a 404, which the page shows as an
   audio error.
-- **No retries.** Each speech request is one attempt (no resilience pipeline), so one clip is never
-  paid for twice by a client retry.
+- **No retries for synthesis.** Each synthesis request is one attempt with a five-minute bound (no
+  resilience pipeline), so one clip is never paid for twice by a client retry. The voice list GET is
+  idempotent and keeps the standard retries.
 - **Failures** surface on the page: an API refusal throws with its status, and a missing or empty
   clip throws. The old service returned an empty stream instead.
 
@@ -339,7 +342,17 @@ key, so rotating it after the MAUI devices are updated is worth considering. Rot
 API's `elevenlabskey` secret and is an Azure step for the Captain.
 
 **Not covered yet.** Older installed MAUI builds, until they are replaced. Reading audio for a
-resource that has not synced.
+resource that has not synced. Open items (not fixed):
+
+- Wrong-voice clips cached before B60. Native clients sent raw voice IDs that the old API answered
+  in its default voice, and kept those clips in StreamHistory rows (and files) tagged with the
+  requested voice. Nothing cleans them up; whether to remove or regenerate them is a data decision
+  for the Captain.
+- How Do You Say during an outage. A clip that comes back substituted (or from an older API) is
+  played but not recorded, so it does not appear in History.
+- A server-side transcript check. The client could send its own `TranscriptSha256` and the API answer
+  409 before generating, instead of the client discarding a clip it already paid for. A possible
+  improvement.
 
 **Data notes.** The clips are audio of learner and resource text, kept in a private container;
 anyone who can read `media` can listen to them, the same exposure as the database that holds

@@ -188,3 +188,13 @@ internal sealed class InMemorySpeechClipStore : ISpeechClipStore
 
     internal sealed record StoredBlob(byte[] Content, string ContentType);
 }
+
+/// <summary>A clock the test moves by hand.</summary>
+internal sealed class ManualTime : TimeProvider
+{
+    private DateTimeOffset _now = new(2026, 11, 4, 12, 0, 0, TimeSpan.Zero);
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public void Advance(TimeSpan by) => _now += by;
+}

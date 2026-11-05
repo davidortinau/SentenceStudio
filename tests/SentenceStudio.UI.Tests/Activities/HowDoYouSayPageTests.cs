@@ -33,6 +33,21 @@ public sealed class HowDoYouSayPageTests
     }
 
     [Fact]
+    public async Task SpeakingAgainstAnOlderServer_PlaysEachTime_ButRecordsNoEntryUnderTheSelectedVoice()
+    {
+        // An older API does not say which voice it used, so the clip may not be the selected voice.
+        await using var harness = await OpenAsync();
+        harness.Speech.AnswerAsOlderServer = true;
+
+        await SpeakAsync(harness, "안녕하세요");
+        await SpeakAsync(harness, "안녕하세요");
+
+        harness.Speech.SynthesisCount.Should().Be(2, "nothing was cached");
+        harness.Audio.Players.Should().HaveCount(2);
+        (await Rows(harness)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SyncedEntryMadeOnAnotherDevice_IsSynthesizedInItsVoice_AndTheSameEntryPlays()
     {
         await using var harness = await OpenAsync();

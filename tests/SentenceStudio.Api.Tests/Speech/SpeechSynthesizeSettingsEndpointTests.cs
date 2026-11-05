@@ -199,7 +199,7 @@ public sealed class SpeechSynthesizeSettingsEndpointTests : IClassFixture<Speech
             new SynthesizeRequest { Text = $"voice {Guid.NewGuid():N}", VoiceId = "AccountPickedVoice0001" }));
 
         _factory.Provider.Requests.Should().HaveCount(2).And.OnlyContain(spec => spec.VoiceId == "AccountPickedVoice0001");
-        discovery.Calls.Should().Be(1, "the voice list is read once, not per request");
+        discovery.Calls.Should().Be(2, "the resolver asks the voice source, which owns the caching, on each such request");
     }
 
     [Fact]

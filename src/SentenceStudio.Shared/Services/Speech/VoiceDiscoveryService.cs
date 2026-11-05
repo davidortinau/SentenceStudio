@@ -50,6 +50,11 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
     private DateTimeOffset? _lastFailureAt;
     private Task<AccountVoiceSnapshot>? _load;
 
+    // Bumped by ClearCache and forceRefresh. A read stores its result only if the generation is still
+    // the one it started under, so a read begun before a clear or refresh cannot put an older list
+    // (or an older failure) back.
+    private long _generation;
+
     /// <summary>
     /// Language name to ElevenLabs language code mapping.
     /// </summary>
@@ -171,8 +176,11 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
     {
         lock (_gate)
         {
+            _generation++;
             _accountVoices = null;
             _lastFailureAt = null;
+            // A read still running finishes for its own callers but no longer counts as the load.
+            _load = null;
         }
         _logger.LogInformation("Voice cache cleared");
     }
@@ -186,17 +194,23 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
             if (!forceRefresh && _accountVoices is { } cached && now - _accountVoicesLoadedAt < AccountVoicesLifetime)
                 return Task.FromResult(new AccountVoiceSnapshot(true, cached));
 
-            if (_load is { IsCompleted: false } running)
+            if (forceRefresh)
+            {
+                // A fresh read, never one that started before this call.
+                _generation++;
+                load = _load = ReadAccountVoicesAsync(_generation);
+            }
+            else if (_load is { IsCompleted: false } running)
             {
                 load = running;
             }
-            else if (!forceRefresh && _lastFailureAt is { } failedAt && now - failedAt < FailureBackoff)
+            else if (_lastFailureAt is { } failedAt && now - failedAt < FailureBackoff)
             {
                 return Task.FromResult(AccountVoiceSnapshot.Unavailable);
             }
             else
             {
-                load = _load = ReadAccountVoicesAsync();
+                load = _load = ReadAccountVoicesAsync(_generation);
             }
         }
 
@@ -204,7 +218,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
         return load.WaitAsync(cancellationToken);
     }
 
-    private async Task<AccountVoiceSnapshot> ReadAccountVoicesAsync()
+    private async Task<AccountVoiceSnapshot> ReadAccountVoicesAsync(long generation)
     {
         // Run the read off the caller's lock-holding stack.
         await Task.Yield();
@@ -233,9 +247,12 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
 
             lock (_gate)
             {
-                _accountVoices = voices;
-                _accountVoicesLoadedAt = _time.GetUtcNow();
-                _lastFailureAt = null;
+                if (generation == _generation)
+                {
+                    _accountVoices = voices;
+                    _accountVoicesLoadedAt = _time.GetUtcNow();
+                    _lastFailureAt = null;
+                }
             }
 
             _logger.LogInformation("Found {Count} voices for this account", voices.Count);
@@ -246,7 +263,8 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService, IAccountVoiceSource
             // Reported as not loaded, never as an empty account; see AccountVoiceSnapshot.
             lock (_gate)
             {
-                _lastFailureAt = _time.GetUtcNow();
+                if (generation == _generation)
+                    _lastFailureAt = _time.GetUtcNow();
             }
             _logger.LogError(ex, "Failed to fetch the account's voices from ElevenLabs");
             return AccountVoiceSnapshot.Unavailable;

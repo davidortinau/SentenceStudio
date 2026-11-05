@@ -104,16 +104,18 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.Equal(0, await PlanRowCountAsync(fixture));
     }
 
-    [Fact]
-    public async Task Speak_InTheApisDefaultVoice_PlaysButKeepsNoClipOrRowUnderTheRequestedVoice()
+    [Theory]
+    [InlineData(true, false)] // the API used its default voice
+    [InlineData(false, true)] // an older server does not say which voice it used
+    public async Task Speak_InAVoiceTheApiDidNotConfirm_PlaysButKeepsNoClipOrRowUnderTheRequestedVoice(
+        bool substituted, bool olderServer)
     {
-        // The API answered with its default voice (VoiceSubstituted): caching it under the
-        // learner's voice would replay the wrong voice from then on.
+        // Caching it under the learner's voice would replay the wrong voice from then on.
         using var fixture = new NativeSliceFixture();
         using var audio = new ScratchAudioCache(fixture);
         await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
         await SignInAsync(fixture);
-        var test = Create(fixture, new ScratchHowDoYouSaySource { Substituted = true });
+        var test = Create(fixture, new ScratchHowDoYouSaySource { Substituted = substituted, OlderServer = olderServer });
         using var _ = test.Presenter;
         await test.Presenter.OpenAsync(Launch(fixture));
 
@@ -512,6 +514,8 @@ internal sealed class ScratchHowDoYouSaySource : INativeQuizSpeechSource
     public bool Fails { get; set; }
     /// <summary>Answer as the API does when it used its default voice instead of the one asked for.</summary>
     public bool Substituted { get; set; }
+    /// <summary>Answer as an API older than 2026-11-04 does: no word on the voice used.</summary>
+    public bool OlderServer { get; set; }
     public List<(string Owner, string Language)> VoiceRequests { get; } = [];
     public List<(string Owner, string Text, string Voice)> Synthesized { get; } = [];
 
@@ -525,7 +529,9 @@ internal sealed class ScratchHowDoYouSaySource : INativeQuizSpeechSource
         Synthesized.Add((owner, promptText, voiceId));
         return Substituted
             ? new SentenceStudio.Services.Api.SpeechClipStream([1, 2, 3], "default-voice", voiceSubstituted: true)
-            : new MemoryStream([1, 2, 3]);
+            : OlderServer
+                ? new SentenceStudio.Services.Api.SpeechClipStream([1, 2, 3], voiceId: null, voiceSubstituted: null)
+                : new MemoryStream([1, 2, 3]);
     }
 
     public async Task<IReadOnlyList<NativeQuizVoice>> GetVoicesAsync(

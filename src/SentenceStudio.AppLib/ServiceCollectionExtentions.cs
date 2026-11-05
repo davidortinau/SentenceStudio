@@ -141,15 +141,23 @@ public static class ServiceCollectionExtentions
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         // Speech synthesis is a paid ElevenLabs generation on every attempt the API does not serve
         // from its cache. The standard pipeline (ServiceDefaults) retries 5xx and 408, which would pay
-        // for one clip several times, so neither speech client has resilience handlers. Each request
-        // is one attempt; the page reports a failure and the learner can play again.
+        // for one clip several times, so neither synthesis client has resilience handlers. Each
+        // request is one attempt; the page reports a failure and the learner can play again. Both
+        // keep the server's own five-minute bound (it allows ElevenLabs five).
 #pragma warning disable EXTEXP0001
-        services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri)
+        services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client =>
+        {
+            client.BaseAddress = baseUri;
+            client.Timeout = TimeSpan.FromMinutes(5);
+        })
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
             .RemoveAllResilienceHandlers();
-        // Reading's timestamped audio: a long transcript can take minutes on the server (which allows
-        // ElevenLabs five), so this client also has the server's own five-minute bound.
+        // The voice list is an idempotent GET: it keeps the standard resilience pipeline.
+        services.AddHttpClient<ISpeechVoicesApiClient, SpeechVoicesApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<ApiActivityHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        // Reading's timestamped audio: a long transcript can take minutes on the server.
         services.AddHttpClient<ITimestampedSpeechApiClient, TimestampedSpeechApiClient>(client =>
         {
             client.BaseAddress = baseUri;

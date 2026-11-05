@@ -1,3 +1,4 @@
+using System.Reflection;
 using SentenceStudio.Native.Android;
 
 namespace SentenceStudio.Native.Android.Tests;
@@ -5,6 +6,22 @@ namespace SentenceStudio.Native.Android.Tests;
 public sealed class AndroidQuizMediaPolicyTests
 {
     private static readonly Uri ApiRoot = new("http://10.0.2.2:5081/");
+
+    [Fact]
+    public void QuizAudioIsCachedOnlyThroughTheSharedSpeechCache()
+    {
+        // The shared NativeShadowingSpeech keeps a clip only when the API confirmed the requested
+        // voice; the Android head must not synthesize or record history around it.
+        var root = Path.GetFullPath(typeof(AndroidQuizMediaPolicyTests).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!);
+        var media = File.ReadAllText(Path.Combine(root, "AndroidQuizMedia.cs"));
+
+        Assert.Contains("new NativeShadowingSpeech(", media);
+        Assert.Contains("clips.GetAsync(owner, text, language, cancellationToken)", media);
+        Assert.DoesNotContain("SaveStreamHistoryAsync", media);
+        Assert.DoesNotContain(".SynthesizeAsync(", media);
+    }
 
     [Fact]
     public void PhotoTypeComesFromTheImageBytesNotTheServerLabel()

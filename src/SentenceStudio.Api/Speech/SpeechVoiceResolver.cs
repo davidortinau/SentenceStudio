@@ -23,24 +23,17 @@ public sealed record ResolvedSpeechVoice(string VoiceId, bool Substituted);
 /// cannot send an arbitrary voice ID through the API.
 /// </para>
 /// <para>
-/// The account voices come from <see cref="IAccountVoiceSource"/> (the voices endpoint's
-/// <c>VoiceDiscoveryService</c>, one ElevenLabs call per load, with its own retry back-off). A list
-/// that loaded is kept for <see cref="AccountVoicesLifetime"/> from when its load completed; while a
-/// load is running every request waits on it; a list that failed to load is never kept, and is asked
-/// for again on a later request once <see cref="FailureBackoff"/> has passed. Only requests naming a
-/// voice outside the built-in set ever ask.
+/// The account voices come straight from <see cref="IAccountVoiceSource"/>, the voices endpoint's
+/// <c>VoiceDiscoveryService</c>, which alone owns their lifetime: one ElevenLabs call per load,
+/// shared by concurrent requests, the same list <c>/speech/voices</c> shows, and a retry back-off
+/// after a failed load. This class keeps no copy. Only requests naming a voice outside the
+/// built-in set ask for the list.
 /// </para>
 /// </remarks>
 public sealed class SpeechVoiceResolver
 {
     /// <summary>Rachel: the API's default voice when <c>AI:ElevenLabs:DefaultVoice</c> is unset.</summary>
     public const string BuiltInDefaultVoiceId = "21m00Tcm4TlvDq8ikWAM";
-
-    /// <summary>How long one loaded snapshot of the account's voice IDs is used, from when it loaded.</summary>
-    public static TimeSpan AccountVoicesLifetime { get; } = TimeSpan.FromMinutes(10);
-
-    /// <summary>How long after a failed load the list is not asked for again.</summary>
-    public static TimeSpan FailureBackoff { get; } = TimeSpan.FromSeconds(30);
 
     // Friendly slugs used by Flutter and the MAUI/web pages. Matched exactly, as before.
     private static readonly FrozenDictionary<string, string> Slugs = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -74,24 +67,16 @@ public sealed class SpeechVoiceResolver
 
     private readonly IAccountVoiceSource? _accountVoices;
     private readonly ILogger<SpeechVoiceResolver> _logger;
-    private readonly TimeProvider _time;
     private readonly string _fallback;
     private readonly FrozenSet<string> _builtIn;
-    private readonly object _gate = new();
-    private FrozenSet<string>? _snapshot;
-    private DateTimeOffset _snapshotExpires;
-    private DateTimeOffset? _lastFailureAt;
-    private Task<FrozenSet<string>?>? _load;
 
     public SpeechVoiceResolver(
         IConfiguration configuration,
         ILogger<SpeechVoiceResolver> logger,
-        IAccountVoiceSource? accountVoices = null,
-        TimeProvider? time = null)
+        IAccountVoiceSource? accountVoices = null)
     {
         _logger = logger;
         _accountVoices = accountVoices;
-        _time = time ?? TimeProvider.System;
         _fallback = configuration["AI:ElevenLabs:DefaultVoice"] ?? BuiltInDefaultVoiceId;
 
         var builtIn = new HashSet<string>(Slugs.Values, StringComparer.Ordinal) { MultilingualAdam, _fallback };
@@ -119,12 +104,13 @@ public sealed class SpeechVoiceResolver
         if (_builtIn.Contains(requested))
             return new(requested, Substituted: false);
 
-        var accountVoices = _accountVoices is null ? null : await AccountVoiceIdsAsync(cancellationToken);
-        if (accountVoices?.Contains(requested) == true)
+        var account = _accountVoices is null ? null : await AccountVoicesAsync(cancellationToken);
+        if (account is { Loaded: true } && account.Voices.Any(voice =>
+                string.Equals(voice.VoiceId, requested, StringComparison.Ordinal)))
             return new(requested, Substituted: false);
 
         // The voice field is not learner content, but a caller controls it: only its length is logged.
-        if (_accountVoices is not null && accountVoices is null)
+        if (account is { Loaded: false })
         {
             _logger.LogWarning(
                 "Speech voice could not be checked (the account voice list is unavailable); using the default voice. RequestedVoiceLength={RequestedVoiceLength}",
@@ -140,65 +126,17 @@ public sealed class SpeechVoiceResolver
         return new(_fallback, Substituted: true);
     }
 
-    /// <summary>
-    /// The account's voice IDs, or null when they could not be read (that result is never kept).
-    /// Concurrent requests share one load.
-    /// </summary>
-    private Task<FrozenSet<string>?> AccountVoiceIdsAsync(CancellationToken cancellationToken)
+    /// <summary>The account's voices from the source; a source that throws counts as not loaded.</summary>
+    private async Task<AccountVoiceSnapshot> AccountVoicesAsync(CancellationToken cancellationToken)
     {
-        Task<FrozenSet<string>?> load;
-        lock (_gate)
-        {
-            var now = _time.GetUtcNow();
-            if (_snapshot is { } snapshot && now < _snapshotExpires)
-                return Task.FromResult<FrozenSet<string>?>(snapshot);
-
-            if (_load is { IsCompleted: false } running)
-                load = running;
-            else if (_lastFailureAt is { } failedAt && now - failedAt < FailureBackoff)
-                return Task.FromResult<FrozenSet<string>?>(null);
-            else
-                load = _load = LoadAccountVoiceIdsAsync();
-        }
-
-        return load.WaitAsync(cancellationToken);
-    }
-
-    private async Task<FrozenSet<string>?> LoadAccountVoiceIdsAsync()
-    {
-        // Leave the caller's lock before the load runs.
-        await Task.Yield();
-        AccountVoiceSnapshot account;
         try
         {
-            account = await _accountVoices!.GetAccountVoicesAsync(CancellationToken.None);
+            return await _accountVoices!.GetAccountVoicesAsync(cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Speech voice list could not be loaded.");
-            account = AccountVoiceSnapshot.Unavailable;
+            return AccountVoiceSnapshot.Unavailable;
         }
-
-        if (!account.Loaded)
-        {
-            lock (_gate)
-            {
-                _snapshot = null;
-                _lastFailureAt = _time.GetUtcNow();
-            }
-            return null;
-        }
-
-        var ids = account.Voices
-            .Select(voice => voice.VoiceId)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .ToFrozenSet(StringComparer.Ordinal);
-        lock (_gate)
-        {
-            _snapshot = ids;
-            _snapshotExpires = _time.GetUtcNow() + AccountVoicesLifetime;
-            _lastFailureAt = null;
-        }
-        return ids;
     }
 }

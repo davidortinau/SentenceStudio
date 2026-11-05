@@ -26,7 +26,8 @@ public sealed class CharacterTimestamp
 /// copy of the resource transcript. A client must compare <see cref="TranscriptSha256"/> with the
 /// SHA-256 of its own transcript (UTF-8, lowercase hex) and neither use nor keep a clip that differs:
 /// the timings would not line up with the text it shows. Like <see cref="SynthesizeResponse"/>, a clip
-/// with <see cref="VoiceSubstituted"/> true must not be kept under the requested voice.
+/// is kept only when <see cref="VoiceId"/> is present and <see cref="VoiceSubstituted"/> is false; a
+/// response without the fingerprint or the voice fields (an older server) may be played, not kept.
 /// </remarks>
 public sealed class SynthesizeTimestampedResponse
 {

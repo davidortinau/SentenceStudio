@@ -6,8 +6,9 @@ namespace SentenceStudio.Contracts.Speech;
 /// <remarks>
 /// <see cref="VoiceId"/> and <see cref="VoiceSubstituted"/> were added 2026-11-04 and are absent from
 /// older servers. A client that keeps clips by voice (an audio history row, a file named by voice)
-/// must not keep a clip under the requested voice when <see cref="VoiceSubstituted"/> is true: the
-/// clip is in the API's default voice, not the one asked for. It may still play it.
+/// keeps a clip under the requested voice only when <see cref="VoiceId"/> is present and
+/// <see cref="VoiceSubstituted"/> is false. When it is true (the API's default voice), or both are
+/// absent (an older server that cannot say), the client may play the clip but must not keep it.
 /// Sample: <c>{"audioUrl":"data:audio/mpeg;base64,...","voiceId":"AW5wrnG1jVizOYY7R1Oo","voiceSubstituted":false}</c>.
 /// </remarks>
 public sealed class SynthesizeResponse

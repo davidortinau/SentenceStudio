@@ -99,6 +99,13 @@ Native fix references are commits on `native-platform-heads`.
 
 ## Found while backporting (open)
 
+- Speech (B60, open): StreamHistory rows that native clients recorded before B60 with a requested voice
+  ID but default-voice (Rachel) audio are never cleaned up; removing or regenerating them is a data
+  decision for the Captain.
+- Speech (B60, open): during an outage, How Do You Say clips that come back substituted (or from an
+  older API) play but are not recorded, so they are missing from History.
+- Speech (B60, possible improvement): the client could send its `TranscriptSha256` with a Reading
+  request and the API answer 409 before generating, instead of the client discarding a paid clip.
 - Fixed as B48: Reading "Remember this word" now creates and links in one step.
 - Fixed as B61: Number Drill Disambiguate no longer offers spacing-only variants (for example 삼층 for 삼 층, 세시 for 세 시) as wrong choices; each is replaced by a form that is wrong for its prompt (Captain 2026-11-04).
 - Fixed (2026-11-04): `UserActivityRepository.SaveAsync` wrote a row with an empty `UserProfileId` when neither the item nor the active profile named one; it now refuses the write (returns -1, logged).

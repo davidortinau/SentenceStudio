@@ -234,6 +234,21 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
+    public void QuizAudio_KeepsAClipOnlyWhenTheApiConfirmedTheRequestedVoice()
+    {
+        var media = File.ReadAllText(Path.Combine(HeadPath, "Platform/NativeQuizMedia.cs"));
+
+        // The history row and file are written only inside the branch that checks the clip; a
+        // substituted clip or one from an older server (no voice reported) plays but is not kept.
+        var guard = media.IndexOf("SpeechClipStream.MustNotKeep(stream)", StringComparison.Ordinal);
+        var save = media.IndexOf("SaveStreamHistoryAsync", StringComparison.Ordinal);
+        var write = media.IndexOf("File.WriteAllBytesAsync(path, bytes", StringComparison.Ordinal);
+        Assert.True(guard >= 0, "the cache write must check SpeechClipStream.MustNotKeep");
+        Assert.True(save > guard && write > guard);
+        Assert.Equal(1, media.Split("SaveStreamHistoryAsync").Length - 1);
+    }
+
+    [Fact]
     public void QuizPhotos_UseTheCredentialFreeRedirectBoundedLoader()
     {
         var media = File.ReadAllText(Path.Combine(

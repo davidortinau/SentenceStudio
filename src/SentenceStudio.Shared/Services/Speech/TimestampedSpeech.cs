@@ -6,9 +6,22 @@ using SentenceStudio.Contracts.Speech;
 
 namespace SentenceStudio.Services.Speech;
 
+/// <summary>What a client may do with a timestamped (Reading) clip.</summary>
+public enum TimestampedClipUse
+{
+    /// <summary>Made from this transcript in the requested voice: play it and keep it.</summary>
+    Keep,
+
+    /// <summary>Cannot be confirmed (an older server, or the API's default voice): play it, keep nothing.</summary>
+    PlayOnly,
+
+    /// <summary>Made from other text than this device's transcript: neither play nor keep it.</summary>
+    Reject
+}
+
 /// <summary>
-/// Shared pieces of timestamped (Reading) speech, used by the API, the web and MAUI service and the
-/// native Reading source so all of them treat the wire format the same way.
+/// Shared pieces of API speech, used by the API, the web and MAUI service and the native clients
+/// so all of them read the wire format and decide what may be cached the same way.
 /// </summary>
 public static class TimestampedSpeech
 {
@@ -21,6 +34,32 @@ public static class TimestampedSpeech
         ArgumentNullException.ThrowIfNull(transcript);
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(transcript)));
     }
+
+    /// <summary>
+    /// True only when a speech response says which voice it used and that it was the requested one.
+    /// A response without those fields (an older server) is unverified: play it, never keep it under
+    /// the requested voice.
+    /// </summary>
+    public static bool VoiceVerified(string? voiceId, bool? voiceSubstituted) =>
+        !string.IsNullOrWhiteSpace(voiceId) && voiceSubstituted == false;
+
+    /// <summary>What a client may do with a timestamped clip for its own <paramref name="transcript"/>.</summary>
+    public static TimestampedClipUse Classify(SynthesizeTimestampedResponse response, string transcript)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        ArgumentNullException.ThrowIfNull(transcript);
+        if (string.IsNullOrEmpty(response.TranscriptSha256))
+            return TimestampedClipUse.PlayOnly;
+        if (!string.Equals(response.TranscriptSha256, TranscriptSha256(transcript), StringComparison.OrdinalIgnoreCase))
+            return TimestampedClipUse.Reject;
+        return VoiceVerified(response.VoiceId, response.VoiceSubstituted)
+            ? TimestampedClipUse.Keep
+            : TimestampedClipUse.PlayOnly;
+    }
+
+    /// <summary>True when the clip may be kept (<see cref="Classify"/> is <see cref="TimestampedClipUse.Keep"/>).</summary>
+    public static bool CanCache(SynthesizeTimestampedResponse response, string transcript) =>
+        Classify(response, transcript) == TimestampedClipUse.Keep;
 
     /// <summary>The API's millisecond character timings as the ElevenLabs characters Reading plays against.</summary>
     public static TimestampedTranscriptCharacter[] ToCharacters(IEnumerable<CharacterTimestamp> characters)

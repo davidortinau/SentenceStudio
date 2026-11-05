@@ -321,19 +321,73 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false, true)]  // an older server sends no fingerprint
-    [InlineData(true, false)]  // the API used its default voice
+    [InlineData(false, true, true)]  // an older server sends no fingerprint
+    [InlineData(true, false, true)]  // the API used its default voice
+    [InlineData(true, true, false)]  // an older server says nothing about the voice
     public async Task Reading_audio_that_cannot_be_trusted_under_this_name_plays_but_is_not_kept(
-        bool fingerprinted, bool requestedVoiceUsed)
+        bool fingerprinted, bool requestedVoiceUsed, bool voiceReported)
     {
         _api.ServerTranscript = fingerprinted ? ResourceTranscript : null;
-        _api.VoiceSubstituted = !requestedVoiceUsed;
+        _api.VoiceSubstituted = voiceReported ? !requestedVoiceUsed : null;
+        _api.VoiceIdUsed = voiceReported ? JiYoung : null;
         _api.Characters = [new() { Char = "가", StartMs = 0, EndMs = 250 }];
 
         var result = await Speech.GenerateTimestampedAudioAsync(Resource(Owner));
 
         result.AudioData.ToArray().Should().Equal(Clip);
         Directory.GetFiles(_appData.FullName, "timestamped_*").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_clip_from_an_older_server_that_names_no_voice_is_unverified()
+    {
+        _api.VoiceIdUsed = null;
+        _api.VoiceSubstituted = null;
+
+        await using var audio = await Speech.TextToSpeechAsync("사과", JiYoung);
+
+        var clip = audio.Should().BeOfType<SpeechClipStream>().Subject;
+        clip.CanCache.Should().BeFalse("nothing says the requested voice was used");
+        SpeechClipStream.MustNotKeep(clip).Should().BeTrue();
+        (await ReadAllAsync(clip)).Should().Equal(Clip, "it still plays");
+    }
+
+    [Theory]
+    [InlineData(JiYoung, false, false)]
+    [InlineData("21m00Tcm4TlvDq8ikWAM", true, true)]
+    [InlineData(null, null, true)]
+    public async Task The_native_gateway_marks_clips_it_cannot_confirm(string? voiceUsed, bool? substituted, bool mustNotKeep)
+    {
+        _api.VoiceIdUsed = voiceUsed;
+        _api.VoiceSubstituted = substituted;
+        var gateway = new SpeechGatewayClient(
+            _services.GetRequiredService<ISpeechApiClient>(),
+            _services.GetRequiredService<ILogger<SpeechGatewayClient>>());
+
+        await using var clip = await gateway.SynthesizeAsync("사과", JiYoung);
+
+        clip.Should().NotBeNull();
+        SpeechClipStream.MustNotKeep(clip).Should().Be(mustNotKeep);
+        clip.Should().BeOfType<SpeechClipStream>().Which.VoiceId.Should().Be(voiceUsed);
+    }
+
+    [Fact]
+    public async Task The_voice_list_keeps_its_retries_while_synthesis_has_none_and_five_minutes()
+    {
+        _api.Status = HttpStatusCode.ServiceUnavailable;
+        var discovery = _services.GetRequiredService<IVoiceDiscoveryService>();
+
+        var voices = () => discovery.GetVoicesForLanguageAsync("Korean");
+        await voices.Should().ThrowAsync<HttpRequestException>();
+        var listAttempts = _api.Requests.Count;
+        listAttempts.Should().BeGreaterThan(1, "the idempotent voice list GET is retried");
+
+        var speak = () => Speech.TextToSpeechAsync("사과", JiYoung);
+        await speak.Should().ThrowAsync<HttpRequestException>();
+        (_api.Requests.Count - listAttempts).Should().Be(1, "synthesis is one attempt");
+
+        _services.GetRequiredService<IHttpClientFactory>().CreateClient(typeof(ISpeechApiClient).Name)
+            .Timeout.Should().Be(TimeSpan.FromMinutes(5), "the same bound as the server and the Reading client");
     }
 
     [Fact]

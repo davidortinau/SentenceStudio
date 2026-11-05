@@ -1,3 +1,4 @@
+using ElevenLabs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Api.Speech;
@@ -8,7 +9,7 @@ namespace SentenceStudio.Api.Tests.Speech;
 /// <summary>
 /// Which voice a speech request gets. Slugs resolve as before; a raw ElevenLabs ID is used only when
 /// this API offers it; anything else falls back to the default voice and says so. The account voice
-/// list is loaded once at a time, kept from when the load completes, and never kept when it failed.
+/// list belongs to the voice source (VoiceDiscoveryService), which alone decides how long it lives.
 /// </summary>
 public sealed class SpeechVoiceResolverTests
 {
@@ -19,13 +20,12 @@ public sealed class SpeechVoiceResolverTests
 
     private readonly CapturingLogger<SpeechVoiceResolver> _logger = new();
     private readonly FakeAccountVoices _accounts = new();
-    private readonly ManualTime _time = new();
 
     private SpeechVoiceResolver Resolver(
         IAccountVoiceSource? accounts = null,
         IDictionary<string, string?>? settings = null) =>
         new(new ConfigurationBuilder().AddInMemoryCollection(settings ?? new Dictionary<string, string?>()).Build(),
-            _logger, accounts, _time);
+            _logger, accounts);
 
     [Theory]
     [InlineData("jiyoung", JiYoung)]
@@ -111,115 +111,53 @@ public sealed class SpeechVoiceResolverTests
     }
 
     [Fact]
-    public async Task A_loaded_voice_list_is_kept_for_its_lifetime_not_read_per_request()
-    {
-        _accounts.Voices = [AccountVoice];
-        var resolver = Resolver(_accounts);
-
-        for (var i = 0; i < 5; i++)
-        {
-            await resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-            await resolver.ResolveAsync("unknown-" + i, CancellationToken.None);
-        }
-
-        _accounts.Calls.Should().Be(1);
-
-        _time.Advance(SpeechVoiceResolver.AccountVoicesLifetime);
-        await resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-
-        _accounts.Calls.Should().Be(2, "an expired snapshot is loaded again");
-    }
-
-    [Fact]
-    public async Task Concurrent_requests_share_one_voice_list_load()
-    {
-        _accounts.Voices = [AccountVoice];
-        _accounts.Gate = new TaskCompletionSource();
-        var resolver = Resolver(_accounts);
-
-        var requests = Enumerable.Range(0, 8)
-            .Select(_ => resolver.ResolveAsync(AccountVoice, CancellationToken.None))
-            .ToArray();
-        await _accounts.Started.Task;
-        _accounts.Gate.SetResult();
-        var all = await Task.WhenAll(requests);
-
-        all.Should().OnlyContain(voice => voice.VoiceId == AccountVoice && !voice.Substituted);
-        _accounts.Calls.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task An_expired_snapshot_reuses_a_load_that_is_still_running()
-    {
-        _accounts.Voices = [AccountVoice];
-        var resolver = Resolver(_accounts);
-        await resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-        _time.Advance(SpeechVoiceResolver.AccountVoicesLifetime);
-
-        // The reload is slow; more requests arrive while it runs and after more time passes.
-        _accounts.Gate = new TaskCompletionSource();
-        var first = resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-        await _accounts.Started.Task;
-        _time.Advance(TimeSpan.FromMinutes(1));
-        var second = resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-        _accounts.Gate.SetResult();
-
-        (await first).VoiceId.Should().Be(AccountVoice);
-        (await second).VoiceId.Should().Be(AccountVoice);
-        _accounts.Calls.Should().Be(2, "the second request waited on the running reload");
-    }
-
-    [Fact]
-    public async Task The_lifetime_starts_when_the_load_completes()
-    {
-        _accounts.Voices = [AccountVoice];
-        _accounts.Gate = new TaskCompletionSource();
-        var resolver = Resolver(_accounts);
-
-        var first = resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-        await _accounts.Started.Task;
-        _time.Advance(TimeSpan.FromMinutes(5)); // a slow load
-        _accounts.Gate.SetResult();
-        await first;
-
-        _time.Advance(SpeechVoiceResolver.AccountVoicesLifetime - TimeSpan.FromSeconds(1));
-        await resolver.ResolveAsync(AccountVoice, CancellationToken.None);
-
-        _accounts.Calls.Should().Be(1, "the snapshot is ten minutes old from completion, not from the start");
-    }
-
-    [Fact]
-    public async Task A_failed_load_is_never_kept_and_is_retried_after_the_backoff()
+    public async Task An_unavailable_voice_list_substitutes_and_says_the_voice_could_not_be_checked()
     {
         _accounts.Fail = true;
+
+        (await Resolver(_accounts).ResolveAsync(AccountVoice, CancellationToken.None))
+            .Should().Be(new ResolvedSpeechVoice(Rachel, Substituted: true));
+        _logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains("could not be checked"));
+    }
+
+    [Fact]
+    public async Task A_throwing_source_is_treated_as_an_unavailable_list()
+    {
+        _accounts.Throw = new HttpRequestException("voice list unavailable");
+
+        (await Resolver(_accounts).ResolveAsync(AccountVoice, CancellationToken.None)).Substituted.Should().BeTrue();
+        _logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Exception is HttpRequestException);
+    }
+
+    [Fact]
+    public async Task The_resolver_keeps_no_copy_and_asks_the_source_each_time()
+    {
+        // One layer owns the list's lifetime: whatever the source answers now is what counts.
+        _accounts.Voices = [AccountVoice];
         var resolver = Resolver(_accounts);
 
-        (await resolver.ResolveAsync(AccountVoice, CancellationToken.None))
-            .Should().Be(new ResolvedSpeechVoice(Rachel, Substituted: true));
-        _logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Message.Contains("could not be checked"));
-
-        // Within the back-off the list is not asked for again.
+        (await resolver.ResolveAsync(AccountVoice, CancellationToken.None)).Substituted.Should().BeFalse();
+        _accounts.Voices = [];
         (await resolver.ResolveAsync(AccountVoice, CancellationToken.None)).Substituted.Should().BeTrue();
-        _accounts.Calls.Should().Be(1);
 
-        // ElevenLabs is back; after the back-off the next request loads it (no ten-minute wait).
-        _accounts.Fail = false;
-        _accounts.Voices = [AccountVoice];
-        _time.Advance(SpeechVoiceResolver.FailureBackoff);
-
-        (await resolver.ResolveAsync(AccountVoice, CancellationToken.None))
-            .Should().Be(new ResolvedSpeechVoice(AccountVoice, Substituted: false));
         _accounts.Calls.Should().Be(2);
     }
 
     [Fact]
-    public async Task A_throwing_source_is_treated_as_a_failed_load()
+    public async Task With_the_real_voice_source_many_requests_make_one_elevenlabs_call()
     {
-        _accounts.Throw = new HttpRequestException("voice list unavailable");
-        var resolver = Resolver(_accounts);
+        var elevenLabs = new VoiceDiscoveryServiceTests.FakeElevenLabsVoices();
+        var discovery = new VoiceDiscoveryService(
+            new ElevenLabsClient(new ElevenLabsAuthentication("test-key"), httpClient: new HttpClient(elevenLabs)),
+            new CapturingLogger<VoiceDiscoveryService>());
+        var resolver = Resolver(discovery);
 
-        (await resolver.ResolveAsync(AccountVoice, CancellationToken.None)).Substituted.Should().BeTrue();
-        _logger.Entries.Should().Contain(e => e.Level == LogLevel.Warning && e.Exception is HttpRequestException);
+        var all = await Task.WhenAll(Enumerable.Range(0, 10)
+            .Select(i => resolver.ResolveAsync(i % 2 == 0 ? "voice-a" : "voice-nobody-offers", CancellationToken.None)));
+
+        all.Where((_, i) => i % 2 == 0).Should().OnlyContain(v => v.VoiceId == "voice-a" && !v.Substituted);
+        all.Where((_, i) => i % 2 == 1).Should().OnlyContain(v => v.Substituted);
+        elevenLabs.VoiceListCalls.Should().Be(1);
     }
 
     internal sealed class FakeAccountVoices : IAccountVoiceSource
@@ -232,37 +170,16 @@ public sealed class SpeechVoiceResolverTests
 
         public Exception? Throw { get; set; }
 
-        /// <summary>When set, a load waits for it (signalling <see cref="Started"/> first).</summary>
-        public TaskCompletionSource? Gate { get; set; }
-
-        public TaskCompletionSource Started { get; private set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         public int Calls => Volatile.Read(ref _calls);
 
-        public async Task<AccountVoiceSnapshot> GetAccountVoicesAsync(CancellationToken cancellationToken)
+        public Task<AccountVoiceSnapshot> GetAccountVoicesAsync(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _calls);
-            if (Gate is { } gate)
-            {
-                Started.TrySetResult();
-                await gate.Task;
-                Gate = null;
-                Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            }
             if (Throw is not null)
                 throw Throw;
-            return Fail
+            return Task.FromResult(Fail
                 ? AccountVoiceSnapshot.Unavailable
-                : new AccountVoiceSnapshot(true, Voices.Select(id => new VoiceInfo { VoiceId = id, Name = id }).ToList());
+                : new AccountVoiceSnapshot(true, Voices.Select(id => new VoiceInfo { VoiceId = id, Name = id }).ToList()));
         }
-    }
-
-    internal sealed class ManualTime : TimeProvider
-    {
-        private DateTimeOffset _now = new(2026, 11, 4, 12, 0, 0, TimeSpan.Zero);
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
     }
 }

@@ -99,16 +99,14 @@ public sealed class NativeReadingAudioSource(
             return null;
         // The API synthesized its own copy of the transcript; timings for other text would not line
         // up with what this device shows, so such a clip is neither played nor kept.
-        var verified = !string.IsNullOrEmpty(response.TranscriptSha256);
-        if (verified && !string.Equals(response.TranscriptSha256,
-                TimestampedSpeech.TranscriptSha256(resource.Transcript), StringComparison.OrdinalIgnoreCase))
+        var use = TimestampedSpeech.Classify(response, resource.Transcript);
+        if (use == TimestampedClipUse.Reject)
         {
             logger.LogWarning("Timestamped speech is for a different transcript than this device has; not used.");
             return null;
         }
 
-        var characters = ToCharacters(response.Characters
-            .Select(item => (item.Char, item.StartMs / 1000.0, item.EndMs / 1000.0)));
+        var characters = TimestampedSpeech.ToCharacters(response.Characters ?? []);
         var audio = new TimestampedAudio
         {
             AudioData = bytes,
@@ -116,12 +114,15 @@ public sealed class NativeReadingAudioSource(
             FullTranscript = resource.Transcript,
             Duration = response.DurationSeconds
         };
-        // An older server (no fingerprint) or the API's default voice instead of the source voice:
-        // play it, but do not keep it under this resource and voice.
-        if (verified && response.VoiceSubstituted != true)
+        // An older server (no fingerprint or voice) or the API's default voice instead of the source
+        // voice: play it, but do not keep it under this resource and voice.
+        if (use == TimestampedClipUse.Keep)
             await WriteCacheAsync(audioPath, metaPath, audio, cancellationToken);
         else
-            logger.LogWarning("Timestamped speech was not cached (transcript verified: {Verified}).", verified);
+            logger.LogWarning(
+                "Timestamped speech was not cached (transcript verified: {Verified}, voice used: {VoiceUsed}, substituted: {Substituted}).",
+                !string.IsNullOrEmpty(response.TranscriptSha256), response.VoiceId ?? "not reported",
+                response.VoiceSubstituted?.ToString() ?? "not reported");
         return audio;
     }
 

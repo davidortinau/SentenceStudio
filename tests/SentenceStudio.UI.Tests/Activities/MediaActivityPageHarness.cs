@@ -364,6 +364,8 @@ public sealed class ActivityPageHarness : IAsyncDisposable
 
         public byte[] Audio { get; set; } = [0x49, 0x44, 0x33, 0x04, 0x00];
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+        /// <summary>Answer without VoiceId and VoiceSubstituted, as servers older than 2026-11-04 do.</summary>
+        public bool AnswerAsOlderServer { get; set; }
         public List<string> Requests { get; } = new();
         public List<string> Bodies { get; } = new();
 
@@ -380,15 +382,22 @@ public sealed class ActivityPageHarness : IAsyncDisposable
                 return new HttpResponseMessage(Status) { RequestMessage = request };
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
+                // Answers like the current API: the requested voice was used, unless set otherwise.
                 Content = JsonContent.Create(new SynthesizeResponse
                 {
-                    AudioUrl = "data:audio/mpeg;base64," + Convert.ToBase64String(Audio)
+                    AudioUrl = "data:audio/mpeg;base64," + Convert.ToBase64String(Audio),
+                    VoiceId = AnswerAsOlderServer ? null : RequestedVoice(Bodies[^1]),
+                    VoiceSubstituted = AnswerAsOlderServer ? null : false
                 }),
                 RequestMessage = request,
             };
         }
 
         public int SynthesisCount => Requests.Count(path => path == SynthesizePath);
+
+        private static string? RequestedVoice(string body) =>
+            string.IsNullOrEmpty(body) ? null
+                : JsonSerializer.Deserialize<SynthesizeRequest>(body, JsonSerializerOptions.Web)?.VoiceId;
 
         /// <summary>The synthesis requests as the API received them.</summary>
         public List<SynthesizeRequest> SynthesisRequests => Requests

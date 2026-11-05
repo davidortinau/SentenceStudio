@@ -15,6 +15,50 @@ public sealed class TimestampedSpeechTests
         TimestampedSpeech.TranscriptSha256("가나다").Should().NotBe(TimestampedSpeech.TranscriptSha256("가나다 "));
     }
 
+    [Theory]
+    [InlineData("AW5wrnG1jVizOYY7R1Oo", false, true)]
+    [InlineData("21m00Tcm4TlvDq8ikWAM", true, false)]
+    [InlineData(null, null, false)]   // an older server
+    [InlineData("AW5wrnG1jVizOYY7R1Oo", null, false)]
+    [InlineData(null, false, false)]
+    public void Only_a_response_that_names_the_voice_and_denies_substitution_is_verified(
+        string? voiceId, bool? substituted, bool verified)
+    {
+        TimestampedSpeech.VoiceVerified(voiceId, substituted).Should().Be(verified);
+    }
+
+    public static TheoryData<string?, string?, bool?, TimestampedClipUse> ClipCases() => new()
+    {
+        { "local", "AW5wrnG1jVizOYY7R1Oo", false, TimestampedClipUse.Keep },
+        { "local", "21m00Tcm4TlvDq8ikWAM", true, TimestampedClipUse.PlayOnly },
+        { "local", null, null, TimestampedClipUse.PlayOnly },
+        { null, "AW5wrnG1jVizOYY7R1Oo", false, TimestampedClipUse.PlayOnly },
+        { "server", "AW5wrnG1jVizOYY7R1Oo", false, TimestampedClipUse.Reject },
+        { "server", null, null, TimestampedClipUse.Reject },
+    };
+
+    [Theory]
+    [MemberData(nameof(ClipCases))]
+    public void A_reading_clip_is_kept_only_for_this_transcript_in_a_confirmed_voice(
+        string? fingerprintOf, string? voiceId, bool? substituted, TimestampedClipUse expected)
+    {
+        const string Local = "가나다";
+        var response = new SynthesizeTimestampedResponse
+        {
+            TranscriptSha256 = fingerprintOf switch
+            {
+                "local" => TimestampedSpeech.TranscriptSha256(Local),
+                "server" => TimestampedSpeech.TranscriptSha256(Local + " (edited)"),
+                _ => null
+            },
+            VoiceId = voiceId,
+            VoiceSubstituted = substituted
+        };
+
+        TimestampedSpeech.Classify(response, Local).Should().Be(expected);
+        TimestampedSpeech.CanCache(response, Local).Should().Be(expected == TimestampedClipUse.Keep);
+    }
+
     [Fact]
     public void Wire_milliseconds_and_second_tuples_build_the_same_characters()
     {

@@ -18,7 +18,7 @@ namespace SentenceStudio.Services.Api;
 /// <see cref="UnauthorizedAccessException"/>.
 /// </remarks>
 public sealed class ApiVoiceDiscoveryService(
-    ISpeechApiClient speechApi,
+    ISpeechVoicesApiClient voicesApi,
     IServiceProvider services,
     ILogger<ApiVoiceDiscoveryService> logger) : IVoiceDiscoveryService
 {
@@ -62,7 +62,7 @@ public sealed class ApiVoiceDiscoveryService(
             return cached.Voices;
         }
 
-        var voices = (await speechApi.GetVoicesAsync(language))
+        var voices = (await voicesApi.GetVoicesAsync(language))
             .Select(v => new VoiceInfo
             {
                 VoiceId = v.Id,

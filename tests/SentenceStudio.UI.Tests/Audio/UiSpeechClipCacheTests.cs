@@ -236,6 +236,21 @@ public sealed class UiSpeechClipCacheTests
     }
 
     [Fact]
+    public async Task A_clip_from_an_older_server_that_names_no_voice_plays_but_is_not_kept()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+
+        var clip = await Cache(harness).GetOrCreateAsync("안녕하세요", "voice-1", true, "phrase",
+            (voice, token) => Task.FromResult<Stream>(new SentenceStudio.Services.Api.SpeechClipStream(
+                Clip, voiceId: null, voiceSubstituted: null)), default);
+
+        clip.Status.Should().Be(UiSpeechClipStatus.Ready);
+        clip.Audio.Should().Equal(Clip);
+        (await Rows(harness)).Should().BeEmpty("an unconfirmed voice is never recorded as voice-1");
+        Directory.GetFiles(harness.AudioCacheDirectory).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_synced_entry_regenerated_in_the_apis_default_voice_gets_no_local_copy()
     {
         await using var harness = await ActivityPageHarness.CreateAsync();

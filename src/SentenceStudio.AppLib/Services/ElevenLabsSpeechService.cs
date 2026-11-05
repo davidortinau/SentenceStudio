@@ -125,14 +125,16 @@ public class ElevenLabsSpeechService
 
         RequireSameOwner(owner, "Speech synthesis");
         var audio = DecodeAudio(response.AudioUrl);
-        var substituted = response.VoiceSubstituted == true;
-        if (substituted)
+        var clip = new SpeechClipStream(audio, response.VoiceId, response.VoiceSubstituted);
+        if (!clip.CanCache)
         {
             // Played, but callers must not keep it under the requested voice (SpeechClipStream).
-            _logger.LogWarning("The API used its default voice instead of {VoiceId}; the clip will not be cached.", voiceId);
+            _logger.LogWarning(
+                "The API did not confirm voice {VoiceId} (voice used: {VoiceUsed}, substituted: {Substituted}); the clip will not be cached.",
+                voiceId, response.VoiceId ?? "not reported", response.VoiceSubstituted?.ToString() ?? "not reported");
         }
         _logger.LogDebug("TextToSpeech: received {Bytes} bytes for voice {VoiceId}", audio.Length, voiceId);
-        return new SpeechClipStream(audio, response.VoiceId, substituted);
+        return clip;
     }
 
     /// <summary>
@@ -238,8 +240,8 @@ public class ElevenLabsSpeechService
 
         // The API synthesized its own copy of the transcript. Timings for different text would not
         // line up with what this page shows, so such a clip is neither played nor kept.
-        var verified = !string.IsNullOrEmpty(response.TranscriptSha256);
-        if (verified && !string.Equals(response.TranscriptSha256, transcriptSha256, StringComparison.OrdinalIgnoreCase))
+        var use = TimestampedSpeech.Classify(response, resource.Transcript);
+        if (use == TimestampedClipUse.Reject)
         {
             _logger.LogWarning(
                 "Reading audio for resource {ResourceId} is for a different transcript than this device has; not used.",
@@ -257,13 +259,14 @@ public class ElevenLabsSpeechService
             CacheFilePath = cacheFilePath
         };
 
-        if (!verified || response.VoiceSubstituted == true)
+        if (use != TimestampedClipUse.Keep)
         {
-            // An older server (no fingerprint) or the API's default voice instead of the requested
-            // one: play it, but do not keep it under this resource and voice.
+            // An older server (no fingerprint or voice) or the API's default voice instead of the
+            // requested one: play it, but do not keep it under this resource and voice.
             _logger.LogWarning(
-                "Reading audio for resource {ResourceId} will not be cached (transcript verified: {Verified}, voice substituted: {Substituted}).",
-                resource.Id, verified, response.VoiceSubstituted == true);
+                "Reading audio for resource {ResourceId} will not be cached (transcript verified: {Verified}, voice used: {VoiceUsed}, substituted: {Substituted}).",
+                resource.Id, !string.IsNullOrEmpty(response.TranscriptSha256),
+                response.VoiceId ?? "not reported", response.VoiceSubstituted?.ToString() ?? "not reported");
             result.CacheFilePath = string.Empty;
             return result;
         }

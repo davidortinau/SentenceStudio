@@ -15,6 +15,11 @@ public sealed class SpeechApiClient(HttpClient httpClient) : ISpeechApiClient
         return await response.Content.ReadFromJsonAsync<SynthesizeResponse>(cancellationToken: cancellationToken)
             ?? new SynthesizeResponse();
     }
+}
+
+public sealed class SpeechVoicesApiClient(HttpClient httpClient) : ISpeechVoicesApiClient
+{
+    private readonly HttpClient _httpClient = httpClient;
 
     public async Task<IReadOnlyList<SpeechApiVoice>> GetVoicesAsync(string language, CancellationToken cancellationToken = default)
     {

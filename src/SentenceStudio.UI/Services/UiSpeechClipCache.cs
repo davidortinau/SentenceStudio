@@ -148,12 +148,12 @@ public sealed class UiSpeechClipCache(
             return new UiSpeechClip(UiSpeechClipStatus.Offline);
 
         byte[]? audio;
-        bool substituted;
+        bool mustNotKeep;
         try
         {
             await using var stream = await synthesize(voiceId, cancellationToken);
             audio = await ReadLimitedAsync(stream, cancellationToken);
-            substituted = SpeechClipStream.IsSubstituted(stream);
+            mustNotKeep = SpeechClipStream.MustNotKeep(stream);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -174,11 +174,11 @@ public sealed class UiSpeechClipCache(
             return new UiSpeechClip(UiSpeechClipStatus.Failed);
         }
 
-        if (substituted)
+        if (mustNotKeep)
         {
-            // The API used its default voice, not voiceId: play it, but keep no file and no row
-            // that would later serve it as the requested voice.
-            logger.LogWarning("A clip in the API's default voice was played without caching it.");
+            // The API did not confirm voiceId (its default voice, or an older server that does not
+            // say): play it, but keep no file and no row that would later serve it as that voice.
+            logger.LogWarning("A clip not confirmed in the requested voice was played without caching it.");
             return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, existing, Synthesized: true);
         }
 
