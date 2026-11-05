@@ -13,7 +13,8 @@ internal sealed record VocabularyEditActions(
     Action<string, bool> ToggleResource,
     Action Save, Action Cancel, Action Retry, Action PlayAudio,
     Action<SwiftView> RegisterSave,
-    Action<SwiftView> RegisterResourceCount);
+    Action<SwiftView> RegisterResourceCount,
+    Action FindDuplicates, Action RequestDelete);
 
 internal static class VocabularyWordEditView
 {
@@ -30,6 +31,11 @@ internal static class VocabularyWordEditView
                     style.Text(Views.Text(text(error)), SourceTextRole.Body2),
                     success: false)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.error"));
+        if (state.DeleteError is { } deleteError)
+            fields.Add(style.Alert(
+                    style.Text(Views.Text(deleteError), SourceTextRole.Body2),
+                    success: false)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.delete.error"));
         if (state.Detail is null || state.Draft is null)
         {
             if (!state.Loading)
@@ -52,7 +58,12 @@ internal static class VocabularyWordEditView
             fields.Add(Views.IndeterminateProgress(text("Common_Save"))
                 .WithAccessibilityIdentifier("native.vocabulary.edit.saving"));
 
-        fields.Add(Card(style, "VocabWordEdit_VocabularyTerms", text,
+        // Source: the Vocabulary Terms header carries Find Duplicates for an existing word.
+        var findDuplicates = style.OutlineButton(
+                Views.Text(text("VocabWordEdit_FindDuplicates")), actions.FindDuplicates)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates");
+        findDuplicates.IsEnabled = state.CanFindDuplicates;
+        fields.Add(Card(style, "VocabWordEdit_VocabularyTerms", text, findDuplicates,
             TargetField(state, style, text, actions, readOnly),
             TextField("VocabWordEdit_NativeLanguageTerm",
                 "VocabWordEdit_NativePlaceholder", "native.vocabulary.edit.native",
@@ -113,25 +124,28 @@ internal static class VocabularyWordEditView
             .WithAccessibilityIdentifier("native.vocabulary.edit.actions");
         buttons.Spacing = SourceUiLayout.ItemGap;
         fields.Add(buttons);
-        // Source PageHeader: the primary Save shows only from the md breakpoint (768 pt); a phone
-        // gets the More menu instead, as in the resource editor. The filled primary button in a
-        // phone's navigation bar was squeezed to "S..." beside the long title.
-        SwiftView toolbarAction;
-        if (style.ViewportWidth >= 768)
-        {
-            toolbarAction = SaveButton(state, style, text, actions, readOnly)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.save.toolbar");
-        }
-        else
-        {
-            var menuSave = Views.Button(text("Common_Save"), actions.Save)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.save.menu");
-            // Not registered: registered buttons are restyled as primary (blue) buttons.
-            menuSave.IsEnabled = CanSave(state, readOnly);
-            toolbarAction = Views.Menu(text("More"), menuSave)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.more");
-        }
-        return Views.Toolbar(PageContent(fields, style), toolbarAction)
+        // Source PageHeader: the primary Save shows only from the md breakpoint (768 pt); the
+        // More menu (SecondaryActions: Save, Find Duplicates, Delete) shows at every width. The
+        // filled primary button in a phone's navigation bar was squeezed to "S..." beside the
+        // long title.
+        var menuSave = Views.Button(text("Common_Save"), actions.Save)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.save.menu");
+        // Not registered: registered buttons are restyled as primary (blue) buttons.
+        menuSave.IsEnabled = CanSave(state, readOnly);
+        var menuDuplicates = Views.Button(text("VocabWordEdit_FindDuplicates"),
+                actions.FindDuplicates)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates.menu");
+        menuDuplicates.IsEnabled = state.CanFindDuplicates;
+        var menuDelete = Views.Button(text("Common_Delete"), actions.RequestDelete)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.delete.menu");
+        menuDelete.IsEnabled = state.CanDelete;
+        var more = Views.Menu(text("More"), menuSave, menuDuplicates, menuDelete)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.more");
+        SwiftView[] toolbarActions = style.ViewportWidth >= 768
+            ? [SaveButton(state, style, text, actions, readOnly)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.save.toolbar"), more]
+            : [more];
+        return Views.Toolbar(PageContent(fields, style), toolbarActions)
             .WithAccessibilityIdentifier("native.vocabulary.edit.page");
     }
 
@@ -149,11 +163,26 @@ internal static class VocabularyWordEditView
 
     private static SwiftView Card(
         SourceUiStyle style, string titleKey, Func<string, string> text,
-        params SwiftView[] content)
+        params SwiftView[] content) =>
+        Card(style, titleKey, text, headerAction: null, content);
+
+    private static SwiftView Card(
+        SourceUiStyle style, string titleKey, Func<string, string> text,
+        SwiftView? headerAction, params SwiftView[] content)
     {
-        var heading = style.Text(Views.Text(text(titleKey)),
+        var title = style.Text(Views.Text(text(titleKey)),
                 SourceTextRole.Title3, sourceHeading: true)
             .WithAccessibilityIdentifier($"native.vocabulary.edit.section.{titleKey}");
+        var heading = title;
+        if (headerAction is not null)
+        {
+            heading = Views.HStack(title.WithFlexibleWidth(), headerAction)
+                .WithAdaptiveStack(420)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier(
+                    $"native.vocabulary.edit.section.{titleKey}.header");
+            heading.Spacing = SourceUiLayout.ItemGap;
+        }
         var items = Views.VStack([heading, ..content])
             .WithPadding(SourceUiLayout.LargeCardInset)
             .WithFlexibleWidth();
@@ -440,7 +469,7 @@ internal static class VocabularyWordEditView
     }
 
     private static bool CanSave(VocabularyEditPresentation state, bool readOnly) =>
-        !readOnly && !state.Saving
+        !readOnly && !state.Saving && !state.Deleting
             && state.Draft is { } draft
             && !string.IsNullOrWhiteSpace(draft.TargetTerm)
             && !string.IsNullOrWhiteSpace(draft.NativeTerm);

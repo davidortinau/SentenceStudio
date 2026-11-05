@@ -29,6 +29,14 @@ internal sealed partial class ApplicationController
         _vocabulary?.SearchText ?? string.Empty;
     internal string VocabularyWordTitle => _vocabulary?.WordFormTitle
         ?? Text("VocabWordEdit_EditTitle");
+    internal bool IsVocabularyDeletePresented =>
+        _vocabulary?.IsDeleteConfirmationPresented == true;
+    internal bool IsVocabularyDeletePending => _vocabulary?.IsDeletePending == true;
+    internal string? VocabularyDeleteMessage => _vocabulary?.DeleteMessage;
+
+    internal void CancelVocabularyDelete() => _vocabulary?.CancelDelete();
+
+    internal void ConfirmVocabularyDelete() => _vocabulary?.ConfirmDelete();
 
     private void EnsureVocabulary()
     {

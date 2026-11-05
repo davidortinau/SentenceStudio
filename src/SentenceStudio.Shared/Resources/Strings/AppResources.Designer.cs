@@ -11965,6 +11965,114 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to audio.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesAudio {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesAudio", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit these records so language and lexical type match before merging..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesBlockedFallback {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesBlockedFallback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Learning progress and resource associations are combined automatically. The keeper is chosen by encoding strength and memory aids..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesCombinedNote {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesCombinedNote", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit before merge.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesEditBeforeMerge {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesEditBeforeMerge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit record.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesEditRecord {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesEditRecord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to image aid.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesImageAid {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesImageAid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Best retained version based on encoding strength and memory aids..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesKeeperNote {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesKeeperNote", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Memory aid: {0}.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesMemoryAid {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesMemoryAid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge duplicates, keeping recommended.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesMergeKeepRecommended {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesMergeKeepRecommended", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge is not available yet..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesMergeUnavailable {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesMergeUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use Edit record above to align the fields, then run Find Duplicates again..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesMergeUnavailableHelp {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesMergeUnavailableHelp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No memory aids on this copy..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesNoMemoryAids {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesNoMemoryAids", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Could not load vocabulary. Please retry..
         /// </summary>
         internal static string NativeVocabulary_LoadFailed {

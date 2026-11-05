@@ -11,6 +11,11 @@ internal sealed partial class ApplicationScene
     private SwiftView? _vocabularyFilterSlot;
     private SwiftView? _vocabularySheet;
     private SwiftView? _vocabularyWordSlot;
+    // The word page inside the slot, and the delete confirmation around it once the word
+    // has loaded (source showDeleteConfirm; its message names the word).
+    private SwiftView? _vocabularyWordContent;
+    private SwiftView? _vocabularyDeleteConfirmation;
+    private string? _vocabularyDeleteMessage;
     private long _renderedVocabularyListVersion = -1;
     private long _renderedVocabularyFormVersion = -1;
     private long _renderedVocabularySheetVersion = -1;
@@ -116,8 +121,12 @@ internal sealed partial class ApplicationScene
         if (_app.IsVocabularyWordOpen && _vocabularyWordSlot is null
             && stack.NavigationPath.Count == 1)
         {
+            _vocabularyWordContent = Views.VStack(_app.RenderVocabularyWord(_style));
+            _vocabularyDeleteMessage = _app.VocabularyDeleteMessage;
+            _vocabularyDeleteConfirmation = VocabularyDeleteConfirmation(
+                _vocabularyWordContent, _vocabularyDeleteMessage);
             _vocabularyWordSlot = Views.VStack(
-                    _app.RenderVocabularyWord(_style))
+                    _vocabularyDeleteConfirmation ?? _vocabularyWordContent)
                 .WithNavigationTitle(_app.VocabularyWordTitle)
                 .WithInlineNavigationTitle()
                 .WithTabBarHidden();
@@ -136,6 +145,11 @@ internal sealed partial class ApplicationScene
             && (appearanceChanged
                 || _renderedVocabularyFormVersion != _app.VocabularyFormVersion))
             UpdateVocabularyWord();
+        if (_vocabularyDeleteConfirmation is not null)
+        {
+            _vocabularyDeleteConfirmation.IsPresented = _app.IsVocabularyDeletePresented;
+            _vocabularyDeleteConfirmation.DeletePending = _app.IsVocabularyDeletePending;
+        }
 
         UpdateRecentLookups(stack, appearanceChanged);
     }
@@ -236,20 +250,48 @@ internal sealed partial class ApplicationScene
 
     private void UpdateVocabularyWord()
     {
-        if (_vocabularyWordSlot is null)
+        if (_vocabularyWordSlot is null || _vocabularyWordContent is null)
             return;
         var focusedId = FindFocusedInput(_vocabularyWordSlot)
             ?.AccessibilityIdentifier;
-        Replace(_vocabularyWordSlot, _app.RenderVocabularyWord(_style));
+        var message = _app.VocabularyDeleteMessage;
+        if (message is not null && message != _vocabularyDeleteMessage)
+        {
+            // The word loaded (or another one did): the confirmation is rebuilt around a
+            // new page, once, while it is not presented.
+            var content = Views.VStack(_app.RenderVocabularyWord(_style));
+            var confirmation = VocabularyDeleteConfirmation(content, message)!;
+            Replace(_vocabularyWordSlot, confirmation);
+            _vocabularyWordContent = content;
+            _vocabularyDeleteConfirmation = confirmation;
+            _vocabularyDeleteMessage = message;
+        }
+        else
+            Replace(_vocabularyWordContent, _app.RenderVocabularyWord(_style));
         _renderedVocabularyFormVersion = _app.VocabularyFormVersion;
         if (!string.IsNullOrEmpty(focusedId)
             && Find(_vocabularyWordSlot, focusedId) is { IsEnabled: true } input)
             input.FocusRequested = true;
     }
 
+    private SwiftView? VocabularyDeleteConfirmation(SwiftView content, string? message) =>
+        message is null ? null
+            : Views.ResourceDeleteConfirmation(content,
+                    _app.Localize("VocabWordEdit_ConfirmDelete"), message,
+                    _app.Localize("Common_Close"),
+                    _app.Localize("Common_Cancel"),
+                    _app.Localize("Common_Delete"),
+                    _app.CancelVocabularyDelete,
+                    _app.ConfirmVocabularyDelete)
+                .WithTransparentDeleteBackdrop()
+                .WithAccessibilityIdentifier("native.vocabulary.edit.delete");
+
     private void DropVocabularyWordReferences()
     {
         _vocabularyWordSlot = null;
+        _vocabularyWordContent = null;
+        _vocabularyDeleteConfirmation = null;
+        _vocabularyDeleteMessage = null;
         _renderedVocabularyFormVersion = -1;
     }
 

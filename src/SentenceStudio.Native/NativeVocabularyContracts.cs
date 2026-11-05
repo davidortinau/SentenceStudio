@@ -56,3 +56,32 @@ public enum NativeVocabularySaveStatus
     Saved, SavedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly,
     Invalid, Duplicate, Conflict
 }
+
+/// <summary>Source VocabularyWordEdit ConfirmDelete, refused for a word another owner uses.</summary>
+public enum NativeVocabularyDeleteStatus
+{
+    Deleted, NotFoundOrForbidden, SharedReadOnly, Failed
+}
+
+/// <summary>
+/// One copy in a duplicate group (source VocabularyDuplicateWordInfo). Memory aids are
+/// those of the copy's recorded owner only; another owner's copy shows none.
+/// </summary>
+public sealed record NativeVocabularyDuplicateWord(
+    string Id, string TargetTerm, string NativeTerm,
+    string? Language, LexicalUnitType LexicalUnitType,
+    int ResourceCount, double EncodingScore, string EncodingLabel,
+    string? MnemonicText, bool HasImageAid, bool HasAudio);
+
+/// <summary>Source VocabularyDuplicateGroup; <see cref="Words"/> is in merge-preference order.</summary>
+public sealed record NativeVocabularyDuplicateGroup(
+    string NormalizedTerm, string DisplayTerm,
+    IReadOnlyList<NativeVocabularyDuplicateWord> Words,
+    bool CanMergeAutomatically, string? MergeBlockedReason,
+    string RecommendedKeeperId);
+
+/// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
+public sealed record NativeVocabularyDuplicateScan(
+    bool OwnerValid,
+    IReadOnlyList<NativeVocabularyDuplicateGroup> Groups,
+    int TotalGroupCount, int ExtraRecordCount);

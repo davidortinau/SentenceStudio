@@ -169,6 +169,11 @@ internal sealed partial class AndroidSliceShell
                     return true;
                 if (vocabulary.IsNavigationBlocked)
                     return true;
+                if (vocabulary.IsDeleteConfirmationPresented)
+                {
+                    vocabulary.CancelDelete();
+                    return true;
+                }
                 if (vocabulary.IsPhoneFilterPresented)
                 {
                     vocabulary.CancelPhoneFilters();

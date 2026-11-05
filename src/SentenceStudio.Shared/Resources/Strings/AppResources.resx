@@ -9309,6 +9309,42 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
     <value>This word is shared with another profile. You can view it here, but cannot edit the shared word.</value>
   </data>
+  <data name="NativeVocabulary_DuplicatesCombinedNote" xml:space="preserve">
+    <value>Learning progress and resource associations are combined automatically. The keeper is chosen by encoding strength and memory aids.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesEditBeforeMerge" xml:space="preserve">
+    <value>Edit before merge</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesKeeperNote" xml:space="preserve">
+    <value>Best retained version based on encoding strength and memory aids.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesEditRecord" xml:space="preserve">
+    <value>Edit record</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeUnavailable" xml:space="preserve">
+    <value>Merge is not available yet.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeUnavailableHelp" xml:space="preserve">
+    <value>Use Edit record above to align the fields, then run Find Duplicates again.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesBlockedFallback" xml:space="preserve">
+    <value>Edit these records so language and lexical type match before merging.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeKeepRecommended" xml:space="preserve">
+    <value>Merge duplicates, keeping recommended</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMemoryAid" xml:space="preserve">
+    <value>Memory aid: {0}</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesImageAid" xml:space="preserve">
+    <value>image aid</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesAudio" xml:space="preserve">
+    <value>audio</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
+    <value>No memory aids on this copy.</value>
+  </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version.</value>
   </data>

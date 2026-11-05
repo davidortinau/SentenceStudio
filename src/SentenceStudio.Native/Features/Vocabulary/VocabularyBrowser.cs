@@ -12,13 +12,23 @@ internal sealed record VocabularyBrowserList(
     IReadOnlyList<NativeVocabularyEntry> FilteredWords,
     VocabularyFilterState Filters,
     string SortField, bool SortDescending, bool ListMode,
-    string? Feedback, bool FeedbackWarning);
+    string? Feedback, bool FeedbackWarning,
+    VocabularyDuplicatePanel? Duplicates = null);
 
 internal sealed record VocabularyBrowserEdit(
     bool Loading, bool Saving, NativeVocabularyDetail? Detail,
     NativeVocabularyEditDraft? Draft, string? ErrorKey,
-    bool PlayingAudio, NativeQuizPhotoAsset? Photo)
+    bool PlayingAudio, NativeQuizPhotoAsset? Photo,
+    bool ConfirmingDelete = false, bool Deleting = false,
+    string? DeleteError = null)
 {
+    /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving.</summary>
+    internal bool CanFindDuplicates =>
+        VocabularyWordCommands.CanFindDuplicates(Saving || Deleting, Draft);
+
+    /// <summary>Source Delete, for a word only this owner uses.</summary>
+    internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting, Detail);
+
     /// <summary>Source VocabularyWordEdit: Save needs both terms and an editable (owned) word.</summary>
     internal bool CanSave => !Saving
         && Detail is { IsSharedWithAnotherOwner: false }
@@ -63,6 +73,9 @@ internal sealed class VocabularyBrowser : IDisposable
     private bool _formLoading;
     private bool _saving;
     private bool _playingAudio;
+    private bool _confirmingDelete;
+    private bool _deleting;
+    private string? _deleteError;
     private bool _disposed;
     private long _loadGeneration;
     private long _formGeneration;
@@ -83,14 +96,20 @@ internal sealed class VocabularyBrowser : IDisposable
         _media = media;
         _logger = logger;
         _text = text;
+        _duplicates = new VocabularyDuplicateFinder(store, logger, text,
+            () => Publish(listChanged: true));
     }
+
+    private readonly VocabularyDuplicateFinder _duplicates;
 
     internal event Action? Changed;
     internal bool IsOpen => _listOpen;
     internal bool IsFormOpen => _listOpen && _formOpen;
     internal bool IsPhoneFilterPresented =>
         _listOpen && _filters?.PhoneSheetOpen == true;
-    internal bool IsNavigationBlocked => _saving;
+    internal bool IsNavigationBlocked => _saving || _deleting;
+    internal bool IsDeleteConfirmationPresented =>
+        IsFormOpen && (_confirmingDelete || _deleting);
     internal long ListVersion => Interlocked.Read(ref _listVersion);
     internal long FormVersion => Interlocked.Read(ref _formVersion);
 
@@ -107,13 +126,13 @@ internal sealed class VocabularyBrowser : IDisposable
                 _filters?.Filter(_catalog.Words, _sortField, _sortDescending) ?? [],
                 _filters ?? new VocabularyFilterState(null, _ => { }),
                 _sortField, _sortDescending, _listMode,
-                _feedback, _feedbackWarning);
+                _feedback, _feedbackWarning, _duplicates.Panel);
         }
     }
 
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
-            _photo)
+            _photo, _confirmingDelete, _deleting, _deleteError)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -146,8 +165,10 @@ internal sealed class VocabularyBrowser : IDisposable
     /// <summary>Back from the list: drops the catalog, the open word and the owner.</summary>
     internal void Close()
     {
-        if (!_listOpen || _saving)
+        if (!_listOpen || _saving || _deleting)
             return;
+        _duplicates.Reset();
+        ResetDelete();
         _filters?.CancelPhoneSheet();
         _listOpen = false;
         _formOpen = false;
@@ -166,8 +187,9 @@ internal sealed class VocabularyBrowser : IDisposable
     /// <summary>Back or Cancel from the word editor discards the draft.</summary>
     internal void CloseWord()
     {
-        if (!_formOpen || _saving)
+        if (!_formOpen || _saving || _deleting)
             return;
+        ResetDelete();
         _formOpen = false;
         _detail = null;
         _draft = null;
@@ -235,6 +257,7 @@ internal sealed class VocabularyBrowser : IDisposable
         _formLoading = true;
         _editErrorKey = null;
         _photo = null;
+        ResetDelete();
         Publish(formChanged: true);
         try
         {
@@ -319,7 +342,7 @@ internal sealed class VocabularyBrowser : IDisposable
 
     internal async Task SaveAsync()
     {
-        if (!_formOpen || _saving || _detail is null
+        if (!_formOpen || _saving || _deleting || _detail is null
             || _detail.IsSharedWithAnotherOwner || _draft is not { } draft
             || !TryOwner(out var owner))
             return;
@@ -351,6 +374,7 @@ internal sealed class VocabularyBrowser : IDisposable
                 _detail = null;
                 _photo = null;
                 await ReloadAsync();
+                await RescanDuplicatesAsync();
             }
             else
             {
@@ -394,6 +418,188 @@ internal sealed class VocabularyBrowser : IDisposable
         NativeVocabularySaveStatus.SharedReadOnly => "NativeVocabulary_SharedReadOnly",
         _ => "VocabWordEdit_NotFound"
     };
+
+    /// <summary>
+    /// Source OpenDuplicateManager: leaves the editor (its draft is discarded, as the source
+    /// navigates away) for the list's duplicate manager, focused on the draft's term and this
+    /// word.
+    /// </summary>
+    internal async Task FindDuplicatesAsync()
+    {
+        if (!_formOpen || !EditState.CanFindDuplicates || _draft is not { } draft
+            || !TryOwner(out var owner))
+            return;
+        var term = draft.TargetTerm.Trim();
+        var wordId = draft.Id;
+        ResetDelete();
+        _formOpen = false;
+        _detail = null;
+        _draft = null;
+        _photo = null;
+        _selectedWordId = null;
+        _editErrorKey = null;
+        _media.StopPlayback();
+        Interlocked.Increment(ref _formGeneration);
+        Publish(listChanged: true, formChanged: true);
+        try
+        {
+            await _duplicates.OpenAsync(owner, term, wordId, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        if (!TryOwner(out _))
+            Block();
+    }
+
+    /// <summary>Source ShowMoreDuplicates.</summary>
+    internal async Task ShowMoreDuplicatesAsync()
+    {
+        if (!_listOpen || !TryOwner(out var owner))
+            return;
+        try
+        {
+            await _duplicates.ShowMoreAsync(owner, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+    }
+
+    /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
+    internal async Task MergeDuplicatesAsync(string normalizedTerm)
+    {
+        if (!_listOpen || _formOpen || !TryOwner(out var owner))
+            return;
+        try
+        {
+            var outcome = await _duplicates.MergeAsync(
+                owner, normalizedTerm, _lifetime.Token);
+            if (outcome is null)
+                return;
+            if (!TryOwner(out _))
+            {
+                Block();
+                return;
+            }
+            _feedback = outcome.Feedback;
+            _feedbackWarning = outcome.Warning;
+            if (outcome.Changed)
+                await ReloadAsync();
+            else
+                Publish(listChanged: true);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+    }
+
+    /// <summary>Source CloseCleanupPanel.</summary>
+    internal void CloseDuplicates()
+    {
+        if (TryOwner(out _))
+            _duplicates.Close();
+    }
+
+    /// <summary>Source RequestDelete: shows the confirmation.</summary>
+    internal void RequestDelete()
+    {
+        if (!_formOpen || !EditState.CanDelete || !TryOwner(out _))
+            return;
+        _confirmingDelete = true;
+        _deleteError = null;
+        Publish(formChanged: true);
+    }
+
+    /// <summary>Source CancelDelete; ignored while the delete runs.</summary>
+    internal void CancelDelete()
+    {
+        if (_deleting || !_confirmingDelete)
+            return;
+        _confirmingDelete = false;
+        Publish(formChanged: true);
+    }
+
+    /// <summary>
+    /// Source ConfirmDelete: deletes the word, then returns to the list with the source's
+    /// success message. A refused or failed delete keeps the editor open and says why.
+    /// </summary>
+    internal async Task ConfirmDeleteAsync()
+    {
+        if (!_formOpen || !_confirmingDelete || _deleting || _saving
+            || _detail is not { } detail || !TryOwner(out var owner))
+            return;
+        _deleting = true;
+        _deleteError = null;
+        Publish(formChanged: true);
+        var deleted = false;
+        try
+        {
+            var result = await Task.Run(() => _store.DeleteOwnedVocabularyAsync(
+                owner, detail.Word.Id, _lifetime.Token), _lifetime.Token);
+            if (result == NativeVocabularyDeleteStatus.Deleted)
+            {
+                deleted = true;
+                _feedback = _text("VocabWordEdit_DeletedSuccess");
+                _feedbackWarning = false;
+                _media.StopPlayback();
+                _formOpen = false;
+                _detail = null;
+                _draft = null;
+                _photo = null;
+                _selectedWordId = null;
+                Interlocked.Increment(ref _formGeneration);
+            }
+            else if (!TryOwner(out _))
+            {
+                Block();
+                return;
+            }
+            else
+                _deleteError = VocabularyWordCommands.DeleteError(result, detail, _text);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native Vocabulary delete failed.");
+            _deleteError = VocabularyWordCommands.DeleteError(
+                NativeVocabularyDeleteStatus.Failed, detail, _text);
+        }
+        finally
+        {
+            _deleting = false;
+            _confirmingDelete = false;
+            Publish(listChanged: true, formChanged: true);
+        }
+        if (deleted)
+        {
+            await ReloadAsync();
+            await RescanDuplicatesAsync();
+        }
+    }
+
+    private async Task RescanDuplicatesAsync()
+    {
+        if (!_duplicates.IsOpen || !TryOwner(out var owner))
+            return;
+        try
+        {
+            await _duplicates.RescanAsync(owner, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+    }
+
+    private void ResetDelete()
+    {
+        _confirmingDelete = false;
+        _deleteError = null;
+    }
 
     internal async Task PlayAudioAsync()
     {
@@ -563,6 +769,8 @@ internal sealed class VocabularyBrowser : IDisposable
         _formLoading = false;
         _loading = false;
         _feedback = null;
+        _duplicates.Reset();
+        ResetDelete();
         _listErrorKey = "Vocabulary_NoActiveProfile";
         _media.StopPlayback();
         Publish(listChanged: true, formChanged: true);

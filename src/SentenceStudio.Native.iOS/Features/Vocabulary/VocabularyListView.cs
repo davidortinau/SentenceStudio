@@ -16,7 +16,8 @@ internal sealed record VocabularyListActions(
     Action<string> Sort,
     Action<bool> SetListMode,
     Action<string, string?> ChangeWideFilter,
-    Action? OpenLookups = null);
+    Action? OpenLookups = null,
+    VocabularyDuplicateActions? Duplicates = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -88,6 +89,10 @@ internal static class VocabularyListView
                         : style.Text(Views.Text(state.Feedback),
                             SourceTextRole.Body2, SourceTextTone.Body))
                     .WithAccessibilityIdentifier("native.vocabulary.feedback"));
+            // Source: the cleanup panel sits above the word cards.
+            if (state.Duplicates is { } duplicates && actions.Duplicates is { } duplicateActions)
+                children.Add(VocabularyDuplicatesView.Panel(
+                    duplicates, style, text, duplicateActions));
             if (state.FilteredWords.Count == 0)
             {
                 children.Add(style.Text(Views.Text(text(state.Catalog.Words.Count == 0

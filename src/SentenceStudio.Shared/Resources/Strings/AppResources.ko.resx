@@ -8664,6 +8664,42 @@
   <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
     <value>이 단어는 다른 프로필과 공유됩니다. 여기에서 볼 수 있지만 공유 단어를 수정할 수는 없습니다.</value>
   </data>
+  <data name="NativeVocabulary_DuplicatesCombinedNote" xml:space="preserve">
+    <value>학습 진행 상황과 리소스 연결은 자동으로 합쳐집니다. 보존할 단어는 인코딩 강도와 기억 보조 자료로 선택됩니다.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesEditBeforeMerge" xml:space="preserve">
+    <value>병합 전 편집 필요</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesKeeperNote" xml:space="preserve">
+    <value>인코딩 강도와 기억 보조 자료를 기준으로 보존하기에 가장 좋은 버전입니다.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesEditRecord" xml:space="preserve">
+    <value>레코드 편집</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeUnavailable" xml:space="preserve">
+    <value>아직 병합할 수 없습니다.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeUnavailableHelp" xml:space="preserve">
+    <value>위의 레코드 편집으로 필드를 맞춘 다음 중복 찾기를 다시 실행하세요.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesBlockedFallback" xml:space="preserve">
+    <value>병합하기 전에 언어와 어휘 유형이 일치하도록 이 레코드를 편집하세요.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMergeKeepRecommended" xml:space="preserve">
+    <value>권장 항목을 유지하고 중복 병합</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesMemoryAid" xml:space="preserve">
+    <value>기억 보조 자료: {0}</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesImageAid" xml:space="preserve">
+    <value>이미지 보조 자료</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesAudio" xml:space="preserve">
+    <value>오디오</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
+    <value>이 복사본에는 기억 보조 자료가 없습니다.</value>
+  </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>이 단어가 다른 곳에서 변경되었습니다. 수정 내용은 저장되지 않았습니다. 뒤로 가서 다시 열어 최신 내용을 확인해 주세요.</value>
   </data>

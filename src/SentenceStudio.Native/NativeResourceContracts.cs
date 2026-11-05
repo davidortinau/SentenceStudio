@@ -195,6 +195,21 @@ public interface INativeResourceStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary editing is not available from this store.");
 
+    Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
+        string owner, string wordId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Vocabulary deletion is not available from this store.");
+
+    Task<NativeVocabularyDuplicateScan> FindOwnedVocabularyDuplicatesAsync(
+        string owner, string? focusTerm, int skip, int take,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate search is not available from this store.");
+
+    /// <summary>Source MergeVocabularyWordsAsync: the number of duplicate copies removed.</summary>
+    Task<int> MergeOwnedVocabularyDuplicatesAsync(
+        string owner, string keeperWordId, IReadOnlyList<string> duplicateWordIds,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate merge is not available from this store.");
+
     Task<IReadOnlyList<NativeResourceItem>> ListAsync(
         string owner, CancellationToken cancellationToken);
 
