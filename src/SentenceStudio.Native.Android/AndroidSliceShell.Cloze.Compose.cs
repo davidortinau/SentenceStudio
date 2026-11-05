@@ -248,7 +248,7 @@ internal sealed partial class AndroidSliceShell
         {
             Modifier.FillMaxWidth(),
             ClozeChevron(Icons.AutoMirrored.Default.KeyboardArrowLeft, NativeClozeText.Previous,
-                NativeClozeAccess.Previous, state.CanGoPrevious,
+                NativeClozeAccess.Previous, state.CanGoPrevious, palette,
                 (presenter, token) => presenter.PreviousAsync(token)),
             new Text(string.Format(CultureInfo.CurrentCulture, "{0} / {1}", state.Index + 1, state.Total))
             {
@@ -258,13 +258,13 @@ internal sealed partial class AndroidSliceShell
                 Align = TextAlign.Center,
             },
             ClozeChevron(Icons.AutoMirrored.Default.KeyboardArrowRight, NativeClozeText.Next,
-                NativeClozeAccess.Next, true,
+                NativeClozeAccess.Next, true, palette,
                 (presenter, token) => presenter.NextAsync(token)),
         });
     }
 
     private ComposableNode ClozeChevron(AndroidX.Compose.UI.Graphics.Vector.ImageVector icon, string labelKey, string tag, bool enabled,
-        Func<NativeClozePresenter, CancellationToken, Task<NativeClozeState>> command)
+        AndroidVisualPalette palette, Func<NativeClozePresenter, CancellationToken, Task<NativeClozeState>> command)
     {
         var label = Localize(labelKey);
         var button = new OutlinedButton(onClick: () => ClozeCommand(command), enabled: enabled)
@@ -274,7 +274,11 @@ internal sealed partial class AndroidSliceShell
                 .Semantics(semantics => semantics.ContentDescription(label)),
             Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
         };
-        button.Add(new Icon(icon, label) { Modifier = Modifier.Size(20) });
+        // An Icon without a Tint drew nothing here (the arrows were missing); set it as Translation does.
+        button.Add(new Icon(icon, label)
+        {
+            Modifier = Modifier.Size(20), Tint = enabled ? palette.Text : palette.SecondaryText,
+        });
         return button;
     }
 
