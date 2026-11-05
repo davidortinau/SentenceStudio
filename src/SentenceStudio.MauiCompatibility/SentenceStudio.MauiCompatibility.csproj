@@ -13,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <!-- Lifts every MAUI head's blazor.webview.js to the Components.Web version; see Directory.Packages.props. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
     <PackageReference Include="CommunityToolkit.Maui" />
     <PackageReference Include="Plugin.Maui.Audio" />
     <PackageReference Include="SkiaSharp.Views.Maui.Controls" />

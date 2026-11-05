@@ -79,13 +79,18 @@ and it CLOBBERS any RID-specific assets you restored beforehand. Seen on SDK
 
 **Fix (restore the extension + app with the RID, then build with `--no-restore`):**
 ```bash
-dotnet restore src/SentenceStudio.ShareExtension/SentenceStudio.ShareExtension.csproj -r ios-arm64
-dotnet restore src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -r ios-arm64
+dotnet restore src/SentenceStudio.ShareExtension/SentenceStudio.ShareExtension.csproj -r ios-arm64 -p:Configuration=Release
+dotnet restore src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -r ios-arm64 -p:Configuration=Release
 # confirm: grep -o '"net11.0-ios/ios-arm64"' src/SentenceStudio.ShareExtension/obj/project.assets.json
 services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io \
   dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
   -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64 --no-restore
 ```
+
+> **Restore in Release** (`-p:Configuration=Release`, 2026-11-05): a plain `dotnet restore` evaluates
+> Debug, so Debug-only packages (MAUI DevFlow) end up in the Release app. Release output must
+> contain no debug agents (AGENTS.md); check with `find <app> -iname "*devflow*"`.
+
 `--no-restore` is the key — it stops the build from re-restoring the extension without
 the RID and clobbering the assets. (If `obj` is in a weird state, `rm -rf
 src/SentenceStudio.ShareExtension/obj` first, then the two restores.)

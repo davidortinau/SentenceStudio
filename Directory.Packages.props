@@ -105,6 +105,12 @@
     <!-- Match the installed .NET 11 RC1 MAUI workload. Non-MAUI projects like
          ServiceDefaults have no $(MauiVersion), so all pins must be concrete. -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-rc.1.26451.6" />
+    <!-- WebView.Maui rc.1 only asks for Components.WebView 11.0.0-preview.7, whose blazor.webview.js
+         is older than the Components.Web pinned above: preview.7 JS calls Virtualize's
+         OnSpacerBeforeVisible/OnSpacerAfterVisible with 3 arguments, rc.1 .NET requires 4, and every
+         <Virtualize> list in the MAUI heads renders no rows (B65). Keep this version equal to
+         Microsoft.AspNetCore.Components.Web. Referenced from SentenceStudio.MauiCompatibility. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-rc.1.26425.128" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-rc.1.26451.6" />
     <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-rc.1.26451.6" />
     <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-rc.1.26451.6" />
