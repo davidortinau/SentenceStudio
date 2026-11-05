@@ -194,8 +194,8 @@ Azure step.
 every clip they generate in the blob container `media` under `speech-cache/v1/`, named by a
 SHA-256 of provider, variant, voice ID, model, voice settings, output format and exact text
 (`src/SentenceStudio.Api/Speech/SpeechClipSpec.cs`). A repeat request is served from the blob
-without an ElevenLabs call. No schema change, no client change, same responses. The callers are
-the native iOS and Android heads (see "Not covered yet" below for web and MAUI).
+without an ElevenLabs call. No schema change, same responses. The callers are the native iOS and
+Android heads and, since B60 below, the WebApp and the MAUI apps.
 
 **How the API reaches it.** The AppHost now declares the container
 (`storageAccount.AddBlobContainer("media-container", "media")`) and references it from the API,
@@ -274,9 +274,62 @@ a generated clip` for the first device, `Speech cache: served a stored clip` for
 no `Speech cache: read failed` or `write failed` warnings. Log lines carry only a 12-character
 hash prefix; text, user and resource never reach the blob name, metadata or the cache logs.
 
-**Not covered yet.** The web and MAUI pages (VocabQuiz, HowDoYouSay, Shadowing, Reading,
-NumberDrill) synthesize in process through `ElevenLabsSpeechService` with the WebApp's or app's
-own `ElevenLabsClient`, so they never reach this endpoint and still pay per clip.
+**Web and MAUI go through the API (B60, Captain 2026-11-04).** The shared Razor pages
+(VocabQuiz, HowDoYouSay, Shadowing, Reading, NumberDrill, Minimal Pairs, Conversation, the word
+editor) no longer hold an `ElevenLabsClient`. `ElevenLabsSpeechService` (AppLib) calls
+`POST /api/v1/speech/synthesize` and, for Reading, `/synthesize-timestamped` through
+`AddApiClients`, so every web and MAUI clip uses the same cache as native. The Settings and How
+Do You Say voice lists come from `GET /api/v1/speech/voices` (`ApiVoiceDiscoveryService`).
+
+- **Identity.** On the web, `AuthenticatedHttpMessageHandler` gets a JWT from `ServerAuthService`
+  minted for the signed-in learner, from the HTTP request or the Blazor circuit, carrying
+  `user_profile_id`. On MAUI it is the app's own API access token. With no active learner the
+  service throws before any request. The API's auth and owner checks are unchanged:
+  `/synthesize` requires a signed-in caller, `/synthesize-timestamped` reads only the caller's
+  own resource.
+- **Same audio as before.** Pages send their own voice settings. `/synthesize` gained optional
+  `Stability`, `SimilarityBoost` and `Speed` (clamped like the timestamped endpoint; a non-finite
+  value is a 400). A request without them is handled exactly as before and finds the same stored
+  clip (pinned by `SpeechSynthesizeSettingsEndpointTests`). Both endpoints now also accept a raw
+  ElevenLabs voice ID that the API offers: the slug voices, the client default voices,
+  `AI:ElevenLabs:Voices`, or an account voice listed by `/speech/voices`, read through the voices
+  endpoint's own cache and kept for 10 minutes. Any other ID still falls back to the default
+  voice, logged at Information without its value. This changes native audio too: native quiz and
+  shadowing send the stored ID (JiYoung for Korean), which the API used to answer in its default
+  voice (Rachel).
+- **Reading on MAUI** needs the resource on the server. One created on the device and not synced
+  yet gets a 404, which the page shows as an audio error. A clip already in the device's AppData
+  (`timestamped_<resource>_<voice>_<speed>.mp3/.json`, same names as before) still plays.
+- **Failures** surface on the page: an API refusal throws with its status, and a missing or empty
+  clip throws. The old service returned an empty stream instead.
+
+**Deploy order: API before web and MAUI.** Production's API already has both speech endpoints:
+`/synthesize` since `74f1961d` (2026-02-24) and `/synthesize-timestamped` since `aa2ff448`
+(2026-05-15), both on `main`. No Azure command was run to read the deployed revision. It does
+**not** have the clip cache (`aa5b7055`) or the optional settings and raw voice IDs (B60), which
+are only on `native-platform-heads`. An older API ignores the new fields and answers raw voice IDs
+in its default voice, so web or MAUI audio would play, but in the wrong voice and speed, until
+the API is updated. Nothing is lost.
+
+1. API from this branch, under the production HOLDs above, after the Azure step in this section.
+   Prefer `azd deploy api -e sstudio-prod-biz` on its own first. The WebApp's startup gate does
+   not order this change: there is no new migration or startup contract.
+2. Check the API: in App Insights, a native or web quiz word shows `Speech cache: stored a
+   generated clip` and no `Speech voice is not one this API offers` line for a chosen voice.
+3. WebApp (`azd deploy webapp -e sstudio-prod-biz`).
+4. MAUI builds (iOS, Android, Mac) once the API is live. Installed older MAUI builds keep calling
+   ElevenLabs directly with their embedded key until they are replaced.
+
+**Config that can go once the new builds are out** (none of it is read for speech any more):
+the WebApp's `ElevenLabsKey` environment variable (`AppHost.cs` still passes it to `webapp`, and
+to `workers`, which does not use it), `Settings:ElevenLabsKey` in the WebApp's configuration, and
+`Settings:ElevenLabsKey` in the MAUI `src/SentenceStudio.AppLib/appsettings.json`, which is
+embedded in every MAUI build. The API keeps `ElevenLabsKey`. Shipped MAUI binaries contain the
+key, so rotating it after the MAUI devices are updated is worth considering. Rotation changes the
+API's `elevenlabskey` secret and is an Azure step for the Captain.
+
+**Not covered yet.** Older installed MAUI builds, until they are replaced. Reading audio for a
+resource that has not synced.
 
 **Data notes.** The clips are audio of learner and resource text, kept in a private container;
 anyone who can read `media` can listen to them, the same exposure as the database that holds

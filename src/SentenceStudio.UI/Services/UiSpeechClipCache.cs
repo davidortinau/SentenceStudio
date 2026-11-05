@@ -163,7 +163,8 @@ public sealed class UiSpeechClipCache(
             return new UiSpeechClip(UiSpeechClipStatus.Failed);
         }
 
-        // ElevenLabsSpeechService returns an empty stream when synthesis fails.
+        // ElevenLabsSpeechService throws when synthesis fails (handled above); any other synthesizer
+        // that hands back no bytes is still a failure.
         if (audio is not { Length: > 0 })
         {
             logger.LogWarning("Speech synthesis returned no audio.");

@@ -1,12 +1,14 @@
-using System.Collections.Concurrent;
+using System.Net.Http;
+using System.Text.Json;
 using ElevenLabs;
-using ElevenLabs.Models;
-using ElevenLabs.TextToSpeech;
-using ElevenLabs.Voices;
-using SentenceStudio.Abstractions;
-using SentenceStudio.Models;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
+using SentenceStudio.Contracts.Speech;
+using SentenceStudio.Data;
+using SentenceStudio.Models;
+using SentenceStudio.Services.Api;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
 
@@ -34,120 +36,59 @@ public static class Voices
 }
 
 /// <summary>
-/// Service for handling text-to-speech conversion using the ElevenLabs API.
+/// Text to speech for the shared Razor activity pages (WebApp and MAUI). Every clip is synthesized
+/// by the API's ElevenLabs gateway as the signed-in learner: <c>POST /api/v1/speech/synthesize</c>
+/// for short clips and <c>POST /api/v1/speech/synthesize-timestamped</c> for Reading. The API keeps
+/// the ElevenLabs key and the shared clip cache, so neither host needs the key.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Failures are thrown, never returned as an empty stream: no active learner throws
+/// <see cref="UnauthorizedAccessException"/>; an API refusal throws <see cref="HttpRequestException"/>
+/// with its status; a response without usable audio throws <see cref="InvalidOperationException"/>.
+/// Learner text is never logged.
+/// </para>
+/// <para>
+/// Voices are sent as the pages hold them (an ElevenLabs voice ID or a slug such as
+/// <c>jiyoung</c>); the API resolves them and falls back to its default voice for any voice it does
+/// not offer.
+/// </para>
+/// </remarks>
 public class ElevenLabsSpeechService
 {
-    private static readonly Model ElevenV3Model = new("eleven_v3");
+    /// <summary>Largest clip accepted from the API (a long Reading transcript runs to several MB).</summary>
+    internal const int MaxAudioBytes = 32 * 1024 * 1024;
 
-    private readonly ElevenLabsClient _client;
-    private readonly ConcurrentDictionary<string, Voice> _cachedVoices = new();
+    private readonly ISpeechApiClient _speechApi;
+    private readonly ITimestampedSpeechApiClient _timestampedApi;
+    private readonly IServiceProvider _services;
     private readonly ILogger<ElevenLabsSpeechService> _logger;
     private readonly IFileSystemService _fileSystem;
-    private readonly Model _interactiveModel;
-    private bool _voicesInitialized = false;
 
-    /// <summary>
-    /// Mapping of simple voice names to ElevenLabs voice IDs.
-    /// </summary>
-    public Dictionary<string, string> VoiceOptions { get; private set; } = new()
-    {
-        // English voices with friendly names
-        { "echo", Voices.Rachel }, // Default - English female
-        { "onyx", Voices.Antoni }, // English male
-        { "nova", Voices.Elli },   // English female
-        { "shimmer", Voices.Adam }, // English male
-        { "fable", Voices.Dorothy }, // English female - British
-        
-        // Korean voices
-        { "yuna", Voices.Yuna },   // Korean female - young, cheerful
-        { "jiyoung", Voices.JiYoung }, // Korean female - warm, clear
-        { "hyunbin", Voices.HyunBin }, // Korean male - cool, professional
-        { "jennie", Voices.Jennie },  // Korean female - informative, youthful
-        { "jina", Voices.Jina },  // Korean female - mid-aged, news broadcaster
-        { "dohyeon", Voices.DoHyeon }, // Korean male - older, mature
-        { "yohankoo", Voices.YohanKoo } // Korean male - confident, authoritative
-    };
-
-    /// <summary>
-    /// Gets a dictionary mapping friendly voice names to display names
-    /// </summary>
-    public Dictionary<string, string> VoiceDisplayNames { get; } = new()
-    {
-        { "yuna", "Yuna (Korean)" },
-        { "jiyoung", "Ji-Young (Korean)" },
-        { "hyunbin", "Hyun-Bin (Korean)" },
-        { "jennie", "Jennie (Korean)" },
-        { "jina", "Jina (Korean)" },
-        { "dohyeon", "Do-Hyeon (Korean)" },
-        { "yohankoo", "Yohan Koo (Korean)" }
-    };
-    public string DefaultVoiceId { get; } = Voices.HyunBin; // Default voice ID
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ElevenLabsSpeechService"/> class.
-    /// </summary>
-    /// <param name="client">The ElevenLabs client instance.</param>
-    /// <param name="logger">The logger instance.</param>
     public ElevenLabsSpeechService(
-        ElevenLabsClient client,
+        ISpeechApiClient speechApi,
+        ITimestampedSpeechApiClient timestampedApi,
+        IServiceProvider services,
         ILogger<ElevenLabsSpeechService> logger,
-        IFileSystemService fileSystem,
-        IConfiguration configuration)
+        IFileSystemService fileSystem)
     {
-        _client = client;
+        _speechApi = speechApi;
+        _timestampedApi = timestampedApi;
+        _services = services;
         _logger = logger;
         _fileSystem = fileSystem;
-        _interactiveModel = ResolveModel(
-            configuration["AI:ElevenLabs:InteractiveModel"],
-            ElevenV3Model);
     }
 
     /// <summary>
-    /// Initializes the voice list from the API.
+    /// Speaks <paramref name="text"/> through <c>/api/v1/speech/synthesize</c> with the page's voice
+    /// settings and returns the MP3 audio.
     /// </summary>
-    public async Task InitializeVoicesAsync()
-    {
-        if (_voicesInitialized)
-            return;
-
-        try
-        {
-            // Get available voices from ElevenLabs API
-            var voices = await _client.VoicesEndpoint.GetAllVoicesAsync();
-
-            if (voices != null)
-            {
-                foreach (var voice in voices)
-                {
-                    _cachedVoices[voice.Id] = voice;
-                    // Optionally populate VoiceOptions with actual voice names
-                }
-
-                _voicesInitialized = true;
-                _logger.LogInformation("Initialized {VoiceCount} voices from ElevenLabs", voices.Count);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initialize ElevenLabs voices");
-        }
-    }
-
-    /// <summary>
-    /// Converts text to speech using ElevenLabs API and returns the audio as a stream.
-    /// DEPRECATED: Use GenerateTimestampedAudioAsync for better performance and synchronization.
-    /// </summary>
-    /// <param name="text">The text to convert to speech.</param>
-    /// <param name="voiceId">The voice Id or name to use (from VoiceOptions).</param>
-    /// <param name="stability">Voice stability (0.0 to 1.0) - higher values make voice more consistent but less expressive.</param>
-    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0) - higher values make voice more like original but may sound metallic.</param>
-    /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
-    /// <param name="previousText">Optional previous sentence for better context and flow.</param>
-    /// <param name="nextText">Optional next sentence for better context and flow.</param>
-    /// <param name="model">Optional ElevenLabs model override. Defaults to AI:ElevenLabs:InteractiveModel.</param>
+    /// <param name="text">The text to convert to speech. Learner content: never logged.</param>
+    /// <param name="voiceId">An ElevenLabs voice ID or slug (for example <c>echo</c>).</param>
+    /// <param name="stability">Voice stability (0.0 to 1.0).</param>
+    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0).</param>
+    /// <param name="speed">Speech speed (the API accepts 0.7 to 1.2).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>A memory stream containing the generated audio.</returns>
     [Obsolete("Use GenerateTimestampedAudioAsync for better performance and synchronization")]
     public async Task<Stream> TextToSpeechAsync(
         string text,
@@ -155,83 +96,49 @@ public class ElevenLabsSpeechService
         float stability = 0.75f,
         float similarityBoost = 0.75f,
         float speed = 1.0f,
-        string? previousText = null,
-        string? nextText = null,
-        Model? model = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        ArgumentException.ThrowIfNullOrWhiteSpace(voiceId);
+        var owner = RequireOwner("Speech synthesis");
 
+        SynthesizeResponse response;
         try
         {
-            // Map simple voice names to actual ElevenLabs voice IDs if needed
-            if (VoiceOptions.ContainsKey(voiceId))
+            response = await _speechApi.SynthesizeAsync(new SynthesizeRequest
             {
-                voiceId = VoiceOptions[voiceId];
-            }
-
-            if (string.IsNullOrWhiteSpace(voiceId))
-            {
-                _logger.LogError("TextToSpeechAsync called without a voice id");
-                return Stream.Null;
-            }
-
-            var voice = _cachedVoices.TryGetValue(voiceId, out var cachedVoice)
-                ? cachedVoice
-                : new Voice(voiceId, voiceId);
-
-            var selectedModel = model ?? _interactiveModel;
-            _logger.LogDebug(
-                "TextToSpeech: synthesizing voice {VoiceId} with model {Model} for text '{Text}'",
-                voiceId,
-                selectedModel,
-                text.Length > 50 ? text[..50] + "..." : text);
-
-            // Create audio generation options with latest model and context parameters
-            var request = new TextToSpeechRequest(
-                voice,
-                text,
-                voiceSettings: new VoiceSettings(stability, similarityBoost)
-                {
-                    SpeakerBoost = true,
-                    Speed = speed,
-                    Style = 0f
-                },
-                model: selectedModel,
-                previousText: previousText,
-                nextText: nextText);
-
-            // Generate the speech using the proper API call
-            var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
-                request,
-                cancellationToken: cancellationToken);
-
-
-            // Create a memory stream from the audio bytes
-            var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
-
-            _logger.LogDebug("TextToSpeech: generated {Bytes} bytes of audio", audioBytes.ClipData.Length);
-
-            return audioStream;
+                Text = text,
+                VoiceId = voiceId,
+                Stability = stability,
+                SimilarityBoost = similarityBoost,
+                Speed = speed
+            }, cancellationToken);
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Error in TextToSpeechAsync for voice {VoiceId} and text '{Text}'", voiceId, text);
-            return Stream.Null;
+            _logger.LogError("Speech synthesis was refused by the API: {Status}.", DescribeStatus(ex));
+            throw;
         }
+
+        RequireSameOwner(owner, "Speech synthesis");
+        var audio = DecodeAudio(response.AudioUrl);
+        _logger.LogDebug("TextToSpeech: received {Bytes} bytes for voice {VoiceId}", audio.Length, voiceId);
+        return new MemoryStream(audio, writable: false);
     }
 
     /// <summary>
-    /// Generates timestamped audio for an entire learning resource with character-level synchronization.
-    /// This is the preferred method for reading activities as it provides perfect audio-text sync.
+    /// Audio for a learning resource's transcript with character-level timings, from
+    /// <c>/api/v1/speech/synthesize-timestamped</c>. The API reads the transcript from the learner's
+    /// own copy of the resource on the server, so the resource must have synced. Results are kept
+    /// in AppData under the same names as before, so a device that already has a clip reuses it.
     /// </summary>
-    /// <param name="resource">The learning resource to generate audio for</param>
-    /// <param name="voiceId">The voice Id or name to use (from VoiceOptions)</param>
-    /// <param name="stability">Voice stability (0.0 to 1.0)</param>
-    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0)</param>
-    /// <param name="speed">Speech speed multiplier (0.5 to 2.0)</param>
-    /// <param name="cancellationToken">A cancellation token</param>
-    /// <returns>Timestamped audio result with character-level timing data</returns>
+    /// <param name="resource">The active learner's learning resource.</param>
+    /// <param name="voiceId">The voice slug or ID (default <c>jiyoung</c>).</param>
+    /// <param name="stability">Voice stability (0.0 to 1.0).</param>
+    /// <param name="similarityBoost">Similarity boost (0.0 to 1.0).</param>
+    /// <param name="speed">Speech speed (the API accepts 0.7 to 1.2).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
     public async Task<TimestampedAudioResult> GenerateTimestampedAudioAsync(
         LearningResource resource,
         string voiceId = "jiyoung",  // Default to Korean voice
@@ -240,150 +147,162 @@ public class ElevenLabsSpeechService
         float speed = 1.0f,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(resource);
         cancellationToken.ThrowIfCancellationRequested();
+        var owner = RequireOwner("Reading audio");
+        if (string.IsNullOrWhiteSpace(resource.Id)
+            || !string.Equals(resource.UserProfileId, owner, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Reading audio refused: resource {ResourceId} is not the active learner's.", resource.Id);
+            throw new UnauthorizedAccessException("Reading audio needs a resource that belongs to the signed-in learner.");
+        }
+
+        if (string.IsNullOrWhiteSpace(resource.Transcript))
+            throw new InvalidOperationException("This resource has no transcript to read aloud.");
+
+        // Same AppData names as the in-process service used, so existing clips are reused.
+        var cacheKey = $"timestamped_{resource.Id}_{voiceId}_{speed:F1}";
+        var cacheFilePath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.mp3");
+        var cacheMetaPath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.json");
+
+        if (File.Exists(cacheFilePath) && File.Exists(cacheMetaPath))
+        {
+            try
+            {
+                var metaJson = await File.ReadAllTextAsync(cacheMetaPath, cancellationToken);
+                var cachedResult = JsonSerializer.Deserialize<TimestampedAudioResult>(metaJson);
+
+                if (cachedResult != null)
+                {
+                    var audioData = await File.ReadAllBytesAsync(cacheFilePath, cancellationToken);
+                    cachedResult.AudioData = new ReadOnlyMemory<byte>(audioData);
+                    cachedResult.CacheFilePath = cacheFilePath;
+
+                    _logger.LogDebug("Using cached timestamped audio for resource {ResourceId}", resource.Id);
+                    return cachedResult;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Failed to load cached audio; generating again.");
+            }
+        }
+
+        _logger.LogInformation("Requesting timestamped audio for resource {ResourceId} with voice {VoiceId}", resource.Id, voiceId);
+
+        SynthesizeTimestampedResponse response;
+        try
+        {
+            response = await _timestampedApi.SynthesizeTimestampedAsync(new SynthesizeTimestampedRequest
+            {
+                ResourceId = resource.Id,
+                VoiceId = voiceId,
+                Stability = stability,
+                SimilarityBoost = similarityBoost,
+                Speed = speed
+            }, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            // 404: the API has no copy of this resource for this learner (for example, one created
+            // on this device that has not synced yet).
+            _logger.LogError("Timestamped audio for resource {ResourceId} was refused by the API: {Status}.",
+                resource.Id, DescribeStatus(ex));
+            throw;
+        }
+
+        RequireSameOwner(owner, "Reading audio");
+        var audio = DecodeAudio(response.AudioUrl);
+        var result = new TimestampedAudioResult
+        {
+            AudioData = audio,
+            Characters = ToCharacters(response.Characters ?? []),
+            Duration = TimeSpan.FromSeconds(response.DurationSeconds),
+            CacheFilePath = cacheFilePath
+        };
 
         try
         {
-            // Check cache first
-            var cacheKey = $"timestamped_{resource.Id}_{voiceId}_{speed:F1}";
-            var cacheFilePath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.mp3");
-            var cacheMetaPath = Path.Combine(_fileSystem.AppDataDirectory, $"{cacheKey}.json");
+            await File.WriteAllBytesAsync(cacheFilePath, audio, cancellationToken);
 
-            if (File.Exists(cacheFilePath) && File.Exists(cacheMetaPath))
+            // Metadata without the audio, as before.
+            var metaJson = JsonSerializer.Serialize(new TimestampedAudioResult
             {
-                try
-                {
-                    var metaJson = await File.ReadAllTextAsync(cacheMetaPath, cancellationToken);
-                    var cachedResult = System.Text.Json.JsonSerializer.Deserialize<TimestampedAudioResult>(metaJson);
+                AudioData = ReadOnlyMemory<byte>.Empty,
+                Characters = result.Characters,
+                Duration = result.Duration,
+                CacheFilePath = result.CacheFilePath
+            });
+            await File.WriteAllTextAsync(cacheMetaPath, metaJson, cancellationToken);
 
-                    if (cachedResult != null)
-                    {
-                        // Load audio data from file
-                        var audioData = await File.ReadAllBytesAsync(cacheFilePath, cancellationToken);
-                        cachedResult.AudioData = new ReadOnlyMemory<byte>(audioData);
-                        cachedResult.CacheFilePath = cacheFilePath;
-
-                        _logger.LogDebug("Using cached timestamped audio for resource {ResourceId}", resource.Id);
-                        return cachedResult;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to load cached audio");
-                    // Continue with fresh generation
-                }
-            }
-
-            // Map simple voice names to actual ElevenLabs voice IDs if needed
-            if (VoiceOptions.ContainsKey(voiceId))
-            {
-                voiceId = VoiceOptions[voiceId];
-            }
-
-            var voice = await _client.VoicesEndpoint
-                .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
-
-            // Create timestamped audio generation request
-            var request = new TextToSpeechRequest(
-                voice: voice,
-                text: resource.Transcript,
-                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
-                model: Model.MultiLingualV2,
-                withTimestamps: true  // KEY: Enable character-level timestamps
-            );
-
-            _logger.LogInformation("Generating timestamped audio for resource {ResourceId} using voice {VoiceName} ({VoiceId})", resource.Id, voice.Name, voiceId);
-
-            // Generate the speech with timestamps
-            var voiceClip = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
-                request,
-                cancellationToken: cancellationToken);
-
-            // Calculate total duration from timestamps
-            var duration = TimeSpan.Zero;
-            if (voiceClip.TimestampedTranscriptCharacters?.Length > 0)
-            {
-                var lastChar = voiceClip.TimestampedTranscriptCharacters[^1];
-                duration = TimeSpan.FromSeconds(lastChar.EndTime);
-            }
-
-            var result = new TimestampedAudioResult
-            {
-                AudioData = voiceClip.ClipData,
-                Characters = voiceClip.TimestampedTranscriptCharacters ?? Array.Empty<TimestampedTranscriptCharacter>(),
-                Duration = duration,
-                CacheFilePath = cacheFilePath
-            };
-
-            // Cache the result
-            try
-            {
-                await File.WriteAllBytesAsync(cacheFilePath, voiceClip.ClipData.ToArray(), cancellationToken);
-
-                // Save metadata (excluding AudioData to avoid duplication)
-                var metaData = new TimestampedAudioResult
-                {
-                    AudioData = ReadOnlyMemory<byte>.Empty,
-                    Characters = result.Characters,
-                    Duration = result.Duration,
-                    CacheFilePath = result.CacheFilePath
-                };
-
-                var metaJson = System.Text.Json.JsonSerializer.Serialize(metaData);
-                await File.WriteAllTextAsync(cacheMetaPath, metaJson, cancellationToken);
-
-                _logger.LogDebug("Cached timestamped audio: {AudioSize} bytes, {CharCount} characters, {Duration:F1}s", voiceClip.ClipData.Length, result.Characters.Length, duration.TotalSeconds);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to cache timestamped audio");
-                // Continue without caching
-            }
-
-            return result;
+            _logger.LogDebug("Cached timestamped audio: {AudioSize} bytes, {CharCount} characters, {Duration:F1}s",
+                audio.Length, result.Characters.Length, result.Duration.TotalSeconds);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogError(ex, "Error in GenerateTimestampedAudioAsync");
-            throw;
+            // The audio still plays without a cache entry.
+            _logger.LogWarning(ex, "Failed to cache timestamped audio");
         }
+
+        return result;
     }
 
-    private static Model ResolveModel(string? configuredModel, Model fallback)
+    /// <summary>The audio bytes in an API <c>data:audio/...;base64,</c> URL; throws when there are none.</summary>
+    internal static byte[] DecodeAudio(string? dataUri)
     {
-        if (string.IsNullOrWhiteSpace(configuredModel))
+        const string marker = "base64,";
+        var start = dataUri?.IndexOf(marker, StringComparison.Ordinal) ?? -1;
+        if (dataUri is null || !dataUri.StartsWith("data:audio/", StringComparison.Ordinal) || start < 0)
+            throw new InvalidOperationException("The speech service returned no audio.");
+
+        byte[] audio;
+        try
         {
-            return fallback;
+            audio = Convert.FromBase64String(dataUri[(start + marker.Length)..]);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("The speech service returned unreadable audio.", ex);
         }
 
-        var normalized = configuredModel.Trim();
-        return normalized switch
-        {
-            "V3" or "v3" or "eleven_v3" => ElevenV3Model,
-            "FlashV2_5" or "eleven_flash_v2_5" => Model.FlashV2_5,
-            "TurboV2_5" or "eleven_turbo_v2_5" => Model.TurboV2_5,
-            "TurboV2" or "eleven_turbo_v2" => Model.TurboV2,
-            "FlashV2" or "eleven_flash_v2" => Model.FlashV2,
-            "MultiLingualV2" or "eleven_multilingual_v2" => Model.MultiLingualV2,
-            _ => fallback
-        };
+        if (audio.Length == 0)
+            throw new InvalidOperationException("The speech service returned empty audio.");
+        if (audio.Length > MaxAudioBytes)
+            throw new InvalidOperationException("The speech service returned more audio than this app accepts.");
+        return audio;
     }
 
     /// <summary>
-    /// Gets available voices from ElevenLabs.
+    /// The API's millisecond timings as the ElevenLabs characters the Reading page already uses.
+    /// Their setters are JSON-only, so they are built through the SDK's own wire names.
     /// </summary>
-    /// <returns>A list of voice models.</returns>
-    public async Task<List<Voice>> GetVoicesAsync()
+    internal static TimestampedTranscriptCharacter[] ToCharacters(IEnumerable<CharacterTimestamp> characters)
     {
-        try
+        var json = JsonSerializer.Serialize(characters.Select(c => new Dictionary<string, object>
         {
-            await InitializeVoicesAsync();
-            return _cachedVoices.Values.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting voices");
-            return new List<Voice>();
-        }
+            ["character"] = c.Char,
+            ["character_start_times_seconds"] = c.StartMs / 1000.0,
+            ["character_end_times_seconds"] = c.EndMs / 1000.0
+        }));
+        return JsonSerializer.Deserialize<TimestampedTranscriptCharacter[]>(json) ?? [];
+    }
+
+    private static object DescribeStatus(HttpRequestException ex) =>
+        ex.StatusCode is { } status ? (int)status : "no response";
+
+    /// <summary>The active learner (shared <see cref="ActiveOwner"/> rules); none fails closed.</summary>
+    private string RequireOwner(string operation)
+    {
+        using var scope = _services.CreateScope();
+        if (!ActiveOwner.TryResolve(scope.ServiceProvider, _logger, operation, out var owner))
+            throw new UnauthorizedAccessException($"{operation} needs a signed-in learner.");
+        return owner;
+    }
+
+    /// <summary>A learner switch while the API answered must not hand one learner's audio to another.</summary>
+    private void RequireSameOwner(string owner, string operation)
+    {
+        if (!string.Equals(RequireOwner(operation), owner, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException($"{operation}: the signed-in learner changed.");
     }
 }

@@ -94,8 +94,10 @@ internal sealed class ActivityPageFixture : IAsyncDisposable
         services.AddSingleton<IProgressService>(ThrowingStub<IProgressService>.Create());
         services.AddSingleton<IJSRuntime>(ThrowingStub<IJSRuntime>.Create());
         services.AddSingleton<IAudioPlayerFactory>(ThrowingStub<IAudioPlayerFactory>.Create());
-        services.AddSingleton(new ElevenLabs.ElevenLabsClient("fixture-only",
-            httpClient: new HttpClient(new RefusingHandler())));
+        services.AddSingleton<SentenceStudio.Services.Api.ISpeechApiClient>(
+            new SentenceStudio.Services.Api.SpeechApiClient(RefusingHandler.Client()));
+        services.AddSingleton<SentenceStudio.Services.Api.ITimestampedSpeechApiClient>(
+            new SentenceStudio.Services.Api.TimestampedSpeechApiClient(RefusingHandler.Client()));
         services.AddSingleton<ElevenLabsSpeechService>();
         services.AddSingleton(toast);
         services.AddSingleton(new BlazorLocalizationService());
@@ -443,9 +445,11 @@ internal sealed class TemplateFiles(string appData) : IFileSystemService
         Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(filename + ": {{ user_input }}")));
 }
 
-/// <summary>ElevenLabs requests fail as if the service were unreachable.</summary>
+/// <summary>Speech API requests fail as if the server were unreachable.</summary>
 internal sealed class RefusingHandler : HttpMessageHandler
 {
+    public static HttpClient Client() => new(new RefusingHandler()) { BaseAddress = new Uri("https://api.invalid") };
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         throw new HttpRequestException("Speech service unreachable in this test.");
 }

@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using OpenAI;
-using ElevenLabs;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -105,11 +104,8 @@ public static class SentenceStudioAppBuilder
         // (Foundry) endpoint. See AiClientRegistration / AiTier.
         builder.Services.AddTieredChatClients(builder.Configuration, openAiApiKey);
 
-        var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
-            ? Environment.GetEnvironmentVariable("ElevenLabsKey")!
-            : settings.ElevenLabsKey ?? "not-configured";
-
-        builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
+        // Speech and voice lists go through the API (/api/v1/speech/*) with the learner's token
+        // (AddApiClients below), so the app carries no ElevenLabs key.
 
         // --- CoreSync setup ---
         var dbPath = Path.GetFullPath(databasePath);

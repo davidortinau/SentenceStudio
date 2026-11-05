@@ -512,6 +512,8 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 // Generated speech clips are kept in the media blob container and reused across clients and
 // learners, so each distinct clip is paid for once. Off when no container is configured.
 builder.Services.AddSpeechClipCache(builder.Configuration, builder.Environment);
+// Voice slugs and the IDs this API offers (built-in, configured, or listed by /speech/voices).
+builder.Services.AddSingleton<SpeechVoiceResolver>();
 
 var app = builder.Build();
 
@@ -1004,6 +1006,7 @@ app.MapPost("/api/v1/speech/synthesize", async (
         SynthesizeRequest request,
         [FromServices] ISpeechClipProvider? provider,
         [FromServices] SpeechClipCache clipCache,
+        [FromServices] SpeechVoiceResolver voices,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
     {
@@ -1014,7 +1017,20 @@ app.MapPost("/api/v1/speech/synthesize", async (
             return Results.Problem("ElevenLabs client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        var voiceId = ResolveSpeechVoiceId(request.VoiceId, app.Configuration);
+        // Optional voice settings (web and MAUI pages send their own). Omitted settings keep the
+        // values this endpoint has always used, so those requests share the clips stored before.
+        if (request.Stability is { } s && !float.IsFinite(s)
+            || request.SimilarityBoost is { } b && !float.IsFinite(b)
+            || request.Speed is { } r && !float.IsFinite(r))
+        {
+            return Results.BadRequest(new { error = "Voice settings must be finite numbers." });
+        }
+
+        var stability = Math.Clamp(request.Stability ?? SpeechClipSpec.DefaultSynthesizeStability, 0f, 1f);
+        var similarityBoost = Math.Clamp(request.SimilarityBoost ?? SpeechClipSpec.DefaultSynthesizeSimilarityBoost, 0f, 1f);
+        var speed = Math.Clamp(request.Speed ?? SpeechClipSpec.DefaultSynthesizeSpeed, 0.7f, 1.2f);
+
+        var voiceId = await voices.ResolveAsync(request.VoiceId, cancellationToken);
         var model = ResolveElevenLabsModel(
             app.Configuration["AI:ElevenLabs:InteractiveModel"],
             new Model("eleven_v3"));
@@ -1023,7 +1039,7 @@ app.MapPost("/api/v1/speech/synthesize", async (
         {
             // A repeat of the same text, voice, model and settings is served from the media
             // container without a paid call; see SpeechClipCache.
-            var spec = SpeechClipSpec.ForSynthesize(voiceId, model.Id, request.Text);
+            var spec = SpeechClipSpec.ForSynthesize(voiceId, model.Id, request.Text, stability, similarityBoost, speed);
             var audioBytes = await clipCache.GetOrGenerateAsync(spec, provider, cancellationToken);
             var base64 = Convert.ToBase64String(audioBytes);
 
@@ -1051,36 +1067,8 @@ app.MapPost("/api/v1/speech/synthesize", async (
     })
     .RequireAuthorization();
 
-// Maps friendly voice slugs used by Flutter clients to ElevenLabs voice IDs.
-// Keep in sync with VoiceOptions in ElevenLabsSpeechService (MAUI in-process service).
-// Hard-coded allow-list: unknown slugs fall back to the default voice rather
-// than being forwarded verbatim to ElevenLabs (prevents callers from smuggling
-// arbitrary voice IDs through the API).
-static string ResolveSpeechVoiceId(string? requested, IConfiguration config)
-{
-    var fallback = config["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM";
-    if (string.IsNullOrWhiteSpace(requested)) return fallback;
-
-    // Slug map mirrors ElevenLabsSpeechService.VoiceOptions in AppLib.
-    return requested switch
-    {
-        // Korean
-        "yuna"     => "xi3rF0t7dg7uN2M0WUhr",
-        "jiyoung"  => "AW5wrnG1jVizOYY7R1Oo",
-        "hyunbin"  => "s07IwTCOrCDCaETjUVjx",
-        "jennie"   => "z6Kj0hecH20CdetSElRT",
-        "jina"     => "sSoVF9lUgTGJz0Xz3J9y",
-        "dohyeon"  => "FQ3MuLxZh0jHcZmA5vW1",
-        "yohankoo" => "4JJwo477JUAx3HV0T7n7",
-        // English
-        "echo"    or "rachel"  => "21m00Tcm4TlvDq8ikWAM",
-        "onyx"    or "antoni"  => "ED0k6LqFEfpMua5GXpMG",
-        "nova"    or "elli"    => "jsCqWAovK2LkecY7zXl4",
-        "shimmer" or "adam"    => "kgG8YXSrynzpPIncHKrx",
-        "fable"   or "dorothy" => "5Q0t7uMcjvnagumLfvZi",
-        _ => fallback
-    };
-}
+// Voice slugs and IDs are resolved by SpeechVoiceResolver: only voices this API offers are used,
+// anything else falls back to the default voice.
 
 static Model ResolveElevenLabsModel(string? configuredModel, Model fallback)
 {
@@ -1107,6 +1095,7 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
         ClaimsPrincipal user,
         [FromServices] ISpeechClipProvider? provider,
         [FromServices] SpeechClipCache clipCache,
+        [FromServices] SpeechVoiceResolver voices,
         [FromServices] ApplicationDbContext db,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken) =>
@@ -1160,7 +1149,7 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             });
         }
 
-        var voiceId = ResolveSpeechVoiceId(request.VoiceId, app.Configuration);
+        var voiceId = await voices.ResolveAsync(request.VoiceId, cancellationToken);
 
         // Clamp VoiceSettings to documented ElevenLabs ranges so callers can't
         // pass NaN / out-of-band values that either error from upstream or

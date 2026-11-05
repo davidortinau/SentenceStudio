@@ -344,7 +344,7 @@ else
         await stream.CopyToAsync(buffer, _audioLifetime.Token);
         if (buffer.Length == 0)
         {
-            // The speech service returns an empty stream when synthesis fails.
+            // The speech service throws when synthesis fails; an empty clip is still not playable.
             Logger.LogWarning("Shadowing speech synthesis returned no audio.");
             return (null, AudioFailedKey);
         }

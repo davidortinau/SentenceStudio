@@ -42,8 +42,8 @@ public sealed class HowDoYouSayPageTests
 
         await harness.DispatchAsync("PlayHistoryItem", synced);
 
-        harness.Speech.Requests.Should().ContainSingle(path => path.EndsWith("/text-to-speech/phone-voice",
-            StringComparison.Ordinal), "the entry's own voice is used, not the selected one");
+        harness.Speech.SynthesisRequests.Should().ContainSingle()
+            .Which.VoiceId.Should().Be("phone-voice", "the entry's own voice is used, not the selected one");
         var row = (await Rows(harness)).Should().ContainSingle("no second entry is added").Which;
         row.Id.Should().Be(synced.Id);
         // The synced entry keeps its path; this device's copy is kept under the entry's own name.

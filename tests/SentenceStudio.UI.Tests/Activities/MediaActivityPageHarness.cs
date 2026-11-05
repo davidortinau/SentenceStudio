@@ -1,7 +1,8 @@
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using ElevenLabs;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
@@ -14,8 +15,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Contracts.Speech;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Timer;
 using SentenceStudio.Shared.Models;
@@ -84,8 +87,10 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         services.AddSingleton<UserProfileRepository>();
         services.AddSingleton<SpeechVoicePreferences>();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-        services.AddSingleton(new ElevenLabsClient(new ElevenLabsAuthentication("test-key"),
-            httpClient: new HttpClient(harness.Speech)));
+        // Speech goes through the API (/api/v1/speech/*); the fake below answers as the API does.
+        services.AddSingleton<ISpeechApiClient>(new SpeechApiClient(harness.Speech.CreateClient()));
+        services.AddSingleton<ITimestampedSpeechApiClient>(
+            new TimestampedSpeechApiClient(harness.Speech.CreateClient()));
         services.AddSingleton<ElevenLabsSpeechService>();
         configure?.Invoke(services);
         harness._services = services.BuildServiceProvider();
@@ -349,12 +354,21 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         public void Dispose() { }
     }
 
-    /// <summary>The ElevenLabs HTTP endpoint: returns <see cref="Audio"/> for each synthesis request.</summary>
+    /// <summary>
+    /// The API's speech endpoint (<c>POST /api/v1/speech/synthesize</c>): answers each request with
+    /// <see cref="Audio"/> as a <c>data:audio/mpeg;base64,</c> URL, or with <see cref="Status"/>.
+    /// </summary>
     public sealed class FakeSpeechHandler : HttpMessageHandler
     {
+        public const string SynthesizePath = "/api/v1/speech/synthesize";
+
         public byte[] Audio { get; set; } = [0x49, 0x44, 0x33, 0x04, 0x00];
+        public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public List<string> Requests { get; } = new();
         public List<string> Bodies { get; } = new();
+
+        public HttpClient CreateClient() =>
+            new(this, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -362,18 +376,26 @@ public sealed class ActivityPageHarness : IAsyncDisposable
             Requests.Add(request.RequestUri?.AbsolutePath ?? string.Empty);
             Bodies.Add(request.Content is null
                 ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            if (Status != HttpStatusCode.OK)
+                return new HttpResponseMessage(Status) { RequestMessage = request };
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new ByteArrayContent(Audio),
+                Content = JsonContent.Create(new SynthesizeResponse
+                {
+                    AudioUrl = "data:audio/mpeg;base64," + Convert.ToBase64String(Audio)
+                }),
                 RequestMessage = request,
             };
-            response.Content.Headers.ContentType = new("audio/mpeg");
-            response.Headers.Add("history-item-id", Guid.NewGuid().ToString("N"));
-            response.Headers.Add("request-id", Guid.NewGuid().ToString("N"));
-            return response;
         }
 
-        public int SynthesisCount => Requests.Count(path => path.Contains("text-to-speech", StringComparison.Ordinal));
+        public int SynthesisCount => Requests.Count(path => path == SynthesizePath);
+
+        /// <summary>The synthesis requests as the API received them.</summary>
+        public List<SynthesizeRequest> SynthesisRequests => Requests
+            .Select((path, i) => (path, body: Bodies[i]))
+            .Where(r => r.path == SynthesizePath)
+            .Select(r => JsonSerializer.Deserialize<SynthesizeRequest>(r.body, JsonSerializerOptions.Web)!)
+            .ToList();
     }
 
     public sealed class ListLogger : ILogger
