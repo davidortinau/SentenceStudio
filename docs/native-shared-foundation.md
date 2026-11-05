@@ -469,6 +469,12 @@ reproduce the crash below; the Release simulator build did). Two failures came f
   values into a local before building the query. `NativeResourceStore.DetailQuery` and the two
   quiz committers do this.
 
+  Upstream: the interpreter's delegate shuffle thunk called `CID_VirtualOpenDelegateDispatch`
+  without its hidden argument (dotnet/runtime#134733); the spin afterwards is #134720. Fixed by
+  dotnet/runtime#134699 (main) and #134751 (release/11.0). The rc.2 runtime we build with
+  (SDK 11.0.100-rc.2.26504.105) predates that backport. Keep the hoists and the guard after
+  moving to a fixed runtime; they also suit NativeAOT's precompiled queries.
+
   `tests/SentenceStudio.Native.Tests/DeviceInterpreterQueryGuard.cs` checks every query the
   native tests run (`NativeSliceFixture` and the tests that build their own contexts). It flags
   any virtual or interface member that EF would evaluate on the client, throws, and records the
