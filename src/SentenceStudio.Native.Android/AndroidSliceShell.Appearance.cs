@@ -96,6 +96,10 @@ internal sealed partial class AndroidSliceShell
         // scale changes once, on release (Captain 2026-11-04, decision A). Applying it per
         // step, as the source's @oninput does, changes the density, and Compose then resets
         // the slider's pointer input, ending the drag after one step.
+        // A slider disabled mid-drag (a save made Settings busy) loses the drag without a
+        // release, so that size was never applied: show the size the app really uses.
+        if (Busy.Value)
+            _textSizePreview = null;
         var shownScale = _textSizePreview ?? selection.FontScale;
         var sizeLabel = string.Format(CultureInfo.CurrentCulture,
             Localize("Settings_TextSizeLabel"),

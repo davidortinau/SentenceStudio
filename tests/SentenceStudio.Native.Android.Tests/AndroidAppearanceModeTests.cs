@@ -48,6 +48,8 @@ public sealed class AndroidAppearanceModeTests
         // input, so a move only previews; onValueChangeFinished (release, key up,
         // accessibility set-progress) applies the app-wide scale and saves it once.
         Assert.Contains("var shownScale = _textSizePreview ?? selection.FontScale;", settings);
+        // Disabled mid-drag (busy), the drag ends without a release: drop the unapplied preview.
+        Assert.Contains("if (Busy.Value)\n            _textSizePreview = null;\n        var shownScale", settings);
         Assert.Contains("(int)Math.Round(shownScale * 100)", settings);
         Assert.Contains("new AndroidReleaseSlider((float)shownScale,", settings);
         Assert.Contains("raw => PreviewTextSize(SettingsInput.SnapFontScale(raw)),\n"
