@@ -711,7 +711,7 @@ before the apps that send deletes.
   they do not reach the server now. Delete such a row again on the web.
 - A row left out of an upload stays left out until it changes on the device.
 - The deletion log has no retention rule yet; rows are small (about 100 bytes plus index).
-  Proposed, not built: a daily job removes log rows older than a year, and at once the rows of
+  Deferred by the Captain (2026-11-04), tracked in issue #216. Proposed, not built: a daily job removes log rows older than a year, and at once the rows of
   an account that no longer exists (account erasure logs every deleted row, and nobody can
   download them). A device offline for longer than a year then misses those deletes and keeps
   the rows (stale, never lost or leaked). Removal by `"Id"` below the first row newer than the
