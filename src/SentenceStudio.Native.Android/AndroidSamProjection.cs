@@ -34,6 +34,13 @@ internal enum AndroidSamStatusAction { Stop, Retry, Recover, ReloadPlan, KeepCha
 /// <summary>Where the Sam entry sits on the current screen.</summary>
 internal enum AndroidSamEntryPlacement { None, Floating, TopBar }
 
+/// <summary>
+/// The screen that shows the floating Sam button; each keeps its own hide-on-scroll
+/// state (<see cref="NativeSamEntryAutoHide"/>). Today's Plan is the Dashboard's own
+/// mode on Android, not a screen of its own, so it shares the Dashboard's.
+/// </summary>
+internal enum AndroidSamFloatingScreen { None, Dashboard, Resources }
+
 internal sealed record AndroidSamStatus(string Message, bool Danger, bool Progress,
     ImmutableArray<AndroidSamStatusAction> Actions);
 
@@ -97,6 +104,43 @@ internal static class AndroidSamProjection
     internal static bool ReviewBlockedByScreen(NativeDestination destination, bool screenOverTab) =>
         destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan
             or NativeDestination.Resources) || screenOverTab;
+
+    /// <summary>Material 3 FloatingActionButton container size.</summary>
+    internal const int FabSizeDp = 56;
+
+    /// <summary>The floating button's distance from the bottom and trailing edges.</summary>
+    internal const int FabMarginDp = 16;
+
+    /// <summary>
+    /// Space after the last card or row of a floating screen (docs/sam-entry.md): the
+    /// button, its margin and a 16 dp gap, so the last item scrolls clear of it.
+    /// </summary>
+    internal const int FloatingBottomRoomDp = FabSizeDp + FabMarginDp + 16;
+
+    /// <summary>The slide-and-fade when the button leaves or returns (docs/sam-entry.md).</summary>
+    internal const int EntryMotionMillis = 200;
+
+    internal static AndroidSamFloatingScreen FloatingScreen(NativeDestination destination,
+        AndroidSamEntryPlacement placement) =>
+        placement != AndroidSamEntryPlacement.Floating ? AndroidSamFloatingScreen.None
+            : destination switch
+            {
+                NativeDestination.Dashboard or NativeDestination.TodaysPlan => AndroidSamFloatingScreen.Dashboard,
+                NativeDestination.Resources => AndroidSamFloatingScreen.Resources,
+                _ => AndroidSamFloatingScreen.None,
+            };
+
+    /// <summary>
+    /// One scroll step for <see cref="NativeSamEntryAutoHide.OnScroll"/>, in dp and positive
+    /// toward the end. Compose's nested scroll reports the content's own movement in
+    /// pixels: scrolling down moves the content up, a negative y, so the sign flips.
+    /// </summary>
+    internal static double ScrollDeltaDp(float previousContentOffsetPx, float contentOffsetPx,
+        float density)
+    {
+        var moved = contentOffsetPx - previousContentOffsetPx;
+        return density > 0f && float.IsFinite(moved) ? -moved / density : 0;
+    }
 
     internal static bool IsEntryVisible(NativeDestination destination, bool preview,
         bool screenOverTab, NativeSamState state) =>

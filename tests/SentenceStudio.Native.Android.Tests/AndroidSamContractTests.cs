@@ -16,6 +16,7 @@ public sealed class AndroidSamContractTests
     [
         "AndroidSliceShell.Sam.cs",
         "AndroidSliceShell.Sam.Compose.cs",
+        "AndroidSliceShell.Sam.Entry.cs",
         "AndroidSliceShell.Sam.Cards.Compose.cs",
         "AndroidSliceShell.Sam.Settings.Compose.cs",
         "AndroidSamProjection.cs",
@@ -91,12 +92,109 @@ public sealed class AndroidSamContractTests
         var compose = Code("AndroidSliceShell.Sam.Compose.cs");
         Assert.Contains("new ModalBottomSheet(onDismissRequest: CloseSam", compose);
         Assert.Contains("new LazyColumn<AndroidSamRow>", compose);
-        Assert.Contains("new ExtendedFloatingActionButton(OpenSam", compose);
+        Assert.Contains("new FloatingActionButton(OpenSam)", compose);
         Assert.Contains("new BackHandler(ToggleSamConversations", compose);
         var wiring = Code("AndroidSliceShell.Sam.cs");
         Assert.Contains("GetRequiredService<NativeSamPresenter>()", wiring);
         Assert.DoesNotContain("ICoachApiClient", wiring + compose);
         Assert.Contains("services.AddOwnerBoundNativeSam(apiUri);", Code("AndroidServiceHost.cs"));
+    }
+
+    /// <summary>
+    /// Captain 2026-11-04: the floating entry is round and shows only Sam's icon, like
+    /// every other icon entry; its accessible name stays "Ask {coach}" (docs/sam-entry.md).
+    /// </summary>
+    [Fact]
+    public void FloatingEntryIsARoundIconOnlyButtonNamedForTheCoach()
+    {
+        var compose = Code("AndroidSliceShell.Sam.Compose.cs");
+        Assert.DoesNotContain("ExtendedFloatingActionButton", compose);
+        var fab = Between(compose, "private ComposableNode RenderSamFab(", "\n    }\n");
+        Assert.Contains("new FloatingActionButton(OpenSam)", fab);
+        Assert.Contains("new Icon(Icons.Default.Face, null)", fab);
+        Assert.DoesNotContain("new Text(", fab);
+        Assert.Contains("Shape = Shape.Circle(),", fab);
+        Assert.Contains("AndroidSamProjection.EntryLabel(", fab);
+        Assert.Contains("semantics.ContentDescription(label);", fab);
+        Assert.Contains("semantics.Role(SemanticsRole.Button);", fab);
+        Assert.Contains(".TestTag(\"native.sam.fab\")", fab);
+        Assert.Contains("ContainerColor = palette.Primary,", fab);
+        Assert.Contains("ContentColor = palette.OnPrimary,", fab);
+    }
+
+    /// <summary>
+    /// The floating button never covers content: it rides the shared rule (scroll,
+    /// keyboard, TalkBack), leaves composition when hidden, and slides and fades.
+    /// </summary>
+    [Fact]
+    public void FloatingEntryFollowsTheSharedHideOnScrollRule()
+    {
+        var compose = Code("AndroidSliceShell.Sam.Compose.cs");
+        var fab = Between(compose, "private ComposableNode RenderSamFab(", "\n    }\n");
+        Assert.Contains("new AnimatedVisibility(entry.IsShown, enter, exit) { fab }", fab);
+        Assert.Contains("entry.SetKeyboardVisible(composer.ImeInsets().AsPaddingValues(composer).Bottom.Value > 0f);", fab);
+        Assert.Contains("entry.OnScroll(0, atStart, atEnd);", fab);
+        Assert.Contains("_ = _samEntryMotion.Value;", fab);
+        Assert.Contains(".ClipToBounds()", fab);
+        var withSam = Between(compose, "private ComposableNode WithSam(", "\n    }\n");
+        Assert.Contains("Modifier.FillMaxSize().NestedScroll(observer)", withSam);
+        Assert.Contains("RenderSamFab(floating, palette)", withSam);
+
+        var entry = Code("AndroidSliceShell.Sam.Entry.cs");
+        // One shared rule per floating screen: Dashboard (with Today's Plan) and Resources.
+        Assert.Equal(2, Regex.Matches(entry, @"readonly NativeSamEntryAutoHide _sam\w+Entry = new\(\);").Count);
+        // C# cannot implement NestedScrollConnection (Kotlin-mangled names, XA4217):
+        // the pinned top app bar behavior observes the scroll and consumes nothing.
+        Assert.DoesNotMatch(@"\b(class|record)\s+\w+[^{;]*INestedScrollConnection", entry);
+        Assert.Contains("composer.PinnedScrollBehavior(offsets)", entry);
+        Assert.Contains("ComposeExtensions.SnapshotFlow(() => offsets.ContentOffset)", entry);
+        Assert.Contains("AndroidSamProjection.ScrollDeltaDp(last, offset, density)", entry);
+        Assert.Contains("SamEntry(floating).Reset();", entry);
+        Assert.Contains("manager.AddTouchExplorationStateChangeListener(listener);", entry);
+        Assert.Contains("manager.RemoveTouchExplorationStateChangeListener(listener);", entry);
+        Assert.Contains("SetSamScreenReader(manager.IsTouchExplorationEnabled);", entry);
+        Assert.Contains("Transitions.SlideOutVertically(height => height,", entry);
+        Assert.Contains("Transitions.FadeOut(0f,", entry);
+        Assert.Contains("Transitions.SlideInVertically(height => height,", entry);
+        Assert.Contains("Transitions.FadeIn(0f,", entry);
+    }
+
+    /// <summary>The Dashboard (with Today's Plan) and Resources leave room after their last item.</summary>
+    [Fact]
+    public void FloatingScreensLeaveRoomForTheButtonAfterTheirLastItem()
+    {
+        var dashboard = Between(Code("AndroidSliceShell.Compose.cs"),
+            "private ComposableNode RenderDashboard(", "\n    }\n");
+        Assert.Contains(".VerticalScroll(_dashboardScroll)", dashboard);
+        Assert.Contains("bottom: SamFloatingBottomRoom(16))", dashboard);
+
+        var resources = Between(Code("AndroidSliceShell.Resources.Compose.cs"),
+            "private ComposableNode RenderResources(", "\n    }\n");
+        Assert.Contains("var room = SamFloatingContentPadding();", resources);
+        Assert.Equal(2, Regex.Matches(resources, @"ContentPadding = room,").Count);
+        Assert.Contains("composer.RememberLazyGridState()", resources);
+        Assert.Contains("composer.RememberLazyListState()", resources);
+        Assert.Equal(2, Regex.Matches(resources, @"State = scroll,").Count);
+        Assert.True(resources.IndexOf("_resourcesListScroll = null;", StringComparison.Ordinal)
+            < resources.IndexOf("EnsureResources()", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Snackbars never sit under or over the floating button: the only snackbar host
+    /// is the activity toast, and every activity uses the top-bar entry, not the FAB.
+    /// </summary>
+    [Fact]
+    public void NoSnackbarSharesAScreenWithTheFloatingButton()
+    {
+        var head = Directory.GetFiles(Root, "*.cs").Select(File.ReadAllText).ToArray();
+        Assert.Single(head, source => source.Contains("new SnackbarHost(", StringComparison.Ordinal));
+        Assert.Contains("new SnackbarHost(", Code("AndroidSliceShell.Messages.Compose.cs"));
+        var shell = Code("AndroidSliceShell.Compose.cs");
+        Assert.Single(Regex.Matches(shell, @"WithActivityToast\("));
+        Assert.Contains("NativeDestination.Activity => WithActivityToast(composer, RenderActivity(palette)),", shell);
+        Assert.Equal(AndroidSamEntryPlacement.TopBar, AndroidSamProjection.EntryPlacement(
+            NativeDestination.Activity, preview: false, screenOverTab: false,
+            new NativeSamState(IsVisible: true)));
     }
 
     [Theory]

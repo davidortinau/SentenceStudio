@@ -278,9 +278,11 @@ internal sealed partial class AndroidSliceShell
         var cards = state.Cards.IsDefault ? [] : state.Cards;
         var viewport = new Column(Arrangement.SpacedBy(8))
         {
+            // The last card scrolls clear of the floating Sam button (docs/sam-entry.md).
             Modifier = Modifier.FillMaxWidth().Weight(1f)
                 .VerticalScroll(_dashboardScroll)
-                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 16)
+                .Padding(start: AndroidVisualTheme.PagePadding, top: 16,
+                    end: AndroidVisualTheme.PagePadding, bottom: SamFloatingBottomRoom(16))
                 .TestTag(NativeAccess.Plan),
         };
 #if DEBUG
