@@ -21,8 +21,7 @@ public sealed class ShadowingPageTests
         await harness.DispatchAsync("SetPlaybackSpeed", 0.6f);
 
         harness.Speech.SynthesisCount.Should().Be(1);
-        harness.Speech.Bodies.Single(body => body.Contains("voice_settings"))
-            .Should().MatchRegex("\"speed\":\\s*1(\\.0)?[,}]", "the clip is synthesized at normal speed");
+        harness.Speech.SynthesisRequests.Single().Speed.Should().Be(1.0f, "the clip is synthesized at normal speed");
         var slow = harness.Audio.Players.Last();
         slow.Rate.Should().Be(0.6);
         slow.Events.Should().ContainInOrder("rate:0.6", "play@0.6");

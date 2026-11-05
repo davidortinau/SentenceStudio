@@ -48,7 +48,9 @@ public static class CoreServiceExtensions
         services.AddSingleton<NameGenerationService>();
         services.AddSingleton<VocabularyQuizPreferences>();
         services.AddSingleton<SpeechVoicePreferences>();
-        services.AddSingleton<IVoiceDiscoveryService, VoiceDiscoveryService>();
+        // Voice lists and speech come from the API as the signed-in learner (AddApiClients); the
+        // hosts hold no ElevenLabs key.
+        services.AddSingleton<IVoiceDiscoveryService, SentenceStudio.Services.Api.ApiVoiceDiscoveryService>();
 
         // Language segmenters
         services.AddSingleton<KoreanLanguageSegmenter>();

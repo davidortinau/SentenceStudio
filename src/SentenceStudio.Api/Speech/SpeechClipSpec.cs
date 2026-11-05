@@ -40,17 +40,40 @@ public sealed record SpeechClipSpec
     /// <summary>The exact text sent to the provider. Learner content: never log it.</summary>
     public required string Text { get; init; }
 
+    /// <summary>The <c>/synthesize</c> stability when a request does not name one.</summary>
+    public const float DefaultSynthesizeStability = 0.75f;
+
+    /// <summary>The <c>/synthesize</c> similarity boost when a request does not name one.</summary>
+    public const float DefaultSynthesizeSimilarityBoost = 0.75f;
+
+    /// <summary>The <c>/synthesize</c> speed when a request does not name one.</summary>
+    public const float DefaultSynthesizeSpeed = 1.0f;
+
     /// <summary>The settings <c>/synthesize</c> has always used.</summary>
-    public static SpeechClipSpec ForSynthesize(string voiceId, string modelId, string text) => new()
+    public static SpeechClipSpec ForSynthesize(string voiceId, string modelId, string text) =>
+        ForSynthesize(voiceId, modelId, text,
+            DefaultSynthesizeStability, DefaultSynthesizeSimilarityBoost, DefaultSynthesizeSpeed);
+
+    /// <summary>
+    /// <c>/synthesize</c> with the voice settings a request names (already validated and clamped).
+    /// Style and speaker boost stay what <c>/synthesize</c> has always sent.
+    /// </summary>
+    public static SpeechClipSpec ForSynthesize(
+        string voiceId,
+        string modelId,
+        string text,
+        float stability,
+        float similarityBoost,
+        float speed) => new()
     {
         Variant = SpeechClipVariant.Synthesize,
         VoiceId = voiceId,
         ModelId = modelId,
-        Stability = 0.75f,
-        SimilarityBoost = 0.75f,
+        Stability = stability,
+        SimilarityBoost = similarityBoost,
         Style = 0f,
         SpeakerBoost = true,
-        Speed = 1.0f,
+        Speed = speed,
         OutputFormat = OutputFormat.MP3_44100_128,
         Text = text
     };

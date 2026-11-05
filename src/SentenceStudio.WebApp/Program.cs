@@ -1,4 +1,3 @@
-using ElevenLabs;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
@@ -245,17 +244,8 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
     });
 }
 
-var elevenLabsKey = builder.Configuration["Settings:ElevenLabsKey"];
-if (string.IsNullOrWhiteSpace(elevenLabsKey))
-{
-    elevenLabsKey = Environment.GetEnvironmentVariable("ElevenLabsKey");
-}
-if (string.IsNullOrWhiteSpace(elevenLabsKey))
-{
-    elevenLabsKey = "not-configured";
-}
-builder.Configuration["Settings:ElevenLabsKey"] = elevenLabsKey;
-builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
+// Speech and voice lists go through the API (/api/v1/speech/*) as the signed-in learner, so the
+// WebApp holds no ElevenLabs key; see ElevenLabsSpeechService and ApiVoiceDiscoveryService.
 
 RegisterSentenceStudioServices(builder.Services);
 

@@ -142,6 +142,20 @@ public static class ServiceCollectionExtentions
         services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+        // Reading's timestamped audio: a long transcript can take minutes on the server (which allows
+        // ElevenLabs five), and every attempt is a paid generation. The standard pipeline's attempt
+        // timeout would abandon a slow-but-valid request and its retry would pay for it again, so
+        // this client has no resilience handlers and the server's own five-minute bound.
+#pragma warning disable EXTEXP0001
+        services.AddHttpClient<ITimestampedSpeechApiClient, TimestampedSpeechApiClient>(client =>
+        {
+            client.BaseAddress = baseUri;
+            client.Timeout = TimeSpan.FromMinutes(5);
+        })
+            .AddHttpMessageHandler<ApiActivityHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
+            .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
         services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
