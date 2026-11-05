@@ -126,7 +126,6 @@ internal sealed partial class AndroidSliceShell
                 break;
             case NativePhase.Ready:
                 ClozeSentence(viewport, state, palette);
-                ClozeInputBar(viewport, state, palette);
                 break;
             default:
                 var empty = state.Phase == NativePhase.Empty;
@@ -138,13 +137,26 @@ internal sealed partial class AndroidSliceShell
                 break;
         }
 
-        return new Column
+        var page = new Column
         {
             Modifier.FillMaxSize().TestTag("native.cloze.page"),
             ScreenHeader(Localize(NativeClozeText.Title), palette,
                 back: true, backAutomationId: NativeClozeAccess.Back),
             viewport,
         };
+        // Source: the activity-input-bar sits outside activity-content, docked at the bottom.
+        if (state.Phase == NativePhase.Ready)
+        {
+            var bar = new Column(Arrangement.SpacedBy(8))
+            {
+                Modifier.FillMaxWidth()
+                    .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8)
+                    .TestTag("native.cloze.input-bar"),
+            };
+            ClozeInputBar(bar, state, palette);
+            page.Add(bar);
+        }
+        return page;
     }
 
     private void ClozeSentence(Column viewport, NativeClozeState state, AndroidVisualPalette palette)
@@ -173,7 +185,7 @@ internal sealed partial class AndroidSliceShell
                 automationId: NativeClozeAccess.Error));
     }
 
-    private void ClozeInputBar(Column viewport, NativeClozeState state, AndroidVisualPalette palette)
+    private void ClozeInputBar(Column bar, NativeClozeState state, AndroidVisualPalette palette)
     {
         var choices = state.InputMode == NativeClozeInputMode.MultipleChoice;
         if (choices && !state.Options.IsDefaultOrEmpty)
@@ -189,7 +201,7 @@ internal sealed partial class AndroidSliceShell
                     row.Add(index < state.Options.Length
                         ? ClozeChoice(state, palette, state.Options[index], index)
                         : new Box { Modifier.Weight(1f) });
-                viewport.Add(row);
+                bar.Add(row);
             }
         }
 
@@ -230,9 +242,9 @@ internal sealed partial class AndroidSliceShell
         };
         go.Add(new Text(goLabel));
         actions.Add(go);
-        viewport.Add(actions);
+        bar.Add(actions);
 
-        viewport.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+        bar.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
         {
             Modifier.FillMaxWidth(),
             ClozeChevron(Icons.AutoMirrored.Default.KeyboardArrowLeft, NativeClozeText.Previous,

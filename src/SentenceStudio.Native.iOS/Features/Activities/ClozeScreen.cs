@@ -85,7 +85,6 @@ internal sealed class ClozeScreen : IActivityScreen
                 break;
             case NativePhase.Ready:
                 items.AddRange(Sentence(state, style, text));
-                items.Add(InputBar(state, style, text));
                 break;
             default:
                 // Empty, Error and Blocked offer only Go Back (source empty state).
@@ -104,8 +103,11 @@ internal sealed class ClozeScreen : IActivityScreen
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.cloze.content");
         content.Spacing = SourceUiLayout.PageGap;
-        return style.Page(Views.Scroll(content)
-            .WithAccessibilityIdentifier(NativeClozeAccess.Screen));
+        // Source: the activity-input-bar sits outside activity-content, docked at the bottom.
+        var page = Views.Scroll(content).WithAccessibilityIdentifier(NativeClozeAccess.Screen);
+        return style.Page(state.Phase == NativePhase.Ready
+            ? Views.BottomInset(page, InputBar(state, style, text))
+            : page);
     }
 
     private static IEnumerable<SwiftView> Sentence(NativeClozeState state, SourceUiStyle style,
@@ -197,7 +199,11 @@ internal sealed class ClozeScreen : IActivityScreen
             .WithAccessibilityIdentifier(NativeClozeAccess.Position);
         rows.Add(Views.HStack(previous, position, next).WithFlexibleWidth());
 
-        var bar = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
+        var bar = Views.VStack(rows.ToArray())
+            .WithPadding(8, gutter, 8, gutter)
+            .WithFlexibleWidth()
+            .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
         bar.Spacing = 8;
         return bar;
     }
