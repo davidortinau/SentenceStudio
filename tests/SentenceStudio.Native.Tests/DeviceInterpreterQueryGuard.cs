@@ -1,4 +1,5 @@
 #pragma warning disable EF1001 // EF internal API; test-only guard.
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,10 @@ namespace SentenceStudio.Native.Tests;
 /// 2026-11-05: <c>db.Database.IsSqlite()</c> in resource detail, and
 /// <c>IReadOnlyList.Count</c> in the quiz commit). Read such values into locals before the query.
 /// See docs/native-shared-foundation.md.
+/// <para>A finding throws, and is also added to the <see cref="QueryGuardFindings"/> registered
+/// in the test's services, so a caller that catches the exception and degrades still fails the
+/// test (<see cref="NativeSliceFixture"/> checks the list when it is disposed). The check is
+/// conservative: it also flags a bare member chain that EF would read by reflection.</para>
 /// </summary>
 internal sealed class DeviceInterpreterQueryGuard(
     IQueryContextFactory queryContextFactory,
@@ -42,15 +47,20 @@ internal sealed class DeviceInterpreterQueryGuard(
     {
         if (ClientDispatchFinder.Find(query) is { } finding)
         {
-            // App code may catch the exception and degrade (an empty card, a null result), so a
-            // finding is also written where a run can collect it: SS_QUERY_GUARD_LOG=<file>.
+            var caller = Environment.StackTrace.Split('\n')
+                .FirstOrDefault(line => line.Contains("SentenceStudio.")
+                    && !line.Contains("DeviceInterpreterQueryGuard."))?.Trim();
+            var record = $"{finding} ({caller})";
+            // App code may catch the exception and degrade (an empty card, a null result).
+            var findings = currentContext.Context.GetService<IDbContextOptions>()
+                .FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider
+                ?.GetService<QueryGuardFindings>();
+            findings?.Add(record);
             if (Environment.GetEnvironmentVariable("SS_QUERY_GUARD_LOG") is { Length: > 0 } log)
                 lock (LogGate)
-                    File.AppendAllText(log, finding + Environment.NewLine + Environment.StackTrace
-                        .Split('\n').FirstOrDefault(line => line.Contains("SentenceStudio.")
-                            && !line.Contains("DeviceInterpreterQueryGuard")) + Environment.NewLine);
+                    File.AppendAllText(log, record + Environment.NewLine);
             throw new InvalidOperationException(
-                "Query evaluates a virtual or interface member on the client, which crashes "
+                "Query evaluates a virtual or interface member on the client, which can crash "
                 + "CoreCLR's iOS interpreter (see docs/native-shared-foundation.md). Read it into "
                 + $"a local before the query: {finding}");
         }
@@ -59,10 +69,27 @@ internal sealed class DeviceInterpreterQueryGuard(
 
     private static readonly object LogGate = new();
 
-    /// <summary>Registers the guard on every <see cref="SentenceStudio.Data.ApplicationDbContext"/>.</summary>
-    public static void Register(IServiceCollection services) =>
+    /// <summary>
+    /// Registers the guard on every <see cref="SentenceStudio.Data.ApplicationDbContext"/> the
+    /// services create, and the <see cref="QueryGuardFindings"/> it reports to.
+    /// </summary>
+    public static void Register(IServiceCollection services, QueryGuardFindings? findings = null)
+    {
+        services.AddSingleton(findings ?? new QueryGuardFindings());
         services.ConfigureDbContext<SentenceStudio.Data.ApplicationDbContext>(options =>
             options.ReplaceService<IQueryCompiler, DeviceInterpreterQueryGuard>());
+    }
+
+    /// <summary>Guards a context a test builds itself. Findings are reported by the throw only.</summary>
+    public static DbContextOptionsBuilder<TContext> Guard<TContext>(
+        DbContextOptionsBuilder<TContext> options) where TContext : DbContext
+    {
+        options.ReplaceService<IQueryCompiler, DeviceInterpreterQueryGuard>();
+        return options;
+    }
+
+    /// <summary>The first finding in <paramref name="query"/>, or null.</summary>
+    internal static string? FindClientDispatch(Expression query) => ClientDispatchFinder.Find(query);
 
     private sealed class ClientDispatchFinder : ExpressionVisitor
     {
@@ -85,8 +112,13 @@ internal sealed class DeviceInterpreterQueryGuard(
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            // DbContext.Set<T>() is a query root: EF recognises it rather than evaluating it.
+            // ids.Contains(x.Id) uses the row, so EF translates it to SQL IN rather than running
+            // it on the client. db.Set<T>() inside a query is exempt on device evidence: DX24 ran
+            // VocabularyProgressRepository.GetVocabSummaryCountsAsync's nested db.Set<T>()
+            // subqueries under the interpreter on 2026-11-05 without a crash.
             if (_finding is null && node.Object is { } instance && !ParameterFinder.Contains(instance)
+                && !(node.Method.Name == nameof(ICollection<int>.Contains)
+                    && node.Arguments.Any(ParameterFinder.Contains))
                 && Dispatches(node.Method)
                 && !(node.Method.Name == nameof(DbContext.Set)
                     && typeof(DbContext).IsAssignableFrom(node.Method.DeclaringType)))
@@ -94,9 +126,11 @@ internal sealed class DeviceInterpreterQueryGuard(
             return base.VisitMethodCall(node);
         }
 
+        // Any virtual method, including final ones (List<T>.Count implements an interface) and
+        // members of sealed types: nothing shows the interpreter binds those without virtual
+        // dispatch, and no current query needs them (checked 2026-11-05).
         private static bool Dispatches(MethodInfo method) =>
-            method.DeclaringType is { IsInterface: true }
-            || method.IsVirtual && !method.IsFinal && method.DeclaringType is { IsSealed: false };
+            method.DeclaringType is { IsInterface: true } || method.IsVirtual;
     }
 
     private sealed class ParameterFinder : ExpressionVisitor
@@ -115,5 +149,22 @@ internal sealed class DeviceInterpreterQueryGuard(
             _found = true;
             return node;
         }
+    }
+}
+
+/// <summary>Query-guard findings for one test's services; see <see cref="DeviceInterpreterQueryGuard"/>.</summary>
+internal sealed class QueryGuardFindings
+{
+    private readonly ConcurrentQueue<string> _items = new();
+
+    public void Add(string finding) => _items.Enqueue(finding);
+
+    /// <summary>Returns the findings so far and clears them.</summary>
+    public IReadOnlyList<string> Drain()
+    {
+        var drained = new List<string>();
+        while (_items.TryDequeue(out var item))
+            drained.Add(item);
+        return drained;
     }
 }

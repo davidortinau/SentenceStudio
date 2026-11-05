@@ -466,8 +466,17 @@ reproduce the crash below; the Release simulator build did). Two failures came f
   for example `db.Database.IsSqlite()` inside a `Select`, is called through an open virtual
   delegate, and CoreCLR's device interpreter crashed on it (`CID_VirtualOpenDelegateDispatch`,
   then a spin in its crash logger). Opening any resource froze the native app on DX24. Read such
-  values into a local before building the query. `NativeResourceStore.DetailQuery` does this, and
-  `NativeResourcePresenterTests` guards it.
+  values into a local before building the query. `NativeResourceStore.DetailQuery` and the two
+  quiz committers do this.
+
+  `tests/SentenceStudio.Native.Tests/DeviceInterpreterQueryGuard.cs` checks every query the
+  native tests run (`NativeSliceFixture` and the tests that build their own contexts). It flags
+  any virtual or interface member that EF would evaluate on the client, throws, and records the
+  finding, so a test still fails when app code catches the exception (the fixture checks the
+  list when it is disposed). Set `SS_QUERY_GUARD_LOG=<file>` to also write findings to a file.
+  It is deliberately strict: it also flags shapes EF reads by reflection, and final virtual
+  members. Exempt: `db.Set<T>()` subqueries (they ran on DX24 under the interpreter) and
+  `collection.Contains(row.Column)` (EF translates it to SQL `IN`).
 
 Verify iOS changes on a Release simulator build, then on a device, before calling them done. NativeAOT, the planned release mode for
 the native iOS head, removes the interpreter from the device.

@@ -427,7 +427,7 @@ internal sealed class VocabularyBrowser : IDisposable
     internal async Task FindDuplicatesAsync()
     {
         if (!_formOpen || !EditState.CanFindDuplicates || _draft is not { } draft
-            || !TryOwner(out var owner))
+            || string.IsNullOrWhiteSpace(draft.TargetTerm) || !TryOwner(out var owner))
             return;
         var term = draft.TargetTerm.Trim();
         var wordId = draft.Id;

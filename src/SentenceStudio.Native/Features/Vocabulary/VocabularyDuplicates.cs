@@ -268,9 +268,12 @@ internal sealed class VocabularyDuplicateFinder
 /// </summary>
 internal static class VocabularyWordCommands
 {
-    /// <summary>Source: an existing word with a target term, not while saving.</summary>
+    /// <summary>
+    /// Source: disabled only while saving; with a blank term the action does nothing
+    /// (OpenDuplicateManager returns), so the enabled state never lags typing.
+    /// </summary>
     internal static bool CanFindDuplicates(bool busy, NativeVocabularyEditDraft? draft) =>
-        !busy && draft is { } current && !string.IsNullOrWhiteSpace(current.TargetTerm);
+        !busy && draft is not null;
 
     /// <summary>
     /// Source Delete is disabled while saving. A word shared with another owner cannot be

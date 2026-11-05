@@ -10,7 +10,12 @@
       <integer>2</integer>
     </array>
     <key>UILaunchScreen</key>
-    <dict/>
+    <dict>
+      <key>UIColorName</key>
+      <string>LaunchBackground</string>
+      <key>UIImageName</key>
+      <string>LaunchLogo</string>
+    </dict>
     <key>UIAppFonts</key>
     <array>
       <string>Fonts/CabinSketch-Bold.ttf</string>

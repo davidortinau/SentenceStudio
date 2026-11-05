@@ -25,26 +25,11 @@ public sealed class NativeResourcePresenterTests
         using var fixture = new NativeSliceFixture();
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var finder = new DatabaseFacadeAccessFinder();
 
-        finder.Visit(NativeResourceStore.DetailQuery(db, NativeSliceFixture.UserA, "resource").Expression);
+        var finding = DeviceInterpreterQueryGuard.FindClientDispatch(
+            NativeResourceStore.DetailQuery(db, NativeSliceFixture.UserA, "resource").Expression);
 
-        Assert.False(finder.Found);
-    }
-
-    private sealed class DatabaseFacadeAccessFinder : System.Linq.Expressions.ExpressionVisitor
-    {
-        public bool Found { get; private set; }
-
-        protected override System.Linq.Expressions.Expression VisitMember(
-            System.Linq.Expressions.MemberExpression node)
-        {
-            if (node.Member.Name == nameof(DbContext.Database)
-                && node.Member.DeclaringType is { } declaring
-                && typeof(DbContext).IsAssignableFrom(declaring))
-                Found = true;
-            return base.VisitMember(node);
-        }
+        Assert.Null(finding);
     }
 
     [Fact]

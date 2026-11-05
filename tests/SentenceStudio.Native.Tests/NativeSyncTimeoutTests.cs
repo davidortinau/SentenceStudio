@@ -301,7 +301,7 @@ public sealed class NativeSyncTimeoutTests
         {
             var database = Path.Combine(Path.GetTempPath(), $"native-timeout-{Guid.NewGuid():N}.sqlite");
             await using (var db = new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>()
+                DeviceInterpreterQueryGuard.Guard(new DbContextOptionsBuilder<ApplicationDbContext>())
                     .UseSqlite($"Data Source={database};Pooling=False").Options))
                 await db.Database.EnsureCreatedAsync();
 
@@ -367,7 +367,7 @@ public sealed class NativeSyncTimeoutTests
         }
 
         private ApplicationDbContext Open() => new(
-            new DbContextOptionsBuilder<ApplicationDbContext>()
+            DeviceInterpreterQueryGuard.Guard(new DbContextOptionsBuilder<ApplicationDbContext>())
                 .UseSqlite($"Data Source={_database};Pooling=False").Options);
 
         public async ValueTask DisposeAsync()

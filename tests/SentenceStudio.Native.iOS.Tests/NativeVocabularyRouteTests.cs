@@ -101,9 +101,16 @@ public sealed class NativeVocabularyRouteTests
             "_vocabularySheet.IsPresented = _app.IsVocabularyFilterPresented;",
             scene);
         Assert.Contains("_vocabularyWordSlot = Views.VStack(", scene);
+        // The editor page sits in its own host, inside the delete confirmation once the word
+        // has loaded, so a re-render never replaces the presenting confirmation.
         Assert.Contains(
-            "Replace(_vocabularyWordSlot, _app.RenderVocabularyWord(_style));",
+            "Replace(_vocabularyWordContent, _app.RenderVocabularyWord(_style));",
             scene);
+        Assert.Contains("Replace(_vocabularyWordSlot, confirmation);", scene);
+        Assert.Contains(
+            "_vocabularyDeleteConfirmation.IsPresented = _app.IsVocabularyDeletePresented;",
+            scene);
+        Assert.DoesNotContain("_vocabularyWordContent.RemoveAt(", scene);
         Assert.Contains("FindFocusedInput(_vocabularyWordSlot)", scene);
         Assert.Contains("input.FocusRequested = true;", scene);
         Assert.DoesNotContain("_vocabularySheet.RemoveAt(", scene);
@@ -112,8 +119,16 @@ public sealed class NativeVocabularyRouteTests
 
         var editor = Source("Features/Vocabulary/VocabularyWordEditView.cs");
         Assert.Contains("return PageContent(fields, style);", editor);
-        Assert.Contains("return Views.Toolbar(PageContent(fields, style), toolbarSave)",
+        Assert.Contains("return Views.Toolbar(PageContent(fields, style), toolbarActions)",
             editor);
+        // Source SecondaryActions at every width: Save, Find Duplicates, Delete.
+        Assert.Contains(
+            "Views.Menu(text(\"More\"), menuSave, menuDuplicates, menuDelete)", editor);
+        // The phone More > Save follows typing like the other Save buttons (one enable rule).
+        Assert.Contains("actions.RegisterMenuSave(menuSave);", editor);
+        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.Contains("RegisterMenuSave: view => _menuSaveButtons.Add(view),", coordinator);
+        Assert.Contains("item.IsEnabled = enabled;", coordinator);
         Assert.Contains("return style.Page(Views.Scroll(content)", editor);
     }
 
