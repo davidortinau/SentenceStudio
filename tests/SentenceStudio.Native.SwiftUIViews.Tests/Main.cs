@@ -5,6 +5,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Lookups;
+using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Shared.Models;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -83,6 +84,88 @@ var cases = new (string Name, Action Test)[]
             Assert(Find(page, RecentLookupsAccess.Notice) is not null);
         }
     }),
+    // docs/sam-entry.md, driven through the facade's SwiftUI report hooks.
+    ("Sam entry: scrolling down 24 points hides it, up 24 brings it back, the ends show it", () =>
+    {
+        var floating = new SamFloatingEntry();
+        using var inset = FloatingPage(out var scroll, out var entry);
+        floating.Bind(inset);
+        Assert(!entry.IsHidden && entry.HideTransition == SwiftHideTransition.SlideDown);
+        scroll.InvokeScrollGeometryChanged(Geometry(-100));
+        Assert(!entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(-80));
+        Assert(!entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(-70));
+        Assert(entry.IsHidden && !floating.IsShown);
+        scroll.InvokeScrollGeometryChanged(Geometry(400));
+        Assert(entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(380));
+        Assert(entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(370));
+        Assert(!entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(600));
+        Assert(entry.IsHidden);
+        // The end (content 2000 - container 800 - top inset 100 = 1100) always shows it.
+        scroll.InvokeScrollGeometryChanged(Geometry(1100));
+        Assert(!entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(800));
+        scroll.InvokeScrollGeometryChanged(Geometry(900));
+        Assert(entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(-100));
+        Assert(!entry.IsHidden);
+        // A page that cannot scroll is at both ends.
+        scroll.InvokeScrollGeometryChanged(new SwiftScrollGeometry(-100, 300, 800, 100, 80));
+        Assert(!entry.IsHidden);
+    }),
+    ("Sam entry: hidden while the keyboard is up, kept while VoiceOver runs", () =>
+    {
+        var floating = new SamFloatingEntry();
+        using var inset = FloatingPage(out var scroll, out var entry);
+        floating.Bind(inset);
+        inset.InvokeKeyboardOverlapChanged(0);
+        Assert(!entry.IsHidden);
+        inset.InvokeKeyboardOverlapChanged(291);
+        Assert(entry.IsHidden);
+        scroll.InvokeScrollGeometryChanged(Geometry(-100));
+        Assert(entry.IsHidden);
+        inset.InvokeKeyboardOverlapChanged(0);
+        Assert(!entry.IsHidden);
+
+        inset.InvokeAccessibilitySettingsChanged(SwiftAccessibilitySettings.VoiceOver);
+        scroll.InvokeScrollGeometryChanged(Geometry(200));
+        scroll.InvokeScrollGeometryChanged(Geometry(300));
+        Assert(!entry.IsHidden);
+        inset.InvokeKeyboardOverlapChanged(291);
+        Assert(entry.IsHidden);
+        inset.InvokeKeyboardOverlapChanged(0);
+        // Reduce Motion alone does not keep it: it changes the motion, not the rule.
+        inset.InvokeAccessibilitySettingsChanged(SwiftAccessibilitySettings.ReduceMotion);
+        scroll.InvokeScrollGeometryChanged(Geometry(330));
+        Assert(entry.IsHidden);
+    }),
+    ("Sam entry: a page built and discarded leaves the mounted page's button alone", () =>
+    {
+        var floating = new SamFloatingEntry();
+        using var mounted = FloatingPage(out var scroll, out var entry);
+        floating.Bind(mounted);
+        scroll.InvokeScrollGeometryChanged(Geometry(200));
+        scroll.InvokeScrollGeometryChanged(Geometry(260));
+        Assert(entry.IsHidden);
+        // The Resources incremental update builds a whole page, then disposes it.
+        var discarded = FloatingPage(out _, out var discardedEntry);
+        floating.Bind(discarded);
+        Assert(discardedEntry.IsHidden);
+        discarded.Dispose();
+        Assert(entry.IsHidden && !floating.IsShown);
+        scroll.InvokeScrollGeometryChanged(Geometry(220));
+        Assert(!entry.IsHidden);
+    }),
+    ("Sam entry: only a bottom inset around a scroll can be bound", () =>
+    {
+        var floating = new SamFloatingEntry();
+        using var page = Views.VStack(Views.Text("Page"));
+        Throws<ArgumentException>(() => floating.Bind(page));
+    }),
 };
 
 var failures = 0;
@@ -120,4 +203,28 @@ static void Assert(bool condition)
 {
     if (!condition)
         throw new Exception("Assertion failed.");
+}
+
+static void Throws<T>(Action action) where T : Exception
+{
+    try
+    {
+        action();
+    }
+    catch (T)
+    {
+        return;
+    }
+    throw new Exception($"Expected {typeof(T).Name}.");
+}
+
+// A Dashboard-shaped page: 2000 points of content, 800 points visible inside 100 points of
+// top inset and the floating button's 80-point bottom inset (SwiftUI containerSize).
+static SwiftScrollGeometry Geometry(double offset) => new(offset, 2000, 800, 100, 80);
+
+static SwiftView FloatingPage(out SwiftView scroll, out SwiftView entry)
+{
+    scroll = Views.Scroll(Views.VStack(Views.Text("Card")));
+    entry = Views.HStack(Views.Button("Ask", () => { }));
+    return Views.BottomInset(scroll, entry);
 }

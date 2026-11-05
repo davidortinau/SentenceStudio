@@ -18,6 +18,7 @@ public sealed class NativeSamContractTests
         "App/ApplicationController.Sam.cs",
         "App/ApplicationScene.Sam.cs",
         "Features/Sam/SamSettingsView.cs",
+        "Features/Sam/SamFloatingEntry.cs",
     ];
 
     [Fact]
@@ -210,6 +211,45 @@ public sealed class NativeSamContractTests
         Assert.Contains("SameBrowserControls(WithoutSamInset(", scene);
         Assert.Contains("Views.BottomInset(style.Page(page), samEntry)",
             Source("Features/LearningResources/LearningResourcesView.cs"));
+    }
+
+    /// <summary>
+    /// docs/sam-entry.md: the floating button on the Dashboard and Resources slides away on
+    /// scroll through the shared rule, from SwiftUI reports only (scroll geometry, keyboard
+    /// safe area, VoiceOver), keeps its room in the bottom inset, and is not tappable or
+    /// announced while away.
+    /// </summary>
+    [Fact]
+    public void FloatingSamEntryHidesOnScrollThroughTheSharedRule()
+    {
+        var controller = Source("App/ApplicationController.Sam.cs");
+        Assert.Contains("private readonly SamFloatingEntry _dashboardSamEntry = new();", controller);
+        Assert.Contains("private readonly SamFloatingEntry _resourcesSamEntry = new();", controller);
+        Assert.Contains("_dashboardSamEntry.Bind(Microsoft.SwiftUI.SwiftUI.BottomInset(page,", controller);
+        Assert.Contains("_resourcesSamEntry.Bind(browser.Children[0]);", controller);
+        Assert.Contains("WithResourcesSamEntry(resources.RenderBrowser(style, ResourcesSamEntry(style)))",
+            Source("App/ApplicationController.cs"));
+
+        var entry = Source("Features/Sam/SamFloatingEntry.cs");
+        // The shared rule decides; the head only feeds it (no copy of its threshold or logic).
+        Assert.Contains("private readonly NativeSamEntryAutoHide _rule = new();", entry);
+        Assert.DoesNotContain("Threshold", entry);
+        Assert.DoesNotContain("24", entry);
+        foreach (var call in new[]
+                 {
+                     "_rule.OnScroll(delta, geometry.IsAtTop, geometry.IsAtBottom);",
+                     "_rule.SetKeyboardVisible(points > 0);",
+                     "_rule.SetScreenReaderRunning(settings.HasFlag(SwiftAccessibilitySettings.VoiceOver));",
+                     "_rule.Reset();",
+                     "inset.Children[0].OnScrollGeometryChanged(binding.Scrolled);",
+                     "inset.OnAppear(binding.Appeared)",
+                     ".OnKeyboardOverlapChanged(binding.KeyboardOverlapChanged)",
+                     ".OnAccessibilitySettingsChanged(binding.AccessibilitySettingsChanged);",
+                     "_entry.WithHidden(hidden, SwiftHideTransition.SlideDown);",
+                 })
+            Assert.Contains(call, entry);
+        // SwiftUI-only: no keyboard notifications or UIKit accessibility queries.
+        Assert.DoesNotMatch(@"UIKeyboard|UIAccessibility|NSNotificationCenter|KeyboardWillShow", entry);
     }
 
     [Fact]

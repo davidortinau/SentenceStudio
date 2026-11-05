@@ -732,8 +732,9 @@ internal sealed partial class ApplicationController : IDisposable
     internal SwiftView RenderResources(SourceUiStyle style)
     {
         EnsureResources();
-        return _resources?.RenderBrowser(style, ResourcesSamEntry(style))
-            ?? Views.Text(Text("Common_Loading"));
+        return _resources is { } resources
+            ? WithResourcesSamEntry(resources.RenderBrowser(style, ResourcesSamEntry(style)))
+            : Views.Text(Text("Common_Loading"));
     }
 
     internal SwiftView RenderResourceForm(SourceUiStyle style) =>

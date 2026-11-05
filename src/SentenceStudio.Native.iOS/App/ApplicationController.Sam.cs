@@ -267,11 +267,19 @@ internal sealed partial class ApplicationController
         });
     }
 
-    /// <summary>Floats the Sam entry over the dashboard's bottom trailing edge, inside the safe area.</summary>
+    /// <summary>Hide on scroll for each floating screen (docs/sam-entry.md): one rule per screen.</summary>
+    private readonly SamFloatingEntry _dashboardSamEntry = new();
+    private readonly SamFloatingEntry _resourcesSamEntry = new();
+
+    /// <summary>
+    /// Floats the Sam entry over the dashboard's bottom trailing edge, inside the safe area. The
+    /// bottom inset leaves the button's room after the last card, and the entry slides away
+    /// while the learner scrolls down.
+    /// </summary>
     private SwiftView WithSamEntry(SwiftView page, SourceUiStyle style) =>
         IsSamEntryVisible && page.Kind == "scroll"
-            ? Microsoft.SwiftUI.SwiftUI.BottomInset(page,
-                SamView.Fab(style, SamState, Text, SamActions.Open))
+            ? _dashboardSamEntry.Bind(Microsoft.SwiftUI.SwiftUI.BottomInset(page,
+                SamView.Fab(style, SamState, Text, SamActions.Open)))
             : page;
 
     /// <summary>The same entry on the Resources tab (source: the FAB is on every authenticated page).</summary>
@@ -279,6 +287,15 @@ internal sealed partial class ApplicationController
         IsSamEntryVisible
             ? SamView.Fab(style, SamState, Text, SamActions.Open, "native.sam.fab.resources")
             : null;
+
+    /// <summary>The Resources browser floats its entry in a bottom inset under the toolbar.</summary>
+    private SwiftView WithResourcesSamEntry(SwiftView browser)
+    {
+        if (browser.Kind == "toolbar" && browser.Children.Count > 0
+            && browser.Children[0].Kind == "bottomInset")
+            _resourcesSamEntry.Bind(browser.Children[0]);
+        return browser;
+    }
 
     internal SwiftView RenderSamStream(SourceUiStyle style) =>
         SamView.Stream(style, SamState, Text, SamActions);
