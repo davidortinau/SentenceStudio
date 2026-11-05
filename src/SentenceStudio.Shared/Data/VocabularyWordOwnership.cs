@@ -83,9 +83,11 @@ public static class VocabularyWordOwnership
         var ownerlessCount = await ownerless.CountAsync(cancellationToken);
         var (stamped, shared) = Plan(links);
         var candidates = stamped.Values.Distinct(StringComparer.Ordinal).ToArray();
-        var notAProfile = DropOwnersWithoutProfile(stamped, await db.UserProfiles.AsNoTracking()
-            .Where(profile => candidates.Contains(profile.Id))
-            .Select(profile => profile.Id).ToListAsync(cancellationToken));
+        var notAProfile = OwnersMustBeProfiles(db, wordIds)
+            ? DropOwnersWithoutProfile(stamped, await db.UserProfiles.AsNoTracking()
+                .Where(profile => candidates.Contains(profile.Id))
+                .Select(profile => profile.Id).ToListAsync(cancellationToken))
+            : 0;
         var sentences = 0;
 
         foreach (var batch in Batches(stamped))
@@ -120,9 +122,11 @@ public static class VocabularyWordOwnership
         var ownerlessCount = ownerless.Count();
         var (stamped, shared) = Plan(links);
         var candidates = stamped.Values.Distinct(StringComparer.Ordinal).ToArray();
-        var notAProfile = DropOwnersWithoutProfile(stamped, db.UserProfiles.AsNoTracking()
-            .Where(profile => candidates.Contains(profile.Id))
-            .Select(profile => profile.Id).ToList());
+        var notAProfile = OwnersMustBeProfiles(db, wordIds)
+            ? DropOwnersWithoutProfile(stamped, db.UserProfiles.AsNoTracking()
+                .Where(profile => candidates.Contains(profile.Id))
+                .Select(profile => profile.Id).ToList())
+            : 0;
         var sentences = 0;
 
         foreach (var batch in Batches(stamped))
@@ -236,6 +240,16 @@ public static class VocabularyWordOwnership
         }
         return (stamped, shared);
     }
+
+    /// <summary>
+    /// Only a profile can own a word. The server checks every planned owner, because progress
+    /// left by deleted accounts exists there. A device's save stamps only words it has just
+    /// created for the signed-in learner, whose profile row can arrive later with the first
+    /// sync, so a device save skips the check. A full backfill checks wherever it runs.
+    /// </summary>
+    private static bool OwnersMustBeProfiles(
+        ApplicationDbContext db, IReadOnlyCollection<string>? wordIds) =>
+        wordIds is null || !db.Database.IsSqlite();
 
     /// <summary>Removes planned stamps whose owner is not an existing profile; returns how many.</summary>
     private static int DropOwnersWithoutProfile(

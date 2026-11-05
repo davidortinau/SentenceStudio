@@ -183,6 +183,9 @@ C1 result:
 4. Once the API, WebApp and Workers all run their new revisions (the old WebApp writes
    ownerless audio rows, so this must wait for it to be replaced), and before any device
    installs (G), run `scripts/assign-legacy-audio-history.sql`.
+   - **Captain re-confirms first.** He has seen the other-account activity counts (see "Open"
+     under the rehearsal) and confirmed again that the rows are his. Without that, skip E4;
+     the rows stay hidden, not deleted.
    - **Count first.** Take a read-only count of the ownerless StreamHistory rows. If it
      differs from the C2 count, report the difference to the Captain. Rows added since the
      dump came from the old web app's audio cache. Use the live count as `expected` only

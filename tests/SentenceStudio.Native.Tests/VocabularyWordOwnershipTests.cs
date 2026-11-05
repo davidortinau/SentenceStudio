@@ -415,6 +415,37 @@ public sealed class VocabularyWordOwnershipTests
     }
 
     /// <summary>
+    /// Review finding (2026-11-05): on Android and MAUI the signed-in learner's profile row
+    /// arrives with the first sync, so a device save still stamps a word it creates with that
+    /// learner's resource, even before the profile row exists locally.
+    /// </summary>
+    [Fact]
+    public async Task OnDevices_NewWordIsStampedEvenBeforeTheProfileRowHasSynced()
+    {
+        using var fixture = new NativeSliceFixture();
+        using (var scope = fixture.Scope())
+        {
+            var db = Db(scope);
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = "resource-pending", UserProfileId = "profile-not-synced-yet",
+                Language = "Korean", MediaType = "Vocabulary List", Title = "Offline list"
+            });
+            await db.SaveChangesAsync();
+            db.VocabularyWords.Add(new VocabularyWord { Id = "new-offline", TargetLanguageTerm = "새", NativeLanguageTerm = "new" });
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = "m-offline", ResourceId = "resource-pending", VocabularyWordId = "new-offline"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using (var check = fixture.Scope())
+            Assert.False(await Db(check).UserProfiles.AnyAsync(profile => profile.Id == "profile-not-synced-yet"));
+        Assert.Equal("profile-not-synced-yet", await OwnerAsync(fixture, "new-offline"));
+    }
+
+    /// <summary>
     /// Review finding (2026-11-05): a sentence whose resource belongs to B keeps B as its
     /// owner even when its word is stamped to A. The word pass skips it; the sentence pass
     /// gives it the resource owner first.
