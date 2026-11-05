@@ -29,6 +29,12 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+    <!-- SQLitePCLRaw 2.1.12 (EF Core 10.0.11's minimum) mixes assembly builds: core is 2.1.12.3116 but
+         provider.internal is 2.1.12.3145 and asks for core 3145. CoreCLR on an iOS device refuses
+         the older core, so the app aborts on its first database open (DX24, 2026-11-05). 2.1.13
+         ships one build (3146) for every assembly. Referenced from SentenceStudio.Shared. -->
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
+    <PackageVersion Include="SQLitePCLRaw.core" Version="2.1.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 

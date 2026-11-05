@@ -63,6 +63,9 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+		<!-- Lifts SQLitePCLRaw to one consistent build for every client; see Directory.Packages.props. -->
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+		<PackageReference Include="SQLitePCLRaw.core" />
 		<!-- Microsoft.Extensions.AI (IChatClient + GetResponseAsync<T>) and the OpenAI client
 		     types used by AiService/AiClient/AiClientRegistration used to arrive transitively
 		     through Microsoft.Agents.AI(.OpenAI). Those preview-era agent packages were removed

@@ -745,7 +745,28 @@ AZURE_FEEDBACKHMACKEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s
   -n feedback-hmac-key --query value -o tsv)" azd deploy -e sstudio-prod-biz --no-prompt
 ```
 
-Without it, `azd deploy` stops with `parameter feedbackhmackey not found`. That happened on
+**Carry the live Sam (Coach) settings into the deploy.** In publish mode the AppHost reads every
+`Coach__*` value only from the deploying shell's environment (`CoachConfigurationReader`), and
+anything missing fails closed: `Coach__Enabled=false`, no allowed profiles, and no Data
+Protection or durable-history settings. On 2026-11-05 a deploy without them turned Sam off for
+everyone. Export the API's current values first, in the same shell, without printing them:
+
+```bash
+eval "$(az containerapp show -g rg-sstudio-prod-biz -n api \
+  --query "properties.template.containers[0].env[?starts_with(name,'Coach__')]" -o json \
+  | python3 -c 'import json,shlex,sys; [print(f"export {e[\"name\"]}={shlex.quote(e[\"value\"])}") for e in json.load(sys.stdin) if "value" in e]')"
+env | grep -c '^Coach__'   # expect 11 since 2026-11-05 (four allow-list entries)
+```
+
+After the deploy, compare the API's `Coach__*` settings with the previous revision's (names and
+values) before calling the deploy done.
+
+The allow-list names profile IDs. After the 2026-10-20 account cleanup the Captain's login
+pointed at a profile that was not on the list, so Sam said "not available on this account"
+until his current profile was added on 2026-11-05 (entry 3). One entry names a profile that no
+longer exists; it is harmless.
+
+Without the feedback key, `azd deploy` stops with `parameter feedbackhmackey not found`. That happened on
 2026-11-05, after the marketing app had already been updated; nothing else changed. The Key
 Vault value matched the API's deployed secret that day.
 
