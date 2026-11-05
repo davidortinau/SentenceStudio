@@ -142,13 +142,14 @@ public static class ServiceCollectionExtentions
         // Speech synthesis is a paid ElevenLabs generation on every attempt the API does not serve
         // from its cache. The standard pipeline (ServiceDefaults) retries 5xx and 408, which would pay
         // for one clip several times, so neither synthesis client has resilience handlers. Each
-        // request is one attempt; the page reports a failure and the learner can play again. Both
-        // keep the server's own five-minute bound (it allows ElevenLabs five).
+        // request is one attempt; the page reports a failure and the learner can play again.
+        // A word or sentence gets two minutes (the per-attempt bound MAUI had before), so a stalled
+        // call frees the play button well before the five minutes Reading's long transcripts need.
 #pragma warning disable EXTEXP0001
         services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client =>
         {
             client.BaseAddress = baseUri;
-            client.Timeout = TimeSpan.FromMinutes(5);
+            client.Timeout = TimeSpan.FromMinutes(2);
         })
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()

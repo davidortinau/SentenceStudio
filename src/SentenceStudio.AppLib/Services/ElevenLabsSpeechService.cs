@@ -53,7 +53,9 @@ public static class Voices
 /// Voices are sent as the pages hold them (an ElevenLabs voice ID or a slug such as
 /// <c>jiyoung</c>); the API resolves them and falls back to its default voice for any voice it does
 /// not offer. Such a clip comes back as a <see cref="SpeechClipStream"/> with
-/// <see cref="SpeechClipStream.VoiceSubstituted"/> set, and is never kept under the requested voice.
+/// <see cref="SpeechClipStream.VoiceSubstituted"/> set, and is never kept under the requested voice;
+/// nor is a clip from an older API that does not say which voice it used
+/// (<see cref="SpeechClipStream.CanCache"/>).
 /// </para>
 /// </remarks>
 public class ElevenLabsSpeechService

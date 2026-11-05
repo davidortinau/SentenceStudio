@@ -21,8 +21,9 @@ public sealed class SynthesizeResponse
 
     /// <summary>
     /// True when the request named a voice and the API used its default voice instead (a voice it
-    /// does not offer, or its account voice list could not be read just then). Null or false: the
-    /// requested voice was used.
+    /// does not offer, or its account voice list could not be read just then). False: the requested
+    /// voice was used. Null (a server older than 2026-11-04): unverified; play the clip but do not
+    /// keep it under the requested voice.
     /// </summary>
     public bool? VoiceSubstituted { get; set; }
 }

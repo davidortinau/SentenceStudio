@@ -57,10 +57,6 @@ public static class TimestampedSpeech
             : TimestampedClipUse.PlayOnly;
     }
 
-    /// <summary>True when the clip may be kept (<see cref="Classify"/> is <see cref="TimestampedClipUse.Keep"/>).</summary>
-    public static bool CanCache(SynthesizeTimestampedResponse response, string transcript) =>
-        Classify(response, transcript) == TimestampedClipUse.Keep;
-
     /// <summary>The API's millisecond character timings as the ElevenLabs characters Reading plays against.</summary>
     public static TimestampedTranscriptCharacter[] ToCharacters(IEnumerable<CharacterTimestamp> characters)
     {

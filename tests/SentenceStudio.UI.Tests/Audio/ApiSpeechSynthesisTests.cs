@@ -387,7 +387,7 @@ public sealed class ApiSpeechSynthesisTests : IDisposable
         (_api.Requests.Count - listAttempts).Should().Be(1, "synthesis is one attempt");
 
         _services.GetRequiredService<IHttpClientFactory>().CreateClient(typeof(ISpeechApiClient).Name)
-            .Timeout.Should().Be(TimeSpan.FromMinutes(5), "the same bound as the server and the Reading client");
+            .Timeout.Should().Be(TimeSpan.FromMinutes(2), "a word or sentence must not hold the play button for Reading's five minutes");
     }
 
     [Fact]

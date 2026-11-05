@@ -310,8 +310,9 @@ Do You Say voice lists come from `GET /api/v1/speech/voices` (`ApiVoiceDiscovery
   (`timestamped_<resource>_<voice>_<speed>.mp3/.json`) records it, so a clip for older text is made
   again. A resource created on the device and not synced yet gets a 404, which the page shows as an
   audio error.
-- **No retries for synthesis.** Each synthesis request is one attempt with a five-minute bound (no
-  resilience pipeline), so one clip is never paid for twice by a client retry. The voice list GET is
+- **No retries for synthesis.** Each synthesis request is one attempt (no resilience pipeline), so
+  one clip is never paid for twice by a client retry. A word or sentence has a two-minute bound;
+  Reading's timestamped request keeps five minutes for long transcripts. The voice list GET is
   idempotent and keeps the standard retries.
 - **Failures** surface on the page: an API refusal throws with its status, and a missing or empty
   clip throws. The old service returned an empty stream instead.

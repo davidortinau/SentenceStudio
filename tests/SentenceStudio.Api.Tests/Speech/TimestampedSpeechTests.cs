@@ -56,7 +56,6 @@ public sealed class TimestampedSpeechTests
         };
 
         TimestampedSpeech.Classify(response, Local).Should().Be(expected);
-        TimestampedSpeech.CanCache(response, Local).Should().Be(expected == TimestampedClipUse.Keep);
     }
 
     [Fact]
