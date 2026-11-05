@@ -71,16 +71,20 @@ internal sealed class DeviceInterpreterQueryGuard(
 
     /// <summary>
     /// Registers the guard on every <see cref="SentenceStudio.Data.ApplicationDbContext"/> the
-    /// services create, and the <see cref="QueryGuardFindings"/> it reports to.
+    /// services create. Findings also go to <paramref name="findings"/>, which the caller must
+    /// check when the test ends (a caught exception would otherwise hide them).
     /// </summary>
-    public static void Register(IServiceCollection services, QueryGuardFindings? findings = null)
+    public static void Register(IServiceCollection services, QueryGuardFindings findings)
     {
-        services.AddSingleton(findings ?? new QueryGuardFindings());
+        services.AddSingleton(findings);
         services.ConfigureDbContext<SentenceStudio.Data.ApplicationDbContext>(options =>
             options.ReplaceService<IQueryCompiler, DeviceInterpreterQueryGuard>());
     }
 
-    /// <summary>Guards a context a test builds itself. Findings are reported by the throw only.</summary>
+    /// <summary>
+    /// Guards a context a test builds itself. Such a context has no application services, so a
+    /// finding is reported by the throw only; app code that catches it hides it.
+    /// </summary>
     public static DbContextOptionsBuilder<TContext> Guard<TContext>(
         DbContextOptionsBuilder<TContext> options) where TContext : DbContext
     {
@@ -93,6 +97,13 @@ internal sealed class DeviceInterpreterQueryGuard(
 
     private sealed class ClientDispatchFinder : ExpressionVisitor
     {
+        // Calls EF translates when an argument uses the row (ids.Contains(x.Id) becomes SQL IN),
+        // so they never run on the client. Other calls that use the row can still be
+        // client-evaluated (a final projection), so they stay flagged.
+        private static readonly HashSet<string> TranslatedWithRow =
+            [nameof(ICollection<int>.Contains), nameof(Equals), nameof(IComparable.CompareTo)];
+
+        private readonly FreeParameters _free = new();
         private string? _finding;
 
         public static string? Find(Expression query)
@@ -104,7 +115,7 @@ internal sealed class DeviceInterpreterQueryGuard(
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (_finding is null && node.Expression is { } instance && !ParameterFinder.Contains(instance)
+            if (_finding is null && node.Expression is { } instance && !_free.Has(instance)
                 && node.Member is PropertyInfo { GetMethod: { } getter } property && Dispatches(getter))
                 _finding = $"{property.DeclaringType?.FullName}.{property.Name} on `{instance}`";
             return base.VisitMember(node);
@@ -112,18 +123,32 @@ internal sealed class DeviceInterpreterQueryGuard(
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            // ids.Contains(x.Id) uses the row, so EF translates it to SQL IN rather than running
-            // it on the client. db.Set<T>() inside a query is exempt on device evidence: DX24 ran
+            // db.Set<T>() inside a query is exempt on device evidence: DX24 ran
             // VocabularyProgressRepository.GetVocabSummaryCountsAsync's nested db.Set<T>()
             // subqueries under the interpreter on 2026-11-05 without a crash.
-            if (_finding is null && node.Object is { } instance && !ParameterFinder.Contains(instance)
-                && !(node.Method.Name == nameof(ICollection<int>.Contains)
-                    && node.Arguments.Any(ParameterFinder.Contains))
+            if (_finding is null && node.Object is { } instance && !_free.Has(instance)
+                && !(TranslatedWithRow.Contains(node.Method.Name) && node.Arguments.Any(_free.Has))
                 && Dispatches(node.Method)
                 && !(node.Method.Name == nameof(DbContext.Set)
                     && typeof(DbContext).IsAssignableFrom(node.Method.DeclaringType)))
                 _finding = $"{node.Method.DeclaringType?.FullName}.{node.Method.Name}() on `{instance}`";
             return base.VisitMethodCall(node);
+        }
+
+        // A captured delegate called inside the query: its Invoke is virtual.
+        protected override Expression VisitInvocation(InvocationExpression node)
+        {
+            if (_finding is null && !_free.Has(node.Expression))
+                _finding = $"delegate invocation of `{node.Expression}`";
+            return base.VisitInvocation(node);
+        }
+
+        // A collection initializer (new HashSet<string> { a, b }) calls a virtual Add.
+        protected override ElementInit VisitElementInit(ElementInit node)
+        {
+            if (_finding is null && Dispatches(node.AddMethod))
+                _finding = $"{node.AddMethod.DeclaringType?.FullName}.{node.AddMethod.Name}() in a collection initializer";
+            return base.VisitElementInit(node);
         }
 
         // Any virtual method, including final ones (List<T>.Count implements an interface) and
@@ -133,21 +158,61 @@ internal sealed class DeviceInterpreterQueryGuard(
             method.DeclaringType is { IsInterface: true } || method.IsVirtual;
     }
 
-    private sealed class ParameterFinder : ExpressionVisitor
+    /// <summary>
+    /// Whether a subtree uses a parameter it does not bind itself (the query's row). A lambda
+    /// inside the subtree binds its own parameters: in <c>ids.Where(i =&gt; i != "").Count()</c>
+    /// nothing is free, so EF evaluates the whole thing on the client.
+    /// </summary>
+    private sealed class FreeParameters
     {
-        private bool _found;
+        private readonly Dictionary<Expression, bool> _cache = new(ReferenceEqualityComparer.Instance);
 
-        public static bool Contains(Expression expression)
+        public bool Has(Expression expression)
         {
-            var finder = new ParameterFinder();
-            finder.Visit(expression);
-            return finder._found;
+            if (!_cache.TryGetValue(expression, out var found))
+                _cache[expression] = found = Walker.Finds(expression);
+            return found;
         }
 
-        protected override Expression VisitParameter(ParameterExpression node)
+        private sealed class Walker : ExpressionVisitor
         {
-            _found = true;
-            return node;
+            private readonly HashSet<ParameterExpression> _bound = [];
+            private bool _found;
+
+            public static bool Finds(Expression expression)
+            {
+                var walker = new Walker();
+                walker.Visit(expression);
+                return walker._found;
+            }
+
+            public override Expression? Visit(Expression? node) => _found ? node : base.Visit(node);
+
+            protected override Expression VisitLambda<T>(Expression<T> node)
+            {
+                var added = node.Parameters.Where(_bound.Add).ToList();
+                Visit(node.Body);
+                foreach (var parameter in added)
+                    _bound.Remove(parameter);
+                return node;
+            }
+
+            protected override Expression VisitBlock(BlockExpression node)
+            {
+                var added = node.Variables.Where(_bound.Add).ToList();
+                foreach (var expression in node.Expressions)
+                    Visit(expression);
+                foreach (var variable in added)
+                    _bound.Remove(variable);
+                return node;
+            }
+
+            protected override Expression VisitParameter(ParameterExpression node)
+            {
+                if (!_bound.Contains(node))
+                    _found = true;
+                return node;
+            }
         }
     }
 }

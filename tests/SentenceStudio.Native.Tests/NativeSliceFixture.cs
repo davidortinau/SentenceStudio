@@ -319,27 +319,37 @@ internal sealed class NativeSliceFixture : IDisposable
 
     public void Dispose()
     {
-        _provider.Dispose();
-        if (_ownerStores)
+        // Read the findings first, so a failed file cleanup cannot hide them.
+        var findings = _queryGuardFindings.Drain();
+        try
         {
-            SqliteConnection.ClearAllPools();
-            Directory.Delete(_directory, recursive: true);
-        }
-        else
-        {
-            foreach (var name in new[] {
-                "native-slice.sqlite", "native-slice.sqlite-wal", "native-slice.sqlite-shm" })
+            _provider.Dispose();
+            if (_ownerStores)
             {
-                var file = Path.Combine(_directory, name);
-                if (File.Exists(file))
-                    File.Delete(file);
+                SqliteConnection.ClearAllPools();
+                Directory.Delete(_directory, recursive: true);
             }
-            Directory.Delete(_directory);
+            else
+            {
+                foreach (var name in new[] {
+                    "native-slice.sqlite", "native-slice.sqlite-wal", "native-slice.sqlite-shm" })
+                {
+                    var file = Path.Combine(_directory, name);
+                    if (File.Exists(file))
+                        File.Delete(file);
+                }
+                Directory.Delete(_directory);
+            }
         }
-        if (_queryGuardFindings.Drain() is { Count: > 0 } findings)
-            throw new InvalidOperationException(
-                "A query evaluates a virtual or interface member on the client (see "
-                + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
+        finally
+        {
+            // A throw here replaces an exception the test is already failing with; the message
+            // names the query, and the test's own failure shows once the query is fixed.
+            if (findings.Count > 0)
+                throw new InvalidOperationException(
+                    "A query evaluates a virtual or interface member on the client (see "
+                    + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
+        }
     }
 
     private SqliteConnection OpenConnection()

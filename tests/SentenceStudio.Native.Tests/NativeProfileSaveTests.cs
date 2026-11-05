@@ -314,13 +314,14 @@ public sealed class NativeProfileSaveTests
         private readonly SqliteConnection _connection = new("Data Source=:memory:");
         private readonly ServiceProvider _services;
         internal DeviceUserScopeProvider Scope { get; } = new();
+        private readonly QueryGuardFindings _queryGuardFindings = new();
 
         private Fixture()
         {
             _connection.Open();
             var services = new ServiceCollection();
             services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
-            DeviceInterpreterQueryGuard.Register(services);
+            DeviceInterpreterQueryGuard.Register(services, _queryGuardFindings);
             services.AddSingleton(Scope);
             services.AddSingleton<ILogger<UserProfileRepository>>(
                 NullLogger<UserProfileRepository>.Instance);
@@ -394,8 +395,13 @@ public sealed class NativeProfileSaveTests
 
         public void Dispose()
         {
+            var findings = _queryGuardFindings.Drain();
             _services.Dispose();
             _connection.Dispose();
+            if (findings.Count > 0)
+                throw new InvalidOperationException(
+                    "A query evaluates a virtual or interface member on the client (see "
+                    + "DeviceInterpreterQueryGuard): " + string.Join("; ", findings));
         }
     }
 }

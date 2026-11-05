@@ -7,17 +7,15 @@ namespace SentenceStudio.Native.Tests;
 
 /// <summary>
 /// Proves <see cref="DeviceInterpreterQueryGuard"/> fires on the two shapes that crashed DX24 on
-/// 2026-11-05, stays quiet on shapes EF translates or that were read into locals, and fails the
-/// test even when app code catches its exception.
+/// 2026-11-05 and on related client-evaluated shapes, stays quiet on shapes EF translates or that
+/// were read into locals, and fails the test even when app code catches its exception.
 /// </summary>
 public sealed class DeviceInterpreterQueryGuardTests
 {
     [Fact]
     public void Flags_TheContextsDatabaseInsideAProjection()
     {
-        using var fixture = new NativeSliceFixture();
-        using var scope = fixture.Scope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        using var db = Context();
 
         var query = db.LearningResources.Select(resource =>
             db.Database.IsSqlite() ? resource.Title : null);
@@ -28,9 +26,7 @@ public sealed class DeviceInterpreterQueryGuardTests
     [Fact]
     public void Flags_AnInterfaceCountInsideAClientEvaluatedCondition()
     {
-        using var fixture = new NativeSliceFixture();
-        using var scope = fixture.Scope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        using var db = Context();
         IReadOnlyList<string> ids = ["resource"];
 
         var query = db.LearningResources.Where(resource =>
@@ -40,17 +36,41 @@ public sealed class DeviceInterpreterQueryGuardTests
     }
 
     [Fact]
-    public void Ignores_ValuesReadIntoLocalsAndCallsThatUseTheRow()
+    public void Flags_ACountOverACapturedSubqueryWithItsOwnLambda()
     {
-        using var fixture = new NativeSliceFixture();
-        using var scope = fixture.Scope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        using var db = Context();
+        List<string> ids = ["resource"];
+
+        // The inner lambda's parameter does not make the subtree depend on the row.
+        var query = db.LearningResources.Where(resource =>
+            ids.Where(id => id != "").ToList().Count == 0 || resource.Id == "resource");
+
+        Assert.Contains("Count", DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
+    }
+
+    [Fact]
+    public void Flags_ACapturedDelegateInvokedInsideTheQuery()
+    {
+        using var db = Context();
+        Func<string> owner = () => "owner";
+
+        var query = db.LearningResources.Where(resource => resource.UserProfileId == owner());
+
+        Assert.Contains("delegate", DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
+    }
+
+    [Fact]
+    public void Ignores_ValuesReadIntoLocalsAndCallsEfTranslatesWithTheRow()
+    {
+        using var db = Context();
         IReadOnlyList<string> ids = ["resource"];
         ICollection<string> selected = ["resource"];
+        var owner = "owner";
         var anyResource = ids.Count == 0;
 
         var query = db.LearningResources.Where(resource =>
             (anyResource || selected.Contains(resource.Id))
+            && owner.Equals(resource.UserProfileId)
             && db.Set<LearningResource>().Any(other => other.Id == resource.Id));
 
         Assert.Null(DeviceInterpreterQueryGuard.FindClientDispatch(query.Expression));
@@ -83,4 +103,9 @@ public sealed class DeviceInterpreterQueryGuardTests
         Assert.Single(findings);
         Assert.Contains("Count", findings[0]);
     }
+
+    // Builds queries for inspection only; nothing is executed, so no database is opened.
+    private static ApplicationDbContext Context() => new(
+        new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite("Data Source=:memory:").Options);
 }

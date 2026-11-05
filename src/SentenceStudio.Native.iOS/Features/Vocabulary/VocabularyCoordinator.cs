@@ -656,11 +656,8 @@ internal sealed class VocabularyCoordinator : IDisposable
     {
         if (_saveAppearance is null)
             return;
-        var enabled = _formOpen && !_saving
-            && _detail is { IsSharedWithAnotherOwner: false }
-            && _draft is { } draft
-            && !string.IsNullOrWhiteSpace(draft.TargetTerm)
-            && !string.IsNullOrWhiteSpace(draft.NativeTerm);
+        var enabled = _formOpen
+            && VocabularyBrowserEdit.CanSaveWord(_saving, _detail, _draft);
         foreach (var button in _saveButtons)
             SourceUiStyle.SetCustomButtonAvailability(button,
                 _saveAppearance, SourceButtonRole.Primary, enabled);
