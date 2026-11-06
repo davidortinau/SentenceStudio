@@ -65,37 +65,14 @@ else
     }
 
     @* Chat messages — scrollable, fills remaining space *@
-    <div id="conversation-thread" class="d-flex flex-column gap-2 flex-grow-1 overflow-auto pb-2" @ref="chatContainer">
+    <div class="d-flex flex-column gap-2 flex-grow-1 overflow-auto pb-2" @ref="chatContainer">
         @foreach (var chunk in chunks)
         {
             var isUser = chunk.Role == ConversationRole.User;
             <div class="d-flex @(isUser ? "justify-content-end" : "justify-content-start")">
                 <div class="card p-3 @(isUser ? "bg-primary bg-opacity-10" : "card-ss")"
                      style="max-width: 75%; border-radius: 16px; @(isUser ? "border-bottom-right-radius: 4px;" : "border-bottom-left-radius: 4px;")">
-                    @if (toolNotes.TryGetValue(chunk, out var notes))
-                    {
-                        @foreach (var note in notes)
-                        {
-                            <div class="ss-caption1 text-secondary-ss mb-1 d-flex align-items-center gap-1" data-testid="voice-tool-note">
-                                <i class="bi bi-journal-check"></i>
-                                <span>@string.Format(Localize["Conversation_VoiceToolNote"], note)</span>
-                            </div>
-                        }
-                    }
-                    @if (voiceChunks.Contains(chunk) && string.IsNullOrEmpty(chunk.Text))
-                    {
-                        <p class="ss-body1 mb-0 text-secondary-ss fst-italic">@Localize["Conversation_VoiceTranscribing"]</p>
-                    }
-                    else
-                    {
-                        <p class="ss-body1 mb-0">
-                            @if (voiceChunks.Contains(chunk))
-                            {
-                                <i class="bi bi-mic-fill me-1 text-secondary-ss" title='@Localize["Conversation_Voice"]'></i>
-                            }
-                            @chunk.Text
-                        </p>
-                    }
+                    <p class="ss-body1 mb-0">@chunk.Text</p>
 
                     @if (chunk.GrammarCorrections?.Any() == true)
                     {
@@ -123,7 +100,7 @@ else
                         </div>
                     }
 
-                    @if (!isUser && !voiceChunks.Contains(chunk))
+                    @if (!isUser)
                     {
                         <button class="btn btn-sm btn-link p-0 mt-1 text-start" @onclick="() => PlayChunkAudio(chunk)">
                             <i class="bi bi-volume-up me-1"></i> @Localize["Conversation_Listen"]
@@ -160,30 +137,6 @@ else
 
     @* Input area — anchored to bottom *@
     <div class="card card-ss p-3 flex-shrink-0 mt-auto" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;">
-        @if (IsVoiceOn)
-        {
-            <div class="d-flex align-items-center gap-3" data-testid="voice-panel" role="status" aria-live="polite">
-                @if (voiceState == VoiceState.Connecting)
-                {
-                    <div class="spinner-border spinner-border-sm text-primary" role="presentation"></div>
-                }
-                else
-                {
-                    <i class="bi @(voiceState == VoiceState.PartnerSpeaking ? "bi-volume-up-fill" : "bi-mic-fill") fs-4 text-primary"></i>
-                }
-                <div class="flex-grow-1">
-                    <div class="ss-body1" data-testid="voice-status">@VoiceStatusText</div>
-                    <div class="progress mt-1" style="height: 4px;" aria-hidden="true">
-                        <div class="progress-bar" style="width: @(voiceState == VoiceState.Listening ? Math.Min(100, (int)(micLevel * 400)) : 0)%;"></div>
-                    </div>
-                </div>
-                <button class="btn btn-ss-secondary text-nowrap" @onclick="ToggleVoice" data-testid="voice-stop">
-                    <i class="bi bi-stop-fill me-1"></i>@Localize["Conversation_VoiceEnd"]
-                </button>
-            </div>
-        }
-        else
-        {
         @if (showQuickPhrases)
         {
             <div class="d-flex flex-wrap gap-2 mb-2">
@@ -205,20 +158,11 @@ else
                     title='@Localize["NativeConversation_QuickPhrases"]' aria-label='@Localize["NativeConversation_QuickPhrases"]' disabled="@isWaitingForReply">
                 <i class="bi bi-chat-quote"></i>
             </button>
-            @if (voiceAvailable)
-            {
-                <button class="btn btn-ss-secondary btn-sm px-2 text-nowrap" @onclick="ToggleVoice"
-                        title='@Localize["Conversation_VoiceStart"]' aria-label='@Localize["Conversation_VoiceStart"]'
-                        disabled="@(isWaitingForReply || isBusy || !conversationReady)" data-testid="voice-start">
-                    <i class="bi bi-mic"></i><span class="d-none d-md-inline ms-1">@Localize["Conversation_Voice"]</span>
-                </button>
-            }
             <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
                     disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
                 @Localize["Conversation_Send"]
             </button>
         </div>
-        }
     </div>
 }
 </div>
@@ -313,7 +257,6 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        InitializeVoice();
         Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Conversation", PlanItemId, ResourceIdParam, SkillIdParam);
@@ -352,11 +295,6 @@ else
             Logger.LogError(ex, "Failed to initialize conversation");
             Toast.ShowError(Localize["NativeConversation_LoadFailed"]);
         }
-        finally
-        {
-            // Voice waits for the persona, scenarios, and vocabulary it depends on.
-            conversationReady = true;
-        }
     }
 
     private async Task ChangeLanguage(string language)
@@ -369,11 +307,6 @@ else
 
     private async Task StartConversation()
     {
-        if (IsVoiceOn)
-        {
-            await StopVoiceAsync();
-        }
-
         await StopAudioAsync();
         if (_disposed) return;
 
@@ -685,14 +618,6 @@ else
         _disposed = true;
         try
         {
-            await DisposeVoiceAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to stop voice mode during disposal");
-        }
-        try
-        {
             Localize.CultureChanged -= OnCultureChanged;
         }
         finally
@@ -752,10 +677,9 @@ else
         }
     }
 
-    private async Task GoBack()
+    private void GoBack()
     {
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
-        await StopVoiceAsync();
         NavManager.NavigateTo("/");
     }
 }

@@ -167,12 +167,6 @@ public static class ServiceCollectionExtentions
             .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
             .RemoveAllResilienceHandlers();
-        // Mints a short-lived realtime client secret for device-side voice sessions. Not retried:
-        // each secret is single-purpose, so a retry only burns the per-learner issuance budget.
-        services.AddHttpClient<IRealtimeApiClient, RealtimeApiClient>(client => client.BaseAddress = baseUri)
-            .AddHttpMessageHandler<ApiActivityHandler>()
-            .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
-            .RemoveAllResilienceHandlers();
 #pragma warning restore EXTEXP0001
         services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri)
             .AddHttpMessageHandler<ApiActivityHandler>()

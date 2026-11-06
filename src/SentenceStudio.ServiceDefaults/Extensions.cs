@@ -78,9 +78,6 @@ public static class Extensions
                     // Learning Coach spans. Name must match SentenceStudio.Api's
                     // CoachTelemetry.ActivitySourceName; CoachTelemetryNameContractTests pins it.
                     .AddSource(CoachTelemetryNames.ActivitySourceName)
-                    // Microsoft.Extensions.AI GenAI spans, emitted by UseOpenTelemetry() on AI clients
-                    // (currently the Conversation voice mode's realtime client).
-                    .AddSource("Experimental.Microsoft.Extensions.AI")
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();

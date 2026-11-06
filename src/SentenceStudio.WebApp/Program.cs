@@ -12,7 +12,6 @@ using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
-using SentenceStudio.Services.Realtime;
 using SentenceStudio.Services.Theme;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.WebApp.Auth;
@@ -243,14 +242,6 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
         };
         return new AzureOpenAIClient(new Uri(azureEndpoint), new DefaultAzureCredential(), options);
     });
-
-    // Realtime voice for the Conversation activity. Interactive Server components run here, so the
-    // realtime session and its Entra token stay on the server; the browser only streams audio.
-    // A token is fetched per session because tokens expire and sessions are long-lived websockets.
-    var realtimeCredential = new DefaultAzureCredential();
-    builder.Services.AddRealtimeVoice(builder.Configuration, async (_, ct) =>
-        (await realtimeCredential.GetTokenAsync(
-            new Azure.Core.TokenRequestContext(["https://cognitiveservices.azure.com/.default"]), ct)).Token);
 }
 
 // Speech and voice lists go through the API (/api/v1/speech/*) as the signed-in learner, so the
@@ -350,8 +341,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// The Conversation activity's voice mode captures the microphone on this origin only.
-app.UseSecurityHeaders("camera=(), microphone=(self), geolocation=()");
+app.UseSecurityHeaders();
 // Apply request localization BEFORE static assets / auth / routing so all downstream
 // components see the correct CurrentUICulture.
 app.UseRequestLocalization();
