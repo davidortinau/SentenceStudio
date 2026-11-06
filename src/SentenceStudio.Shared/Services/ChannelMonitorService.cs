@@ -113,7 +113,8 @@ public class ChannelMonitorService
     /// Resolve a channel URL/handle into full metadata via YoutubeExplode.
     /// Returns (success, errorMessage) so callers can surface failures.
     /// </summary>
-    public async Task<(bool Success, string? Error)> ResolveChannelMetadataAsync(MonitoredChannel channel)
+    public async Task<(bool Success, string? Error)> ResolveChannelMetadataAsync(MonitoredChannel channel,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -129,17 +130,17 @@ public class ChannelMonitorService
                 // Strip any trailing path segments (e.g. /@handle/videos)
                 var slashIdx = handle.IndexOf('/');
                 if (slashIdx > 0) handle = handle[..slashIdx];
-                ytChannel = await _youtube.Channels.GetByHandleAsync(handle);
+                ytChannel = await _youtube.Channels.GetByHandleAsync(handle, cancellationToken);
             }
             else if (url.Contains("/channel/"))
             {
                 var channelId = ChannelId.Parse(url);
-                ytChannel = await _youtube.Channels.GetAsync(channelId);
+                ytChannel = await _youtube.Channels.GetAsync(channelId, cancellationToken);
             }
             else
             {
                 // Try as a slug or custom URL
-                ytChannel = await _youtube.Channels.GetBySlugAsync(url.Split('/').Last());
+                ytChannel = await _youtube.Channels.GetBySlugAsync(url.Split('/').Last(), cancellationToken);
             }
 
             channel.ChannelName = ytChannel.Title;
@@ -148,6 +149,11 @@ public class ChannelMonitorService
 
             _logger.LogInformation("Resolved channel: {Name} ({Id})", ytChannel.Title, ytChannel.Id);
             return (true, null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller left: not a resolution failure.
+            throw;
         }
         catch (Exception ex)
         {
@@ -161,7 +167,8 @@ public class ChannelMonitorService
     /// </summary>
     public async Task<List<(string VideoId, string Title, string Url)>> GetRecentVideosAsync(
         MonitoredChannel channel,
-        int maxResults = 20)
+        int maxResults = 20,
+        CancellationToken cancellationToken = default)
     {
         var results = new List<(string, string, string)>();
 
@@ -170,7 +177,7 @@ public class ChannelMonitorService
             var channelId = new ChannelId(channel.YouTubeChannelId
                 ?? throw new InvalidOperationException("Channel has no YouTube ID"));
 
-            await foreach (var video in _youtube.Channels.GetUploadsAsync(channelId))
+            await foreach (var video in _youtube.Channels.GetUploadsAsync(channelId, cancellationToken))
             {
                 // Skip Shorts (≤60s duration) — they're unsupported (no transcripts)
                 if (video.Duration.HasValue && video.Duration.Value.TotalSeconds <= 60)
@@ -185,8 +192,13 @@ public class ChannelMonitorService
                     break;
 
                 // Small delay to avoid hammering YouTube
-                await Task.Delay(200);
+                await Task.Delay(200, cancellationToken);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller left: no partial list.
+            throw;
         }
         catch (Exception ex)
         {

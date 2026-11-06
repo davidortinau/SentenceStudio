@@ -127,7 +127,8 @@ internal sealed class VocabularyWordCleanup
     /// Source OpenDuplicateManager: leaves the editor (its draft is discarded, as the source
     /// navigates away) for the list's duplicate manager, focused on the draft's term and this word.
     /// An editor hosted outside the Vocabulary page hands the term and word to
-    /// <paramref name="elsewhere"/>, which opens that page's manager instead.
+    /// <paramref name="elsewhere"/>, which opens that page's manager instead; the editor stays
+    /// open, so a handoff that fails leaves it as it was (the host releases it on success).
     /// </summary>
     internal async Task FindDuplicatesAsync(Action<string, string>? elsewhere = null)
     {
@@ -140,13 +141,13 @@ internal sealed class VocabularyWordCleanup
         var term = draft.TargetTerm.Trim();
         var wordId = draft.Id;
         ResetDelete();
-        _host.LeaveWord();
-        _host.PublishChanges(list: true, form: true);
         if (elsewhere is not null)
         {
             elsewhere(term, wordId);
             return;
         }
+        _host.LeaveWord();
+        _host.PublishChanges(list: true, form: true);
         await _duplicates.OpenAsync(owner, term, wordId, _host.Lifetime);
     }
 

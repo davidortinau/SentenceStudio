@@ -44,6 +44,13 @@ public sealed class UiSpeechClipCache(
     public const string DirectoryName = "AudioCache";
     public const long MaxAudioBytes = 8 * 1024 * 1024;
 
+    // A request for the owner's phrase in a voice that arrives while the same clip is being made
+    // waits for it instead of synthesizing and storing it a second time (Play, then Use in a
+    // sentence and Cancel, then Play again). An entry leaves the map before its result is
+    // published, so a failed or cancelled request is never handed to a later one.
+    private readonly object _inFlightGate = new();
+    private readonly Dictionary<(string Owner, string Phrase, string Voice), Task<UiSpeechClip>> _inFlight = new();
+
     /// <summary>The cached clip's path under today's AudioCache, or null when absent, empty, too large or outside it.</summary>
     public static string? Resolve(string? appDataDirectory, string? storedPath, long maxBytes = MaxAudioBytes)
     {
@@ -83,7 +90,8 @@ public sealed class UiSpeechClipCache(
     /// The owner's clip of <paramref name="phrase"/> in <paramref name="voiceId"/>:
     /// the cached clip when this device has it, else synthesized (when online)
     /// and cached. Offline when there is no cached clip and no connection;
-    /// Failed when synthesis returns no audio.
+    /// Failed when synthesis returns no audio. A request for a clip this cache is already
+    /// making for the same owner shares that request.
     /// </summary>
     public async Task<UiSpeechClip> GetOrCreateAsync(
         string phrase,
@@ -97,6 +105,82 @@ public sealed class UiSpeechClipCache(
         ArgumentNullException.ThrowIfNull(synthesize);
         cancellationToken.ThrowIfCancellationRequested();
 
+        // With no active learner nothing is shared (and the repository stores nothing).
+        var owner = history.ActiveOwnerId();
+        if (string.IsNullOrWhiteSpace(owner))
+            return await GetOrCreateCoreAsync(phrase, voiceId, isOnline, filePrefix, synthesize, cancellationToken);
+
+        var key = (owner, phrase, voiceId ?? string.Empty);
+        while (true)
+        {
+            TaskCompletionSource<UiSpeechClip>? making = null;
+            Task<UiSpeechClip>? shared;
+            lock (_inFlightGate)
+            {
+                if (!_inFlight.TryGetValue(key, out shared))
+                {
+                    making = new TaskCompletionSource<UiSpeechClip>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    shared = making.Task;
+                    _inFlight[key] = shared;
+                }
+            }
+
+            if (making is null)
+            {
+                try
+                {
+                    return await shared.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // The request this one joined was cancelled by its own caller: make it here.
+                    continue;
+                }
+            }
+
+            try
+            {
+                var clip = await GetOrCreateCoreAsync(phrase, voiceId, isOnline, filePrefix, synthesize,
+                    cancellationToken);
+                Finish(key, making);
+                making.SetResult(clip);
+                return clip;
+            }
+            catch (Exception ex)
+            {
+                Finish(key, making);
+                if (ex is OperationCanceledException canceled)
+                {
+                    making.SetCanceled(canceled.CancellationToken);
+                }
+                else
+                {
+                    making.SetException(ex);
+                    // Observed here: a request that joined rethrows it; nothing else waits on it.
+                    _ = making.Task.Exception;
+                }
+                throw;
+            }
+        }
+    }
+
+    private void Finish((string Owner, string Phrase, string Voice) key, TaskCompletionSource<UiSpeechClip> making)
+    {
+        lock (_inFlightGate)
+        {
+            if (_inFlight.TryGetValue(key, out var current) && ReferenceEquals(current, making.Task))
+                _inFlight.Remove(key);
+        }
+    }
+
+    private async Task<UiSpeechClip> GetOrCreateCoreAsync(
+        string phrase,
+        string voiceId,
+        bool isOnline,
+        string filePrefix,
+        Func<string, CancellationToken, Task<Stream>> synthesize,
+        CancellationToken cancellationToken)
+    {
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(phrase, voiceId);
         if (cached is not null && await ReadEntryAsync(cached, cancellationToken) is { } audio)
             return new UiSpeechClip(UiSpeechClipStatus.Ready, audio, cached);

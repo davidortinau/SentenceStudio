@@ -385,6 +385,7 @@ public sealed class ImportContentCoordinator : IDisposable
             {
                 RowNumber = row.RowNumber,
                 TargetLanguageTerm = row.TargetLanguageTerm,
+                ParsedTargetLanguageTerm = row.ParsedTargetLanguageTerm,
                 NativeLanguageTerm = row.NativeLanguageTerm,
                 Status = row.Status,
                 Error = row.Error,
@@ -676,7 +677,9 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestTranscript = _harvestTranscript,
                 HarvestSentences = _harvestSentences,
                 HarvestPhrases = _harvestPhrases,
-                HarvestWords = _harvestWords
+                HarvestWords = _harvestWords,
+                // The learner reviewed (and could edit) these rows (B72).
+                ReviewedByLearner = true
             };
             // The commit is one database transaction: it is not cancelled by leaving the page.
             var committed = await OffUiAsync(() => _import.CommitAsync(owner, commit, CancellationToken.None));

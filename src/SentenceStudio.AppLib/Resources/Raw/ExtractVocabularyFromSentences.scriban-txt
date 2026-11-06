@@ -176,9 +176,7 @@ Should produce just one entry:
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "topikLevel": 3,
       "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
-      "relatedTerms": ["constituent1", "constituent2"],
-      "exampleSentence": "The input sentence this entry was taken from, copied exactly (empty for Sentence entries)",
-      "exampleSentenceTranslation": "{{ native_language }} translation of exampleSentence"
+      "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
 }
@@ -191,7 +189,7 @@ Should produce just one entry:
 - Phrase and Word entries use dictionary form as usual.
 - Phrase entries MUST have relatedTerms populated with constituent words.
 - Word entries should have relatedTerms as an empty array.
-- For every Word, Phrase or Idiom entry, set exampleSentence to the one input sentence it was taken from, copied exactly as written (only that sentence when a line holds several), and exampleSentenceTranslation to its {{ native_language }} translation (the given translation when the input has one). The learner keeps that sentence as the word's example.
+- Example sentence: when a Word, Phrase or Idiom entry comes from a {{ target_language }} sentence in the input, give that sentence as its exampleSentence, copied exactly as written (only that one sentence when a line holds several), and its {{ native_language }} translation as exampleSentenceTranslation (the given translation when the input has one). The learner keeps both on the word; the sentence alone (never its translation) is shown as a quiz hint, so the sentence itself must not contain the entry's meaning. Give no example when the entry did not come from a {{ target_language }} sentence: a word-list line, a line that pairs a term with its translation (such as "사과 - apple"), a line in {{ native_language }} or in mixed languages, or a Sentence entry (it is the sentence itself).
 - Be permissive: extract generously, flag uncertainty via confidence rather than dropping items.
 - Never invent terms that don't appear (directly or as conjugations) in the source text.
 - Do NOT include proper nouns (person names, place names) unless they are culturally significant vocabulary.

@@ -32,9 +32,12 @@ public class VideoImportException : Exception
 /// </summary>
 public interface IYouTubeImportService
 {
-    Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl);
-    Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl);
-    Task<string> DownloadTranscriptTextAsync(TranscriptTrack track);
+    Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl,
+        CancellationToken cancellationToken = default);
+    Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl,
+        CancellationToken cancellationToken = default);
+    Task<string> DownloadTranscriptTextAsync(TranscriptTrack track,
+        CancellationToken cancellationToken = default);
     Task<StreamHistory> ExtractAudioClipAsync(string videoUrl, double startTime, double duration);
 }
 
@@ -120,12 +123,13 @@ public class YouTubeImportService : IYouTubeImportService
     }
 
     /// <inheritdoc />
-    public async Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl)
+    public async Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             var videoId = YoutubeExplode.Videos.VideoId.Parse(videoUrl);
-            var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoId);
+            var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoId, cancellationToken);
 
             var tracks = new List<TranscriptTrack>();
             foreach (var trackInfo in trackManifest.Tracks)
@@ -164,11 +168,12 @@ public class YouTubeImportService : IYouTubeImportService
     }
 
     /// <inheritdoc />
-    public async Task<string> DownloadTranscriptTextAsync(TranscriptTrack track)
+    public async Task<string> DownloadTranscriptTextAsync(TranscriptTrack track,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var closedCaptionTrack = await _youtubeClient.Videos.ClosedCaptions.GetAsync(track.TrackInfo);
+            var closedCaptionTrack = await _youtubeClient.Videos.ClosedCaptions.GetAsync(track.TrackInfo, cancellationToken);
 
             var transcriptBuilder = new System.Text.StringBuilder();
             foreach (var caption in closedCaptionTrack.Captions)
@@ -201,12 +206,13 @@ public class YouTubeImportService : IYouTubeImportService
     }
 
     /// <inheritdoc />
-    public async Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl)
+    public async Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             var videoId = YoutubeExplode.Videos.VideoId.Parse(videoUrl);
-            return await _youtubeClient.Videos.GetAsync(videoId);
+            return await _youtubeClient.Videos.GetAsync(videoId, cancellationToken);
         }
         catch (OperationCanceledException) { throw; }
         catch (VideoImportException) { throw; }

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Native.Adapters;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
@@ -379,6 +380,57 @@ public sealed class NativeShadowingPresenterTests
             (await speech.GetAsync(NativeSliceFixture.UserA, "안녕하세요 여러분", "Korean", default)).Status);
         // Task-owned scratch: the fixture removes only its own database files.
         Directory.Delete(directory, recursive: true);
+    }
+
+    [Fact]
+    public async Task Speech_ACallerThatLeftDuringSynthesis_CachesNothing()
+    {
+        // The cache write belongs to the caller's operation: a clip that arrives after Back (or
+        // a disposed presenter) is not written, so nothing outlives the page in the app's folder.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        var provider = fixture.Provider;
+        var history = new StreamHistoryRepository(provider,
+            NullLogger<StreamHistoryRepository>.Instance);
+        using var leaving = new CancellationTokenSource();
+        var speech = new NativeShadowingSpeech(
+            provider.GetRequiredService<NativeActivityOwner>(),
+            provider.GetRequiredService<SentenceStudio.Abstractions.IConnectivityService>(),
+            provider.GetRequiredService<SentenceStudio.Abstractions.IFileSystemService>(),
+            provider.GetRequiredService<SentenceStudio.Services.SpeechVoicePreferences>(),
+            history, NullLogger<NativeShadowingSpeech>.Instance,
+            new LeavesDuringSynthesis(leaving), new ScratchSignedIn());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            speech.GetAsync(NativeSliceFixture.UserA, "안녕하세요 여러분", "Korean", leaving.Token));
+
+        Assert.False(Directory.Exists(Path.Combine(fixture.Root, "AudioCache")));
+        var voice = provider.GetRequiredService<SentenceStudio.Services.SpeechVoicePreferences>()
+            .GetVoiceForLanguage("Korean");
+        Assert.Null(await history.GetStreamHistoryByPhraseAndVoiceAsync("안녕하세요 여러분", voice));
+    }
+
+    /// <summary>The learner leaves while the clip is synthesized; the clip still arrives.</summary>
+    private sealed class LeavesDuringSynthesis(CancellationTokenSource leaving) : INativeQuizSpeechSource
+    {
+        public Task<Stream?> SynthesizeAsync(
+            string owner, string promptText, string voiceId, CancellationToken cancellationToken)
+        {
+            leaving.Cancel();
+            return Task.FromResult<Stream?>(new IgnoresCancellation([1, 2, 3]));
+        }
+
+        public Task<IReadOnlyList<NativeQuizVoice>> GetVoicesAsync(
+            string owner, string language, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<NativeQuizVoice>>([]);
+    }
+
+    /// <summary>A response body already in memory (reading it is not cut short).</summary>
+    private sealed class IgnoresCancellation(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            base.ReadAsync(buffer, CancellationToken.None);
     }
 
     private static (NativeShadowingPresenter Presenter, ScratchShadowingSpeech Speech, ScratchShadowingPlayer Player)

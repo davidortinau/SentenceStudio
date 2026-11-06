@@ -82,10 +82,18 @@ public static class ChannelEndpoints
         if (existing.UserProfileId != userProfileId)
             return Results.Forbid();
 
-        request.Id = id;
-        request.UserProfileId = userProfileId;
-        await channelService.UpdateAsync(request);
-        return Results.Ok(request);
+        // Only the editable fields come from the body; the id, owner, CreatedAt and LastCheckedAt
+        // stay the stored row's (the model keeps CreatedAt out of JSON, so saving the body itself
+        // reset it).
+        existing.ChannelUrl = request.ChannelUrl;
+        existing.ChannelName = request.ChannelName;
+        existing.ChannelHandle = request.ChannelHandle;
+        existing.YouTubeChannelId = request.YouTubeChannelId;
+        existing.Language = request.Language;
+        existing.CheckIntervalHours = request.CheckIntervalHours;
+        existing.IsActive = request.IsActive;
+        await channelService.UpdateAsync(existing);
+        return Results.Ok(existing);
     }
 
     private static async Task<IResult> DeleteChannel(

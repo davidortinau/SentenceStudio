@@ -132,6 +132,7 @@ public sealed class NativeServices : IDisposable
             services.AddOwnerBoundNativeSyncResend(endpoint);
             services.AddOwnerBoundNativeSentenceGrader(endpoint);
             services.AddOwnerBoundNativeSam(endpoint);
+            services.AddOwnerBoundNativeYouTubeApi(endpoint);
         }
 
         services.AddTransient<INativeShadowingPlayer, NativeShadowingPlayer>();

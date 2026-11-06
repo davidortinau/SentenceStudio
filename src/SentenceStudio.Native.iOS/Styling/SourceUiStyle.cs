@@ -180,8 +180,10 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
 
     /// <summary>A source-styled button with a custom (icon or icon+text) label.</summary>
     internal SwiftView LabelButton(SwiftView label, Action action, SourceButtonRole role,
-        double? horizontalPadding = null) =>
-        SourceButton(label, action, role, horizontalPadding: horizontalPadding);
+        double? horizontalPadding = null, bool fullWidth = false,
+        SourceButtonGroupPosition groupPosition = SourceButtonGroupPosition.None) =>
+        SourceButton(label, action, role, fullWidth: fullWidth,
+            horizontalPadding: horizontalPadding, groupPosition: groupPosition);
 
     internal SwiftView QuizPrimaryButton(string title, string symbol, Action action)
     {

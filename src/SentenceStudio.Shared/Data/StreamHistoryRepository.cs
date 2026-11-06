@@ -34,6 +34,13 @@ public class StreamHistoryRepository
     private bool TryResolveOwner(IServiceProvider services, string operation, out string userId) =>
         ActiveOwner.TryResolve(services, _logger, $"StreamHistoryRepository.{operation}", out userId);
 
+    /// <summary>The learner this repository reads and writes for now, or null when there is none.</summary>
+    public string? ActiveOwnerId()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        return TryResolveOwner(scope.ServiceProvider, nameof(ActiveOwnerId), out var userId) ? userId : null;
+    }
+
     private async Task<TResult> WithOwnerAsync<TResult>(
         string operation,
         TResult denied,

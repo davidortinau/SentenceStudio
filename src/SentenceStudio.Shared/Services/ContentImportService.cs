@@ -92,6 +92,15 @@ public class ContentImportService : IContentImportService
 
     public async Task<ContentImportPreview> ParseContentAsync(ContentImportRequest request, CancellationToken ct = default)
     {
+        var preview = await ParseContentCoreAsync(request, ct);
+        // Each row remembers the term as parsed, so the commit can tell a learner's edit (B72).
+        foreach (var row in preview.Rows)
+            row.ParsedTargetLanguageTerm = row.TargetLanguageTerm;
+        return preview;
+    }
+
+    private async Task<ContentImportPreview> ParseContentCoreAsync(ContentImportRequest request, CancellationToken ct)
+    {
         if (request == null)
             throw new ArgumentNullException(nameof(request));
 
@@ -889,6 +898,7 @@ public class ContentImportService : IContentImportService
             {
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
+                ParsedTargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
                 SourceSentence = item.ExampleSentence,
                 SourceSentenceTranslation = item.ExampleSentenceTranslation,
@@ -1386,13 +1396,6 @@ public class ContentImportService : IContentImportService
             throw new ArgumentException("At least one harvest option must be selected (Transcript, Sentences, Phrases, or Words).", nameof(commit));
         }
 
-        var warnings = new List<string>(commit.Preview.Warnings);
-        var items = new List<ContentImportItemResult>();
-        int createdCount = 0;
-        int skippedCount = 0;
-        int updatedCount = 0;
-        int failedCount = 0;
-
         // BUG-2 fix: If the UI didn't set TranscriptText explicitly, fall back to
         // the SourceText that round-tripped through the preview.
         var transcriptText = !string.IsNullOrEmpty(commit.TranscriptText)
@@ -1408,28 +1411,33 @@ public class ContentImportService : IContentImportService
             throw new InvalidOperationException("Cannot import content without an active user profile.");
         }
 
+        // Chosen once, outside the retried unit (B76): every attempt builds the same resource and
+        // links, so a commit whose acknowledgement was lost is recognized by them (verifySucceeded
+        // below) instead of being written a second time.
+        var newResourceId = Guid.NewGuid().ToString();
+        var selectedRows = commit.Preview.Rows.Where(r => r.IsSelected && r.Status != RowStatus.Error).ToList();
+        var mappingIds = selectedRows.Select(_ => Guid.NewGuid().ToString()).ToArray();
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var exampleSentenceRepository = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
-        // The commit runs through the execution strategy: the Aspire Npgsql registration (web and
-        // API) installs NpgsqlRetryingExecutionStrategy, which refuses a transaction it does not
-        // own, so on PostgreSQL every import failed at BeginTransactionAsync (B75). Each attempt
-        // starts from the database and from empty results.
-        var strategy = db.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        ContentImportResult result;
+        try
         {
-            db.ChangeTracker.Clear();
-            warnings = new List<string>(commit.Preview.Warnings);
-            items = new List<ContentImportItemResult>();
-            createdCount = 0;
-            skippedCount = 0;
-            updatedCount = 0;
-            failedCount = 0;
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            bool isNewResource = false;
-
-            try
+            // The transaction belongs to the execution strategy: the Aspire Npgsql registration
+            // (web, API) installs NpgsqlRetryingExecutionStrategy, which refuses one the code
+            // begins itself, so on PostgreSQL every import failed at BeginTransactionAsync (B75).
+            // Each attempt starts from the database and from empty results.
+            result = await RetryableTransaction.ExecuteAsync(db, async token =>
             {
+                var warnings = new List<string>(commit.Preview.Warnings);
+                var items = new List<ContentImportItemResult>();
+                int createdCount = 0;
+                int skippedCount = 0;
+                int updatedCount = 0;
+                int failedCount = 0;
+                bool isNewResource = false;
+
                 // Step 1: Get or create the target resource
                 LearningResource targetResource;
 
@@ -1440,7 +1448,7 @@ public class ContentImportService : IContentImportService
 
                     targetResource = await db.LearningResources
                         .Include(r => r.VocabularyMappings)
-                        .FirstOrDefaultAsync(r => r.Id == commit.Target.ExistingResourceId && r.UserProfileId == userId, ct);
+                        .FirstOrDefaultAsync(r => r.Id == commit.Target.ExistingResourceId && r.UserProfileId == userId, token);
 
                     if (targetResource == null)
                         throw new InvalidOperationException($"Resource with ID {commit.Target.ExistingResourceId} was not found for the active user.");
@@ -1465,7 +1473,7 @@ public class ContentImportService : IContentImportService
 
                     targetResource = new LearningResource
                     {
-                        Id = Guid.NewGuid().ToString(),
+                        Id = newResourceId,
                         Title = commit.Target.NewResourceTitle,
                         Description = commit.Target.NewResourceDescription ?? string.Empty,
                         MediaType = mediaType,
@@ -1507,7 +1515,7 @@ public class ContentImportService : IContentImportService
                         where resource.UserProfileId == userId && word.UserProfileId == userId
                         select word)
                         .Distinct()
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                 var existingUserWordIds = existingUserWords.Select(word => word.Id).ToList();
                 var sharedUserWordIds = existingUserWordIds.Count == 0
                     ? new HashSet<string>(StringComparer.Ordinal)
@@ -1518,7 +1526,7 @@ public class ContentImportService : IContentImportService
                             where existingUserWordIds.Contains(mapping.VocabularyWordId) && resource.UserProfileId != userId
                             select mapping.VocabularyWordId)
                         .Distinct()
-                        .ToListAsync(ct),
+                        .ToListAsync(token),
                         StringComparer.Ordinal);
                 var phraseLinkedExistingWordIds = new HashSet<string>(StringComparer.Ordinal);
                 if (existingUserWordIds.Count > 0)
@@ -1527,13 +1535,13 @@ public class ContentImportService : IContentImportService
                         .Where(p => existingUserWordIds.Contains(p.VocabularyWordId) && p.UserId != userId)
                         .Select(p => p.VocabularyWordId)
                         .Distinct()
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     sharedUserWordIds.UnionWith(otherUserProgressWordIds);
 
                     var otherUserPairWords = await db.MinimalPairs
                         .Where(p => p.UserId != userId && (existingUserWordIds.Contains(p.VocabularyWordAId) || existingUserWordIds.Contains(p.VocabularyWordBId)))
                         .Select(p => new { p.VocabularyWordAId, p.VocabularyWordBId })
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     foreach (var pair in otherUserPairWords)
                     {
                         if (existingUserWordIds.Contains(pair.VocabularyWordAId))
@@ -1545,7 +1553,7 @@ public class ContentImportService : IContentImportService
                     var otherUserAttemptWords = await db.MinimalPairAttempts
                         .Where(a => a.UserId != userId && (existingUserWordIds.Contains(a.PromptWordId) || existingUserWordIds.Contains(a.SelectedWordId)))
                         .Select(a => new { a.PromptWordId, a.SelectedWordId })
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     foreach (var attempt in otherUserAttemptWords)
                     {
                         if (existingUserWordIds.Contains(attempt.PromptWordId))
@@ -1557,7 +1565,7 @@ public class ContentImportService : IContentImportService
                     var phraseConstituentWords = await db.PhraseConstituents
                         .Where(pc => existingUserWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && existingUserWordIds.Contains(pc.ConstituentWordId)))
                         .Select(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     foreach (var phraseConstituent in phraseConstituentWords)
                     {
                         if (existingUserWordIds.Contains(phraseConstituent.PhraseWordId))
@@ -1569,7 +1577,7 @@ public class ContentImportService : IContentImportService
                     var exampleReferences = await db.ExampleSentences
                         .Where(example => existingUserWordIds.Contains(example.VocabularyWordId))
                         .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     var exampleResourceIds = exampleReferences
                         .Select(example => example.LearningResourceId)
                         .Where(id => id != null)
@@ -1579,7 +1587,7 @@ public class ContentImportService : IContentImportService
                         ? new Dictionary<string, string?>(StringComparer.Ordinal)
                         : await db.LearningResources
                             .Where(resource => exampleResourceIds.Contains(resource.Id))
-                            .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
+                            .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, token);
                     foreach (var example in exampleReferences)
                     {
                         if (example.LearningResourceId == null ||
@@ -1610,11 +1618,10 @@ public class ContentImportService : IContentImportService
                 // - Create mappings
                 // - Single SaveChanges
 
-                var selectedRows = commit.Preview.Rows.Where(r => r.IsSelected && r.Status != RowStatus.Error).ToList();
-
-                foreach (var row in selectedRows)
+                for (var rowIndex = 0; rowIndex < selectedRows.Count; rowIndex++)
                 {
-                    ct.ThrowIfCancellationRequested();
+                    var row = selectedRows[rowIndex];
+                    token.ThrowIfCancellationRequested();
 
                     if (string.IsNullOrEmpty(row.TargetLanguageTerm))
                     {
@@ -1769,7 +1776,7 @@ public class ContentImportService : IContentImportService
                                             join resource in db.LearningResources on mapping.ResourceId equals resource.Id
                                             where mapping.VocabularyWordId == existingWord.Id && resource.UserProfileId == userId
                                             select mapping)
-                                        .ToListAsync(ct);
+                                        .ToListAsync(token);
                                     foreach (var mapping in activeMappingsToReplace)
                                     {
                                         mapping.VocabularyWordId = clonedWord.Id;
@@ -1780,7 +1787,7 @@ public class ContentImportService : IContentImportService
                                         }
                                     }
 
-                                    await ReparentActiveUserDataToCloneAsync(db, existingWord.Id, clonedWord.Id, userId, ct);
+                                    await ReparentActiveUserDataToCloneAsync(db, existingWord.Id, clonedWord.Id, userId, token);
 
                                     wordToMap = clonedWord;
                                     _logger.LogWarning(
@@ -1905,7 +1912,7 @@ public class ContentImportService : IContentImportService
                     {
                         var mapping = new ResourceVocabularyMapping
                         {
-                            Id = Guid.NewGuid().ToString(),
+                            Id = mappingIds[rowIndex],
                             ResourceId = targetResource.Id,
                             VocabularyWordId = wordToMap.Id
                         };
@@ -1934,7 +1941,7 @@ public class ContentImportService : IContentImportService
                 }
 
                 // Step 6: Single SaveChanges for the entire transaction
-                await db.SaveChangesAsync(ct);
+                await db.SaveChangesAsync(token);
 
                 if (pendingExampleRows.Count > 0)
                 {
@@ -1944,32 +1951,42 @@ public class ContentImportService : IContentImportService
                         .ToList();
                     var existingExamples = await db.ExampleSentences
                         .Where(example => pendingWordIds.Contains(example.VocabularyWordId))
-                        .ToListAsync(ct);
+                        .ToListAsync(token);
                     var existingExamplesByWordId = existingExamples
                         .GroupBy(example => example.VocabularyWordId)
                         .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
 
                     // Each kept row's source sentence becomes an example on its word (the learner's,
-                    // linked to the target resource), unless the word already has that sentence. It
-                    // stays the word's example when the learner edited the term in the preview
+                    // linked to the target resource), unless the word already has that sentence
                     // (Captain, 2026-11-06: "If the vocab was part of a sentence then retaining that
-                    // as an example sentence on the vocab entry should occur.").
+                    // as an example sentence on the vocab entry should occur."). Only a real
+                    // target-language sentence from the pasted text is kept: an example is a quiz
+                    // hint, and a line such as "사과 - apple" would show the answer
+                    // (ImportExampleSentencePolicy). In Korean the sentence must contain the word,
+                    // conjugated or not, except on a row whose term the learner edited in a
+                    // reviewed preview; an unattended import (share sheet, shared link) never skips
+                    // that check.
+                    var sourceText = commit.Preview.SourceText;
+                    var examples = new List<ExampleSentenceRepository.ReadingExample>();
                     foreach (var (word, row) in pendingExampleRows)
                     {
-                        existingExamplesByWordId.TryGetValue(word.Id, out var existingForWord);
-                        await exampleSentenceRepository.CreateFromReadingIfNewAsync(
-                            word,
-                            targetResource.Id,
-                            row.SourceSentence!,
-                            row.SourceSentenceTranslation,
-                            existingForWord ?? Array.Empty<ExampleSentence>(),
-                            status: ExampleSentenceStatus.Curated,
-                            ct: ct,
-                            requireTermInSentence: false);
+                        if (!ImportExampleSentencePolicy.KeepsSentence(
+                                row.SourceSentence, row.SourceSentenceTranslation, sourceText,
+                                [row.TargetLanguageTerm, row.ParsedTargetLanguageTerm, word.TargetLanguageTerm, word.Lemma],
+                                [row.NativeLanguageTerm, word.NativeLanguageTerm]))
+                            continue;
+                        examples.Add(new(word, row.SourceSentence!, row.SourceSentenceTranslation,
+                            RequireTermInSentence: ImportExampleSentencePolicy.RequiresTerm(
+                                word.Language ?? effectiveTargetLanguage,
+                                commit.ReviewedByLearner && ImportExampleSentencePolicy.TermEdited(row))));
                     }
+                    var keptExamples = await exampleSentenceRepository.CreateFromReadingIfNewAsync(
+                        examples, targetResource.Id, existingExamplesByWordId,
+                        status: ExampleSentenceStatus.Curated, ct: token);
+                    _logger.LogInformation(
+                        "Import kept {Kept} of {Offered} source sentences as examples",
+                        keptExamples, pendingExampleRows.Count);
                 }
-
-                await transaction.CommitAsync(ct);
 
                 // Zero-vocab edge case: if transcript was stored but no vocab extracted,
                 // persist the resource with a clear status message rather than failing silently.
@@ -1982,13 +1999,6 @@ public class ContentImportService : IContentImportService
                     warnings.Add("No vocabulary entries were imported. Check content format or harvest settings.");
                 }
 
-                _logger.LogInformation("Import complete: {Created} created, {Skipped} skipped, {Updated} updated, {Failed} failed",
-                    createdCount, skippedCount, updatedCount, failedCount);
-
-                // Trigger sync (fire-and-forget)
-                var syncService = _serviceProvider.GetService<ISyncService>();
-                syncService?.TriggerSyncAsync().ConfigureAwait(false);
-
                 return new ContentImportResult
                 {
                     ResourceId = targetResource.Id,
@@ -1999,13 +2009,28 @@ public class ContentImportService : IContentImportService
                     Items = items,
                     Warnings = warnings
                 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during import commit");
-                throw;
-            }
-        });
+            },
+            verifySucceeded: async token => commit.Target.Mode == ImportTargetMode.New
+                ? await db.LearningResources.AsNoTracking().AnyAsync(r => r.Id == newResourceId, token)
+                : mappingIds.Length > 0 && await db.ResourceVocabularyMappings.AsNoTracking()
+                    .AnyAsync(m => mappingIds.Contains(m.Id), token),
+            ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Once, for the commit's final failure (a retried transient error is the strategy's).
+            _logger.LogError(ex, "Error during import commit");
+            throw;
+        }
+
+        _logger.LogInformation("Import complete: {Created} created, {Skipped} skipped, {Updated} updated, {Failed} failed",
+            result.CreatedCount, result.SkippedCount, result.UpdatedCount, result.FailedCount);
+
+        // Trigger sync (fire-and-forget)
+        var syncService = _serviceProvider.GetService<ISyncService>();
+        syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+        return result;
     }
 
     private static async Task ReparentActiveUserDataToCloneAsync(
@@ -2182,10 +2207,13 @@ public class ImportRow
     [Description("Target language term (e.g., Korean word)")]
     public string? TargetLanguageTerm { get; set; }
 
+    [Description("The target term as parsed, before any edit in the preview. Set by the parser; clients carry it unchanged so the commit can tell a learner's edit")]
+    public string? ParsedTargetLanguageTerm { get; set; }
+
     [Description("Native language term (e.g., English translation)")]
     public string? NativeLanguageTerm { get; set; }
 
-    [Description("Source sentence from transcript or AI extraction that contains this term")]
+    [Description("The target-language sentence from the source text this term came from (kept as the word's example on commit when ImportExampleSentencePolicy allows)")]
     public string? SourceSentence { get; set; }
 
     [Description("Native-language translation of SourceSentence")]
@@ -2241,6 +2269,9 @@ public class ContentImportCommit
 
     [Description("Raw transcript text to store on the resource (when HarvestTranscript is true)")]
     public string? TranscriptText { get; set; }
+
+    [Description("True when a learner reviewed the rows in a preview page and could edit them (web, MAUI, native). An unattended import (share sheet, shared link) leaves it false, and then every kept example sentence must contain its word")]
+    public bool ReviewedByLearner { get; set; }
 }
 
 /// <summary>

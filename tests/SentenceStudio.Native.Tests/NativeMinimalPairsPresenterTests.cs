@@ -48,7 +48,7 @@ public sealed class NativeMinimalPairsPresenterTests
     {
         using var fixture = await SignedInAsync(seedB: true);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         var empty = await test.Presenter.OpenAsync(Launch());
         Assert.Equal(NativePhase.Ready, empty.Phase);
         Assert.Equal(NativeMinimalPairsPage.List, empty.Page);
@@ -81,7 +81,7 @@ public sealed class NativeMinimalPairsPresenterTests
         var first = await InsertPairAsync(fixture, UserA, 0, 1);
         var second = await InsertPairAsync(fixture, UserA, 2, 3);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
 
         var refused = await test.Presenter.StartSessionAsync();
@@ -111,7 +111,7 @@ public sealed class NativeMinimalPairsPresenterTests
     {
         using var fixture = await SignedInAsync(seedB: true);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
 
         var create = await test.Presenter.OpenCreateAsync();
@@ -202,7 +202,7 @@ public sealed class NativeMinimalPairsPresenterTests
         Assert.NotNull(await store.RecordAttemptAsync(UserA, session.Id, removed,
             fixture.WordId(UserA, 2), fixture.WordId(UserA, 3), false, CancellationToken.None));
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
 
         var asked = await test.Presenter.RequestDeleteAsync(removed);
@@ -232,7 +232,7 @@ public sealed class NativeMinimalPairsPresenterTests
         using var audio = new ScratchAudioCache(fixture);
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
 
@@ -317,7 +317,7 @@ public sealed class NativeMinimalPairsPresenterTests
         await InsertPairAsync(fixture, UserA, 0, 1);
         await InsertPairAsync(fixture, UserA, 2, 3);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SetModeAsync(NativeMinimalPairsMode.Mixed);
         var state = await test.Presenter.StartSessionAsync();
@@ -346,7 +346,7 @@ public sealed class NativeMinimalPairsPresenterTests
         using var audio = new ScratchAudioCache(fixture);
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
         await test.Presenter.StartSessionAsync();
@@ -383,7 +383,7 @@ public sealed class NativeMinimalPairsPresenterTests
         using var fixture = await SignedInAsync();
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
         using (var scope = fixture.Scope())
@@ -410,7 +410,7 @@ public sealed class NativeMinimalPairsPresenterTests
 
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var test = Create(fixture);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
         fixture.LoseOwner();
@@ -429,7 +429,7 @@ public sealed class NativeMinimalPairsPresenterTests
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var source = new ScratchHowDoYouSaySource { HangSynthesis = true };
         var test = Create(fixture, source);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
         await test.Presenter.StartSessionAsync();
@@ -462,7 +462,7 @@ public sealed class NativeMinimalPairsPresenterTests
         var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
         var source = new ScratchHowDoYouSaySource { HangSynthesis = true };
         var test = Create(fixture, source);
-        using var _ = test.Presenter;
+        await using var _ = test;
         await test.Presenter.OpenAsync(Launch());
         await test.Presenter.SelectPairAsync(pairId);
         var published = new List<NativeMinimalPairsState>();
@@ -503,8 +503,20 @@ public sealed class NativeMinimalPairsPresenterTests
         }
     }
 
+    /// <summary>
+    /// Disposing cancels the presenter's background playback and advance, then waits for them to
+    /// end, so none of them reads or writes the fixture's storage after the test.
+    /// </summary>
     private sealed record TestPresenter(
-        NativeMinimalPairsPresenter Presenter, ScratchHowDoYouSaySource Source, ScratchShadowingPlayer Player);
+        NativeMinimalPairsPresenter Presenter, ScratchHowDoYouSaySource Source, ScratchShadowingPlayer Player)
+        : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            Presenter.Dispose();
+            await Presenter.BackgroundWork.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
 
     private static TestPresenter Create(NativeSliceFixture fixture, ScratchHowDoYouSaySource? source = null)
     {

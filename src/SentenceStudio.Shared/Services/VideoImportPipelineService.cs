@@ -91,6 +91,35 @@ public class VideoImportPipelineService : IVideoImportPipeline
     }
 
     /// <summary>
+    /// The owner's newest import of each of these videos, however old (one query; the source
+    /// channel page asked <see cref="ChannelMonitorService.GetVideoImportStatusAsync"/> per video).
+    /// A video with no import is left out. Without an owner: nothing.
+    /// </summary>
+    public async Task<List<VideoImport>> GetLatestImportsForVideosAsync(
+        IReadOnlyCollection<string> videoIds, string userProfileId)
+    {
+        ArgumentNullException.ThrowIfNull(videoIds);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("GetLatestImportsForVideosAsync called without a user profile id");
+            return new List<VideoImport>();
+        }
+        var ids = videoIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+            return new List<VideoImport>();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var imports = await db.VideoImports
+            .Where(vi => vi.UserProfileId == userProfileId && vi.VideoId != null && ids.Contains(vi.VideoId))
+            .ToListAsync();
+        return imports
+            .GroupBy(vi => vi.VideoId!, StringComparer.Ordinal)
+            .Select(group => group.OrderByDescending(vi => vi.CreatedAt).First())
+            .ToList();
+    }
+
+    /// <summary>
     /// Retry a failed or stuck import by resetting its status and re-running the pipeline.
     /// Accepts Failed imports and any in-progress import older than the stale threshold.
     /// </summary>
@@ -407,110 +436,131 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// <summary>
     /// Creates a LearningResource from the import and links vocabulary.
     /// </summary>
-    private async Task<string> CreateLearningResourceAsync(VideoImport import, List<ExtractedVocabularyForImport> vocabItems)
+    /// <remarks>
+    /// Runs in the API and Workers on PostgreSQL, whose retrying execution strategy refuses a
+    /// transaction the code begins itself, so every server-side video import failed here (B76).
+    /// The unit runs through <see cref="RetryableTransaction"/>: the resource id is chosen once,
+    /// so a retry rebuilds the same resource and a commit whose acknowledgement was lost is
+    /// recognized by it instead of saved twice.
+    /// </remarks>
+    internal async Task<string> CreateLearningResourceAsync(
+        VideoImport import, List<ExtractedVocabularyForImport> vocabItems, CancellationToken cancellationToken = default)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var exampleSentenceRepository = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
-        await using var transaction = await db.Database.BeginTransactionAsync();
+        var resourceId = Guid.NewGuid().ToString();
 
-        var resource = new LearningResource
+        return await RetryableTransaction.ExecuteAsync(db, async ct =>
         {
-            Id = Guid.NewGuid().ToString(),
-            Title = import.VideoTitle,
-            Description = $"Imported from YouTube: {import.VideoUrl}",
-            MediaType = "Video",
-            MediaUrl = import.VideoUrl,
-            Transcript = import.CleanedTranscript,
-            Language = import.Language,
-            UserProfileId = import.UserProfileId,
-            Tags = "youtube,video,import",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        db.LearningResources.Add(resource);
-
-        // Save or match vocab words and create mappings
-        var mappedItems = new List<(VocabularyWord Word, ExtractedVocabularyItem Item)>();
-        var batchWordsByTargetTerm = new Dictionary<string, VocabularyWord>(StringComparer.OrdinalIgnoreCase);
-        var mappedWordIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var vocabItem in vocabItems)
-        {
-            var word = vocabItem.Word;
-            var targetTerm = word.TargetLanguageTerm?.Trim();
-            if (string.IsNullOrWhiteSpace(targetTerm))
-                continue;
-
-            // Check for existing word with same target term
-            var existing = batchWordsByTargetTerm.TryGetValue(targetTerm, out var batchWord)
-                ? batchWord
-                : await (
-                    from mapping in db.ResourceVocabularyMappings
-                    join existingResource in db.LearningResources on mapping.ResourceId equals existingResource.Id
-                    join existingWord in db.VocabularyWords on mapping.VocabularyWordId equals existingWord.Id
-                    where existingResource.UserProfileId == import.UserProfileId
-                        // Reuse only the learner's own word (the one ownership rule).
-                        && existingWord.UserProfileId == import.UserProfileId
-                        && existingWord.TargetLanguageTerm == targetTerm
-                    select existingWord)
-                    .FirstOrDefaultAsync();
-
-            var wordId = existing?.Id ?? word.Id;
-            if (existing == null)
+            var resource = new LearningResource
             {
-                word.UserProfileId = import.UserProfileId;
-                word.TargetLanguageTerm = targetTerm;
-                word.Language = import.Language;
-                word.CreatedAt = DateTime.UtcNow;
-                word.UpdatedAt = DateTime.UtcNow;
-                db.VocabularyWords.Add(word);
-                wordId = word.Id;
-                batchWordsByTargetTerm[targetTerm] = word;
-            }
+                Id = resourceId,
+                Title = import.VideoTitle,
+                Description = $"Imported from YouTube: {import.VideoUrl}",
+                MediaType = "Video",
+                MediaUrl = import.VideoUrl,
+                Transcript = import.CleanedTranscript,
+                Language = import.Language,
+                UserProfileId = import.UserProfileId,
+                Tags = "youtube,video,import",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-            if (mappedWordIds.Add(wordId))
+            db.LearningResources.Add(resource);
+
+            // Save or match vocab words and create mappings
+            var mappedItems = new List<(VocabularyWord Word, ExtractedVocabularyItem Item)>();
+            var batchWordsByTargetTerm = new Dictionary<string, VocabularyWord>(StringComparer.OrdinalIgnoreCase);
+            var mappedWordIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var vocabItem in vocabItems)
             {
-                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                var word = vocabItem.Word;
+                var targetTerm = word.TargetLanguageTerm?.Trim();
+                if (string.IsNullOrWhiteSpace(targetTerm))
+                    continue;
+
+                // Check for existing word with same target term
+                var existing = batchWordsByTargetTerm.TryGetValue(targetTerm, out var batchWord)
+                    ? batchWord
+                    : await (
+                        from mapping in db.ResourceVocabularyMappings
+                        join existingResource in db.LearningResources on mapping.ResourceId equals existingResource.Id
+                        join existingWord in db.VocabularyWords on mapping.VocabularyWordId equals existingWord.Id
+                        where existingResource.UserProfileId == import.UserProfileId
+                            // Reuse only the learner's own word (the one ownership rule).
+                            && existingWord.UserProfileId == import.UserProfileId
+                            && existingWord.TargetLanguageTerm == targetTerm
+                        select existingWord)
+                        .FirstOrDefaultAsync(ct);
+
+                var wordId = existing?.Id ?? word.Id;
+                if (existing == null)
                 {
-                    Id = Guid.NewGuid().ToString(),
-                    ResourceId = resource.Id,
-                    VocabularyWordId = wordId
-                });
+                    // The extracted word outlives an attempt: a rolled-back attempt's fix-up linked
+                    // it to that attempt's resource, links and examples, and adding it again
+                    // would bring them back.
+                    word.LearningResources.Clear();
+                    word.ResourceMappings.Clear();
+                    word.ExampleSentences.Clear();
+                    word.UserProfileId = import.UserProfileId;
+                    word.TargetLanguageTerm = targetTerm;
+                    word.Language = import.Language;
+                    word.CreatedAt = DateTime.UtcNow;
+                    word.UpdatedAt = DateTime.UtcNow;
+                    db.VocabularyWords.Add(word);
+                    wordId = word.Id;
+                    batchWordsByTargetTerm[targetTerm] = word;
+                }
+
+                if (mappedWordIds.Add(wordId))
+                {
+                    db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        ResourceId = resource.Id,
+                        VocabularyWordId = wordId
+                    });
+                }
+
+                mappedItems.Add((existing ?? word, vocabItem.Item));
             }
 
-            mappedItems.Add((existing ?? word, vocabItem.Item));
-        }
+            await db.SaveChangesAsync(ct);
+            var mappedExampleWordIds = mappedItems
+                .Select(mapped => mapped.Word.Id)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var existingExamplesByWordId = await db.ExampleSentences
+                .Where(example => mappedExampleWordIds.Contains(example.VocabularyWordId))
+                .ToListAsync(ct);
+            var existingExamplesLookup = existingExamplesByWordId
+                .GroupBy(example => example.VocabularyWordId)
+                .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
 
-        await db.SaveChangesAsync();
-        var mappedExampleWordIds = mappedItems
-            .Select(mapped => mapped.Word.Id)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var existingExamplesByWordId = await db.ExampleSentences
-            .Where(example => mappedExampleWordIds.Contains(example.VocabularyWordId))
-            .ToListAsync();
-        var existingExamplesLookup = existingExamplesByWordId
-            .GroupBy(example => example.VocabularyWordId)
-            .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
-
-        foreach (var (word, item) in mappedItems)
-        {
-            if (string.IsNullOrWhiteSpace(item.ExampleSentence))
-                continue;
-
-            existingExamplesLookup.TryGetValue(word.Id, out var existingForWord);
+            // The same rule as Import Content (ImportExampleSentencePolicy, with the transcript as
+            // the source text): a kept example is a quiz hint, so it must be a target-language
+            // sentence from the transcript that does not carry the word's meaning.
+            var examples = mappedItems
+                .Where(mapped => ImportExampleSentencePolicy.KeepsSentence(
+                    mapped.Item.ExampleSentence, mapped.Item.ExampleSentenceTranslation,
+                    import.CleanedTranscript,
+                    [mapped.Item.TargetLanguageTerm, mapped.Word.TargetLanguageTerm, mapped.Word.Lemma],
+                    [mapped.Item.NativeLanguageTerm, mapped.Word.NativeLanguageTerm]))
+                .Select(mapped => new ExampleSentenceRepository.ReadingExample(
+                    mapped.Word, mapped.Item.ExampleSentence!, mapped.Item.ExampleSentenceTranslation,
+                    RequireTermInSentence: ImportExampleSentencePolicy.RequiresTerm(
+                        mapped.Word.Language ?? import.Language, termEditedInReview: false)))
+                .ToList();
             await exampleSentenceRepository.CreateFromReadingIfNewAsync(
-                word,
-                resource.Id,
-                item.ExampleSentence,
-                item.ExampleSentenceTranslation,
-                existingForWord ?? Array.Empty<ExampleSentence>(),
-                status: ExampleSentenceStatus.Curated);
-        }
+                examples, resource.Id, existingExamplesLookup,
+                status: ExampleSentenceStatus.Curated, ct: ct);
 
-        await transaction.CommitAsync();
-        return resource.Id;
+            return resource.Id;
+        },
+        verifySucceeded: ct => db.LearningResources.AsNoTracking().AnyAsync(r => r.Id == resourceId, ct),
+        cancellationToken);
     }
 
     private async Task UpdateStatusAsync(VideoImport import, VideoImportStatus status)
@@ -545,5 +595,5 @@ public class VideoImportPipelineService : IVideoImportPipeline
         _syncService?.TriggerSyncAsync().ConfigureAwait(false);
     }
 
-    private sealed record ExtractedVocabularyForImport(VocabularyWord Word, ExtractedVocabularyItem Item);
+    internal sealed record ExtractedVocabularyForImport(VocabularyWord Word, ExtractedVocabularyItem Item);
 }

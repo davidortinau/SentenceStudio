@@ -66,18 +66,23 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.DoesNotContain("#pragma warning disable CS0162", controller);
         Assert.DoesNotContain("_libraryPairsCreateRequested", controller);
         Assert.Contains("_ = OpenLibraryPairsOutsideBusyAsync(screen, launch, create);", controller);
-        // Import content opens its native page; YouTube import joins when its flow exists.
+        // Import content and YouTube import open their native pages.
         Assert.Contains("new(\"import-content\", \"square.and.arrow.down\", \"Nav_ImportContent\",", controller);
         Assert.Contains("() => OpenLibraryQuickAdd(OpenImportContent)", controller);
-        Assert.DoesNotContain("youtube-import", controller);
+        Assert.Contains("new(\"youtube-import\", \"play.rectangle\", \"Import_YouTubeImport\",", controller);
+        Assert.Contains("() => OpenLibraryQuickAdd(OpenYouTubeImport)", controller);
+        Assert.Contains("internal void OpenYouTubeImport()",
+            Source("App/ApplicationController.YouTube.cs"));
+        Assert.Contains("|| IsYouTubeImportOpen;", controller);
         Assert.Contains("internal void OpenImportContent()",
             Source("App/ApplicationController.Import.cs"));
         // An import draft is not an editor: it does not block Sam's review quiz or a Study
         // insight link; only Study's Add resource (which closes the page) shows it instead.
         var editor = controller[controller.IndexOf("internal bool HasLibraryEditor =>", StringComparison.Ordinal)..];
         Assert.DoesNotContain("HasImportContentWork", editor[..editor.IndexOf(';')]);
-        Assert.Contains("if (HasLibraryEditor || HasImportContentWork)",
+        Assert.Contains("if (HasLibraryEditor || HasImportContentWork || HasYouTubeImportWork)",
             Source("App/ApplicationController.cs"));
+        Assert.DoesNotContain("HasYouTubeImportWork", editor[..editor.IndexOf(';')]);
         // A blocked page never shows a result set before the owner changed (fail closed).
         var importPage = Source("Features/Import/ImportContentView.cs");
         var blocked = importPage.IndexOf("else if (state.Blocked)", StringComparison.Ordinal);
@@ -86,12 +91,29 @@ public sealed class NativeLaunchAndQuickAddContractTests
         // The import word editor's Find Duplicates opens the Vocabulary page's focused panel.
         Assert.Contains("FindDuplicatesElsewhere = OpenDuplicatesOnVocabularyPage",
             Source("App/ApplicationController.Import.cs"));
+        // The editor stays until the Vocabulary page opened: the handoff is posted after the
+        // editor's operation (no Task.Yield ordering), opens Vocabulary first, and only then
+        // releases the import page; a refusal or a failed open shows on the editor.
+        var vocabularyHost = Source("App/ApplicationController.Vocabulary.cs");
+        var handoff = vocabularyHost[vocabularyHost.IndexOf(
+            "private bool OpenDuplicatesOnVocabularyPage", StringComparison.Ordinal)..];
+        handoff = handoff[..handoff.IndexOf("private string? LibraryOwner(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("Task.Yield", handoff);
+        Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(", handoff);
+        Assert.InRange(handoff.IndexOf("await vocabulary.OpenAsync(owner)", StringComparison.Ordinal),
+            0, handoff.IndexOf("ResetLibraryToList(keepVocabulary: true);", StringComparison.Ordinal));
+        Assert.Contains("ShowEditError(VocabularyBrowser.FindDuplicatesFailedKey)", handoff);
+        // One owner check for the Library's import pages and Vocabulary, so they cannot drift.
+        var importHost = Source("App/ApplicationController.Import.cs");
+        Assert.Contains("LibraryOwner(\"Import Content\") is not { } owner", importHost);
+        Assert.Contains("LibraryOwner(\"Imported word\") is not { } owner", importHost);
+        Assert.DoesNotContain("TryGetUserProfileId", importHost);
         // An import's write makes the Library list stale even if marking it for sync failed.
         Assert.Contains("_resources?.NoteResourcesWritten();\n        ReadResourcesIfStale();",
             Source("App/ApplicationController.Import.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
-            "MinimalPairs_CreatePair" })
+            "MinimalPairs_CreatePair", "Import_YouTubeImport" })
             foreach (var culture in new[] { "", ".ko" })
                 Assert.True(HasValue(culture, key), $"{key} is missing from AppResources{culture}.resx.");
     }
