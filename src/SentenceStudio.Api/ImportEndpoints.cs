@@ -201,7 +201,15 @@ public sealed record VideoImportResponse(
         import.RawTranscript, import.CleanedTranscript, import.Language, Utc(import.CreatedAt),
         import.CompletedAt is { } completed ? Utc(completed) : null);
 
-    /// <summary>The server writes these times in UTC; a provider that drops the kind still says so.</summary>
-    private static DateTime Utc(DateTime value) =>
-        value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value;
+    /// <summary>
+    /// The instant in UTC (sent with a Z). The server writes these times in UTC, but Npgsql's
+    /// legacy timestamp mode (Program.cs) reads timestamptz back as host-local time: a Local value
+    /// is converted; a provider that drops the kind (Unspecified) stored UTC, so it is relabelled.
+    /// </summary>
+    private static DateTime Utc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Local => value.ToUniversalTime(),
+        DateTimeKind.Unspecified => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        _ => value
+    };
 }

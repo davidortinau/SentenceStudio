@@ -68,6 +68,34 @@ public sealed class YouTubeImportEndpointsTests : IClassFixture<YouTubeImportApi
     }
 
     [Fact]
+    public void HistoryTimes_ReadAsHostLocal_AreSentAsUtcWithZ()
+    {
+        // Npgsql's legacy timestamp mode (API Program.cs) reads timestamptz as host-local time
+        // (Kind Local): the history must still send the instant in UTC, with a Z.
+        var created = new DateTime(2026, 11, 6, 9, 30, 0, DateTimeKind.Utc);
+        var import = new VideoImport
+        {
+            UserProfileId = "owner",
+            Status = VideoImportStatus.Completed,
+            CreatedAt = created.ToLocalTime(),
+            CompletedAt = created.AddMinutes(3).ToLocalTime(),
+        };
+        var unlabelled = new VideoImport
+        {
+            UserProfileId = "owner",
+            CreatedAt = DateTime.SpecifyKind(created, DateTimeKind.Unspecified),
+        };
+
+        var json = JsonSerializer.SerializeToElement(VideoImportResponse.From(import), Json);
+        var plain = JsonSerializer.SerializeToElement(VideoImportResponse.From(unlabelled), Json);
+
+        json.GetProperty("createdAt").GetString().Should().Be("2026-11-06T09:30:00Z");
+        json.GetProperty("completedAt").GetString().Should().Be("2026-11-06T09:33:00Z");
+        // A provider that drops the kind stored UTC: relabelled, not shifted.
+        plain.GetProperty("createdAt").GetString().Should().Be("2026-11-06T09:30:00Z");
+    }
+
+    [Fact]
     public async Task ChannelUpdate_TakesOnlyTheEditableFields_AndKeepsTheStoredOwnerAndTimes()
     {
         var owner = $"yt-channel-a-{Guid.NewGuid():N}";

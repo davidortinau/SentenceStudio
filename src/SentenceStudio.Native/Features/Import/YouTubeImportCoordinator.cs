@@ -883,10 +883,11 @@ public sealed class YouTubeImportCoordinator : IDisposable
     {
         var manual = string.IsNullOrEmpty(import.MonitoredChannelId);
         var channel = manual ? null : _channels.FirstOrDefault(row => row.Id == import.MonitoredChannelId);
-        // An import without its creation time (an API before B79) is never taken as stuck.
+        // An import without its creation time (an API before B79) is never taken as stuck. The
+        // time is compared as an instant: one sent with an offset parses as device-local time.
         var stuck = import.Status != VideoImportStatus.Failed
             && import.Status != VideoImportStatus.Completed
-            && import.CreatedAt is { } created && created < now - StuckAfter;
+            && import.CreatedAt is { } created && created.ToUniversalTime() < now - StuckAfter;
         return new(import.Id, import.VideoTitle, manual, channel?.ChannelName ?? channel?.ChannelHandle,
             import.Status, import.ErrorMessage, import.CreatedAt, import.LearningResourceId, stuck);
     }

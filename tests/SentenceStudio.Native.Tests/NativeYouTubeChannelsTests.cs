@@ -165,6 +165,38 @@ public sealed class NativeYouTubeChannelsTests
     }
 
     [Fact]
+    public async Task History_TimesWithAnOffset_AreComparedInUtc()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        // The API on legacy-mode PostgreSQL sent its host's offset (before the fix there).
+        var api = new ScratchApi();
+        api.Imports[A] = """
+            [{"id":"fresh","videoId":"v1","status":1,"createdAt":"2026-11-06T05:55:00-06:00"},
+             {"id":"stuck","videoId":"v2","status":1,"createdAt":"2026-11-06T20:45:00+09:00"},
+             {"id":"utc","videoId":"v3","status":1,"createdAt":"2026-11-06T11:49:00Z"}]
+            """;
+        var adapter = NativeYouTubeImportTests.Adapter(fixture, new NativeYouTubeImportTests.ScratchYouTube(),
+            new NativeSharedAiTests.ScratchOwnerAi(), api);
+        var import = new ScratchImport();
+        import.Imports.AddRange(await adapter.ListImportsAsync(A, default));
+        using var page = new YouTubeImportCoordinator(import, fixture.UserScope,
+            NullLogger<YouTubeImportCoordinator>.Instance, () => Now, TimeSpan.FromHours(1));
+        Assert.True(await page.OpenAsync(A));
+
+        var rows = page.State.DisplayedImports.ToDictionary(row => row.Id);
+        // 11:55Z, 5 minutes before now (12:00Z): in progress, no Retry.
+        Assert.False(rows["fresh"].IsStuck);
+        Assert.False(rows["fresh"].CanRetry);
+        // 11:45Z, 15 minutes: stuck, Retry.
+        Assert.True(rows["stuck"].IsStuck);
+        Assert.True(rows["stuck"].CanRetry);
+        // 11:49Z, 11 minutes: stuck.
+        Assert.True(rows["utc"].IsStuck);
+    }
+
+    [Fact]
     public async Task History_ShowMore_AndChannels_ToggleMonitoring()
     {
         using var fixture = new NativeSliceFixture();
