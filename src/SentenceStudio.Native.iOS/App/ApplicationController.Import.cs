@@ -30,7 +30,7 @@ internal static class ApplicationImportRoutes
 /// </summary>
 internal sealed partial class ApplicationController
 {
-    private ImportContentCoordinator? _importContent;
+    private ImportContentScreen? _importContent;
     private NativeToastScheduler? _importContentToasts;
     /// <summary>
     /// The word editor a result row opens: its own Vocabulary coordinator, so a Vocabulary
@@ -100,16 +100,27 @@ internal sealed partial class ApplicationController
         }
         _libraryErrorKey = null;
         _selectedTab = NativeTabs.Library;
-        var coordinator = new ImportContentCoordinator(
+        var coordinator = new ImportContentScreen(
             provider.GetRequiredService<INativeContentImport>(), scope,
             provider.GetRequiredService<ILogger<ImportContentCoordinator>>(), Text);
         coordinator.Changed += Publish;
+        coordinator.ResourcesWritten += OnImportResourcesWritten;
         _importContent = coordinator;
         _ = OpenImportContentAsync(coordinator, owner);
         Publish();
     }
 
-    private async Task OpenImportContentAsync(ImportContentCoordinator coordinator, string owner)
+    /// <summary>
+    /// An import wrote the owner's resource and words: the Library's resource list (its count
+    /// and the Resources page) is stale now, not only after the next sync.
+    /// </summary>
+    private void OnImportResourcesWritten()
+    {
+        _resources?.NoteResourcesWritten();
+        ReadResourcesIfStale();
+    }
+
+    private async Task OpenImportContentAsync(ImportContentScreen coordinator, string owner)
     {
         try
         {
@@ -128,10 +139,16 @@ internal sealed partial class ApplicationController
         Publish();
     }
 
-    internal SwiftView RenderImportContent(SourceUiStyle style) =>
+    /// <summary>Changes only when the preview rows change; other redraws keep the drawn rows.</summary>
+    internal long ImportContentRowsVersion => _importContent?.RowsVersion ?? -1;
+
+    /// <summary>Typed or previewed content not imported yet (another tab's entry shows the page).</summary>
+    internal bool HasImportContentWork => _importContent?.HasUnsavedWork == true;
+
+    internal SwiftView RenderImportContent(SourceUiStyle style, SwiftView? reusableRows = null) =>
         _importContent is { IsOpen: true } import
             ? ImportContentView.Page(import, style, Text,
-                new ImportContentActions(ViewImportedResource, OpenImportedWord))
+                new ImportContentActions(ViewImportedResource, OpenImportedWord), reusableRows)
             : Views.Text(Text("Common_Loading"));
 
     /// <summary>What the overlay shows: the banner ids and the current toast (redrawn when it changes).</summary>
@@ -142,14 +159,14 @@ internal sealed partial class ApplicationController
             if (_importContent is not { IsOpen: true } import)
                 return string.Empty;
             var toast = ImportContentToast;
-            var banners = NativeMessages.Banners(import.State.Messages);
+            var banners = NativeMessages.Banners(import.Messages);
             return $"{string.Join(',', banners.Select(message => message.Id))}|{toast?.Id ?? 0}";
         }
     }
 
     internal SwiftView? RenderImportContentOverlay(SourceUiStyle style) =>
         _importContent is { IsOpen: true } import
-            ? ImportContentView.Messages(import.State, ImportContentToast, style, Text,
+            ? ImportContentView.Messages(import.Messages, ImportContentToast, style, Text,
                 import.DismissMessages, DismissImportContentToast)
             : null;
 
@@ -161,7 +178,7 @@ internal sealed partial class ApplicationController
             if (_importContent is not { } import)
                 return null;
             var toasts = _importContentToasts ??= CreateImportContentToasts();
-            toasts.Offer(NativeMessages.LatestToast(import.State.Messages));
+            toasts.Offer(NativeMessages.LatestToast(import.Messages));
             return toasts.Current;
         }
     }
@@ -274,6 +291,8 @@ internal sealed partial class ApplicationController
             return;
         _importContent = null;
         import.Changed -= Publish;
+        import.ResourcesWritten -= OnImportResourcesWritten;
+        import.SelectedCountLabel = null;
         import.Dispose();
     }
 }

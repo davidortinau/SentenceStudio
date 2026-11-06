@@ -7021,6 +7021,102 @@
     <value>{0}행 가져오기</value>
     <comment>Import Content preview: accessibility label of a row's checkbox. {0} is the row number. Korean draft by the native port; needs review.</comment>
   </data>
+  <data name="Import_Format_Tsv" xml:space="preserve">
+    <value>탭 구분 (TSV)</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_Csv" xml:space="preserve">
+    <value>쉼표 구분 (CSV)</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_Pipe" xml:space="preserve">
+    <value>파이프 구분</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_FreeText" xml:space="preserve">
+    <value>자유 형식 텍스트 (AI 추출)</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_Sentences" xml:space="preserve">
+    <value>문장 (구문 분석 + AI 추출)</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_Phrases" xml:space="preserve">
+    <value>구문 (구문 분석 + AI 추출)</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_TranscriptOnly" xml:space="preserve">
+    <value>자막은 저장되지만 어휘 추출은 요청되지 않았습니다.</value>
+    <comment>Import Content preview warning. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_TranscriptNoVocab" xml:space="preserve">
+    <value>자막에서 어휘를 추출하지 못했습니다. 자막은 리소스에 그대로 저장됩니다.</value>
+    <comment>Import Content preview warning. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_AiWordExtractionFailed" xml:space="preserve">
+    <value>AI 단어 추출 실패: {0}. 기본 항목은 계속 사용할 수 있습니다.</value>
+    <comment>Import Content preview warning. {0} is the error message. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_AiTranslationFailed" xml:space="preserve">
+    <value>AI 번역 실패: {0}. 번역을 직접 입력하세요.</value>
+    <comment>Import Content preview warning. {0} is the error message. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_AiExtractionFailed" xml:space="preserve">
+    <value>AI 추출 실패: {0}</value>
+    <comment>Import Content preview warning. {0} is the error message. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_TooLargePhrases" xml:space="preserve">
+    <value>구문 추출에는 콘텐츠가 너무 깁니다({0}자). 더 작게 나누어 주세요.</value>
+    <comment>Import Content preview warning. {0} is the character count. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Warn_TooLargeFreeText" xml:space="preserve">
+    <value>자유 텍스트 추출에는 콘텐츠가 너무 깁니다({0}자). 구조화된 데이터를 제공하거나 더 작게 나누어 주세요.</value>
+    <comment>Import Content preview warning. {0} is the character count. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_TargetRequired" xml:space="preserve">
+    <value>대상 언어 용어가 필요합니다.</value>
+    <comment>Import Content preview row error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_NativeMissing" xml:space="preserve">
+    <value>모국어 용어가 없습니다 (AI 번역을 사용합니다).</value>
+    <comment>Import Content preview row warning. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_NotTranslated" xml:space="preserve">
+    <value>AI가 이 용어를 번역하지 못했습니다.</value>
+    <comment>Import Content preview row error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_TooLargePhrases" xml:space="preserve">
+    <value>구문 추출 크기 제한(50KB)을 초과했습니다.</value>
+    <comment>Import Content preview row error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_TooLargeFreeText" xml:space="preserve">
+    <value>자유 텍스트 추출 크기 제한(50KB)을 초과했습니다.</value>
+    <comment>Import Content preview row error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_NoVocabulary" xml:space="preserve">
+    <value>어휘를 추출하지 못했습니다. 언어 설정을 확인하거나 구조화된 데이터를 제공하세요.</value>
+    <comment>Import Content preview row error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowError_AiExtractionFailed" xml:space="preserve">
+    <value>AI 추출 실패: {0}. 콘텐츠를 확인하거나 구조화된 형식을 사용하세요.</value>
+    <comment>Import Content preview row error. {0} is the error message. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Reason_AlreadyExists" xml:space="preserve">
+    <value>리소스에 이미 있음</value>
+    <comment>Import Content result reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Reason_PhraseLinked" xml:space="preserve">
+    <value>구문에 연결된 항목은 직접 수정해야 합니다</value>
+    <comment>Import Content result reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Reason_TargetEmpty" xml:space="preserve">
+    <value>대상 언어 용어가 비어 있습니다</value>
+    <comment>Import Content result reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Reason_NativeEmpty" xml:space="preserve">
+    <value>모국어 용어가 비어 있습니다 (AI 번역 미지원)</value>
+    <comment>Import Content result reason. Korean draft by the native port; needs review.</comment>
+  </data>
   <data name="PlanItemNumberDrillTitle" xml:space="preserve">
     <value>숫자 연습</value>
     <comment>Plan item title for NumberDrill activity</comment>

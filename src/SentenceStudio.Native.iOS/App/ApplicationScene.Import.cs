@@ -15,6 +15,7 @@ internal sealed partial class ApplicationScene
     private SwiftView? _importContentSlot;
     private SwiftView? _importContentOverlay;
     private long _renderedImportContentVersion = -1;
+    private long _renderedImportRowsVersion = -1;
     private SourceUiStyle? _renderedImportContentStyle;
     private double _renderedImportContentWidth;
     private string? _renderedImportOverlayKey;
@@ -64,7 +65,13 @@ internal sealed partial class ApplicationScene
                 || Math.Abs(_renderedImportContentWidth - _style.ViewportWidth) >= 0.5;
             if (reshaped || _renderedImportContentVersion != _app.ImportContentVersion)
             {
-                var next = _app.RenderImportContent(_style);
+                // Unchanged preview rows move into the new draw as they are (their typed text
+                // and scroll stay); new rows, a new appearance or width draw them again.
+                var rows = !reshaped && _renderedImportRowsVersion == _app.ImportContentRowsVersion
+                    ? DetachImportRows(_importContentSlot) : null;
+                var next = _app.RenderImportContent(_style, rows);
+                if (rows is not null && !Contains(next, rows))
+                    rows.Dispose();
                 if (reshaped || !TrySwapImportScroll(_importContentSlot, next))
                     Replace(_importContentSlot, next);
                 RecordImportContent();
@@ -160,8 +167,36 @@ internal sealed partial class ApplicationScene
     private void RecordImportContent()
     {
         _renderedImportContentVersion = _app.ImportContentVersion;
+        _renderedImportRowsVersion = _app.ImportContentRowsVersion;
         _renderedImportContentStyle = _style;
         _renderedImportContentWidth = _style.ViewportWidth;
+    }
+
+    /// <summary>Removes the drawn preview rows grid from its card (null when none is drawn).</summary>
+    private static SwiftView? DetachImportRows(SwiftView root)
+    {
+        for (var index = 0; index < root.Children.Count; index++)
+        {
+            var child = root.Children[index];
+            if (child.AccessibilityIdentifier == ImportContentView.RowsId)
+            {
+                root.RemoveAt(index);
+                return child;
+            }
+            if (DetachImportRows(child) is { } found)
+                return found;
+        }
+        return null;
+    }
+
+    private static bool Contains(SwiftView root, SwiftView node)
+    {
+        if (ReferenceEquals(root, node))
+            return true;
+        foreach (var child in root.Children)
+            if (Contains(child, node))
+                return true;
+        return false;
     }
 
     private void UpdateImportOverlay()
@@ -201,7 +236,7 @@ internal sealed partial class ApplicationScene
     /// (the scroll alone, or the scroll under a toolbar with the same actions). False when
     /// the shapes differ (the Import action appeared or left), which redraws the page whole.
     /// </summary>
-    private static bool TrySwapImportScroll(SwiftView slot, SwiftView next)
+    private bool TrySwapImportScroll(SwiftView slot, SwiftView next)
     {
         if (slot.Children.Count != 1)
             return false;
@@ -212,11 +247,17 @@ internal sealed partial class ApplicationScene
             return false;
         for (var index = 1; index < current.Children.Count; index++)
         {
-            if (current.Children[index].Kind != next.Children[index].Kind
-                || current.Children[index].Text != next.Children[index].Text)
+            var action = current.Children[index];
+            var nextAction = next.Children[index];
+            if (action.Kind != nextAction.Kind || action.Text != nextAction.Text
+                || action.AccessibilityIdentifier != nextAction.AccessibilityIdentifier)
                 return false;
-            if (current.Children[index].IsEnabled != next.Children[index].IsEnabled)
-                current.Children[index].IsEnabled = next.Children[index].IsEnabled;
+            // The kept toolbar action takes the new availability with its look (the primary
+            // Import button on iPad has a drawn disabled state, not only IsEnabled).
+            if (action.AccessibilityIdentifier == ImportContentView.CommitId)
+                ImportContentView.SetCommitAvailability(action, _style, nextAction.IsEnabled);
+            else if (action.IsEnabled != nextAction.IsEnabled)
+                action.IsEnabled = nextAction.IsEnabled;
         }
         var content = nextScroll.Children[0];
         nextScroll.RemoveAt(0);
@@ -240,6 +281,7 @@ internal sealed partial class ApplicationScene
         _importContentSlot = null;
         _importContentOverlay = null;
         _renderedImportContentVersion = -1;
+        _renderedImportRowsVersion = -1;
         _renderedImportContentStyle = null;
         _renderedImportOverlayKey = null;
         _renderedImportOverlayStyle = null;

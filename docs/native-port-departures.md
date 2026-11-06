@@ -66,8 +66,9 @@ shared `ContentImportService`; these are the presentation differences.
 | 30 | The Import (commit) action is in the toolbar at every width (a plain toolbar button on a phone, the primary button on iPad) | `PageHeader` shows `PrimaryActions` only at 768 px and wider, so a phone-width web page or the MAUI phone app has no way to commit an import (B71) | |
 | 31 | Errors and warnings are pinned over the top of the page until dismissed or the next action; success is a toast | Toasts fixed over the page | |
 | 32 | The preview table is a list of row cards: the row checkbox, the status and duplicate badges, and the two term fields (side by side from 680 pt); a row's error is read by VoiceOver with its status badge | Table; the row error is the badge's hover tooltip | |
-| 33 | Hard-coded English (the auto-detect gate, the Sentences option, OK/Warning/Error, the type and status badges) uses resources; new keys have English and draft Korean | English only (B73) | |
+| 33 | Hard-coded English (the auto-detect gate, the Sentences option, OK/Warning/Error, the type and status badges) uses resources, and so do the service's detected format, warnings, row errors and result reasons (B74); new keys have English and draft Korean | English only (B73) | |
 | 34 | A result row opens the word editor above the results, and Back returns to them. That editor's Find Duplicates opens the duplicate panel of the Vocabulary page, which is not on screen here, so it closes the editor without showing duplicates | `/vocabulary/edit/{id}`; Find Duplicates navigates to the Vocabulary page | Captain: keep, or route Find Duplicates to the Vocabulary page? |
+| 35 | When the owner's resources cannot be read for "Add to existing resource", the page says so with Retry; typed or previewed content counts as unsaved work, so a Study entry (Add resource) shows the page instead of closing it | The select is silently empty; leaving the page drops the draft | |
 
 ## Kept exactly like the original (also your call)
 

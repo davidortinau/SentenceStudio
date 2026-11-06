@@ -1169,6 +1169,7 @@ internal sealed partial class ApplicationController : IDisposable
         ReleaseActivity();
         _activityToasts?.Dispose();
         _libraryPairsToasts?.Dispose();
+        _importContentToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();
