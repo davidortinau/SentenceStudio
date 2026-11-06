@@ -161,6 +161,10 @@ public sealed class NativeShadowingSpeech(
             return new(NativeSpeechClipStatus.Ready, audio);
         }
 
+        // The cache write belongs to the caller's operation: once that is cancelled (Back, a
+        // closed page, a disposed presenter) nothing is written, and once started it is not cut
+        // short, so no partial clip and no clip without its history entry is left behind.
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             var directory = Path.Combine(files.AppDataDirectory, "AudioCache");
@@ -172,11 +176,11 @@ public sealed class NativeShadowingSpeech(
                 // entry unchanged, so devices do not keep sending each other to synthesize again.
                 await File.WriteAllBytesAsync(
                     Path.Combine(directory, StreamHistory.RegeneratedClipFileName(cached.Id)),
-                    audio, cancellationToken);
+                    audio, CancellationToken.None);
                 return new(NativeSpeechClipStatus.Ready, audio);
             }
             var path = Path.Combine(directory, $"shadow_{Guid.NewGuid():N}.mp3");
-            await File.WriteAllBytesAsync(path, audio, cancellationToken);
+            await File.WriteAllBytesAsync(path, audio, CancellationToken.None);
             if (owner.IsActive(userId))
                 await history.SaveStreamHistoryAsync(new StreamHistory
                     {

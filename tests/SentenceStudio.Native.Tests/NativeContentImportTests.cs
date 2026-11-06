@@ -770,7 +770,13 @@ public sealed class NativeContentImportTests
         public bool FailListOnce { get; set; }
 
         /// <summary>The first list read takes its rows, then waits for this before returning them.</summary>
-        public TaskCompletionSource? HoldFirstList { get; set; }
+        public TaskCompletionSource? HoldFirstList
+        {
+            get => _holdFirstList;
+            set => _holdFirstList = value;
+        }
+
+        private TaskCompletionSource? _holdFirstList;
 
         public Task<ContentClassificationResult> ClassifyAsync(
             string owner, string content, CancellationToken cancellationToken) =>
@@ -797,12 +803,13 @@ public sealed class NativeContentImportTests
                 FailListOnce = false;
                 throw new InvalidOperationException("Simulated resource list failure.");
             }
+            // Taken when the read starts, so the first read is the one held. Taken after its query,
+            // a slow opening read (a loaded machine) let the read after the commit take the hold,
+            // and the commit then waited for a gate the test opens only after the commit.
+            var hold = Interlocked.Exchange(ref _holdFirstList, null);
             var rows = await inner.ListTargetResourcesAsync(owner, cancellationToken);
-            if (HoldFirstList is { } hold)
-            {
-                HoldFirstList = null;
+            if (hold is not null)
                 await hold.Task;
-            }
             return rows;
         }
     }
