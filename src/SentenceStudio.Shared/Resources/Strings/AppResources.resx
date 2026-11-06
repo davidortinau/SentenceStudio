@@ -1039,7 +1039,7 @@
   </data>
   <data name="More" xml:space="preserve">
     <value>More</value>
-    <comment>Heat map legend - more</comment>
+    <comment>Native overflow (More actions) menu and its accessibility label</comment>
   </data>
   <data name="Total" xml:space="preserve">
     <value>Total</value>
@@ -9344,6 +9344,10 @@ For example: {0} ...</value>
   </data>
   <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
     <value>No memory aids on this copy.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
+    <value>Showing {0}.</value>
+    <comment>Duplicate manager status suffix: groups shown so far (source "Showing N.")</comment>
   </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version.</value>

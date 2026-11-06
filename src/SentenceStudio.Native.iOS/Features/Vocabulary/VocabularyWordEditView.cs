@@ -64,7 +64,8 @@ internal static class VocabularyWordEditView
                 Views.Text(text("VocabWordEdit_FindDuplicates")), actions.FindDuplicates)
             .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates");
         findDuplicates.IsEnabled = state.CanFindDuplicates;
-        fields.Add(Card(style, "VocabWordEdit_VocabularyTerms", text, findDuplicates,
+        fields.Add(CardWithHeaderAction(style, "VocabWordEdit_VocabularyTerms", text,
+            findDuplicates,
             TargetField(state, style, text, actions, readOnly),
             TextField("VocabWordEdit_NativeLanguageTerm",
                 "VocabWordEdit_NativePlaceholder", "native.vocabulary.edit.native",
@@ -165,9 +166,11 @@ internal static class VocabularyWordEditView
     private static SwiftView Card(
         SourceUiStyle style, string titleKey, Func<string, string> text,
         params SwiftView[] content) =>
-        Card(style, titleKey, text, headerAction: null, content);
+        CardWithHeaderAction(style, titleKey, text, headerAction: null, content);
 
-    private static SwiftView Card(
+    // Not a Card overload: with a SwiftView? parameter first, Card(style, key, text, row, ...)
+    // would bind its first row as the header action.
+    private static SwiftView CardWithHeaderAction(
         SourceUiStyle style, string titleKey, Func<string, string> text,
         SwiftView? headerAction, params SwiftView[] content)
     {

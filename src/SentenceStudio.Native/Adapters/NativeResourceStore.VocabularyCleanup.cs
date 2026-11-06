@@ -55,21 +55,16 @@ public sealed partial class NativeResourceStore
             logger.LogWarning("Native vocabulary delete did not remove the word.");
             return NativeVocabularyDeleteStatus.Failed;
         }
-        try
-        {
-            pendingWrites.MarkPending(owner);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Vocabulary delete committed but sync tracking was not confirmed.");
-        }
-        return NativeVocabularyDeleteStatus.Deleted;
+        return TryMarkPending(owner, "Vocabulary delete")
+            ? NativeVocabularyDeleteStatus.Deleted
+            : NativeVocabularyDeleteStatus.DeletedSyncUnconfirmed;
     }
 
     /// <summary>
-    /// Source FindDuplicateVocabularyGroupsAsync for the active owner. Copies keep the
-    /// source's merge-preference order and recommended keeper; a copy recorded to another
-    /// owner shows no memory aids, and its strength counts its terms only.
+    /// Source FindDuplicateVocabularyGroupsAsync for the active owner. A copy recorded to another
+    /// owner shows no memory aids or audio; its strength, its place in the merge order and the
+    /// recommended keeper are worked out from what is shown, so the order never hints at aids
+    /// the learner cannot see.
     /// </summary>
     public async Task<NativeVocabularyDuplicateScan> FindOwnedVocabularyDuplicatesAsync(
         string owner, string? focusTerm, int skip, int take,
@@ -85,34 +80,38 @@ public sealed partial class NativeResourceStore
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return new(false, [], 0, 0);
 
-        var groups = scan.Groups.Select(group => new NativeVocabularyDuplicateGroup(
-                group.NormalizedTerm, group.DisplayTerm,
-                VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words)
-                    .Select(info => DuplicateWord(info, owner)).ToArray(),
-                group.CanMergeAutomatically, group.MergeBlockedReason,
-                group.RecommendedKeeperId))
+        var groups = scan.Groups.Select(group =>
+            {
+                var shown = VocabularyDuplicateGroup.OrderWordsByMergePreference(
+                    group.Words.Select(info => AsShownTo(info, owner)));
+                return new NativeVocabularyDuplicateGroup(
+                    group.NormalizedTerm, group.DisplayTerm,
+                    shown.Select(info => DuplicateWord(info)).ToArray(),
+                    group.CanMergeAutomatically, group.MergeBlockedReason,
+                    shown.FirstOrDefault()?.Word.Id ?? string.Empty);
+            })
             .ToArray();
         return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount);
     }
 
     /// <summary>
-    /// Source MergeDuplicateGroup (<see cref="LearningResourceRepository.MergeVocabularyWordsAsync"/>),
+    /// Source MergeDuplicateGroup (<see cref="LearningResourceRepository.MergeVocabularyWordsWithResultAsync"/>),
     /// which keeps every copy's history and refuses words shared outside the owner. Every word
     /// must be the owner's; otherwise nothing is merged.
     /// </summary>
-    public async Task<int> MergeOwnedVocabularyDuplicatesAsync(
+    public async Task<NativeVocabularyMergeResult> MergeOwnedVocabularyDuplicatesAsync(
         string owner, string keeperWordId, IReadOnlyList<string> duplicateWordIds,
         CancellationToken cancellationToken)
     {
         if (!IsActiveOwner(owner) || string.IsNullOrWhiteSpace(keeperWordId)
             || duplicateWordIds is null)
-            return 0;
+            return NativeVocabularyMergeResult.None;
         var duplicates = duplicateWordIds
             .Where(id => !string.IsNullOrWhiteSpace(id) && id != keeperWordId)
             .Distinct(StringComparer.Ordinal)
             .ToList();
         if (duplicates.Count == 0)
-            return 0;
+            return NativeVocabularyMergeResult.None;
 
         var stamp = userScope.CaptureStamp();
         var requested = duplicates.Append(keeperWordId).ToArray();
@@ -127,47 +126,75 @@ public sealed partial class NativeResourceStore
             if (owned != expected)
             {
                 logger.LogWarning("Native duplicate merge refused words the owner does not hold.");
-                return 0;
+                return NativeVocabularyMergeResult.None;
             }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
-            return 0;
-        var removed = await WithResourcesAsync(resources =>
-            resources.MergeVocabularyWordsAsync(keeperWordId, duplicates, cancellationToken));
-        if (removed > 0)
-        {
-            try
-            {
-                pendingWrites.MarkPending(owner);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Duplicate merge committed but sync tracking was not confirmed.");
-            }
-        }
-        return removed;
+            return NativeVocabularyMergeResult.None;
+        var merge = await WithResourcesAsync(resources =>
+            resources.MergeVocabularyWordsWithResultAsync(keeperWordId, duplicates, cancellationToken));
+        if (!merge.Changed)
+            return new(merge.Deleted, false, false);
+        return new(merge.Deleted, true, !TryMarkPending(owner, "Duplicate merge"));
     }
 
-    private static NativeVocabularyDuplicateWord DuplicateWord(
+    /// <summary>
+    /// Records a committed change for sync. False (logged) when the tracking could not be
+    /// written: the change is on this device but the learner must hear that its sync is unconfirmed.
+    /// </summary>
+    private bool TryMarkPending(string owner, string operation)
+    {
+        try
+        {
+            pendingWrites.MarkPending(owner);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{Operation} committed but sync tracking was not confirmed.", operation);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The copy as this owner may see it: another owner's copy loses its memory aids and audio,
+    /// and its strength is what remains.
+    /// </summary>
+    private static VocabularyDuplicateWordInfo AsShownTo(
         VocabularyDuplicateWordInfo info, string owner)
     {
         var word = info.Word;
-        var ownsMemoryAids = word.UserProfileId == owner;
-        var score = ownsMemoryAids ? info.EncodingScore
-            : EncodingScoreHelper.CalculateWithLabel(new VocabularyWord {
-                TargetLanguageTerm = word.TargetLanguageTerm,
-                NativeLanguageTerm = word.NativeLanguageTerm
-            }, 0).Score;
+        if (word.UserProfileId == owner)
+            return info;
+        var shown = new VocabularyWord
+        {
+            Id = word.Id,
+            TargetLanguageTerm = word.TargetLanguageTerm,
+            NativeLanguageTerm = word.NativeLanguageTerm,
+            Language = word.Language,
+            LexicalUnitType = word.LexicalUnitType,
+            CreatedAt = word.CreatedAt,
+            UpdatedAt = word.UpdatedAt
+        };
+        return info with
+        {
+            Word = shown,
+            EncodingScore = EncodingScoreHelper.CalculateWithLabel(shown, 0).Score
+        };
+    }
+
+    private static NativeVocabularyDuplicateWord DuplicateWord(VocabularyDuplicateWordInfo info)
+    {
+        var word = info.Word;
         return new NativeVocabularyDuplicateWord(
             word.Id, word.TargetLanguageTerm ?? string.Empty,
             word.NativeLanguageTerm ?? string.Empty,
             word.Language, word.LexicalUnitType, info.ResourceCount,
-            score, EncodingScoreHelper.GetLabel(score),
-            ownsMemoryAids && !string.IsNullOrWhiteSpace(word.MnemonicText)
-                ? word.MnemonicText : null,
-            ownsMemoryAids && !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
+            info.EncodingScore, EncodingScoreHelper.GetLabel(info.EncodingScore),
+            string.IsNullOrWhiteSpace(word.MnemonicText) ? null : word.MnemonicText,
+            !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
             !string.IsNullOrWhiteSpace(word.AudioPronunciationUri));
     }
 }

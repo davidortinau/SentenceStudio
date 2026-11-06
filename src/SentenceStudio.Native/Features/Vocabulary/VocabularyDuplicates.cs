@@ -27,10 +27,246 @@ internal sealed record VocabularyDuplicateMergeOutcome(
     bool Changed, string Feedback, bool Warning);
 
 /// <summary>
-/// Platform-neutral Find Duplicates workflow (source OpenDuplicateManagerAsync,
+/// What the word-cleanup workflow needs from the Vocabulary browser that hosts it: the Android
+/// <see cref="VocabularyBrowser"/> and the iOS VocabularyCoordinator. The host keeps its own list
+/// and editor state and its UI binding; the workflow decides the rest.
+/// </summary>
+internal interface IVocabularyCleanupHost
+{
+    /// <summary>
+    /// The active owner while the list is open. False when the list was closed (nothing to do,
+    /// nothing to report) or the owner changed (the host has blocked the view itself).
+    /// </summary>
+    bool TryOpenOwner(out string owner);
+
+    bool IsListOpen { get; }
+    bool IsFormOpen { get; }
+    bool IsSaving { get; }
+    NativeVocabularyDetail? OpenDetail { get; }
+    NativeVocabularyEditDraft? OpenDraft { get; }
+    CancellationToken Lifetime { get; }
+
+    /// <summary>Leaves the editor and discards its draft (the source navigates away). No publish.</summary>
+    void LeaveWord();
+
+    /// <summary>The list's feedback line (the source's toast).</summary>
+    void ShowListFeedback(string message, bool warning);
+
+    Task ReloadListAsync();
+
+    /// <summary>
+    /// Tells the UI what changed. <paramref name="deleteDialog"/> is the delete confirmation alone,
+    /// which the iOS scene updates in place without rebuilding the editor.
+    /// </summary>
+    void PublishChanges(bool list = false, bool form = false, bool deleteDialog = false);
+
+    /// <summary>
+    /// Runs store work off the UI thread and resumes on it: SQLite work is synchronous under
+    /// its async API and would otherwise freeze the screen.
+    /// </summary>
+    Task<T> OffUiAsync<T>(Func<Task<T>> work);
+}
+
+/// <summary>
+/// The word editor's Find Duplicates, the duplicate manager it opens, and Delete (source
+/// VocabularyWordEdit OpenDuplicateManager, RequestDelete and ConfirmDelete; Vocabulary.razor
+/// OpenDuplicateManagerAsync, ShowMoreDuplicates and MergeDuplicateGroup). One copy of the
+/// workflow for both heads; each head keeps only its bindings.
+/// </summary>
+internal sealed class VocabularyWordCleanup
+{
+    private readonly INativeResourceStore _store;
+    private readonly ILogger _logger;
+    private readonly Func<string, string> _text;
+    private readonly IVocabularyCleanupHost _host;
+    private readonly VocabularyDuplicateFinder _duplicates;
+    private bool _confirmingDelete;
+    private bool _deleting;
+    private string? _deleteError;
+
+    internal VocabularyWordCleanup(INativeResourceStore store, ILogger logger,
+        Func<string, string> text, IVocabularyCleanupHost host)
+    {
+        _store = store;
+        _logger = logger;
+        _text = text;
+        _host = host;
+        _duplicates = new VocabularyDuplicateFinder(store, logger, text, host);
+    }
+
+    internal VocabularyDuplicatePanel? Duplicates => _duplicates.Panel;
+    internal bool ConfirmingDelete => _confirmingDelete;
+    internal bool Deleting => _deleting;
+    internal string? DeleteError => _deleteError;
+
+    internal bool IsDeleteConfirmationPresented =>
+        _host.IsFormOpen && (_confirmingDelete || _deleting);
+
+    /// <summary>Source deleteConfirmMessage for the loaded word; null until it loads.</summary>
+    internal string? DeleteMessage => _host.IsFormOpen && _host.OpenDetail is { } detail
+        ? VocabularyWordCommands.DeleteMessage(detail, _text) : null;
+
+    /// <summary>
+    /// Source OpenDuplicateManager: leaves the editor (its draft is discarded, as the source
+    /// navigates away) for the list's duplicate manager, focused on the draft's term and this word.
+    /// </summary>
+    internal async Task FindDuplicatesAsync()
+    {
+        if (!_host.IsFormOpen || _host.IsSaving || _deleting
+            || _host.OpenDraft is not { } draft
+            || string.IsNullOrWhiteSpace(draft.TargetTerm)
+            || !_host.TryOpenOwner(out var owner))
+            return;
+        var term = draft.TargetTerm.Trim();
+        var wordId = draft.Id;
+        ResetDelete();
+        _host.LeaveWord();
+        _host.PublishChanges(list: true, form: true);
+        await _duplicates.OpenAsync(owner, term, wordId, _host.Lifetime);
+    }
+
+    /// <summary>Source ShowMoreDuplicates.</summary>
+    internal Task ShowMoreDuplicatesAsync() =>
+        _host.IsListOpen && _host.TryOpenOwner(out var owner)
+            ? _duplicates.ShowMoreAsync(owner, _host.Lifetime)
+            : Task.CompletedTask;
+
+    /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
+    internal async Task MergeDuplicatesAsync(string normalizedTerm)
+    {
+        if (!_host.IsListOpen || _host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        var outcome = await _duplicates.MergeAsync(owner, normalizedTerm, _host.Lifetime);
+        if (outcome is null || !_host.TryOpenOwner(out _))
+            return;
+        _host.ShowListFeedback(outcome.Feedback, outcome.Warning);
+        if (outcome.Changed)
+            await _host.ReloadListAsync();
+        else
+            _host.PublishChanges(list: true);
+    }
+
+    /// <summary>Source CloseCleanupPanel.</summary>
+    internal void CloseDuplicates()
+    {
+        if (_host.TryOpenOwner(out _))
+            _duplicates.Close();
+    }
+
+    /// <summary>
+    /// Source: returning to the list after a save or delete reopens the manager, so it scans
+    /// again. Call after the save or delete has finished, not while it holds the editor.
+    /// </summary>
+    internal async Task RescanDuplicatesAsync()
+    {
+        if (_duplicates.IsOpen && _host.TryOpenOwner(out var owner))
+            await _duplicates.RescanAsync(owner, _host.Lifetime);
+    }
+
+    /// <summary>Source RequestDelete: shows the confirmation.</summary>
+    internal void RequestDelete()
+    {
+        if (!_host.IsFormOpen || !VocabularyWordCommands.CanDelete(
+                _host.IsSaving || _deleting, _host.OpenDetail)
+            || !_host.TryOpenOwner(out _))
+            return;
+        _confirmingDelete = true;
+        _deleteError = null;
+        _host.PublishChanges(deleteDialog: true);
+    }
+
+    /// <summary>Source CancelDelete (Cancel, Close or the backdrop); ignored while deleting.</summary>
+    internal void CancelDelete()
+    {
+        if (_deleting || !_confirmingDelete)
+            return;
+        _confirmingDelete = false;
+        _host.PublishChanges(deleteDialog: true);
+    }
+
+    /// <summary>
+    /// Source ConfirmDelete: deletes the word, then returns to the list with the source's
+    /// success message (with a warning when its sync could not be recorded). A refused or
+    /// failed delete keeps the editor open and says why.
+    /// </summary>
+    internal async Task ConfirmDeleteAsync()
+    {
+        if (!_host.IsFormOpen || !_confirmingDelete || _deleting || _host.IsSaving
+            || _host.OpenDetail is not { } detail || !_host.TryOpenOwner(out var owner))
+        {
+            // The confirmation may already show its pending state; take it down.
+            if (_confirmingDelete && !_deleting)
+            {
+                _confirmingDelete = false;
+                _host.PublishChanges(deleteDialog: true);
+            }
+            return;
+        }
+        _deleting = true;
+        _deleteError = null;
+        // The confirmation shows its pending state; the editor under it stays as it is.
+        _host.PublishChanges(deleteDialog: true);
+        var deleted = false;
+        try
+        {
+            var result = await _host.OffUiAsync(() => _store.DeleteOwnedVocabularyAsync(
+                owner, detail.Word.Id, _host.Lifetime));
+            if (result is NativeVocabularyDeleteStatus.Deleted
+                or NativeVocabularyDeleteStatus.DeletedSyncUnconfirmed)
+            {
+                deleted = true;
+                var unconfirmed = result == NativeVocabularyDeleteStatus.DeletedSyncUnconfirmed;
+                var feedback = _text("VocabWordEdit_DeletedSuccess");
+                _host.ShowListFeedback(unconfirmed
+                    ? $"{feedback} {_text("NativeResources_SyncUnconfirmed")}" : feedback,
+                    unconfirmed);
+                _host.LeaveWord();
+            }
+            else if (_host.TryOpenOwner(out _))
+                _deleteError = VocabularyWordCommands.DeleteError(result, detail, _text);
+        }
+        catch (OperationCanceledException) when (_host.Lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native Vocabulary delete failed.");
+            _deleteError = VocabularyWordCommands.DeleteError(
+                NativeVocabularyDeleteStatus.Failed, detail, _text);
+        }
+        finally
+        {
+            _deleting = false;
+            _confirmingDelete = false;
+            _host.PublishChanges(list: true, form: true, deleteDialog: true);
+        }
+        if (deleted)
+        {
+            await _host.ReloadListAsync();
+            await RescanDuplicatesAsync();
+        }
+    }
+
+    /// <summary>A newly opened or closed word starts with no confirmation or delete error.</summary>
+    internal void ResetDelete()
+    {
+        _confirmingDelete = false;
+        _deleteError = null;
+    }
+
+    /// <summary>The list closed or its owner changed: everything goes, without publishing.</summary>
+    internal void Reset()
+    {
+        _duplicates.Reset();
+        ResetDelete();
+    }
+}
+
+/// <summary>
+/// Platform-neutral Find Duplicates scan state (source OpenDuplicateManagerAsync,
 /// LoadDuplicateGroupsAsync, ShowMoreDuplicates and MergeDuplicateGroup) over the owner-scoped
-/// store, shared by the iOS VocabularyCoordinator and the Android VocabularyBrowser. The caller
-/// checks its owner before each call and reloads its catalog after a merge.
+/// store. Used through <see cref="VocabularyWordCleanup"/>.
 /// </summary>
 internal sealed class VocabularyDuplicateFinder
 {
@@ -40,29 +276,30 @@ internal sealed class VocabularyDuplicateFinder
     private readonly INativeResourceStore _store;
     private readonly ILogger _logger;
     private readonly Func<string, string> _text;
-    private readonly Action _changed;
+    private readonly IVocabularyCleanupHost _host;
     private VocabularyDuplicatePanel? _panel;
     private long _generation;
+    private bool _rescanPending;
 
     internal VocabularyDuplicateFinder(
         INativeResourceStore store, ILogger logger,
-        Func<string, string> text, Action changed)
+        Func<string, string> text, IVocabularyCleanupHost host)
     {
         _store = store;
         _logger = logger;
         _text = text;
-        _changed = changed;
+        _host = host;
     }
 
     internal VocabularyDuplicatePanel? Panel => _panel;
     internal bool IsOpen => _panel is not null;
-    internal bool IsRunning => _panel?.Running == true;
 
     /// <summary>Source OpenDuplicateManagerAsync(focusTerm, focusWordId).</summary>
     internal async Task OpenAsync(string owner, string? focusTerm, string? focusWordId,
         CancellationToken cancellationToken)
     {
         var label = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
+        _rescanPending = false;
         _panel = new VocabularyDuplicatePanel(true,
             label is null ? _text("Vocabulary_DuplicatesTitle")
                 : Format("Vocabulary_DuplicatesFor", label),
@@ -71,7 +308,7 @@ internal sealed class VocabularyDuplicateFinder
             label, VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm),
             string.IsNullOrWhiteSpace(focusWordId) ? null : focusWordId,
             [], 0, 0, []);
-        _changed();
+        Changed();
         await LoadAsync(owner, append: false, results: [], cancellationToken);
     }
 
@@ -81,20 +318,25 @@ internal sealed class VocabularyDuplicateFinder
         if (_panel is not { Running: false } panel || panel.RemainingGroupCount == 0)
             return Task.CompletedTask;
         _panel = panel with { Running = true };
-        _changed();
+        Changed();
         return LoadAsync(owner, append: true, panel.Results, cancellationToken);
     }
 
     /// <summary>
-    /// Scans again from the first page (source: the list reopens the manager on return from
-    /// the editor and after each merge). Keeps the results already reported.
+    /// Scans again from the first page, keeping the results already reported. While a scan or
+    /// merge runs, the rescan waits for it and runs after, so the merge's result is kept.
     /// </summary>
     internal Task RescanAsync(string owner, CancellationToken cancellationToken)
     {
         if (_panel is not { } panel)
             return Task.CompletedTask;
+        if (panel.Running)
+        {
+            _rescanPending = true;
+            return Task.CompletedTask;
+        }
         _panel = panel with { Running = true };
-        _changed();
+        Changed();
         return LoadAsync(owner, append: false, panel.Results, cancellationToken);
     }
 
@@ -114,27 +356,31 @@ internal sealed class VocabularyDuplicateFinder
             return new(false, group.MergeBlockedReason
                 ?? _text("NativeVocabulary_DuplicatesBlockedFallback"), Warning: true);
 
-        var generation = Interlocked.Increment(ref _generation);
+        var generation = Volatile.Read(ref _generation);
         _panel = panel with {
             Running = true,
             Status = Format("Vocabulary_MergingGroup", group.NormalizedTerm)
         };
-        _changed();
+        Changed();
         var results = panel.Results.ToList();
         VocabularyDuplicateMergeOutcome outcome;
         try
         {
             var keeper = group.Words[0];
             var duplicates = group.Words.Skip(1).Select(word => word.Id).ToArray();
-            // Off the UI thread: the merge folds every copy's history in one save.
-            var removed = await Task.Run(() => _store.MergeOwnedVocabularyDuplicatesAsync(
-                owner, keeper.Id, duplicates, cancellationToken), cancellationToken);
-            results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, removed));
-            outcome = removed > 0
-                ? new(true, Format("Vocabulary_DuplicatesMergedSuccess", removed, group.DisplayTerm),
-                    Warning: false)
-                : new(false, Format("Vocabulary_DuplicatesNoMergeNeeded", group.DisplayTerm),
-                    Warning: false);
+            var merge = await _host.OffUiAsync(() => _store.MergeOwnedVocabularyDuplicatesAsync(
+                owner, keeper.Id, duplicates, cancellationToken));
+            results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, merge.Removed));
+            // Source: removed copies, else "no merge was needed". Links and history can move
+            // while every copy is kept (other data still uses it); that is a change, not a no-op.
+            var feedback = merge.Removed > 0
+                ? Format("Vocabulary_DuplicatesMergedSuccess", merge.Removed, group.DisplayTerm)
+                : merge.Changed
+                    ? Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, 0)
+                    : Format("Vocabulary_DuplicatesNoMergeNeeded", group.DisplayTerm);
+            outcome = merge.SyncUnconfirmed
+                ? new(true, $"{feedback} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                : new(merge.Changed, feedback, Warning: false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -158,15 +404,15 @@ internal sealed class VocabularyDuplicateFinder
     {
         if (_panel is null)
             return;
-        Interlocked.Increment(ref _generation);
-        _panel = null;
-        _changed();
+        Reset();
+        Changed();
     }
 
     /// <summary>Drops the panel without publishing (owner change, list closed).</summary>
     internal void Reset()
     {
         Interlocked.Increment(ref _generation);
+        _rescanPending = false;
         _panel = null;
     }
 
@@ -178,9 +424,8 @@ internal sealed class VocabularyDuplicateFinder
         var skip = append ? _panel?.Groups.Count ?? 0 : 0;
         try
         {
-            // Off the UI thread: the scan reads every owned word.
-            var scan = await Task.Run(() => _store.FindOwnedVocabularyDuplicatesAsync(
-                owner, label, skip, PageSize, cancellationToken), cancellationToken);
+            var scan = await _host.OffUiAsync(() => _store.FindOwnedVocabularyDuplicatesAsync(
+                owner, label, skip, PageSize, cancellationToken));
             if (generation != Volatile.Read(ref _generation) || _panel is not { } panel)
                 return;
             if (!scan.OwnerValid)
@@ -196,8 +441,8 @@ internal sealed class VocabularyDuplicateFinder
                 ExtraRecordCount = scan.ExtraRecordCount,
                 Results = results,
                 Status = scan.TotalGroupCount > 0
-                    ? Format("Vocabulary_DuplicatesFoundCount",
-                        scan.TotalGroupCount, scan.ExtraRecordCount)
+                    ? $"{Format("Vocabulary_DuplicatesFoundCount", scan.TotalGroupCount, scan.ExtraRecordCount)} "
+                        + Format("NativeVocabulary_DuplicatesShowing", groups.Count)
                     : label is null ? _text("Vocabulary_DuplicatesNone")
                         : Format("Vocabulary_DuplicatesNoneForTerm", label)
             };
@@ -212,15 +457,27 @@ internal sealed class VocabularyDuplicateFinder
             if (generation == Volatile.Read(ref _generation) && _panel is { } failed)
                 _panel = failed with {
                     Running = false,
-                    Results = [.. results, Format("Vocabulary_CleanupError", ex.Message)]
+                    Results = results,
+                    // The scan is over: the status says why, not "Scanning..." or "Merging...".
+                    Status = Format("Vocabulary_CleanupError", ex.Message)
                 };
         }
         finally
         {
             if (generation == Volatile.Read(ref _generation))
-                _changed();
+                Changed();
+        }
+        if (_rescanPending && generation == Volatile.Read(ref _generation)
+            && _panel is { Running: false } done)
+        {
+            _rescanPending = false;
+            _panel = done with { Running = true };
+            Changed();
+            await LoadAsync(owner, append: false, done.Results, cancellationToken);
         }
     }
+
+    private void Changed() => _host.PublishChanges(list: true);
 
     /// <summary>Source GetMemoryAidSummary.</summary>
     internal static string MemoryAidSummary(
@@ -262,6 +519,12 @@ internal sealed class VocabularyDuplicateFinder
         string.Format(CultureInfo.CurrentCulture, _text(key), values);
 }
 
+/// <summary>Source GetEncodingBadgeClass: Strong is success, Good warning, Basic secondary.</summary>
+internal enum VocabularyEncodingTone
+{
+    Basic, Good, Strong
+}
+
 /// <summary>
 /// The editor's Find Duplicates and Delete rules and messages (source VocabularyWordEdit
 /// OpenDuplicateManager, RequestDelete and ConfirmDelete), shared by both heads.
@@ -295,5 +558,13 @@ internal static class VocabularyWordCommands
         NativeVocabularyDeleteStatus.NotFoundOrForbidden => text("VocabWordEdit_NotFound"),
         _ => string.Format(CultureInfo.CurrentCulture, text("Common_DeleteFailed"),
             detail.Word.TargetTerm)
+    };
+
+    /// <summary>Source GetEncodingBadgeClass tone for an encoding label.</summary>
+    internal static VocabularyEncodingTone EncodingTone(string label) => label switch
+    {
+        "Strong" => VocabularyEncodingTone.Strong,
+        "Good" => VocabularyEncodingTone.Good,
+        _ => VocabularyEncodingTone.Basic
     };
 }

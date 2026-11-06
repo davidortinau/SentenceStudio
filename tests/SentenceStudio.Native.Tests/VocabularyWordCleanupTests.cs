@@ -1,7 +1,10 @@
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using CoreSync;
 using CoreSync.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Native.Features.Vocabulary;
@@ -229,16 +232,16 @@ public sealed class VocabularyWordCleanupTests
             UserB, null, 0, 20, default)).OwnerValid);
 
         // A merge naming another owner's word merges nothing.
-        Assert.Equal(0, await store.MergeOwnedVocabularyDuplicatesAsync(
+        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserA, "dup-a-2", ["dup-b-1"], default));
-        Assert.Equal(0, await store.MergeOwnedVocabularyDuplicatesAsync(
+        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserB, "dup-b-2", ["dup-b-1"], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
 
         fixture.LoseOwner();
         Assert.False((await store.FindOwnedVocabularyDuplicatesAsync(
             UserA, null, 0, 20, default)).OwnerValid);
-        Assert.Equal(0, await store.MergeOwnedVocabularyDuplicatesAsync(
+        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserA, "dup-a-2", ["dup-a-1"], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-a-1")).Words);
     }
@@ -277,6 +280,352 @@ public sealed class VocabularyWordCleanupTests
         // Nothing of the other owner's changed.
         Assert.DoesNotContain(changes.Items, item =>
             item.Values.Values.Any(value => value.Value?.ToString()?.Contains(UserB) == true));
+    }
+
+    // Review 2026-11-05: AI example sentences carry the owner's UserProfileId and no resource.
+    [Fact]
+    public async Task Delete_TakesAWordWithTheOwnersOwnAiSentencesButNotAnotherOwnersSentence()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA, known: true);
+        await fixture.SeedAsync(UserB);
+        var withOwnSentence = fixture.WordId(UserA, 0);
+        var withForeignSentence = fixture.WordId(UserA, 1);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ExampleSentences.Add(AiSentence("ai-own", withOwnSentence, UserA));
+            db.ExampleSentences.Add(AiSentence("ai-foreign", withForeignSentence, UserB));
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+
+        await browser.OpenWordAsync(withForeignSentence);
+        Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.Equal(NativeVocabularyDeleteStatus.SharedReadOnly,
+            await store.DeleteOwnedVocabularyAsync(UserA, withForeignSentence, default));
+
+        await browser.OpenWordAsync(withOwnSentence);
+        Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.True(browser.EditState.CanDelete);
+        browser.RequestDelete();
+        await browser.ConfirmDeleteAsync();
+
+        Assert.False(browser.IsFormOpen);
+        Assert.Null(browser.EditState.DeleteError);
+        Assert.Equal("VocabWordEdit_DeletedSuccess", browser.ListState.Feedback);
+        Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, withOwnSentence));
+        var foreign = await RowsAsync(fixture, withForeignSentence);
+        Assert.Equal(1, foreign.Words);
+        Assert.Equal(1, foreign.Examples);
+    }
+
+    // Review 2026-11-05: a committed delete whose sync tracking fails says so, as Save does.
+    [Fact]
+    public async Task Delete_WhoseSyncTrackingFails_StillDeletesAndWarns()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA, known: true);
+        fixture.Activate(UserA);
+        // The next MarkPending overflows its checked revision counter and throws.
+        fixture.Preferences.Set("native_sync_revision_v1_" + UserA, long.MaxValue);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var wordId = fixture.WordId(UserA, 0);
+        await browser.OpenWordAsync(wordId);
+        browser.RequestDelete();
+        await browser.ConfirmDeleteAsync();
+
+        Assert.False(browser.IsFormOpen);
+        Assert.Equal("VocabWordEdit_DeletedSuccess NativeResources_SyncUnconfirmed",
+            browser.ListState.Feedback);
+        Assert.True(browser.ListState.FeedbackWarning);
+        Assert.Equal(0, (await RowsAsync(fixture, wordId)).Words);
+    }
+
+    [Fact]
+    public async Task Merge_WhoseSyncTrackingFails_StillMergesAndWarns()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        fixture.Preferences.Set("native_sync_revision_v1_" + UserA, long.MaxValue);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenWordAsync("dup-a-1");
+        await browser.FindDuplicatesAsync();
+
+        await browser.MergeDuplicatesAsync(Assert.Single(browser.ListState.Duplicates!.Groups).NormalizedTerm);
+
+        Assert.Equal("Vocabulary_DuplicatesMergedSuccess NativeResources_SyncUnconfirmed",
+            browser.ListState.Feedback);
+        Assert.True(browser.ListState.FeedbackWarning);
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        Assert.DoesNotContain(browser.ListState.FilteredWords, word => word.Id == "dup-a-1");
+    }
+
+    // Review 2026-11-05: a merge can keep every copy (another account still uses it) and still
+    // move this owner's links: that is a saved change, not "no merge needed".
+    [Fact]
+    public async Task Merge_ThatMovesLinksButKeepsASharedCopy_IsASavedChange()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                Id = "mapping-dup-a-1-by-b", ResourceId = fixture.ResourceId(UserB),
+                VocabularyWordId = "dup-a-1"
+            });
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        var pending = fixture.Provider.GetRequiredService<NativePendingWrites>();
+        Assert.False(pending.IsPending(UserA));
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenWordAsync("dup-a-2");
+        await browser.FindDuplicatesAsync();
+        var group = Assert.Single(browser.ListState.Duplicates!.Groups);
+        Assert.Equal("dup-a-2", group.RecommendedKeeperId);
+
+        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
+
+        var list = browser.ListState;
+        Assert.Equal("Vocabulary_DuplicatesMergedCount", list.Feedback);
+        Assert.False(list.FeedbackWarning);
+        // The list reloaded: the copy left this owner's list but stayed for the other account.
+        Assert.DoesNotContain(list.FilteredWords, word => word.Id == "dup-a-1");
+        Assert.Contains(list.FilteredWords, word => word.Id == "dup-a-2");
+        Assert.True(pending.IsPending(UserA));
+        var kept = await RowsAsync(fixture, "dup-a-1");
+        Assert.Equal(1, kept.Words);
+        Assert.Equal(1, kept.Mappings);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-a-2")).Mappings);
+        Assert.False(pending.IsPending(UserB));
+        // Nothing is left to move.
+        Assert.Equal(NativeVocabularyMergeResult.None, await fixture.Provider
+            .GetRequiredService<INativeResourceStore>()
+            .MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-a-2", ["dup-a-1"], default));
+    }
+
+    // Review 2026-11-05: a copy recorded to another owner hides its aids, so its rank and the
+    // recommended keeper must not depend on them either.
+    [Fact]
+    public async Task DuplicateScan_RanksAnotherOwnersCopyByWhatTheLearnerSees()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyWords.Add(new VocabularyWord {
+                Id = "dup-own", TargetLanguageTerm = "사과", NativeLanguageTerm = "apple",
+                Language = "Korean", LexicalUnitType = LexicalUnitType.Word,
+                CreatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc)
+            });
+            db.VocabularyWords.Add(new VocabularyWord {
+                Id = "dup-legacy", TargetLanguageTerm = "사과", NativeLanguageTerm = "apple",
+                Language = "Korean", LexicalUnitType = LexicalUnitType.Word, UserProfileId = UserB,
+                MnemonicText = "Their private story", MnemonicImageUri = "their.png",
+                AudioPronunciationUri = "their.mp3",
+                CreatedAt = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc)
+            });
+            foreach (var id in new[] { "dup-own", "dup-legacy" })
+                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                    Id = $"mapping-{id}", ResourceId = fixture.ResourceId(UserA), VocabularyWordId = id
+                });
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+
+        var group = Assert.Single((await store.FindOwnedVocabularyDuplicatesAsync(
+            UserA, "사과", 0, 20, default)).Groups);
+
+        Assert.Equal(new[] { "dup-own", "dup-legacy" }, group.Words.Select(word => word.Id));
+        Assert.Equal("dup-own", group.RecommendedKeeperId);
+        var legacy = group.Words[1];
+        Assert.Null(legacy.MnemonicText);
+        Assert.False(legacy.HasImageAid);
+        Assert.False(legacy.HasAudio);
+        Assert.Equal(group.Words[0].EncodingScore, legacy.EncodingScore);
+        Assert.Equal(group.Words[0].EncodingLabel, legacy.EncodingLabel);
+    }
+
+    // Review 2026-11-05: a rescan asked for while a merge runs waits for it, so the merge's
+    // result line stays.
+    [Fact]
+    public async Task Rescan_DuringAMerge_RunsAfterItAndKeepsTheMergeResult()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var gated = GatedStore.Wrap(fixture, out var store);
+        var finder = new VocabularyDuplicateFinder(store, NullLogger.Instance, key => key, new Host());
+        await finder.OpenAsync(UserA, "사과", "dup-a-1", default);
+        var group = Assert.Single(finder.Panel!.Groups);
+        gated.MergeGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var merging = finder.MergeAsync(UserA, group.NormalizedTerm, default);
+        await gated.MergeEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await finder.RescanAsync(UserA, default);
+        Assert.True(finder.Panel!.Running);
+        Assert.Equal("Vocabulary_MergingGroup", finder.Panel.Status);
+        Assert.Equal(1, gated.Scans);
+
+        gated.MergeGate.SetResult();
+        var outcome = await merging.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Changed);
+        Assert.Equal("Vocabulary_DuplicatesMergedSuccess", outcome.Feedback);
+        var panel = finder.Panel!;
+        Assert.False(panel.Running);
+        Assert.Equal(new[] { "Vocabulary_DuplicatesMergedCount" }, panel.Results);
+        Assert.Empty(panel.Groups);
+        // The open, the merge's own rescan, then the one that waited.
+        Assert.Equal(3, gated.Scans);
+    }
+
+    // Review 2026-11-05: a failed scan ends "Scanning..." or "Merging..." with the error.
+    [Fact]
+    public async Task FailedScan_EndsTheStatusWithTheError()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var gated = GatedStore.Wrap(fixture, out var store);
+        static string Text(string key) => key == "Vocabulary_CleanupError" ? "Cleanup failed: {0}" : key;
+        var finder = new VocabularyDuplicateFinder(store, NullLogger.Instance, Text, new Host());
+        gated.FailScans = true;
+
+        await finder.OpenAsync(UserA, "사과", "dup-a-1", default);
+        Assert.False(finder.Panel!.Running);
+        Assert.Equal("Cleanup failed: The scan broke.", finder.Panel.Status);
+
+        gated.FailScans = false;
+        await finder.RescanAsync(UserA, default);
+        var group = Assert.Single(finder.Panel!.Groups);
+        gated.FailScans = true;
+        var outcome = await finder.MergeAsync(UserA, group.NormalizedTerm, default);
+
+        Assert.True(outcome!.Changed);
+        Assert.False(finder.Panel!.Running);
+        Assert.Equal("Cleanup failed: The scan broke.", finder.Panel.Status);
+        Assert.Equal(new[] { "Vocabulary_DuplicatesMergedCount" }, finder.Panel.Results);
+    }
+
+    // Source: "Found N group(s) of duplicate words with M extra record(s). Showing K."
+    [Fact]
+    public async Task Status_SaysHowManyGroupsAreShown()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        static string Text(string key) => key switch
+        {
+            "Vocabulary_DuplicatesFoundCount" =>
+                "Found {0} group(s) of duplicate words with {1} extra record(s).",
+            "NativeVocabulary_DuplicatesShowing" => "Showing {0}.",
+            _ => key
+        };
+        var finder = new VocabularyDuplicateFinder(
+            fixture.Provider.GetRequiredService<INativeResourceStore>(), NullLogger.Instance, Text,
+            new Host());
+
+        await finder.OpenAsync(UserA, null, null, default);
+
+        Assert.Equal("Found 1 group(s) of duplicate words with 1 extra record(s). Showing 1.",
+            finder.Panel!.Status);
+    }
+
+    // Review 2026-11-05: leaving the list while a scan or merge runs is not an owner change.
+    [Fact]
+    public async Task LeavingTheList_DuringAScanOrMerge_DoesNotReportAnOwnerChange()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var gated = GatedStore.Wrap(fixture, out var store);
+        var logger = new ListLogger<VocabularyBrowser>();
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), logger, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+
+        await browser.OpenWordAsync("dup-a-1");
+        gated.ScanGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finding = browser.FindDuplicatesAsync();
+        await gated.ScanEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        browser.Close();
+        gated.ScanGate.SetResult();
+        await finding.WaitAsync(TimeSpan.FromSeconds(10));
+        gated.ScanGate = null;
+        Assert.False(browser.IsOpen);
+
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenWordAsync("dup-a-1");
+        await browser.FindDuplicatesAsync();
+        var group = Assert.Single(browser.ListState.Duplicates!.Groups);
+        gated.MergeGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var merging = browser.MergeDuplicatesAsync(group.NormalizedTerm);
+        await gated.MergeEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        browser.Close();
+        gated.MergeGate.SetResult();
+        await merging.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(browser.IsOpen);
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("owner", StringComparison.Ordinal));
+        Assert.True(await browser.OpenAsync(UserA));
+        Assert.False(browser.ListState.Blocked);
+        Assert.Null(browser.ListState.ErrorKey);
+        Assert.Null(browser.ListState.Duplicates);
+    }
+
+    // Review 2026-11-05: the save lets go of the editor before the manager scans again.
+    [Fact]
+    public async Task Save_FinishesBeforeTheManagerScansAgain()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var gated = GatedStore.Wrap(fixture, out var store);
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), NullLogger<VocabularyBrowser>.Instance, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenWordAsync("dup-a-1");
+        await browser.FindDuplicatesAsync();
+        Assert.NotNull(browser.ListState.Duplicates);
+
+        await browser.OpenWordAsync(fixture.WordId(UserA, 0));
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.NativeTerm), "a changed meaning");
+        gated.ScanGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var saving = browser.SaveAsync();
+        await gated.ScanEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(browser.IsFormOpen);
+        Assert.False(browser.IsNavigationBlocked);
+        Assert.Equal("VocabWordEdit_UpdatedSuccess", browser.ListState.Feedback);
+        Assert.True(browser.ListState.Duplicates!.Running);
+
+        gated.ScanGate.SetResult();
+        await saving.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(browser.ListState.Duplicates!.Running);
+        Assert.Single(browser.ListState.Duplicates.Groups);
     }
 
     private static VocabularyBrowser Create(NativeSliceFixture fixture) =>
@@ -323,6 +672,137 @@ public sealed class VocabularyWordCleanupTests
             UpdatedAt = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc)
         });
         await db.SaveChangesAsync();
+    }
+
+    private static ExampleSentence AiSentence(string id, string wordId, string owner) => new()
+    {
+        Id = id, VocabularyWordId = wordId, UserProfileId = owner, LearningResourceId = null,
+        TargetSentence = $"ai-{id}", NativeSentence = "native sentence",
+        CreatedAt = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc),
+        UpdatedAt = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc)
+    };
+
+    /// <summary>A list that is open for <see cref="UserA"/>; store work runs inline.</summary>
+    private sealed class Host : IVocabularyCleanupHost
+    {
+        public bool TryOpenOwner(out string owner)
+        {
+            owner = UserA;
+            return true;
+        }
+
+        public bool IsListOpen => true;
+        public bool IsFormOpen => false;
+        public bool IsSaving => false;
+        public NativeVocabularyDetail? OpenDetail => null;
+        public NativeVocabularyEditDraft? OpenDraft => null;
+        public CancellationToken Lifetime => CancellationToken.None;
+        public void LeaveWord() { }
+        public void ShowListFeedback(string message, bool warning) { }
+        public Task ReloadListAsync() => Task.CompletedTask;
+        public void PublishChanges(bool list = false, bool form = false, bool deleteDialog = false) { }
+        public Task<T> OffUiAsync<T>(Func<Task<T>> work) => work();
+    }
+
+    private sealed class ListLogger<T> : ILogger<T>
+    {
+        private readonly List<string> _messages = [];
+
+        internal IReadOnlyList<string> Messages
+        {
+            get
+            {
+                lock (_messages)
+                    return _messages.ToArray();
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel < LogLevel.Warning)
+                return;
+            lock (_messages)
+                _messages.Add(formatter(state, exception));
+        }
+    }
+
+    /// <summary>
+    /// The real store, with its duplicate scans and merges held at a gate (or failing) so a test
+    /// can act while one runs.
+    /// </summary>
+    public class GatedStore : DispatchProxy
+    {
+        private INativeResourceStore _inner = null!;
+        private int _scans;
+
+        internal TaskCompletionSource? ScanGate { get; set; }
+        internal TaskCompletionSource ScanEntered { get; private set; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource? MergeGate { get; set; }
+        internal TaskCompletionSource MergeEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool FailScans { get; set; }
+        internal int Scans => Volatile.Read(ref _scans);
+
+        internal static GatedStore Wrap(NativeSliceFixture fixture, out INativeResourceStore store)
+        {
+            store = Create<INativeResourceStore, GatedStore>();
+            var gated = (GatedStore)(object)store;
+            gated._inner = fixture.Provider.GetRequiredService<INativeResourceStore>();
+            return gated;
+        }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            var method = targetMethod!;
+            return method.Name switch
+            {
+                nameof(INativeResourceStore.FindOwnedVocabularyDuplicatesAsync) => ScanAsync(method, args),
+                nameof(INativeResourceStore.MergeOwnedVocabularyDuplicatesAsync) => MergeAsync(method, args),
+                _ => Forward(method, args)
+            };
+        }
+
+        private async Task<NativeVocabularyDuplicateScan> ScanAsync(MethodInfo method, object?[]? args)
+        {
+            Interlocked.Increment(ref _scans);
+            if (ScanGate is { } gate)
+            {
+                ScanEntered.TrySetResult();
+                await gate.Task;
+                ScanEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            if (FailScans)
+                throw new InvalidOperationException("The scan broke.");
+            return await (Task<NativeVocabularyDuplicateScan>)Forward(method, args)!;
+        }
+
+        private async Task<NativeVocabularyMergeResult> MergeAsync(MethodInfo method, object?[]? args)
+        {
+            if (MergeGate is { } gate)
+            {
+                MergeEntered.TrySetResult();
+                await gate.Task;
+            }
+            return await (Task<NativeVocabularyMergeResult>)Forward(method, args)!;
+        }
+
+        private object? Forward(MethodInfo method, object?[]? args)
+        {
+            try
+            {
+                return method.Invoke(_inner, args);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+                throw;
+            }
+        }
     }
 
     /// <summary>Two copies of 사과 / apple on the owner's resource; the second has a memory aid.</summary>

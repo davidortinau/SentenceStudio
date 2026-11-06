@@ -12073,6 +12073,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Showing {0}..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesShowing {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesShowing", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Could not load vocabulary. Please retry..
         /// </summary>
         internal static string NativeVocabulary_LoadFailed {

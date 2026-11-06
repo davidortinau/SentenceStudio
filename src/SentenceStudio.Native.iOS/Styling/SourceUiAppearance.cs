@@ -188,6 +188,12 @@ internal sealed class SourceUiAppearance
     internal SourceColorPair DangerButtonFill => new("#B3261E", "#B3261E");
     internal SourceColorPair DangerButtonText => new("#FFFFFF", "#FFFFFF");
     internal SourceColorPair Warning => new("#FFC233", "#FFC233");
+    /// <summary>
+    /// The theme's <c>--bs-secondary</c> (app.css; the custom themes set their own), which
+    /// <c>bg-secondary</c> utilities use. <see cref="BootstrapSecondary"/> is the compiled
+    /// button colour.
+    /// </summary>
+    internal SourceColorPair ThemeSecondary => new(LightColors.Secondary, DarkColors.Secondary);
     internal SourceColorPair SuccessAlertFill =>
         new(LightColors.SuccessAlert.Fill, DarkColors.SuccessAlert.Fill);
     internal SourceColorPair SuccessAlertText =>

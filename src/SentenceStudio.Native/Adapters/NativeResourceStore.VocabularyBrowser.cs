@@ -337,11 +337,16 @@ public sealed partial class NativeResourceStore
                 && !db.VocabularyProgresses.Any(progress =>
                     progress.VocabularyWordId == wordId
                     && progress.UserId != owner)
+                // A sentence is the owner's when it names them (phase 3, which includes AI
+                // reference sentences with no resource), or names nobody and sits on their
+                // resource (the same rule as OwnedExamples).
                 && !db.ExampleSentences.Any(example =>
                     example.VocabularyWordId == wordId
-                    && !db.LearningResources.Any(resource =>
-                        resource.Id == example.LearningResourceId
-                        && resource.UserProfileId == owner)));
+                    && example.UserProfileId != owner
+                    && !(example.UserProfileId == null
+                        && db.LearningResources.Any(resource =>
+                            resource.Id == example.LearningResourceId
+                            && resource.UserProfileId == owner))));
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,

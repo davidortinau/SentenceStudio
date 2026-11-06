@@ -132,12 +132,12 @@ internal static class VocabularyDuplicatesView
     {
         var id = $"native.vocabulary.duplicates.word.{word.Id}";
         var keeper = word.Id == group.RecommendedKeeperId;
+        var (encodingFill, encodingText) = EncodingColors(style.Appearance, word.EncodingLabel);
         var badges = new List<SwiftView> {
             style.Text(Views.Text(word.NativeTerm), SourceTextRole.Body2Strong)
                 .WithAccessibilityIdentifier($"{id}.native"),
             Badge(style, text(VocabularyDuplicateFinder.EncodingKey(word.EncodingLabel)),
-                style.Appearance.BootstrapSecondary, style.Appearance.OnBootstrapSecondary,
-                $"{id}.encoding")
+                encodingFill, encodingText, $"{id}.encoding")
         };
         if (keeper)
             badges.Add(Badge(style, text("Vocabulary_DuplicatesRecommendedKeeper"),
@@ -171,10 +171,35 @@ internal static class VocabularyDuplicatesView
             .WithAccessibilityIdentifier(id);
     }
 
+    /// <summary>
+    /// Source GetEncodingBadgeClass: "bg-{tone} bg-opacity-25 text-{tone}" with success for
+    /// Strong, warning for Good and secondary for Basic, over the row's surface. The label says
+    /// the strength too. The tone's emphasis text keeps it readable on its own tint (the
+    /// tone's base color on a 25% tint of itself is under 3:1).
+    /// </summary>
+    internal static (SourceColorPair Fill, SourceColorPair Text) EncodingColors(
+        SourceUiAppearance appearance, string encodingLabel)
+    {
+        var (tone, label) = VocabularyWordCommands.EncodingTone(encodingLabel) switch
+        {
+            VocabularyEncodingTone.Strong => (appearance.Success, appearance.SuccessAlertText),
+            VocabularyEncodingTone.Good => (appearance.Warning, WarningText),
+            _ => (appearance.ThemeSecondary, appearance.SecondaryText)
+        };
+        var surface = appearance.ListRowSurface;
+        return (new SourceColorPair(
+                NativeThemeColorTable.Blend(tone.Light, surface.Light, 0.25),
+                NativeThemeColorTable.Blend(tone.Dark, surface.Dark, 0.25)),
+            label);
+    }
+
+    /// <summary>Bootstrap 5.3 warning emphasis text, as in the warning alert.</summary>
+    private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");
+
     /// <summary>Source "alert alert-warning py-2" (Bootstrap 5.3 warning alert tokens).</summary>
     private static SwiftView WarningAlert(SourceUiStyle style, SwiftView content)
     {
-        var column = content.WithForegroundColor("#664D03", "#FFDA6A")
+        var column = content.WithForegroundColor(WarningText.Light, WarningText.Dark)
             .WithPadding(8, 16, 8, 16)
             .WithFlexibleWidth();
         return column.WithRoundedSurface("#FFF3CD", "#332701",

@@ -280,8 +280,9 @@ internal sealed partial class AndroidSliceShell
         var native = Body(word.NativeTerm, palette, modifier: Modifier.TestTag($"{id}.native"));
         native.FontWeight = FontWeight.SemiBold;
         badges.Add(new Box { Modifier.Padding(end: 8, bottom: 6), native });
+        var (encodingFill, encodingText) = EncodingColors(palette, word.EncodingLabel);
         AddBadge(badges, Localize(VocabularyDuplicateFinder.EncodingKey(word.EncodingLabel)),
-            palette.Elevated, palette.Text, $"{id}.encoding");
+            encodingFill, encodingText, $"{id}.encoding");
         if (keeper)
             AddBadge(badges, Localize("Vocabulary_DuplicatesRecommendedKeeper"),
                 palette.Success, Color.White, $"{id}.keeper");
@@ -319,6 +320,23 @@ internal sealed partial class AndroidSliceShell
         surface.Add(column);
         return surface;
     }
+
+    /// <summary>
+    /// Source GetEncodingBadgeClass: "bg-{tone} bg-opacity-25 text-{tone}" with success for
+    /// Strong, warning for Good and secondary for Basic. The label says the strength too; the
+    /// theme's success and warning text roles keep it readable on its own tint.
+    /// </summary>
+    private static (Color Fill, Color Text) EncodingColors(AndroidVisualPalette palette,
+        string encodingLabel) => VocabularyWordCommands.EncodingTone(encodingLabel) switch
+    {
+        VocabularyEncodingTone.Strong => (palette.Success.WithOpacity(0.25f), palette.KnownText),
+        VocabularyEncodingTone.Good => (Color.FromHex(WarningHex).WithOpacity(0.25f),
+            palette.WarningText),
+        _ => (palette.Secondary.WithOpacity(0.25f), palette.SecondaryText)
+    };
+
+    /// <summary><c>--bs-warning</c>, as the iOS head's warning.</summary>
+    private const string WarningHex = "#FFC233";
 
     private static void AddBadge(FlowRow row, string value, Color fill, Color text, string tag)
     {

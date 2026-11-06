@@ -204,8 +204,8 @@ public interface INativeResourceStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate search is not available from this store.");
 
-    /// <summary>Source MergeVocabularyWordsAsync: the number of duplicate copies removed.</summary>
-    Task<int> MergeOwnedVocabularyDuplicatesAsync(
+    /// <summary>Source MergeVocabularyWordsAsync for the active owner.</summary>
+    Task<NativeVocabularyMergeResult> MergeOwnedVocabularyDuplicatesAsync(
         string owner, string keeperWordId, IReadOnlyList<string> duplicateWordIds,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate merge is not available from this store.");

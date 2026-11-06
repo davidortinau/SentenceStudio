@@ -132,6 +132,33 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("return style.Page(Views.Scroll(content)", editor);
     }
 
+    // Review 2026-11-05: one copy of Find Duplicates, the duplicate manager and Delete, shared
+    // with Android; the iOS coordinator keeps the SwiftUI bindings and runs the store work off
+    // the main thread.
+    [Fact]
+    public void WordCleanup_IsTheSharedWorkflowWithStoreWorkOffTheMainThread()
+    {
+        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.Contains("_cleanup = new VocabularyWordCleanup(store, logger, text, this);", coordinator);
+        foreach (var duplicated in new[] { "DeleteOwnedVocabularyAsync", "MergeOwnedVocabularyDuplicatesAsync",
+                     "FindOwnedVocabularyDuplicatesAsync", "new VocabularyDuplicateFinder(", "_confirmingDelete" })
+            Assert.DoesNotContain(duplicated, coordinator);
+        Assert.Contains("result = await Task.Run(work).ConfigureAwait(false);", coordinator);
+        Assert.Contains("await new MainQueue();", coordinator);
+        // The save rescans after it lets go of the editor.
+        var save = coordinator[coordinator.IndexOf("private async Task SaveAsync()", StringComparison.Ordinal)..];
+        save = save[..save.IndexOf("internal void CancelDelete()", StringComparison.Ordinal)];
+        Assert.True(save.IndexOf("_saving = false;", StringComparison.Ordinal)
+            < save.IndexOf("await _cleanup.RescanDuplicatesAsync();", StringComparison.Ordinal));
+        var editor = Source("Features/Vocabulary/VocabularyWordEditView.cs");
+        Assert.Contains("CardWithHeaderAction(style, \"VocabWordEdit_VocabularyTerms\"", editor);
+        // One Card overload, rows only: a SwiftView? header parameter would capture a card's
+        // first row (the harness in SentenceStudio.Native.SwiftUIViews.Tests builds the cards).
+        Assert.Equal(2, editor.Split("private static SwiftView Card(", StringSplitOptions.None).Length);
+        Assert.Contains("private static SwiftView Card(\n        SourceUiStyle style, string titleKey, "
+            + "Func<string, string> text,\n        params SwiftView[] content)", editor);
+    }
+
     private static string Source(string relativePath) => File.ReadAllText(
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
             "../../src/SentenceStudio.Native.iOS", relativePath)));

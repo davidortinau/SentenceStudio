@@ -1951,21 +1951,29 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// engine the live attempt path uses). Progress is merged PER USER — each user keeps exactly one combined
     /// keeper record; users are never collapsed together.
     /// </summary>
-    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default)
+    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default) =>
+        (await MergeVocabularyWordsWithResultAsync(keeperWordId, deleteWordIds, ct)).Deleted;
+
+    /// <summary>
+    /// <see cref="MergeVocabularyWordsAsync"/>, also saying whether anything was saved: a copy
+    /// another learner's data still references is kept, yet its links and history still move
+    /// to the keeper, so zero deleted words can still be a committed change.
+    /// </summary>
+    public async Task<VocabularyMergeResult> MergeVocabularyWordsWithResultAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(keeperWordId) || deleteWordIds == null || !deleteWordIds.Any())
-            return 0;
+            return VocabularyMergeResult.None;
 
         // Never let the keeper appear in its own delete list.
         deleteWordIds = deleteWordIds.Where(id => !string.IsNullOrWhiteSpace(id) && id != keeperWordId).Distinct().ToList();
         if (!deleteWordIds.Any())
-            return 0;
+            return VocabularyMergeResult.None;
 
         var userId = ActiveUserId;
         if (string.IsNullOrEmpty(userId))
         {
             _logger.LogWarning("MergeVocabularyWordsAsync called without an active user — refusing to merge to prevent cross-tenant data changes.");
-            return 0;
+            return VocabularyMergeResult.None;
         }
 
         using var scope = _serviceProvider.CreateScope();
@@ -1981,7 +1989,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (userResourceIds.Count == 0)
         {
             _logger.LogWarning("MergeVocabularyWordsAsync found no resources for active user {UserId} — refusing to merge.", userId);
-            return 0;
+            return VocabularyMergeResult.None;
         }
 
         // Get current-user mappings for the keeper to avoid duplicate resource links.
@@ -1993,7 +2001,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (keeperResourceIds.Count == 0)
         {
             _logger.LogWarning("MergeVocabularyWordsAsync keeper word {KeeperWordId} is not mapped to active user {UserId} — refusing to merge.", keeperWordId, userId);
-            return 0;
+            return VocabularyMergeResult.None;
         }
 
         var keeperHasOtherUserReferences = (await GetDeleteWordIdsWithOtherUserReferencesAsync(
@@ -2004,7 +2012,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             _logger.LogWarning(
                 "MergeVocabularyWordsAsync keeper word {KeeperWordId} is shared outside active user {UserId} — refusing to merge to prevent cross-tenant artifact leaks.",
                 keeperWordId, userId);
-            return 0;
+            return VocabularyMergeResult.None;
         }
 
         var deleteWordIdsWithUnownedArtifacts = await GetDeleteWordIdsWithUnownedArtifactsAsync(db, deleteWordIds, userId, ct);
@@ -2016,7 +2024,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             _logger.LogWarning(
                 "MergeVocabularyWordsAsync found only unowned-artifact-linked duplicates for active user {UserId} — refusing to merge to avoid orphaning data.",
                 userId);
-            return 0;
+            return VocabularyMergeResult.None;
         }
 
         foreach (var deleteId in mergeableDeleteWordIds)
@@ -2077,7 +2085,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
 
-        return deleted;
+        return new VocabularyMergeResult(deleted, changed);
     }
 
     private static async Task<bool> ReparentDependentVocabularyArtifactsAsync(

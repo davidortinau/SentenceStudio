@@ -6,6 +6,7 @@ using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Sam;
+using SentenceStudio.Native.iOS.Features.Vocabulary;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Shared.Models;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -166,6 +167,58 @@ var cases = new (string Name, Action Test)[]
         using var page = Views.VStack(Views.Text("Page"));
         Throws<ArgumentException>(() => floating.Bind(page));
     }),
+    // Review 2026-11-05: a Card overload taking a header action first bound the Progress card's
+    // Status row (and the empty History text) as a header action beside the title.
+    ("Word editor: only Vocabulary Terms has a header action; Progress and History keep their rows", () =>
+    {
+        using var page = VocabularyWordEditView.Page(WordState(history: false), style, key => key, WordActions());
+        var terms = Find(page, "native.vocabulary.edit.section.VocabWordEdit_VocabularyTerms.header")
+            ?? throw new Exception("The Vocabulary Terms header is missing.");
+        Assert(Find(terms, "native.vocabulary.edit.duplicates") is not null);
+        foreach (var key in new[] { "VocabWordEdit_LearningProgress", "VocabWordEdit_HistoryTitle",
+                     "VocabWordEdit_EncodingMemoryAids", "VocabWordEdit_ResourceAssociations" })
+        {
+            Assert(Find(page, $"native.vocabulary.edit.section.{key}.header") is null);
+            Assert(Find(page, $"native.vocabulary.edit.section.{key}") is not null);
+        }
+        // Each row sits beside its card's title, not inside a header stack.
+        foreach (var row in new[] { "native.vocabulary.edit.progress.status.row",
+                     "native.vocabulary.edit.progress.details.row", "native.vocabulary.edit.progress.review.row",
+                     "native.vocabulary.edit.history.empty" })
+        {
+            var parent = Parent(page, row) ?? throw new Exception($"{row} is missing.");
+            Assert(parent.AccessibilityIdentifier?.EndsWith(".header", StringComparison.Ordinal) != true);
+            Assert(parent.Children.Any(child => child.AccessibilityIdentifier is { } sibling
+                && sibling.StartsWith("native.vocabulary.edit.section.", StringComparison.Ordinal)
+                && !sibling.EndsWith(".header", StringComparison.Ordinal)));
+        }
+        using var withHistory = VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions());
+        Assert(Find(withHistory, "native.vocabulary.edit.section.VocabWordEdit_HistoryTitle.header") is null);
+        Assert(Find(withHistory, "native.vocabulary.edit.history.count") is not null);
+    }),
+    ("Duplicate manager: encoding badges take the source tones (success, warning, secondary)", () =>
+    {
+        var appearance = style.Appearance;
+        var strong = VocabularyDuplicatesView.EncodingColors(appearance, "Strong");
+        var good = VocabularyDuplicatesView.EncodingColors(appearance, "Good");
+        var basic = VocabularyDuplicatesView.EncodingColors(appearance, "Basic");
+        // Seoul Pop sets --bs-secondary to its success green, so on the web Strong and Basic
+        // share a fill there and differ by text colour (text-success, text-secondary-ss).
+        Assert(strong.Fill != good.Fill && good.Fill != basic.Fill && strong.Text != basic.Text);
+        var surface = appearance.ListRowSurface;
+        Assert(strong.Fill.Light == NativeThemeColorTable.Blend(appearance.Success.Light, surface.Light, 0.25));
+        Assert(good.Fill.Dark == NativeThemeColorTable.Blend(appearance.Warning.Dark, surface.Dark, 0.25));
+        Assert(basic.Fill.Light == NativeThemeColorTable.Blend(
+            appearance.ThemeSecondary.Light, surface.Light, 0.25));
+        Assert(basic.Fill.Dark == NativeThemeColorTable.Blend(
+            appearance.ThemeSecondary.Dark, surface.Dark, 0.25));
+        Assert(strong.Text == appearance.SuccessAlertText && basic.Text == appearance.SecondaryText);
+        Assert(VocabularyDuplicatesView.EncodingColors(appearance, "Unknown") == basic);
+        using var panel = VocabularyDuplicatesView.Panel(DuplicatePanel(), style, key => key,
+            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        foreach (var id in new[] { "w-strong", "w-good", "w-basic" })
+            Assert(Find(panel, $"native.vocabulary.duplicates.word.{id}.encoding") is not null);
+    }),
 };
 
 var failures = 0;
@@ -188,6 +241,49 @@ return failures == 0 ? 0 : 1;
 static RecentLookupRow Row(string id, IReadOnlyList<VocabularyLookupDestination> destinations) =>
     new(id, RecentLookupsAccess.Key(id), "바다", "sea", VocabularyLookupActivity.Reading, "Story",
         new DateTime(2026, 11, 4, 15, 30, 0, DateTimeKind.Utc), destinations);
+
+static VocabularyEditPresentation WordState(bool history)
+{
+    var created = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+    var resource = new NativeVocabularyResource("res-a", "Story", "Korean", false);
+    var draft = new NativeVocabularyEditDraft("word-1", created, "병", "bottle", null, "Korean",
+        null, null, null, LexicalUnitType.Word, ["res-a"]);
+    var entry = new NativeVocabularyEntry("word-1", "병", "bottle", LexicalUnitType.Word, null, null,
+        "Korean", created, created, "Basic", LearningStatus.Learning, false, [resource]);
+    var detail = new NativeVocabularyDetail(entry, draft, [resource],
+        new NativeVocabularyProgress(LearningStatus.Learning, false, 0.4f, 1.5f, 1, created.AddDays(3), 4),
+        history ? [new NativeVocabularyHistory("h-1", "VocabularyQuiz", created, true, false, "Story")] : [],
+        [], [], false, false);
+    return new VocabularyEditPresentation(false, false, detail, draft, null, false, null);
+}
+
+static VocabularyEditActions WordActions() => new(
+    Change: (_, _) => { }, ToggleResource: (_, _) => { }, Save: () => { }, Cancel: () => { },
+    Retry: () => { }, PlayAudio: () => { }, RegisterSave: _ => { }, RegisterMenuSave: _ => { },
+    RegisterResourceCount: _ => { }, FindDuplicates: () => { }, RequestDelete: () => { });
+
+static VocabularyDuplicatePanel DuplicatePanel()
+{
+    static NativeVocabularyDuplicateWord Word(string id, string label) =>
+        new(id, "병", "bottle", "Korean", LexicalUnitType.Word, 1, 1, label, null, false, false);
+    var group = new NativeVocabularyDuplicateGroup("병", "병",
+        [Word("w-strong", "Strong"), Word("w-good", "Good"), Word("w-basic", "Basic")],
+        true, null, "w-strong");
+    return new VocabularyDuplicatePanel(false, "Duplicates", "Found", null, null, null,
+        [group], 1, 2, []);
+}
+
+static SwiftView? Parent(SwiftView node, string id)
+{
+    foreach (var child in node.Children)
+    {
+        if (child.AccessibilityIdentifier == id)
+            return node;
+        if (Parent(child, id) is { } match)
+            return match;
+    }
+    return null;
+}
 
 static SwiftView? Find(SwiftView node, string id)
 {

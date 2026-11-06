@@ -38,3 +38,12 @@ public sealed record VocabularyDuplicateWordInfo(
     VocabularyWord Word,
     int ResourceCount,
     double EncodingScore);
+
+/// <summary>
+/// What a merge did: the duplicate copies removed, and whether anything was saved (links and
+/// history can move to the keeper even when a copy is kept because other data references it).
+/// </summary>
+public sealed record VocabularyMergeResult(int Deleted, bool Changed)
+{
+    public static VocabularyMergeResult None { get; } = new(0, false);
+}

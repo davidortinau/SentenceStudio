@@ -60,7 +60,17 @@ public enum NativeVocabularySaveStatus
 /// <summary>Source VocabularyWordEdit ConfirmDelete, refused for a word another owner uses.</summary>
 public enum NativeVocabularyDeleteStatus
 {
-    Deleted, NotFoundOrForbidden, SharedReadOnly, Failed
+    Deleted, DeletedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly, Failed
+}
+
+/// <summary>
+/// What a duplicate merge did: copies removed, whether anything was saved (links and history
+/// can move to the keeper while a copy other data references is kept), and whether the change
+/// was saved but its sync tracking could not be recorded.
+/// </summary>
+public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool SyncUnconfirmed)
+{
+    public static NativeVocabularyMergeResult None { get; } = new(0, false, false);
 }
 
 /// <summary>
