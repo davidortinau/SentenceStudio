@@ -39,18 +39,30 @@ internal sealed partial class ApplicationController
             provider.GetRequiredService<ILogger<RecentLookupsCoordinator>>());
         _recentLookups.Changed -= Publish;
         _recentLookups.Changed += Publish;
-        RunLibrary(async () => await _recentLookups.OpenAsync(owner, _lifetime.Token));
+        RunWithFailure(async () => await _recentLookups.OpenAsync(owner, _lifetime.Token),
+            OnRecentLookupsFailed);
     }
 
     internal SwiftView RenderRecentLookups(SourceUiStyle style) =>
         _recentLookups is { IsOpen: true } lookups
             ? RecentLookupsView.Page(lookups.State, style, Text,
                 new RecentLookupsActions(
-                    Reload: () => RunLibrary(() => lookups.ReloadAsync(_lifetime.Token)),
-                    Add: (lookupId, resourceId) =>
-                        RunLibrary(() => lookups.AddAsync(lookupId, resourceId, _lifetime.Token)),
+                    Reload: () => RunWithFailure(() => lookups.ReloadAsync(_lifetime.Token),
+                        OnRecentLookupsFailed),
+                    Add: (lookupId, resourceId) => RunWithFailure(
+                        () => lookups.AddAsync(lookupId, resourceId, _lifetime.Token),
+                        OnRecentLookupsFailed),
                     DismissNotice: lookups.DismissNotice))
             : Views.Text(Text("Common_Loading"));
+
+    /// <summary>An unexpected failure is shown on Recent lookups (or on the Library list when it never opened).</summary>
+    private void OnRecentLookupsFailed()
+    {
+        if (_recentLookups is { IsOpen: true } lookups)
+            lookups.ReportUnexpectedFailure();
+        else
+            OnLibraryActionFailed();
+    }
 
     internal void OnRecentLookupsPopped()
     {

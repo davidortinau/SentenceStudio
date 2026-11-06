@@ -9265,6 +9265,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Quick add.
+        /// </summary>
+        internal static string Library_QuickAdd {
+            get {
+                return ResourceManager.GetString("Library_QuickAdd", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Resources.
         /// </summary>
         internal static string Library_Resources {

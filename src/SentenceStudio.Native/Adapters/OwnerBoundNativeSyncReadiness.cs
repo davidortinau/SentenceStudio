@@ -30,6 +30,9 @@ public sealed class OwnerBoundNativeSyncReadiness(
     ILogger<OwnerBoundNativeSyncReadiness> logger,
     NativeServerReachability? reachability = null) : INativeSyncReadiness
 {
+    /// <inheritdoc />
+    public long SyncGeneration => (sync as ISyncGenerationSource)?.SyncGeneration ?? 0;
+
     public async Task<NativeSyncOutcome> SynchronizeAsync(
         string userId, CancellationToken cancellationToken)
     {

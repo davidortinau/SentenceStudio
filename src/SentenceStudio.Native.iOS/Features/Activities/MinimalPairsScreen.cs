@@ -58,6 +58,9 @@ internal sealed class MinimalPairsScreen : IActivityScreen
 
     public long PageVersion => _pageVersion;
 
+    /// <summary>The list's Create Pair, for a host that opens the create page directly (Library quick add).</summary>
+    public void OpenCreate() => Fire(_presenter.OpenCreateAsync);
+
     /// <summary>An open that threw leaves the list on its error with Go Back (never a spinner).</summary>
     public void OnOpenFailed()
     {

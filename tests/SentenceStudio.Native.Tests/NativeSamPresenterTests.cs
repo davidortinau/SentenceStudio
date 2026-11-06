@@ -49,6 +49,13 @@ public sealed class NativeSamPresenterTests
         Assert.True(sam.State.IsVisible);
         Assert.Null(NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.Offered));
 
+        // Offline after the server offered Sam: the entry stays and the answer agrees with State.
+        fixture.SetConnectivity(false);
+        Assert.Equal(NativeSamAvailability.Offered, await sam.RefreshAvailabilityAsync());
+        Assert.Equal(NativeSamAvailability.Offered, sam.State.Availability);
+        Assert.True(sam.State.IsVisible);
+        fixture.SetConnectivity(true);
+
         api.Availability = new CoachAvailabilityResponse
         {
             IsAvailable = false, State = CoachAvailabilityState.Disabled

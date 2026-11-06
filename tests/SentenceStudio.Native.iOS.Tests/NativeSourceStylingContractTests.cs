@@ -369,7 +369,7 @@ public sealed class NativeSourceStylingContractTests
 
         var project = Source("SentenceStudio.Native.iOS.csproj");
         Assert.Contains(
-            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.39\" />",
+            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.40\" />",
             project);
         Assert.Contains("SentenceStudio.Native.SourceAtBuildSha", project);
     }

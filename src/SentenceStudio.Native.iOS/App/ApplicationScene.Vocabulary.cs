@@ -59,7 +59,7 @@ internal sealed partial class ApplicationScene
                 .WithInlineNavigationTitle();
             _renderedLookupsVersion = _app.RecentLookupsViewVersion;
             stack.Push(ApplicationFormRoutes.RecentLookups,
-                WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));
+                _lookupsSlot);
         }
         else if (_lookupsSlot is not null
             && (appearanceChanged || _renderedLookupsVersion != _app.RecentLookupsViewVersion))
@@ -99,7 +99,7 @@ internal sealed partial class ApplicationScene
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
             _renderedVocabularySheetVersion = _app.VocabularySheetVersion;
             stack.Push(ApplicationFormRoutes.Vocabulary,
-                WithSamToolbar(stack, ApplicationFormRoutes.Vocabulary, _vocabularySheet));
+                _vocabularySheet);
         }
         if (_vocabularySlot is null || _vocabularySheet is null
             || _vocabularyFilterSlot is null)

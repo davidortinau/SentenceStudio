@@ -39,8 +39,7 @@ internal sealed partial class ApplicationScene
                     cancel, delete)
                 .WithAccessibilityIdentifier("native.profile.delete.confirmation");
             _renderedProfileVersion = _app.ProfileViewVersion;
-            _settingsStack.Push("profile", WithSamToolbar(_settingsStack, "profile",
-                _profileDeleteAlert));
+            _settingsStack.Push("profile", _profileDeleteAlert);
         }
         if (_profileSlot is null)
             return;

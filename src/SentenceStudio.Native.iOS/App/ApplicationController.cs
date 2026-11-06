@@ -164,7 +164,17 @@ internal sealed partial class ApplicationController : IDisposable
     internal bool NavigationBlocked => _busy
         || _resources?.IsNavigationBlocked == true
         || _skills?.IsPending == true
-        || _vocabulary?.IsNavigationBlocked == true;
+        || _vocabulary?.IsNavigationBlocked == true
+        || IsSamSlotCheckingShown;
+
+    private bool _launching = true;
+
+    /// <summary>
+    /// The app is starting: the launch look (the launch screen's color and logo) stays
+    /// until sign-in is resolved, so a remembered session goes straight to Study and Sign In
+    /// is drawn only when there is no session to restore or the restore failed.
+    /// </summary>
+    internal bool IsLaunching => _launching;
 
     internal async void Start()
     {
@@ -186,6 +196,7 @@ internal sealed partial class ApplicationController : IDisposable
             if (NativePreviewFixture.FromAssembly() is { } fixture)
             {
                 await RunPreviewJourneyAsync(fixture);
+                _launching = false;
                 Publish();
                 return;
             }
@@ -210,6 +221,7 @@ internal sealed partial class ApplicationController : IDisposable
         }
         catch (Exception ex)
         {
+            _launching = false;
             _logger?.LogError(ex, "Native iOS SwiftUI startup failed.");
             ClearSamForAccountBoundary();
             _destination = NativeDestination.SignIn;
@@ -221,6 +233,7 @@ internal sealed partial class ApplicationController : IDisposable
             _authState = new(NativePhase.Error, NativeDestination.SignIn,
                 ErrorKey: NativeText.UnexpectedError);
         }
+        _launching = false;
         Publish();
     }
 
@@ -231,6 +244,12 @@ internal sealed partial class ApplicationController : IDisposable
         if (_authState.Destination == NativeDestination.Dashboard)
         {
             _destination = NativeDestination.Dashboard;
+            if (_launching)
+            {
+                // Study shows at once (its plan loads in place), not after the plan load.
+                _launching = false;
+                Publish();
+            }
 #if DEBUG
             if (_services is not null)
             {
@@ -309,11 +328,12 @@ internal sealed partial class ApplicationController : IDisposable
     {
         if (_resources is not null || _services is null)
             return;
+        var readiness = _services.Provider.GetRequiredService<INativeSyncReadiness>();
         _resources = new LearningResourcesCoordinator(
             _services.Provider.GetRequiredService<NativeResourcePresenter>(),
             _services.Provider
                 .GetRequiredService<ILogger<LearningResourcesCoordinator>>(),
-            Text);
+            Text, () => readiness.SyncGeneration);
         _resources.Changed += Publish;
         _resources.FormOpenChanged += open =>
         {
@@ -574,7 +594,8 @@ internal sealed partial class ApplicationController : IDisposable
                 if (created.Result == NativeResourceMutationResult.Success)
                     await _dashboard.EnsureStarterSkillAsync(_lifetime.Token);
                 _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
-                _resources?.OnBrowserAppeared();
+                // A resource made on this device: read the list again.
+                _resources?.ReloadList();
             }
             else
                 _dashboardStarterErrorKey = created.ErrorKey switch
@@ -674,8 +695,6 @@ internal sealed partial class ApplicationController : IDisposable
             finally
             {
                 _dashboardRefreshing = false;
-                // The refresh synced: the Library reads the owner's resources again.
-                _resources?.MarkListStale();
             }
         });
     }
@@ -707,7 +726,10 @@ internal sealed partial class ApplicationController : IDisposable
         _resources?.RenderForm(style)
         ?? Views.Text(Text("NativeResources_LoadError"));
 
-    internal void OpenSkills()
+    internal void OpenSkills() => OpenSkills(create: false);
+
+    /// <summary>The Skills page; with <paramref name="create"/>, its Add form opens above it.</summary>
+    private void OpenSkills(bool create)
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
             || IsSkillsOpen || IsQuizOpen || IsResourcesFormOpen || _services is null)
@@ -733,8 +755,12 @@ internal sealed partial class ApplicationController : IDisposable
         RunLibrary(async () =>
         {
             if (await _skills!.OpenAsync(expectedOwner))
+            {
                 _refreshChooseOwnAfterSkills =
                     _dashboardState.Mode == NativeDashboardMode.ChooseOwn;
+                if (create)
+                    _skills.OpenCreate();
+            }
         });
     }
 
@@ -817,7 +843,7 @@ internal sealed partial class ApplicationController : IDisposable
             _resources.OnFormPopped();
         _resourceFormFromDashboard = true;
         _selectedTab = NativeTabs.Library;
-        _resources.OnBrowserAppeared();
+        ReadResourcesIfStale();
         _resources.Open(resourceId);
         if (!IsResourcesFormOpen)
         {
@@ -835,8 +861,6 @@ internal sealed partial class ApplicationController : IDisposable
         _selectedTab = NativeTabs.Study;
         Publish();
     }
-
-    internal void OnResourcesAppeared() => _resources?.OnBrowserAppeared();
 
     internal void SearchResources(string query) => _resources?.Search(query);
 
@@ -858,7 +882,13 @@ internal sealed partial class ApplicationController : IDisposable
     /// Study's Add resource opens the form above the Library's Resources page, so the saved
     /// resource is in front of the learner when the form closes (source: the browser).
     /// </summary>
-    private void OpenResourceAddFromDashboard()
+    private void OpenResourceAddFromDashboard() => OpenResourceCreate();
+
+    /// <summary>
+    /// The resource form above the Library's Resources page (Study's Add resource and the
+    /// Library's quick add): the saved resource shows on the page when the form closes.
+    /// </summary>
+    private void OpenResourceCreate()
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked || IsQuizOpen)
             return;
@@ -1016,11 +1046,14 @@ internal sealed partial class ApplicationController : IDisposable
     }
 
     /// <summary>A Library row's action: a failure is the Library's, not Study's plan.</summary>
-    private void RunLibrary(Func<Task> action)
+    private void RunLibrary(Func<Task> action) => RunWithFailure(action, OnLibraryActionFailed);
+
+    /// <summary>An action off Study whose failure is shown where it happened (not as Study's plan error).</summary>
+    private void RunWithFailure(Func<Task> action, Action onFailure)
     {
         if (_disposed || _busy)
             return;
-        _ = RunSafelyAsync(action, OnLibraryActionFailed);
+        _ = RunSafelyAsync(action, onFailure);
     }
 
     private async Task RunSafelyAsync(Func<Task> action, Action? onFailure = null)
