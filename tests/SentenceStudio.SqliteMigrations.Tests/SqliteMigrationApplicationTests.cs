@@ -278,7 +278,11 @@ public sealed class SqliteMigrationApplicationTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
+            // Word owners go only to real profiles (f4a4c1c5), so both learners have one.
             command.CommandText = """
+                INSERT INTO "UserProfile" ("Id", "Name", "NativeLanguage", "TargetLanguage", "PreferredSessionMinutes", "CreatedAt")
+                VALUES ('owner-a', 'A', 'English', 'Korean', 20, '2026-09-02 10:00:00'),
+                       ('owner-b', 'B', 'English', 'Korean', 20, '2026-09-02 10:00:00');
                 INSERT INTO LearningResource (Id, UserProfileId, CreatedAt, UpdatedAt, IsSmartResource)
                 VALUES ('res-a', 'owner-a', '2026-09-02 10:00:00', '2026-09-02 10:00:00', 0),
                        ('res-b', 'owner-b', '2026-09-02 10:00:00', '2026-09-02 10:00:00', 0);
