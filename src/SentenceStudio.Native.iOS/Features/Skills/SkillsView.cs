@@ -59,22 +59,24 @@ internal static class SkillsView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.skills.scroll.content");
         content.Spacing = SourceUiLayout.FormGap;
-        var addMenu = Views.Button(text("Skills_AddSkillProfile"), add)
-            .WithAccessibilityIdentifier("native.skills.add");
-        addMenu.IsEnabled = state.Phase is SkillsListPhase.Empty
-            or SkillsListPhase.Populated;
-        var more = Views.Menu(text("More"), addMenu)
-            .WithAccessibilityIdentifier("native.skills.more");
-        var actions = style.ViewportWidth < 768
-            ? new[] { more }
-            : new[]
-            {
-                style.PrimaryButton(text("Common_Add"), add)
-                    .WithAccessibilityIdentifier("native.skills.add.primary"),
-                more
-            };
-        if (actions.Length > 1)
-            actions[0].IsEnabled = addMenu.IsEnabled;
+        var canAdd = state.Phase is SkillsListPhase.Empty or SkillsListPhase.Populated;
+        // Library toolbar Add (+): the one action the source More menu held.
+        SwiftView action;
+        if (style.ViewportWidth < 768)
+        {
+            action = Views.Button(Views.Image("plus"), add)
+                .WithAccessibilityLabel(text("Skills_AddSkillProfile"))
+                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                .WithAccessibilityIdentifier("native.skills.add");
+            action.IsEnabled = canAdd;
+        }
+        else
+        {
+            action = style.PrimaryButton(text("Common_Add"), add)
+                .WithAccessibilityIdentifier("native.skills.add.primary");
+            action.IsEnabled = canAdd;
+        }
+        var actions = new[] { action };
         return Views.Toolbar(
                 style.Page(Views.Scroll(content)
                     .WithAccessibilityIdentifier("native.skills.scroll"))

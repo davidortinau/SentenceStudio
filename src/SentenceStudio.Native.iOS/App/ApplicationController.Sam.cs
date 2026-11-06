@@ -36,15 +36,14 @@ internal sealed partial class ApplicationController
     internal bool IsSamEntryVisible => IsSamAvailable && !SamState.IsOpen;
 
     /// <summary>
-    /// The review quiz opens over the Dashboard tab's root, so an activity, the quiz,
-    /// a screen pushed over the Dashboard (Settings, Profile, Skills, Vocabulary,
-    /// Recent lookups, Activity Log) or an open resource form on the Resources tab
-    /// (unsaved edits) must close first, as on Android.
+    /// The review quiz opens over the Study tab's root, so an activity, the quiz, the
+    /// History page pushed over Study, or an editor with unsaved edits on another tab
+    /// (a resource, a word, a skill, a new minimal pair, the profile) must close first.
     /// </summary>
     internal bool IsSamReviewBlockedByScreen =>
-        _destination != NativeDestination.Dashboard || _settingsOpen || IsProfileOpen
-        || IsSkillsOpen || IsVocabularyOpen || IsRecentLookupsOpen || IsActivityLogOpen
-        || IsResourcesFormOpen;
+        _destination != NativeDestination.Dashboard || IsActivityLogOpen
+        || IsProfileOpen || IsResourcesFormOpen || IsVocabularyWordOpen || IsSkillFormOpen
+        || LibraryPairsHasChildPage;
 
     internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;
@@ -159,9 +158,14 @@ internal sealed partial class ApplicationController
     }
 
     private bool _samCompactDefault = true;
+    private double _samViewportWidth;
 
     /// <summary>The panel opens compact below 992 pt and expanded at or above it (source J1).</summary>
-    internal void SetSamViewport(double width) => _samCompactDefault = width < 992;
+    internal void SetSamViewport(double width)
+    {
+        _samViewportWidth = width;
+        _samCompactDefault = width < 992;
+    }
 
     internal void DismissSam() => _sam?.Close();
 
@@ -262,40 +266,13 @@ internal sealed partial class ApplicationController
                 return;
             }
             _sam?.Close();
-            _selectedTab = 0;
+            _selectedTab = NativeTabs.Study;
             await StartQuizAsync(launch);
         });
     }
 
-    /// <summary>Hide on scroll for each floating screen (docs/sam-entry.md): one rule per screen.</summary>
-    private readonly SamFloatingEntry _dashboardSamEntry = new();
-    private readonly SamFloatingEntry _resourcesSamEntry = new();
-
-    /// <summary>
-    /// Floats the Sam entry over the dashboard's bottom trailing edge, inside the safe area. The
-    /// bottom inset leaves the button's room after the last card, and the entry slides away
-    /// while the learner scrolls down.
-    /// </summary>
-    private SwiftView WithSamEntry(SwiftView page, SourceUiStyle style) =>
-        IsSamEntryVisible && page.Kind == "scroll"
-            ? _dashboardSamEntry.Bind(Microsoft.SwiftUI.SwiftUI.BottomInset(page,
-                SamView.Fab(style, SamState, Text, SamActions.Open)))
-            : page;
-
-    /// <summary>The same entry on the Resources tab (source: the FAB is on every authenticated page).</summary>
-    private SwiftView? ResourcesSamEntry(SourceUiStyle style) =>
-        IsSamEntryVisible
-            ? SamView.Fab(style, SamState, Text, SamActions.Open, "native.sam.fab.resources")
-            : null;
-
-    /// <summary>The Resources browser floats its entry in a bottom inset under the toolbar.</summary>
-    private SwiftView WithResourcesSamEntry(SwiftView browser)
-    {
-        if (browser.Kind == "toolbar" && browser.Children.Count > 0
-            && browser.Children[0].Kind == "bottomInset")
-            _resourcesSamEntry.Bind(browser.Children[0]);
-        return browser;
-    }
+    // The floating Sam button on the Dashboard and Resources roots is replaced by Sam's
+    // tab slot (iOS tab shell trial, 2026-11-05); pushed screens keep the toolbar entry.
 
     internal SwiftView RenderSamStream(SourceUiStyle style) =>
         SamView.Stream(style, SamState, Text, SamActions);

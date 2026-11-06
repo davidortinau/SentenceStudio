@@ -295,13 +295,14 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("WithPreferredColorScheme(PreferredSchemeFor(app.Appearance.Selection.Mode))",
             scene);
         Assert.Contains(".WithInlineNavigationTitle()", scene);
-        var resourceTitle = scene[scene.IndexOf("_resourcesSlot = Views.VStack(",
+        // The Library root carries the inline title; Resources is its first page.
+        var library = Source("App/ApplicationScene.Library.cs");
+        var libraryTitle = library[library.IndexOf("_libraryRoot = _libraryListSlot",
             StringComparison.Ordinal)
-            ..scene.IndexOf("_resourcesStack = Views.NavigationStack(",
+            ..library.IndexOf("_libraryStack = Views.NavigationStack(",
                 StringComparison.Ordinal)];
-        Assert.Contains(".WithNavigationTitle(localize(\"Resources_Title\"))",
-            resourceTitle);
-        Assert.Contains(".WithInlineNavigationTitle()", resourceTitle);
+        Assert.Contains(".WithNavigationTitle(_app.Localize(\"Nav_Library\"))", libraryTitle);
+        Assert.Contains(".WithInlineNavigationTitle()", libraryTitle);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot", scene);
         Assert.Contains("private void UpdateResources(bool replaceAll = false)", scene);
         Assert.Contains("var search = content.Children[0];", scene);
@@ -368,7 +369,7 @@ public sealed class NativeSourceStylingContractTests
 
         var project = Source("SentenceStudio.Native.iOS.csproj");
         Assert.Contains(
-            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.38\" />",
+            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.39\" />",
             project);
         Assert.Contains("SentenceStudio.Native.SourceAtBuildSha", project);
     }

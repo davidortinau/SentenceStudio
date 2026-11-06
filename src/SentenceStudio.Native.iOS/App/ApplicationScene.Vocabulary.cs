@@ -53,10 +53,10 @@ internal sealed partial class ApplicationScene
         if (_app.IsRecentLookupsOpen && _lookupsSlot is null
             && stack.NavigationPath.Count == 1 && _vocabularyWordSlot is null)
         {
+            // A browse list: the tab bar stays.
             _lookupsSlot = Views.VStack(_app.RenderRecentLookups(_style))
                 .WithNavigationTitle(_app.Localize("Lookups_Title"))
-                .WithInlineNavigationTitle()
-                .WithTabBarHidden();
+                .WithInlineNavigationTitle();
             _renderedLookupsVersion = _app.RecentLookupsViewVersion;
             stack.Push(ApplicationFormRoutes.RecentLookups,
                 WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));
@@ -79,8 +79,8 @@ internal sealed partial class ApplicationScene
     {
         if (!_app.IsVocabularyOpen)
             return;
-        var stack = _app.VocabularyOriginTab == 0
-            ? _dashboardStack : _resourcesStack;
+        // The Library list's Vocabulary row pushes the list; the word editor sits above it.
+        var stack = _libraryStack;
         if (stack is null)
             return;
         if (_vocabularySlot is null && stack.NavigationPath.Count == 0)
@@ -91,10 +91,10 @@ internal sealed partial class ApplicationScene
             _vocabularySearch = Find(_vocabularySlot, "native.vocabulary.search");
             _vocabularyFilterSlot = Views.VStack(
                 _app.RenderVocabularyFilters(_style));
+            // A browse page: the tab bar stays (the filters sheet covers it while open).
             _vocabularySheet = Views.Sheet(_vocabularySlot,
                     _vocabularyFilterSlot, _app.CancelVocabularyFilters)
                 .WithSheetDetentFraction(0.85)
-                .WithTabBarHidden()
                 .WithAccessibilityIdentifier("native.vocabulary.filters.host");
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
             _renderedVocabularySheetVersion = _app.VocabularySheetVersion;

@@ -39,7 +39,7 @@ internal sealed partial class ApplicationScene
                     _app.FilterActivityLog));
             _renderedActivityLogVersion = _app.ActivityLogViewVersion;
             _dashboardStack.Push("activity-log", WithSamToolbar(_dashboardStack, "activity-log",
-                _activityLogToolbar.WithTabBarHidden()));
+                _activityLogToolbar));
         }
         if (_activityLogSlot is null || _activityLogToolbar is null)
             return;

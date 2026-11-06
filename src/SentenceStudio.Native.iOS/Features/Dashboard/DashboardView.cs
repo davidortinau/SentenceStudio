@@ -88,16 +88,47 @@ internal static class DashboardView
         return DashboardPage(items, style);
     }
 
+    /// <summary>
+    /// The Study toolbar (iOS tab shell trial, 2026-11-05): History opens the practice log;
+    /// Regenerate shows only where it applies; Refresh as before. Profile, Settings,
+    /// Skills, Vocabulary, Minimal Pairs and Sign out moved to the Library and Settings tabs.
+    /// </summary>
     internal static SwiftView WithToolbar(
         SwiftView page, SourceUiStyle style, Func<string, string> text,
         bool isNewUser, bool isBusy, bool isRefreshing,
-        bool canRegeneratePlan, string signOutTitle, DashboardToolbarActions actions) =>
-        isNewUser
-            ? Views.Toolbar(page, Menu(style, text, isBusy,
-                canRegeneratePlan, signOutTitle, actions))
-            : Views.Toolbar(page,
-                Refresh(style, text, isBusy, isRefreshing, actions.Refresh),
-                Menu(style, text, isBusy, canRegeneratePlan, signOutTitle, actions));
+        bool canRegeneratePlan, DashboardToolbarActions actions)
+    {
+        var items = new List<SwiftView> { History(style, text, isBusy, actions.OpenHistory) };
+        if (!isNewUser)
+        {
+            if (canRegeneratePlan)
+                items.Add(Regenerate(style, text, isBusy, actions.RegeneratePlan));
+            items.Add(Refresh(style, text, isBusy, isRefreshing, actions.Refresh));
+        }
+        return Views.Toolbar(page, items.ToArray());
+    }
+
+    private static SwiftView History(
+        SourceUiStyle style, Func<string, string> text, bool isBusy, Action openHistory)
+    {
+        var button = Views.Button(Views.Image("calendar"), openHistory)
+            .WithAccessibilityLabel(text("Nav_History"))
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier("native.study.history");
+        button.IsEnabled = !isBusy;
+        return button;
+    }
+
+    private static SwiftView Regenerate(
+        SourceUiStyle style, Func<string, string> text, bool isBusy, Action regenerate)
+    {
+        var button = Views.Button(Views.Image("wand.and.stars"), regenerate)
+            .WithAccessibilityLabel(text(NativeText.Regenerate))
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier("native.dashboard.regenerate");
+        button.IsEnabled = !isBusy;
+        return button;
+    }
 
     private static SwiftView Refresh(
         SourceUiStyle style, Func<string, string> text,
@@ -114,37 +145,6 @@ internal static class DashboardView
             .WithAccessibilityIdentifier("native.dashboard.refresh");
         button.IsEnabled = !isBusy;
         return button;
-    }
-
-    private static SwiftView Menu(
-        SourceUiStyle style, Func<string, string> text, bool isBusy,
-        bool canRegeneratePlan, string signOutTitle, DashboardToolbarActions actions)
-    {
-        var menuActions = new List<SwiftView>();
-        if (canRegeneratePlan)
-            menuActions.Add(Views.Button(text(NativeText.Regenerate),
-                    actions.RegeneratePlan)
-                .WithAccessibilityIdentifier("native.dashboard.regenerate"));
-        menuActions.Add(Views.Button(text("Nav_Profile"), actions.OpenProfile)
-            .WithAccessibilityIdentifier("native.dashboard.profile"));
-        menuActions.Add(Views.Button(text("Settings_Title"), actions.OpenSettings)
-            .WithAccessibilityIdentifier("native.dashboard.settings"));
-        menuActions.Add(Views.Button(text("Nav_Skills"), actions.OpenSkills)
-            .WithAccessibilityIdentifier("native.dashboard.skills"));
-        menuActions.Add(Views.Button(text("Nav_Vocabulary"), actions.OpenVocabulary)
-            .WithAccessibilityIdentifier("native.dashboard.vocabulary"));
-        // Follows Vocabulary, as in the source sidebar (NavMenu.razor:48-49).
-        if (actions.OpenMinimalPairs is { } openMinimalPairs)
-            menuActions.Add(Views.Button(text("Nav_MinimalPairs"), openMinimalPairs)
-                .WithAccessibilityIdentifier("native.dashboard.minimal-pairs"));
-        menuActions.Add(Views.Button(text("Nav_Activity"), actions.OpenActivityLog)
-            .WithAccessibilityIdentifier("native.dashboard.activity-log"));
-        menuActions.Add(Views.Button(signOutTitle, actions.SignOut)
-            .WithAccessibilityIdentifier("native.dashboard.sign-out"));
-        var menu = Views.Menu(text("More"), menuActions.ToArray())
-            .WithAccessibilityIdentifier("native.dashboard.menu");
-        menu.IsEnabled = !isBusy;
-        return menu;
     }
 
     internal static string DashboardErrorText(

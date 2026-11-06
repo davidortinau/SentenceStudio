@@ -6,6 +6,7 @@ using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native.iOS.Features.Dashboard;
 using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Quiz;
+using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Features.Skills;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -34,7 +35,9 @@ internal sealed partial class ApplicationScene : IDisposable
     private CancellationTokenSource? _quizProgressCancellation;
     private SwiftView? _resourcesSlot;
     private SwiftView? _resourcesSearch;
-    private SwiftView? _resourcesStack;
+    private SwiftView? _settingsStack;
+    private SwiftView? _samTab;
+    private SwiftView? _samUnavailableNotice;
     private SwiftView? _skillsSlot;
     private SwiftView? _skillFormSlot;
     private SwiftView? _skillDeleteConfirmation;
@@ -49,6 +52,7 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _deleteConfirmation;
     private SwiftView? _conflictAlert;
     private long _renderedFormVersion = -1;
+    private bool _renderedResourceFormHidesTabBar = true;
     private long _renderedQuickSuggestionsVersion = -1;
     private RootKind _kind;
     private bool _conflictAcknowledged;
@@ -184,12 +188,13 @@ internal sealed partial class ApplicationScene : IDisposable
             _dashboardStack.CanNavigateBack =
                 !_app.NavigationBlocked || _app.CanNavigateBackDuringQuizAudio;
         _dashboardSlot?.WithNavigationTitle(_app.DashboardTitle);
-        if (_resourcesStack is not null)
-            _resourcesStack.CanNavigateBack = !_app.NavigationBlocked;
-        if (_app.SelectedTab == 0 || _app.IsQuizOpen || themeChanged || modeChanged)
+        if (_libraryStack is not null)
+            _libraryStack.CanNavigateBack = !_app.NavigationBlocked;
+        if (_settingsStack is not null)
+            _settingsStack.CanNavigateBack = !_app.NavigationBlocked;
+        if (_app.SelectedTab == NativeTabs.Study || _app.IsQuizOpen || themeChanged || modeChanged)
             Replace(_dashboardSlot!, _app.RenderDashboardContent(_style));
-        if (_app.SelectedTab == 1 || themeChanged || modeChanged)
-            UpdateResources(themeChanged || modeChanged);
+        UpdateLibrary(themeChanged || modeChanged);
         if (_resourcesSearch is { } search)
         {
             var query = _app.ResourcesSearchText;
@@ -228,24 +233,9 @@ internal sealed partial class ApplicationScene : IDisposable
         _dashboardStack = Views.NavigationStack(_selectorSheet,
             routes =>
             {
-                if (_app.IsProfileOpen)
-                {
-                    OnProfileRoutesChanged(routes.Count);
-                    return;
-                }
                 if (_app.IsActivityLogOpen)
                 {
                     OnActivityLogRoutesChanged(routes.Count);
-                    return;
-                }
-                if (_app.IsVocabularyOpen && _app.VocabularyOriginTab == 0)
-                {
-                    OnVocabularyRoutesChanged(routes.Count);
-                    return;
-                }
-                if (_app.IsSkillsOpen && _app.SkillsOriginTab == 0)
-                {
-                    OnSkillsRoutesChanged(routes.Count);
                     return;
                 }
                 if (OnActivityRoutesChanged(routes.Count) || routes.Count != 0)
@@ -258,47 +248,45 @@ internal sealed partial class ApplicationScene : IDisposable
                     _quizPhotoCover = null;
                     _app.OnQuizPopped();
                 }
-                else if (_app.IsSettingsOpen)
-                {
-                    _settingsSlot = null;
-                    _renderedSettingsVersion = -1;
-                    _app.OnSettingsPopped();
-                }
             });
 
-        _resourcesSlot = Views.VStack(_app.RenderResources(_style))
-            .WithNavigationTitle(localize("Resources_Title"))
+        var library = BuildLibraryStack();
+        _settingsSlot = Views.VStack(_app.RenderSettings(_style))
+            .WithNavigationTitle(localize("Settings_Title"))
             .WithInlineNavigationTitle();
-        _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
-        _resourcesStack = Views.NavigationStack(_resourcesSlot,
+        _renderedSettingsVersion = _app.SettingsProjectionVersion;
+        _settingsStack = Views.NavigationStack(_settingsSlot,
             routes =>
             {
-                if (_app.IsVocabularyOpen && _app.VocabularyOriginTab == 1)
-                {
-                    OnVocabularyRoutesChanged(routes.Count);
-                    return;
-                }
-                if (_app.IsSkillsOpen && _app.SkillsOriginTab == 1)
-                {
-                    OnSkillsRoutesChanged(routes.Count);
-                    return;
-                }
-                if (routes.Count == 0)
-                {
-                    if (_app.IsResourcesFormOpen)
-                        _app.OnResourcesFormPopped();
-                    DropFormReferences();
-                    if (_app.IsResourcesFormOpen)
-                        UpdateResourceForm();
-                }
+                if (_app.IsProfileOpen)
+                    OnProfileRoutesChanged(routes.Count);
             });
+        // iOS tab shell trial (Captain, 2026-11-05): Study, Library, Settings, and Sam in the
+        // trailing search-role slot with his own symbol and name. Selecting Sam's slot opens
+        // Sam and keeps the current tab. A sidebar on iPad.
+        _samTab = Views.Tab(SamView.Title(_app.SamState, localize),
+                "bubble.left.and.bubble.right.fill",
+                Views.VStack().WithAccessibilityIdentifier("native.tab.sam.content"))
+            .WithTabRole(SwiftTabRole.Search)
+            .WithTabHidden(!_app.IsSamSlotShown)
+            .WithAccessibilityIdentifier("native.tab.sam");
         _tabs = Views.TabView(_app.SelectedTab, _app.SelectTab,
-            Views.Tab(localize("Dashboard_Title"), "house",
-                    _dashboardStack),
-            Views.Tab(localize("Resources_Title"), "books.vertical",
-                    _resourcesStack));
+                Views.Tab(localize("Nav_Study"), "graduationcap", _dashboardStack)
+                    .WithAccessibilityIdentifier("native.tab.study"),
+                Views.Tab(localize("Nav_Library"), "books.vertical", library)
+                    .WithAccessibilityIdentifier("native.tab.library"),
+                Views.Tab(localize("Settings_Title"), "gearshape", _settingsStack)
+                    .WithAccessibilityIdentifier("native.tab.settings"),
+                _samTab)
+            .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
+        _samUnavailableNotice = Views.Alert(WrapWithSam(_tabs),
+                SamView.Title(_app.SamState, localize),
+                localize("Coach_SettingsUnavailable"),
+                Views.Button(localize("Common_Close"), _app.DismissSamUnavailableNotice)
+                    .WithAccessibilityIdentifier("native.tab.sam.unavailable.close"))
+            .WithAccessibilityIdentifier("native.tab.sam.unavailable");
         _starterOverlay = Views.StarterBlockingOverlay(
-                WrapWithSam(_tabs), _app.StarterBusyTitle)
+                _samUnavailableNotice, _app.StarterBusyTitle)
             .WithAccessibilityIdentifier("native.starter.blocking-overlay");
         _starterOverlay.IsPresented = _app.IsStarterBusy;
         Install(_starterOverlay, RootKind.Tabs);
@@ -322,16 +310,16 @@ internal sealed partial class ApplicationScene : IDisposable
     {
         if (!_app.IsSkillsOpen)
             return;
-        var stack = _app.SkillsOriginTab == 0
-            ? _dashboardStack : _resourcesStack;
+        // The Library list's Skills row pushes the list; the form sits above it.
+        var stack = _libraryStack;
         if (stack is null)
             return;
         if (_skillsSlot is null && stack.NavigationPath.Count == 0)
         {
+            // A browse page: the tab bar stays.
             _skillsSlot = Views.VStack(_app.RenderSkillsList(_style))
                 .WithNavigationTitle(_app.Localize("Skills_Title"))
-                .WithInlineNavigationTitle()
-                .WithTabBarHidden();
+                .WithInlineNavigationTitle();
             _renderedSkillsListVersion = _app.SkillsListVersion;
             stack.Push("skills", WithSamToolbar(stack, "skills", _skillsSlot));
         }
@@ -684,19 +672,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private void UpdateSettings(
         bool themeChanged, bool modeChanged, bool fontScaleChanged)
     {
-        if (_dashboardStack is null || !_app.IsSettingsOpen)
-            return;
-        if (_settingsSlot is null && _dashboardStack.NavigationPath.Count == 0)
-        {
-            var version = _app.SettingsProjectionVersion;
-            _settingsSlot = Views.VStack(_app.RenderSettings(_style))
-                .WithNavigationTitle(_app.Localize("Settings_Title"))
-                .WithInlineNavigationTitle()
-                .WithTabBarHidden();
-            _renderedSettingsVersion = version;
-            _dashboardStack.Push("settings", WithSamToolbar(_dashboardStack, "settings", _settingsSlot));
-            return;
-        }
         if (_settingsSlot is null)
             return;
         if (themeChanged || modeChanged
@@ -789,11 +764,12 @@ internal sealed partial class ApplicationScene : IDisposable
 
     private void UpdateResourceForm(bool themeChanged = false)
     {
-        if (_resourcesStack is null)
+        if (_libraryStack is null)
             return;
         if (_app.IsResourcesFormOpen)
         {
-            if (_resourcesStack.NavigationPath.Count == 0)
+            if (_formSlot is null
+                && !_libraryStack.NavigationPath.Contains(ApplicationFormRoutes.ResourceForm))
             {
                 _formSlot = Views.VStack(ResourceFormContent())
                     .WithNavigationTitle(_app.ResourceFormTitle)
@@ -828,7 +804,7 @@ internal sealed partial class ApplicationScene : IDisposable
                             })
                         .WithAccessibilityIdentifier(
                             "native.resources.edit.conflict.keep"));
-                _resourcesStack.Push("resource-form", WithSamToolbar(_resourcesStack, "resource-form",
+                _libraryStack.Push("resource-form", WithSamToolbar(_libraryStack, "resource-form",
                     _conflictAlert.WithTabBarHidden()));
             }
             else if (_formSlot is not null
@@ -840,6 +816,14 @@ internal sealed partial class ApplicationScene : IDisposable
             }
 
             _formSlot?.WithNavigationTitle(_app.ResourceFormTitle);
+            // An editor hides the tab bar (Save or Cancel decides how you leave); a smart
+            // resource, which you only read, keeps it.
+            var hideTabBar = !_app.IsResourceFormReadOnly;
+            if (_conflictAlert is not null && _renderedResourceFormHidesTabBar != hideTabBar)
+            {
+                _conflictAlert.WithTabBarHidden(hideTabBar);
+                _renderedResourceFormHidesTabBar = hideTabBar;
+            }
             RefreshQuickSuggestions();
             if (_fileImporter is not null)
                 _fileImporter.IsPresented = _app.IsFileImporterPresented;
@@ -865,9 +849,9 @@ internal sealed partial class ApplicationScene : IDisposable
             }
         }
         else if (ApplicationFormRoutes.ShouldPopResourceForm(
-            _formSlot is not null, _resourcesStack.NavigationPath))
+            _formSlot is not null, _libraryStack.NavigationPath))
         {
-            _resourcesStack.Pop();
+            _libraryStack.Pop();
             DropFormReferences();
         }
     }
@@ -1069,6 +1053,7 @@ internal sealed partial class ApplicationScene : IDisposable
         _deleteConfirmation = null;
         _conflictAlert = null;
         _conflictAcknowledged = false;
+        _renderedResourceFormHidesTabBar = true;
         _renderedFormVersion = -1;
         _renderedQuickSuggestionsVersion = -1;
     }
@@ -1108,7 +1093,14 @@ internal sealed partial class ApplicationScene : IDisposable
             _dashboardStack = null;
             _resourcesSlot = null;
             _resourcesSearch = null;
-            _resourcesStack = null;
+            _libraryStack = null;
+            _libraryRoot = null;
+            _libraryListSlot = null;
+            _renderedLibraryList = null;
+            DropPairsReferences();
+            _settingsStack = null;
+            _samTab = null;
+            _samUnavailableNotice = null;
             _settingsSlot = null;
             _renderedSettingsVersion = -1;
             DropProfileReferences();

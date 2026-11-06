@@ -101,7 +101,7 @@ internal sealed partial class ApplicationController
             await OpenAssignedQuizAsync(cardId);
             return;
         }
-        if (_services is null || _settingsOpen || card is null
+        if (_services is null || card is null
             || !NativeActivityCatalog.IsImplemented(card.Activity))
             return;
         var launch = await _services.Provider
@@ -118,7 +118,7 @@ internal sealed partial class ApplicationController
 
     private async Task OpenChooseOwnActivityAsync(string route)
     {
-        if (_dashboard is null || _services is null || _settingsOpen
+        if (_dashboard is null || _services is null
             || _dashboardState.Mode != NativeDashboardMode.ChooseOwn
             || !NativeActivityCatalog.IsImplemented(route))
             return;
@@ -148,7 +148,7 @@ internal sealed partial class ApplicationController
     /// </summary>
     private void OpenFlashcardPreview()
     {
-        if (_services is null || _settingsOpen || IsActivityOpen || NavigationBlocked
+        if (_services is null || IsActivityOpen || NavigationBlocked
             || _destination != NativeDestination.Dashboard
             || _dashboardState.Phase != NativePhase.Ready
             || _dashboardState.PlanDate is not { } planDate

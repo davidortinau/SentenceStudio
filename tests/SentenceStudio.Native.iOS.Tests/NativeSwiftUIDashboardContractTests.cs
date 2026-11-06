@@ -8,23 +8,40 @@ namespace SentenceStudio.Native.iOS.Tests;
 public sealed class NativeSwiftUIDashboardContractTests
 {
     [Fact]
-    public void DashboardAndResourcesAreIndependentSwiftUITabsWithNativeStacks()
+    public void StudyLibrarySettingsAndSamAreIndependentSwiftUITabsWithNativeStacks()
     {
+        // iOS tab shell trial (Captain, 2026-11-05).
         var scene = Source("App/ApplicationScene.cs");
-        Assert.Equal(2, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
-        Assert.Contains("Views.Tab(localize(\"Dashboard_Title\"), \"house\",", scene);
-        Assert.Contains("Views.Tab(localize(\"Resources_Title\"), \"books.vertical\",", scene);
+        var library = Source("App/ApplicationScene.Library.cs");
+        Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Views.Tab(localize(\"Nav_Study\"), \"graduationcap\", _dashboardStack)", scene);
+        Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
+        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
+        Assert.Contains("\"bubble.left.and.bubble.right.fill\"", scene);
+        Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
+        // Shown to every signed-in owner; when Sam is not offered, the slot's alert says so.
+        Assert.Contains(".WithTabHidden(!_app.IsSamSlotShown)", scene);
+        Assert.Contains("localize(\"Coach_SettingsUnavailable\")", scene);
+        Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
+        foreach (var id in new[] { "native.tab.study", "native.tab.library", "native.tab.settings", "native.tab.sam" })
+            Assert.Contains($"\"{id}\"", scene);
         Assert.Contains("Views.TabView(_app.SelectedTab, _app.SelectTab,", scene);
         Assert.Contains("if (crossedDesktopBreakpoint)", scene);
         Assert.Contains("if (_dashboardSlot is not null)", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet,", scene);
-        Assert.Contains("Views.NavigationStack(_resourcesSlot,", scene);
+        Assert.Contains("Views.NavigationStack(_libraryRoot,", library);
+        Assert.Contains("Views.NavigationStack(_settingsSlot,", scene);
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
-        Assert.Contains("_resourcesStack.Push(\"resource-form\",", scene);
+        Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);
         Assert.Contains("_dashboardStack.CanNavigateBack =\n"
             + "                !_app.NavigationBlocked || _app.CanNavigateBackDuringQuizAudio;",
             scene);
-        Assert.Contains("_resourcesStack.CanNavigateBack = !_app.NavigationBlocked;", scene);
+        Assert.Contains("_libraryStack.CanNavigateBack = !_app.NavigationBlocked;", scene);
+        Assert.Contains("_settingsStack.CanNavigateBack = !_app.NavigationBlocked;", scene);
+        // Sam's slot is an action: the selection stays on the current tab.
+        var tabs = Source("App/ApplicationController.Library.cs");
+        Assert.Contains("if (index == NativeTabs.Sam)", tabs);
+        Assert.Contains("OpenSamFromTab();", tabs);
         Assert.DoesNotContain("UINavigationController", scene);
         Assert.DoesNotContain("UITabBarController", scene);
     }
@@ -42,13 +59,17 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("_app.RenderDashboardContent(_style)", scene);
         Assert.Contains(": Views.Image(\"arrow.clockwise\");", toolbar);
         Assert.Contains("Views.Button(indicator, refresh)", toolbar);
-        Assert.Contains("new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,",
-            app);
-        Assert.Contains("Views.Menu(text(\"More\"), menuActions.ToArray())", toolbar);
+        Assert.Contains("new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,\n"
+            + "                OpenActivityLog));", app);
+        // The More menu is gone: History and Regenerate (where it applies) are toolbar buttons;
+        // Sign out is the last row of the Settings tab.
+        Assert.DoesNotContain("Views.Menu(", toolbar);
         Assert.Contains("\"native.dashboard.regenerate\"", toolbar);
-        Assert.Contains("\"native.dashboard.sign-out\"", toolbar);
-        Assert.Contains("\"native.dashboard.settings\"", toolbar);
+        Assert.Contains("\"native.study.history\"", toolbar);
+        Assert.Contains("text(\"Nav_History\")", toolbar);
         Assert.Contains("if (canRegeneratePlan)", toolbar);
+        Assert.Contains("\"native.settings.sign-out\"", Source("Features/Settings/SettingsView.cs"));
+        Assert.Contains("SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut)", app);
         Assert.Contains("await _dashboard.RefreshAsync(_lifetime.Token)", app);
         Assert.Contains("await _dashboard!.RegenerateAsync(_lifetime.Token)", app);
         Assert.Contains("_auth.SignOutAsync(_lifetime.Token)", app);
@@ -224,9 +245,9 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("text(\"Dashboard_AddAResource\"),",
             feature);
         Assert.Contains("AddResource: OpenResourceAddFromDashboard", app);
-        Assert.Contains("_selectedTab = 1;", app);
+        Assert.Contains("_selectedTab = NativeTabs.Library;", app);
         Assert.Contains("_resources?.OpenCreate();", app);
-        Assert.Contains("_resourcesStack.Push(\"resource-form\",", scene);
+        Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);
     }
 
     [Fact]

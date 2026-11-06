@@ -70,7 +70,9 @@ public sealed class NativeSamContractTests
                 Destination: match.Groups[2].Value.Trim())))
             .Where(push => push.Route != "\"sam-conversations\"")
             .ToArray();
-        Assert.True(pushes.Length >= 12, $"Expected every pushed screen, found {pushes.Length}.");
+        // Tab shell trial: Settings, Skills and Vocabulary are tab or Library roots now (no
+        // push); the Minimal Pairs child page joined the Library stack.
+        Assert.True(pushes.Length >= 11, $"Expected every pushed screen, found {pushes.Length}.");
         foreach (var push in pushes)
             Assert.True(push.Destination.StartsWith("WithSamToolbar(", StringComparison.Ordinal),
                 $"{push.File} pushes {push.Route} without the Sam entry.");
@@ -104,9 +106,11 @@ public sealed class NativeSamContractTests
         var guard = controller[controller.IndexOf("internal bool IsSamReviewBlockedByScreen =>",
             StringComparison.Ordinal)..];
         guard = guard[..guard.IndexOf(';')];
-        foreach (var screen in new[] { "_destination != NativeDestination.Dashboard", "_settingsOpen",
-            "IsProfileOpen", "IsSkillsOpen", "IsVocabularyOpen", "IsRecentLookupsOpen",
-            "IsActivityLogOpen", "IsResourcesFormOpen" })
+        // Tab shell trial: the review opens over the Study root, so History (pushed over
+        // Study) and every editor with unsaved edits on another tab block it.
+        foreach (var screen in new[] { "_destination != NativeDestination.Dashboard",
+            "IsActivityLogOpen", "IsProfileOpen", "IsResourcesFormOpen", "IsVocabularyWordOpen",
+            "IsSkillFormOpen", "LibraryPairsHasChildPage" })
             Assert.Contains(screen, guard);
     }
 
@@ -129,7 +133,6 @@ public sealed class NativeSamContractTests
     [InlineData("native.sam.status")]
     [InlineData("native.sam.retry")]
     [InlineData("native.sam.stop")]
-    [InlineData("native.sam.fab.resources")]
     [InlineData("native.sam.copy.")]
     [InlineData("native.sam.report.")]
     [InlineData("native.sam.report.submit")]
@@ -222,13 +225,15 @@ public sealed class NativeSamContractTests
     [Fact]
     public void FloatingSamEntryHidesOnScrollThroughTheSharedRule()
     {
+        // iOS tab shell trial (2026-11-05): Sam's tab slot replaces the floating button on
+        // the Study and Library roots; the binding below is kept for that button's return.
         var controller = Source("App/ApplicationController.Sam.cs");
-        Assert.Contains("private readonly SamFloatingEntry _dashboardSamEntry = new();", controller);
-        Assert.Contains("private readonly SamFloatingEntry _resourcesSamEntry = new();", controller);
-        Assert.Contains("_dashboardSamEntry.Bind(Microsoft.SwiftUI.SwiftUI.BottomInset(page,", controller);
-        Assert.Contains("_resourcesSamEntry.Bind(browser.Children[0]);", controller);
-        Assert.Contains("WithResourcesSamEntry(resources.RenderBrowser(style, ResourcesSamEntry(style)))",
+        Assert.DoesNotContain("_dashboardSamEntry", controller);
+        Assert.Contains("resources.RenderBrowser(style, samEntry: null)",
             Source("App/ApplicationController.cs"));
+        var scene = Source("App/ApplicationScene.cs");
+        Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
+        Assert.Contains("_samTab.WithTabHidden(hidden);", Source("App/ApplicationScene.Sam.cs"));
 
         var entry = Source("Features/Sam/SamFloatingEntry.cs");
         // The shared rule decides; the head only feeds it (no copy of its threshold or logic).

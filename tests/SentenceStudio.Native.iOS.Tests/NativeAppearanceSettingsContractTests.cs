@@ -9,12 +9,12 @@ public sealed class NativeAppearanceSettingsContractTests
     [Fact]
     public void AppearanceAndQuizControls_UsePersistedNormalSettingsNotDebugFixtures()
     {
-        var app = Read("App/ApplicationController.cs");
+        // The Settings tab opens its coordinator in ApplicationController.Library.cs.
+        var app = Read("App/ApplicationController.cs") + Read("App/ApplicationController.Library.cs");
         var scene = Read("App/ApplicationScene.cs");
         var appearance = Read("Features/Settings/AppearanceSettingsView.cs");
         var quiz = Read("Features/Settings/QuizSettingsView.cs");
         var owner = Read("../SentenceStudio.Native/Features/Settings/SettingsCoordinator.cs");
-        var dashboard = Read("Features/Dashboard/DashboardView.cs");
 
         Assert.Contains("var next = save(_preferences, selection);", owner);
         Assert.Contains("SourceUiAppearance.Save(preferences, value)",
@@ -30,14 +30,14 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("if (debugBuild && bundleId == FixtureBundleId)", owner);
         Assert.Contains("_scope.ScopeChanged += OnScopeChanged", owner);
         Assert.Contains("_scope.ScopeChanged -= OnScopeChanged", owner);
-        Assert.Contains("SettingsView.OwnerUnavailable(style, Text)", app);
+        Assert.Contains("SettingsView.OwnerUnavailable(style, Text, signOut)", app);
         Assert.Contains("return SettingsView.OwnerUnavailable", app);
         Assert.Contains("Views.Text(text(\"NativeSettings_OwnerUnavailable\"))",
             Read("Features/Settings/SettingsView.cs"));
         Assert.Contains("result = _allowVoiceDiscovery", owner);
-        Assert.Contains("Views.Button(text(\"Settings_Title\"), actions.OpenSettings)",
-            dashboard);
-        Assert.Contains("_dashboardStack.Push(\"settings\", WithSamToolbar(_dashboardStack, \"settings\", _settingsSlot))", scene);
+        // Settings is its own tab (tab shell trial): the root of the Settings stack.
+        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
+        Assert.Contains("_settingsStack = Views.NavigationStack(_settingsSlot,", scene);
         Assert.Contains("_root.PreferredColorScheme = PreferredSchemeFor(selectedAppearance.Mode)", scene);
         Assert.Contains("SourceUiStyle.RefreshTypography(", scene);
         Assert.Contains("_settingsSlot = Views.VStack(_app.RenderSettings(_style))",
@@ -74,7 +74,8 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("SourceUiStyle.RefreshTypography(", appearanceUpdate);
         Assert.DoesNotContain("Install(", appearanceUpdate);
         Assert.DoesNotContain("InstallTabs(", appearanceUpdate);
-        Assert.Contains("UpdateResources(themeChanged || modeChanged);", scene);
+        Assert.Contains("UpdateLibrary(themeChanged || modeChanged);", scene);
+        Assert.Contains("UpdateResources(appearanceChanged);", Read("App/ApplicationScene.Library.cs"));
         Assert.Contains("UpdateResourceForm(themeChanged || modeChanged);", scene);
         Assert.Contains("_app.IsQuizOpen || themeChanged || modeChanged",
             scene);

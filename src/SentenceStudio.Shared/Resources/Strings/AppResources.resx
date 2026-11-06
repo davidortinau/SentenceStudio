@@ -9891,4 +9891,20 @@ For example: {0} ...</value>
     <value>Could not add this word.</value>
     <comment>Add to vocabulary failed</comment>
   </data>
+  <data name="Nav_Study" xml:space="preserve">
+    <value>Study</value>
+    <comment>Native tab name: the daily plan and activities (was Dashboard)</comment>
+  </data>
+  <data name="Nav_Library" xml:space="preserve">
+    <value>Library</value>
+    <comment>Native tab name: resources, vocabulary, skills and minimal pairs</comment>
+  </data>
+  <data name="Nav_History" xml:space="preserve">
+    <value>History</value>
+    <comment>Native Study page entry that opens the practice log calendar</comment>
+  </data>
+  <data name="Library_Resources" xml:space="preserve">
+    <value>Resources</value>
+    <comment>Library list row: learning resources</comment>
+  </data>
 </root>

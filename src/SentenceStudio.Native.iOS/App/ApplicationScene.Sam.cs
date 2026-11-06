@@ -38,11 +38,11 @@ internal sealed partial class ApplicationScene
     private readonly List<(SwiftView Stack, string Route, SwiftView Slot)> _samToolbars = [];
 
     /// <summary>
-    /// Source MainLayout mounts Sam on every signed-in page. The tab roots keep the
-    /// floating entry; every pushed screen (activities, the quiz, Settings, Profile,
-    /// Skills, Vocabulary, Recent lookups, Activity Log, the resource form) gets the
-    /// same entry in its navigation bar instead, because a floating button there
-    /// would cover the screen's bottom answer and send bars.
+    /// Source MainLayout mounts Sam on every signed-in page. The tab roots reach him
+    /// through his tab slot; every pushed screen (activities, the quiz, Profile, the
+    /// word, skill and resource editors, Recent lookups, History) gets the entry in its
+    /// navigation bar, because those that hide the tab bar have no slot and a floating
+    /// button would cover their bottom answer and send bars.
     /// </summary>
     /// <remarks>
     /// A facade toolbar's actions are fixed once it is built, so the entry lives in
@@ -87,6 +87,31 @@ internal sealed partial class ApplicationScene
             if (button.IsEnabled != enabled)
                 button.IsEnabled = enabled;
             button.WithAccessibilityLabel(label);
+        }
+    }
+
+    /// <summary>
+    /// Sam's tab slot (search role, trailing on iOS 26) is shown to every signed-in owner and
+    /// carries his name as its title (the same name as his panel). When Sam is not offered to
+    /// the owner, the slot's alert says so.
+    /// </summary>
+    private void UpdateSamTab()
+    {
+        if (_samTab is null)
+            return;
+        var hidden = !_app.IsSamSlotShown;
+        if (_samTab.IsTabHidden != hidden)
+            _samTab.WithTabHidden(hidden);
+        var title = SamView.Title(_app.SamState, _app.Localize);
+        if (!string.Equals(_samTab.Text, title, StringComparison.Ordinal))
+            _samTab.Text = title;
+        if (_samUnavailableNotice is { } notice)
+        {
+            if (!string.Equals(notice.Text, title, StringComparison.Ordinal))
+                notice.Text = title;
+            var presented = _app.IsSamUnavailableNoticePresented;
+            if (notice.IsPresented != presented)
+                notice.IsPresented = presented;
         }
     }
 
@@ -187,6 +212,7 @@ internal sealed partial class ApplicationScene
     {
         if (_samPanelHost is null || _samPanelSlot is null || _samStack is null)
             return;
+        UpdateSamTab();
         UpdateSamToolbars();
         _app.SetSamViewport(_style.ViewportWidth);
         var state = _app.SamState;

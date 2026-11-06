@@ -371,7 +371,7 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("GetRequiredService<INativeProfileRemoteStore>()", app);
         Assert.Contains("delete.IsEnabled = false;", scene);
         Assert.Contains("Views.Alert(_profileSlot,", scene);
-        Assert.Contains("_dashboardStack.Push(\"profile\",", scene);
+        Assert.Contains("_settingsStack.Push(\"profile\",", scene);
         Assert.Contains("_renderedProfileVersion != _app.ProfileViewVersion", scene);
         Assert.Contains("Replace(_profileSlot, _app.RenderProfile(_style))", scene);
         Assert.Contains("Profile_PageTitle", scene);
@@ -379,7 +379,10 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("scope.TryGetUserProfileId(out var activeOwner)", app);
         Assert.Contains("GetByIdAsync(owner, cancellationToken)",
             Source("../SentenceStudio.Native/Features/Profile/ProfileCoordinator.cs"));
-        Assert.Contains("native.dashboard.profile", dashboard);
+        // The profile row at the top of the Settings tab opens Profile.
+        Assert.Contains("native.settings.profile", Source("Features/Settings/SettingsView.cs"));
+        Assert.Contains("header: SettingsView.ProfileRow(style, Text, _profileSummary, OpenProfile)", app
+            + Source("App/ApplicationController.cs"));
         Assert.DoesNotContain("ExportAllData", view);
         Assert.DoesNotContain("SaveAsync(", view);
         Assert.DoesNotContain("DeleteAccountAsync(", view + app);

@@ -18,11 +18,5 @@ internal sealed record DashboardActions(
 internal sealed record DashboardToolbarActions(
     Action Refresh,
     Action RegeneratePlan,
-    Action OpenSettings,
-    Action OpenProfile,
-    Action OpenSkills,
-    Action OpenVocabulary,
-    Action OpenActivityLog,
-    Action SignOut,
-    // Source NavMenu.razor:49 sidebar item; native tabs approved (D-platform-navigation).
-    Action? OpenMinimalPairs = null);
+    // The practice log calendar (source NavMenu Activity), labelled History on Study.
+    Action OpenHistory);

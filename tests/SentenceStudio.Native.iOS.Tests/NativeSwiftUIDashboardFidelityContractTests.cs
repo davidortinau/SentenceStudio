@@ -72,20 +72,20 @@ public sealed class NativeSwiftUIDashboardFidelityContractTests
     }
 
     [Fact]
-    public void MoreMenuOffersTheSourceMinimalPairsEntry()
+    public void LibraryOffersTheSourceMinimalPairsEntryAfterVocabularyAndSkills()
     {
-        var dashboard = Source("Features/Dashboard/DashboardView.cs");
-        Assert.Contains("Views.Button(text(\"Nav_MinimalPairs\"), openMinimalPairs)", dashboard);
-        Assert.Contains("\"native.dashboard.minimal-pairs\"", dashboard);
-        Assert.True(dashboard.IndexOf("\"native.dashboard.vocabulary\"", StringComparison.Ordinal)
-            < dashboard.IndexOf("\"native.dashboard.minimal-pairs\"", StringComparison.Ordinal));
-        Assert.Contains("OpenActivityLog, SignOut, OpenMinimalPairs));",
-            Source("App/ApplicationController.cs"));
-        var entries = Source("App/ApplicationController.DashboardEntries.cs");
+        // Source NavMenu Minimal Pairs: the Library list's Minimal Pairs row (tab shell trial),
+        // after Vocabulary as in the source sidebar.
+        var library = Source("App/ApplicationScene.Library.cs");
+        Assert.Contains("\"native.library.row.minimal-pairs\"", library);
+        Assert.True(library.IndexOf("\"native.library.row.vocabulary\"", StringComparison.Ordinal)
+            < library.IndexOf("\"native.library.row.minimal-pairs\"", StringComparison.Ordinal));
+        Assert.Contains("\"native.library.list\"", library);
+        var entries = Source("App/ApplicationController.Library.cs");
         Assert.Contains("_dashboard.SelectNavigationEntry()", entries);
-        Assert.Contains(".FromChooseOwnAsync(selection, NativeActivityCatalog.MinimalPairs,",
+        Assert.Contains(".FromChooseOwnAsync(selection, NativeActivityCatalog.MinimalPairs, _lifetime.Token)",
             entries);
-        Assert.Contains("StartActivity(launch);", entries);
+        Assert.Contains("ActivityScreens.Create(launch.Route, new ActivityScreenHost(", entries);
     }
 
     [Fact]

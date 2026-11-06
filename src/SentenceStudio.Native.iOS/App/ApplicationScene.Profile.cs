@@ -19,9 +19,9 @@ internal sealed partial class ApplicationScene
 
     private void UpdateProfile(bool appearanceChanged)
     {
-        if (_dashboardStack is null || !_app.IsProfileOpen)
+        if (_settingsStack is null || !_app.IsProfileOpen)
             return;
-        if (_profileSlot is null && _dashboardStack.NavigationPath.Count == 0)
+        if (_profileSlot is null && _settingsStack.NavigationPath.Count == 0)
         {
             _profileSlot = Views.VStack(_app.RenderProfile(_style))
                 .WithNavigationTitle(_app.Localize("Profile_PageTitle"))
@@ -39,8 +39,8 @@ internal sealed partial class ApplicationScene
                     cancel, delete)
                 .WithAccessibilityIdentifier("native.profile.delete.confirmation");
             _renderedProfileVersion = _app.ProfileViewVersion;
-            _dashboardStack.Push("profile", WithSamToolbar(_dashboardStack, "profile",
-                _profileDeleteAlert.WithTabBarHidden()));
+            _settingsStack.Push("profile", WithSamToolbar(_settingsStack, "profile",
+                _profileDeleteAlert));
         }
         if (_profileSlot is null)
             return;

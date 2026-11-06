@@ -57,13 +57,13 @@ public sealed class NativeSwiftUIPresentationContractTests
 
         Assert.Contains("Views.TabView(_app.SelectedTab", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
-        Assert.Contains("Views.NavigationStack(_resourcesSlot", scene);
+        Assert.Contains("Views.NavigationStack(_libraryRoot", Source("App/ApplicationScene.Library.cs"));
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
-        Assert.Contains("_resourcesStack.Push(\"resource-form\"", scene);
+        Assert.Contains("_libraryStack.Push(\"resource-form\"", scene);
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);
         Assert.Contains("_app.OnQuizPopped()", scene);
         Assert.Contains("await _quiz.BackAsync(_lifetime.Token)", quiz);
-        Assert.Contains("_app.OnResourcesFormPopped()", scene);
+        Assert.Contains("_app.OnResourcesFormPopped()", Source("App/ApplicationScene.Library.cs"));
         Assert.Contains("_presenter.CancelEdit()", resources);
         Assert.DoesNotContain("UINavigationController", scene);
         Assert.DoesNotContain("UITabBarController", scene);
@@ -126,7 +126,9 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("_dashboardStack.CanNavigateBack =\n"
             + "                !_app.NavigationBlocked || _app.CanNavigateBackDuringQuizAudio;",
             scene);
-        Assert.Contains("_resourcesStack.CanNavigateBack = !_app.NavigationBlocked;",
+        Assert.Contains("_libraryStack.CanNavigateBack = !_app.NavigationBlocked;",
+            scene);
+        Assert.Contains("_settingsStack.CanNavigateBack = !_app.NavigationBlocked;",
             scene);
         Assert.Contains("internal bool CanNavigateBackDuringQuizAudio =>", quiz);
         Assert.Contains("internal bool NavigationBlocked => _busy", app);
@@ -144,8 +146,8 @@ public sealed class NativeSwiftUIPresentationContractTests
             ..resources.IndexOf("private async Task SaveAsync(",
                 StringComparison.Ordinal)];
         Assert.Contains("if (!_formOpen || IsNavigationBlocked)", close);
-        Assert.Contains("if (_app.IsResourcesFormOpen)\n                        UpdateResourceForm();",
-            scene);
+        Assert.Contains("if (_app.IsResourcesFormOpen)\n                UpdateResourceForm();",
+            Source("App/ApplicationScene.Library.cs"));
         Assert.Contains("if (_handlingNativePop || !_nativePopPending)", quiz);
     }
 

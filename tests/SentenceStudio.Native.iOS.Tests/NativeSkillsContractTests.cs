@@ -485,7 +485,6 @@ public sealed class NativeSkillsContractTests
     {
         var scene = Read("App/ApplicationScene.cs");
         var controller = Read("App/ApplicationController.cs");
-        var dashboard = Read("Features/Dashboard/DashboardView.cs");
         var resources = Read("Features/LearningResources/LearningResourcesView.cs");
         var list = Read("Features/Skills/SkillsView.cs");
         var form = Read("Features/Skills/SkillProfileFormView.cs");
@@ -500,7 +499,10 @@ public sealed class NativeSkillsContractTests
         Assert.Equal(2, scene.Split(".WithTransparentDeleteBackdrop()").Length - 1);
         Assert.Contains("\"SkillEdit_DeleteMessage\"", scene);
         Assert.Contains("ReloadChooseOwnAfterSkills()", controller);
-        Assert.Contains("text(\"Nav_Skills\"), actions.OpenSkills", dashboard);
+        // The Library list's Skills row pushes the Skills page (tab shell trial).
+        Assert.Contains("LibraryRow(LibrarySection.Skills, \"target\", \"Nav_Skills\",",
+            Read("App/ApplicationScene.Library.cs"));
+        Assert.Contains("\"native.library.row.skills\"", Read("App/ApplicationScene.Library.cs"));
         Assert.Contains("text(\"Nav_Skills\"), openSkills", resources);
         Assert.Contains("Views.LazyVGrid(", list);
         Assert.Contains("Views.TextField(", form);

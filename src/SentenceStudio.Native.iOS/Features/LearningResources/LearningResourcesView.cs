@@ -199,6 +199,24 @@ internal static class LearningResourcesView
     {
         var enabled = state.Phase != NativeResourceListPhase.Blocked
             && !state.StarterBusy;
+        if (openSkills is null && openVocabulary is null)
+        {
+            // In the Library, Skills and Vocabulary are switcher pages: Add (+) is the one action.
+            if (style.ViewportWidth < 768)
+            {
+                var plus = Views.Button(Views.Image("plus"), addResource)
+                    .WithAccessibilityLabel(text("Resources_AddResource"))
+                    .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                    .WithAccessibilityIdentifier("native.resources.add");
+                plus.IsEnabled = enabled;
+                return [plus];
+            }
+            var wide = style.PrimaryButton(text("Resources_AddResource"), addResource)
+                .WithAccessibilityIdentifier("native.resources.add.primary");
+            SourceUiStyle.SetCustomButtonAvailability(wide, style.Appearance,
+                SourceButtonRole.Primary, enabled);
+            return [wide];
+        }
         var add = Views.Button(text("Resources_AddResource"), addResource)
             .WithAccessibilityIdentifier("native.resources.add");
         add.IsEnabled = enabled;

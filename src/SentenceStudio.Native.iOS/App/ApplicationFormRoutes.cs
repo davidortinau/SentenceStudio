@@ -1,17 +1,28 @@
 namespace SentenceStudio.Native.iOS.App;
 
+/// <summary>
+/// Library routes: the Library root is a list; each row pushes its page (Resources,
+/// Vocabulary, Skills, Minimal Pairs), and the page's editor is pushed above it.
+/// </summary>
 internal static class ApplicationFormRoutes
 {
+    internal const string LibraryResources = "library-resources";
     internal const string ResourceForm = "resource-form";
     internal const string Skills = "skills";
     internal const string SkillForm = "skill-form";
     internal const string Vocabulary = "vocabulary";
     internal const string VocabularyWordForm = "vocabulary-word-form";
     internal const string RecentLookups = "recent-lookups";
+    internal const string MinimalPairs = "minimal-pairs";
+    internal const string MinimalPairsChild = "minimal-pairs-child";
 
+    /// <summary>
+    /// The resource form is pushed above the Resources page, or straight above the
+    /// Library root when Study opens a resource; it is always the top route.
+    /// </summary>
     internal static bool ShouldPopResourceForm(
         bool formMounted, IReadOnlyList<string> path) =>
-        formMounted && path.Count == 1 && path[0] == ResourceForm;
+        formMounted && path.Count > 0 && path[^1] == ResourceForm;
 
     internal static bool ShouldPopSkillForm(
         bool formOpen, bool formMounted, bool canNavigateBack,

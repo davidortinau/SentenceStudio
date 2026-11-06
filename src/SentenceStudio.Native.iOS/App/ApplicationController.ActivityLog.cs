@@ -21,11 +21,10 @@ internal sealed partial class ApplicationController
 
     internal void OpenActivityLog()
     {
-        if (_destination != NativeDestination.Dashboard || _selectedTab != 0
-            || NavigationBlocked || _settingsOpen || IsQuizOpen
-            || IsChooseOwnSelectorPresented
-            || IsResourcesFormOpen || IsSkillsOpen || IsProfileOpen
-            || IsVocabularyOpen || IsActivityLogOpen || _services is null)
+        // History on the Study tab; it is pushed on the Study stack.
+        if (_destination != NativeDestination.Dashboard || _selectedTab != NativeTabs.Study
+            || NavigationBlocked || IsQuizOpen || IsChooseOwnSelectorPresented
+            || IsActivityLogOpen || _services is null)
             return;
         var expectedOwner = _authState is {
             Phase: NativePhase.Ready,

@@ -24,7 +24,10 @@ public sealed class NativeRecentLookupsContractTests
         // Pushed with the Sam entry like every other signed-in screen (W1, decision 6).
         Assert.Contains("stack.Push(ApplicationFormRoutes.RecentLookups,\n"
             + "                WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));", scene);
-        Assert.Contains(".WithTabBarHidden();", scene);
+        // A browse list one level above the Library's Vocabulary page keeps the tab bar.
+        var lookups = scene[scene.IndexOf("_lookupsSlot = Views.VStack(", StringComparison.Ordinal)..];
+        lookups = lookups[..lookups.IndexOf("stack.Push(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("WithTabBarHidden", lookups);
         Assert.Contains("_app.OnRecentLookupsPopped();", scene);
         Assert.Equal("recent-lookups", ApplicationFormRoutes.RecentLookups);
     }
