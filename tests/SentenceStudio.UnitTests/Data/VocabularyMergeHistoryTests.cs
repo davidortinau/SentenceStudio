@@ -382,12 +382,13 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         db.VocabularyWords.AsNoTracking().Single(w => w.Id == keeper).MnemonicText.Should().BeNull();
     }
 
-    // Review 4 (one ownership rule): a legacy copy recorded to nobody is the learner's when only
-    // their links and progress name it, and merges; when two learners link it, it is no one's.
+    // One runtime rule (Captain 2026-11-06): a legacy copy recorded to no one is no one's, even
+    // when only the learner's links name it, so it never merges (nothing is inferred from links)
+    // until the backfill records its single user.
     [Theory]
-    [InlineData(false, 1)]
-    [InlineData(true, 0)]
-    public async Task Merge_OfALegacyCopy_FollowsWhoseItIs(bool anotherLearnerLinksIt, int expectedDeleted)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Merge_OfALegacyCopyRecordedToNoOne_IsRefused(bool anotherLearnerLinksIt)
     {
         SeedUserProfile(UserB);
         var keeper = SeedWord("감", "persimmon");
@@ -396,8 +397,9 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         if (anotherLearnerLinksIt)
             EnsureWordsMappedToUser(UserB, legacy);
 
-        (await MergeAsync(keeper, legacy)).Should().Be(expectedDeleted);
-        WordExists(legacy).Should().Be(anotherLearnerLinksIt);
+        (await MergeAsync(keeper, legacy)).Should().Be(0);
+        WordExists(legacy).Should().BeTrue();
+        WordExists(keeper).Should().BeTrue();
     }
 
     [Fact]

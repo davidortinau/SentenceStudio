@@ -9,8 +9,8 @@ public sealed record VocabularyDuplicateScanResult(
 
 /// <param name="MergeBlockedReason">Why the copies' fields block the merge, or null when they match.</param>
 /// <param name="HasCopyNotOwnedByLearner">
-/// A copy is not the learner's by <see cref="VocabularyWordOwnership.OwnedByAsync"/> (another
-/// learner's, or one no one can be shown to own; B69): the group cannot merge, and that copy's
+/// A copy is not recorded to the learner (<see cref="VocabularyWordOwnership.OwnedByAsync"/>: another
+/// learner's, or one recorded to no one; B69): the group cannot merge, and that copy's
 /// memory aids and audio are not shown (<see cref="VocabularyDuplicateWordInfo.IsLearnersOwn"/>).
 /// </param>
 public sealed record VocabularyDuplicateGroup(
@@ -47,10 +47,10 @@ public sealed record VocabularyDuplicateWordInfo(
     double EncodingScore)
 {
     /// <summary>
-    /// The copy is the learner's. When it is not, its memory aids and audio were removed and it
-    /// is read-only: no client offers to edit or merge it.
+    /// The copy is recorded to the learner. When it is not (the default: fail closed), its memory
+    /// aids and audio were removed and it is read-only: no client offers to edit or merge it.
     /// </summary>
-    public bool IsLearnersOwn { get; init; } = true;
+    public bool IsLearnersOwn { get; init; }
 }
 
 /// <summary>

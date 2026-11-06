@@ -16,10 +16,9 @@ public static class VocabularyWordDependents
     /// <summary>
     /// Words among <paramref name="ids"/> that someone other than <paramref name="owner"/>
     /// links, practises or wrote a sentence for: a link from a resource that is not the
-    /// owner's, another learner's progress, or an example sentence that is not the owner's by
-    /// <see cref="VocabularyWordOwnership.SentenceOwnersAsync"/> (a sentence no one can be shown
-    /// to own counts as someone else's). The native editor offers editing only for words this
-    /// leaves out.
+    /// owner's, another learner's progress, or an example sentence not recorded to the owner (one
+    /// recorded to no one counts as someone else's, as everywhere: the recorded owner decides).
+    /// The native editor offers editing only for words this leaves out.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
     public static async Task<HashSet<string>> OthersUseAsync(
@@ -40,9 +39,10 @@ public static class VocabularyWordDependents
         used.UnionWith(await db.VocabularyProgresses.AsNoTracking()
             .Where(progress => ids.Contains(progress.VocabularyWordId) && progress.UserId != owner)
             .Select(progress => progress.VocabularyWordId).ToListAsync(ct));
-        used.UnionWith((await VocabularyWordOwnership.SentenceOwnersAsync(db, ids, ct))
-            .Where(sentence => sentence.Owner != owner)
-            .Select(sentence => sentence.WordId));
+        // EF keeps C# null semantics: a sentence recorded to no one differs from the owner.
+        used.UnionWith(await db.ExampleSentences.AsNoTracking()
+            .Where(example => ids.Contains(example.VocabularyWordId) && example.UserProfileId != owner)
+            .Select(example => example.VocabularyWordId).ToListAsync(ct));
         used.IntersectWith(ids);
         return used;
     }
@@ -84,16 +84,12 @@ public static class VocabularyWordDependents
                 && pair.UserId != owner)
             .Select(pair => new { pair.VocabularyWordAId, pair.VocabularyWordBId }).ToListAsync(ct);
         used.UnionWith(pairs.SelectMany(pair => new[] { pair.VocabularyWordAId, pair.VocabularyWordBId }));
-        var phrases = await db.PhraseConstituents.AsNoTracking()
-            .Where(phrase => phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId))
-            .Select(phrase => new { phrase.PhraseWordId, phrase.ConstituentWordId }).ToListAsync(ct);
-        if (phrases.Count > 0)
-        {
-            var ownedPhraseWords = await VocabularyWordOwnership.OwnedByAsync(
-                db, phrases.Select(phrase => phrase.PhraseWordId).ToArray(), owner, ct);
-            used.UnionWith(phrases.Where(phrase => !ownedPhraseWords.Contains(phrase.PhraseWordId))
-                .Select(phrase => phrase.ConstituentWordId!));
-        }
+        used.UnionWith(await (
+            from phrase in db.PhraseConstituents.AsNoTracking()
+            join word in db.VocabularyWords.AsNoTracking() on phrase.PhraseWordId equals word.Id
+            where phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId)
+                && word.UserProfileId != owner
+            select phrase.ConstituentWordId!).ToListAsync(ct));
         // The pair query returns both words of a pair; only the asked-for ones are answers.
         used.IntersectWith(ids);
         return used;

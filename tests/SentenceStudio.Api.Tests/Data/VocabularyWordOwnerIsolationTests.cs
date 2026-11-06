@@ -119,12 +119,14 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         var own = Assert.Single(scan.Groups, group => group.NormalizedTerm == "포도");
         Assert.False(own.HasCopyNotOwnedByLearner);
         Assert.True(own.CanMergeAutomatically);
-        // Review 4 (one ownership rule): A's own legacy word keeps its memory aid and merges.
-        var ownLegacy = Assert.Single(scan.Groups, group => group.NormalizedTerm == "감");
-        Assert.False(ownLegacy.HasCopyNotOwnedByLearner);
-        Assert.True(ownLegacy.CanMergeAutomatically);
-        Assert.Equal("A's own story from before owners", Assert.Single(ownLegacy.Words,
-            info => info.Word.Id == "persimmon-legacy").Word.MnemonicText);
+        // One runtime rule (Captain 2026-11-06): a word recorded to no one is no one's, even one
+        // only A uses, until the backfill records it. It blocks the group and shows no aids.
+        var unowned = Assert.Single(scan.Groups, group => group.NormalizedTerm == "감");
+        Assert.True(unowned.HasCopyNotOwnedByLearner);
+        Assert.False(unowned.CanMergeAutomatically);
+        var unownedCopy = Assert.Single(unowned.Words, info => info.Word.Id == "persimmon-legacy");
+        Assert.False(unownedCopy.IsLearnersOwn);
+        Assert.Null(unownedCopy.Word.MnemonicText);
 
         // Asked directly, either keeper is refused.
         Assert.Equal(VocabularyMergeResult.None,
@@ -146,13 +148,18 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         }
         Assert.Equal(before, await SnapshotOfBAsync(database));
 
-        // The learner's own copies still merge, an own legacy copy too (named learner, explicitly).
-        Assert.Equal(1, (await repository.MergeVocabularyWordsWithResultAsync("grape-1", ["grape-2"])).Deleted);
+        // The learner's own copies still merge (named learner, explicitly); an unowned copy never.
         Assert.Equal(1, (await Repository(database, null).MergeVocabularyWordsWithResultAsync(
-            "persimmon-a", ["persimmon-legacy"], default, UserA)).Deleted);
+            "grape-1", ["grape-2"], default, UserA)).Deleted);
+        Assert.Equal(VocabularyMergeResult.None, await Repository(database, null)
+            .MergeVocabularyWordsWithResultAsync("persimmon-a", ["persimmon-legacy"], default, UserA));
         await using (var db = Context(database))
-            Assert.Equal("A's own story from before owners", (await db.VocabularyWords.AsNoTracking()
+        {
+            Assert.Null((await db.VocabularyWords.AsNoTracking()
                 .SingleAsync(word => word.Id == "persimmon-a")).MnemonicText);
+            Assert.Equal("A's own story from before owners", (await db.VocabularyWords.AsNoTracking()
+                .SingleAsync(word => word.Id == "persimmon-legacy")).MnemonicText);
+        }
     }
 
     protected async Task Editor_OpensAnotherLearnersWordReadOnly_AndNeverSavesIt()
@@ -169,7 +176,12 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         Assert.Null(theirs.Word.AudioPronunciationUri);
         Assert.Null(await repository.GetVocabularyWordForLearnerAsync("b-private", UserA));
         Assert.True((await repository.GetVocabularyWordForLearnerAsync("a-own", UserA))!.IsLearnersOwn);
-        Assert.True((await repository.GetVocabularyWordForLearnerAsync("persimmon-legacy", UserA))!.IsLearnersOwn);
+        // A word recorded to no one opens read-only, its aids hidden, even for its only user.
+        var unowned = (await repository.GetVocabularyWordForLearnerAsync("persimmon-legacy", UserA))!;
+        Assert.False(unowned.IsLearnersOwn);
+        Assert.Null(unowned.Word.MnemonicText);
+        Assert.Equal(VocabularyWordSaveResult.NotLearnersOwn,
+            await repository.SaveLearnersVocabularyWordAsync(unowned.Word, UserA));
         Assert.Null(await repository.GetVocabularyWordForLearnerAsync("a-own", null));
 
         theirs.Word.NativeLanguageTerm = "A overwrites";
@@ -193,20 +205,28 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         var before = await SnapshotOfBAsync(database);
         var result = await Repository(database, null).BulkDeleteVocabularyWordsAsync(
             ["a-own", "a-used-by-b", "b-linked-by-a", "a-answered"], UserA);
-        Assert.Equal(new VocabularyBulkDeleteResult(1, 3, 0), result);
+        // Each outcome is counted, so the page can say exactly what happened.
+        Assert.Equal(new VocabularyBulkDeleteResult(Deleted: 1, KeptShared: 2, KeptAnswers: 1,
+            NotFound: 0, Failed: 0), result);
         await using (var db = Context(database))
         {
             Assert.False(await db.VocabularyWords.AnyAsync(word => word.Id == "a-own"));
             foreach (var id in new[] { "a-used-by-b", "b-linked-by-a", "a-answered" })
+            {
                 Assert.True(await db.VocabularyWords.AnyAsync(word => word.Id == id), id);
+                // A kept word keeps the learner's links.
+                Assert.True(await db.ResourceVocabularyMappings.AnyAsync(m =>
+                    m.VocabularyWordId == id && m.ResourceId == ResourceA), id);
+            }
         }
         Assert.Equal(before, await SnapshotOfBAsync(database));
     }
 
-    // Review 4: the Coach's remove-word decides on the word before unlinking it. A legacy word
-    // only A links is A's through that very link, so it is deleted, not left with no link and
-    // no owner; a word B also links is only unlinked from A's resources.
-    protected async Task CoachRemoval_DeletesAnOwnLegacyWord_AndOnlyUnlinksAShared()
+    // The Coach's remove-word deletes only a word recorded to the learner that no one else uses;
+    // anything else is only unlinked from the learner's resources. A word recorded to no one is
+    // read-only for everyone (Captain 2026-11-06), so it stays, unlinked, until the backfill or
+    // a later review decides (docs/native-review-backlog.md); B's word linked by A stays B's.
+    protected async Task CoachRemoval_DeletesOnlyRecordedWords_AndUnlinksTheRest()
     {
         var database = await SeedAsync();
         var before = await SnapshotOfBAsync(database);
@@ -219,7 +239,7 @@ public abstract class VocabularyWordOwnerIsolationScenarios
                 .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
         }
 
-        foreach (var wordId in new[] { "legacy-solo", "b-linked-by-a" })
+        foreach (var wordId in new[] { "legacy-solo", "b-linked-by-a", "a-own" })
         {
             await using var appDb = Context(database);
             var handler = new SentenceStudio.Api.Coach.Operations.Handlers.CoachVocabularyRemovalHandler(
@@ -233,7 +253,9 @@ public abstract class VocabularyWordOwnerIsolationScenarios
 
         await using (var db = Context(database))
         {
-            Assert.False(await db.VocabularyWords.AnyAsync(word => word.Id == "legacy-solo"));
+            Assert.False(await db.VocabularyWords.AnyAsync(word => word.Id == "a-own"));
+            Assert.True(await db.VocabularyWords.AnyAsync(word => word.Id == "legacy-solo"));
+            Assert.False(await db.ResourceVocabularyMappings.AnyAsync(m => m.VocabularyWordId == "legacy-solo"));
             Assert.True(await db.VocabularyWords.AnyAsync(word => word.Id == "b-linked-by-a"));
             Assert.Equal([$"{ResourceB}-b-linked-by-a"], await db.ResourceVocabularyMappings
                 .Where(m => m.VocabularyWordId == "b-linked-by-a").Select(m => m.Id).ToListAsync());
@@ -243,15 +265,53 @@ public abstract class VocabularyWordOwnerIsolationScenarios
             await SnapshotOfBAsync(database));
     }
 
-    protected async Task Delete_OfAnOwnLegacyWord_UsesTheSameOwnershipRuleAsMerge()
+    // One runtime rule: a word recorded to no one is read-only for everyone, whether one learner
+    // or two use it, until the backfill records its single user.
+    protected async Task Delete_OfAnUnownedWord_IsRefusedForEveryone()
     {
         var database = await SeedAsync();
         var repository = Repository(database, null);
-        // A's own legacy word (only A links it) goes; the one both learners link stays.
-        Assert.Equal(VocabularyWordDeleteResult.Deleted,
+        Assert.Equal(VocabularyWordDeleteResult.RefusedShared,
             await repository.DeleteVocabularyWordAsync("persimmon-legacy", UserA));
         Assert.Equal(VocabularyWordDeleteResult.RefusedShared,
             await repository.DeleteVocabularyWordAsync("pear-legacy", UserA));
+        Assert.Equal(VocabularyWordDeleteResult.RefusedShared,
+            await repository.DeleteVocabularyWordAsync("pear-legacy", UserB));
+        await using var db = Context(database);
+        Assert.Equal(2, await db.VocabularyWords.CountAsync(word =>
+            word.Id == "persimmon-legacy" || word.Id == "pear-legacy"));
+    }
+
+    // The Coach's edit loads and writes only a word recorded to the learner: B's word that A's
+    // resource links, and a word recorded to no one, are refused before any preview shows
+    // their memory aid.
+    protected async Task CoachEdit_RefusesWordsNotRecordedToTheLearner()
+    {
+        var database = await SeedAsync();
+        var before = await SnapshotOfBAsync(database);
+        foreach (var (wordId, allowed) in new[] { ("dup-b", false), ("persimmon-legacy", false), ("a-own", true) })
+        {
+            await using var appDb = Context(database);
+            var handler = new SentenceStudio.Api.Coach.Operations.Handlers.CoachVocabularyEditHandler(
+                new SentenceStudio.Api.Coach.Operations.CoachWriteOwnership(appDb),
+                Repository(database, null));
+            var args = System.Text.Json.JsonSerializer.Serialize(
+                new SentenceStudio.Api.Coach.Operations.Handlers.CoachVocabularyEditArgs(
+                    wordId, null, "edited by the Coach", null, "the Coach's story"),
+                SentenceStudio.Api.Coach.Persistence.CoachNormalizedJson.Options);
+            if (allowed)
+                await handler.ExecuteAsync(UserA, args, default);
+            else
+                await Assert.ThrowsAnyAsync<Exception>(() => handler.PrepareAsync(UserA, args, default));
+        }
+        await using (var db = Context(database))
+        {
+            Assert.Equal("edited by the Coach", (await db.VocabularyWords.AsNoTracking()
+                .SingleAsync(word => word.Id == "a-own")).NativeLanguageTerm);
+            Assert.Equal("A's own story from before owners", (await db.VocabularyWords.AsNoTracking()
+                .SingleAsync(word => word.Id == "persimmon-legacy")).MnemonicText);
+        }
+        Assert.Equal(before, await SnapshotOfBAsync(database));
     }
 
     protected async Task AbsentLearner_ReadsAndWritesNothing()
@@ -313,8 +373,9 @@ public abstract class VocabularyWordOwnerIsolationScenarios
             bCopy.AudioPronunciationUri = "https://audio.example.invalid/b.mp3";
             Word(db, "dup-a", "사과", UserA, ResourceA);
             Word(db, "pear-a", "배", UserA, ResourceA);
-            // Words saved before words had owners (recorded to nobody below). One both learners
-            // link is no one's; one only A links is A's (the one ownership rule).
+            // Words saved before words had owners (recorded to nobody below). Both are no one's,
+            // the one both learners link and the one only A links (one runtime rule, Captain
+            // 2026-11-06): read-only for everyone until the backfill records a single user.
             Word(db, "pear-legacy", "배", UserA, ResourceA, ResourceB);
             Word(db, "persimmon-a", "감", UserA, ResourceA);
             var ownLegacy = Word(db, "persimmon-legacy", "감", UserA, ResourceA);
@@ -405,8 +466,9 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [Fact] public Task Editor() => Editor_OpensAnotherLearnersWordReadOnly_AndNeverSavesIt();
     [Fact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
-    [Fact] public Task OwnLegacyDelete() => Delete_OfAnOwnLegacyWord_UsesTheSameOwnershipRuleAsMerge();
-    [Fact] public Task CoachRemoval() => CoachRemoval_DeletesAnOwnLegacyWord_AndOnlyUnlinksAShared();
+    [Fact] public Task UnownedDelete() => Delete_OfAnUnownedWord_IsRefusedForEveryone();
+    [Fact] public Task CoachEdit() => CoachEdit_RefusesWordsNotRecordedToTheLearner();
+    [Fact] public Task CoachRemoval() => CoachRemoval_DeletesOnlyRecordedWords_AndUnlinksTheRest();
 }
 
 /// <summary>The web app's path: the same repository on a throwaway PostgreSQL database.</summary>
@@ -444,8 +506,9 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [ApplicationOperationPostgresFact] public Task Editor() => Editor_OpensAnotherLearnersWordReadOnly_AndNeverSavesIt();
     [ApplicationOperationPostgresFact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
-    [ApplicationOperationPostgresFact] public Task OwnLegacyDelete() => Delete_OfAnOwnLegacyWord_UsesTheSameOwnershipRuleAsMerge();
-    [ApplicationOperationPostgresFact] public Task CoachRemoval() => CoachRemoval_DeletesAnOwnLegacyWord_AndOnlyUnlinksAShared();
+    [ApplicationOperationPostgresFact] public Task UnownedDelete() => Delete_OfAnUnownedWord_IsRefusedForEveryone();
+    [ApplicationOperationPostgresFact] public Task CoachEdit() => CoachEdit_RefusesWordsNotRecordedToTheLearner();
+    [ApplicationOperationPostgresFact] public Task CoachRemoval() => CoachRemoval_DeletesOnlyRecordedWords_AndUnlinksTheRest();
 
     // Review 4: the delete's checks and its write share one serializable transaction. Another
     // learner's progress row inserted (and committed) by a second connection after the delete

@@ -1,4 +1,5 @@
 using CoreSync;
+using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -53,6 +54,11 @@ public static class SyncUploadRules
     /// upload that contains one, so a client keeps them local. A device database holds such
     /// rows only from before owner checks (an installed MAUI app downloaded every learner's rows)
     /// or from a second account signed in on the same install.
+    /// A word recorded to no one is no one's (the one ownership rule, Captain 2026-11-06), so
+    /// the server refuses any change to its stored copy; a device still holds one back when
+    /// another learner's resource or progress on this device uses it. That decides nothing about
+    /// whose the word is: it only keeps a word another learner may be about to sync from
+    /// reaching the server first under this learner's account.
     /// </summary>
     public static async Task<IReadOnlySet<SyncItem>> AnotherLearnersRowsAsync(
         ApplicationDbContext local, IReadOnlyList<SyncItem> items, string owner,
@@ -82,8 +88,38 @@ public static class SyncUploadRules
                     && storedOwner is { Length: > 0 }
                     && !string.Equals(storedOwner, owner, StringComparison.Ordinal))
                     foreign.Add(item);
+            if (table.Key != "VocabularyWord")
+                continue;
+            var unrecorded = ids.Where(id => stored.TryGetValue(id, out var storedOwner)
+                && string.IsNullOrEmpty(storedOwner)).ToArray();
+            var heldBack = await WordsAnotherLearnerUsesHereAsync(
+                local, unrecorded, owner, cancellationToken);
+            foreach (var item in table)
+                if (heldBack.Contains(Text(item, "Id")!))
+                    foreign.Add(item);
         }
         return foreign;
+    }
+
+    private static async Task<HashSet<string>> WordsAnotherLearnerUsesHereAsync(
+        ApplicationDbContext local, string[] ids, string owner, CancellationToken cancellationToken)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        if (ids.Length == 0)
+            return used;
+        used.UnionWith(await (
+            from mapping in local.ResourceVocabularyMappings.AsNoTracking()
+            join resource in local.LearningResources.AsNoTracking()
+                on mapping.ResourceId equals resource.Id
+            where ids.Contains(mapping.VocabularyWordId)
+                && resource.UserProfileId != null && resource.UserProfileId != ""
+                && resource.UserProfileId != owner
+            select mapping.VocabularyWordId).ToListAsync(cancellationToken));
+        used.UnionWith(await local.VocabularyProgresses.AsNoTracking()
+            .Where(progress => ids.Contains(progress.VocabularyWordId)
+                && progress.UserId != null && progress.UserId != "" && progress.UserId != owner)
+            .Select(progress => progress.VocabularyWordId).ToListAsync(cancellationToken));
+        return used;
     }
 
     private static string? Text(SyncItem item, string column) =>

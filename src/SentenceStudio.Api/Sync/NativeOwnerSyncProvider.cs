@@ -424,8 +424,9 @@ internal sealed class NativeOwnerSyncProvider(
 
     /// <summary>
     /// The written rows the server cannot place for <paramref name="owner"/> given the other rows
-    /// of this upload, including rows whose stored copy is recorded or inferred as another
-    /// learner's or nobody's. Rows that name another learner were refused before this runs.
+    /// of this upload, including rows whose stored copy is another learner's or nobody's (a word
+    /// is its recorded owner's only; one recorded to no one is never changed by a sync). Rows
+    /// that name another learner were refused before this runs.
     /// </summary>
     private static async Task<HashSet<SyncItem>> UnplaceableWritesAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,

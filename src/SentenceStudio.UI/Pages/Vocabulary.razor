@@ -1218,25 +1218,28 @@ else
             // Review 4 (B66): each word goes through the owner-scoped delete; words that are not
             // the learner's, or that others or Minimal Pairs answers still use, stay.
             var result = await ResourceRepo.BulkDeleteVocabularyWordsAsync(ids, ActiveUserId);
-            if (result.Failed == 0)
+            if (result.Deleted > 0)
             {
                 CacheService.InvalidateVocabSummary();
                 await LoadData();
-                if (result.Deleted > 0)
-                    Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], result.Deleted)}");
-                if (result.Kept > 0)
-                    Toast.ShowInfo($"{string.Format(Localize["Vocabulary_BulkDeleteKept"], result.Kept)}");
-                showBulkDeleteConfirm = false;
-                ExitBulkEditMode();
+                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], result.Deleted)}");
+            }
+            // Say exactly what happened to the rest: a kept word stays in the learner's
+            // vocabulary with its links.
+            if (result.KeptShared > 0)
+                Toast.ShowInfo($"{string.Format(Localize["Vocabulary_BulkDeleteKept"], result.KeptShared)}");
+            if (result.KeptAnswers > 0)
+                Toast.ShowInfo($"{string.Format(Localize["Vocabulary_BulkDeleteKeptAnswers"], result.KeptAnswers)}");
+            if (result.NotFound > 0)
+                Toast.ShowInfo($"{string.Format(Localize["Vocabulary_BulkDeleteNotFound"], result.NotFound)}");
+            if (result.Failed > 0)
+            {
+                Toast.ShowError($"{Localize["Vocabulary_BulkDeleteFailedGeneric"]}");
             }
             else
             {
-                if (result.Deleted > 0)
-                {
-                    CacheService.InvalidateVocabSummary();
-                    await LoadData();
-                }
-                Toast.ShowError($"{Localize["Vocabulary_BulkDeleteFailedGeneric"]}");
+                showBulkDeleteConfirm = false;
+                ExitBulkEditMode();
             }
         }
         catch (Exception ex)
@@ -1847,9 +1850,9 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         showCleanupPanel = true;
         showDuplicatePanel = false;
         isCleanupRunning = true;
-        cleanupTitle = "Fix Swapped Languages";
+        cleanupTitle = Localize["Vocabulary_FixSwappedTitle"];
         cleanupResults.Clear();
-        cleanupStatus = "Scanning for swapped language entries...";
+        cleanupStatus = Localize["Vocabulary_FixSwappedScanning"];
         StateHasChanged();
 
         try
@@ -1890,16 +1893,15 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
             cleanupTotal = wordsToSwap.Count + wordsToMerge.Count;
             cleanupProgress = 0;
-            cleanupStatus = $"Fixing {cleanupTotal} entries...";
+            cleanupStatus = string.Format(Localize["Vocabulary_FixSwappedFixing"], cleanupTotal);
             StateHasChanged();
 
-            // Review 4 (B66/B69): only the learner's own words change. A swapped copy folds into
-            // the existing word through the owner-checked merge, which keeps its progress,
-            // history and memory aids on the keeper, moves only the learner's links, saves in one
-            // step, and changes nothing when either word is not the learner's.
+            // B66/B69: only words recorded to the learner change. A swapped copy folds into the
+            // existing word through the owner-checked merge, which runs its checks and writes in
+            // one transaction, keeps the copy's progress, history and memory aids on the keeper,
+            // moves only the learner's links, and changes nothing when either word is not the
+            // learner's. A term swap updates only a word recorded to the learner.
             var userId = ActiveUserId;
-            var learnersWords = await ResourceRepo.GetLearnersWordIdsAsync(
-                wordsToSwap.Select(swap => swap.Item1).ToList(), userId);
             var keptCount = 0;
             foreach (var (fromId, toId) in wordsToMerge)
             {
@@ -1915,28 +1917,24 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
             foreach (var (id, newTarget, newNative) in wordsToSwap)
             {
-                if (!learnersWords.Contains(id))
-                {
-                    keptCount++;
-                }
-                else
-                {
-                    await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative);
+                if (await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative, userId))
                     swappedCount++;
-                }
+                else
+                    keptCount++;
                 cleanupProgress++;
                 StateHasChanged();
             }
 
-            cleanupResults.Add($"Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)"
-                + (keptCount > 0 ? $", left {keptCount} that are not yours or are still used elsewhere" : ""));
+            cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedComplete"], swappedCount, mergedCount));
+            if (keptCount > 0)
+                cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedKept"], keptCount));
 
             await LoadData();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error fixing swapped languages");
-            cleanupResults.Add($"Error: {ex.Message}");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedError"], ex.Message));
         }
         finally
         {

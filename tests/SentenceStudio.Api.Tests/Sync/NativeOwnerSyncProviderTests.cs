@@ -98,7 +98,9 @@ public sealed class NativeOwnerSyncProviderTests
             db, "VocabularyWord", ["recorded-word", "legacy-word"], default);
 
         Assert.Equal(Owner, owners["recorded-word"]);
-        Assert.Equal(Owner, owners["legacy-word"]);
+        // One runtime rule (Captain 2026-11-06): a word recorded to no one is no one's, even one
+        // only this owner links; the one-time backfill records it, nothing infers it at runtime.
+        Assert.Null(owners["legacy-word"]);
     }
 
     [Fact]

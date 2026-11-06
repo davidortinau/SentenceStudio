@@ -16,9 +16,9 @@ namespace SentenceStudio.Api.Coach.Operations;
 /// from a model. Every write handler resolves ownership through this type first.
 /// </para>
 /// <para>
-/// Vocabulary ownership is transitive: a word has no owner column, and belongs to a learner only
-/// through a mapping onto one of that learner's resources. This type deliberately requires that
-/// mapping to exist. The app's own <c>IsVocabularyWordAvailableToUserAsync</c> also treats a word
+/// A word reaches a learner's tools through a mapping onto one of their resources, and this type
+/// deliberately requires that mapping to exist; changing the word also requires it to be
+/// recorded to them (<see cref="FindEditableWordAsync"/>, the one runtime rule). The app's own <c>IsVocabularyWordAvailableToUserAsync</c> also treats a word
 /// with no mappings at all as available to everybody, which is reasonable for a local library and
 /// wrong for a tool the model can aim: an unmapped word is a word some other learner may be about
 /// to map, and letting Sam rewrite it would be a cross-tenant edit that looks like a local one.
@@ -78,7 +78,23 @@ public sealed class CoachWriteOwnership
     }
 
     /// <summary>
-    /// Loads a vocabulary word the learner owns through at least one of their own resources.
+    /// A word the learner may change: one of their resources links it and it is recorded to
+    /// them (the one runtime rule, VocabularyWordOwnership.OwnedByAsync). Another learner's
+    /// word, or one recorded to no one, is read-only even when the learner links it, so it is
+    /// neither loaded for an edit preview (its memory aid is its owner's) nor overwritten.
+    /// </summary>
+    public async Task<VocabularyWord?> FindEditableWordAsync(
+        string userProfileId, string wordId, CancellationToken cancellationToken)
+    {
+        var word = await FindOwnedWordAsync(userProfileId, wordId, cancellationToken).ConfigureAwait(false);
+        return word is not null && string.Equals(word.UserProfileId, userProfileId, StringComparison.Ordinal)
+            ? word : null;
+    }
+
+    /// <summary>
+    /// Loads a vocabulary word one of the learner's own resources links, for link and unlink
+    /// tools. Linking is not ownership: changing the word itself goes through
+    /// <see cref="FindEditableWordAsync"/>.
     /// </summary>
     public async Task<VocabularyWord?> FindOwnedWordAsync(
         string userProfileId, string wordId, CancellationToken cancellationToken)
