@@ -503,7 +503,8 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("LibraryRow(LibrarySection.Skills, \"target\", \"Nav_Skills\",",
             Read("App/ApplicationScene.Library.cs"));
         Assert.Contains("\"native.library.row.skills\"", Read("App/ApplicationScene.Library.cs"));
-        Assert.Contains("text(\"Nav_Skills\"), openSkills", resources);
+        // The Resources page has no More menu; the Library list reaches Skills.
+        Assert.DoesNotContain("openSkills", resources);
         Assert.Contains("Views.LazyVGrid(", list);
         Assert.Contains("Views.TextField(", form);
         Assert.Contains("Views.TextEditor(", form);

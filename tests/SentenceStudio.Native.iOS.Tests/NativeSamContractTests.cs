@@ -107,11 +107,18 @@ public sealed class NativeSamContractTests
             StringComparison.Ordinal)..];
         guard = guard[..guard.IndexOf(';')];
         // Tab shell trial: the review opens over the Study root, so History (pushed over
-        // Study) and every editor with unsaved edits on another tab block it.
+        // Study) and every editor with unsaved edits on another tab block it; a smart
+        // resource being read in the Library does not.
         foreach (var screen in new[] { "_destination != NativeDestination.Dashboard",
-            "IsActivityLogOpen", "IsProfileOpen", "IsResourcesFormOpen", "IsVocabularyWordOpen",
-            "IsSkillFormOpen", "LibraryPairsHasChildPage" })
+            "IsActivityLogOpen", "IsProfileOpen", "HasLibraryEditor" })
             Assert.Contains(screen, guard);
+        var library = Source("App/ApplicationController.Library.cs");
+        var editor = library[library.IndexOf("internal bool HasLibraryEditor =>",
+            StringComparison.Ordinal)..];
+        editor = editor[..editor.IndexOf(';')];
+        foreach (var screen in new[] { "IsResourcesFormOpen && !IsResourceFormReadOnly",
+            "IsVocabularyWordOpen", "IsSkillFormOpen", "LibraryPairsHasChildPage" })
+            Assert.Contains(screen, editor);
     }
 
     [Theory]
@@ -205,15 +212,19 @@ public sealed class NativeSamContractTests
         Assert.DoesNotContain("CoachWriteConfirmation", contracts);
     }
 
-    /// <summary>The Resources tab entry floats as a bottom inset the search update unwraps.</summary>
+    /// <summary>
+    /// Tab shell trial: Sam's slot replaces the Resources page's floating entry, so the
+    /// browser has no bottom inset for the search update to unwrap.
+    /// </summary>
     [Fact]
-    public void ResourcesSamEntryKeepsTheIncrementalSearchUpdate()
+    public void ResourcesPageHasNoFloatingSamEntry()
     {
         var scene = Source("App/ApplicationScene.cs");
-        Assert.Contains("WithoutSamInset(current.Children[0])", scene);
-        Assert.Contains("SameBrowserControls(WithoutSamInset(", scene);
-        Assert.Contains("Views.BottomInset(style.Page(page), samEntry)",
-            Source("Features/LearningResources/LearningResourcesView.cs"));
+        Assert.DoesNotContain("WithoutSamInset", scene);
+        Assert.Contains("!SameBrowserControls(current.Children[0], next.Children[0])", scene);
+        var view = Source("Features/LearningResources/LearningResourcesView.cs");
+        Assert.DoesNotContain("samEntry", view);
+        Assert.DoesNotContain("native.resources.more", view);
     }
 
     /// <summary>
@@ -229,8 +240,7 @@ public sealed class NativeSamContractTests
         // the Study and Library roots; the binding below is kept for that button's return.
         var controller = Source("App/ApplicationController.Sam.cs");
         Assert.DoesNotContain("_dashboardSamEntry", controller);
-        Assert.Contains("resources.RenderBrowser(style, samEntry: null)",
-            Source("App/ApplicationController.cs"));
+        Assert.Contains("resources.RenderBrowser(style)", Source("App/ApplicationController.cs"));
         var scene = Source("App/ApplicationScene.cs");
         Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
         Assert.Contains("_samTab.WithTabHidden(hidden);", Source("App/ApplicationScene.Sam.cs"));

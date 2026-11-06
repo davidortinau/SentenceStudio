@@ -84,7 +84,7 @@ public sealed partial class NativeSamPresenter(
         if (!connectivity.IsInternetAvailable)
         {
             if (_availability is null)
-                Publish(_state with { IsVisible = false });
+                Publish(_state with { IsVisible = false, Availability = NativeSamAvailability.Offline });
             else if (_state.IsOpen)
                 Publish(_state with { Status = NativeSamStatus.Offline });
             return;
@@ -104,6 +104,7 @@ public sealed partial class NativeSamPresenter(
             Publish(_state with
             {
                 IsVisible = visible,
+                Availability = visible ? NativeSamAvailability.Offered : NativeSamAvailability.NotOffered,
                 IsDurableHistoryAvailable = availability.IsDurableHistoryAvailable,
                 SamWriteAvailable = availability.IsSamWriteAvailable,
                 Settings = _state.SafeSettings with { IsAvailable = availability.IsAvailable },
@@ -129,6 +130,7 @@ public sealed partial class NativeSamPresenter(
             Publish(_state with
             {
                 IsVisible = false, IsOpen = false, Status = NativeSamStatus.Closed,
+                Availability = NativeSamAvailability.Unreachable,
                 SamWriteAvailable = false,
                 Settings = _state.SafeSettings with { IsAvailable = false },
             });

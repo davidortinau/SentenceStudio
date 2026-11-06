@@ -11155,6 +11155,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Checking whether {0} is available....
+        /// </summary>
+        internal static string NativeSam_SlotChecking {
+            get {
+                return ResourceManager.GetString("NativeSam_SlotChecking", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You are offline. {0} needs a connection..
+        /// </summary>
+        internal static string NativeSam_SlotOffline {
+            get {
+                return ResourceManager.GetString("NativeSam_SlotOffline", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} could not be reached. Check your connection and try again..
+        /// </summary>
+        internal static string NativeSam_SlotUnreachable {
+            get {
+                return ResourceManager.GetString("NativeSam_SlotUnreachable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Your latest practice has to sync before {0} can help. Nothing changed. Try again when sync completes..
         /// </summary>
         internal static string NativeSam_SyncRequired {

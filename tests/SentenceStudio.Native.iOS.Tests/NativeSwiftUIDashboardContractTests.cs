@@ -19,9 +19,17 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
         Assert.Contains("\"bubble.left.and.bubble.right.fill\"", scene);
         Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
-        // Shown to every signed-in owner; when Sam is not offered, the slot's alert says so.
+        // Shown to every signed-in owner. A tap that does not open Sam reads availability
+        // again; only the server's answer says "not available", offline and an unreachable
+        // server have their own text.
         Assert.Contains(".WithTabHidden(!_app.IsSamSlotShown)", scene);
-        Assert.Contains("localize(\"Coach_SettingsUnavailable\")", scene);
+        Assert.Contains("_app.SamSlotNoticeText, string.Empty,", scene);
+        var libraryController = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationController.Library.cs"));
+        Assert.Contains("await sam.RefreshAvailabilityAsync(_lifetime.Token);", libraryController);
+        Assert.Contains("sam.State.Availability == NativeSamAvailability.NotOffered", libraryController);
+        foreach (var key in new[] { "NativeSam_SlotChecking", "NativeSam_SlotOffline",
+            "NativeSam_SlotUnreachable", "Coach_SettingsUnavailable" })
+            Assert.Contains($"\"{key}\"", libraryController);
         Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
         foreach (var id in new[] { "native.tab.study", "native.tab.library", "native.tab.settings", "native.tab.sam" })
             Assert.Contains($"\"{id}\"", scene);
@@ -246,7 +254,9 @@ public sealed class NativeSwiftUIDashboardContractTests
             feature);
         Assert.Contains("AddResource: OpenResourceAddFromDashboard", app);
         Assert.Contains("_selectedTab = NativeTabs.Library;", app);
-        Assert.Contains("_resources?.OpenCreate();", app);
+        // Study's Add opens the form above the Library's Resources page (the saved resource shows).
+        Assert.Contains("_libraryResourcesOpen = true;", app);
+        Assert.Contains("_resources.OpenCreate();", app);
         Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);
     }
 

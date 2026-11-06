@@ -36,6 +36,41 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task AvailabilityTellsTheServersAnswerFromAnOfflineOrFailedRead()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        var sam = Create(fixture, api);
+        Assert.Equal(NativeSamAvailability.Unknown, sam.State.Availability);
+
+        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Offered, sam.State.Availability);
+        Assert.True(sam.State.IsVisible);
+
+        api.Availability = new CoachAvailabilityResponse
+        {
+            IsAvailable = false, State = CoachAvailabilityState.Disabled
+        };
+        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.NotOffered, sam.State.Availability);
+        Assert.False(sam.State.IsVisible);
+
+        api.Overrides[nameof(ICoachApiClient.GetAvailabilityAsync)] = _ =>
+            Task.FromException<CoachAvailabilityResponse>(new HttpRequestException("down"));
+        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Unreachable, sam.State.Availability);
+        Assert.False(sam.State.IsVisible);
+
+        sam.ClearForAccountBoundary();
+        Assert.Equal(NativeSamAvailability.Unknown, sam.State.Availability);
+        fixture.SetConnectivity(false);
+        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Offline, sam.State.Availability);
+        Assert.False(sam.State.IsVisible);
+    }
+
+    [Fact]
     public async Task OpenResumesMostRecentOpenConversationForTheActiveOwnerOnly()
     {
         using var fixture = new NativeSliceFixture();

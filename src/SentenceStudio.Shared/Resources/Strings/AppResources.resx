@@ -9907,4 +9907,16 @@ For example: {0} ...</value>
     <value>Resources</value>
     <comment>Library list row: learning resources</comment>
   </data>
+  <data name="NativeSam_SlotChecking" xml:space="preserve">
+    <value>Checking whether {0} is available...</value>
+    <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>
+  </data>
+  <data name="NativeSam_SlotOffline" xml:space="preserve">
+    <value>You are offline. {0} needs a connection.</value>
+    <comment>Sam's tab slot: the device is offline. {0} is Sam's name.</comment>
+  </data>
+  <data name="NativeSam_SlotUnreachable" xml:space="preserve">
+    <value>{0} could not be reached. Check your connection and try again.</value>
+    <comment>Sam's tab slot: the availability read failed while online. {0} is Sam's name.</comment>
+  </data>
 </root>

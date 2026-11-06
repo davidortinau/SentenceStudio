@@ -39,11 +39,11 @@ internal sealed partial class ApplicationController
     /// The review quiz opens over the Study tab's root, so an activity, the quiz, the
     /// History page pushed over Study, or an editor with unsaved edits on another tab
     /// (a resource, a word, a skill, a new minimal pair, the profile) must close first.
+    /// A smart resource being read is not an editor.
     /// </summary>
     internal bool IsSamReviewBlockedByScreen =>
         _destination != NativeDestination.Dashboard || IsActivityLogOpen
-        || IsProfileOpen || IsResourcesFormOpen || IsVocabularyWordOpen || IsSkillFormOpen
-        || LibraryPairsHasChildPage;
+        || IsProfileOpen || HasLibraryEditor;
 
     internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;

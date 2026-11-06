@@ -17,9 +17,7 @@ internal static class LearningResourcesView
         string? feedback,
         SourceUiStyle style,
         Func<string, string> text,
-        LearningResourcesActions actions,
-        Action? openVocabulary,
-        SwiftView? samEntry = null)
+        LearningResourcesActions actions)
     {
         if (state.Phase == NativeResourceListPhase.Loading)
             return Views.Toolbar(style.Page(Views.Scroll(
@@ -31,8 +29,7 @@ internal static class LearningResourcesView
                         .WithFlexibleWidth()
                         .WithAccessibilityIdentifier("native.resources.scroll.content"))
                 .WithAccessibilityIdentifier("native.resources.scroll")),
-                BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
-                    openVocabulary));
+                BrowserHeader(state, style, text, actions.Add));
 
         var items = new List<SwiftView>();
         var types = state.Types.IsDefault ? [] : state.Types;
@@ -164,15 +161,8 @@ internal static class LearningResourcesView
         var page = Views.Scroll(scrollContent)
             .WithAccessibilityIdentifier("native.resources.scroll");
         page.IsEnabled = !state.StarterBusy;
-        // Source MainLayout mounts the Sam entry on every authenticated page; it floats
-        // as a bottom inset so the search field and its incremental updates are untouched.
-        if (samEntry is not null)
-            return Views.Toolbar(Views.BottomInset(style.Page(page), samEntry),
-                BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
-                    openVocabulary));
         return Views.Toolbar(style.Page(page),
-            BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
-                openVocabulary));
+            BrowserHeader(state, style, text, actions.Add));
     }
 
     private static SwiftView ResourceListGroup(
@@ -192,51 +182,30 @@ internal static class LearningResourcesView
         return style.BorderedCard(group, radius: style.Appearance.BootstrapRadius);
     }
 
+    /// <summary>
+    /// The Resources page's one action: Add (+) on a phone, the source primary button
+    /// on wider screens (the Library list reaches Skills and Vocabulary).
+    /// </summary>
     private static SwiftView[] BrowserHeader(
         NativeResourceListState state, SourceUiStyle style,
-        Func<string, string> text, Action addResource, Action? openSkills,
-        Action? openVocabulary)
+        Func<string, string> text, Action addResource)
     {
         var enabled = state.Phase != NativeResourceListPhase.Blocked
             && !state.StarterBusy;
-        if (openSkills is null && openVocabulary is null)
-        {
-            // In the Library, Skills and Vocabulary are switcher pages: Add (+) is the one action.
-            if (style.ViewportWidth < 768)
-            {
-                var plus = Views.Button(Views.Image("plus"), addResource)
-                    .WithAccessibilityLabel(text("Resources_AddResource"))
-                    .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                    .WithAccessibilityIdentifier("native.resources.add");
-                plus.IsEnabled = enabled;
-                return [plus];
-            }
-            var wide = style.PrimaryButton(text("Resources_AddResource"), addResource)
-                .WithAccessibilityIdentifier("native.resources.add.primary");
-            SourceUiStyle.SetCustomButtonAvailability(wide, style.Appearance,
-                SourceButtonRole.Primary, enabled);
-            return [wide];
-        }
-        var add = Views.Button(text("Resources_AddResource"), addResource)
-            .WithAccessibilityIdentifier("native.resources.add");
-        add.IsEnabled = enabled;
-        var menuActions = new List<SwiftView> { add };
-        if (openSkills is not null)
-            menuActions.Add(Views.Button(text("Nav_Skills"), openSkills)
-                .WithAccessibilityIdentifier("native.resources.skills"));
-        if (openVocabulary is not null)
-            menuActions.Add(Views.Button(text("Nav_Vocabulary"), openVocabulary)
-                .WithAccessibilityIdentifier("native.resources.vocabulary"));
-        var more = Views.Menu(text("More"), menuActions.ToArray())
-            .WithAccessibilityIdentifier("native.resources.more");
-        more.IsEnabled = enabled;
         if (style.ViewportWidth < 768)
-            return [more];
-        var primary = style.PrimaryButton(text("Resources_AddResource"), addResource)
+        {
+            var plus = Views.Button(Views.Image("plus"), addResource)
+                .WithAccessibilityLabel(text("Resources_AddResource"))
+                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                .WithAccessibilityIdentifier("native.resources.add");
+            plus.IsEnabled = enabled;
+            return [plus];
+        }
+        var wide = style.PrimaryButton(text("Resources_AddResource"), addResource)
             .WithAccessibilityIdentifier("native.resources.add.primary");
-        SourceUiStyle.SetCustomButtonAvailability(primary, style.Appearance,
+        SourceUiStyle.SetCustomButtonAvailability(wide, style.Appearance,
             SourceButtonRole.Primary, enabled);
-        return [primary, more];
+        return [wide];
     }
 
     private static SwiftView Filter(

@@ -110,6 +110,20 @@ public enum NativeSamConversationDialogKind { Rename, Close, Delete }
 public sealed record NativeSamConversationDialog(NativeSamConversationDialogKind Kind, string ConversationId,
     string Title, string RenameText = "");
 
+/// <summary>
+/// What the last availability read for the current owner established. Only
+/// <see cref="NotOffered"/> is the server's answer that Sam is not offered; an
+/// unknown, offline or unreachable read must not be shown as "not available".
+/// </summary>
+public enum NativeSamAvailability
+{
+    Unknown,
+    Offered,
+    NotOffered,
+    Offline,
+    Unreachable
+}
+
 /// <summary>Source CoachMemoryAvailability: the panel disappears unless the route group answers.</summary>
 public enum NativeSamMemoryAvailability { Unknown, Available, Unavailable }
 
@@ -205,7 +219,8 @@ public sealed record NativeSamState(
     string? ConversationActionKey = null,
     NativeSamMemoryState? Memory = null,
     NativeSamSettingsState? Settings = null,
-    long Version = 0)
+    long Version = 0,
+    NativeSamAvailability Availability = NativeSamAvailability.Unknown)
 {
     /// <summary>Source IsWriteSurfaceEnabled: write tools on, durable history on, a thread open.</summary>
     public bool WriteSurfaceEnabled => SamWriteAvailable && IsDurableHistoryAvailable && ConversationId is not null;

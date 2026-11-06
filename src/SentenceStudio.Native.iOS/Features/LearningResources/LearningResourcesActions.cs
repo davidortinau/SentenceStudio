@@ -16,5 +16,4 @@ internal sealed record LearningResourcesActions(
     Action<string> Open,
     Action Add,
     Action CreateStarter,
-    Action Reload,
-    Action? OpenSkills = null);
+    Action Reload);

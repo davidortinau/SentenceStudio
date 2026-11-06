@@ -21,8 +21,13 @@ internal sealed partial class ApplicationScene
     private SwiftView? _pairsToastLayer;
     private SwiftView? _pairsChildSlot;
     private SwiftView? _pairsChildToastLayer;
+    private long _renderedPairsVersion = -1;
+    private SourceUiStyle? _renderedPairsStyle;
+    private double _renderedPairsWidth;
     private long _renderedPairsChildVersion = -1;
     private SourceUiStyle? _renderedPairsChildStyle;
+    private double _renderedPairsChildWidth;
+    private long _renderedLibraryResetVersion;
     private SwiftView? _renderedPairsToastLayer;
     private long _renderedPairsToastId;
     private SourceUiStyle? _renderedPairsToastStyle;
@@ -32,6 +37,7 @@ internal sealed partial class ApplicationScene
         _libraryListSlot = Views.VStack(LibraryList()).WithFlexibleWidth();
         _libraryListSlot.Spacing = 0;
         _renderedLibraryList = LibraryListKey();
+        _renderedLibraryResetVersion = _app.LibraryResetVersion;
         _libraryRoot = _libraryListSlot
             .WithNavigationTitle(_app.Localize("Nav_Library"))
             .WithInlineNavigationTitle();
@@ -39,25 +45,34 @@ internal sealed partial class ApplicationScene
         return _libraryStack;
     }
 
-    /// <summary>What the list shows: the counts that are already loaded, and the style.</summary>
+    /// <summary>What the list shows: the count that is already loaded, a row's error, and the style.</summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryVocabularyCount}|{_style.GetHashCode()}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}");
 
     /// <summary>
     /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
     /// bi-soundwave) and are about equally wide, so the titles and separators line up.
+    /// Only the Resources row has a count: it is the list the browser already read.
     /// </summary>
-    private SwiftView LibraryList() =>
-        _style.GroupedForm(Views.Form(
-                LibraryRow(LibrarySection.Resources, "book.closed", "Library_Resources",
-                    _app.LibraryResourceCount, "native.library.row.resources"),
-                LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
-                    _app.LibraryVocabularyCount, "native.library.row.vocabulary"),
-                LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
-                    null, "native.library.row.skills"),
-                LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",
-                    null, "native.library.row.minimal-pairs")))
+    private SwiftView LibraryList()
+    {
+        var rows = new List<SwiftView>
+        {
+            LibraryRow(LibrarySection.Resources, "book.closed", "Library_Resources",
+                _app.LibraryResourceCount, "native.library.row.resources"),
+            LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
+                null, "native.library.row.vocabulary"),
+            LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
+                null, "native.library.row.skills"),
+            LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",
+                null, "native.library.row.minimal-pairs"),
+        };
+        if (_app.LibraryErrorText is { } error)
+            rows.Add(_style.Text(Views.Text(error), SourceTextRole.Body2, SourceTextTone.Danger)
+                .WithAccessibilityIdentifier("native.library.error"));
+        return _style.GroupedForm(Views.Form(rows.ToArray()))
             .WithAccessibilityIdentifier("native.library.list");
+    }
 
     /// <summary>A list row: symbol, title, the count when it is already loaded, and a chevron.</summary>
     private SwiftView LibraryRow(LibrarySection page, string symbol, string titleKey,
@@ -93,6 +108,22 @@ internal sealed partial class ApplicationScene
     {
         if (_libraryListSlot is null || _libraryStack is null)
             return;
+        if (_renderedLibraryResetVersion != _app.LibraryResetVersion)
+        {
+            // A Study entry closed the Library's pages: back to the list. The controller
+            // already released them, so no route callback reports these pops.
+            if (_libraryStack.NavigationPath.Count > 0 && !_libraryStack.CanNavigateBack)
+                return;
+            while (_libraryStack.NavigationPath.Count > 0)
+                _libraryStack.Pop();
+            _resourcesSlot = null;
+            _resourcesSearch = null;
+            DropFormReferences();
+            DropVocabularyReferences();
+            DropSkillsReferences();
+            DropPairsReferences();
+            _renderedLibraryResetVersion = _app.LibraryResetVersion;
+        }
         var key = LibraryListKey();
         if (appearanceChanged || !string.Equals(key, _renderedLibraryList, StringComparison.Ordinal))
         {
@@ -167,11 +198,15 @@ internal sealed partial class ApplicationScene
             return;
         if (!_app.IsLibraryPairsOpen)
         {
-            // Released without a Back (the list's Go Back): leave the page too.
+            // Released without a Back (the list's Go Back): leave the page too. While Back
+            // is blocked the references stay, so the next update pops the page.
             if (_pairsSlot is not null)
             {
+                if (stack.NavigationPath.Contains(ApplicationFormRoutes.MinimalPairs)
+                    && !stack.CanNavigateBack)
+                    return;
                 DropPairsReferences();
-                while (stack.CanNavigateBack && stack.NavigationPath.Count > 0
+                while (stack.NavigationPath.Count > 0
                     && (stack.NavigationPath[^1] == ApplicationFormRoutes.MinimalPairsChild
                         || stack.NavigationPath[^1] == ApplicationFormRoutes.MinimalPairs))
                     stack.Pop();
@@ -183,6 +218,7 @@ internal sealed partial class ApplicationScene
             if (stack.NavigationPath.Count != 0)
                 return;
             _pairsSlot = Views.VStack(_app.RenderLibraryPairs(_style)).WithFlexibleWidth();
+            RecordPairs();
             _pairsToastLayer = Views.VStack().WithFlexibleWidth();
             _renderedPairsToastLayer = null;
             var page = Views.Overlay(_pairsSlot, _pairsToastLayer, SwiftOverlayEdge.Top)
@@ -193,8 +229,19 @@ internal sealed partial class ApplicationScene
                 ApplicationFormRoutes.MinimalPairs,
                 _app.PresentLibraryPairsOver(page).WithTabBarHidden(false)));
         }
-        else
-            Replace(_pairsSlot, _app.RenderLibraryPairs(_style));
+        else if (appearanceChanged || _renderedPairsVersion != _app.LibraryPairsVersion
+            || !ReferenceEquals(_renderedPairsStyle, _style)
+            || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5)
+        {
+            // Only a changed screen state re-renders the list; the same shape swaps its
+            // content in place, so the scroll position stays.
+            var next = _app.RenderLibraryPairs(_style);
+            if (appearanceChanged || !ReferenceEquals(_renderedPairsStyle, _style)
+                || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5
+                || !TryReplaceScrollContent(_pairsSlot, next))
+                Replace(_pairsSlot, next);
+            RecordPairs();
+        }
 
         if (_app.LibraryPairsHasChildPage)
         {
@@ -213,8 +260,9 @@ internal sealed partial class ApplicationScene
             }
             else if (_pairsChildSlot is not null)
             {
-                if (appearanceChanged || _renderedPairsChildVersion != _app.LibraryPairsChildVersion
-                    || !ReferenceEquals(_renderedPairsChildStyle, _style))
+                if (appearanceChanged || _renderedPairsChildVersion != _app.LibraryPairsVersion
+                    || !ReferenceEquals(_renderedPairsChildStyle, _style)
+                    || Math.Abs(_renderedPairsChildWidth - _style.ViewportWidth) >= 0.5)
                 {
                     Replace(_pairsChildSlot, _app.RenderLibraryPairsChild(_style));
                     RecordPairsChild();
@@ -224,19 +272,52 @@ internal sealed partial class ApplicationScene
         }
         else if (_pairsChildSlot is not null)
         {
-            // Clear first: the route callback must not report this pop as a person's Back.
-            _pairsChildSlot = null;
-            ForgetPairsChildToastLayer();
-            if (stack.CanNavigateBack && stack.NavigationPath.Count > 1)
-                stack.Pop();
+            var onStack = stack.NavigationPath.Count > 1
+                && stack.NavigationPath[^1] == ApplicationFormRoutes.MinimalPairsChild;
+            // While Back is blocked the reference stays, so the next update pops the page.
+            if (!onStack || stack.CanNavigateBack)
+            {
+                // Clear first: the route callback must not report this pop as a person's Back.
+                _pairsChildSlot = null;
+                ForgetPairsChildToastLayer();
+                if (onStack)
+                    stack.Pop();
+            }
         }
         UpdatePairsToast();
     }
 
+    private void RecordPairs()
+    {
+        _renderedPairsVersion = _app.LibraryPairsVersion;
+        _renderedPairsStyle = _style;
+        _renderedPairsWidth = _style.ViewportWidth;
+    }
+
     private void RecordPairsChild()
     {
-        _renderedPairsChildVersion = _app.LibraryPairsChildVersion;
+        _renderedPairsChildVersion = _app.LibraryPairsVersion;
         _renderedPairsChildStyle = _style;
+        _renderedPairsChildWidth = _style.ViewportWidth;
+    }
+
+    /// <summary>
+    /// Swaps a mounted page's scroll content for the next render's (same scroll and content
+    /// ids), so the scroll position stays. False when the shapes differ.
+    /// </summary>
+    private static bool TryReplaceScrollContent(SwiftView slot, SwiftView next)
+    {
+        if (slot.Children.Count != 1 || slot.Children[0] is not { Kind: "scroll" } scroll
+            || next.Kind != "scroll" || scroll.Children.Count != 1 || next.Children.Count != 1
+            || scroll.AccessibilityIdentifier != next.AccessibilityIdentifier
+            || scroll.Children[0].AccessibilityIdentifier is not { Length: > 0 } contentId
+            || next.Children[0].AccessibilityIdentifier != contentId)
+            return false;
+        var content = next.Children[0];
+        next.RemoveAt(0);
+        next.Dispose();
+        ReplaceContainerChildren(scroll.Children[0], content);
+        return true;
     }
 
     /// <summary>The toast follows the page on top (as on the activity page), posted once per toast.</summary>
@@ -279,6 +360,8 @@ internal sealed partial class ApplicationScene
         _pairsChildToastLayer = null;
         _renderedPairsToastLayer = null;
         _renderedPairsToastId = 0;
+        _renderedPairsVersion = -1;
+        _renderedPairsStyle = null;
         _renderedPairsChildVersion = -1;
         _renderedPairsChildStyle = null;
     }

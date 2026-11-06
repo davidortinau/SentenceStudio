@@ -279,9 +279,9 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
             .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
+        // The slot's notice: checking, not offered, offline or not reachable (its title).
         _samUnavailableNotice = Views.Alert(WrapWithSam(_tabs),
-                SamView.Title(_app.SamState, localize),
-                localize("Coach_SettingsUnavailable"),
+                _app.SamSlotNoticeText, string.Empty,
                 Views.Button(localize("Common_Close"), _app.DismissSamUnavailableNotice)
                     .WithAccessibilityIdentifier("native.tab.sam.unavailable.close"))
             .WithAccessibilityIdentifier("native.tab.sam.unavailable");
@@ -384,17 +384,16 @@ internal sealed partial class ApplicationScene : IDisposable
             || current.Children[0].Kind != next.Children[0].Kind
             || current.Children[0].Children.Count == 0
             || next.Children[0].Children.Count == 0
-            || !SameBrowserControls(WithoutSamInset(current.Children[0]), WithoutSamInset(next.Children[0])))
+            || !SameBrowserControls(current.Children[0], next.Children[0]))
         {
             Replace(_resourcesSlot, next);
             _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
             return;
         }
 
-        // The Sam entry is a bottom inset around the page; the incremental update
-        // works on the scroll inside it so the search field keeps focus.
-        var page = WithoutSamInset(current.Children[0]);
-        var nextPage = WithoutSamInset(next.Children[0]);
+        // The incremental update works on the scroll so the search field keeps focus.
+        var page = current.Children[0];
+        var nextPage = next.Children[0];
         var content = page.Kind == "scroll" ? page.Children[0] : page;
         var nextContent = nextPage.Kind == "scroll"
             ? nextPage.Children[0] : nextPage;
@@ -513,9 +512,6 @@ internal sealed partial class ApplicationScene : IDisposable
         || label.Kind == "hstack" && label.Children.Count == 2
             && label.Children[0].Kind == "text"
             && label.Children[1].Kind == "image";
-
-    private static SwiftView WithoutSamInset(SwiftView page) =>
-        page.Kind == "bottomInset" && page.Children.Count == 2 ? page.Children[0] : page;
 
     private static bool SameBrowserControls(SwiftView currentPage, SwiftView nextPage)
     {
@@ -674,8 +670,11 @@ internal sealed partial class ApplicationScene : IDisposable
     {
         if (_settingsSlot is null)
             return;
+        // The Settings projection (with Sam's memory) is read only while Settings is in
+        // front; an appearance change re-renders it anyway, and the next visit catches up.
+        var visible = _app.SelectedTab == NativeTabs.Settings;
         if (themeChanged || modeChanged
-            || _renderedSettingsVersion != _app.SettingsProjectionVersion)
+            || visible && _renderedSettingsVersion != _app.SettingsProjectionVersion)
         {
             var version = _app.SettingsProjectionVersion;
             var next = _app.RenderSettings(_style);
@@ -817,8 +816,9 @@ internal sealed partial class ApplicationScene : IDisposable
 
             _formSlot?.WithNavigationTitle(_app.ResourceFormTitle);
             // An editor hides the tab bar (Save or Cancel decides how you leave); a smart
-            // resource, which you only read, keeps it.
-            var hideTabBar = !_app.IsResourceFormReadOnly;
+            // resource, which you only read, keeps it, except when Study opened it: its Back
+            // returns to Study, as the source detail returns to the plan.
+            var hideTabBar = !_app.IsResourceFormReadOnly || _app.IsResourceFormFromStudy;
             if (_conflictAlert is not null && _renderedResourceFormHidesTabBar != hideTabBar)
             {
                 _conflictAlert.WithTabBarHidden(hideTabBar);

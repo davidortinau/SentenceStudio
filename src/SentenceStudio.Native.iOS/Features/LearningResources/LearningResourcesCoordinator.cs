@@ -17,8 +17,6 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private readonly NativeResourcePresenter _presenter;
     private readonly ILogger<LearningResourcesCoordinator> _logger;
     private readonly Func<string, string> _text;
-    private readonly Action? _openSkills;
-    private readonly Action? _openVocabulary;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly NativeResourceSyncAction _syncAction = new();
     private readonly List<SwiftView> _saveButtons = [];
@@ -66,14 +64,11 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     internal LearningResourcesCoordinator(
         NativeResourcePresenter presenter,
         ILogger<LearningResourcesCoordinator> logger,
-        Func<string, string> text, Action? openSkills = null,
-        Action? openVocabulary = null)
+        Func<string, string> text)
     {
         _presenter = presenter;
         _logger = logger;
         _text = text;
-        _openSkills = openSkills;
-        _openVocabulary = openVocabulary;
     }
 
     internal event Action? Changed;
@@ -131,7 +126,7 @@ internal sealed class LearningResourcesCoordinator : IDisposable
             (NativeResourceVocabularySearchPhase.Searching
                 or NativeResourceVocabularySearchPhase.Ready);
 
-    internal SwiftView RenderBrowser(SourceUiStyle style, SwiftView? samEntry = null)
+    internal SwiftView RenderBrowser(SourceUiStyle style)
     {
         var state = _presenter.List;
 #if DEBUG
@@ -159,8 +154,7 @@ internal sealed class LearningResourcesCoordinator : IDisposable
                 Open: id => Run(() => OpenAsync(id)),
                 Add: OpenCreate,
                 CreateStarter: () => Run(CreateStarterAsync),
-                Reload: () => Run(LoadListAsync),
-                OpenSkills: _openSkills), _openVocabulary, samEntry);
+                Reload: () => Run(LoadListAsync)));
     }
 
 #if DEBUG

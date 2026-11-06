@@ -1,3 +1,4 @@
+using CoreFoundation;
 using Microsoft.SwiftUI;
 using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Platform;
@@ -92,8 +93,8 @@ internal sealed partial class ApplicationScene
 
     /// <summary>
     /// Sam's tab slot (search role, trailing on iOS 26) is shown to every signed-in owner and
-    /// carries his name as its title (the same name as his panel). When Sam is not offered to
-    /// the owner, the slot's alert says so.
+    /// carries his name as its title (the same name as his panel). When the tap does not open
+    /// Sam, the slot's alert says why: checking, not offered, offline, or not reachable.
     /// </summary>
     private void UpdateSamTab()
     {
@@ -105,15 +106,35 @@ internal sealed partial class ApplicationScene
         var title = SamView.Title(_app.SamState, _app.Localize);
         if (!string.Equals(_samTab.Text, title, StringComparison.Ordinal))
             _samTab.Text = title;
-        if (_samUnavailableNotice is { } notice)
+        if (_samUnavailableNotice is { } notice && !_samNoticeRepresenting)
         {
-            if (!string.Equals(notice.Text, title, StringComparison.Ordinal))
-                notice.Text = title;
+            var text = _app.SamSlotNoticeText;
             var presented = _app.IsSamUnavailableNoticePresented;
+            if (!string.Equals(notice.Text, text, StringComparison.Ordinal))
+            {
+                notice.Text = text;
+                if (presented && notice.IsPresented)
+                {
+                    // A presented alert keeps the title it was shown with ("checking"):
+                    // dismiss it, then present the answer once the dismissal has run.
+                    notice.IsPresented = false;
+                    _samNoticeRepresenting = true;
+                    DispatchQueue.MainQueue.DispatchAfter(
+                        new DispatchTime(DispatchTime.Now, 400_000_000), () =>
+                        {
+                            _samNoticeRepresenting = false;
+                            if (!_disposed && ReferenceEquals(_samUnavailableNotice, notice))
+                                notice.IsPresented = _app.IsSamUnavailableNoticePresented;
+                        });
+                    return;
+                }
+            }
             if (notice.IsPresented != presented)
                 notice.IsPresented = presented;
         }
     }
+
+    private bool _samNoticeRepresenting;
 
     /// <summary>A zero-size view that carries only the Sam toolbar button.</summary>
     private SwiftView SamToolbarHost()

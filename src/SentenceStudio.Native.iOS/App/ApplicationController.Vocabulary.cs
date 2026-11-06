@@ -78,7 +78,7 @@ internal sealed partial class ApplicationController
             return;
         }
         EnsureVocabulary();
-        Run(async () =>
+        RunLibrary(async () =>
         {
             if (!await _vocabulary!.OpenAsync(expectedOwner))
                 _logger?.LogWarning(

@@ -128,6 +128,8 @@ internal sealed partial class ApplicationController : IDisposable
         ? Text("ResourceAdd_Title")
         : _resources?.FormState.Title is { Length: > 0 } title
             ? title : Text("Resources_Title");
+    /// <summary>The open resource detail came from a Study link; its Back returns to Study.</summary>
+    internal bool IsResourceFormFromStudy => _resourceFormFromDashboard && IsResourcesFormOpen;
     /// <summary>An open smart resource: the page is read, not edited.</summary>
     internal bool IsResourceFormReadOnly => _resources is { IsFormOpen: true, IsCreatingForm: false } resources
         && resources.FormState.IsSmartResource;
@@ -138,7 +140,6 @@ internal sealed partial class ApplicationController : IDisposable
     internal bool IsQuizDetailsPresented =>
         _quizState.Overlay == NativeQuizOverlay.LearningDetails;
     internal int SelectedTab => _selectedTab;
-    internal bool IsSettingsOpen => _settingsOpen;
     internal bool IsSkillsOpen => _skills?.IsOpen == true;
     internal bool IsSkillFormOpen => _skills?.IsFormOpen == true;
     internal bool IsSkillDeletePresented =>
@@ -148,9 +149,10 @@ internal sealed partial class ApplicationController : IDisposable
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
         ? "SkillAdd_Title" : "SkillEdit_Title");
+    /// <summary>The scene reads it only while Settings is in front.</summary>
     internal int SettingsProjectionVersion => !_settingsOpen ? -1
-        : HashCode.Combine(_settings?.ViewVersion ?? -2, SamSettingsVersion,
-            _profileSummary);
+        : HashCode.Combine(_settingsGeneration, _settings?.ViewVersion ?? -2,
+            SamSettingsVersion, _profileSummary);
     internal string Localize(string key) => Text(key);
     internal string DashboardTitle => Text(_dashboardState.IsNewUser
         ? "Dashboard_Welcome" : "Nav_Study");
@@ -695,7 +697,7 @@ internal sealed partial class ApplicationController : IDisposable
     {
         EnsureResources();
         return _resources is { } resources
-            ? resources.RenderBrowser(style, samEntry: null)
+            ? resources.RenderBrowser(style)
             : Views.Text(Text("Common_Loading"));
     }
 
@@ -726,7 +728,7 @@ internal sealed partial class ApplicationController : IDisposable
             return;
         }
         EnsureSkills();
-        Run(async () =>
+        RunLibrary(async () =>
         {
             if (await _skills!.OpenAsync(expectedOwner))
                 _refreshChooseOwnAfterSkills =
@@ -794,15 +796,23 @@ internal sealed partial class ApplicationController : IDisposable
     private void OpenResourceFromDashboard(string resourceId)
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
-            || string.IsNullOrWhiteSpace(resourceId) || IsResourcesFormOpen
-            || IsQuizOpen || HasLibraryRoute
+            || string.IsNullOrWhiteSpace(resourceId) || IsQuizOpen
             || _dashboardState.Phase != NativePhase.Ready
             || _dashboardState.Narrative?.Resources.Any(resource =>
                 resource.Id == resourceId) != true)
             return;
+        if (HasLibraryEditor)
+        {
+            ShowLibraryEditor();
+            return;
+        }
         EnsureResources();
         if (_resources is null)
             return;
+        // A smart resource being read in the Library gives way to the one Study opens;
+        // the detail sits above whatever page the Library shows and Back returns to Study.
+        if (IsResourcesFormOpen)
+            _resources.OnFormPopped();
         _resourceFormFromDashboard = true;
         _selectedTab = NativeTabs.Library;
         _resources.OnBrowserAppeared();
@@ -842,14 +852,33 @@ internal sealed partial class ApplicationController : IDisposable
     internal void OnResourceFileImportError(string code) =>
         _resources?.OnFileImportError(code);
 
+    /// <summary>
+    /// Study's Add resource opens the form above the Library's Resources page, so the saved
+    /// resource is in front of the learner when the form closes (source: the browser).
+    /// </summary>
     private void OpenResourceAddFromDashboard()
     {
-        if (HasLibraryRoute)
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || IsQuizOpen)
             return;
+        if (HasLibraryEditor)
+        {
+            ShowLibraryEditor();
+            return;
+        }
         EnsureResources();
+        if (_resources is null)
+            return;
+        if (IsResourcesFormOpen)
+            _resources.OnFormPopped();
+        if (IsLibraryPageOpen && !_libraryResourcesOpen || IsRecentLookupsOpen)
+            ResetLibraryToList();
+        _resourceFormFromDashboard = false;
+        _libraryErrorKey = null;
+        _libraryResourcesOpen = true;
         _selectedTab = NativeTabs.Library;
-        _resources?.OnBrowserAppeared();
-        _resources?.OpenCreate();
+        _resourcesListReadByTab = false;
+        _resources.OnBrowserAppeared();
+        _resources.OpenCreate();
         Publish();
     }
 
@@ -947,8 +976,10 @@ internal sealed partial class ApplicationController : IDisposable
         ReleaseVocabulary();
         ReleaseLibraryPairs();
         _libraryResourcesOpen = false;
+        _resourcesListReadByTab = false;
+        _libraryErrorKey = null;
         _profileSummary = null;
-        IsSamUnavailableNoticePresented = false;
+        ResetSamSlot();
         _skills?.Dispose();
         _skills = null;
         _profile?.Dispose();
@@ -983,7 +1014,15 @@ internal sealed partial class ApplicationController : IDisposable
         _ = RunSafelyAsync(action);
     }
 
-    private async Task RunSafelyAsync(Func<Task> action)
+    /// <summary>A Library row's action: a failure is the Library's, not Study's plan.</summary>
+    private void RunLibrary(Func<Task> action)
+    {
+        if (_disposed || _busy)
+            return;
+        _ = RunSafelyAsync(action, OnLibraryActionFailed);
+    }
+
+    private async Task RunSafelyAsync(Func<Task> action, Action? onFailure = null)
     {
         _busy = true;
         // A render failure is logged and the action still runs, so _busy is always
@@ -1000,7 +1039,9 @@ internal sealed partial class ApplicationController : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS SwiftUI action failed.");
-            if (_destination == NativeDestination.Dashboard)
+            if (onFailure is not null)
+                onFailure();
+            else if (_destination == NativeDestination.Dashboard)
                 _dashboardState = _dashboardState with {
                     Phase = NativePhase.Error, ErrorKey = NativeText.PlanError };
             else if (_destination is NativeDestination.VocabularyQuiz
@@ -1082,6 +1123,7 @@ internal sealed partial class ApplicationController : IDisposable
         _quiz?.Dispose();
         ReleaseActivity();
         _activityToasts?.Dispose();
+        _libraryPairsToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();

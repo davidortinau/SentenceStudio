@@ -9255,4 +9255,16 @@
     <value>자료</value>
     <comment>Library list row: learning resources</comment>
   </data>
+  <data name="NativeSam_SlotChecking" xml:space="preserve">
+    <value>{0} 사용 가능 여부를 확인하는 중...</value>
+    <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>
+  </data>
+  <data name="NativeSam_SlotOffline" xml:space="preserve">
+    <value>오프라인 상태입니다. {0} 기능은 인터넷 연결이 필요합니다.</value>
+    <comment>Sam's tab slot: the device is offline. {0} is Sam's name.</comment>
+  </data>
+  <data name="NativeSam_SlotUnreachable" xml:space="preserve">
+    <value>지금은 {0}에 연결할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.</value>
+    <comment>Sam's tab slot: the availability read failed while online. {0} is Sam's name.</comment>
+  </data>
 </root>

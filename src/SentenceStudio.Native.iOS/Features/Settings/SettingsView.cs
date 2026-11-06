@@ -34,22 +34,29 @@ internal static class SettingsView
 
     /// <summary>
     /// The first row of the Settings tab, as iOS Settings starts with your name: the
-    /// learner's name and languages; it opens the Profile page.
+    /// learner's name and languages (in the UI language); it opens the Profile page.
+    /// Before the profile is read it shows "Profile" alone.
     /// </summary>
     internal static SwiftView ProfileRow(SourceUiStyle style, Func<string, string> text,
         (string Name, string NativeLanguage, string TargetLanguage)? summary, Action openProfile)
     {
         var appearance = style.Appearance;
-        var name = summary is { Name.Length: > 0 } known ? known.Name : text("Nav_Profile");
+        var profileTitle = text("Nav_Profile");
+        var name = summary is { Name.Length: > 0 } known ? known.Name : profileTitle;
         var languages = summary is { } profile
-            && (profile.NativeLanguage.Length > 0 || profile.TargetLanguage.Length > 0)
-            ? $"{profile.NativeLanguage} \u2192 {profile.TargetLanguage}"
-            : text("Nav_Profile");
-        var labels = Views.VStack(
+            ? LanguagePair(profile.NativeLanguage, profile.TargetLanguage, text) : null;
+        var labels = languages is null
+            ? Views.VStack(style.Text(Views.Text(name), SourceTextRole.Title3))
+            : Views.VStack(
                 style.Text(Views.Text(name), SourceTextRole.Title3),
-                style.Text(Views.Text(languages), SourceTextRole.Body2, SourceTextTone.Secondary))
-            .WithFlexibleWidth();
+                style.Text(Views.Text(languages), SourceTextRole.Body2, SourceTextTone.Secondary));
+        labels.WithFlexibleWidth();
         labels.Spacing = 2;
+        var spoken = new List<string> { name };
+        if (languages is not null)
+            spoken.Add(languages);
+        if (!string.Equals(name, profileTitle, StringComparison.Ordinal))
+            spoken.Add(profileTitle);
         var row = Views.HStack(
                 Views.Image("person.crop.circle.fill")
                     .WithFixedSymbolSize(40)
@@ -63,8 +70,26 @@ internal static class SettingsView
         return Views.Button(style.BorderedCard(row), openProfile)
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
-            .WithAccessibilityLabel($"{name}, {languages}, {text("Nav_Profile")}")
+            .WithAccessibilityLabel(string.Join(", ", spoken))
             .WithAccessibilityIdentifier("native.settings.profile");
+    }
+
+    /// <summary>
+    /// "Native → Target" with each language named in the UI language (the native heads'
+    /// five supported names; any other is shown as stored). One language alone is shown
+    /// alone; none gives null.
+    /// </summary>
+    internal static string? LanguagePair(string native, string target, Func<string, string> text)
+    {
+        string? Name(string language) => string.IsNullOrWhiteSpace(language) ? null
+            : NativeHowDoYouSayText.LanguageKey(language) is { } key ? text(key) : language;
+        return (Name(native), Name(target)) switch
+        {
+            ({ } from, { } to) => $"{from} → {to}",
+            ({ } only, null) => only,
+            (null, { } only) => only,
+            _ => null
+        };
     }
 
     /// <summary>The last row of the Settings tab (the Dashboard More menu's Sign out).</summary>
