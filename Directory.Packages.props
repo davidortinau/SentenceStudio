@@ -165,7 +165,7 @@
     <PackageVersion Include="ElevenLabs-DotNet" Version="3.7.2" />
 
     <!-- YouTube -->
-    <PackageVersion Include="YoutubeExplode" Version="6.6.0" />
+    <PackageVersion Include="YoutubeExplode" Version="6.6.3" />
 
     <!-- Utilities -->
     <PackageVersion Include="Scriban" Version="7.1.0" />
