@@ -945,59 +945,17 @@ else
                     await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
             }
 
-            // Handle constituents (only for Phrase/Sentence types)
-            if (!string.IsNullOrEmpty(word.Id))
+            // Handle constituents (Phrase/Sentence keep the selected parts; a Word has none).
+            // Only the parts the learner sees (their own words) change: a link to a part
+            // recorded to someone else, or to no one, is not shown here and stays.
+            if (!string.IsNullOrEmpty(word.Id)
+                && selectedLexicalUnitType is LexicalUnitType.Phrase or LexicalUnitType.Sentence
+                    or LexicalUnitType.Word)
             {
-                if (selectedLexicalUnitType == LexicalUnitType.Phrase || selectedLexicalUnitType == LexicalUnitType.Sentence)
-                {
-                    using var scope = _serviceProvider.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                    // Get existing constituents
-                    var existingConstituents = await db.PhraseConstituents
-                        .Where(pc => pc.PhraseWordId == word.Id)
-                        .ToListAsync();
-
-                    var existingIds = new HashSet<string>(existingConstituents
-                        .Where(pc => pc.ConstituentWordId != null)
-                        .Select(pc => pc.ConstituentWordId!));
-                    var selectedIds = new HashSet<string>(selectedConstituents.Select(c => c.Id));
-
-                    // Remove deleted constituents
-                    foreach (var toRemove in existingConstituents.Where(ec => ec.ConstituentWordId != null && !selectedIds.Contains(ec.ConstituentWordId!)))
-                    {
-                        db.PhraseConstituents.Remove(toRemove);
-                    }
-
-                    // Add new constituents
-                    foreach (var newId in selectedIds.Except(existingIds))
-                    {
-                        db.PhraseConstituents.Add(new PhraseConstituent
-                        {
-                            PhraseWordId = word.Id,
-                            ConstituentWordId = newId,
-                            CreatedAt = DateTime.UtcNow
-                        });
-                    }
-
-                    await db.SaveChangesAsync();
-                }
-                else if (selectedLexicalUnitType == LexicalUnitType.Word)
-                {
-                    // Remove all constituents if changed to Word type
-                    using var scope = _serviceProvider.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                    var existingConstituents = await db.PhraseConstituents
-                        .Where(pc => pc.PhraseWordId == word.Id)
-                        .ToListAsync();
-
-                    if (existingConstituents.Count > 0)
-                    {
-                        db.PhraseConstituents.RemoveRange(existingConstituents);
-                        await db.SaveChangesAsync();
-                    }
-                }
+                var parts = selectedLexicalUnitType == LexicalUnitType.Word
+                    ? new List<string>()
+                    : selectedConstituents.Select(c => c.Id).ToList();
+                await ResourceRepo.SetPhraseConstituentsForLearnerAsync(word.Id, parts, ActiveUserId);
             }
 
             Toast.ShowSuccess(string.IsNullOrEmpty(Id) || Id == "0" ? $"{Localize["VocabWordEdit_AddedSuccess"]}" : $"{Localize["VocabWordEdit_UpdatedSuccess"]}");

@@ -1494,6 +1494,60 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
+    /// The web/MAUI word editor's phrase parts: makes the parts of the learner's phrase
+    /// <paramref name="constituentIds"/> (empty when the word became a Word). The editor shows
+    /// only parts recorded to the learner, so only links to those change: a link to a part
+    /// recorded to another learner or to no one, or with no part, is not shown and stays as it
+    /// is (review of bf701c42, finding 2). Only the learner's own words are linked. False, and
+    /// nothing changed, when the phrase is not the learner's or there is no learner.
+    /// </summary>
+    public async Task<bool> SetPhraseConstituentsForLearnerAsync(
+        string phraseWordId, IReadOnlyCollection<string> constituentIds, string? userProfileId,
+        CancellationToken ct = default)
+    {
+        var owner = ResolveUserId(userProfileId);
+        if (string.IsNullOrEmpty(owner))
+        {
+            _logger.LogWarning("SetPhraseConstituentsForLearnerAsync called without an active user — refusing to write to prevent cross-tenant data changes.");
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(phraseWordId) || constituentIds is null)
+            return false;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (!(await VocabularyWordOwnership.OwnedByAsync(db, [phraseWordId], owner, ct)).Contains(phraseWordId))
+        {
+            _logger.LogWarning("SetPhraseConstituentsForLearnerAsync refused a phrase that is not the learner's.");
+            return false;
+        }
+
+        var wanted = await VocabularyWordOwnership.OwnedByAsync(db,
+            constituentIds.Where(id => !string.IsNullOrWhiteSpace(id) && id != phraseWordId).ToArray(),
+            owner, ct);
+        // The links the editor showed: those whose part is the learner's own word.
+        var shown = await db.PhraseConstituents
+            .Where(link => link.PhraseWordId == phraseWordId)
+            .Join(db.VocabularyWords.OwnedBy(owner),
+                link => link.ConstituentWordId, part => part.Id, (link, _) => link)
+            .ToListAsync(ct);
+        var removed = shown.Where(link => !wanted.Contains(link.ConstituentWordId!)).ToList();
+        db.PhraseConstituents.RemoveRange(removed);
+        var linked = shown.Select(link => link.ConstituentWordId!).ToHashSet(StringComparer.Ordinal);
+        var added = wanted.Where(id => !linked.Contains(id)).ToList();
+        foreach (var id in added)
+            db.PhraseConstituents.Add(new PhraseConstituent
+            {
+                PhraseWordId = phraseWordId, ConstituentWordId = id, CreatedAt = DateTime.UtcNow
+            });
+        if (removed.Count == 0 && added.Count == 0)
+            return true;
+        await db.SaveChangesAsync(ct);
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+        return true;
+    }
+
+    /// <summary>
     /// The web/MAUI word editor's save: a new word, or an update of a word that is the
     /// learner's (<see cref="VocabularyWordOwnership.OwnedByAsync"/>). Another learner's word,
     /// or one no one owns, is never written (NotLearnersOwn); with no learner nothing is.

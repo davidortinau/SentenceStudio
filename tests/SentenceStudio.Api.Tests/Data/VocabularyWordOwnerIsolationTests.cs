@@ -427,6 +427,60 @@ public abstract class VocabularyWordOwnerIsolationScenarios
             .SingleAsync(r => r.Id == ResourceA)).Title);
     }
 
+    // Review of bf701c42, finding 2: the word editor shows only the parts recorded to the
+    // learner, so its save may add or remove only those links. A link to a part recorded to
+    // another learner or to no one (or with no part) is not shown and stays, when the parts
+    // change and when the phrase becomes a Word. Another learner's phrase is never changed,
+    // and a part that is not the learner's is never linked.
+    protected async Task PhraseParts_ChangeOnlyTheLinksTheLearnerSees()
+    {
+        var database = await SeedAsync();
+        await using (var db = Context(database))
+        {
+            foreach (var (id, part) in new[] {
+                ("pc-own", (string?)"a-other"), ("pc-b", "dup-b"), ("pc-nobody", "persimmon-legacy"),
+                ("pc-none", null) })
+                db.PhraseConstituents.Add(new PhraseConstituent {
+                    Id = id, PhraseWordId = "a-own", ConstituentWordId = part, CreatedAt = At });
+            db.PhraseConstituents.Add(new PhraseConstituent {
+                Id = "pc-b-phrase", PhraseWordId = "b-private", ConstituentWordId = "b-linked-by-a", CreatedAt = At });
+            await db.SaveChangesAsync();
+        }
+        var before = await SnapshotOfBAsync(database);
+        var repository = Repository(database, null);
+        string[] hidden = ["pc-b", "pc-nobody", "pc-none"];
+
+        // The learner swaps their own part, and names words that are not theirs to link.
+        Assert.True(await repository.SetPhraseConstituentsForLearnerAsync(
+            "a-own", ["pear-a", "b-private", "pear-legacy"], UserA));
+        var parts = await PhrasePartsAsync(database, "a-own");
+        Assert.Equal(["pear-a"], parts.Where(row => !hidden.Contains(row.Id)).Select(row => row.Part).ToArray());
+        Assert.All(hidden, id => Assert.Contains(parts, row => row.Id == id));
+
+        // The phrase becomes a Word: only its visible parts go.
+        Assert.True(await repository.SetPhraseConstituentsForLearnerAsync("a-own", [], UserA));
+        Assert.Equal(hidden, (await PhrasePartsAsync(database, "a-own")).Select(row => row.Id)
+            .Order(StringComparer.Ordinal).ToArray());
+
+        // Another learner's phrase, or no learner: nothing changes.
+        Assert.False(await repository.SetPhraseConstituentsForLearnerAsync("b-private", [], UserA));
+        Assert.False(await repository.SetPhraseConstituentsForLearnerAsync("a-own", ["a-other"], null));
+        Assert.Equal(["b-linked-by-a"], (await PhrasePartsAsync(database, "b-private")).Select(row => row.Part).ToArray());
+        Assert.Equal(hidden, (await PhrasePartsAsync(database, "a-own")).Select(row => row.Id)
+            .Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(before, await SnapshotOfBAsync(database));
+    }
+
+    private async Task<List<(string Id, string? Part)>> PhrasePartsAsync(
+        Action<IServiceCollection> database, string phraseWordId)
+    {
+        await using var db = Context(database);
+        return (await db.PhraseConstituents.AsNoTracking()
+                .Where(link => link.PhraseWordId == phraseWordId)
+                .Select(link => new { link.Id, link.ConstituentWordId }).ToListAsync())
+            .Select(row => (row.Id, row.ConstituentWordId)).ToList();
+    }
+
     private async Task<string[]> LinkedToResourceAAsync(Action<IServiceCollection> database)
     {
         await using var db = Context(database);
@@ -740,6 +794,7 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
     [Fact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
     [Fact] public Task CoachResourceEditKeepsLinks() => CoachResourceEdit_AndItsUndo_KeepEveryLink();
+    [Fact] public Task PhraseParts() => PhraseParts_ChangeOnlyTheLinksTheLearnerSees();
     [Fact] public Task SavesNeverGuessOwners() => Saves_NeverGuessOwners_AndRefuseNewOwnerlessWords();
     [Fact] public Task BulkEdits() => BulkEdits_ChangeOnlyTheLearnersOwnWords();
     [Fact] public Task TermSwap() => TermSwap_TellsRefusalsFromFailures();
@@ -788,6 +843,7 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
     [ApplicationOperationPostgresFact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
     [ApplicationOperationPostgresFact] public Task CoachResourceEditKeepsLinks() => CoachResourceEdit_AndItsUndo_KeepEveryLink();
+    [ApplicationOperationPostgresFact] public Task PhraseParts() => PhraseParts_ChangeOnlyTheLinksTheLearnerSees();
     [ApplicationOperationPostgresFact] public Task SavesNeverGuessOwners() => Saves_NeverGuessOwners_AndRefuseNewOwnerlessWords();
     [ApplicationOperationPostgresFact] public Task BulkEdits() => BulkEdits_ChangeOnlyTheLearnersOwnWords();
     [ApplicationOperationPostgresFact] public Task TermSwap() => TermSwap_TellsRefusalsFromFailures();
