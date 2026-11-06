@@ -8818,9 +8818,6 @@
   <data name="NativeVocabulary_WordLoadFailed" xml:space="preserve">
     <value>이 단어를 불러오지 못했습니다. 다시 시도해 주세요.</value>
   </data>
-  <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
-    <value>이 단어는 다른 프로필과 공유됩니다. 여기에서 볼 수 있지만 공유 단어를 수정할 수는 없습니다.</value>
-  </data>
   <data name="NativeVocabulary_DuplicatesCombinedNote" xml:space="preserve">
     <value>학습 진행 상황과 리소스 연결은 자동으로 합쳐집니다. 보존할 단어는 인코딩 강도와 기억 보조 자료로 선택됩니다.</value>
   </data>
@@ -8857,26 +8854,17 @@
   <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
     <value>이 복사본에는 기억 보조 자료가 없습니다.</value>
   </data>
-  <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
-    <value>이 그룹에는 내 것으로 기록되지 않은 복사본(다른 학습자의 단어 또는 예전에 공유된 단어)이 있어 여기서 병합할 수 없습니다. 각 복사본을 열 수 있지만, 편집은 내 것으로 기록된 복사본만 가능합니다.</value>
-  </data>
-  <data name="NativeVocabulary_DuplicatesCannotMerge" xml:space="preserve">
-    <value>여기서 병합할 수 없음</value>
-  </data>
   <data name="NativeVocabulary_DeleteUsedByOthers" xml:space="preserve">
-    <value>이 단어는 삭제할 수 없습니다. 다른 학습자의 최소 대립쌍이나 구문, 또는 내 것으로 기록되지 않은 항목이 아직 이 단어를 사용합니다. 단어는 계속 편집할 수 있습니다.</value>
+    <value>이 단어는 삭제할 수 없습니다. 내 것이 아닌 데이터(다른 학습자의 데이터 또는 누구의 것으로도 기록되지 않은 데이터)가 자료 연결, 학습 기록, 예문, 최소 대립쌍 또는 구문으로 아직 이 단어를 사용합니다. 단어는 계속 편집할 수 있습니다.</value>
   </data>
   <data name="NativeVocabulary_DeleteUsedByAnswers" xml:space="preserve">
     <value>이 단어는 삭제할 수 없습니다. 최소 대립쌍 답변이 아직 이 단어를 사용합니다. 단어는 계속 편집할 수 있습니다.</value>
   </data>
   <data name="VocabWordEdit_DeleteRefusedShared" xml:space="preserve">
-    <value>이 단어는 삭제할 수 없습니다. 내 것으로 기록된 단어가 아니거나, 다른 학습자의 데이터(또는 누구에게도 기록되지 않은 데이터)가 아직 이 단어를 사용합니다.</value>
-  </data>
-  <data name="Vocabulary_DuplicatesNotRecordedToYou" xml:space="preserve">
-    <value>이 그룹에는 내 것으로 기록되지 않은 복사본(다른 학습자의 단어 또는 예전에 공유된 단어)이 있어 병합할 수 없습니다.</value>
+    <value>이 단어는 삭제할 수 없습니다. 다른 학습자의 데이터 또는 누구에게도 기록되지 않은 데이터가 아직 이 단어를 사용합니다.</value>
   </data>
   <data name="Vocabulary_BulkDeleteKept" xml:space="preserve">
-    <value>단어 {0}개는 리소스와 함께 내 어휘에 그대로 남아 있습니다. 내 것으로 기록된 단어가 아니거나 다른 학습자가 아직 사용하고 있습니다.</value>
+    <value>단어 {0}개는 리소스와 함께 내 어휘에 그대로 남아 있습니다. 다른 학습자의 데이터 또는 누구에게도 기록되지 않은 데이터가 아직 이 단어를 사용합니다.</value>
   </data>
   <data name="Vocabulary_BulkDeleteKeptAnswers" xml:space="preserve">
     <value>단어 {0}개는 리소스와 함께 내 어휘에 그대로 남아 있습니다. 최소 대립쌍 답변이 아직 사용하고 있습니다.</value>
@@ -8885,16 +8873,13 @@
     <value>단어 {0}개를 내 어휘에서 찾을 수 없습니다.</value>
   </data>
   <data name="Vocabulary_FixSwappedKept" xml:space="preserve">
-    <value>항목 {0}개는 그대로 두었습니다. 내 것으로 기록된 항목이 아니거나 다른 학습자가 아직 사용하고 있습니다.</value>
+    <value>항목 {0}개는 그대로 두었습니다. 더 이상 내 항목이 아니거나 안전하게 병합할 수 없었습니다.</value>
   </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>{0}개 표시 중.</value>
   </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>이 단어가 다른 곳에서 변경되었습니다. 수정 내용은 저장되지 않았습니다. 뒤로 가서 다시 열어 최신 내용을 확인해 주세요.</value>
-  </data>
-  <data name="NativeVocabulary_AssociationRequired" xml:space="preserve">
-    <value>단어를 어휘 목록에 유지하려면 내 자료를 하나 이상 선택하세요.</value>
   </data>
   <data name="NativeVocabulary_ConstituentsLocked" xml:space="preserve">
     <value>이 단어에는 구성 단어 연결이 있습니다. 유형을 변경하려면 구성 단어 편집기가 필요합니다.</value>
@@ -9443,5 +9428,8 @@
   <data name="NativeSam_SlotUnreachable" xml:space="preserve">
     <value>지금은 {0}에 연결할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.</value>
     <comment>Sam's tab slot: the availability read failed while online. {0} is Sam's name.</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedFailed" xml:space="preserve">
+    <value>오류 때문에 항목 {0}개를 업데이트하지 못했습니다. 다시 시도하세요.</value>
   </data>
 </root>

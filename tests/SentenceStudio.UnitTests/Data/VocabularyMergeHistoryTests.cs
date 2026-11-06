@@ -135,7 +135,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         var contrastWord = SeedWord("물", "water");
         EnsureWordsMappedToUser(UserA, keeper, dup, contrastWord);
 
-        var exampleId = SeedExampleSentence(dup, targetSentence: "불이 뜨겁다.", learningResourceId: GetResourceIdForUser(UserA));
+        var exampleId = SeedExampleSentence(dup, targetSentence: "불이 뜨겁다.", learningResourceId: GetResourceIdForUser(UserA),
+            owner: UserA);
         var pairId = SeedMinimalPair(UserA, dup, contrastWord);
         var attemptId = SeedMinimalPairAttempt(UserA, pairId, promptWordId: dup, selectedWordId: contrastWord);
 
@@ -350,8 +351,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         result.TotalGroupCount.Should().Be(0, "duplicate cleanup must not compare active-user words with another tenant's vocabulary");
     }
 
-    // B69 (review 4): a copy recorded to another learner, which the active learner's resource
-    // links, is shown without its memory aids, blocks the group, and is never merged.
+    // The one ownership rule (Captain 2026-11-06): a copy recorded to another learner, which the
+    // active learner's resource links, is not shown at all (so no group forms) and is never merged.
     [Fact]
     public async Task Merge_RefusesACopyRecordedToAnotherLearner_AndCopiesNothing()
     {
@@ -364,12 +365,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         using (var scope = _fixture.ServiceProvider.CreateScope())
         {
             var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
-            var group = (await repo.FindDuplicateVocabularyGroupsAsync("배")).Groups.Single();
-            group.HasCopyNotOwnedByLearner.Should().BeTrue();
-            group.CanMergeAutomatically.Should().BeFalse();
-            var shown = group.Words.Single(info => info.Word.Id == theirs);
-            shown.IsLearnersOwn.Should().BeFalse();
-            shown.Word.MnemonicText.Should().BeNull("another learner's memory aid is not shown");
+            (await repo.FindDuplicateVocabularyGroupsAsync("배")).Groups
+                .Should().BeEmpty("another learner's copy is not the learner's to see");
         }
 
         (await MergeAsync(keeper, theirs)).Should().Be(0);
@@ -711,12 +708,17 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             TargetLanguageTerm = target,
             NativeLanguageTerm = native,
             Language = "Korean",
-            UserProfileId = owner,
+            // A save cannot create an ownerless word any more; a legacy one is saved with an
+            // owner and then cleared, the way old rows were left.
+            UserProfileId = owner ?? UserA,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
         db.VocabularyWords.Add(word);
         db.SaveChanges();
+        if (owner is null)
+            db.VocabularyWords.Where(w => w.Id == word.Id)
+                .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, (string?)null));
         return word.Id;
     }
 
@@ -934,7 +936,12 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         });
     }
 
-    private string SeedExampleSentence(string wordId, string targetSentence, string? learningResourceId = null)
+    /// <summary>
+    /// Seeds an example sentence; <paramref name="owner"/> is its recorded owner (null: a legacy
+    /// sentence recorded to no one). The merge decides whose a sentence is by that owner alone.
+    /// </summary>
+    private string SeedExampleSentence(string wordId, string targetSentence, string? learningResourceId = null,
+        string? owner = null)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -942,6 +949,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         {
             VocabularyWordId = wordId,
             LearningResourceId = learningResourceId,
+            UserProfileId = owner,
             TargetSentence = targetSentence,
             NativeSentence = "Example native sentence",
             CreatedAt = DateTime.UtcNow,

@@ -262,19 +262,26 @@ public sealed class NativeQuizSentenceAttemptCommitter(
         var anyOwnedResource = snapshot.ResourceIds.Count == 0
             || string.IsNullOrWhiteSpace(snapshot.PlanItemId)
                 && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0);
-        var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
-            .Join(ownedResources, mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, resource) => new { mapping.VocabularyWordId, resource.Id })
-            .Where(row => anyOwnedResource || snapshot.ResourceIds.Contains(row.Id))
-            .Select(row => row.VocabularyWordId)
-            .Distinct()
-            .ToArrayAsync(cancellationToken);
+        // Only the owner's words (the one ownership rule): with no resource scope every word
+        // recorded to them, linked or not (the quiz's pool); otherwise their words the selected
+        // resources link.
+        var ownedWords = db.VocabularyWords.AsNoTracking().OwnedBy(owner).Select(row => row.Id);
+        var reachable = anyOwnedResource
+            ? await ownedWords.ToArrayAsync(cancellationToken)
+            : await db.ResourceVocabularyMappings.AsNoTracking()
+                .Join(ownedResources, mapping => mapping.ResourceId, resource => resource.Id,
+                    (mapping, resource) => new { mapping.VocabularyWordId, resource.Id })
+                .Where(row => snapshot.ResourceIds.Contains(row.Id)
+                    && ownedWords.Contains(row.VocabularyWordId))
+                .Select(row => row.VocabularyWordId)
+                .Distinct()
+                .ToArrayAsync(cancellationToken);
         if (VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
                 snapshot, snapshot.PlanItemId, snapshot.FocusVocabularyIds,
                 snapshot.ResourceIds, snapshot.DueOnly, snapshot.SkillId, reachable) != 0)
             throw new InvalidOperationException(
                 "Sentence batch contains unowned vocabulary.");
-        var word = await db.VocabularyWords.AsNoTracking().SingleOrDefaultAsync(
+        var word = await db.VocabularyWords.AsNoTracking().OwnedBy(owner).SingleOrDefaultAsync(
             row => row.Id == wordId, cancellationToken);
         if (word is null || !FocusVocabularySelection.IsUsableVocabularyWord(word))
             throw new InvalidOperationException(

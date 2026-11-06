@@ -7,6 +7,13 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Adapters;
 
+/// <summary>
+/// The Vocabulary list and word editor. Only the owner's own words are shown, opened, saved
+/// or deleted (Captain 2026-11-06: "every word should have an owner and only be visible and
+/// used by those owners"): a word recorded to them (<see cref="VocabularyWordOwnership"/>),
+/// whether or not a resource links it. A word another learner owns, or no one owns, stays on
+/// the device and is never shown, even when it sits in the owner's resource.
+/// </summary>
 public sealed partial class NativeResourceStore
 {
     public async Task<NativeVocabularyCatalog> ListOwnedVocabularyAsync(
@@ -21,25 +28,17 @@ public sealed partial class NativeResourceStore
         var progress = await scope.ServiceProvider
             .GetRequiredService<VocabularyProgressService>()
             .GetAllProgressDictionaryAsync(owner);
-        var mapped = await scope.ServiceProvider
-            .GetRequiredService<LearningResourceRepository>()
-            .GetAllVocabularyWordsWithResourcesAsync(owner);
+        // Every word recorded to the owner, linked to one of their resources or not, with the
+        // owner's resources that link it.
+        var words = (await scope.ServiceProvider
+                .GetRequiredService<LearningResourceRepository>()
+                .GetAllVocabularyWordsWithResourcesAsync(owner))
+            .Where(word => VocabularyWordOwnership.IsLearners(word.UserProfileId, owner))
+            .ToArray();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var mappedIds = mapped.Select(word => word.Id)
-            .ToHashSet(StringComparer.Ordinal);
-        var progressOnlyIds = progress.Keys.Where(id => !mappedIds.Contains(id)).ToArray();
-        List<VocabularyWord> progressOnly = progressOnlyIds.Length == 0
-            ? new List<VocabularyWord>()
-            : await db.VocabularyWords.AsNoTracking()
-                .Where(word => progressOnlyIds.Contains(word.Id))
-                .ToListAsync(cancellationToken);
-        var words = mapped.Concat(progressOnly).ToArray();
         var ids = words.Select(word => word.Id).ToArray();
-        // The one ownership rule (VocabularyWordOwnership): memory aids count only on the
-        // learner's own words, and only the learner's sentences count.
-        var learnersWords = await VocabularyWordOwnership.OwnedByAsync(
-            db, ids, owner, cancellationToken);
+        // Only the owner's sentences count (recorded to them).
         var exampleCounts = ids.Length == 0
             ? new Dictionary<string, int>(StringComparer.Ordinal)
             : await OwnedExamples(db, owner)
@@ -63,15 +62,14 @@ public sealed partial class NativeResourceStore
         var entries = words.Select(word =>
         {
             progress.TryGetValue(word.Id, out var ownProgress);
-            var associated = word.LearningResources
+            var associated = (word.LearningResources ?? [])
                 .Where(resource => resource.UserProfileId == owner
                     && byResourceId.ContainsKey(resource.Id))
                 .Select(resource => byResourceId[resource.Id])
                 .DistinctBy(resource => resource.Id)
                 .ToArray();
             return VocabularyEntry(word, associated, ownProgress,
-                exampleCounts.GetValueOrDefault(word.Id),
-                learnersWords.Contains(word.Id));
+                exampleCounts.GetValueOrDefault(word.Id));
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
@@ -87,9 +85,8 @@ public sealed partial class NativeResourceStore
         var stamp = userScope.CaptureStamp();
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var word = await db.VocabularyWords.AsNoTracking()
-            .Where(candidate => candidate.Id == wordId
-                && OwnedVocabularyIds(db, owner).Contains(candidate.Id))
+        var word = await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+            .Where(candidate => candidate.Id == wordId)
             .SingleOrDefaultAsync(cancellationToken);
         if (word is null || !IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return null;
@@ -114,7 +111,7 @@ public sealed partial class NativeResourceStore
         var ownProgress = await db.VocabularyProgresses.AsNoTracking()
             .SingleOrDefaultAsync(progress => progress.VocabularyWordId == wordId
                 && progress.UserId == owner, cancellationToken);
-        // Only the learner's sentences (recorded to them), the rule the delete applies.
+        // Only the owner's sentences (recorded to them), the rule the delete applies.
         var examples = await OwnedExamples(db, owner)
             .Where(example => example.VocabularyWordId == wordId)
             .OrderBy(example => example.CreatedAt)
@@ -126,10 +123,10 @@ public sealed partial class NativeResourceStore
 
         var hasConstituentLinks = await db.PhraseConstituents.AsNoTracking()
             .AnyAsync(link => link.PhraseWordId == wordId, cancellationToken);
+        // A part another learner owns, or no one owns, is not shown.
         var constituents = await db.PhraseConstituents.AsNoTracking()
             .Where(link => link.PhraseWordId == wordId && link.ConstituentWordId != null)
-            .Join(db.VocabularyWords.AsNoTracking()
-                    .Where(candidate => OwnedVocabularyIds(db, owner).Contains(candidate.Id)),
+            .Join(db.VocabularyWords.AsNoTracking().OwnedBy(owner),
                 link => link.ConstituentWordId, candidate => candidate.Id,
                 (_, candidate) => new NativeVocabularyConstituent(
                     candidate.Id, candidate.TargetLanguageTerm ?? string.Empty,
@@ -149,29 +146,20 @@ public sealed partial class NativeResourceStore
                             && resource.UserProfileId == owner)
                         .Select(resource => resource.Title).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
-        var ownsWord = (await VocabularyWordOwnership.OwnedByAsync(
-            db, [wordId], owner, cancellationToken)).Contains(wordId);
-        var editable = ownsWord
-            && !(await VocabularyWordDependents.OthersUseAsync(
-                db, [wordId], owner, cancellationToken)).Contains(wordId);
-        var deleteBlock = await DeleteBlockAsync(db, owner, wordId, editable, cancellationToken);
-        if (!await db.VocabularyWords.AsNoTracking()
-                .AnyAsync(candidate => candidate.Id == wordId
-                    && OwnedVocabularyIds(db, owner).Contains(candidate.Id),
-                    cancellationToken)
+        var deleteBlock = await DeleteBlockAsync(db, owner, wordId, cancellationToken);
+        if (!await OwnedVocabularyIds(db, owner).AnyAsync(id => id == wordId, cancellationToken)
             || !IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return null;
 
         var entry = VocabularyEntry(word,
             available.Where(resource => associatedIds.Contains(resource.Id)).ToArray(),
-            ownProgress, exampleCount, ownsWord);
+            ownProgress, exampleCount);
         var draft = new NativeVocabularyEditDraft(
             word.Id, word.UpdatedAt,
             word.TargetLanguageTerm ?? string.Empty,
             word.NativeLanguageTerm ?? string.Empty,
             word.Lemma, word.Language, word.Tags,
-            ownsWord ? word.MnemonicText : null,
-            ownsWord ? word.MnemonicImageUri : null,
+            word.MnemonicText, word.MnemonicImageUri,
             word.LexicalUnitType, associated);
         var progressSnapshot = ownProgress is null ? null
             : new NativeVocabularyProgress(ownProgress.Status, ownProgress.IsKnown,
@@ -179,12 +167,12 @@ public sealed partial class NativeResourceStore
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
         return new(entry, draft, available, progressSnapshot, history,
-            examples, constituents, !editable, hasConstituentLinks, deleteBlock);
+            examples, constituents, hasConstituentLinks, deleteBlock);
     }
 
     /// <summary>
-    /// Whether the word is still one of the owner's (linked to their resource or practised),
-    /// without loading its detail: the editor's audio and image preview check only this.
+    /// Whether the word is still recorded to the owner, without loading its detail: the
+    /// editor's audio and image preview check only this.
     /// </summary>
     public async Task<bool> OwnsVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken)
@@ -198,6 +186,12 @@ public sealed partial class NativeResourceStore
             && IsActiveOwner(owner) && userScope.IsCurrent(stamp);
     }
 
+    /// <summary>
+    /// Saves the owner's word and its links to their resources. Only a word recorded to the
+    /// owner is written (its recorded owner may always edit it: nobody else can see it). A word
+    /// with no links stays the owner's, so clearing every resource is allowed. Links to
+    /// resources that are not the owner's are never read or changed.
+    /// </summary>
     public async Task<NativeVocabularySaveStatus> SaveOwnedVocabularyAsync(
         string owner, NativeVocabularyEditDraft draft,
         CancellationToken cancellationToken)
@@ -216,14 +210,11 @@ public sealed partial class NativeResourceStore
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await using var transaction = await db.Database
             .BeginTransactionAsync(cancellationToken);
-        var word = await db.VocabularyWords
-            .Where(candidate => candidate.Id == draft.Id
-                && OwnedVocabularyIds(db, owner).Contains(candidate.Id))
+        var word = await db.VocabularyWords.OwnedBy(owner)
+            .Where(candidate => candidate.Id == draft.Id)
             .SingleOrDefaultAsync(cancellationToken);
         if (word is null)
             return NativeVocabularySaveStatus.NotFoundOrForbidden;
-        if (!await IsEditableByOwnerAsync(db, owner, draft.Id, cancellationToken))
-            return NativeVocabularySaveStatus.SharedReadOnly;
         if (word.UpdatedAt != draft.OriginalUpdatedAt)
             return NativeVocabularySaveStatus.Conflict;
         if (draft.LexicalUnitType is LexicalUnitType.Unknown
@@ -261,17 +252,11 @@ public sealed partial class NativeResourceStore
                 resource.IsSmartResource && !currentIds.Contains(resource.Id))
             || currentSmartIds.Any(resourceId => !selectedIds.Contains(resourceId)))
             return NativeVocabularySaveStatus.Invalid;
-        if (selectedIds.Count == 0
-            && !await db.VocabularyProgresses.AnyAsync(progress =>
-                progress.VocabularyWordId == draft.Id && progress.UserId == owner,
-                cancellationToken))
-            return NativeVocabularySaveStatus.Invalid;
 
         var targetKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(draft.TargetTerm);
         var nativeKey = VocabularyDuplicatePolicy.NormalizeKeyPart(draft.NativeTerm);
-        var candidateWords = await db.VocabularyWords.AsNoTracking()
-            .Where(candidate => candidate.Id != draft.Id
-                && OwnedVocabularyIds(db, owner).Contains(candidate.Id))
+        var candidateWords = await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+            .Where(candidate => candidate.Id != draft.Id)
             .Select(candidate => new {
                 candidate.TargetLanguageTerm, candidate.NativeLanguageTerm
             }).ToListAsync(cancellationToken);
@@ -317,60 +302,29 @@ public sealed partial class NativeResourceStore
         }
     }
 
-    /// <summary>
-    /// The learner's own example sentences: recorded to them (the one ownership rule). A
-    /// sentence recorded to no one is no one's and counts as someone else's use
-    /// (<see cref="VocabularyWordDependents.OthersUseAsync"/>).
-    /// </summary>
+    /// <summary>The owner's own example sentences: recorded to them (the one ownership rule).</summary>
     private static IQueryable<ExampleSentence> OwnedExamples(
         ApplicationDbContext db, string owner) =>
-        db.ExampleSentences.AsNoTracking()
-            .Where(example => example.UserProfileId == owner);
+        db.ExampleSentences.AsNoTracking().OwnedBy(owner);
 
+    /// <summary>The owner's words: those recorded to them (the one ownership rule).</summary>
     private static IQueryable<string> OwnedVocabularyIds(
         ApplicationDbContext db, string owner) =>
-        db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(resource =>
-                    resource.UserProfileId == owner),
-                mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, _) => mapping.VocabularyWordId)
-            .Union(db.VocabularyProgresses.Where(progress => progress.UserId == owner)
-                .Select(progress => progress.VocabularyWordId));
+        db.VocabularyWords.OwnedBy(owner).Select(word => word.Id);
 
     /// <summary>
-    /// Whether the owner may change the word and its links (Save), by the shared rules: the
-    /// word is recorded to them (<see cref="VocabularyWordOwnership.OwnedByAsync"/>, the one rule every
-    /// client and the server use; a word recorded to no one is read-only for everyone) and no
-    /// one else links, practises or wrote a sentence for it
-    /// (<see cref="VocabularyWordDependents.OthersUseAsync"/>, the 2026-10-20 rule, a09596c3).
-    /// Others' minimal pairs and phrases do not stop an edit: the edit changes neither row. A
-    /// word stays editable after Save removes all its links while the owner keeps progress on
-    /// it, as Save allows (review 4). The same rule decides whose memory aids the editor shows.
-    /// </summary>
-    private static async Task<bool> IsEditableByOwnerAsync(
-        ApplicationDbContext db, string owner, string wordId,
-        CancellationToken cancellationToken) =>
-        (await VocabularyWordOwnership.OwnedByAsync(db, [wordId], owner, cancellationToken))
-            .Contains(wordId)
-        && !(await VocabularyWordDependents.OthersUseAsync(
-            db, [wordId], owner, cancellationToken)).Contains(wordId);
-
-    /// <summary>
-    /// Why the owner may not delete the word, or None, by the rules the shared delete and the
-    /// server apply (<see cref="VocabularyWordDependents"/>). A word they may not edit cannot go
-    /// either; for an editable word the rest of
-    /// <see cref="VocabularyWordDependents.OthersDependOnAsync"/> is others' minimal pairs and
-    /// phrases (<see cref="VocabularyWordDependents.OthersPairsOrPhrasesUseAsync"/>), then
-    /// Minimal Pairs answers, which restrict the delete in the database.
+    /// Why the owner may not delete their word, or None, by the rules the shared delete and the
+    /// server apply (<see cref="VocabularyWordDependents"/>): data that is not theirs still uses
+    /// it (<see cref="VocabularyWordDependents.OthersDependOnAsync"/>: another learner's, or no
+    /// one's, link, progress, sentence, minimal pair or phrase), then Minimal Pairs answers,
+    /// which restrict the delete in the database.
     /// </summary>
     private static async Task<NativeVocabularyDeleteBlock> DeleteBlockAsync(
-        ApplicationDbContext db, string owner, string wordId, bool editable,
+        ApplicationDbContext db, string owner, string wordId,
         CancellationToken cancellationToken)
     {
-        if (!editable)
-            return NativeVocabularyDeleteBlock.SharedReadOnly;
         string[] ids = [wordId];
-        if ((await VocabularyWordDependents.OthersPairsOrPhrasesUseAsync(
+        if ((await VocabularyWordDependents.OthersDependOnAsync(
                 db, ids, owner, cancellationToken)).Count > 0)
             return NativeVocabularyDeleteBlock.UsedByOthers;
         return (await VocabularyWordDependents.AnswersStillUseAsync(
@@ -380,14 +334,9 @@ public sealed partial class NativeResourceStore
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,
-        VocabularyProgress? progress, int exampleCount, bool ownsMemoryAids)
+        VocabularyProgress? progress, int exampleCount)
     {
-        var scoringWord = ownsMemoryAids ? word : new VocabularyWord {
-            TargetLanguageTerm = word.TargetLanguageTerm,
-            NativeLanguageTerm = word.NativeLanguageTerm
-        };
-        var (_, encodingLabel) = EncodingScoreHelper.CalculateWithLabel(
-            scoringWord, exampleCount);
+        var (_, encodingLabel) = EncodingScoreHelper.CalculateWithLabel(word, exampleCount);
         return new NativeVocabularyEntry(
             word.Id, word.TargetLanguageTerm ?? string.Empty,
             word.NativeLanguageTerm ?? string.Empty, word.LexicalUnitType,

@@ -36,8 +36,8 @@ internal static class NativeQuizOwnerGuard
         if (suppliedWords.Count == 0)
             return;
 
-        // This repository queries the resource-word mapping with an explicit
-        // owner ID. Never infer ownership from the caller's word objects.
+        // This repository returns the words recorded to the explicit owner ID (the one
+        // ownership rule). Never infer ownership from the caller's word objects.
         var owned = await resources.GetAllVocabularyWordsWithResourcesAsync(userId);
         RequireActiveOwner(userId, scope, preferences, cancellationToken);
         var byId = owned.ToDictionary(word => word.Id, StringComparer.Ordinal);

@@ -139,6 +139,8 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
             word = new VocabularyWord
             {
                 Id = Guid.NewGuid().ToString(),
+                // The learner who asks Sam to add it creates it (the one ownership rule).
+                UserProfileId = userProfileId,
                 TargetLanguageTerm = target,
                 NativeLanguageTerm = native,
                 Tags = NullIfEmpty(tags),
@@ -329,7 +331,7 @@ public sealed class CoachVocabularyEditHandler : CoachWriteHandlerBase<CoachVoca
         Apply(word, args);
         word.UpdatedAt = DateTime.UtcNow;
 
-        if (!await _resources.UpdateVocabularyWordAsync(word).ConfigureAwait(false))
+        if (!await _resources.UpdateVocabularyWordAsync(word, userProfileId).ConfigureAwait(false))
         {
             throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not updated."));
         }
@@ -360,7 +362,7 @@ public sealed class CoachVocabularyEditHandler : CoachWriteHandlerBase<CoachVoca
         word.MnemonicText = prior.Mnemonic;
         word.UpdatedAt = DateTime.UtcNow;
 
-        if (!await _resources.UpdateVocabularyWordAsync(word).ConfigureAwait(false))
+        if (!await _resources.UpdateVocabularyWordAsync(word, userProfileId).ConfigureAwait(false))
         {
             throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not restored."));
         }
@@ -597,14 +599,13 @@ public sealed class CoachVocabularyRemovalHandler : CoachWriteHandlerBase<CoachV
 
         var term = Clean(word.TargetLanguageTerm, 60);
 
-        // Deleting a row another learner still maps would be a cross-tenant write, so the row
-        // only goes when every link to it is the learner's. Then the owner-scoped delete runs
-        // first and removes their links and the word in one transaction, or refuses and changes
-        // nothing: the word is not recorded to the learner (one runtime rule, Captain
-        // 2026-11-06), or others' data or a Minimal Pairs answer still uses it (B66). A refused
-        // word is only unlinked from the learner's resources; one recorded to no one then stays
-        // as an unlinked row until the backfill or a later review decides
-        // (docs/native-review-backlog.md). It runs to completion once started.
+        // The word is the learner's (FindOwnedWordAsync: recorded to them; another learner's or
+        // no one's word is never found). Deleting a row another learner still maps would be a
+        // cross-tenant write, so the row only goes when every link to it is the learner's. Then
+        // the owner-scoped delete runs first and removes their links and the word in one
+        // transaction, or refuses and changes nothing because others' data or a Minimal Pairs
+        // answer still uses it (B66); a refused word is only unlinked from the learner's
+        // resources. It runs to completion once started.
         var deleted = false;
         var ownedLinks = await _ownership.CountOwnedLinksAsync(userProfileId, word.Id, cancellationToken)
             .ConfigureAwait(false);

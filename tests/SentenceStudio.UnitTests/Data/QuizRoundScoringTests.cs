@@ -29,8 +29,8 @@ public sealed class QuizRoundScoringTests : IDisposable
             .Options);
         _db.Database.EnsureCreated();
         _db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "word-1", TargetLanguageTerm = "커피", NativeLanguageTerm = "coffee" },
-            new VocabularyWord { Id = "word-2", TargetLanguageTerm = "주스", NativeLanguageTerm = "juice" });
+            new VocabularyWord { Id = "word-1", TargetLanguageTerm = "커피", NativeLanguageTerm = "coffee", UserProfileId = Owner },
+            new VocabularyWord { Id = "word-2", TargetLanguageTerm = "주스", NativeLanguageTerm = "juice", UserProfileId = Owner });
         _db.VocabularyProgresses.AddRange(
             new VocabularyProgress { Id = "p-own-1", VocabularyWordId = "word-1", UserId = Owner },
             new VocabularyProgress { Id = "p-own-2", VocabularyWordId = "word-2", UserId = Owner },

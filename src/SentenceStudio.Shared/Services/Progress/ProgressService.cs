@@ -799,21 +799,8 @@ public class ProgressService : IProgressService
 
         if (distinctWordIds.Count > 0)
         {
-            var reachableWords = db.ResourceVocabularyMappings
-                .Join(
-                    db.LearningResources.Where(resource => resource.UserProfileId == normalizedUserId),
-                    mapping => mapping.ResourceId,
-                    resource => resource.Id,
-                    (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
-                .Where(row => distinctWordIds.Contains(row.VocabularyWordId));
-
-            if (normalizedResourceId is not null)
-                reachableWords = reachableWords.Where(row => row.ResourceId == normalizedResourceId);
-
-            var reachableCount = await reachableWords
-                .Select(row => row.VocabularyWordId)
-                .Distinct()
-                .CountAsync(ct);
+            var reachableCount = await CountReachableWordsAsync(
+                db, normalizedUserId, normalizedResourceId, distinctWordIds, ct);
             if (reachableCount != distinctWordIds.Count)
             {
                 _logger.LogWarning("ValidatePlanItemAsync refused vocabulary outside the explicit user's launch graph.");
@@ -1232,24 +1219,27 @@ public class ProgressService : IProgressService
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        var reachableWordIds = db.ResourceVocabularyMappings
-            .Join(
-                db.LearningResources.Where(resource => resource.UserProfileId == userId),
-                mapping => mapping.ResourceId,
-                resource => resource.Id,
-                (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
-            .Where(row => distinctWordIds.Contains(row.VocabularyWordId));
-
-        if (resourceId is not null)
-            reachableWordIds = reachableWordIds.Where(row => row.ResourceId == resourceId);
-
-        var reachableCount = await reachableWordIds
-            .Select(row => row.VocabularyWordId)
-            .Distinct()
-            .CountAsync(ct);
-
-        return reachableCount == distinctWordIds.Count;
+        return await CountReachableWordsAsync(db, userId, resourceId, distinctWordIds, ct)
+            == distinctWordIds.Count;
     }
+
+    /// <summary>
+    /// How many of <paramref name="wordIds"/> an activity of <paramref name="userId"/> may use:
+    /// their own words (the one ownership rule, Captain 2026-11-06), every one of them when the
+    /// activity names no resource (a word with no resource is still theirs), or those the named
+    /// resource of theirs links.
+    /// </summary>
+    private static Task<int> CountReachableWordsAsync(ApplicationDbContext db, string userId,
+        string? resourceId, IReadOnlyCollection<string> wordIds, CancellationToken ct) =>
+        resourceId is null
+            ? db.VocabularyWords.OwnedBy(userId).CountAsync(word => wordIds.Contains(word.Id), ct)
+            : db.VocabularyWords.OwnedBy(userId)
+                .Where(word => wordIds.Contains(word.Id)
+                    && db.ResourceVocabularyMappings.Any(mapping =>
+                        mapping.VocabularyWordId == word.Id && mapping.ResourceId == resourceId
+                        && db.LearningResources.Any(resource =>
+                            resource.Id == resourceId && resource.UserProfileId == userId)))
+                .CountAsync(ct);
 
     private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)
     {

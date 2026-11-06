@@ -77,7 +77,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var matchingWords = db.VocabularyWords
+        // Only the learner's own words (the one ownership rule); one their resources link first.
+        var matchingWords = VocabularyWordOwnership.AvailableTo(db, userId)
             .Where(word => word.TargetLanguageTerm == normalizedTargetTerm);
 
         var reachable = await matchingWords
@@ -94,13 +95,12 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (reachable is not null)
             return reachable;
 
-        // Otherwise only a word available to this learner, never another account's.
-        return await VocabularyWordOwnership.AvailableTo(db, userId)
-            .Where(word => word.TargetLanguageTerm == normalizedTargetTerm)
+        return await matchingWords
             .OrderBy(word => word.Id)
             .FirstOrDefaultAsync();
     }
 
+    /// <summary>The active learner's words: those recorded to them, linked or not.</summary>
     public async Task<List<VocabularyWord>> GetAllVocabularyWordsAsync()
     {
         var userId = ActiveUserId;
@@ -112,10 +112,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userWordIds = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-        return await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).ToListAsync();
+        return await db.VocabularyWords.OwnedBy(userId).ToListAsync();
     }
 
     /// <summary>
@@ -147,7 +144,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 (wm, resource) => new { wm.Word, Resource = resource }
             )
             .Where(wr => wr.Resource.Language == language)
-            .Where(wr => wr.Resource.UserProfileId == userId);
+            .Where(wr => wr.Resource.UserProfileId == userId)
+            .Where(wr => wr.Word.UserProfileId == userId);
 
         var termsQuery = query
             .Select(wr => wr.Word.TargetLanguageTerm)
@@ -161,14 +159,35 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         return await termsQuery.ToListAsync();
     }
 
+    /// <summary>
+    /// Saves a word for the learner (<paramref name="userProfileId"/>, else the active one): a new
+    /// word is recorded to them, its creator; an existing word is updated only when it is theirs.
+    /// Returns -1 (logged) for another learner's or no one's word, with no learner, or on failure.
+    /// </summary>
     public async Task<int> SaveWordAsync(VocabularyWord word, string? userProfileId = null)
     {
+        var learner = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(learner) || word is null)
+        {
+            _logger.LogWarning("SaveWordAsync called without an active user — refusing to save to prevent cross-tenant data changes.");
+            return -1;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            var existsInDb = await db.VocabularyWords.AnyAsync(w => w.Id == word.Id);
+            var stored = await db.VocabularyWords.AsNoTracking()
+                .Where(w => w.Id == word.Id)
+                .Select(w => new { w.UserProfileId })
+                .FirstOrDefaultAsync();
+            var existsInDb = stored is not null;
+            if (existsInDb && !VocabularyWordOwnership.IsLearners(stored!.UserProfileId, learner))
+            {
+                _logger.LogWarning("Refused saving vocabulary word {WordId}: it is not the learner's.", word.Id);
+                return -1;
+            }
 
             if (existsInDb)
             {
@@ -191,14 +210,14 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                     word.ResourceMappings.Clear();
                 }
 
+                // The stored owner stays (a blank one on this object never overwrites it).
+                word.UserProfileId = learner;
                 db.VocabularyWords.Update(word);
             }
             else
             {
                 // The learner creating a word owns it (and its memory aids).
-                var creator = ResolveUserId(userProfileId);
-                if (word.UserProfileId is null && !string.IsNullOrEmpty(creator))
-                    word.UserProfileId = creator;
+                word.UserProfileId = learner;
                 db.VocabularyWords.Add(word);
             }
 
@@ -240,8 +259,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        // Only the learner's own words of each resource; others stay linked but unseen.
         var query = db.LearningResources
-            .Include(r => r.Vocabulary);
+            .Include(r => r.Vocabulary.Where(word => word.UserProfileId == userId));
         var list = await query.Where(r => r.UserProfileId == userId).ToListAsync();
         return OrderResourcesSmartFirst(list);
     }
@@ -302,8 +322,10 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // The skip navigation loads only the learner's own words (the one ownership rule): a
+        // word another learner owns, or no one owns, stays linked but is not shown or used.
         var resource = await db.LearningResources
-            .Include(r => r.Vocabulary) // This uses the skip navigation to load vocabulary
+            .Include(r => r.Vocabulary.Where(word => word.UserProfileId == userId))
             .Where(r => r.Id == resourceId && r.UserProfileId == userId)
             .FirstOrDefaultAsync();
 
@@ -529,13 +551,24 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 db.Entry(existingResource).CurrentValues.SetValues(resource);
                 existingResource.UserProfileId = userId;
 
-                // Handle vocabulary associations
-                var dbVocabularyWords = await db.VocabularyWords
+                // Handle vocabulary associations: the caller sees (and sends) only the learner's
+                // own words, so only those links change. A link to a word another learner owns,
+                // or no one owns, is not shown and stays exactly as it is.
+                var dbVocabularyWords = await db.VocabularyWords.OwnedBy(userId)
                     .Where(v => vocabularyWordIds.Contains(v.Id))
                     .ToListAsync();
+                var requested = dbVocabularyWords.Select(word => word.Id)
+                    .ToHashSet(StringComparer.Ordinal);
 
-                existingResource.Vocabulary.Clear();
-                foreach (var word in dbVocabularyWords)
+                foreach (var word in existingResource.Vocabulary
+                    .Where(word => VocabularyWordOwnership.IsLearners(word.UserProfileId, userId)
+                        && !requested.Contains(word.Id))
+                    .ToList())
+                {
+                    existingResource.Vocabulary.Remove(word);
+                }
+                foreach (var word in dbVocabularyWords
+                    .Where(word => !existingResource.Vocabulary.Any(linked => linked.Id == word.Id)))
                 {
                     existingResource.Vocabulary.Add(word);
                 }
@@ -552,7 +585,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 // Now associate vocabulary words that already exist in the DB
                 if (vocabularyWordIds.Any())
                 {
-                    var dbVocabularyWords = await db.VocabularyWords
+                    var dbVocabularyWords = await db.VocabularyWords.OwnedBy(userId)
                         .Where(v => vocabularyWordIds.Contains(v.Id))
                         .ToListAsync();
 
@@ -976,7 +1009,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
             if (resource != null)
             {
-                var vocabularyToRemove = resource.Vocabulary.FirstOrDefault(v => v.Id == vocabularyWordId);
+                // Only a link to the learner's own word; a hidden word's link stays.
+                var vocabularyToRemove = resource.Vocabulary.FirstOrDefault(v => v.Id == vocabularyWordId
+                    && VocabularyWordOwnership.IsLearners(v.UserProfileId, userId));
                 if (vocabularyToRemove != null)
                 {
                     resource.Vocabulary.Remove(vocabularyToRemove);
@@ -1064,7 +1099,11 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             var vocabularyWords = VocabularyWord.ParseVocabularyWords(response);
 
             // Save the resource first
-            await SaveResourceAsync(resource);
+            if (string.IsNullOrEmpty(await SaveResourceAsync(resource)))
+            {
+                _logger.LogWarning("Starter vocabulary was not created: its resource could not be saved.");
+                return;
+            }
 
             // Now save the vocabulary words and associate them with the resource
             using var scope = _serviceProvider.CreateScope();
@@ -1072,7 +1111,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
             foreach (var word in vocabularyWords)
             {
-                word.UserProfileId ??= resource.UserProfileId;
+                // The learner whose starter resource this is creates the words.
+                word.UserProfileId = resource.UserProfileId;
                 if (word.CreatedAt == default)
                     word.CreatedAt = DateTime.UtcNow;
                 word.UpdatedAt = DateTime.UtcNow;
@@ -1096,7 +1136,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     // --- Enhanced Vocabulary Management Methods ---
 
     /// <summary>
-    /// Get all vocabulary words with their associated learning resources
+    /// The learner's words (recorded to them, the one ownership rule; linked to a resource or not)
+    /// with their own resources that link each.
     /// </summary>
     public async Task<List<VocabularyWord>> GetAllVocabularyWordsWithResourcesAsync(
         string? userProfileId = null)
@@ -1111,14 +1152,11 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var userWordIds = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
             .AsNoTracking()
+            .OwnedBy(userId)
             .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
-            .Where(w => userWordIds.Contains(w.Id))
             .ToListAsync();
     }
 
@@ -1142,13 +1180,10 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         var searchTerm = query.ToLower().Trim();
 
-        var userWordIds = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
+            .OwnedBy(userId)
             .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
-            .Where(vw => userWordIds.Contains(vw.Id))
             .Where(vw =>
                 (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
                 (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
@@ -1182,10 +1217,6 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var searchTerm = query?.ToLower().Trim() ?? string.Empty;
         var safeLimit = Math.Max(0, limit);
 
-        var userWordIds = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-
         var resourceWordIds = db.ResourceVocabularyMappings
             .Where(m => m.ResourceId == resourceId)
             .Select(m => m.VocabularyWordId);
@@ -1193,7 +1224,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var results = db.VocabularyWords
             .AsNoTracking()
             .AsSplitQuery()
-            .Where(vw => userWordIds.Contains(vw.Id))
+            .OwnedBy(userId)
             .Where(vw => !resourceWordIds.Contains(vw.Id))
             .Where(vw => !string.IsNullOrEmpty(vw.Language) && vw.Language == language);
 
@@ -1231,65 +1262,90 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Only unlinked words available to this learner; another account's word, or an
-        // ownerless one with memory aids or sentences not the learner's own, is never offered.
+        // Only the learner's own words that none of their resources link (the one ownership
+        // rule: another account's word, or one recorded to no one, is never offered).
         return await VocabularyWordOwnership.AvailableTo(db, userId)
-            .Where(vw => !db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+            .Where(vw => !db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id
+                && db.LearningResources.Any(resource => resource.Id == rvm.ResourceId
+                    && resource.UserProfileId == userId)))
             .ToListAsync();
     }
 
     /// <summary>
-    /// Get vocabulary words that are associated with learning resources
+    /// The learner's words (<paramref name="userProfileId"/>, else the active one) that one of
+    /// their resources links, with those resources. Empty with no learner.
     /// </summary>
-    public async Task<List<VocabularyWord>> GetAssociatedVocabularyWordsAsync()
+    public async Task<List<VocabularyWord>> GetAssociatedVocabularyWordsAsync(string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<VocabularyWord>();
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
-            .Include(vw => vw.LearningResources)
+            .OwnedBy(userId)
+            .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
-            .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
+            .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id
+                && db.LearningResources.Any(resource => resource.Id == rvm.ResourceId
+                    && resource.UserProfileId == userId)))
             .ToListAsync();
     }
 
     /// <summary>
-    /// Get a specific vocabulary word with all its associated resources
+    /// The learner's word with their resources that link it; null for another learner's or no
+    /// one's word, or with no learner.
     /// </summary>
-    public async Task<VocabularyWord?> GetVocabularyWordWithResourcesAsync(string wordId)
+    public async Task<VocabularyWord?> GetVocabularyWordWithResourcesAsync(string wordId, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
-            .Include(vw => vw.LearningResources)
+            .OwnedBy(userId)
+            .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
             .FirstOrDefaultAsync(vw => vw.Id == wordId);
     }
 
     /// <summary>
-    /// Get a specific vocabulary word by ID (without resources)
+    /// The learner's word by ID (without resources); null for another learner's or no one's word,
+    /// or with no learner.
     /// </summary>
-    public async Task<VocabularyWord?> GetVocabularyWordByIdAsync(string wordId)
+    public async Task<VocabularyWord?> GetVocabularyWordByIdAsync(string wordId, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
+            .OwnedBy(userId)
             .FirstOrDefaultAsync(vw => vw.Id == wordId);
     }
 
     /// <summary>
-    /// Get all learning resources associated with a specific vocabulary word
+    /// The learner's resources that link their word; empty for another learner's or no one's word,
+    /// or with no learner.
     /// </summary>
-    public async Task<List<LearningResource>> GetResourcesForVocabularyWordAsync(string wordId)
+    public async Task<List<LearningResource>> GetResourcesForVocabularyWordAsync(string wordId, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+            return new List<LearningResource>();
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
+            .OwnedBy(userId)
             .Where(vw => vw.Id == wordId)
             .SelectMany(vw => vw.LearningResources)
+            .Where(resource => resource.UserProfileId == userId)
             .ToListAsync();
     }
 
@@ -1311,8 +1367,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var userWordIds = db.ResourceVocabularyMappings
             .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
                 m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-        int totalWords = await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).CountAsync();
-        int associatedWords = await userWordIds.Distinct().CountAsync();
+        int totalWords = await db.VocabularyWords.OwnedBy(userId).CountAsync();
+        int associatedWords = await db.VocabularyWords.OwnedBy(userId)
+            .CountAsync(w => userWordIds.Contains(w.Id));
         var orphanedWords = totalWords - associatedWords;
 
         return (totalWords, associatedWords, orphanedWords);
@@ -1394,19 +1451,17 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
     /// <summary>
     /// Why <paramref name="owner"/> may not delete the word, or null when they may: NotFound
-    /// when it is not in their vocabulary, RefusedShared when it is but is not theirs or others
-    /// use it, RefusedAnswers when a Minimal Pairs answer references it.
+    /// when it is not theirs (another learner's or no one's word is not shown to them),
+    /// RefusedShared when another learner's row, or a row no one owns, still depends on it
+    /// (<see cref="VocabularyWordDependents.OthersDependOnAsync"/>: the delete would cascade into
+    /// it), RefusedAnswers when a Minimal Pairs answer references it.
     /// </summary>
     private static async Task<VocabularyWordDeleteResult?> DeleteRefusalAsync(
         ApplicationDbContext db, string wordId, string owner, CancellationToken ct)
     {
         string[] ids = [wordId];
-        if (!await db.VocabularyWords.AnyAsync(word => word.Id == wordId, ct))
-            return VocabularyWordDeleteResult.NotFound;
         if (!(await VocabularyWordOwnership.OwnedByAsync(db, ids, owner, ct)).Contains(wordId))
-            return await IsInVocabularyOfAsync(db, wordId, owner, ct)
-                ? VocabularyWordDeleteResult.RefusedShared
-                : VocabularyWordDeleteResult.NotFound;
+            return VocabularyWordDeleteResult.NotFound;
         if ((await VocabularyWordDependents.OthersDependOnAsync(db, ids, owner, ct)).Count > 0)
             return VocabularyWordDeleteResult.RefusedShared;
         if ((await VocabularyWordDependents.AnswersStillUseAsync(db, ids, ct)).Count > 0)
@@ -1414,23 +1469,12 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         return null;
     }
 
-    /// <summary>Whether one of the learner's resources links the word or they have progress on it.</summary>
-    private static async Task<bool> IsInVocabularyOfAsync(
-        ApplicationDbContext db, string wordId, string owner, CancellationToken ct) =>
-        await db.ResourceVocabularyMappings.AnyAsync(mapping =>
-                mapping.VocabularyWordId == wordId
-                && db.LearningResources.Any(resource =>
-                    resource.Id == mapping.ResourceId && resource.UserProfileId == owner), ct)
-        || await db.VocabularyProgresses.AnyAsync(progress =>
-            progress.VocabularyWordId == wordId && progress.UserId == owner, ct);
-
     /// <summary>
-    /// The web/MAUI word editor's load (B66/B69 review 4): a word in the learner's vocabulary
-    /// (their link or progress) or theirs by <see cref="VocabularyWordOwnership.OwnedByAsync"/>;
-    /// null for any other word, or with no learner. A word that is not theirs comes back
-    /// read-only, without its memory aids and audio (they are its owner's).
+    /// The web/MAUI word editor's load: the learner's own word
+    /// (<see cref="VocabularyWordOwnership.OwnedByAsync"/>); null for any other word (another
+    /// learner's, or one recorded to no one, is not shown), or with no learner.
     /// </summary>
-    public async Task<LearnerVocabularyWord?> GetVocabularyWordForLearnerAsync(
+    public async Task<VocabularyWord?> GetVocabularyWordForLearnerAsync(
         string wordId, string? userProfileId, CancellationToken ct = default)
     {
         var owner = ResolveUserId(userProfileId);
@@ -1443,15 +1487,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             return null;
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var word = await db.VocabularyWords.AsNoTracking().FirstOrDefaultAsync(w => w.Id == wordId, ct);
-        if (word is null)
-            return null;
-        if ((await VocabularyWordOwnership.OwnedByAsync(db, [wordId], owner, ct)).Contains(wordId))
-            return new LearnerVocabularyWord(word, IsLearnersOwn: true);
-        if (!await IsInVocabularyOfAsync(db, wordId, owner, ct))
-            return null;
-        HideMemoryAids(word);
-        return new LearnerVocabularyWord(word, IsLearnersOwn: false);
+        return await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+            .FirstOrDefaultAsync(w => w.Id == wordId, ct);
     }
 
     /// <summary>
@@ -1484,24 +1521,30 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             : VocabularyWordSaveResult.Saved;
     }
 
-    /// <summary>Clears a word's memory aids and audio, the parts that are its owner's alone.</summary>
-    private static void HideMemoryAids(VocabularyWord word)
-    {
-        word.MnemonicText = null;
-        word.MnemonicImageUri = null;
-        word.AudioPronunciationUri = null;
-    }
-
     /// <summary>
-    /// Update an existing vocabulary word
+    /// Updates an existing word for the learner (<paramref name="userProfileId"/>, else the
+    /// active one): only a word recorded to them, and its owner never changes. False (logged)
+    /// for another learner's or no one's word, with no learner, or on failure.
     /// </summary>
-    public async Task<bool> UpdateVocabularyWordAsync(VocabularyWord word)
+    public async Task<bool> UpdateVocabularyWordAsync(VocabularyWord word, string? userProfileId = null)
     {
+        var owner = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(owner) || word is null)
+        {
+            _logger.LogWarning("UpdateVocabularyWordAsync called without an active user — refusing to update.");
+            return false;
+        }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
+            if (!await db.VocabularyWords.OwnedBy(owner).AnyAsync(stored => stored.Id == word.Id))
+            {
+                _logger.LogWarning("Refused updating vocabulary word {WordId}: it is not the learner's.", word.Id);
+                return false;
+            }
+            word.UserProfileId = owner;
             word.UpdatedAt = DateTime.UtcNow;
             db.VocabularyWords.Update(word);
             await db.SaveChangesAsync();
@@ -1512,34 +1555,35 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         }
         catch (Exception ex)
         {
-            // UXDivers popup removed - error already logged above
+            _logger.LogError(ex, "Updating vocabulary word {WordId} failed.", word.Id);
             return false;
         }
     }
 
     /// <summary>
     /// Updates a word's terms by ID for the learner (<paramref name="userProfileId"/>, else the
-    /// active one): only a word recorded to them (the one ownership rule); false for any other
-    /// word, or with no learner.
+    /// active one): only a word recorded to them (the one ownership rule). Says whether the word
+    /// was not theirs (or there is no learner) or the update failed, so a caller never reports a
+    /// technical failure as a refusal.
     /// </summary>
-    public async Task<bool> UpdateVocabularyWordTermsAsync(string wordId, string targetTerm,
+    public async Task<VocabularyWordTermsUpdateResult> UpdateVocabularyWordTermsAsync(string wordId, string targetTerm,
         string nativeTerm, string? userProfileId = null)
     {
         var owner = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(owner))
         {
             _logger.LogWarning("UpdateVocabularyWordTermsAsync called without an active user — refusing to update.");
-            return false;
+            return VocabularyWordTermsUpdateResult.NotLearnersOwn;
         }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            var word = await db.VocabularyWords
-                .FirstOrDefaultAsync(candidate => candidate.Id == wordId && candidate.UserProfileId == owner);
+            var word = await db.VocabularyWords.OwnedBy(owner)
+                .FirstOrDefaultAsync(candidate => candidate.Id == wordId);
             if (word == null)
-                return false;
+                return VocabularyWordTermsUpdateResult.NotLearnersOwn;
 
             word.TargetLanguageTerm = targetTerm;
             word.NativeLanguageTerm = nativeTerm;
@@ -1549,12 +1593,12 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
-            return true;
+            return VocabularyWordTermsUpdateResult.Updated;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating vocabulary word terms");
-            return false;
+            return VocabularyWordTermsUpdateResult.Failed;
         }
     }
 
@@ -1642,8 +1686,11 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 return false;
             }
 
+            // Only links to the learner's own words; a hidden word's link stays.
+            var ownWords = db.VocabularyWords.OwnedBy(userId).Select(word => word.Id);
             var mappingsToRemove = await db.ResourceVocabularyMappings
-                .Where(rvm => rvm.ResourceId == resourceId && vocabularyWordIds.Contains(rvm.VocabularyWordId))
+                .Where(rvm => rvm.ResourceId == resourceId && vocabularyWordIds.Contains(rvm.VocabularyWordId)
+                    && ownWords.Contains(rvm.VocabularyWordId))
                 .ToListAsync();
 
             db.ResourceVocabularyMappings.RemoveRange(mappingsToRemove);
@@ -1714,6 +1761,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
+            .OwnedBy(userId)
             .Where(vw => db.ResourceVocabularyMappings
                 .Any(rvm => rvm.ResourceId == resourceId
                     && rvm.VocabularyWordId == vw.Id
@@ -1721,25 +1769,15 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .ToListAsync();
     }
 
-    private static async Task<bool> IsVocabularyWordAvailableToUserAsync(
+    /// <summary>Whether the word is the learner's own (the one ownership rule).</summary>
+    private static Task<bool> IsVocabularyWordAvailableToUserAsync(
         ApplicationDbContext db,
         string vocabularyWordId,
-        string userId)
-    {
-        var mappingOwners = db.ResourceVocabularyMappings
-            .Where(mapping => mapping.VocabularyWordId == vocabularyWordId)
-            .Join(
-                db.LearningResources,
-                mapping => mapping.ResourceId,
-                resource => resource.Id,
-                (mapping, resource) => resource.UserProfileId);
+        string userId) =>
+        VocabularyWordOwnership.AvailableTo(db, userId)
+            .AnyAsync(word => word.Id == vocabularyWordId);
 
-        // Already linked to this learner's resource, or available to them.
-        return await mappingOwners.AnyAsync(ownerId => ownerId == userId)
-            || await VocabularyWordOwnership.AvailableTo(db, userId)
-                .AnyAsync(word => word.Id == vocabularyWordId);
-    }
-
+    /// <summary>Whether every word is the learner's own; false for a blank or missing ID.</summary>
     private static async Task<bool> AreVocabularyWordsAvailableToUserAsync(
         ApplicationDbContext db,
         IReadOnlyCollection<string> vocabularyWordIds,
@@ -1753,27 +1791,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        var existingCount = await db.VocabularyWords
-            .CountAsync(word => distinctIds.Contains(word.Id));
-        if (existingCount != distinctIds.Count)
-            return false;
-
-        // Unavailable: not linked to this learner's resources and not available to them.
-        var available = VocabularyWordOwnership.AvailableTo(db, userId).Select(word => word.Id);
-        var foreignOnlyWordCount = await db.VocabularyWords
-            .Where(word => distinctIds.Contains(word.Id))
-            .CountAsync(word =>
-                !available.Contains(word.Id)
-                && !db.ResourceVocabularyMappings
-                    .Where(mapping => mapping.VocabularyWordId == word.Id)
-                    .Join(
-                        db.LearningResources.Where(resource => resource.UserProfileId == userId),
-                        mapping => mapping.ResourceId,
-                        resource => resource.Id,
-                        (mapping, resource) => mapping.Id)
-                    .Any());
-
-        return foreignOnlyWordCount == 0;
+        return await VocabularyWordOwnership.AvailableTo(db, userId)
+            .CountAsync(word => distinctIds.Contains(word.Id)) == distinctIds.Count;
     }
 
     /// <summary>
@@ -1794,13 +1813,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var targetKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(targetTerm);
         var nativeKey = VocabularyDuplicatePolicy.NormalizeKeyPart(nativeTerm);
 
-        var candidates = await (
-                from mapping in db.ResourceVocabularyMappings.AsNoTracking()
-                join resource in db.LearningResources.AsNoTracking() on mapping.ResourceId equals resource.Id
-                join word in db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
-                where resource.UserProfileId == userId
-                select word)
-            .Distinct()
+        // Only the learner's own words, linked or not (the one ownership rule).
+        var candidates = await db.VocabularyWords.AsNoTracking()
+            .OwnedBy(userId)
             .ToListAsync(ct);
 
         return candidates.FirstOrDefault(word =>
@@ -1809,12 +1824,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// The learner's duplicate groups: words their resources link that share a target term. A
-    /// copy that is not the learner's (<see cref="VocabularyWordOwnership.OwnedByAsync"/>, the
-    /// one rule every client uses) comes back without its memory aids and audio, its strength
-    /// counts only what is left, and its group cannot merge (B69,
-    /// <see cref="VocabularyDuplicateGroup.HasCopyNotOwnedByLearner"/>). Every client shows these
-    /// masked copies as they are; none masks again.
+    /// The learner's duplicate groups: their own words (the one ownership rule) that their
+    /// resources link and that share a target term. Another learner's word, or one recorded to no
+    /// one, is never shown or merged, even when it sits in the learner's resource.
     /// </summary>
     public async Task<VocabularyDuplicateScanResult> FindDuplicateVocabularyGroupsAsync(
         string? focusTerm = null,
@@ -1841,7 +1853,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 from mapping in db.ResourceVocabularyMappings.AsNoTracking()
                 join resource in db.LearningResources.AsNoTracking() on mapping.ResourceId equals resource.Id
                 join word in db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
-                where resource.UserProfileId == userId && word.TargetLanguageTerm != null
+                where resource.UserProfileId == userId && word.UserProfileId == userId
+                    && word.TargetLanguageTerm != null
                 select new
                 {
                     WordId = word.Id,
@@ -1863,24 +1876,13 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .GroupBy(item => item.Key)
             .Where(group => group.Count() > 1)
             .ToList();
-        var owned = await VocabularyWordOwnership.OwnedByAsync(
-            db, candidateGroups.SelectMany(group => group.Select(item => item.Word.Id)).ToArray(), userId, ct);
 
         var wordInfos = candidateGroups
             .Select(group =>
             {
                 var words = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Select(item =>
-                {
-                    var isLearnersOwn = owned.Contains(item.Word.Id);
-                    // Read without tracking, so clearing the aids saves nothing.
-                    if (!isLearnersOwn)
-                        HideMemoryAids(item.Word);
-                    return new VocabularyDuplicateWordInfo(item.Word, item.ResourceCount,
-                        EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score)
-                    {
-                        IsLearnersOwn = isLearnersOwn
-                    };
-                }));
+                    new VocabularyDuplicateWordInfo(item.Word, item.ResourceCount,
+                        EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score)));
 
                 var safetySignatures = words
                     .Select(info => VocabularyDuplicatePolicy.BuildSafetySignature(info.Word))
@@ -1890,17 +1892,13 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 var blockedReason = fieldsMatch
                     ? null
                     : BuildDuplicateMergeBlockedReason(words);
-                // B69: a copy that is not the learner's blocks the merge
-                // (MergeVocabularyWordsWithResultAsync refuses it too); editing cannot fix that.
-                var hasCopyNotOwned = words.Any(info => !info.IsLearnersOwn);
 
                 return new VocabularyDuplicateGroup(
                     group.Key,
                     words.First().Word.TargetLanguageTerm?.Trim() ?? group.Key,
                     words,
-                    fieldsMatch && !hasCopyNotOwned,
-                    blockedReason,
-                    hasCopyNotOwned);
+                    fieldsMatch,
+                    blockedReason);
             })
             .OrderByDescending(group => group.Words.Count)
             .ThenBy(group => group.DisplayTerm, StringComparer.OrdinalIgnoreCase)
@@ -1973,12 +1971,20 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// Bulk update lemma values for vocabulary words.
+    /// Bulk update lemma values for the learner's words (<paramref name="userProfileId"/>, else
+    /// the active one); another learner's or no one's word is left alone. Nothing with no learner.
     /// </summary>
-    public async Task<int> BulkUpdateLemmasAsync(Dictionary<string, string> wordIdToLemma)
+    public async Task<int> BulkUpdateLemmasAsync(Dictionary<string, string> wordIdToLemma,
+        string? userProfileId = null)
     {
         if (wordIdToLemma == null || !wordIdToLemma.Any())
             return 0;
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("BulkUpdateLemmasAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return 0;
+        }
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1986,7 +1992,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         int updated = 0;
         foreach (var (wordId, lemma) in wordIdToLemma)
         {
-            var word = await db.VocabularyWords.FindAsync(wordId);
+            var word = await db.VocabularyWords.OwnedBy(userId).FirstOrDefaultAsync(w => w.Id == wordId);
             if (word != null)
             {
                 word.Lemma = lemma;
@@ -2002,20 +2008,28 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// Bulk set the Language property on multiple vocabulary words.
+    /// Bulk set the Language property on the learner's words (<paramref name="userProfileId"/>,
+    /// else the active one); another learner's or no one's word is left alone.
     /// Returns the number of words updated.
     /// </summary>
-    public async Task<int> BulkSetLanguageAsync(List<string> vocabularyWordIds, string language)
+    public async Task<int> BulkSetLanguageAsync(List<string> vocabularyWordIds, string language,
+        string? userProfileId = null)
     {
         if (vocabularyWordIds == null || vocabularyWordIds.Count == 0 || string.IsNullOrWhiteSpace(language))
             return 0;
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("BulkSetLanguageAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return 0;
+        }
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            var words = await db.VocabularyWords
+            var words = await db.VocabularyWords.OwnedBy(userId)
                 .Where(vw => vocabularyWordIds.Contains(vw.Id))
                 .ToListAsync();
 
@@ -2042,13 +2056,21 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
     /// <summary>
     /// Bulk add tags (additive, deduped, case-insensitive) to multiple vocabulary words.
-    /// Existing tags on each word are preserved; new tags are merged in.
+    /// Existing tags on each word are preserved; new tags are merged in. Only the learner's words
+    /// (<paramref name="userProfileId"/>, else the active one) change.
     /// Returns the number of words updated.
     /// </summary>
-    public async Task<int> BulkAddTagsAsync(List<string> vocabularyWordIds, IEnumerable<string> tagsToAdd)
+    public async Task<int> BulkAddTagsAsync(List<string> vocabularyWordIds, IEnumerable<string> tagsToAdd,
+        string? userProfileId = null)
     {
         if (vocabularyWordIds == null || vocabularyWordIds.Count == 0 || tagsToAdd == null)
             return 0;
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("BulkAddTagsAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return 0;
+        }
 
         var normalizedNewTags = tagsToAdd
             .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -2065,7 +2087,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         try
         {
-            var words = await db.VocabularyWords
+            var words = await db.VocabularyWords.OwnedBy(userId)
                 .Where(vw => vocabularyWordIds.Contains(vw.Id))
                 .ToListAsync();
 
@@ -2313,10 +2335,11 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         var changed = false;
 
-        var examples = await db.ExampleSentences
-            .Where(e =>
-                deleteWordIds.Contains(e.VocabularyWordId) &&
-                db.LearningResources.Any(r => r.Id == e.LearningResourceId && r.UserProfileId == userId))
+        // A sentence is the learner's by its own recorded owner (the one ownership rule), not by
+        // the resource it came from: their AI and hand-written sentences with no resource move to
+        // the keeper too, and another learner's sentence on the learner's resource never does.
+        var examples = await db.ExampleSentences.OwnedBy(userId)
+            .Where(e => deleteWordIds.Contains(e.VocabularyWordId))
             .ToListAsync(ct);
         foreach (var example in examples)
         {
@@ -2532,29 +2555,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 sharedWordIds.Add(attempt.SelectedWordId);
         }
 
-        var exampleReferences = await db.ExampleSentences
-            .Where(example => deleteWordIds.Contains(example.VocabularyWordId))
-            .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
-            .ToListAsync(ct);
-        var exampleResourceIds = exampleReferences
-            .Select(example => example.LearningResourceId)
-            .Where(id => id != null)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var exampleResourceOwners = exampleResourceIds.Count == 0
-            ? new Dictionary<string, string?>(StringComparer.Ordinal)
-            : await db.LearningResources
-                .Where(resource => exampleResourceIds.Contains(resource.Id))
-                .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
-        foreach (var example in exampleReferences)
-        {
-            if (example.LearningResourceId == null ||
-                !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
-                ownerId != userId)
-            {
-                sharedWordIds.Add(example.VocabularyWordId);
-            }
-        }
+        // A sentence not recorded to the learner (another learner's, or no one's) is someone
+        // else's use of the word, by its recorded owner as everywhere.
+        sharedWordIds.UnionWith(await SentenceWordsNotRecordedToAsync(db, deleteWordIds, userId, ct));
 
         var phraseConstituentWords = await db.PhraseConstituents
             .Where(pc => deleteWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && deleteWordIds.Contains(pc.ConstituentWordId)))
@@ -2591,32 +2594,25 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 blockedWordIds.Add(phraseConstituent.ConstituentWordId);
         }
 
-        var exampleReferences = await db.ExampleSentences
-            .Where(example => deleteWordIds.Contains(example.VocabularyWordId))
-            .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
-            .ToListAsync(ct);
-        var exampleResourceIds = exampleReferences
-            .Select(example => example.LearningResourceId)
-            .Where(id => id != null)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var exampleResourceOwners = exampleResourceIds.Count == 0
-            ? new Dictionary<string, string?>(StringComparer.Ordinal)
-            : await db.LearningResources
-                .Where(resource => exampleResourceIds.Contains(resource.Id))
-                .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
-        foreach (var example in exampleReferences)
-        {
-            if (example.LearningResourceId == null ||
-                !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
-                ownerId != userId)
-            {
-                blockedWordIds.Add(example.VocabularyWordId);
-            }
-        }
+        blockedWordIds.UnionWith(await SentenceWordsNotRecordedToAsync(db, deleteWordIds, userId, ct));
 
         return blockedWordIds;
     }
+
+    /// <summary>
+    /// Words among <paramref name="wordIds"/> with an example sentence not recorded to
+    /// <paramref name="userId"/> (another learner's, or one recorded to no one: NULL or '').
+    /// Decided by the sentence's recorded owner, the one ownership rule, never by its resource.
+    /// </summary>
+    private static async Task<HashSet<string>> SentenceWordsNotRecordedToAsync(
+        ApplicationDbContext db, IReadOnlyCollection<string> wordIds, string userId, CancellationToken ct) =>
+        (await db.ExampleSentences.AsNoTracking()
+            // EF keeps C# null semantics: NULL and '' both differ from the learner.
+            .Where(example => wordIds.Contains(example.VocabularyWordId) && example.UserProfileId != userId)
+            .Select(example => example.VocabularyWordId)
+            .Distinct()
+            .ToListAsync(ct))
+        .ToHashSet(StringComparer.Ordinal);
 
     private static (string WordAId, string WordBId) NormalizePairOrder(string wordAId, string wordBId) =>
         StringComparer.Ordinal.Compare(wordAId, wordBId) <= 0

@@ -18,16 +18,16 @@ else
     {
         <PageHeader Title='@Localize["VocabWordEdit_EditTitle"]' ShowBack="true" OnBack="GoBack">
             <PrimaryActions>
-                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid || isReadOnly)">
+                <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
                     @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
                     @Localize["Common_Save"]
                 </button>
             </PrimaryActions>
             <SecondaryActions>
-                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid || isReadOnly)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
                 <li><button class="dropdown-item" @onclick="OpenDuplicateManager" disabled="@isSaving"><i class="bi bi-files me-2"></i>@Localize["VocabWordEdit_FindDuplicates"]</button></li>
                 <li><hr class="dropdown-divider" /></li>
-                <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@(isSaving || isReadOnly)"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
+                <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@(isSaving)"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
             </SecondaryActions>
         </PageHeader>
     }
@@ -44,12 +44,6 @@ else
                 <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Add"]</button></li>
             </SecondaryActions>
         </PageHeader>
-    }
-
-    @if (isReadOnly)
-    {
-        @* Review 4 (B66/B69): a word that is not the learner's opens read-only, without its owner's memory aids. *@
-        <div class="alert alert-info mb-3" data-testid="vocabulary-word-readonly">@Localize["NativeVocabulary_SharedReadOnly"]</div>
     }
 
     @if (!string.IsNullOrEmpty(errorMessage))
@@ -472,8 +466,6 @@ else
         _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
     private readonly UiAudioPlayerSession _nativeAudio = new();
     private string errorMessage = "";
-    // The word is not the learner's (one ownership rule, VocabularyWordOwnership.OwnedByAsync).
-    private bool isReadOnly;
     private string ActiveUserId => Preferences.Get("active_profile_id", string.Empty);
     private bool showDeleteConfirm;
     private string deleteConfirmMessage = "";
@@ -554,7 +546,8 @@ else
         {
             if (!string.IsNullOrEmpty(Id) && Id != "0")
             {
-                // Owner-scoped: another learner's word opens read-only without its memory aids.
+                // Owner-scoped: only a word recorded to the learner opens (the one ownership rule);
+                // another learner's word, or one recorded to no one, is not found.
                 var loaded = await ResourceRepo.GetVocabularyWordForLearnerAsync(Id, ActiveUserId);
                 if (loaded == null)
                 {
@@ -562,8 +555,7 @@ else
                     GoBack();
                     return;
                 }
-                word = loaded.Word;
-                isReadOnly = !loaded.IsLearnersOwn;
+                word = loaded;
 
                 targetLanguageTerm = word.TargetLanguageTerm ?? "";
                 nativeLanguageTerm = word.NativeLanguageTerm ?? "";
@@ -577,7 +569,7 @@ else
 
                 // Load resources independently so one failure doesn't block others
                 var progressTask = SafeLoadAsync(() => ProgressService.GetProgressAsync(Id));
-                var associatedTask = SafeLoadAsync(() => ResourceRepo.GetResourcesForVocabularyWordAsync(Id));
+                var associatedTask = SafeLoadAsync(() => ResourceRepo.GetResourcesForVocabularyWordAsync(Id, ActiveUserId));
                 var resourcesTask = SafeLoadAsync(() => ResourceRepo.GetAllResourcesLightweightAsync());
                 var constituentsTask = SafeLoadAsync(() => LoadConstituentsAsync(Id));
 
@@ -798,10 +790,15 @@ else
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        var owner = ActiveUserId;
+        if (string.IsNullOrWhiteSpace(owner))
+            return new List<VocabularyWord>();
+        // Only constituents recorded to the learner (the one ownership rule).
         var constituents = await db.PhraseConstituents
             .Where(pc => pc.PhraseWordId == phraseWordId && pc.ConstituentWordId != null)
             .Include(pc => pc.ConstituentWord)
             .Select(pc => pc.ConstituentWord!)
+            .Where(constituent => constituent.UserProfileId == owner)
             .ToListAsync();
 
         return constituents;
@@ -842,7 +839,11 @@ else
             var query = constituentSearchQuery.ToLower();
             var currentLanguage = wordLanguage;
 
-            var suggestions = await db.VocabularyWords
+            var owner = ActiveUserId;
+            if (string.IsNullOrWhiteSpace(owner))
+                return;
+            // Only the learner's own words (the one ownership rule).
+            var suggestions = await db.VocabularyWords.OwnedBy(owner)
                 .Where(w => w.Id != word.Id) // Don't suggest the current word
                 .Where(w => string.IsNullOrEmpty(currentLanguage) || w.Language == currentLanguage) // Same language
                 .Where(w => (w.TargetLanguageTerm != null && w.TargetLanguageTerm.ToLower().Contains(query)) ||
@@ -883,8 +884,6 @@ else
 
     private async Task SaveWord()
     {
-        if (isReadOnly)
-            return;
         isSaving = true;
         errorMessage = "";
 
@@ -921,8 +920,8 @@ else
             var saveResult = await ResourceRepo.SaveLearnersVocabularyWordAsync(word, ActiveUserId);
             if (saveResult == VocabularyWordSaveResult.NotLearnersOwn)
             {
-                isReadOnly = true;
-                errorMessage = $"{Localize["NativeVocabulary_SharedReadOnly"]}";
+                // No longer the learner's (or no learner): it is not in their vocabulary.
+                errorMessage = $"{Localize["VocabWordEdit_NotFound"]}";
                 return;
             }
             if (saveResult != VocabularyWordSaveResult.Saved)

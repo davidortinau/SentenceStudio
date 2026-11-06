@@ -420,11 +420,24 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
         new[] { string.Empty, "   " }
     };
 
+    /// <summary>The learner who owns a seeded resource (null for none).</summary>
+    private static string? OwnerOf(string? resourceId) => resourceId switch
+    {
+        ResourceA => UserA,
+        ResourceB => UserB,
+        _ => null
+    };
+
+    /// <summary>
+    /// A word recorded to the owner of its first resource (every word has an owner, Captain
+    /// 2026-11-06), linked to every listed resource.
+    /// </summary>
     private void SeedOwnedWord(string wordId, params string[] resourceIds)
     {
         _db.VocabularyWords.Add(new VocabularyWord
         {
             Id = wordId,
+            UserProfileId = OwnerOf(resourceIds.FirstOrDefault()) ?? UserA,
             TargetLanguageTerm = wordId
         });
         foreach (var resourceId in resourceIds)
@@ -454,6 +467,8 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
             Id = id ?? Guid.NewGuid().ToString(),
             VocabularyWordId = wordId,
             LearningResourceId = resourceId,
+            // A sentence is its resource owner's; one with no resource is recorded to no one.
+            UserProfileId = OwnerOf(resourceId),
             TargetSentence = targetSentence,
             DifficultyLevel = difficulty,
             IsCore = core,

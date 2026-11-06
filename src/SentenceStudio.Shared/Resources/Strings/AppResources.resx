@@ -9463,9 +9463,6 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_WordLoadFailed" xml:space="preserve">
     <value>Could not load this word. Please retry.</value>
   </data>
-  <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
-    <value>This word is shared with another profile. You can view it here, but cannot edit the shared word.</value>
-  </data>
   <data name="NativeVocabulary_DuplicatesCombinedNote" xml:space="preserve">
     <value>Learning progress and resource associations are combined automatically. The keeper is chosen by encoding strength and memory aids.</value>
   </data>
@@ -9502,33 +9499,21 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
     <value>No memory aids on this copy.</value>
   </data>
-  <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
-    <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged here. You can open each copy, but only copies recorded to you can be edited.</value>
-    <comment>Duplicate manager: why a group holding another learner's copy cannot merge on the device</comment>
-  </data>
-  <data name="NativeVocabulary_DuplicatesCannotMerge" xml:space="preserve">
-    <value>Can't merge here</value>
-    <comment>Duplicate manager: badge and warning title for a group holding a copy not recorded to the learner (editing cannot unblock it)</comment>
-  </data>
   <data name="NativeVocabulary_DeleteUsedByOthers" xml:space="preserve">
-    <value>This word can't be deleted: another learner's minimal pairs or phrases, or ones not recorded to you, still use it. You can still edit it.</value>
-    <comment>Word editor: why Delete is unavailable when others' minimal pairs or phrases use the word (the server would keep it)</comment>
+    <value>This word can't be deleted: data that isn't yours (another learner's, or not recorded to anyone) still uses it, such as a resource link, practice, a sentence, a minimal pair or a phrase. You can still edit it.</value>
+    <comment>Word editor: why Delete is unavailable when data that is not the learner's still uses the word (the delete would remove or change it; the server keeps the word too)</comment>
   </data>
   <data name="NativeVocabulary_DeleteUsedByAnswers" xml:space="preserve">
     <value>This word can't be deleted: Minimal Pairs answers still use it. You can still edit it.</value>
     <comment>Word editor: why Delete is unavailable when a Minimal Pairs answer references the word (the database refuses the delete, B2)</comment>
   </data>
   <data name="VocabWordEdit_DeleteRefusedShared" xml:space="preserve">
-    <value>This word can't be deleted: it isn't recorded as yours, or another learner's data (or data not recorded to anyone) still uses it.</value>
-    <comment>Word editor (web/MAUI): Delete refused because the word is not the learner's or others still use it (B66)</comment>
-  </data>
-  <data name="Vocabulary_DuplicatesNotRecordedToYou" xml:space="preserve">
-    <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged.</value>
-    <comment>Duplicate manager (web/MAUI): why a group holding a copy not recorded to the learner cannot merge (B69)</comment>
+    <value>This word can't be deleted: another learner's data, or data not recorded to anyone, still uses it.</value>
+    <comment>Word editor (web/MAUI): Delete refused because data that is not the learner's still uses the word (B66; the word itself is always the learner's)</comment>
   </data>
   <data name="Vocabulary_BulkDeleteKept" xml:space="preserve">
-    <value>{0} word(s) stay in your vocabulary, with their resources: they aren't recorded as yours, or another learner still uses them.</value>
-    <comment>Vocabulary bulk delete (web/MAUI): words the owner-scoped delete refused (B66 review 4)</comment>
+    <value>{0} word(s) stay in your vocabulary, with their resources: another learner's data, or data not recorded to anyone, still uses them.</value>
+    <comment>Vocabulary bulk delete (web/MAUI): the learner's words the owner-scoped delete kept because others' data still uses them (B66 review 4)</comment>
   </data>
   <data name="Vocabulary_BulkDeleteKeptAnswers" xml:space="preserve">
     <value>{0} word(s) stay in your vocabulary, with their resources: Minimal Pairs answers still use them.</value>
@@ -9539,8 +9524,8 @@ For example: {0} ...</value>
     <comment>Vocabulary bulk delete (web/MAUI): selected words that are no longer in the learner's vocabulary</comment>
   </data>
   <data name="Vocabulary_FixSwappedKept" xml:space="preserve">
-    <value>{0} entries were left as they are: they aren't recorded as yours, or another learner still uses them.</value>
-    <comment>Fix swapped languages (web/MAUI): entries the owner-checked swap or merge left unchanged</comment>
+    <value>{0} entries were left as they are: they are no longer yours, or they could not be merged safely.</value>
+    <comment>Fix swapped languages (web/MAUI): entries the owner-checked swap or merge left unchanged (expected refusals, not errors)</comment>
   </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>Showing {0}.</value>
@@ -9548,9 +9533,6 @@ For example: {0} ...</value>
   </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version.</value>
-  </data>
-  <data name="NativeVocabulary_AssociationRequired" xml:space="preserve">
-    <value>Keep at least one owned resource selected so this word remains in your vocabulary.</value>
   </data>
   <data name="NativeVocabulary_ConstituentsLocked" xml:space="preserve">
     <value>This word has constituent links. Changing its type requires the constituent editor.</value>
@@ -10099,5 +10081,9 @@ For example: {0} ...</value>
   <data name="NativeSam_SlotUnreachable" xml:space="preserve">
     <value>{0} could not be reached. Check your connection and try again.</value>
     <comment>Sam's tab slot: the availability read failed while online. {0} is Sam's name.</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedFailed" xml:space="preserve">
+    <value>{0} entries could not be updated because of an error. Try again.</value>
+    <comment>Fix swapped languages (web/MAUI): term swaps that failed with a technical error (logged), kept apart from expected refusals</comment>
   </data>
 </root>

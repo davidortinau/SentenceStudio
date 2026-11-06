@@ -44,8 +44,9 @@ public sealed class UnplaceableRowsPostgresTests : IClassFixture<NativeOwnerSync
             Resource(keptResource, owner, skill: null, now),
             Word(keptWord),
             Mapping(keptMapping, keptResource, keptWord),
-            // Its skill has no owner, so the resource cannot be placed, and its link and word
-            // would have no visible parent: all three stay on the device.
+            // Its skill has no owner, so the resource cannot be placed and its link stays on the
+            // device. The word is the learner's own creation (words go by their recorded owner,
+            // Captain 2026-11-06), so it syncs whether or not a resource links it.
             Resource(strandedResource, owner, ownerlessSkill, now),
             Word(strandedWord),
             Mapping(strandedMapping, strandedResource, strandedWord),
@@ -61,10 +62,10 @@ public sealed class UnplaceableRowsPostgresTests : IClassFixture<NativeOwnerSync
         await using var verified = _fixture.NewContext();
         Assert.True(await verified.LearningResources.AnyAsync(row =>
             row.Id == keptResource && row.UserProfileId == owner));
-        Assert.True(await verified.VocabularyWords.AnyAsync(row => row.Id == keptWord));
+        Assert.True(await verified.VocabularyWords.AnyAsync(row => row.Id == keptWord && row.UserProfileId == owner));
         Assert.True(await verified.ResourceVocabularyMappings.AnyAsync(row => row.Id == keptMapping));
         Assert.False(await verified.LearningResources.AnyAsync(row => row.Id == strandedResource));
-        Assert.False(await verified.VocabularyWords.AnyAsync(row => row.Id == strandedWord));
+        Assert.True(await verified.VocabularyWords.AnyAsync(row => row.Id == strandedWord && row.UserProfileId == owner));
         Assert.False(await verified.ResourceVocabularyMappings.AnyAsync(row => row.Id == strandedMapping));
         Assert.False(await verified.VocabularyLists.AnyAsync(row => row.Id == legacyList));
         Assert.False(await verified.SceneImages.AnyAsync(row => row.Id == unownedImage));

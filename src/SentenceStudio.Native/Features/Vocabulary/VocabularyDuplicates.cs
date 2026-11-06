@@ -66,7 +66,7 @@ internal interface IVocabularyCleanupHost
     Task ReloadListAsync();
 
     /// <summary>
-    /// Reloads the open word's detail (read-only state and why Delete is blocked) and keeps the
+    /// Reloads the open word's detail (whether it is still the owner's and why Delete is blocked) and keeps the
     /// learner's draft. Used after a refused delete: the word changed since it was opened.
     /// </summary>
     Task RefreshOpenWordAsync();
@@ -263,8 +263,7 @@ internal sealed class VocabularyWordCleanup
             else if (_host.TryOpenOwner(out _))
             {
                 _deleteError = VocabularyWordCommands.DeleteError(result, detail, _text);
-                refused = result is NativeVocabularyDeleteStatus.SharedReadOnly
-                    or NativeVocabularyDeleteStatus.UsedByOthers
+                refused = result is NativeVocabularyDeleteStatus.UsedByOthers
                     or NativeVocabularyDeleteStatus.UsedByAnswers;
             }
         }
@@ -291,8 +290,8 @@ internal sealed class VocabularyWordCleanup
         }
         else if (refused)
         {
-            // The word changed since it was opened (review 4): show its current read-only state
-            // and Delete block, not the ones it loaded with.
+            // The word changed since it was opened (review 4): show whether it is still the
+            // owner's and its current Delete block, not the ones it loaded with.
             await _host.RefreshOpenWordAsync();
         }
     }
@@ -550,31 +549,19 @@ internal sealed class VocabularyDuplicateFinder
     }
 
     /// <summary>
-    /// Why a group cannot merge, one reason per line: a copy not recorded to the learner (the
-    /// device refuses it, see <see cref="NativeVocabularyDuplicateGroup.HasAnotherOwnersCopy"/>),
-    /// then the source's reason when it has one too, or the source's reason alone.
+    /// Why a group cannot merge: the source's reason (its copies' fields differ). Every copy is
+    /// the learner's own (only their words are shown), so editing the records unblocks it.
     /// </summary>
     internal static string BlockedReason(NativeVocabularyDuplicateGroup group,
         Func<string, string> text) =>
-        group.HasAnotherOwnersCopy
-            ? group.MergeBlockedReason is { Length: > 0 } alsoBlocked
-                ? $"{text("NativeVocabulary_DuplicatesAnotherOwner")}\n{alsoBlocked}"
-                : text("NativeVocabulary_DuplicatesAnotherOwner")
-            : group.MergeBlockedReason ?? text("NativeVocabulary_DuplicatesBlockedFallback");
+        group.MergeBlockedReason ?? text("NativeVocabulary_DuplicatesBlockedFallback");
 
-    /// <summary>
-    /// The blocked group's badge, warning title and help. Editing cannot unblock a group with a
-    /// copy that is not the learner's, so it says the group cannot merge here and gives no
-    /// "Edit record" advice; the reason says which copies can be edited.
-    /// </summary>
+    /// <summary>The blocked group's badge, warning title, reason and "Edit record" help.</summary>
     internal static VocabularyDuplicateBlock Blocked(NativeVocabularyDuplicateGroup group,
         Func<string, string> text) =>
-        group.HasAnotherOwnersCopy
-            ? new(text("NativeVocabulary_DuplicatesCannotMerge"),
-                text("NativeVocabulary_DuplicatesCannotMerge"), BlockedReason(group, text), null)
-            : new(text("NativeVocabulary_DuplicatesEditBeforeMerge"),
-                text("NativeVocabulary_DuplicatesMergeUnavailable"), BlockedReason(group, text),
-                text("NativeVocabulary_DuplicatesMergeUnavailableHelp"));
+        new(text("NativeVocabulary_DuplicatesEditBeforeMerge"),
+            text("NativeVocabulary_DuplicatesMergeUnavailable"), BlockedReason(group, text),
+            text("NativeVocabulary_DuplicatesMergeUnavailableHelp"));
 
     /// <summary>Source focus note (the resource carries the web's &lt;strong&gt; markup).</summary>
     internal static string FocusNote(string label, Func<string, string> text) =>
@@ -679,8 +666,8 @@ internal static class VocabularyWordCommands
         !busy && detail is { DeleteBlock: NativeVocabularyDeleteBlock.None };
 
     /// <summary>
-    /// Why Delete is unavailable for a word the learner can still edit; null when Delete is
-    /// offered, or when the word is read-only (its own notice says so).
+    /// Why Delete is unavailable for the learner's word (they can still edit it); null when
+    /// Delete is offered.
     /// </summary>
     internal static string? DeleteBlockedReason(NativeVocabularyDetail? detail,
         Func<string, string> text) => detail?.DeleteBlock switch
@@ -699,7 +686,6 @@ internal static class VocabularyWordCommands
     internal static string DeleteError(NativeVocabularyDeleteStatus status,
         NativeVocabularyDetail detail, Func<string, string> text) => status switch
     {
-        NativeVocabularyDeleteStatus.SharedReadOnly => text("NativeVocabulary_SharedReadOnly"),
         NativeVocabularyDeleteStatus.UsedByOthers => text("NativeVocabulary_DeleteUsedByOthers"),
         NativeVocabularyDeleteStatus.UsedByAnswers => text("NativeVocabulary_DeleteUsedByAnswers"),
         NativeVocabularyDeleteStatus.NotFoundOrForbidden => text("VocabWordEdit_NotFound"),

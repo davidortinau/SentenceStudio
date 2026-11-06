@@ -45,7 +45,7 @@ public sealed partial class NativeResourceStore
             return NativeResourceMutationResult.NotFoundOrForbidden;
         return Map(await WithResourcesAsync(repository =>
             repository.CreateAndAttachOwnedVocabularyAsync(resourceId,
-                ToWord(word), language, owner, cancellationToken)));
+                ToWord(word, owner), language, owner, cancellationToken)));
     }
 
     public async Task<NativeResourceImportResult> ImportVocabularyAsync(
@@ -59,7 +59,7 @@ public sealed partial class NativeResourceStore
             return new(0, 0, NativeResourceMutationResult.Invalid);
         var outcome = await WithResourcesAsync(repository =>
             repository.ImportOwnedVocabularyAsync(resourceId,
-                words.Select(ToWord).ToArray(), language, owner, cancellationToken));
+                words.Select(row => ToWord(row, owner)).ToArray(), language, owner, cancellationToken));
         return new(outcome.Added, outcome.Skipped, Map(outcome.Status))
         {
             CreatedCount = outcome.CreatedCount,
@@ -104,10 +104,12 @@ public sealed partial class NativeResourceStore
                 : NativeResourceMutationResult.Failed;
     }
 
-    private static VocabularyWord ToWord(NativeResourceVocabularyRow row) =>
+    // A new word is recorded to the owner who creates it; an existing one keeps its own.
+    private static VocabularyWord ToWord(NativeResourceVocabularyRow row, string owner) =>
         new()
         {
             Id = row.Id,
+            UserProfileId = owner,
             TargetLanguageTerm = row.TargetTerm,
             NativeLanguageTerm = row.NativeTerm,
             LexicalUnitType = row.LexicalUnitType,

@@ -208,7 +208,7 @@ public partial class Concern2TimezoneRegressionTests
             var now = DateTime.UtcNow;
             Db.VocabularyWords.Add(new VocabularyWord
             {
-                Id = $"word-{id}", TargetLanguageTerm = id, NativeLanguageTerm = id,
+                Id = $"word-{id}", UserProfileId = "utc-user", TargetLanguageTerm = id, NativeLanguageTerm = id,
                 CreatedAt = now, UpdatedAt = now,
             });
             return new VocabularyProgress

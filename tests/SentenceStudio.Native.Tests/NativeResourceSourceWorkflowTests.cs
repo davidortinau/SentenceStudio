@@ -1056,11 +1056,13 @@ public sealed class NativeResourceSourceWorkflowTests
             });
             db.VocabularyWords.AddRange(
                 new VocabularyWord {
-                    Id = "already-mapped", TargetLanguageTerm = "단어",
+                    Id = "already-mapped", UserProfileId = NativeSliceFixture.UserA,
+                    TargetLanguageTerm = "단어",
                     NativeLanguageTerm = "word", Language = "Korean"
                 },
                 new VocabularyWord {
-                    Id = "existing-linked", TargetLanguageTerm = "하늘",
+                    Id = "existing-linked", UserProfileId = NativeSliceFixture.UserA,
+                    TargetLanguageTerm = "하늘",
                     NativeLanguageTerm = "sky", Language = "Korean"
                 });
             db.ResourceVocabularyMappings.AddRange(

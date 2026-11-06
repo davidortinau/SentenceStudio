@@ -192,6 +192,7 @@ else
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private LearningResource resource = new()
     {
@@ -244,7 +245,19 @@ else
                 AppendVocabularyFromText();
             }
 
-            await ResourceRepo.SaveResourceAsync(resource);
+            // The resource and its new words are created together, every word recorded to the
+            // learner who creates it (the one ownership rule). Before, the unsaved words made the
+            // owner-checked save refuse the whole resource while the page reported success.
+            var words = resource.Vocabulary?.ToList() ?? new List<VocabularyWord>();
+            resource.Vocabulary = new List<VocabularyWord>();
+            var created = await ResourceRepo.CreateOwnedResourceWithVocabularyAsync(
+                resource, words, Preferences.Get("active_profile_id", string.Empty));
+            if (created.Status != ResourceCreationStatus.Success)
+            {
+                resource.Vocabulary = words;
+                Toast.ShowError($"{string.Format(Localize["ResourceAdd_SaveFailed"], created.Status)}");
+                return;
+            }
             Toast.ShowSuccess($"{Localize["ResourceAdd_SavedSuccess"]}");
             NavManager.NavigateTo("/resources");
         }

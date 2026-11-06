@@ -519,10 +519,12 @@ public partial class Concern2TimezoneRegressionTests
 
             var now = DateTime.UtcNow;
 
-            // Seed the shared VocabularyWord
+            // Seed the word, recorded to UserB (every word has an owner); UserA's progress row
+            // on it still exists and must not leak into UserB's read.
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = sharedWordId,
+                UserProfileId = userBId,
                 TargetLanguageTerm = "shared-word",
                 NativeLanguageTerm = "shared",
                 CreatedAt = now,

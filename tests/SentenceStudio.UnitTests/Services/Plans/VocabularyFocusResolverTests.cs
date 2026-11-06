@@ -56,7 +56,7 @@ public sealed class VocabularyFocusResolverTests : IDisposable
     private ApplicationDbContext NewDb() =>
         _provider.CreateScope().ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    /// <summary>Seeds a word plus a progress row that makes it owned by <paramref name="userId"/>.</summary>
+    /// <summary>Seeds a word recorded to <paramref name="userId"/> plus their progress row on it.</summary>
     private string SeedOwnedWord(
         string userId,
         VocabularyPartOfSpeech? partOfSpeech,
@@ -73,6 +73,7 @@ public sealed class VocabularyFocusResolverTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = id,
+            UserProfileId = userId,
             TargetLanguageTerm = $"target_{id[..8]}",
             NativeLanguageTerm = $"native_{id[..8]}",
             Language = "Korean",
@@ -101,7 +102,7 @@ public sealed class VocabularyFocusResolverTests : IDisposable
         return id;
     }
 
-    /// <summary>Seeds a word owned only through a resource mapping (no progress row).</summary>
+    /// <summary>Seeds a word recorded to <paramref name="userId"/>, linked from their resource (no progress row).</summary>
     private string SeedResourceOwnedWord(string userId, VocabularyPartOfSpeech? partOfSpeech)
     {
         var wordId = Guid.NewGuid().ToString();
@@ -111,6 +112,7 @@ public sealed class VocabularyFocusResolverTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = wordId,
+            UserProfileId = userId,
             TargetLanguageTerm = $"target_{wordId[..8]}",
             NativeLanguageTerm = $"native_{wordId[..8]}",
             Language = "Korean",
@@ -153,6 +155,39 @@ public sealed class VocabularyFocusResolverTests : IDisposable
         PartOfSpeech = VocabularyPartOfSpeech.Verb,
         RequestedCount = count
     };
+
+    // The one ownership rule (Captain 2026-11-06): the learner's words are those recorded to
+    // them. A verb A practises or links that is recorded to another learner, or to no one, is
+    // never a candidate; A's own verb is, even with no progress and no resource link.
+    [Fact]
+    public async Task Candidates_AreOnlyWordsRecordedToTheLearner()
+    {
+        SeedVerbs(UserA, 5);
+        var theirs = SeedOwnedWord(UserA, VocabularyPartOfSpeech.Verb);
+        var legacy = SeedResourceOwnedWord(UserA, VocabularyPartOfSpeech.Verb);
+        string unlinked;
+        using (var db = NewDb())
+        {
+            await db.VocabularyWords.Where(w => w.Id == theirs)
+                .ExecuteUpdateAsync(set => set.SetProperty(w => w.UserProfileId, UserB));
+            await db.VocabularyWords.Where(w => w.Id == legacy)
+                .ExecuteUpdateAsync(set => set.SetProperty(w => w.UserProfileId, (string?)null));
+            unlinked = Guid.NewGuid().ToString();
+            db.VocabularyWords.Add(new VocabularyWord
+            {
+                Id = unlinked, UserProfileId = UserA, TargetLanguageTerm = "가다", NativeLanguageTerm = "go",
+                Language = "Korean", PartOfSpeech = VocabularyPartOfSpeech.Verb,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+            db.SaveChanges();
+        }
+
+        var result = await NewResolver().ResolveAsync(ActiveVerbs(count: 6));
+
+        result.OwnedCandidateCount.Should().Be(6);
+        result.SelectedVocabularyWordIds.Should().Contain(unlinked)
+            .And.NotContain(theirs).And.NotContain(legacy);
+    }
 
     // ------------------------------------------------------------ happy path
 

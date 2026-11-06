@@ -89,6 +89,7 @@ public class BrotOrphanProgressRegressionTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = wordId,
+            UserProfileId = userId,
             TargetLanguageTerm = $"term-{wordId}",
             NativeLanguageTerm = $"meaning-{wordId}",
             Language = language
@@ -116,9 +117,11 @@ public class BrotOrphanProgressRegressionTests : IDisposable
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        // Captain's own word, left behind when its resource was deleted.
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = wordId,
+            UserProfileId = Captain,
             TargetLanguageTerm = $"term-{wordId}",
             NativeLanguageTerm = $"meaning-{wordId}",
             Language = language
@@ -146,6 +149,47 @@ public class BrotOrphanProgressRegressionTests : IDisposable
             UpdatedAt = DateTime.UtcNow.AddDays(-100)
         });
         db.SaveChanges();
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // The one ownership rule (Captain 2026-11-06): progress follows its word
+    // ──────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ProgressReads_ExcludeWordsNotRecordedToTheLearner_EvenInTheirResource()
+    {
+        // Three words in Captain's own resource, each with Captain's due progress: one recorded
+        // to Captain, one to another learner, one to no one (legacy). Only Captain's own counts.
+        SeedReachableWord(Captain, "own-word", "captain-resource", language: "Korean");
+        foreach (var (wordId, owner) in new[] { ("their-word", (string?)OtherUser), ("legacy-word", null) })
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyWords.Add(new VocabularyWord
+            {
+                Id = wordId, UserProfileId = Captain, TargetLanguageTerm = $"term-{wordId}",
+                NativeLanguageTerm = $"meaning-{wordId}", Language = "Korean"
+            });
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(), ResourceId = "captain-resource", VocabularyWordId = wordId
+            });
+            db.SaveChanges();
+            db.VocabularyWords.Where(w => w.Id == wordId)
+                .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, owner));
+        }
+        foreach (var wordId in new[] { "own-word", "their-word", "legacy-word" })
+            SeedProgress(Captain, wordId);
+
+        (await _progressRepo.GetDueVocabularyAsync(DateTime.UtcNow, Captain))
+            .Select(p => p.VocabularyWordId).Should().Equal("own-word");
+        (await _progressRepo.GetDueVocabCountAsync(DateTime.UtcNow, Captain)).Should().Be(1);
+        (await _progressRepo.ListAsync()).Select(p => p.VocabularyWordId).Should().Equal("own-word");
+        (await _progressRepo.GetAllForUserAsync(Captain)).Select(p => p.VocabularyWordId).Should().Equal("own-word");
+        var (newCount, _, _, review, _) = await _progressRepo.GetVocabSummaryCountsAsync(Captain);
+        review.Should().Be(1);
+        newCount.Should().Be(0, "hidden words are neither counted as words nor as progress");
+        (await _progressRepo.GetUnseenMappedVocabularyAsync(Captain)).Should().BeEmpty();
     }
 
     // ──────────────────────────────────────────────────────────────────

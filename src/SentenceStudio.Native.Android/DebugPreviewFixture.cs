@@ -119,6 +119,8 @@ internal static class DebugPreviewFixture
                 database.VocabularyWords.Add(new VocabularyWord
                 {
                     Id = wordId,
+                    // The fixture learner creates these words (a word is recorded to its creator).
+                    UserProfileId = OwnerId,
                     TargetLanguageTerm = Words[index].Target,
                     NativeLanguageTerm = Words[index].Native,
                     Language = "Korean",

@@ -15,6 +15,10 @@ public sealed class NativeOwnerSyncProviderTests
     private const string Owner = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     private const string Foreign = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
+    // Words go to a device by their recorded owner (Captain 2026-11-06), and their dependents
+    // follow them: the owner's word outside every resource and its progress arrive; another
+    // learner's word, or one recorded to no one, never does, even when the owner's resource
+    // links it, and neither does that link or the owner's progress on it.
     [Fact]
     public async Task NativeDownload_KeepsOnlyOwnedAndReachableRows()
     {
@@ -31,21 +35,31 @@ public sealed class NativeOwnerSyncProviderTests
             new LearningResource { Id = "owned-resource", UserProfileId = Owner },
             new LearningResource { Id = "foreign-resource", UserProfileId = Foreign });
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "owned-word", TargetLanguageTerm = "owned" },
-            new VocabularyWord { Id = "foreign-word", TargetLanguageTerm = "foreign" });
+            new VocabularyWord { Id = "owned-word", TargetLanguageTerm = "owned", UserProfileId = Owner },
+            new VocabularyWord { Id = "owned-unlinked-word", TargetLanguageTerm = "mine", UserProfileId = Owner },
+            new VocabularyWord { Id = "foreign-word", TargetLanguageTerm = "foreign", UserProfileId = Foreign },
+            new VocabularyWord { Id = "ownerless-word", TargetLanguageTerm = "legacy", UserProfileId = Owner });
         db.ResourceVocabularyMappings.AddRange(
             new ResourceVocabularyMapping {
                 Id = "owned-map", ResourceId = "owned-resource", VocabularyWordId = "owned-word" },
             new ResourceVocabularyMapping {
-                Id = "foreign-map", ResourceId = "foreign-resource", VocabularyWordId = "foreign-word" });
+                Id = "foreign-map", ResourceId = "foreign-resource", VocabularyWordId = "foreign-word" },
+            new ResourceVocabularyMapping {
+                Id = "foreign-word-in-owned-map", ResourceId = "owned-resource", VocabularyWordId = "foreign-word" },
+            new ResourceVocabularyMapping {
+                Id = "ownerless-in-owned-map", ResourceId = "owned-resource", VocabularyWordId = "ownerless-word" });
         db.VocabularyProgresses.AddRange(
             new VocabularyProgress {
                 Id = "owned-progress", VocabularyWordId = "owned-word", UserId = Owner },
+            new VocabularyProgress {
+                Id = "unlinked-progress", VocabularyWordId = "owned-unlinked-word", UserId = Owner },
             new VocabularyProgress {
                 Id = "foreign-progress", VocabularyWordId = "foreign-word", UserId = Foreign },
             new VocabularyProgress {
                 Id = "unmapped-progress", VocabularyWordId = "foreign-word", UserId = Owner });
         await db.SaveChangesAsync();
+        await db.VocabularyWords.Where(word => word.Id == "ownerless-word")
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
 
         var changes = new SyncChangeSet(
             new SyncAnchor(Guid.NewGuid(), 12), SyncAnchor.Null,
@@ -53,13 +67,24 @@ public sealed class NativeOwnerSyncProviderTests
                 Item("UserProfile", Owner), Item("UserProfile", Foreign),
                 Item("LearningResource", "owned-resource", ("UserProfileId", Owner)),
                 Item("LearningResource", "foreign-resource", ("UserProfileId", Foreign)),
-                Item("VocabularyWord", "owned-word"), Item("VocabularyWord", "foreign-word"),
-                Item("ResourceVocabularyMapping", "owned-map", ("ResourceId", "owned-resource")),
-                Item("ResourceVocabularyMapping", "foreign-map", ("ResourceId", "foreign-resource")),
+                Item("VocabularyWord", "owned-word", ("UserProfileId", Owner)),
+                Item("VocabularyWord", "owned-unlinked-word", ("UserProfileId", Owner)),
+                Item("VocabularyWord", "foreign-word", ("UserProfileId", Foreign)),
+                Item("VocabularyWord", "ownerless-word"),
+                Item("ResourceVocabularyMapping", "owned-map",
+                    ("ResourceId", "owned-resource"), ("VocabularyWordId", "owned-word")),
+                Item("ResourceVocabularyMapping", "foreign-map",
+                    ("ResourceId", "foreign-resource"), ("VocabularyWordId", "foreign-word")),
+                Item("ResourceVocabularyMapping", "foreign-word-in-owned-map",
+                    ("ResourceId", "owned-resource"), ("VocabularyWordId", "foreign-word")),
+                Item("ResourceVocabularyMapping", "ownerless-in-owned-map",
+                    ("ResourceId", "owned-resource"), ("VocabularyWordId", "ownerless-word")),
                 Item("VocabularyProgress", "owned-progress", ("UserId", Owner)),
+                Item("VocabularyProgress", "unlinked-progress", ("UserId", Owner)),
                 Item("VocabularyProgress", "foreign-progress", ("UserId", Foreign)),
                 Item("VocabularyProgress", "unmapped-progress", ("UserId", Owner)),
                 Item("VocabularyLearningContext", "owned-context", ("VocabularyProgressId", "owned-progress")),
+                Item("VocabularyLearningContext", "unlinked-context", ("VocabularyProgressId", "unlinked-progress")),
                 Item("VocabularyLearningContext", "foreign-context", ("VocabularyProgressId", "foreign-progress")),
                 Item("VocabularyLearningContext", "unmapped-context", ("VocabularyProgressId", "unmapped-progress")),
                 Item("DailyPlan", "owned-plan", ("UserProfileId", Owner)),
@@ -71,8 +96,8 @@ public sealed class NativeOwnerSyncProviderTests
 
         Assert.Same(changes.SourceAnchor, filtered.SourceAnchor);
         Assert.Equal(
-            [Owner, "owned-resource", "owned-word", "owned-map", "owned-progress",
-                "owned-context", "owned-plan"],
+            [Owner, "owned-resource", "owned-word", "owned-unlinked-word", "owned-map",
+                "owned-progress", "unlinked-progress", "owned-context", "unlinked-context", "owned-plan"],
             filtered.Items.Select(item => item.Values["Id"].Value?.ToString()));
     }
 
@@ -85,8 +110,10 @@ public sealed class NativeOwnerSyncProviderTests
         // A's recorded word that B later linked to, and a legacy ownerless word.
         db.VocabularyWords.AddRange(
             new VocabularyWord { Id = "recorded-word", TargetLanguageTerm = "기록", UserProfileId = Owner },
-            new VocabularyWord { Id = "legacy-word", TargetLanguageTerm = "옛" });
+            new VocabularyWord { Id = "legacy-word", TargetLanguageTerm = "옛", UserProfileId = Owner });
         await db.SaveChangesAsync();
+        await db.VocabularyWords.Where(word => word.Id == "legacy-word")
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
         await db.Database.ExecuteSqlRawAsync(
             """
             INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId)
@@ -104,21 +131,33 @@ public sealed class NativeOwnerSyncProviderTests
     }
 
     [Fact]
-    public void Upload_DropsClientSentWordOwnersSoOnlyTheServerDecides()
+    public void Upload_ReplacesClientSentWordOwnersWithTheAuthenticatedCreator()
     {
         var claimed = Item("VocabularyWord", "claimed-word",
             ("UserProfileId", Foreign), ("TargetLanguageTerm", "kept"));
         var blank = new SyncItem("VocabularyWord", ChangeType.Update,
             new Dictionary<string, object?> { ["Id"] = "blank-word", ["userprofileid"] = null });
         var resource = Item("LearningResource", "owned-resource", ("UserProfileId", Owner));
+        var items = new[] { claimed, blank, resource };
 
-        NativeOwnerSyncProvider.IgnoreClientWordOwners([claimed, blank, resource]);
+        // The device copies are read first: one names another learner, one names no one.
+        Assert.Equal(new[] { "claimed-word" }, NativeOwnerSyncProvider.WordsNamingAnotherOwner(items, Owner));
+        Assert.Equal(new[] { "blank-word" }, NativeOwnerSyncProvider.WordsWithoutOwner(items));
 
-        Assert.False(claimed.Values.ContainsKey("UserProfileId"));
+        NativeOwnerSyncProvider.RecordUploadedWordOwners(items, Owner);
+
+        // Every written word carries the server's choice (the uploader); no client spelling of the
+        // column survives, and other tables are untouched.
+        Assert.Equal(Owner, claimed.Values["UserProfileId"].Value);
         Assert.Equal("kept", claimed.Values["TargetLanguageTerm"].Value);
-        Assert.DoesNotContain(blank.Values.Keys,
-            key => key.Equals("UserProfileId", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(Owner, blank.Values["UserProfileId"].Value);
+        Assert.DoesNotContain(blank.Values.Keys, key => key == "userprofileid");
         Assert.Equal(Owner, resource.Values["UserProfileId"].Value);
+
+        // A headerless legacy upload never sets an owner (the stored one stays).
+        var legacy = Item("VocabularyWord", "legacy-upload", ("UserProfileId", Foreign));
+        NativeOwnerSyncProvider.RecordUploadedWordOwners([legacy], owner: null);
+        Assert.False(legacy.Values.ContainsKey("UserProfileId"));
     }
 
     private static async Task<ApplicationDbContext> SeedTwoOwnersAsync(SqliteConnection connection)

@@ -219,6 +219,9 @@ public sealed class LearningResourceRepositoryVocabularyLookupTests : IDisposabl
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            // Every word has an owner: UserA until its first Map records it to that resource's
+            // learner, who in these tests created it.
+            UserProfileId = UserA,
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = nativeTerm,
             Language = language,
@@ -228,13 +231,23 @@ public sealed class LearningResourceRepositoryVocabularyLookupTests : IDisposabl
 
         db.VocabularyWords.Add(word);
         db.SaveChanges();
+        _wordsAwaitingTheirLearner.Add(word.Id);
         return word;
     }
+
+    private readonly HashSet<string> _wordsAwaitingTheirLearner = new(StringComparer.Ordinal);
 
     private void Map(string resourceId, string wordId)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (_wordsAwaitingTheirLearner.Remove(wordId))
+        {
+            var owner = db.LearningResources.AsNoTracking()
+                .Where(r => r.Id == resourceId).Select(r => r.UserProfileId).Single();
+            db.VocabularyWords.Where(w => w.Id == wordId)
+                .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, owner));
+        }
         db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
         {
             Id = Guid.NewGuid().ToString(),

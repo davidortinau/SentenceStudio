@@ -31,9 +31,9 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
 
         _db.LearningResources.Add(new LearningResource { Id = "r1", Title = "Resource 1", UserProfileId = "user-1" });
         _db.LearningResources.Add(new LearningResource { Id = "r2", Title = "Resource 2", UserProfileId = "user-1" });
-        _db.VocabularyWords.Add(new VocabularyWord { Id = "w1", TargetLanguageTerm = "단어1", Lemma = "단어1" });
-        _db.VocabularyWords.Add(new VocabularyWord { Id = "w2", TargetLanguageTerm = "단어2", Lemma = "단어2" });
-        _db.VocabularyWords.Add(new VocabularyWord { Id = "w3", TargetLanguageTerm = "먹어요", Lemma = "먹다" });
+        _db.VocabularyWords.Add(new VocabularyWord { UserProfileId = "user-1", Id = "w1", TargetLanguageTerm = "단어1", Lemma = "단어1" });
+        _db.VocabularyWords.Add(new VocabularyWord { UserProfileId = "user-1", Id = "w2", TargetLanguageTerm = "단어2", Lemma = "단어2" });
+        _db.VocabularyWords.Add(new VocabularyWord { UserProfileId = "user-1", Id = "w3", TargetLanguageTerm = "먹어요", Lemma = "먹다" });
         _db.SaveChanges();
 
         var services = new ServiceCollection();
@@ -83,11 +83,36 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
 
         _learner.Id = null;
         (await _repo.GetByVocabularyWordIdAsync("w1")).Should().BeEmpty();
+        // With no learner a sentence takes its resource's or word's owner (a background import);
+        // on a legacy word recorded to no one, no owner is proven, so nothing is written.
+        await _db.VocabularyWords.Where(w => w.Id == "w2")
+            .ExecuteUpdateAsync(set => set.SetProperty(w => w.UserProfileId, (string?)null));
         var refused = () => _repo.CreateAsync(New("w2", "nobody"));
         await refused.Should().ThrowAsync<InvalidOperationException>();
 
         _learner.Id = "user-1";
         (await _repo.GetByVocabularyWordIdAsync("w1")).Select(s => s.Id).Should().Equal(mine.Id);
+    }
+
+    // The one ownership rule (Captain 2026-11-06) on a device store too: a sentence recorded to no
+    // one is not shown, not even on SQLite (before, a device showed ownerless sentences to its
+    // learner). The row stays; SyncService gives a device's own legacy sentences their word's owner.
+    [Fact]
+    public async Task OwnerlessSentence_IsHiddenOnSqlite_AndKeptOnDisk()
+    {
+        var mine = await _repo.CreateAsync(New("w1", "mine"));
+        _db.ExampleSentences.Add(new ExampleSentence
+        {
+            Id = "legacy-ownerless", VocabularyWordId = "w1", TargetSentence = "legacy",
+            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+        _db.ChangeTracker.Clear();
+
+        (await _repo.GetByVocabularyWordIdAsync("w1")).Select(s => s.Id).Should().Equal(mine.Id);
+        (await _repo.GetCountsByVocabularyWordIdsAsync(["w1"]))["w1"].Should().Be(1);
+        (await _db.ExampleSentences.AsNoTracking().AnyAsync(s => s.Id == "legacy-ownerless"))
+            .Should().BeTrue("hidden rows are never deleted");
     }
 
     private ExampleSentence New(string word, string target, bool core = false,

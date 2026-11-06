@@ -16,12 +16,12 @@ public sealed partial class NativeResourceStore
 {
     /// <summary>
     /// Source ConfirmDelete (<see cref="LearningResourceRepository.DeleteVocabularyWordAsync"/>):
-    /// removes the word, its resource links and, by cascade, its progress, history, example
-    /// sentences and pairs. A word the owner may not edit is refused here; the shared delete
-    /// then applies the server's rules in one transaction and says why it refused, so they are
-    /// not run twice (review 4). A refusal is mapped to what the editor can explain:
-    /// SharedReadOnly when the word is no longer editable, UsedByOthers when only others'
-    /// minimal pairs or phrases block it, UsedByAnswers for a Minimal Pairs answer.
+    /// removes the owner's word, its resource links and, by cascade, its progress, history,
+    /// example sentences and pairs. A word not recorded to the owner is never touched; the
+    /// shared delete then applies the server's rules in one transaction and says why it refused,
+    /// so they are not run twice (review 4). A refusal is mapped to what the editor can explain:
+    /// UsedByOthers when data that is not the owner's still uses the word, UsedByAnswers for a
+    /// Minimal Pairs answer.
     /// </summary>
     public async Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken)
@@ -34,8 +34,6 @@ public sealed partial class NativeResourceStore
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         if (!await OwnedVocabularyIds(db, owner).AnyAsync(id => id == wordId, cancellationToken))
             return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
-        if (!await IsEditableByOwnerAsync(db, owner, wordId, cancellationToken))
-            return NativeVocabularyDeleteStatus.SharedReadOnly;
 
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
@@ -52,11 +50,7 @@ public sealed partial class NativeResourceStore
             case VocabularyWordDeleteResult.RefusedAnswers:
                 return NativeVocabularyDeleteStatus.UsedByAnswers;
             case VocabularyWordDeleteResult.RefusedShared:
-                // Something changed since the editor loaded (a sync brought another learner's
-                // row): the word may no longer be editable at all.
-                return await IsEditableByOwnerAsync(db, owner, wordId, CancellationToken.None)
-                    ? NativeVocabularyDeleteStatus.UsedByOthers
-                    : NativeVocabularyDeleteStatus.SharedReadOnly;
+                return NativeVocabularyDeleteStatus.UsedByOthers;
             case VocabularyWordDeleteResult.NotFound:
                 return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
             default:
@@ -67,11 +61,8 @@ public sealed partial class NativeResourceStore
 
     /// <summary>
     /// Source FindDuplicateVocabularyGroupsAsync for the active owner, shown as the repository
-    /// returns it: a copy that is not the owner's
-    /// (<see cref="VocabularyDuplicateWordInfo.IsLearnersOwn"/>) already has no memory aids or
-    /// audio and its strength counts only what is left, and its group cannot merge
-    /// (<see cref="VocabularyDuplicateGroup.HasCopyNotOwnedByLearner"/>), the same on every
-    /// client. The order, the recommended keeper and the title come from what is shown.
+    /// returns it: only the owner's own words, the same on every client. The order, the
+    /// recommended keeper and the title come from what is shown.
     /// </summary>
     public async Task<NativeVocabularyDuplicateScan> FindOwnedVocabularyDuplicatesAsync(
         string owner, string? focusTerm, int skip, int take,
@@ -96,8 +87,7 @@ public sealed partial class NativeResourceStore
                     string.IsNullOrEmpty(title) ? group.DisplayTerm : title,
                     shown.Select(info => DuplicateWord(info)).ToArray(),
                     group.CanMergeAutomatically, group.MergeBlockedReason,
-                    group.RecommendedKeeperId,
-                    HasAnotherOwnersCopy: group.HasCopyNotOwnedByLearner);
+                    group.RecommendedKeeperId);
             })
             .ToArray();
         return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount);
@@ -106,8 +96,8 @@ public sealed partial class NativeResourceStore
     /// <summary>
     /// Source MergeDuplicateGroup (<see cref="LearningResourceRepository.MergeVocabularyWordsWithResultAsync"/>),
     /// which keeps every copy's history, refuses words shared outside the owner and changes
-    /// nothing unless every word is the owner's by the one ownership rule. The device only
-    /// checks that every word is in the owner's vocabulary.
+    /// nothing unless every word is the owner's by the one ownership rule. The device first
+    /// checks that every word is recorded to the owner.
     /// </summary>
     public async Task<NativeVocabularyMergeResult> MergeOwnedVocabularyDuplicatesAsync(
         string owner, string keeperWordId, IReadOnlyList<string> duplicateWordIds,

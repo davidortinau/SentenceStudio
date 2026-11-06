@@ -49,12 +49,6 @@ internal static class VocabularyWordEditView
 
         var detail = state.Detail;
         var draft = state.Draft;
-        var readOnly = detail.IsSharedWithAnotherOwner;
-        if (readOnly)
-            fields.Add(style.InfoAlert(style.Text(
-                    Views.Text(text("NativeVocabulary_SharedReadOnly")),
-                    SourceTextRole.Body2))
-                .WithAccessibilityIdentifier("native.vocabulary.edit.readonly"));
         if (state.Saving)
             fields.Add(Views.IndeterminateProgress(text("Common_Save"))
                 .WithAccessibilityIdentifier("native.vocabulary.edit.saving"));
@@ -66,12 +60,12 @@ internal static class VocabularyWordEditView
         findDuplicates.IsEnabled = state.CanFindDuplicates;
         fields.Add(CardWithHeaderAction(style, "VocabWordEdit_VocabularyTerms", text,
             findDuplicates,
-            TargetField(state, style, text, actions, readOnly),
+            TargetField(state, style, text, actions),
             TextField("VocabWordEdit_NativeLanguageTerm",
                 "VocabWordEdit_NativePlaceholder", "native.vocabulary.edit.native",
                 draft.NativeTerm, nameof(draft.NativeTerm), state, style, text,
-                actions, readOnly)));
-        fields.Add(EncodingCard(detail, state, style, text, actions, readOnly));
+                actions)));
+        fields.Add(EncodingCard(detail, state, style, text, actions));
         if (detail.Examples.Count > 0)
         {
             var examples = detail.Examples.Select(example =>
@@ -114,7 +108,7 @@ internal static class VocabularyWordEditView
         }
         fields.Add(ProgressCard(detail, style, text));
         fields.Add(HistoryCard(detail, style, text));
-        fields.Add(ResourceCard(detail, state, style, text, actions, readOnly));
+        fields.Add(ResourceCard(detail, state, style, text, actions));
         var cancel = style.OutlineButton(Views.Text(text("Common_Cancel")),
                 actions.Cancel)
             .WithAccessibilityIdentifier("native.vocabulary.edit.cancel");
@@ -203,7 +197,7 @@ internal static class VocabularyWordEditView
 
     private static SwiftView TargetField(
         VocabularyBrowserEdit state, SourceUiStyle style,
-        Func<string, string> text, VocabularyEditActions actions, bool readOnly)
+        Func<string, string> text, VocabularyEditActions actions)
     {
         var draft = state.Draft!;
         var field = style.TextInput(Views.TextField(
@@ -212,7 +206,7 @@ internal static class VocabularyWordEditView
                 value => actions.Change(nameof(draft.TargetTerm), value)))
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.vocabulary.edit.target");
-        field.IsEnabled = !readOnly && !state.Saving;
+        field.IsEnabled = !state.Saving;
         var play = Views.Button(Views.Image(
                     state.PlayingAudio ? "speaker.wave.3.fill" : "speaker.wave.2"),
                 actions.PlayAudio)
@@ -232,15 +226,12 @@ internal static class VocabularyWordEditView
     private static SwiftView TextField(
         string titleKey, string placeholderKey, string id, string value,
         string property, VocabularyBrowserEdit state, SourceUiStyle style,
-        Func<string, string> text, VocabularyEditActions actions, bool readOnly)
+        Func<string, string> text, VocabularyEditActions actions)
     {
-        var field = readOnly
-            ? style.Text(Views.Text(value), SourceTextRole.Body1)
-            : style.TextInput(Views.TextField(
-                text(placeholderKey), value,
-                changed => actions.Change(property, changed)));
-        if (!readOnly)
-            field.IsEnabled = !state.Saving;
+        var field = style.TextInput(Views.TextField(
+            text(placeholderKey), value,
+            changed => actions.Change(property, changed)));
+        field.IsEnabled = !state.Saving;
         return Views.VStack(
                 style.Text(Views.Text(text(titleKey)),
                     SourceTextRole.Body2, SourceTextTone.Secondary),
@@ -251,7 +242,7 @@ internal static class VocabularyWordEditView
     private static SwiftView EncodingCard(
         NativeVocabularyDetail detail, VocabularyBrowserEdit state,
         SourceUiStyle style, Func<string, string> text,
-        VocabularyEditActions actions, bool readOnly)
+        VocabularyEditActions actions)
     {
         var draft = state.Draft!;
         var fields = new List<SwiftView> {
@@ -266,7 +257,7 @@ internal static class VocabularyWordEditView
             TextField("VocabWordEdit_Lemma",
                 "VocabWordEdit_LemmaPlaceholder", "native.vocabulary.edit.lemma",
                 draft.Lemma ?? string.Empty, nameof(draft.Lemma),
-                state, style, text, actions, readOnly)
+                state, style, text, actions)
         };
         var languages = new[] { string.Empty }.Concat(Constants.Languages)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -285,7 +276,7 @@ internal static class VocabularyWordEditView
             .WithPickerStyle(SwiftPickerStyle.Menu)
             .WithFlexibleWidth())
             .WithAccessibilityIdentifier("native.vocabulary.edit.language");
-        language.IsEnabled = !readOnly && !state.Saving;
+        language.IsEnabled = !state.Saving;
         fields.Add(Views.VStack(
             style.Text(Views.Text(text("VocabWordEdit_Language")),
                 SourceTextRole.Body2, SourceTextTone.Secondary),
@@ -312,7 +303,7 @@ internal static class VocabularyWordEditView
             .WithPickerStyle(SwiftPickerStyle.Menu)
             .WithFlexibleWidth())
             .WithAccessibilityIdentifier("native.vocabulary.edit.type");
-        type.IsEnabled = !readOnly && !state.Saving && !detail.HasConstituentLinks;
+        type.IsEnabled = !state.Saving && !detail.HasConstituentLinks;
         fields.Add(Views.VStack(
             style.Text(Views.Text(text("NativeResources_TypeFilter")),
                 SourceTextRole.Body2, SourceTextTone.Secondary),
@@ -320,13 +311,13 @@ internal static class VocabularyWordEditView
         fields.Add(TextField("VocabWordEdit_Tags",
             "VocabWordEdit_TagsPlaceholder", "native.vocabulary.edit.tags",
             draft.Tags ?? string.Empty, nameof(draft.Tags), state, style,
-            text, actions, readOnly));
+            text, actions));
         var mnemonic = Views.TextEditor(draft.MnemonicText ?? string.Empty,
-                readOnly || state.Saving ? null
+                state.Saving ? null
                     : value => actions.Change(nameof(draft.MnemonicText), value))
             .WithTextEditorScrollBackgroundHidden()
             .WithMinimumHeight(110);
-        mnemonic.IsEnabled = !readOnly && !state.Saving;
+        mnemonic.IsEnabled = !state.Saving;
         fields.Add(Views.VStack(
             style.Text(Views.Text(text("VocabWordEdit_MnemonicStory")),
                 SourceTextRole.Body2, SourceTextTone.Secondary),
@@ -335,7 +326,7 @@ internal static class VocabularyWordEditView
         fields.Add(TextField("VocabWordEdit_MnemonicImageUrl",
             "VocabWordEdit_MnemonicImageUrl",
             "native.vocabulary.edit.image.url", draft.MnemonicImageUri ?? string.Empty,
-            nameof(draft.MnemonicImageUri), state, style, text, actions, readOnly));
+            nameof(draft.MnemonicImageUri), state, style, text, actions));
         if (state.Photo is { } photo)
             fields.Add(Views.ImageFromBytes(
                     photo.Bytes, text("VocabWordEdit_MnemonicAlt"), 120)
@@ -426,7 +417,7 @@ internal static class VocabularyWordEditView
     private static SwiftView ResourceCard(
         NativeVocabularyDetail detail, VocabularyBrowserEdit state,
         SourceUiStyle style, Func<string, string> text,
-        VocabularyEditActions actions, bool readOnly)
+        VocabularyEditActions actions)
     {
         var selected = state.Draft!.ResourceIds.ToHashSet(StringComparer.Ordinal);
         var selectedCount = style.Text(Views.Text(
@@ -451,8 +442,7 @@ internal static class VocabularyWordEditView
                         isSelected => actions.ToggleResource(resource.Id, isSelected))
                     .WithAccessibilityIdentifier(
                         $"native.vocabulary.edit.resource.{resource.Id}");
-                toggle.IsEnabled = !readOnly && !state.Saving
-                    && !resource.IsSmartResource;
+                toggle.IsEnabled = !state.Saving && !resource.IsSmartResource;
                 return toggle;
             }));
         return Card(style, "VocabWordEdit_ResourceAssociations", text,

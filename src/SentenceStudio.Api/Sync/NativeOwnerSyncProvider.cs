@@ -121,9 +121,17 @@ internal sealed class NativeOwnerSyncProvider(
             await command.ExecuteNonQueryAsync(ct);
         }
 
-        // Only the server decides word owners: a client value could blank a stored owner
-        // or claim a word it cannot see is shared. Owners are stamped after apply.
-        IgnoreClientWordOwners(changes.Items);
+        // Only the server decides word owners (Captain 2026-11-06): a word the device creates is
+        // recorded to the authenticated learner, its creator; a stored word keeps its stored
+        // owner (the placement below applies only the learner's own). A client value never
+        // decides it: it could blank a stored owner or name someone else.
+        var wordsNamingOthers = owner is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : WordsNamingAnotherOwner(changes.Items, owner);
+        var wordsWithoutDeviceOwner = owner is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : WordsWithoutOwner(changes.Items);
+        RecordUploadedWordOwners(changes.Items, owner);
 
         // CoreSync SQLite reports one item per (row, operation), so a row inserted and
         // then updated before one sync arrives twice with identical current values.
@@ -153,7 +161,7 @@ internal sealed class NativeOwnerSyncProvider(
 
             // Every other row the server cannot place for this owner stays on the device.
             var visible = await GetVisibleKeysAsync(db, owner, ct);
-            items = await PlaceableItemsAsync(db, items, owner, visible, ct);
+            items = await PlaceableItemsAsync(db, items, owner, visible, wordsNamingOthers, ct);
 
             // Last-writer-wins would drop attempts another device or the web app counted
             // since this device's copy. Merge them while the upload lock is held; the merged
@@ -216,19 +224,33 @@ internal sealed class NativeOwnerSyncProvider(
                 items, mergedProgress, owner!, ct);
         }
 
-        // CoreSync writes rows directly, bypassing ApplicationDbContext's owner stamping.
-        // Older clients never send VocabularyWord.UserProfileId, so stamp it here while
-        // the upload lock is still held.
-        var touchedWords = TouchedWordIds(items);
-        if (touchedWords.Count > 0)
+        // A word the device sent without an owner (an older build, or a legacy row) was stored
+        // with the learner as owner, but CoreSync attributes the write to the uploading store,
+        // which never downloads it, so the device's copy would stay ownerless and hidden there.
+        // A server-origin touch sends the recorded owner back in this same sync.
+        var unrecordedOnDevice = items
+            .Where(item => item.TableName == "VocabularyWord" && item.ChangeType != ChangeType.Delete
+                && wordsWithoutDeviceOwner.Contains(Value(item, "Id") ?? string.Empty))
+            .Select(item => Value(item, "Id")!)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if (owner is not null && unrecordedOnDevice.Length > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
-            await VocabularyWordOwnership.StampAsync(
-                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
-                touchedWords, cancellationToken: ct);
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyWords
+                .Where(word => unrecordedOnDevice.Contains(word.Id) && word.UserProfileId == owner)
+                .ExecuteUpdateAsync(set => set.SetProperty(word => word.UpdatedAt, word => word.UpdatedAt), ct);
         }
         return anchor;
     }
+
+    /// <summary>Written words whose device copy names no owner (NULL or '').</summary>
+    internal static HashSet<string> WordsWithoutOwner(IReadOnlyList<SyncItem> items) =>
+        items.Where(item => item.TableName == "VocabularyWord" && item.Values is not null
+                && item.ChangeType != ChangeType.Delete
+                && VocabularyWordOwnership.IsOwnerless(Value(item, "UserProfileId"))
+                && Value(item, "Id") is { Length: > 0 })
+            .Select(item => Value(item, "Id")!)
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Folds repeated Insert/Update items for one row into a single item when every
@@ -259,7 +281,14 @@ internal sealed class NativeOwnerSyncProvider(
             && System.Text.Json.JsonSerializer.Serialize(pair.Value?.Value)
                 == System.Text.Json.JsonSerializer.Serialize(other?.Value));
 
-    internal static void IgnoreClientWordOwners(IReadOnlyList<SyncItem> items)
+    /// <summary>
+    /// Replaces each written word's owner value with the server's choice: the authenticated
+    /// <paramref name="owner"/> (for a new word that is its creator; for a stored word the
+    /// placement keeps only the owner's own, so the stored owner is unchanged), or, for a
+    /// headerless legacy upload, nothing (the stored owner stays; a new word stays ownerless and
+    /// hidden). A client value never reaches the database.
+    /// </summary>
+    internal static void RecordUploadedWordOwners(IReadOnlyList<SyncItem> items, string? owner)
     {
         foreach (var item in items)
         {
@@ -269,27 +298,23 @@ internal sealed class NativeOwnerSyncProvider(
                 .Where(key => string.Equals(key, "UserProfileId", StringComparison.OrdinalIgnoreCase))
                 .ToArray())
                 item.Values.Remove(key);
+            if (owner is not null && item.ChangeType != ChangeType.Delete)
+                item.Values["UserProfileId"] = new SyncItemValue(owner);
         }
     }
 
-    private static HashSet<string> TouchedWordIds(IReadOnlyList<SyncItem> items)
-    {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var item in items)
-        {
-            if (item.Values is null || item.ChangeType == ChangeType.Delete)
-                continue;
-            var id = item.TableName switch
-            {
-                "VocabularyWord" => Value(item, "Id"),
-                "ResourceVocabularyMapping" or "VocabularyProgress" => Value(item, "VocabularyWordId"),
-                _ => null
-            };
-            if (!string.IsNullOrWhiteSpace(id))
-                ids.Add(id);
-        }
-        return ids;
-    }
+    /// <summary>
+    /// Written words whose device copy names another learner. A new one is not this learner's
+    /// creation, so it is left out (it stays on the device); a stored one is decided by its
+    /// stored owner instead.
+    /// </summary>
+    internal static HashSet<string> WordsNamingAnotherOwner(IReadOnlyList<SyncItem> items, string owner) =>
+        items.Where(item => item.TableName == "VocabularyWord" && item.Values is not null
+                && item.ChangeType != ChangeType.Delete
+                && Value(item, "UserProfileId") is { Length: > 0 } named && named != owner
+                && Value(item, "Id") is { Length: > 0 })
+            .Select(item => Value(item, "Id")!)
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Deletes first, children before parents, then writes, parents before children. Pinned
@@ -352,7 +377,7 @@ internal sealed class NativeOwnerSyncProvider(
     /// </summary>
     private async Task<IReadOnlyList<SyncItem>> PlaceableItemsAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
-        VisibleKeys visibleBeforeUpload, CancellationToken ct)
+        VisibleKeys visibleBeforeUpload, IReadOnlySet<string> wordsNamingOthers, CancellationToken ct)
     {
         IReadOnlyList<SyncItem> writes = WithoutUnreachableExamples(
             items.Where(item => item.ChangeType != ChangeType.Delete).ToArray(),
@@ -360,7 +385,7 @@ internal sealed class NativeOwnerSyncProvider(
         while (writes.Count > 0)
         {
             var unplaceable = await UnplaceableWritesAsync(
-                db, writes, owner, visibleBeforeUpload.Copy(), ct);
+                db, writes, owner, visibleBeforeUpload.Copy(), wordsNamingOthers, ct);
             if (unplaceable.Count == 0)
                 break;
             writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
@@ -425,12 +450,13 @@ internal sealed class NativeOwnerSyncProvider(
     /// <summary>
     /// The written rows the server cannot place for <paramref name="owner"/> given the other rows
     /// of this upload, including rows whose stored copy is another learner's or nobody's (a word
-    /// is its recorded owner's only; one recorded to no one is never changed by a sync). Rows
-    /// that name another learner were refused before this runs.
+    /// is its recorded owner's only; one recorded to no one is never changed by a sync) and new
+    /// words whose device copy names another learner (<paramref name="wordsNamingOthers"/>). Rows
+    /// that name another learner in an owner column were refused before this runs.
     /// </summary>
     private static async Task<HashSet<SyncItem>> UnplaceableWritesAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
-        VisibleKeys visible, CancellationToken ct)
+        VisibleKeys visible, IReadOnlySet<string> wordsNamingOthers, CancellationToken ct)
     {
         var refused = new HashSet<SyncItem>(ReferenceEqualityComparer.Instance);
 
@@ -442,9 +468,13 @@ internal sealed class NativeOwnerSyncProvider(
                 .Distinct(StringComparer.Ordinal).ToArray();
             var existing = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
             foreach (var item in table)
-                if (existing.TryGetValue(Value(item, "Id")!, out var storedOwner)
-                    && storedOwner != owner)
+            {
+                var id = Value(item, "Id")!;
+                if (existing.TryGetValue(id, out var storedOwner)
+                    ? !VocabularyWordOwnership.IsLearners(storedOwner, owner)
+                    : table.Key == "VocabularyWord" && wordsNamingOthers.Contains(id))
                     refused.Add(item);
+            }
         }
 
         var referencedWords = items
@@ -465,28 +495,25 @@ internal sealed class NativeOwnerSyncProvider(
             .Select(id => id!)
             .ToHashSet(StringComparer.Ordinal);
 
+        // A link, progress row or phrase part may name only the owner's own words: stored words
+        // recorded to them, or words this upload creates (the owner's by creation). A missing
+        // word is not theirs (fail closed).
         foreach (var item in items)
         {
             if ((item.TableName is "ResourceVocabularyMapping" or "VocabularyProgress")
-                && !CanReferenceWord(Value(item, "VocabularyWordId")))
+                && !OwnsWord(Value(item, "VocabularyWordId")))
                 refused.Add(item);
             if (item.TableName == "PhraseConstituent"
-                && (!OwnsPhraseWord(Value(item, "PhraseWordId"))
+                && (!OwnsWord(Value(item, "PhraseWordId"))
                     || Value(item, "ConstituentWordId") is { Length: > 0 } constituentId
-                    && !CanReferenceWord(constituentId)))
+                    && !OwnsWord(constituentId)))
                 refused.Add(item);
         }
 
-        bool CanReferenceWord(string? id) =>
+        bool OwnsWord(string? id) =>
             !string.IsNullOrWhiteSpace(id)
             && (wordOwners.TryGetValue(id, out var storedOwner)
-                ? storedOwner == owner || visible.WordIds.Contains(id)
-                : uploadedWords.Contains(id));
-
-        bool OwnsPhraseWord(string? id) =>
-            !string.IsNullOrWhiteSpace(id)
-            && (wordOwners.TryGetValue(id, out var storedOwner)
-                ? storedOwner == owner
+                ? VocabularyWordOwnership.IsLearners(storedOwner, owner)
                 : uploadedWords.Contains(id));
 
         await RefuseUnlinkedReferencesAsync(db, items, owner, visible, refused, ct);
@@ -572,13 +599,11 @@ internal sealed class NativeOwnerSyncProvider(
                 Reference(item, "SkillId", completionSkills), skills)))
             refused.Add(item);
 
+        // Words this upload writes that are still placeable are the owner's (new ones by
+        // creation, stored ones by their recorded owner), so their dependents can follow them.
         foreach (var item in items.Where(item =>
-            item.TableName == "ResourceVocabularyMapping" && !refused.Contains(item)
-            && visible.ResourceIds.Contains(Value(item, "ResourceId") ?? string.Empty)))
-        {
-            if (Value(item, "VocabularyWordId") is { } wordId)
-                visible.WordIds.Add(wordId);
-        }
+            item.TableName == "VocabularyWord" && !refused.Contains(item)))
+            visible.WordIds.Add(Value(item, "Id")!);
         foreach (var item in items.Where(item => item.TableName == "VocabularyProgress"
             && !refused.Contains(item) && Value(item, "UserId") == owner
             && visible.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)))
@@ -609,11 +634,11 @@ internal sealed class NativeOwnerSyncProvider(
     }
 
     /// <summary>
-    /// A device's own example sentence on a word this owner cannot see (an orphan word with no
-    /// resource, a removed mapping), or from a resource that is not theirs, is left out of the
-    /// upload rather than refusing the whole upload: the server would never send it back, and
-    /// the row stays on the device. A sentence naming another owner is not dropped here; the
-    /// owner checks refuse it.
+    /// A device's own example sentence on a word that is not this owner's (another learner's,
+    /// one recorded to no one, a word the server does not have), or from a resource that is not
+    /// theirs, is left out of the upload rather than refusing the whole upload: the server would
+    /// never send it back, and the row stays on the device. A sentence naming another owner is
+    /// not dropped here; the owner checks refuse it.
     /// </summary>
     internal static IReadOnlyList<SyncItem> WithoutUnreachableExamples(
         IReadOnlyList<SyncItem> items, string owner, VisibleKeys visible)
@@ -627,10 +652,11 @@ internal sealed class NativeOwnerSyncProvider(
         foreach (var item in items.Where(item => item.TableName == "LearningResource"
             && Value(item, "UserProfileId") == owner))
             resources.Add(Value(item, "Id")!);
+        // The owner's stored words, plus words this upload writes (placement leaves out any that
+        // are not theirs, and then the sentence with it).
         var words = new HashSet<string>(visible.WordIds, StringComparer.Ordinal);
-        foreach (var item in items.Where(item => item.TableName == "ResourceVocabularyMapping"
-            && resources.Contains(Value(item, "ResourceId") ?? string.Empty)))
-            if (Value(item, "VocabularyWordId") is { } word)
+        foreach (var item in items.Where(item => item.TableName == "VocabularyWord"))
+            if (Value(item, "Id") is { } word)
                 words.Add(word);
 
         return items.Where(item => !IsOwnExample(item)
@@ -760,19 +786,27 @@ internal sealed class NativeOwnerSyncProvider(
         public string? OwnerId { get; set; }
     }
 
+    /// <summary>
+    /// The owner's rows that decide what else a device may hold (Captain 2026-11-06: "There is
+    /// no reason for a mobile device to sync any data for another user/owner than the one logged
+    /// in."): their resources, the words recorded to them (whether or not a resource links them),
+    /// and their progress on those words. Before, a device got the words its owner's resources
+    /// linked, which sent another learner's or no one's word sitting in the learner's resource
+    /// and withheld the learner's own words outside every resource.
+    /// </summary>
     private static async Task<VisibleKeys> GetVisibleKeysAsync(
         ApplicationDbContext db, string owner, CancellationToken ct)
     {
         var resourceIds = (await db.LearningResources.AsNoTracking()
             .Where(resource => resource.UserProfileId == owner)
             .Select(resource => resource.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
-        var wordIds = (await db.ResourceVocabularyMappings.AsNoTracking()
-            .Where(mapping => resourceIds.Contains(mapping.ResourceId))
-            .Select(mapping => mapping.VocabularyWordId).Distinct().ToListAsync(ct))
+        var wordIds = (await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+            .Select(word => word.Id).ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
         var progressIds = (await db.VocabularyProgresses.AsNoTracking()
             .Where(progress => progress.UserId == owner
-                && wordIds.Contains(progress.VocabularyWordId))
+                && db.VocabularyWords.Any(word => word.Id == progress.VocabularyWordId
+                    && word.UserProfileId == owner))
             .Select(progress => progress.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         return new VisibleKeys(resourceIds, wordIds, progressIds);
     }
@@ -791,13 +825,18 @@ internal sealed class NativeOwnerSyncProvider(
             "UserProfile" => id == owner,
             "VocabularyProgress" => Value(item, "UserId") == owner
                 && keys.ProgressIds.Contains(id),
-            "VocabularyWord" => keys.WordIds.Contains(id),
+            // A word goes only to its recorded owner's devices, and its dependents follow it, so a
+            // device never holds a link, record or phrase part naming a word it lacks.
+            "VocabularyWord" => Value(item, "UserProfileId") == owner && keys.WordIds.Contains(id),
             "ResourceVocabularyMapping" => keys.ResourceIds.Contains(
-                Value(item, "ResourceId") ?? string.Empty),
+                    Value(item, "ResourceId") ?? string.Empty)
+                && keys.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty),
             "VocabularyLearningContext" => keys.ProgressIds.Contains(
                 Value(item, "VocabularyProgressId") ?? string.Empty),
             "PhraseConstituent" => keys.WordIds.Contains(
-                Value(item, "PhraseWordId") ?? string.Empty),
+                    Value(item, "PhraseWordId") ?? string.Empty)
+                && (string.IsNullOrEmpty(Value(item, "ConstituentWordId"))
+                    || keys.WordIds.Contains(Value(item, "ConstituentWordId")!)),
             "LearningResource" or "SkillProfile" or "Conversation"
                 or "ConversationChunk" or "MonitoredChannel" or "VideoImport"
                 or "DailyPlan" or "DailyPlanCompletion" or "UserActivity"

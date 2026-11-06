@@ -208,6 +208,7 @@ public sealed class NativeQuizSourceLaunchTests
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = "word-in-second",
+            UserProfileId = NativeSliceFixture.UserA,
             TargetLanguageTerm = "second target",
             NativeLanguageTerm = "second gloss",
             Language = "Korean"

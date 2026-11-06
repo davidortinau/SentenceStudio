@@ -34,9 +34,10 @@ public partial class VocabularyProgressRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Progress follows its word: only the learner's own words (the one ownership rule).
         return await db.VocabularyProgresses
             .AsNoTracking()
-            .CountAsync(p => p.UserId == userProfileId, cancellationToken);
+            .CountAsync(p => p.UserId == userProfileId && db.VocabularyWords.Any(w => w.Id == p.VocabularyWordId && w.UserProfileId == userProfileId), cancellationToken);
     }
 
     public async Task<IReadOnlyList<VocabularyProgressFacts>> GetProgressFactsAsync(
@@ -53,7 +54,7 @@ public partial class VocabularyProgressRepository
 
         return await db.VocabularyProgresses
             .AsNoTracking()
-            .Where(p => p.UserId == userProfileId)
+            .Where(p => p.UserId == userProfileId && db.VocabularyWords.Any(w => w.Id == p.VocabularyWordId && w.UserProfileId == userProfileId))
             .Select(p => new VocabularyProgressFacts(
                 p.MasteryScore,
                 p.ProductionInStreak,
@@ -87,7 +88,9 @@ public partial class VocabularyProgressRepository
                 db.VocabularyWords.AsNoTracking(),
                 progress => progress.VocabularyWordId,
                 word => word.Id,
-                (progress, word) => word.Tags)
+                (progress, word) => new { word.UserProfileId, word.Tags })
+            .Where(row => row.UserProfileId == userProfileId)
+            .Select(row => row.Tags)
             .ToListAsync(cancellationToken);
     }
 
@@ -111,7 +114,7 @@ public partial class VocabularyProgressRepository
         // terms ever being selected.
         var matchedQuery = db.VocabularyProgresses
             .AsNoTracking()
-            .Where(p => p.UserId == userProfileId);
+            .Where(p => p.UserId == userProfileId && db.VocabularyWords.Any(w => w.Id == p.VocabularyWordId && w.UserProfileId == userProfileId));
 
         // Deliberately `is not null` rather than a whitespace test: the caller has already
         // decided whether it has a query, and it signals "no query" with null. An empty string
@@ -192,7 +195,7 @@ public partial class VocabularyProgressRepository
         return await db.VocabularyProgresses
             .AsNoTracking()
             .Where(p => p.UserId == userProfileId && p.VocabularyWordId == wordId)
-            .Join(db.VocabularyWords.AsNoTracking(),
+            .Join(db.VocabularyWords.AsNoTracking().OwnedBy(userProfileId),
                 p => p.VocabularyWordId,
                 w => w.Id,
                 (p, w) => new VocabularyWordDetailFacts(

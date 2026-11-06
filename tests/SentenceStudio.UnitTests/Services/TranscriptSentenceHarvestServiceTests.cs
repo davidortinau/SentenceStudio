@@ -153,6 +153,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
             new VocabularyWord
             {
                 Id = "word-go",
+                UserProfileId = "user-1",
                 TargetLanguageTerm = "가다",
                 Lemma = "가다",
                 NativeLanguageTerm = "go",
@@ -161,6 +162,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
             new VocabularyWord
             {
                 Id = "word-book",
+                UserProfileId = "user-1",
                 TargetLanguageTerm = "책",
                 Lemma = "책",
                 NativeLanguageTerm = "book",
@@ -169,6 +171,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
             new VocabularyWord
             {
                 Id = "word-none",
+                UserProfileId = "user-1",
                 TargetLanguageTerm = "우산",
                 Lemma = "우산",
                 NativeLanguageTerm = "umbrella",
@@ -177,6 +180,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
             new VocabularyWord
             {
                 Id = "word-other-user",
+                UserProfileId = "user-2",
                 TargetLanguageTerm = "다른",
                 Lemma = "다른",
                 NativeLanguageTerm = "different",

@@ -215,6 +215,9 @@ public class QuizAudioPersistenceTests
                 db.VocabularyWords.Add(new VocabularyWord
                 {
                     Id = fixture.WordId,
+                    // The quizzing learner's word (every word has an owner); the other learner's
+                    // legacy progress on it stays theirs.
+                    UserProfileId = fixture.OwnerId,
                     TargetLanguageTerm = "책",
                     NativeLanguageTerm = "book",
                     LexicalUnitType = LexicalUnitType.Word

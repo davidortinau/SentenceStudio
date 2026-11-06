@@ -7,19 +7,17 @@ public sealed record VocabularyDuplicateScanResult(
     int TotalGroupCount,
     int ExtraRecordCount);
 
+/// <summary>
+/// The learner's own words (the one ownership rule) that share a target term; another
+/// learner's word, or one recorded to no one, is never in a group.
+/// </summary>
 /// <param name="MergeBlockedReason">Why the copies' fields block the merge, or null when they match.</param>
-/// <param name="HasCopyNotOwnedByLearner">
-/// A copy is not recorded to the learner (<see cref="VocabularyWordOwnership.OwnedByAsync"/>: another
-/// learner's, or one recorded to no one; B69): the group cannot merge, and that copy's
-/// memory aids and audio are not shown (<see cref="VocabularyDuplicateWordInfo.IsLearnersOwn"/>).
-/// </param>
 public sealed record VocabularyDuplicateGroup(
     string NormalizedTerm,
     string DisplayTerm,
     IReadOnlyList<VocabularyDuplicateWordInfo> Words,
     bool CanMergeAutomatically,
-    string? MergeBlockedReason,
-    bool HasCopyNotOwnedByLearner = false)
+    string? MergeBlockedReason)
 {
     public string RecommendedKeeperId => RecommendedKeeper?.Word.Id ?? string.Empty;
 
@@ -41,17 +39,11 @@ public sealed record VocabularyDuplicateGroup(
     private static bool HasText(string? value) => !string.IsNullOrWhiteSpace(value);
 }
 
+/// <summary>One copy in a duplicate group: always one of the learner's own words.</summary>
 public sealed record VocabularyDuplicateWordInfo(
     VocabularyWord Word,
     int ResourceCount,
-    double EncodingScore)
-{
-    /// <summary>
-    /// The copy is recorded to the learner. When it is not (the default: fail closed), its memory
-    /// aids and audio were removed and it is read-only: no client offers to edit or merge it.
-    /// </summary>
-    public bool IsLearnersOwn { get; init; }
-}
+    double EncodingScore);
 
 /// <summary>
 /// What a merge did: the duplicate copies removed, and whether anything was saved (links and

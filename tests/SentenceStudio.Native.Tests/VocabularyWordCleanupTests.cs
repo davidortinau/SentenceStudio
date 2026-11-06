@@ -80,7 +80,7 @@ public sealed class VocabularyWordCleanupTests
         fixture.Activate(UserA);
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
 
-        Assert.Equal(NativeVocabularyDeleteStatus.SharedReadOnly,
+        Assert.Equal(NativeVocabularyDeleteStatus.UsedByOthers,
             await store.DeleteOwnedVocabularyAsync(UserA, shared, default));
         var rows = await RowsAsync(fixture, shared);
         Assert.Equal(1, rows.Words);
@@ -89,7 +89,9 @@ public sealed class VocabularyWordCleanupTests
         using var browser = Create(fixture);
         Assert.True(await browser.OpenAsync(UserA));
         await browser.OpenWordAsync(shared);
-        Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        // The owner may still edit it (nobody else can see it); only the delete is refused.
+        Assert.Equal(NativeVocabularyDeleteBlock.UsedByOthers, browser.EditState.Detail!.DeleteBlock);
+        Assert.True(browser.EditState.CanSave);
         Assert.False(browser.EditState.CanDelete);
         browser.RequestDelete();
         Assert.False(browser.IsDeleteConfirmationPresented);
@@ -365,13 +367,16 @@ public sealed class VocabularyWordCleanupTests
         foreach (var refused in refusedWords)
         {
             await browser.OpenWordAsync(refused);
-            Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
-            Assert.Equal(NativeVocabularyDeleteStatus.SharedReadOnly,
+            // The word is still the owner's to edit; the sentence that is not theirs keeps it.
+            Assert.Equal(NativeVocabularyDeleteBlock.UsedByOthers, browser.EditState.Detail!.DeleteBlock);
+            Assert.True(browser.EditState.CanSave);
+            Assert.Empty(browser.EditState.Detail!.Examples);
+            Assert.Equal(NativeVocabularyDeleteStatus.UsedByOthers,
                 await store.DeleteOwnedVocabularyAsync(UserA, refused, default));
         }
 
         await browser.OpenWordAsync(withOwnSentence);
-        Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.Equal(NativeVocabularyDeleteBlock.None, browser.EditState.Detail!.DeleteBlock);
         Assert.Single(browser.EditState.Detail!.Examples);
         Assert.True(browser.EditState.CanDelete);
         browser.RequestDelete();
@@ -467,8 +472,10 @@ public sealed class VocabularyWordCleanupTests
         var list = browser.ListState;
         Assert.Equal("Vocabulary_DuplicatesMergedCount", list.Feedback);
         Assert.False(list.FeedbackWarning);
-        // The list reloaded: the copy left this owner's list but stayed for the other account.
-        Assert.DoesNotContain(list.FilteredWords, word => word.Id == "dup-a-1");
+        // The list reloaded: the kept copy is still recorded to this owner (only the other
+        // account's link holds it), so it stays in their list, now in none of their resources.
+        Assert.Contains(list.FilteredWords, word => word.Id == "dup-a-1"
+            && word.AssociatedResources.Count == 0);
         Assert.Contains(list.FilteredWords, word => word.Id == "dup-a-2");
         Assert.True(pending.IsPending(UserA));
         var kept = await RowsAsync(fixture, "dup-a-1");
@@ -482,10 +489,11 @@ public sealed class VocabularyWordCleanupTests
             .MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-a-2", ["dup-a-1"], default));
     }
 
-    // Review 2026-11-05: a copy recorded to another owner hides its aids, so its rank and the
-    // recommended keeper must not depend on them either.
+    // One ownership rule (Captain 2026-11-06): a copy recorded to another owner sits in the
+    // learner's resource but is not theirs, so it is never in their duplicate groups and its
+    // memory aids are never sent to the device's duplicate manager.
     [Fact]
-    public async Task DuplicateScan_RanksAnotherOwnersCopyByWhatTheLearnerSees()
+    public async Task DuplicateScan_NeverShowsAnotherOwnersCopy()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -493,7 +501,7 @@ public sealed class VocabularyWordCleanupTests
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             db.VocabularyWords.Add(new VocabularyWord {
-                Id = "dup-own", TargetLanguageTerm = "apple", NativeLanguageTerm = "apple",
+                Id = "dup-own", UserProfileId = UserA, TargetLanguageTerm = "apple", NativeLanguageTerm = "apple",
                 Language = "Korean", LexicalUnitType = LexicalUnitType.Word,
                 CreatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc)
@@ -515,21 +523,15 @@ public sealed class VocabularyWordCleanupTests
         fixture.Activate(UserA);
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
 
-        var group = Assert.Single((await store.FindOwnedVocabularyDuplicatesAsync(
-            UserA, "apple", 0, 20, default)).Groups);
-
-        Assert.Equal(new[] { "dup-own", "dup-legacy" }, group.Words.Select(word => word.Id));
-        Assert.Equal("dup-own", group.RecommendedKeeperId);
-        // Titled by the copy shown first (the repository order would put "Apple" first).
-        Assert.Equal("apple", group.DisplayTerm);
-        Assert.True(group.HasAnotherOwnersCopy);
-        Assert.False(group.CanMergeAutomatically);
-        var legacy = group.Words[1];
-        Assert.Null(legacy.MnemonicText);
-        Assert.False(legacy.HasImageAid);
-        Assert.False(legacy.HasAudio);
-        Assert.Equal(group.Words[0].EncodingScore, legacy.EncodingScore);
-        Assert.Equal(group.Words[0].EncodingLabel, legacy.EncodingLabel);
+        var scan = await store.FindOwnedVocabularyDuplicatesAsync(UserA, "apple", 0, 20, default);
+        Assert.True(scan.OwnerValid);
+        Assert.Empty(scan.Groups);
+        Assert.Equal(0, scan.TotalGroupCount);
+        Assert.DoesNotContain("Their private story", System.Text.Json.JsonSerializer.Serialize(scan));
+        // A merge naming the other owner's copy changes nothing.
+        Assert.Equal(NativeVocabularyMergeResult.None,
+            await store.MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-own", ["dup-legacy"], default));
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-legacy")).Words);
     }
 
     // Review 2026-11-05: a rescan asked for while a merge runs waits for it, so the merge's
@@ -722,13 +724,13 @@ public sealed class VocabularyWordCleanupTests
         Assert.Single(browser.ListState.Duplicates.Groups);
     }
 
-    // Review 2026-11-05 (second pass): the merge runs on the real rows, so a copy not recorded
-    // to the learner (another learner's, or a legacy word recorded to nobody) would give its
-    // hidden aids to the keeper and lose a row the server keeps. The device refuses the group.
+    // One ownership rule (Captain 2026-11-06): a copy not recorded to the learner (another
+    // learner's, or a legacy word recorded to nobody) sits in the learner's resource but is not
+    // theirs, so it is never grouped with their word, and a merge naming it changes no row.
     [Theory]
     [InlineData(UserB)]
     [InlineData(null)]
-    public async Task Merge_OfAGroupWithACopyNotRecordedToTheOwner_IsRefusedAndChangesNoRow(
+    public async Task CopyNotRecordedToTheOwner_IsNeverGrouped_AndAMergeNamingItChangesNoRow(
         string? legacyOwner)
     {
         using var fixture = new NativeSliceFixture();
@@ -738,7 +740,7 @@ public sealed class VocabularyWordCleanupTests
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             db.VocabularyWords.Add(new VocabularyWord {
-                Id = "dup-own", TargetLanguageTerm = "사과", NativeLanguageTerm = "apple",
+                Id = "dup-own", UserProfileId = UserA, TargetLanguageTerm = "사과", NativeLanguageTerm = "apple",
                 Language = "Korean", LexicalUnitType = LexicalUnitType.Word,
                 CreatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc)
@@ -755,12 +757,11 @@ public sealed class VocabularyWordCleanupTests
                 db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
                     Id = $"mapping-{id}", ResourceId = fixture.ResourceId(UserA), VocabularyWordId = id
                 });
-            // A word recorded to no one is no one's even when only A links it (one runtime
-            // rule, Captain 2026-11-06): nothing infers A from that link.
+            // A word recorded to no one is no one's even when only A links it: nothing infers A
+            // from that link.
             await db.SaveChangesAsync();
             if (legacyOwner is null)
-                await db.VocabularyWords.Where(word => word.Id == "dup-legacy")
-                    .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+                await NativeSliceFixture.RecordToNoOneAsync(db, "dup-legacy");
         }
         fixture.Activate(UserA);
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
@@ -772,18 +773,8 @@ public sealed class VocabularyWordCleanupTests
         await browser.OpenWordAsync("dup-own");
         await browser.FindDuplicatesAsync();
 
-        var group = Assert.Single(browser.ListState.Duplicates!.Groups);
-        Assert.True(group.HasAnotherOwnersCopy);
-        Assert.False(group.CanMergeAutomatically);
-        Assert.Equal("NativeVocabulary_DuplicatesAnotherOwner",
-            VocabularyDuplicateFinder.BlockedReason(group, key => key));
-        // Editing cannot unblock the group: no "Edit before merge" or "Edit record" advice.
-        Assert.Equal(new VocabularyDuplicateBlock("NativeVocabulary_DuplicatesCannotMerge",
-                "NativeVocabulary_DuplicatesCannotMerge", "NativeVocabulary_DuplicatesAnotherOwner", null),
-            VocabularyDuplicateFinder.Blocked(group, key => key));
-        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
-        Assert.Equal("NativeVocabulary_DuplicatesAnotherOwner", browser.ListState.Feedback);
-        Assert.True(browser.ListState.FeedbackWarning);
+        Assert.Empty(browser.ListState.Duplicates!.Groups);
+        Assert.DoesNotContain(browser.ListState.FilteredWords, word => word.Id == "dup-legacy");
 
         // Asked directly, the store refuses either keeper.
         Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
@@ -800,33 +791,31 @@ public sealed class VocabularyWordCleanupTests
         Assert.False(pending.IsPending(UserA));
     }
 
-    // Review 2026-11-05 (third and fourth pass, and the one runtime rule of 2026-11-06): native
-    // has two rules, checked against what the server's owner-checked sync does with the same
-    // rows (the shared rules it calls).
-    // Whose the word is: one rule everywhere (VocabularyWordOwnership.OwnedByAsync): its recorded
-    // owner only. A word recorded to no one is no one's, whether only A links it
-    // ("unrecorded-word") or A and B do ("shared-legacy-word"); the server refuses to change it.
-    // Edit: the word is the owner's and no one else links, practises or wrote a sentence for it
-    // (VocabularyWordDependents.OthersUseAsync; the 2026-10-20 rule). Never an edit the server
-    // refuses; stricter only for others' use ("mapping", "progress", "sentence",
-    // "sentence-on-their-resource", "unowned-sentence": a sentence recorded to no one is no
-    // one's, wherever it sits). Others' pairs and phrases do not stop an edit.
-    // Delete: native refuses exactly what the server refuses, and says why ("pair", "phrase":
-    // others' rows; "answer": a Minimal Pairs answer, which the database also refuses).
+    // The one ownership rule (Captain 2026-11-06), checked against what the server's owner-checked
+    // sync does with the same rows (the shared rules it calls).
+    // Whose the word is: its recorded owner only (VocabularyWordOwnership). A word recorded to no
+    // one is no one's and not shown, whether only A links it ("unrecorded-word") or A and B do
+    // ("shared-legacy-word"); the server never changes it from a device.
+    // Edit: the recorded owner may always edit their word (nobody else can see it), as the server
+    // applies the owner's update of their own word.
+    // Delete: native refuses exactly what the server refuses, and says why: data that is not the
+    // owner's still uses the word (another learner's link, progress, sentence, pair or phrase, or a
+    // sentence recorded to no one, wherever it sits), or a Minimal Pairs answer, which the
+    // database also refuses.
     [Theory]
     [InlineData("none", true, NativeVocabularyDeleteStatus.Deleted)]
-    [InlineData("mapping", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("progress", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("sentence-on-their-resource", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("unowned-sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
+    [InlineData("mapping", true, NativeVocabularyDeleteStatus.UsedByOthers)]
+    [InlineData("progress", true, NativeVocabularyDeleteStatus.UsedByOthers)]
+    [InlineData("sentence", true, NativeVocabularyDeleteStatus.UsedByOthers)]
+    [InlineData("sentence-on-their-resource", true, NativeVocabularyDeleteStatus.UsedByOthers)]
+    [InlineData("unowned-sentence", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("pair", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("phrase", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("answer", true, NativeVocabularyDeleteStatus.UsedByAnswers)]
-    [InlineData("unrecorded-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("shared-legacy-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
+    [InlineData("unrecorded-word", false, NativeVocabularyDeleteStatus.NotFoundOrForbidden)]
+    [InlineData("shared-legacy-word", false, NativeVocabularyDeleteStatus.NotFoundOrForbidden)]
     public async Task EditAndDelete_MatchWhatTheServerAcceptsForTheSameRows(
-        string use, bool editable, NativeVocabularyDeleteStatus expectedDelete)
+        string use, bool shown, NativeVocabularyDeleteStatus expectedDelete)
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -883,50 +872,51 @@ public sealed class VocabularyWordCleanupTests
             }
             await db.SaveChangesAsync();
             if (use is "unrecorded-word" or "shared-legacy-word")
-                await db.VocabularyWords.Where(word => word.Id == wordId)
-                    .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+                await NativeSliceFixture.RecordToNoOneAsync(db, wordId);
         }
         fixture.Activate(UserA);
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
 
-        // The server, over the same rows.
+        // The server, over the same rows: a word goes to (and is changed for) its recorded owner.
         bool serverUpdates, serverDeletes;
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var storedOwner = (await SyncRowOwners.GetStoredWordOwnersAsync(db, [wordId], default))
                 .GetValueOrDefault(wordId);
-            var visible = await db.ResourceVocabularyMappings.AnyAsync(mapping =>
-                mapping.VocabularyWordId == wordId && mapping.ResourceId == fixture.ResourceId(UserA));
-            serverUpdates = storedOwner == UserA && visible;
+            serverUpdates = storedOwner == UserA;
             serverDeletes = storedOwner == UserA
                 && !(await VocabularyWordDependents.OthersDependOnAsync(db, [wordId], UserA, default))
                     .Contains(wordId)
                 && !(await VocabularyWordDependents.AnswersStillUseAsync(db, [wordId], default))
                     .Contains(wordId);
         }
-        Assert.Equal(use is not ("unrecorded-word" or "shared-legacy-word"), serverUpdates);
+        Assert.Equal(shown, serverUpdates);
         Assert.Equal(use is "none", serverDeletes);
 
-        var detail = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
-        Assert.Equal(!editable, detail.IsSharedWithAnotherOwner);
-        Assert.Equal(expectedDelete == NativeVocabularyDeleteStatus.Deleted,
-            VocabularyWordCommands.CanDelete(false, detail));
-        Assert.Equal(expectedDelete switch
+        var detail = await store.GetOwnedVocabularyAsync(UserA, wordId, default);
+        Assert.Equal(shown, detail is not null);
+        Assert.Equal(shown, (await store.ListOwnedVocabularyAsync(UserA, default)).Words
+            .Any(word => word.Id == wordId));
+        if (detail is not null)
         {
-            NativeVocabularyDeleteStatus.Deleted => NativeVocabularyDeleteBlock.None,
-            NativeVocabularyDeleteStatus.UsedByOthers => NativeVocabularyDeleteBlock.UsedByOthers,
-            NativeVocabularyDeleteStatus.UsedByAnswers => NativeVocabularyDeleteBlock.UsedByAnswers,
-            _ => NativeVocabularyDeleteBlock.SharedReadOnly
-        }, detail.DeleteBlock);
-        Assert.Equal(expectedDelete switch
-        {
-            NativeVocabularyDeleteStatus.UsedByOthers => "NativeVocabulary_DeleteUsedByOthers",
-            NativeVocabularyDeleteStatus.UsedByAnswers => "NativeVocabulary_DeleteUsedByAnswers",
-            _ => null
-        }, VocabularyWordCommands.DeleteBlockedReason(detail, key => key));
-        // Only sentences recorded to the learner are listed and counted as theirs.
-        Assert.Empty(detail.Examples);
+            Assert.Equal(expectedDelete == NativeVocabularyDeleteStatus.Deleted,
+                VocabularyWordCommands.CanDelete(false, detail));
+            Assert.Equal(expectedDelete switch
+            {
+                NativeVocabularyDeleteStatus.Deleted => NativeVocabularyDeleteBlock.None,
+                NativeVocabularyDeleteStatus.UsedByAnswers => NativeVocabularyDeleteBlock.UsedByAnswers,
+                _ => NativeVocabularyDeleteBlock.UsedByOthers
+            }, detail.DeleteBlock);
+            Assert.Equal(expectedDelete switch
+            {
+                NativeVocabularyDeleteStatus.UsedByOthers => "NativeVocabulary_DeleteUsedByOthers",
+                NativeVocabularyDeleteStatus.UsedByAnswers => "NativeVocabulary_DeleteUsedByAnswers",
+                _ => null
+            }, VocabularyWordCommands.DeleteBlockedReason(detail, key => key));
+            // Only sentences recorded to the learner are listed and counted as theirs.
+            Assert.Empty(detail.Examples);
+        }
 
         var deleted = await store.DeleteOwnedVocabularyAsync(UserA, wordId, default);
         Assert.Equal(expectedDelete, deleted);
@@ -937,20 +927,25 @@ public sealed class VocabularyWordCleanupTests
         if (deleted == NativeVocabularyDeleteStatus.Deleted)
             return;
 
+        var draft = detail?.Draft ?? new NativeVocabularyEditDraft(wordId, at, $"target-{UserA}-0",
+            $"native-{UserA}-0", null, "Korean", null, null, null, LexicalUnitType.Word,
+            [fixture.ResourceId(UserA)]);
         var saved = await store.SaveOwnedVocabularyAsync(UserA,
-            detail.Draft with { NativeTerm = "changed" }, default);
-        Assert.Equal(editable ? NativeVocabularySaveStatus.Saved
-            : NativeVocabularySaveStatus.SharedReadOnly, saved);
+            draft with { NativeTerm = "changed" }, default);
+        Assert.Equal(shown ? NativeVocabularySaveStatus.Saved
+            : NativeVocabularySaveStatus.NotFoundOrForbidden, saved);
         // Native never saves an edit the server would not apply.
-        Assert.True(!editable || serverUpdates);
+        Assert.True(!shown || serverUpdates);
         using var after = fixture.Scope();
-        Assert.Equal(editable ? "changed" : $"native-{UserA}-0", (await after.ServiceProvider
+        var stored = await after.ServiceProvider
             .GetRequiredService<ApplicationDbContext>().VocabularyWords.AsNoTracking()
-            .SingleAsync(word => word.Id == wordId)).NativeLanguageTerm);
+            .SingleAsync(word => word.Id == wordId);
+        Assert.Equal(shown ? "changed" : $"native-{UserA}-0", stored.NativeLanguageTerm);
+        Assert.Equal(shown ? UserA : null, stored.UserProfileId);
     }
 
-    // Review 4: Save may remove every link while the learner keeps progress on the word; the
-    // word stays theirs and editable, not "shared with another profile", and can be deleted.
+    // Review 4: Save may remove every link; the word stays the learner's and editable, and can
+    // be deleted. Under the one ownership rule it also stays in their list.
     [Fact]
     public async Task SavingWithNoResources_KeepsTheWordEditableAndDeletable()
     {
@@ -965,17 +960,48 @@ public sealed class VocabularyWordCleanupTests
 
         var reopened = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
         Assert.Empty(reopened.Draft.ResourceIds);
-        Assert.False(reopened.IsSharedWithAnotherOwner);
         Assert.Equal(NativeVocabularyDeleteBlock.None, reopened.DeleteBlock);
+        Assert.Contains((await store.ListOwnedVocabularyAsync(UserA, default)).Words,
+            word => word.Id == wordId && word.AssociatedResources.Count == 0);
         Assert.Equal(NativeVocabularyDeleteStatus.Deleted,
             await store.DeleteOwnedVocabularyAsync(UserA, wordId, default));
     }
 
-    // Review 4: a refused delete maps the shared delete's reason to what is true now. Another
-    // learner's progress that arrives after the editor opened makes the word read-only: the
-    // message says so and the open editor refreshes, instead of keeping Delete offered.
+    /// <summary>
+    /// The owner's word that no resource links and no progress holds (for example one added on
+    /// the web without a resource, then synced) can be saved with no resource selected: under the
+    /// owner rule it stays in their vocabulary, so the old "keep a resource" refusal is gone.
+    /// </summary>
     [Fact]
-    public async Task RefusedDelete_AfterAnotherLearnersRowArrives_SaysReadOnlyAndRefreshesTheEditor()
+    public async Task OwnersUnlinkedWordWithoutProgress_SavesWithNoResources()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA, wordCount: 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyWords.Add(new VocabularyWord {
+                Id = "web-added", UserProfileId = UserA, TargetLanguageTerm = "웹", NativeLanguageTerm = "web",
+                Language = "Korean", LexicalUnitType = LexicalUnitType.Word });
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        var detail = (await store.GetOwnedVocabularyAsync(UserA, "web-added", default))!;
+        Assert.Null(detail.Progress);
+        Assert.Empty(detail.Draft.ResourceIds);
+        Assert.Equal(NativeVocabularySaveStatus.Saved, await store.SaveOwnedVocabularyAsync(UserA,
+            detail.Draft with { NativeTerm = "the web" }, default));
+        Assert.Equal("VocabWordEdit_SaveFailed", VocabularyBrowser.SaveErrorKey(
+            NativeVocabularySaveStatus.Invalid, detail, detail.Draft));
+    }
+
+    // Review 4: a refused delete maps the shared delete's reason to what is true now. Another
+    // learner's progress that arrives after the editor opened blocks the delete: the message
+    // says so and the open editor refreshes, instead of keeping Delete offered. The word stays
+    // the owner's to edit.
+    [Fact]
+    public async Task RefusedDelete_AfterAnotherLearnersRowArrives_SaysWhyAndRefreshesTheEditor()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -998,31 +1024,27 @@ public sealed class VocabularyWordCleanupTests
         await browser.ConfirmDeleteAsync();
 
         Assert.True(browser.IsFormOpen);
-        Assert.Equal("NativeVocabulary_SharedReadOnly", browser.EditState.DeleteError);
-        Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.Equal("NativeVocabulary_DeleteUsedByOthers", browser.EditState.DeleteError);
+        Assert.Equal(NativeVocabularyDeleteBlock.UsedByOthers, browser.EditState.Detail!.DeleteBlock);
         Assert.False(browser.EditState.CanDelete);
+        Assert.True(browser.EditState.CanSave);
         Assert.Equal(1, (await RowsAsync(fixture, wordId)).Words);
     }
 
-    // Review 2026-11-05 (third pass): a group blocked by the source's own check and by a copy
-    // that is not the learner's shows both reasons; one blocked only by the source keeps the
-    // source's "Edit before merge" advice.
+    // A group blocked by the source's own check keeps the source's "Edit before merge" advice:
+    // every copy is the learner's, so editing the records unblocks it.
     [Fact]
-    public void BlockedGroup_ShowsEveryReasonAndOnlyUsefulAdvice()
+    public void BlockedGroup_ShowsTheSourceReasonAndEditAdvice()
     {
-        var both = new NativeVocabularyDuplicateGroup("사과", "사과", [], false,
-            "Language differs", "keeper", HasAnotherOwnersCopy: true);
-        Assert.Equal("NativeVocabulary_DuplicatesAnotherOwner\nLanguage differs",
-            VocabularyDuplicateFinder.BlockedReason(both, key => key));
-        Assert.Null(VocabularyDuplicateFinder.Blocked(both, key => key).Help);
-
-        var sourceOnly = both with { HasAnotherOwnersCopy = false };
+        var blocked = new NativeVocabularyDuplicateGroup("사과", "사과", [], false,
+            "Language differs", "keeper");
+        Assert.Equal("Language differs", VocabularyDuplicateFinder.BlockedReason(blocked, key => key));
         Assert.Equal(new VocabularyDuplicateBlock("NativeVocabulary_DuplicatesEditBeforeMerge",
                 "NativeVocabulary_DuplicatesMergeUnavailable", "Language differs",
                 "NativeVocabulary_DuplicatesMergeUnavailableHelp"),
-            VocabularyDuplicateFinder.Blocked(sourceOnly, key => key));
+            VocabularyDuplicateFinder.Blocked(blocked, key => key));
         Assert.Equal("NativeVocabulary_DuplicatesBlockedFallback", VocabularyDuplicateFinder
-            .BlockedReason(sourceOnly with { MergeBlockedReason = null }, key => key));
+            .BlockedReason(blocked with { MergeBlockedReason = null }, key => key));
     }
 
     // Review 2026-11-05 (third pass): with no owner, `x.Owner != owner` stops matching rows that
@@ -1349,7 +1371,8 @@ public sealed class VocabularyWordCleanupTests
             (1, firstLanguage, (string?)null), (2, secondLanguage, "Their story") })
         {
             db.VocabularyWords.Add(new VocabularyWord {
-                Id = $"{prefix}-{index}", TargetLanguageTerm = index == 1 ? "사과" : " 사과 ",
+                Id = $"{prefix}-{index}", UserProfileId = owner,
+                TargetLanguageTerm = index == 1 ? "사과" : " 사과 ",
                 NativeLanguageTerm = "apple", Language = language,
                 LexicalUnitType = LexicalUnitType.Word, MnemonicText = story,
                 CreatedAt = new DateTime(2026, 11, 1, 9, index, 0, DateTimeKind.Utc),

@@ -38,7 +38,7 @@ internal sealed record VocabularyBrowserEdit(
     internal static bool CanSaveWord(bool saving, NativeVocabularyDetail? detail,
         NativeVocabularyEditDraft? draft) =>
         !saving
-        && detail is { IsSharedWithAnotherOwner: false }
+        && detail is not null
         && draft is { } current
         && !string.IsNullOrWhiteSpace(current.TargetTerm)
         && !string.IsNullOrWhiteSpace(current.NativeTerm);
@@ -344,7 +344,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal void ChangeDraft(string field, string value)
     {
-        if (_draft is not { } draft || _detail?.IsSharedWithAnotherOwner == true
+        if (_draft is not { } draft
             || _saving || !TryOwner(out _))
             return;
         _draft = field switch
@@ -369,7 +369,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal void ToggleResource(string id, bool selected)
     {
-        if (_draft is not { } draft || _detail?.IsSharedWithAnotherOwner == true
+        if (_draft is not { } draft
             || _saving || !TryOwner(out _)
             || _detail?.AvailableResources.Any(resource =>
                 resource.Id == id && !resource.IsSmartResource) != true)
@@ -388,7 +388,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal async Task SaveAsync()
     {
         if (!_formOpen || _saving || _cleanup.Deleting || _detail is null
-            || _detail.IsSharedWithAnotherOwner || _draft is not { } draft
+            || _draft is not { } draft
             || !TryOwner(out var owner))
             return;
         if (string.IsNullOrWhiteSpace(draft.TargetTerm)
@@ -461,11 +461,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             detail.HasConstituentLinks
                 && draft.LexicalUnitType != detail.Word.LexicalUnitType
                 ? "NativeVocabulary_ConstituentsLocked"
-                : draft.ResourceIds.Count == 0 && detail.Progress is null
-                    ? "NativeVocabulary_AssociationRequired"
-                    : "VocabWordEdit_SaveFailed",
+                : "VocabWordEdit_SaveFailed",
         NativeVocabularySaveStatus.Conflict => "NativeVocabulary_Conflict",
-        NativeVocabularySaveStatus.SharedReadOnly => "NativeVocabulary_SharedReadOnly",
         _ => "VocabWordEdit_NotFound"
     };
 

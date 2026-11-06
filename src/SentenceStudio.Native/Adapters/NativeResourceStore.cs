@@ -92,11 +92,13 @@ public sealed partial class NativeResourceStore(
         if (detail is null)
             return null;
 
+        // Only the owner's own words (the one ownership rule): a word another learner owns, or
+        // no one owns, stays linked but is not shown.
         var words = await db.ResourceVocabularyMappings.AsNoTracking()
             .Where(mapping => mapping.ResourceId == resourceId
                 && db.LearningResources.Any(resource =>
                     resource.Id == mapping.ResourceId && resource.UserProfileId == owner))
-            .Join(db.VocabularyWords.AsNoTracking(),
+            .Join(db.VocabularyWords.AsNoTracking().OwnedBy(owner),
                 mapping => mapping.VocabularyWordId, word => word.Id,
                 (_, word) => word)
             .OrderBy(word => word.TargetLanguageTerm)
@@ -145,7 +147,9 @@ public sealed partial class NativeResourceStore(
                     : resource.Translation.Length > 240
                         ? resource.Translation.Substring(0, 240) : resource.Translation,
                 db.ResourceVocabularyMappings.Count(mapping =>
-                    mapping.ResourceId == resource.Id),
+                    mapping.ResourceId == resource.Id
+                    && db.VocabularyWords.Any(word => word.Id == mapping.VocabularyWordId
+                        && word.UserProfileId == owner)),
                 new ResourceMetadataSnapshot(resource.UpdatedAt, resource.Title,
                     resource.Description, resource.Tags,
                     isSqlite ? resource.UpdatedAt.ToString() : null))
@@ -194,9 +198,11 @@ public sealed partial class NativeResourceStore(
         };
         var staged = draft.StagedVocabulary.IsDefault
             ? [] : draft.StagedVocabulary;
+        // The owner creating the resource creates its new words (recorded to them).
         var words = staged.Select(row => new VocabularyWord
         {
             Id = row.Id,
+            UserProfileId = owner,
             TargetLanguageTerm = row.TargetTerm.Trim(),
             NativeLanguageTerm = row.NativeTerm.Trim(),
             Language = row.Language ?? resource.Language,

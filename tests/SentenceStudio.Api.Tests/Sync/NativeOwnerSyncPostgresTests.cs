@@ -108,8 +108,11 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         Assert.Equal("New", rows.Single(resource => resource.Id == newId).Title);
     }
 
+    // A word recorded to this owner that another learner also links and practises (legacy data):
+    // the owner's progress, its new context and the owner's edit of their own word apply; the
+    // other learner's progress is untouched.
     [ApplicationOperationPostgresFact]
-    public async Task SharedWord_AllowsOwnedProgressAndNewContext_WithoutChangingOtherOwner()
+    public async Task RecordedWord_TakesItsOwnersProgressContextAndEdit_WithoutChangingOtherOwner()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var wordId = Guid.NewGuid().ToString();
@@ -125,7 +128,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 new LearningResource { Id = foreignResourceId, UserProfileId = foreign });
             db.VocabularyWords.Add(new VocabularyWord
             {
-                Id = wordId, TargetLanguageTerm = "Shared original"
+                Id = wordId, TargetLanguageTerm = "Shared original", UserProfileId = owner
             });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping
@@ -186,10 +189,200 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 {
                     ["Id"] = wordId, ["TargetLanguageTerm"] = "Overwritten"
                 }));
-        // No single owner: left out (stays on the device), never applied.
+        // The word is recorded to this owner (the one ownership rule): their edit applies, and
+        // the stored owner stays theirs.
         Assert.Equal(HttpStatusCode.OK, wordUpdate.StatusCode);
-        Assert.Equal("Shared original", (await verified.VocabularyWords.AsNoTracking()
-            .SingleAsync(word => word.Id == wordId)).TargetLanguageTerm);
+        await using var afterEdit = _fixture.NewContext();
+        var edited = await afterEdit.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == wordId);
+        Assert.Equal("Overwritten", edited.TargetLanguageTerm);
+        Assert.Equal(owner, edited.UserProfileId);
+    }
+
+    // Captain 2026-11-06: a device syncs only its owner's words, and their dependents follow
+    // them. Progress, contexts, links, phrase parts and edits naming a word recorded to someone
+    // else, or to no one, are left out (they stay on the device) without refusing the upload,
+    // even when the owner's resource links the word.
+    [ApplicationOperationPostgresFact]
+    public async Task OwnerlessOrForeignWord_ItsProgressLinksPhrasesAndEditsAreLeftOut()
+    {
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        var resourceId = Guid.NewGuid().ToString();
+        var ownWord = Guid.NewGuid().ToString();
+        var ownerlessWord = Guid.NewGuid().ToString();
+        var foreignWord = Guid.NewGuid().ToString();
+        var ownerlessProgress = Guid.NewGuid().ToString();
+        await using (var db = _fixture.NewContext())
+        {
+            db.LearningResources.Add(new LearningResource { Id = resourceId, UserProfileId = owner });
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = ownWord, TargetLanguageTerm = "own", UserProfileId = owner },
+                new VocabularyWord { Id = ownerlessWord, TargetLanguageTerm = "legacy", UserProfileId = owner },
+                new VocabularyWord { Id = foreignWord, TargetLanguageTerm = "foreign", UserProfileId = foreign });
+            db.ResourceVocabularyMappings.AddRange(
+                new ResourceVocabularyMapping { Id = Guid.NewGuid().ToString(), ResourceId = resourceId, VocabularyWordId = ownerlessWord },
+                new ResourceVocabularyMapping { Id = Guid.NewGuid().ToString(), ResourceId = resourceId, VocabularyWordId = foreignWord });
+            db.VocabularyProgresses.Add(new VocabularyProgress
+            {
+                Id = ownerlessProgress, UserId = owner, VocabularyWordId = ownerlessWord
+            });
+            await db.SaveChangesAsync();
+            await db.VocabularyWords.Where(word => word.Id == ownerlessWord)
+                .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+        }
+
+        var newProgress = Guid.NewGuid().ToString();
+        var newMapping = Guid.NewGuid().ToString();
+        var newPhrase = Guid.NewGuid().ToString();
+        var contextId = Guid.NewGuid().ToString();
+        using var response = await _fixture.UploadAsync(owner,
+            new SyncItem("VocabularyProgress", ChangeType.Update, new Dictionary<string, object?>
+            {
+                ["Id"] = ownerlessProgress, ["UserId"] = owner, ["VocabularyWordId"] = ownerlessWord,
+                ["MasteryScore"] = 0.9f, ["TotalAttempts"] = 1, ["CorrectAttempts"] = 1
+            }),
+            Context(contextId, ownerlessProgress, resourceId),
+            new SyncItem("VocabularyProgress", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = newProgress, ["UserId"] = owner, ["VocabularyWordId"] = foreignWord
+            }),
+            new SyncItem("ResourceVocabularyMapping", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = newMapping, ["ResourceId"] = resourceId, ["VocabularyWordId"] = foreignWord
+            }),
+            new SyncItem("PhraseConstituent", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = newPhrase, ["PhraseWordId"] = ownWord, ["ConstituentWordId"] = ownerlessWord,
+                ["CreatedAt"] = DateTime.UtcNow
+            }),
+            new SyncItem("VocabularyWord", ChangeType.Update, new Dictionary<string, object?>
+            {
+                ["Id"] = ownerlessWord, ["TargetLanguageTerm"] = "Claimed", ["UserProfileId"] = owner
+            }),
+            new SyncItem("VocabularyWord", ChangeType.Update, new Dictionary<string, object?>
+            {
+                ["Id"] = foreignWord, ["TargetLanguageTerm"] = "Stolen"
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.Equal(0f, (await verified.VocabularyProgresses.AsNoTracking()
+            .SingleAsync(progress => progress.Id == ownerlessProgress)).MasteryScore);
+        Assert.False(await verified.VocabularyLearningContexts.AnyAsync(row => row.Id == contextId));
+        Assert.False(await verified.VocabularyProgresses.AnyAsync(row => row.Id == newProgress));
+        Assert.False(await verified.ResourceVocabularyMappings.AnyAsync(row => row.Id == newMapping));
+        Assert.False(await verified.PhraseConstituents.AnyAsync(row => row.Id == newPhrase));
+        var legacy = await verified.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == ownerlessWord);
+        Assert.Equal(("legacy", (string?)null), (legacy.TargetLanguageTerm, legacy.UserProfileId));
+        var theirs = await verified.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == foreignWord);
+        Assert.Equal(("foreign", (string?)foreign), (theirs.TargetLanguageTerm, theirs.UserProfileId));
+    }
+
+    // Captain 2026-11-06, through the real CoreSync HTTP download: two learners, and words that
+    // break the old resource-based filter both ways. The owner gets their word in no resource
+    // and its progress and context; never another learner's word, or no one's, that sits in the
+    // owner's resource, nor that link, nor their own progress on it. The other learner gets
+    // only their own word.
+    [ApplicationOperationPostgresFact]
+    public async Task NativeDownload_SendsWordsByOwner_AndTheirDependentsWithThem()
+    {
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        var resource = Guid.NewGuid().ToString();
+        var unlinked = Guid.NewGuid().ToString();
+        var linkedOwn = Guid.NewGuid().ToString();
+        var foreignInOwners = Guid.NewGuid().ToString();
+        var ownerlessInOwners = Guid.NewGuid().ToString();
+        var unlinkedProgress = Guid.NewGuid().ToString();
+        var unlinkedContext = Guid.NewGuid().ToString();
+        var progressOnForeign = Guid.NewGuid().ToString();
+        var progressOnOwnerless = Guid.NewGuid().ToString();
+        var linkOwn = Guid.NewGuid().ToString();
+        var linkForeign = Guid.NewGuid().ToString();
+        var linkOwnerless = Guid.NewGuid().ToString();
+        await using (var db = _fixture.NewContext())
+        {
+            db.LearningResources.Add(new LearningResource { Id = resource, UserProfileId = owner, Title = "Mine" });
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = unlinked, TargetLanguageTerm = "웹에서", UserProfileId = owner },
+                new VocabularyWord { Id = linkedOwn, TargetLanguageTerm = "내것", UserProfileId = owner },
+                new VocabularyWord { Id = foreignInOwners, TargetLanguageTerm = "남의것", UserProfileId = foreign },
+                new VocabularyWord { Id = ownerlessInOwners, TargetLanguageTerm = "주인없음", UserProfileId = owner });
+            db.ResourceVocabularyMappings.AddRange(
+                new ResourceVocabularyMapping { Id = linkOwn, ResourceId = resource, VocabularyWordId = linkedOwn },
+                new ResourceVocabularyMapping { Id = linkForeign, ResourceId = resource, VocabularyWordId = foreignInOwners },
+                new ResourceVocabularyMapping { Id = linkOwnerless, ResourceId = resource, VocabularyWordId = ownerlessInOwners });
+            db.VocabularyProgresses.AddRange(
+                new VocabularyProgress { Id = unlinkedProgress, UserId = owner, VocabularyWordId = unlinked },
+                new VocabularyProgress { Id = progressOnForeign, UserId = owner, VocabularyWordId = foreignInOwners },
+                new VocabularyProgress { Id = progressOnOwnerless, UserId = owner, VocabularyWordId = ownerlessInOwners });
+            db.VocabularyLearningContexts.Add(new VocabularyLearningContext
+            {
+                Id = unlinkedContext, VocabularyProgressId = unlinkedProgress, Activity = "VocabularyQuiz",
+                InputMode = "TextEntry", LearnedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            await db.VocabularyWords.Where(word => word.Id == ownerlessInOwners)
+                .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+        }
+
+        using var client = _fixture.CreateClient();
+        async Task<HashSet<string>> DownloadedIdsAsync(string learner)
+        {
+            var session = await _fixture.StartDownloadAsync(client, learner);
+            using var chunk = await _fixture.GetAsync(client,
+                $"/api/sync-agent/changes-bulk-item/{session.SessionId}/0/5000", learner);
+            Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
+            var items = await chunk.Content.ReadFromJsonAsync<SyncItem[]>();
+            return items!.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
+        var ownersDevice = await DownloadedIdsAsync(owner);
+        foreach (var id in new[] { unlinked, unlinkedProgress, unlinkedContext, linkedOwn, linkOwn, resource })
+            Assert.Contains(id, ownersDevice);
+        foreach (var id in new[] { foreignInOwners, ownerlessInOwners, linkForeign, linkOwnerless,
+                     progressOnForeign, progressOnOwnerless })
+            Assert.DoesNotContain(id, ownersDevice);
+
+        var foreignDevice = await DownloadedIdsAsync(foreign);
+        Assert.Contains(foreignInOwners, foreignDevice);
+        foreach (var id in new[] { unlinked, linkedOwn, ownerlessInOwners, linkForeign, resource })
+            Assert.DoesNotContain(id, foreignDevice);
+    }
+
+    // Item 3 (Captain 2026-11-06): a word the device creates is recorded to the uploading
+    // learner, its creator, whatever the device copy says about its owner; a new word whose
+    // device copy names another learner is not this learner's creation and stays on the device.
+    [ApplicationOperationPostgresFact]
+    public async Task UploadedNewWords_AreRecordedToTheirCreator()
+    {
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        var blankWord = Guid.NewGuid().ToString();
+        var ownWord = Guid.NewGuid().ToString();
+        var namedForeign = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        using var response = await _fixture.UploadAsync(owner,
+            new SyncItem("VocabularyWord", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = blankWord, ["TargetLanguageTerm"] = "older build", ["CreatedAt"] = now, ["UpdatedAt"] = now
+            }),
+            new SyncItem("VocabularyWord", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = ownWord, ["TargetLanguageTerm"] = "current build", ["UserProfileId"] = owner,
+                ["CreatedAt"] = now, ["UpdatedAt"] = now
+            }),
+            new SyncItem("VocabularyWord", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = namedForeign, ["TargetLanguageTerm"] = "someone else's", ["UserProfileId"] = foreign,
+                ["CreatedAt"] = now, ["UpdatedAt"] = now
+            }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.Equal(owner, (await verified.VocabularyWords.AsNoTracking()
+            .SingleAsync(word => word.Id == blankWord)).UserProfileId);
+        Assert.Equal(owner, (await verified.VocabularyWords.AsNoTracking()
+            .SingleAsync(word => word.Id == ownWord)).UserProfileId);
+        Assert.False(await verified.VocabularyWords.AnyAsync(word => word.Id == namedForeign));
     }
 
     [ApplicationOperationPostgresFact]
@@ -210,7 +403,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 new LearningResource { Id = foreignResourceId, UserProfileId = foreign });
             db.VocabularyWords.Add(new VocabularyWord
             {
-                Id = existingWordId, TargetLanguageTerm = "unmapped"
+                Id = existingWordId, TargetLanguageTerm = "unmapped", UserProfileId = owner
             });
             db.VocabularyProgresses.Add(new VocabularyProgress
             {
@@ -249,7 +442,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
 
         await using var verified = _fixture.NewContext();
         Assert.True(await verified.VocabularyWords.AsNoTracking()
-            .AnyAsync(word => word.Id == newWordId && word.TargetLanguageTerm == "new"));
+            .AnyAsync(word => word.Id == newWordId && word.TargetLanguageTerm == "new"
+                && word.UserProfileId == owner));
         Assert.Equal(2, await verified.ResourceVocabularyMappings.AsNoTracking()
             .CountAsync(mapping => mapping.Id == existingMappingId || mapping.Id == newMappingId));
         Assert.Equal(0.7f, (await verified.VocabularyProgresses.AsNoTracking()
@@ -331,8 +525,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 new LearningResource { Id = ownResourceId, UserProfileId = owner },
                 new LearningResource { Id = foreignResourceId, UserProfileId = foreign });
             db.VocabularyWords.AddRange(
-                new VocabularyWord { Id = ownWordId, TargetLanguageTerm = "own" },
-                new VocabularyWord { Id = foreignWordId, TargetLanguageTerm = "foreign" });
+                new VocabularyWord { Id = ownWordId, TargetLanguageTerm = "own", UserProfileId = owner },
+                new VocabularyWord { Id = foreignWordId, TargetLanguageTerm = "foreign", UserProfileId = foreign });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping
                 {
@@ -463,7 +657,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             {
                 Id = resourceId, UserProfileId = owner
             });
-            db.VocabularyWords.Add(new VocabularyWord { Id = wordId });
+            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, UserProfileId = owner });
             db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
             {
                 Id = Guid.NewGuid().ToString(),
@@ -1087,9 +1281,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 new SkillProfile { Id = foreignSkill, UserProfileId = foreign },
                 new SkillProfile { Id = ownerlessSkill });
             db.VocabularyWords.AddRange(
-                new VocabularyWord { Id = wordId },
-                new VocabularyWord { Id = foreignWord },
-                new VocabularyWord { Id = ownerlessWord });
+                new VocabularyWord { Id = wordId, UserProfileId = owner },
+                new VocabularyWord { Id = foreignWord, UserProfileId = foreign },
+                new VocabularyWord { Id = ownerlessWord, UserProfileId = owner });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping
                 {
@@ -1115,6 +1309,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                     Id = ownerlessProgress, UserId = "", VocabularyWordId = ownerlessWord
                 });
             await db.SaveChangesAsync();
+            await db.VocabularyWords.Where(word => word.Id == ownerlessWord)
+                .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
         }
 
         var attemptedIds = new List<(string Table, string Id)>();
@@ -1225,7 +1421,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             {
                 Id = resourceId, UserProfileId = owner
             });
-            db.VocabularyWords.Add(new VocabularyWord { Id = wordId });
+            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, UserProfileId = owner });
             db.VocabularyProgresses.Add(new VocabularyProgress
             {
                 Id = progressId, UserId = owner, VocabularyWordId = wordId
@@ -1316,23 +1512,28 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         Assert.False(await after.Challenges.AnyAsync(row => legacyIds.Contains(row.Id)));
     }
 
+    // A phrase part may name the owner's own word even when another learner's resource links it
+    // (legacy data); one naming another learner's word is left out.
     [ApplicationOperationPostgresFact]
-    public async Task OwnedPhrase_CanReferenceExistingWordSharedWithAnotherOwner()
+    public async Task OwnedPhrase_CanReferenceTheOwnersWordAnotherLearnerLinks_NotTheirWord()
     {
         var (owner, foreign) = await _fixture.SeedOwnersAsync();
         var ownResource = Guid.NewGuid().ToString();
         var foreignResource = Guid.NewGuid().ToString();
         var phraseWord = Guid.NewGuid().ToString();
         var sharedWord = Guid.NewGuid().ToString();
+        var foreignOnlyWord = Guid.NewGuid().ToString();
         var phraseId = Guid.NewGuid().ToString();
+        var foreignPhraseId = Guid.NewGuid().ToString();
         await using (var db = _fixture.NewContext())
         {
             db.LearningResources.AddRange(
                 new LearningResource { Id = ownResource, UserProfileId = owner },
                 new LearningResource { Id = foreignResource, UserProfileId = foreign });
             db.VocabularyWords.AddRange(
-                new VocabularyWord { Id = phraseWord },
-                new VocabularyWord { Id = sharedWord });
+                new VocabularyWord { Id = phraseWord, UserProfileId = owner },
+                new VocabularyWord { Id = sharedWord, UserProfileId = owner },
+                new VocabularyWord { Id = foreignOnlyWord, UserProfileId = foreign });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping
                 {
@@ -1365,6 +1566,15 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         Assert.True(await verified.ResourceVocabularyMappings.AsNoTracking()
             .AnyAsync(mapping => mapping.ResourceId == foreignResource
                 && mapping.VocabularyWordId == sharedWord));
+
+        using var foreignPart = await _fixture.UploadAsync(owner, new SyncItem(
+            "PhraseConstituent", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = foreignPhraseId, ["PhraseWordId"] = phraseWord,
+                ["ConstituentWordId"] = foreignOnlyWord, ["CreatedAt"] = DateTime.UtcNow
+            }));
+        Assert.Equal(HttpStatusCode.OK, foreignPart.StatusCode);
+        Assert.False(await verified.PhraseConstituents.AnyAsync(row => row.Id == foreignPhraseId));
     }
 
     [ApplicationOperationPostgresFact]
@@ -1444,11 +1654,11 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         var contextId = Guid.NewGuid().ToString();
         await using (var db = _fixture.NewContext())
         {
-            // The quizzed word is ownerless and shared with another owner's resource.
+            // The quizzed word is the owner's, and another owner's resource links it too.
             db.LearningResources.AddRange(
                 new LearningResource { Id = resourceId, UserProfileId = owner },
                 new LearningResource { Id = foreignResourceId, UserProfileId = foreign });
-            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = "word" });
+            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = "word", UserProfileId = owner });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping
                 {
@@ -1490,7 +1700,8 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             .SingleAsync(row => row.Id == progressId && row.UserId == owner)).MasteryScore);
         Assert.True(await verified.VocabularyLearningContexts.AsNoTracking()
             .AnyAsync(row => row.Id == contextId));
-        Assert.Null((await verified.VocabularyWords.AsNoTracking()
+        // Nothing re-decides the word's owner after the upload.
+        Assert.Equal(owner, (await verified.VocabularyWords.AsNoTracking()
             .SingleAsync(row => row.Id == wordId)).UserProfileId);
     }
 
@@ -1692,7 +1903,7 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
                 Date = DateTime.UtcNow.Date, PlanItemId = Guid.NewGuid().ToString(),
                 ResourceId = resources[0], SkillId = skills[0]
             });
-            db.VocabularyWords.Add(new VocabularyWord { Id = wordId });
+            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, UserProfileId = owner });
             db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
             {
                 Id = Guid.NewGuid().ToString(),

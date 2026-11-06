@@ -44,8 +44,8 @@ public sealed class ExampleSentenceRepositoryConcurrencyTests : IDisposable
             UserProfileId = "user-a"
         });
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "word-a", TargetLanguageTerm = "하나" },
-            new VocabularyWord { Id = "word-b", TargetLanguageTerm = "둘" });
+            new VocabularyWord { Id = "word-a", TargetLanguageTerm = "하나", UserProfileId = "user-a" },
+            new VocabularyWord { Id = "word-b", TargetLanguageTerm = "둘", UserProfileId = "user-a" });
         db.ResourceVocabularyMappings.AddRange(
             new ResourceVocabularyMapping { ResourceId = "resource-a", VocabularyWordId = "word-a" },
             new ResourceVocabularyMapping { ResourceId = "resource-a", VocabularyWordId = "word-b" });
@@ -54,6 +54,7 @@ public sealed class ExampleSentenceRepositoryConcurrencyTests : IDisposable
             {
                 VocabularyWordId = "word-a",
                 LearningResourceId = "resource-a",
+                UserProfileId = "user-a",
                 TargetSentence = "하나예요.",
                 Status = ExampleSentenceStatus.Curated
             },
@@ -61,6 +62,7 @@ public sealed class ExampleSentenceRepositoryConcurrencyTests : IDisposable
             {
                 VocabularyWordId = "word-b",
                 LearningResourceId = "resource-a",
+                UserProfileId = "user-a",
                 TargetSentence = "둘이에요.",
                 Status = ExampleSentenceStatus.Curated
             });

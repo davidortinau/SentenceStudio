@@ -48,22 +48,21 @@ public sealed record NativeVocabularyDetail(
     IReadOnlyList<NativeVocabularyHistory> History,
     IReadOnlyList<NativeVocabularyExample> Examples,
     IReadOnlyList<NativeVocabularyConstituent> Constituents,
-    bool IsSharedWithAnotherOwner,
     bool HasConstituentLinks,
     NativeVocabularyDeleteBlock DeleteBlock);
 
 /// <summary>
 /// Why the word cannot be deleted, by the rules the server applies to a synced word delete,
-/// or <see cref="None"/>.
+/// or <see cref="None"/>. The word itself is always the owner's: only a word recorded to them
+/// is shown (Captain 2026-11-06), and its recorded owner may always edit it.
 /// </summary>
 public enum NativeVocabularyDeleteBlock
 {
     None,
-    /// <summary>The word cannot be edited either (<see cref="NativeVocabularyDetail.IsSharedWithAnotherOwner"/>).</summary>
-    SharedReadOnly,
     /// <summary>
-    /// Another learner's minimal pair or phrase, or one not recorded to anyone, uses the word:
-    /// the delete would remove or change that row, so the server keeps the word.
+    /// Data that is not the owner's (another learner's, or recorded to no one) still uses the
+    /// word: a resource link, progress, an example sentence, a minimal pair or a phrase. The
+    /// delete would remove or change that row, so the server keeps the word.
     /// </summary>
     UsedByOthers,
     /// <summary>A Minimal Pairs answer references the word, which the database refuses to delete (B2).</summary>
@@ -72,7 +71,7 @@ public enum NativeVocabularyDeleteBlock
 
 public enum NativeVocabularySaveStatus
 {
-    Saved, SavedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly,
+    Saved, SavedSyncUnconfirmed, NotFoundOrForbidden,
     Invalid, Duplicate, Conflict
 }
 
@@ -82,7 +81,7 @@ public enum NativeVocabularySaveStatus
 /// </summary>
 public enum NativeVocabularyDeleteStatus
 {
-    Deleted, DeletedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly,
+    Deleted, DeletedSyncUnconfirmed, NotFoundOrForbidden,
     UsedByOthers, UsedByAnswers, Failed
 }
 
@@ -97,8 +96,8 @@ public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool
 }
 
 /// <summary>
-/// One copy in a duplicate group (source VocabularyDuplicateWordInfo). Memory aids are
-/// those of the copy's recorded owner only; another owner's copy shows none.
+/// One copy in a duplicate group (source VocabularyDuplicateWordInfo): always one of the
+/// owner's own words, shown with its memory aids.
 /// </summary>
 public sealed record NativeVocabularyDuplicateWord(
     string Id, string TargetTerm, string NativeTerm,
@@ -106,16 +105,15 @@ public sealed record NativeVocabularyDuplicateWord(
     int ResourceCount, double EncodingScore, string EncodingLabel,
     string? MnemonicText, bool HasImageAid, bool HasAudio);
 
-/// <summary>Source VocabularyDuplicateGroup; <see cref="Words"/> is in merge-preference order.</summary>
-/// <param name="HasAnotherOwnersCopy">
-/// A copy is not recorded to the learner (another learner's, or a legacy word recorded to
-/// nobody). The group cannot merge on the device; each copy can still be opened.
-/// </param>
+/// <summary>
+/// Source VocabularyDuplicateGroup of the owner's own words; <see cref="Words"/> is in
+/// merge-preference order.
+/// </summary>
 public sealed record NativeVocabularyDuplicateGroup(
     string NormalizedTerm, string DisplayTerm,
     IReadOnlyList<NativeVocabularyDuplicateWord> Words,
     bool CanMergeAutomatically, string? MergeBlockedReason,
-    string RecommendedKeeperId, bool HasAnotherOwnersCopy = false);
+    string RecommendedKeeperId);
 
 /// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
 public sealed record NativeVocabularyDuplicateScan(

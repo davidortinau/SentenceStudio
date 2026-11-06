@@ -198,6 +198,7 @@ public sealed class LearningResourceDeleteCommitAmbiguityPostgresTests : IAsyncL
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString("n"),
+            UserProfileId = owner,
             TargetLanguageTerm = "수박",
             NativeLanguageTerm = "watermelon",
             Language = "Korean",

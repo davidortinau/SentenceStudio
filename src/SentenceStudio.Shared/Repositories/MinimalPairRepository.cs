@@ -100,6 +100,7 @@ public class MinimalPairRepository
             .Include(p => p.VocabularyWordA)
             .Include(p => p.VocabularyWordB)
             .Where(p => p.UserId == userId)
+            .Where(BothWordsOwned(userId))
             .OrderBy(p => p.CreatedAt)
             .ToListAsync();
     }
@@ -116,6 +117,7 @@ public class MinimalPairRepository
         return await _context.MinimalPairs
             .Include(p => p.VocabularyWordA)
             .Include(p => p.VocabularyWordB)
+            .Where(BothWordsOwned(userId))
             .FirstOrDefaultAsync(p => p.Id == pairId && p.UserId == userId);
     }
 
@@ -199,20 +201,23 @@ public class MinimalPairRepository
             .Include(p => p.VocabularyWordB)
             .Where(p => p.UserId == userId &&
                        (p.VocabularyWordAId == wordId || p.VocabularyWordBId == wordId))
+            .Where(BothWordsOwned(userId))
             .OrderBy(p => p.CreatedAt)
             .ToListAsync();
     }
 
     /// <summary>
-    /// The owner's vocabulary: words linked to one of the owner's resources, the same
-    /// set LearningResourceRepository.GetAllVocabularyWordsAsync lists on the create page.
+    /// The owner's vocabulary: words recorded to them (the one ownership rule), the same set
+    /// LearningResourceRepository.GetAllVocabularyWordsAsync lists on the create page.
     /// </summary>
-    private IQueryable<VocabularyWord> OwnedWords(string userId)
-    {
-        var ownedIds = _context.ResourceVocabularyMappings
-            .Join(_context.LearningResources.Where(resource => resource.UserProfileId == userId),
-                mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, _) => mapping.VocabularyWordId);
-        return _context.VocabularyWords.Where(word => ownedIds.Contains(word.Id));
-    }
+    private IQueryable<VocabularyWord> OwnedWords(string userId) =>
+        _context.VocabularyWords.OwnedBy(userId);
+
+    /// <summary>
+    /// A pair is shown only with both of its words the owner's: a pair follows its words, so a
+    /// word another learner owns, or no one owns, never appears through one.
+    /// </summary>
+    private System.Linq.Expressions.Expression<Func<MinimalPair, bool>> BothWordsOwned(string userId) =>
+        pair => _context.VocabularyWords.Any(word => word.Id == pair.VocabularyWordAId && word.UserProfileId == userId)
+            && _context.VocabularyWords.Any(word => word.Id == pair.VocabularyWordBId && word.UserProfileId == userId);
 }

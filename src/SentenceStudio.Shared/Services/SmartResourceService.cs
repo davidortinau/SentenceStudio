@@ -291,8 +291,10 @@ public class SmartResourceService
     /// </summary>
     private async Task<List<string>> GetNewWordsVocabularyIdsAsync(string userId = "")
     {
-        // Get all vocabulary words
-        var allWords = await _resourceRepo.GetAllVocabularyWordsAsync();
+        // The learner's own words (the one ownership rule)
+        var allWords = string.IsNullOrWhiteSpace(userId)
+            ? new List<VocabularyWord>()
+            : await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync(userId);
 
         // Get all progress records
         var allProgress = await _progressRepo.ListAsync();
@@ -341,7 +343,7 @@ public class SmartResourceService
             .Distinct()
             .ToList();
 
-        if (userWordIds.Count == 0)
+        if (userWordIds.Count == 0 || string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogDebug("📝 Phrases found 0 phrase entries (no user progress)");
             return new List<string>();
@@ -350,7 +352,7 @@ public class SmartResourceService
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var phraseWordIds = await db.VocabularyWords
+        var phraseWordIds = await db.VocabularyWords.OwnedBy(userId)
             .Where(w => userWordIds.Contains(w.Id))
             .Where(w => w.LexicalUnitType == LexicalUnitType.Phrase)
             .Select(w => w.Id)
@@ -373,7 +375,7 @@ public class SmartResourceService
             .Distinct()
             .ToList();
 
-        if (userWordIds.Count == 0)
+        if (userWordIds.Count == 0 || string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogDebug("📖 Sentences found 0 sentence entries (no user progress)");
             return new List<string>();
@@ -382,7 +384,7 @@ public class SmartResourceService
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var sentenceWordIds = await db.VocabularyWords
+        var sentenceWordIds = await db.VocabularyWords.OwnedBy(userId)
             .Where(w => userWordIds.Contains(w.Id))
             .Where(w => w.LexicalUnitType == LexicalUnitType.Sentence)
             .Select(w => w.Id)

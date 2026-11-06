@@ -450,6 +450,8 @@ public class VideoImportPipelineService : IVideoImportPipeline
                     join existingResource in db.LearningResources on mapping.ResourceId equals existingResource.Id
                     join existingWord in db.VocabularyWords on mapping.VocabularyWordId equals existingWord.Id
                     where existingResource.UserProfileId == import.UserProfileId
+                        // Reuse only the learner's own word (the one ownership rule).
+                        && existingWord.UserProfileId == import.UserProfileId
                         && existingWord.TargetLanguageTerm == targetTerm
                     select existingWord)
                     .FirstOrDefaultAsync();

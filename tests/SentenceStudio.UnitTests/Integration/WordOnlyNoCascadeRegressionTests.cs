@@ -265,6 +265,7 @@ public class WordOnlyNoCascadeRegressionTests : IClassFixture<PlanGenerationTest
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = PlanGenerationTestFixture.TestUserId,
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = nativeTerm,
             Language = "Korean",
@@ -282,6 +283,7 @@ public class WordOnlyNoCascadeRegressionTests : IClassFixture<PlanGenerationTest
         var phrase = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = PlanGenerationTestFixture.TestUserId,
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = nativeTerm,
             Language = "Korean",

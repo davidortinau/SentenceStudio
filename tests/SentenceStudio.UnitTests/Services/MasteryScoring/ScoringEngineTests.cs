@@ -101,6 +101,7 @@ public class ScoringEngineTests : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = wordId,
+                UserProfileId = TestUserId,
                 TargetLanguageTerm = $"target-{wordId}",
                 NativeLanguageTerm = $"native-{wordId}"
             });

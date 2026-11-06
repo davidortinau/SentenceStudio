@@ -94,6 +94,7 @@ public class VocabularyProgressServiceUserIdTests : IDisposable
                 db.VocabularyWords.Add(new VocabularyWord
                 {
                     Id = wordId,
+                    UserProfileId = userId,
                     TargetLanguageTerm = $"word-{wordId}",
                     NativeLanguageTerm = $"meaning-{wordId}"
                 });

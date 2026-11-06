@@ -4,7 +4,7 @@
 -- Why: since 2026-11-06 a word is a learner's only when VocabularyWord.UserProfileId names
 -- them (one runtime rule for the web app, MAUI, the native heads, the API's sync and the
 -- Coach; nothing is inferred from links or progress at runtime). A word recorded to no one is
--- read-only for everyone. This script records an owner where the rows prove there is exactly
+-- shown to no one. This script records an owner where the rows prove there is exactly
 -- one, and nowhere else (docs/native-port-backports.md, "One ownership rule").
 --
 -- Rules, in order (the same "uses" as VocabularyWordDependents.OthersDependOnAsync, the rule
@@ -35,6 +35,8 @@
 --   expected_sentences  sentences the dry run would record; any other count aborts
 --   apply               true commits (all three expected values are then required); leave it
 --                       out for a dry run that prints the plan and rolls back
+--   max_passes          phrase-resolution passes (default 10); reaching it with words still
+--                       resolving is reported ("pass limit reached") and refuses the apply
 --
 -- Example (credentials in PG* environment variables, never on the command line):
 --   psql -d sentencestudio -v ON_ERROR_STOP=1 -f scripts/assign-vocabulary-word-owners.sql
@@ -67,6 +69,12 @@
 \else
 \set expected_sentences -1
 \endif
+-- Phrase words resolve their parts pass by pass; this bounds the passes (review finding 12:
+-- reaching it is reported and refuses the apply instead of stopping silently).
+\if :{?max_passes}
+\else
+\set max_passes 10
+\endif
 
 BEGIN;
 SET LOCAL lock_timeout = '10s';
@@ -76,7 +84,8 @@ CREATE TEMP TABLE backfill_params ON COMMIT DROP AS
 SELECT (:'apply')::boolean AS apply,
        (:'expected_ownerless')::int AS expected_ownerless,
        (:'expected_words')::int AS expected_words,
-       (:'expected_sentences')::int AS expected_sentences;
+       (:'expected_sentences')::int AS expected_sentences,
+       (:'max_passes')::int AS max_passes;
 
 DO $$
 DECLARE
@@ -115,6 +124,38 @@ CREATE TEMP TABLE backfill_sentences (id text PRIMARY KEY, owner text NOT NULL, 
 CREATE TEMP TABLE backfill_words (id text PRIMARY KEY, owner text NOT NULL, pass int NOT NULL)
     ON COMMIT DROP;
 CREATE TEMP TABLE backfill_uses (word_id text NOT NULL, learner text) ON COMMIT DROP;
+CREATE TEMP TABLE backfill_loop (passes int NOT NULL, capped boolean NOT NULL) ON COMMIT DROP;
+
+-- Every use of every word, naming its learner (NULL when a use names none). A phrase part takes
+-- its phrase word's owner, recorded or planned so far.
+CREATE FUNCTION pg_temp.backfill_refresh_uses() RETURNS void LANGUAGE sql AS $fn$
+    TRUNCATE backfill_uses;
+    INSERT INTO backfill_uses (word_id, learner)
+    SELECT m."VocabularyWordId", NULLIF(r."UserProfileId", '')
+    FROM "ResourceVocabularyMapping" m
+    LEFT JOIN "LearningResource" r ON r."Id" = m."ResourceId"
+    UNION ALL
+    SELECT v."VocabularyWordId", NULLIF(v."UserId", '') FROM "VocabularyProgress" v
+    UNION ALL
+    SELECT s."VocabularyWordId", COALESCE(NULLIF(s."UserProfileId", ''), b.owner)
+    FROM "ExampleSentence" s
+    LEFT JOIN backfill_sentences b ON b.id = s."Id"
+    WHERE COALESCE(NULLIF(s."UserProfileId", ''), b.owner) IS NOT NULL
+    UNION ALL
+    SELECT mp."VocabularyWordAId", NULLIF(mp."UserId", '') FROM "MinimalPair" mp
+    UNION ALL
+    SELECT mp."VocabularyWordBId", NULLIF(mp."UserId", '') FROM "MinimalPair" mp
+    UNION ALL
+    SELECT a."PromptWordId", NULLIF(a."UserId", '') FROM "MinimalPairAttempt" a
+    UNION ALL
+    SELECT a."SelectedWordId", NULLIF(a."UserId", '') FROM "MinimalPairAttempt" a
+    UNION ALL
+    SELECT pc."ConstituentWordId", COALESCE(NULLIF(w."UserProfileId", ''), b.owner)
+    FROM "PhraseConstituent" pc
+    LEFT JOIN "VocabularyWord" w ON w."Id" = pc."PhraseWordId"
+    LEFT JOIN backfill_words b ON b.id = pc."PhraseWordId"
+    WHERE pc."ConstituentWordId" IS NOT NULL;
+$fn$;
 
 -- Step 1: sentences in a resource take the resource's owner.
 INSERT INTO backfill_sentences (id, owner, via)
@@ -128,37 +169,14 @@ WHERE (s."UserProfileId" IS NULL OR s."UserProfileId" = '')
 -- Step 2: words, repeated while recording a phrase word resolves its parts.
 DO $$
 DECLARE
+    pass_limit int := (SELECT bp.max_passes FROM backfill_params bp);
     pass int := 0;
     added int;
+    stopped_at_limit boolean := false;
 BEGIN
     LOOP
         pass := pass + 1;
-        TRUNCATE backfill_uses;
-        INSERT INTO backfill_uses (word_id, learner)
-        SELECT m."VocabularyWordId", NULLIF(r."UserProfileId", '')
-        FROM "ResourceVocabularyMapping" m
-        LEFT JOIN "LearningResource" r ON r."Id" = m."ResourceId"
-        UNION ALL
-        SELECT v."VocabularyWordId", NULLIF(v."UserId", '') FROM "VocabularyProgress" v
-        UNION ALL
-        SELECT s."VocabularyWordId", COALESCE(NULLIF(s."UserProfileId", ''), b.owner)
-        FROM "ExampleSentence" s
-        LEFT JOIN backfill_sentences b ON b.id = s."Id"
-        WHERE COALESCE(NULLIF(s."UserProfileId", ''), b.owner) IS NOT NULL
-        UNION ALL
-        SELECT mp."VocabularyWordAId", NULLIF(mp."UserId", '') FROM "MinimalPair" mp
-        UNION ALL
-        SELECT mp."VocabularyWordBId", NULLIF(mp."UserId", '') FROM "MinimalPair" mp
-        UNION ALL
-        SELECT a."PromptWordId", NULLIF(a."UserId", '') FROM "MinimalPairAttempt" a
-        UNION ALL
-        SELECT a."SelectedWordId", NULLIF(a."UserId", '') FROM "MinimalPairAttempt" a
-        UNION ALL
-        SELECT pc."ConstituentWordId", COALESCE(NULLIF(w."UserProfileId", ''), b.owner)
-        FROM "PhraseConstituent" pc
-        LEFT JOIN "VocabularyWord" w ON w."Id" = pc."PhraseWordId"
-        LEFT JOIN backfill_words b ON b.id = pc."PhraseWordId"
-        WHERE pc."ConstituentWordId" IS NOT NULL;
+        PERFORM pg_temp.backfill_refresh_uses();
 
         INSERT INTO backfill_words (id, owner, pass)
         SELECT w."Id", min(u.learner), pass
@@ -171,8 +189,29 @@ BEGIN
            AND count(DISTINCT u.learner) = 1
            AND EXISTS (SELECT 1 FROM "UserProfile" p WHERE p."Id" = min(u.learner));
         GET DIAGNOSTICS added = ROW_COUNT;
-        EXIT WHEN added = 0 OR pass >= 10;
+        EXIT WHEN added = 0;
+        IF pass >= pass_limit THEN
+            -- Words were still resolving: deeper phrase nesting than the limit. Say so.
+            stopped_at_limit := true;
+            EXIT;
+        END IF;
     END LOOP;
+    -- The uses as they stand after the last pass, so each remaining word gets its true reason.
+    PERFORM pg_temp.backfill_refresh_uses();
+    -- Stopping at the limit matters only if another pass would still have recorded a word.
+    IF stopped_at_limit THEN
+        stopped_at_limit := EXISTS (
+            SELECT 1
+            FROM "VocabularyWord" w
+            JOIN backfill_uses u ON u.word_id = w."Id"
+            WHERE (w."UserProfileId" IS NULL OR w."UserProfileId" = '')
+              AND NOT EXISTS (SELECT 1 FROM backfill_words b WHERE b.id = w."Id")
+            GROUP BY w."Id"
+            HAVING count(*) FILTER (WHERE u.learner IS NULL) = 0
+               AND count(DISTINCT u.learner) = 1
+               AND EXISTS (SELECT 1 FROM "UserProfile" p WHERE p."Id" = min(u.learner)));
+    END IF;
+    INSERT INTO backfill_loop (passes, capped) VALUES (pass, stopped_at_limit);
 END $$;
 
 -- Step 3: the remaining sentences take their word's owner.
@@ -194,6 +233,8 @@ SELECT w."Id" AS id,
            WHEN count(u.word_id) = 0 THEN 'used by nobody'
            WHEN count(DISTINCT u.learner) >= 2 THEN 'used by two or more learners'
            WHEN count(*) FILTER (WHERE u.learner IS NULL) > 0 THEN 'a use names no learner'
+           WHEN EXISTS (SELECT 1 FROM "UserProfile" p WHERE p."Id" = min(u.learner))
+               THEN 'not reached: phrase nesting deeper than the pass limit'
            ELSE 'its one learner is not a profile'
        END AS reason
 FROM "VocabularyWord" w
@@ -229,7 +270,14 @@ SELECT (SELECT count(*) FROM backfill_words) AS "words to record",
        (SELECT count(*) FROM backfill_sentences) AS "sentences to record",
        (SELECT ownerless_sentences FROM backfill_before)
            - (SELECT count(*) FROM backfill_sentences) AS "sentences untouched",
-       (SELECT coalesce(max(pass), 0) FROM backfill_words) AS "passes";
+       (SELECT coalesce(max(pass), 0) FROM backfill_words) AS "passes",
+       (SELECT capped FROM backfill_loop) AS "pass limit reached";
+
+SELECT CASE WHEN capped
+            THEN 'WARNING: the pass limit (' || (SELECT max_passes FROM backfill_params)
+                 || ') stopped phrase resolution with words still resolving; rerun with a higher -v max_passes=N.'
+            ELSE 'Phrase resolution finished in ' || passes || ' pass(es).' END AS "phrase passes"
+FROM backfill_loop;
 
 DO $$
 DECLARE
@@ -237,7 +285,11 @@ DECLARE
     ownerless int := (SELECT ownerless_words FROM backfill_before);
     words int := (SELECT count(*) FROM backfill_words);
     sentences int := (SELECT count(*) FROM backfill_sentences);
+    limit_hit boolean := (SELECT bl.capped FROM backfill_loop bl);
 BEGIN
+    IF p.apply AND limit_hit THEN
+        RAISE EXCEPTION 'The pass limit (%) stopped phrase resolution with words still resolving; rerun the dry run with a higher -v max_passes=N. Nothing changed.', p.max_passes;
+    END IF;
     IF p.expected_ownerless >= 0 AND ownerless <> p.expected_ownerless THEN
         RAISE EXCEPTION 'Found % ownerless words, expected %. Nothing changed.', ownerless, p.expected_ownerless;
     END IF;

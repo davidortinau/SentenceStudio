@@ -163,6 +163,8 @@ public sealed record NativePreviewFixture(
                 db.VocabularyWords.Add(new VocabularyWord
                 {
                     Id = wordId,
+                    // The fixture learner creates these words (a word is recorded to its creator).
+                    UserProfileId = Owner,
                     TargetLanguageTerm = vocabulary[index].Target,
                     NativeLanguageTerm = vocabulary[index].Meaning,
                     Language = "Korean"

@@ -26,6 +26,7 @@ public sealed class StartupWriterInjectionTests
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = "startup-learner",
             TargetLanguageTerm = "안녕 친구",
             LexicalUnitType = LexicalUnitType.Unknown
         };
@@ -64,6 +65,7 @@ public sealed class StartupWriterInjectionTests
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = "startup-learner",
             TargetLanguageTerm = "안녕 친구",
             LexicalUnitType = LexicalUnitType.Unknown
         };

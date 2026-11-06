@@ -472,12 +472,7 @@ else
                                         <div>
                                             <strong>@group.DisplayTerm</strong>
                                             <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
-                                            @if (group.HasCopyNotOwnedByLearner)
-                                            {
-                                                @* B69: editing cannot unblock a group with a copy that is not the learner's. *@
-                                                <span class="badge bg-warning text-dark ms-2">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</span>
-                                            }
-                                            else if (!group.CanMergeAutomatically)
+                                            @if (!group.CanMergeAutomatically)
                                             {
                                                 <span class="badge bg-warning text-dark ms-2">Edit before merge</span>
                                             }
@@ -510,8 +505,7 @@ else
                                                {
                                                    <div class="small text-success mt-1">Best retained version based on encoding strength and memory aids.</div>
                                                }
-                                               @* Review 4: another learner's copy is never offered for editing. *@
-                                               @if (!group.CanMergeAutomatically && wordInfo.IsLearnersOwn)
+                                               @if (!group.CanMergeAutomatically)
                                                {
                                                    <button class="btn btn-sm btn-outline-secondary mt-2"
                                                            @onclick="() => EditWord(wordInfo.Word.Id)" disabled="@isCleanupRunning">
@@ -521,18 +515,7 @@ else
                                            </div>
                                        }
                                     </div>
-                                    @if (group.HasCopyNotOwnedByLearner)
-                                    {
-                                        <div class="alert alert-warning py-2 mt-2 mb-2" data-testid="duplicate-not-yours">
-                                            <div class="fw-semibold">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</div>
-                                            <div class="small">@Localize["Vocabulary_DuplicatesNotRecordedToYou"]</div>
-                                            @if (!string.IsNullOrWhiteSpace(group.MergeBlockedReason))
-                                            {
-                                                <div class="small mt-1">@group.MergeBlockedReason</div>
-                                            }
-                                        </div>
-                                    }
-                                    else if (!group.CanMergeAutomatically)
+                                    @if (!group.CanMergeAutomatically)
                                     {
                                         <div class="alert alert-warning py-2 mt-2 mb-2">
                                             <div class="fw-semibold">Merge is not available yet.</div>
@@ -1215,15 +1198,18 @@ else
         try
         {
             var ids = selectedWordIds.ToList();
-            // Review 4 (B66): each word goes through the owner-scoped delete; words that are not
-            // the learner's, or that others or Minimal Pairs answers still use, stay.
+            // Review 4 (B66): each word goes through the owner-scoped delete; words that others'
+            // data or Minimal Pairs answers still use stay.
             var result = await ResourceRepo.BulkDeleteVocabularyWordsAsync(ids, ActiveUserId);
             if (result.Deleted > 0)
-            {
                 CacheService.InvalidateVocabSummary();
+            // Reload whenever the list no longer matches the store: deleted words, and words
+            // already gone (deleted or no longer the learner's, e.g. on another device), so
+            // neither stays on screen to be selected again (review finding 8).
+            if (result.Deleted > 0 || result.NotFound > 0)
                 await LoadData();
+            if (result.Deleted > 0)
                 Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], result.Deleted)}");
-            }
             // Say exactly what happened to the rest: a kept word stays in the learner's
             // vocabulary with its links.
             if (result.KeptShared > 0)
@@ -1320,7 +1306,7 @@ else
         try
         {
             var ids = selectedWordIds.ToList();
-            var updated = await ResourceRepo.BulkSetLanguageAsync(ids, bulkLanguage);
+            var updated = await ResourceRepo.BulkSetLanguageAsync(ids, bulkLanguage, ActiveUserId);
 
             CacheService.InvalidateVocabSummary();
             await LoadData();
@@ -1348,7 +1334,7 @@ else
         try
         {
             var ids = selectedWordIds.ToList();
-            var updated = await ResourceRepo.BulkAddTagsAsync(ids, tags);
+            var updated = await ResourceRepo.BulkAddTagsAsync(ids, tags, ActiveUserId);
 
             CacheService.InvalidateVocabSummary();
             await LoadData();
@@ -1623,11 +1609,6 @@ else
 
     private async Task MergeDuplicateGroup(VocabularyDuplicateGroup group)
     {
-        if (group.HasCopyNotOwnedByLearner)
-        {
-            Toast.ShowInfo(Localize["Vocabulary_DuplicatesNotRecordedToYou"]);
-            return;
-        }
         if (!group.CanMergeAutomatically)
         {
             Toast.ShowInfo(group.MergeBlockedReason ?? "This duplicate group needs review before merging.");
@@ -1796,7 +1777,7 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
                         if (lemmaUpdates.Any())
                         {
-                            int batchUpdated = await ResourceRepo.BulkUpdateLemmasAsync(lemmaUpdates);
+                            int batchUpdated = await ResourceRepo.BulkUpdateLemmasAsync(lemmaUpdates, ActiveUserId);
                             updated += batchUpdated;
                         }
                     }
@@ -1903,6 +1884,7 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             // learner's. A term swap updates only a word recorded to the learner.
             var userId = ActiveUserId;
             var keptCount = 0;
+            var failedCount = 0;
             foreach (var (fromId, toId) in wordsToMerge)
             {
                 var merged = await ResourceRepo.MergeVocabularyWordsWithResultAsync(
@@ -1917,10 +1899,20 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
             foreach (var (id, newTarget, newNative) in wordsToSwap)
             {
-                if (await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative, userId))
-                    swappedCount++;
-                else
-                    keptCount++;
+                // An expected refusal (no longer the learner's) is kept; a technical failure is
+                // reported as an error, never as a refusal (review finding 4).
+                switch (await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative, userId))
+                {
+                    case VocabularyWordTermsUpdateResult.Updated:
+                        swappedCount++;
+                        break;
+                    case VocabularyWordTermsUpdateResult.NotLearnersOwn:
+                        keptCount++;
+                        break;
+                    default:
+                        failedCount++;
+                        break;
+                }
                 cleanupProgress++;
                 StateHasChanged();
             }
@@ -1928,6 +1920,11 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedComplete"], swappedCount, mergedCount));
             if (keptCount > 0)
                 cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedKept"], keptCount));
+            if (failedCount > 0)
+            {
+                cleanupResults.Add(string.Format(Localize["Vocabulary_FixSwappedFailed"], failedCount));
+                Toast.ShowError(string.Format(Localize["Vocabulary_FixSwappedFailed"], failedCount));
+            }
 
             await LoadData();
         }

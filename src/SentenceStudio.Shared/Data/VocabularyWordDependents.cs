@@ -18,7 +18,8 @@ public static class VocabularyWordDependents
     /// links, practises or wrote a sentence for: a link from a resource that is not the
     /// owner's, another learner's progress, or an example sentence not recorded to the owner (one
     /// recorded to no one counts as someone else's, as everywhere: the recorded owner decides).
-    /// The native editor offers editing only for words this leaves out.
+    /// Only deletes consult it (through <see cref="OthersDependOnAsync"/>): a word is edited by
+    /// its recorded owner alone, since no one else can see it.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
     public static async Task<HashSet<string>> OthersUseAsync(
@@ -39,7 +40,7 @@ public static class VocabularyWordDependents
         used.UnionWith(await db.VocabularyProgresses.AsNoTracking()
             .Where(progress => ids.Contains(progress.VocabularyWordId) && progress.UserId != owner)
             .Select(progress => progress.VocabularyWordId).ToListAsync(ct));
-        // EF keeps C# null semantics: a sentence recorded to no one differs from the owner.
+        // EF keeps C# null semantics: a sentence recorded to no one (NULL or '') differs from the owner.
         used.UnionWith(await db.ExampleSentences.AsNoTracking()
             .Where(example => ids.Contains(example.VocabularyWordId) && example.UserProfileId != owner)
             .Select(example => example.VocabularyWordId).ToListAsync(ct));
@@ -84,12 +85,13 @@ public static class VocabularyWordDependents
                 && pair.UserId != owner)
             .Select(pair => new { pair.VocabularyWordAId, pair.VocabularyWordBId }).ToListAsync(ct);
         used.UnionWith(pairs.SelectMany(pair => new[] { pair.VocabularyWordAId, pair.VocabularyWordBId }));
-        used.UnionWith(await (
-            from phrase in db.PhraseConstituents.AsNoTracking()
-            join word in db.VocabularyWords.AsNoTracking() on phrase.PhraseWordId equals word.Id
-            where phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId)
-                && word.UserProfileId != owner
-            select phrase.ConstituentWordId!).ToListAsync(ct));
+        // A phrase whose phrase word is missing (an orphan link: SQLite with foreign keys off) is
+        // not the owner's either, so it counts as someone else's use (fail closed).
+        used.UnionWith(await db.PhraseConstituents.AsNoTracking()
+            .Where(phrase => phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId)
+                && !db.VocabularyWords.Any(word => word.Id == phrase.PhraseWordId
+                    && word.UserProfileId == owner))
+            .Select(phrase => phrase.ConstituentWordId!).ToListAsync(ct));
         // The pair query returns both words of a pair; only the asked-for ones are answers.
         used.IntersectWith(ids);
         return used;

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -97,6 +98,32 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
     }
 
     #endregion
+
+    // The one ownership rule (Captain 2026-11-06): practising a phrase never creates progress on
+    // a constituent recorded to another learner or to no one; the learner's own constituent still
+    // gets its exposure.
+    [Fact]
+    public async Task PhraseCascade_SkipsConstituentsThatAreNotTheLearners()
+    {
+        var (phraseId, ownConstituent, foreignConstituent) = SeedPhraseWithConstituents(
+            "학교에 가요", new[] { "학교", "가다" });
+        await _db.VocabularyWords.Where(word => word.Id == foreignConstituent)
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, "another-learner"));
+        var (secondPhrase, _, legacyConstituent) = SeedPhraseWithConstituents(
+            "집에 가요", new[] { "집", "오다" });
+        await _db.VocabularyWords.Where(word => word.Id == legacyConstituent)
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+
+        await _progressService.RecordAttemptAsync(MakeAttempt(phraseId, wasCorrect: true, inputMode: "MultipleChoice"));
+        await _progressService.RecordAttemptAsync(MakeAttempt(secondPhrase, wasCorrect: true, inputMode: "MultipleChoice"));
+
+        (await _progressRepo.GetByWordIdAndUserIdAsync(ownConstituent, PlanGenerationTestFixture.TestUserId))
+            .Should().NotBeNull("the learner's own constituent is exposed");
+        (await _progressRepo.GetByWordIdAndUserIdAsync(foreignConstituent, PlanGenerationTestFixture.TestUserId))
+            .Should().BeNull("another learner's constituent gets no progress");
+        (await _progressRepo.GetByWordIdAndUserIdAsync(legacyConstituent, PlanGenerationTestFixture.TestUserId))
+            .Should().BeNull("a constituent recorded to no one gets no progress");
+    }
 
     #region Scenario 2: Constituent exposure fields set
 
@@ -443,6 +470,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
         _db.VocabularyWords.Add(new VocabularyWord
         {
             Id = wordId,
+            UserProfileId = PlanGenerationTestFixture.TestUserId,
             TargetLanguageTerm = text,
             NativeLanguageTerm = $"en_{text}",
             LexicalUnitType = type,

@@ -1273,6 +1273,7 @@ public sealed class NativeSliceBoundaryTests
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = "other-word",
+                UserProfileId = NativeSliceFixture.UserA,
                 NativeLanguageTerm = "other native",
                 TargetLanguageTerm = "other target",
                 Language = "Korean"

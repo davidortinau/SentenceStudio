@@ -42,6 +42,7 @@ public class VocabularyPartOfSpeechBackfillRetryStrategyTests
             seed.VocabularyWords.Add(new VocabularyWord
             {
                 Id = "w-1",
+                UserProfileId = PartOfSpeechBackfillHarness.OwnerId,
                 TargetLanguageTerm = "책",
                 Language = "Korean",
                 LexicalUnitType = LexicalUnitType.Word,

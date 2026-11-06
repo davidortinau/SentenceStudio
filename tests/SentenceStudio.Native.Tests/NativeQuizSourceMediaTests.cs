@@ -682,6 +682,8 @@ public sealed class NativeQuizSourceMediaTests
             {
                 VocabularyWordId = fixture.WordId(NativeSliceFixture.UserA, index),
                 LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
+                // The learner's own sentence: hints show only those (the one ownership rule).
+                UserProfileId = NativeSliceFixture.UserA,
                 TargetSentence = $"target-language example {index}",
                 NativeSentence = "must never be projected",
                 Status = ExampleSentenceStatus.Verified,
@@ -692,6 +694,7 @@ public sealed class NativeQuizSourceMediaTests
             {
                 VocabularyWordId = fixture.WordId(NativeSliceFixture.UserA, index),
                 LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
+                UserProfileId = NativeSliceFixture.UserB,
                 TargetSentence = "unowned and never projected",
                 Status = ExampleSentenceStatus.Verified,
                 CreatedAt = DateTime.UtcNow,

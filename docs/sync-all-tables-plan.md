@@ -591,6 +591,18 @@ versions." Decision 2: A, with word-link deletes kept on the device first.
   server, lacking the device's new progress row, infers the other learner. A refused upload is
   offered again on every sync, so that install would never sync again. Nothing foreign or
   ownerless is ever applied.
+- **Words go by their recorded owner (Captain 2026-11-06).** A device gets a
+  `VocabularyWord` only when its `UserProfileId` is the signed-in learner, whether or not any of
+  their resources links it, and the word's dependents follow it: the learner's progress on it,
+  that progress's learning contexts, links from the learner's resources to it (never a link to a
+  word the device lacks), phrase parts whose phrase word and part word are both theirs, minimal
+  pairs and answers whose words are both theirs, and their example sentences on it (from no
+  resource or from theirs). Another learner's word, or a word recorded to no one, never travels,
+  even when it sits in the learner's resource; those rows stay hidden on every client. On upload
+  the server records a word the device creates to the uploading learner (its creator) and never
+  takes a client's owner value over the stored one; a stored word recorded to someone else or no
+  one, and a new word whose device copy names another learner, are left out. Links, progress and
+  phrase parts may name only the learner's own words.
 - **A store binds to its first learner.** A device database's CoreSync store is bound to the
   first learner that syncs it with the owner header; every other account is then refused (403).
   A store that synced before without the header (an installed MAUI app) used to need every row
@@ -642,8 +654,11 @@ intended).
    scenarios and example sentences with no owner; device photos; built-in scenarios; and any
    row that is another learner's (its owner column names another learner, or its owner resolved
    from local parent rows does: a link from its resource, a learning record from its progress,
-   a phrase part from its phrase word, a word from its recorded owner or the one learner its
-   links and progress name; `SyncRowOwners`, `SyncUploadRules`). A row naming another learner in
+   a phrase part from its phrase word, a word from its recorded owner; `SyncRowOwners`,
+   `SyncUploadRules`). Every word the client creates names the signed-in learner in
+   `UserProfileId` (the server records the uploader anyway). Before and after each sync pass,
+   give the learner each example sentence recorded to no one whose word is theirs and whose
+   resource, if any, is theirs (`VocabularyWordOwnership.ClaimOwnSentencesOnDeviceAsync`). A row naming another learner in
    its owner column must be kept: the server refuses the whole upload for it. A row resolved to
    another learner only from parent rows is optional to keep (the server leaves it out anyway);
    the shared rules keep it. Leaving a row out still moves the upload cursor past it; it is

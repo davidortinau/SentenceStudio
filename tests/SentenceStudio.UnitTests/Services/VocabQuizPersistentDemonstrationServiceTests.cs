@@ -110,6 +110,7 @@ public sealed class VocabQuizPersistentDemonstrationServiceTests : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = wordId,
+                UserProfileId = UserId,
                 TargetLanguageTerm = wordId,
                 NativeLanguageTerm = wordId,
                 LexicalUnitType = LexicalUnitType.Word

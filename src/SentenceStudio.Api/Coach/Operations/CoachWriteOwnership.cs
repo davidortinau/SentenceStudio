@@ -78,23 +78,19 @@ public sealed class CoachWriteOwnership
     }
 
     /// <summary>
-    /// A word the learner may change: one of their resources links it and it is recorded to
-    /// them (the one runtime rule, VocabularyWordOwnership.OwnedByAsync). Another learner's
-    /// word, or one recorded to no one, is read-only even when the learner links it, so it is
-    /// neither loaded for an edit preview (its memory aid is its owner's) nor overwritten.
+    /// A word the learner may change: one recorded to them (the one ownership rule, Captain
+    /// 2026-11-06). Another learner's word, or one recorded to no one, is not theirs to see, so
+    /// it is neither loaded for an edit preview nor overwritten, even when one of their
+    /// resources links it.
     /// </summary>
-    public async Task<VocabularyWord?> FindEditableWordAsync(
-        string userProfileId, string wordId, CancellationToken cancellationToken)
-    {
-        var word = await FindOwnedWordAsync(userProfileId, wordId, cancellationToken).ConfigureAwait(false);
-        return word is not null && string.Equals(word.UserProfileId, userProfileId, StringComparison.Ordinal)
-            ? word : null;
-    }
+    public Task<VocabularyWord?> FindEditableWordAsync(
+        string userProfileId, string wordId, CancellationToken cancellationToken) =>
+        FindOwnedWordAsync(userProfileId, wordId, cancellationToken);
 
     /// <summary>
-    /// Loads a vocabulary word one of the learner's own resources links, for link and unlink
-    /// tools. Linking is not ownership: changing the word itself goes through
-    /// <see cref="FindEditableWordAsync"/>.
+    /// Loads the learner's own word (recorded to them, the one ownership rule), linked to a
+    /// resource or not, for the edit, link, unlink and removal tools. Null for another
+    /// learner's word, one recorded to no one, or with no learner.
     /// </summary>
     public async Task<VocabularyWord?> FindOwnedWordAsync(
         string userProfileId, string wordId, CancellationToken cancellationToken)
@@ -104,20 +100,8 @@ public sealed class CoachWriteOwnership
             return null;
         }
 
-        var owned = await _db.ResourceVocabularyMappings
-            .AnyAsync(
-                m => m.VocabularyWordId == wordId
-                     && _db.LearningResources.Any(
-                         r => r.Id == m.ResourceId && r.UserProfileId == userProfileId),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        if (!owned)
-        {
-            return null;
-        }
-
         return await _db.VocabularyWords
+            .OwnedBy(userProfileId)
             .FirstOrDefaultAsync(w => w.Id == wordId, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -129,8 +113,9 @@ public sealed class CoachWriteOwnership
             .AnyAsync(m => m.ResourceId == resourceId && m.VocabularyWordId == wordId, cancellationToken);
 
     /// <summary>
-    /// Finds a word the learner already has with the same target term, so a repeated "add this
-    /// word" lands on the existing entry instead of creating a near-duplicate.
+    /// Finds a word the learner already has (recorded to them) with the same target term, so a
+    /// repeated "add this word" lands on the existing entry instead of creating a near-duplicate.
+    /// Another learner's or no one's word is never reused; a new word is created instead.
     /// </summary>
     public async Task<VocabularyWord?> FindOwnedWordByTermAsync(
         string userProfileId, string targetTerm, CancellationToken cancellationToken)
@@ -141,11 +126,8 @@ public sealed class CoachWriteOwnership
         }
 
         return await _db.VocabularyWords
+            .OwnedBy(userProfileId)
             .Where(w => w.TargetLanguageTerm == targetTerm)
-            .Where(w => _db.ResourceVocabularyMappings.Any(
-                m => m.VocabularyWordId == w.Id
-                     && _db.LearningResources.Any(
-                         r => r.Id == m.ResourceId && r.UserProfileId == userProfileId)))
             .OrderBy(w => w.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);

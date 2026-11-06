@@ -225,6 +225,7 @@ public sealed class ApplicationQueryFailClosedTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = "word-1",
+            UserProfileId = Owner,
             TargetLanguageTerm = "사과",
             NativeLanguageTerm = "apple",
             Tags = "food",

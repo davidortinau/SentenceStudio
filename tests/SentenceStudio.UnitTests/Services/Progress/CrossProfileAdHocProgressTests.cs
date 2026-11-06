@@ -83,9 +83,9 @@ public sealed class CrossProfileAdHocProgressTests : IDisposable
         _resourceB = CreateResource(UserB);
         _skillA = CreateSkill(UserA);
         _skillB = CreateSkill(UserB);
-        _wordA = CreateWord();
-        _wordA2 = CreateWord();
-        _wordB = CreateWord();
+        _wordA = CreateWord(UserA);
+        _wordA2 = CreateWord(UserA);
+        _wordB = CreateWord(UserB);
 
         db.LearningResources.AddRange(_resourceA, _resourceA2, _resourceB);
         db.SkillProfiles.AddRange(_skillA, _skillB);
@@ -396,8 +396,9 @@ public sealed class CrossProfileAdHocProgressTests : IDisposable
         UpdatedAt = DateTime.UtcNow,
     };
 
-    private static VocabularyWord CreateWord() => new()
+    private static VocabularyWord CreateWord(string owner) => new()
     {
+        UserProfileId = owner,
         TargetLanguageTerm = $"target-{Guid.NewGuid()}",
         NativeLanguageTerm = $"native-{Guid.NewGuid()}",
         Language = "Korean",

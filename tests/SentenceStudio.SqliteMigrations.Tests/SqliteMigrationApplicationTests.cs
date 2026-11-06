@@ -418,7 +418,8 @@ public sealed class SqliteMigrationApplicationTests
             foreach (var id in new[] { "w1", "w2", "w3" })
                 previous.VocabularyWords.Add(new VocabularyWord
                 {
-                    Id = id, TargetLanguageTerm = id, CreatedAt = at, UpdatedAt = at
+                    // Every word has an owner (a save refuses one without).
+                    Id = id, UserProfileId = owner, TargetLanguageTerm = id, CreatedAt = at, UpdatedAt = at
                 });
             previous.Conversations.Add(new Conversation { Id = "conv-1", UserProfileId = owner, CreatedAt = at });
             await previous.SaveChangesAsync();

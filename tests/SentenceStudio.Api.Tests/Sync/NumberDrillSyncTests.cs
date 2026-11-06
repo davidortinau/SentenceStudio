@@ -53,10 +53,11 @@ public sealed class NumberDrillSyncTests
         await connection.OpenAsync();
         await using var db = await CreateAsync(connection);
         db.LearningResources.Add(new LearningResource { Id = "owned-resource", UserProfileId = Owner });
+        // Words go by their recorded owner (Captain 2026-11-06): "hidden" is another learner's.
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
-            new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2" },
-            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1", UserProfileId = Owner },
+            new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2", UserProfileId = Owner },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden", UserProfileId = Foreign });
         db.ResourceVocabularyMappings.AddRange(
             new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" },
             new ResourceVocabularyMapping { Id = "m2", ResourceId = "owned-resource", VocabularyWordId = "w2" });
@@ -104,8 +105,8 @@ public sealed class NumberDrillSyncTests
             new LearningResource { Id = "owned-resource", UserProfileId = Owner },
             new LearningResource { Id = "foreign-resource", UserProfileId = Foreign });
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
-            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1", UserProfileId = Owner },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden", UserProfileId = Foreign });
         db.ResourceVocabularyMappings.Add(
             new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" });
         await db.SaveChangesAsync();
@@ -137,10 +138,11 @@ public sealed class NumberDrillSyncTests
     }
 
     /// <summary>
-    /// Code review 2026-11-03: a device's own example sentence on a word the owner cannot see
-    /// (an orphan word, a removed mapping) or from another learner's resource is left out of the
-    /// upload instead of refusing the whole upload. A sentence naming another owner stays, so
-    /// the owner checks still refuse it.
+    /// Code review 2026-11-03: a device's own example sentence on a word that is not the owner's
+    /// (an orphan word, a word only a mapping names) or from another learner's resource is left
+    /// out of the upload instead of refusing the whole upload. A word this upload writes counts
+    /// (placement then keeps it only if it is the owner's). A sentence naming another owner
+    /// stays, so the owner checks still refuse it.
     /// </summary>
     [Fact]
     public void Upload_LeavesOutOwnExamplesOnUnreachableWords_KeepsForeignOnesForRefusal()
@@ -154,15 +156,19 @@ public sealed class NumberDrillSyncTests
             Item("ExampleSentence", "foreign-resource", ("UserProfileId", Owner), ("VocabularyWordId", "w1"),
                 ("LearningResourceId", "foreign-resource")),
             Item("LearningResource", "new-resource", ("UserProfileId", Owner)),
+            Item("VocabularyWord", "w-new", ("UserProfileId", Owner)),
             Item("ResourceVocabularyMapping", "m-new", ("ResourceId", "new-resource"), ("VocabularyWordId", "w-new")),
             Item("ExampleSentence", "newly-mapped", ("UserProfileId", Owner), ("VocabularyWordId", "w-new"),
                 ("LearningResourceId", "new-resource")),
+            // A mapping alone no longer makes a word the owner's.
+            Item("ResourceVocabularyMapping", "m-only", ("ResourceId", "new-resource"), ("VocabularyWordId", "w-mapped")),
+            Item("ExampleSentence", "mapped-only", ("UserProfileId", Owner), ("VocabularyWordId", "w-mapped")),
             Item("ExampleSentence", "foreign-owner", ("UserProfileId", Foreign), ("VocabularyWordId", "orphan")),
         };
 
         var kept = NativeOwnerSyncProvider.WithoutUnreachableExamples(items, Owner, visible);
 
-        Assert.Equal(["visible", "new-resource", "m-new", "newly-mapped", "foreign-owner"],
+        Assert.Equal(["visible", "new-resource", "w-new", "m-new", "newly-mapped", "m-only", "foreign-owner"],
             kept.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
     }
 

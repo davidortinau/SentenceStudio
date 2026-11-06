@@ -30,10 +30,11 @@ public sealed class NativeDashboardSourceFidelityTests
                 },
                 new VocabularyWord
                 {
-                    Id = "ownerless-word", Language = "Korean",
+                    Id = "ownerless-word", UserProfileId = NativeSliceFixture.UserA, Language = "Korean",
                     TargetLanguageTerm = "물", NativeLanguageTerm = "water"
                 });
             await db.SaveChangesAsync();
+            await NativeSliceFixture.RecordToNoOneAsync(db, "ownerless-word");
         }
         using (var scope = fixture.Scope())
         {

@@ -125,6 +125,7 @@ public sealed class LearningResourceRepositoryDeleteTransactionTests : IDisposab
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = Owner,
             TargetLanguageTerm = "수박",
             NativeLanguageTerm = "watermelon",
             Language = "Korean",
