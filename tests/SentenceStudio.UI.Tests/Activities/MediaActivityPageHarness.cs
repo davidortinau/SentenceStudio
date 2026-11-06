@@ -287,20 +287,35 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         protected override void NavigateToCore(string uri, bool forceLoad) { }
     }
 
-    /// <summary>Records browser calls; audio loads with a <see cref="Duration"/>-second clip.</summary>
+    /// <summary>
+    /// Records browser calls; audio loads with a <see cref="Duration"/>-second clip. Like
+    /// JSRuntime, a call whose token is cancelled completes as a TaskCanceledException at once
+    /// while the browser keeps running it, and a call with a token already cancelled is not
+    /// sent. Like audioInterop, the browser has one player: loadFromBase64 replaces it, stop
+    /// clears it, and a clip plays once startPlayback's play() resolves unless a stop or another
+    /// load came first (<see cref="Played"/>).
+    /// </summary>
     public sealed class RecordingJsRuntime : IJSRuntime
     {
         public const double Duration = 30.0;
         public List<(string Identifier, object?[] Args)> Calls { get; } = new();
+        /// <summary>The clips (their base64 data) the browser started playing, in order.</summary>
+        public List<string> Played { get; } = new();
         /// <summary>
-        /// The next call with this identifier (for example <c>audioInterop.startPlayback</c>) waits
-        /// until <c>audioInterop.stop</c> aborts it, as the browser rejects an interrupted
-        /// load or play. It does not observe its cancellation token.
+        /// The next call with this identifier (<c>audioInterop.loadFromBase64</c> or
+        /// <c>audioInterop.startPlayback</c>) stays pending in the browser until
+        /// <see cref="Release"/>, as a clip still loading or a play() not yet resolved.
         /// </summary>
-        public string? HoldUntilStop { get; set; }
+        public string? Hold { get; set; }
         /// <summary>Completes when the held call arrives.</summary>
         public TaskCompletionSource HoldReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private TaskCompletionSource? _held;
+        private readonly Dictionary<int, string> _clips = new();
+        private int _player;
+        private int _lastClip;
+        private Action? _release;
+
+        /// <summary>The browser finishes the held call: the load resolves, or play() resolves or is rejected.</summary>
+        public void Release() => Interlocked.Exchange(ref _release, null)?.Invoke();
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
             InvokeAsync<TValue>(identifier, CancellationToken.None, args);
@@ -308,9 +323,9 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         public ValueTask<TValue> InvokeAsync<TValue>(
             string identifier, CancellationToken cancellationToken, object?[]? args)
         {
+            if (cancellationToken.IsCancellationRequested)
+                return ValueTask.FromCanceled<TValue>(cancellationToken);
             Calls.Add((identifier, args ?? []));
-            if (identifier == "audioInterop.stop" && Interlocked.Exchange(ref _held, null) is { } held)
-                held.TrySetException(new JSException("The play() request was interrupted by a call to pause()."));
             object? result = identifier switch
             {
                 "audioInterop.loadFromBase64" or "audioInterop.getDuration" => Duration,
@@ -318,20 +333,49 @@ public sealed class ActivityPageHarness : IAsyncDisposable
                 "import" => new NoOpModule(),
                 _ => null,
             };
+            var starting = 0;
+            switch (identifier)
+            {
+                case "audioInterop.loadFromBase64":
+                    _player = ++_lastClip;
+                    _clips[_player] = args?.FirstOrDefault() as string ?? string.Empty;
+                    break;
+                case "audioInterop.stop":
+                    _player = 0;
+                    break;
+                case "audioInterop.startPlayback":
+                    starting = _player;
+                    break;
+            }
             var value = result is TValue typed ? typed : default(TValue)!;
-            if (identifier != HoldUntilStop)
+            if (identifier != Hold)
+            {
+                if (starting != 0)
+                    Played.Add(_clips[starting]);
                 return ValueTask.FromResult(value);
-            HoldUntilStop = null;
-            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            _held = gate;
-            HoldReached.TrySetResult();
-            return new ValueTask<TValue>(HeldAsync(gate.Task, value));
-        }
+            }
 
-        private static async Task<TValue> HeldAsync<TValue>(Task gate, TValue value)
-        {
-            await gate;
-            return value;
+            Hold = null;
+            var browser = new TaskCompletionSource<TValue>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _release = () =>
+            {
+                if (starting == 0)
+                {
+                    browser.TrySetResult(value);
+                }
+                else if (_player == starting)
+                {
+                    Played.Add(_clips[starting]);
+                    browser.TrySetResult(value);
+                }
+                else
+                {
+                    browser.TrySetException(
+                        new JSException("The play() request was interrupted by a call to pause()."));
+                }
+            };
+            HoldReached.TrySetResult();
+            return new ValueTask<TValue>(browser.Task.WaitAsync(cancellationToken));
         }
 
         private sealed class NoOpModule : IJSObjectReference
