@@ -44,7 +44,8 @@ public sealed class NumberDrillSyncTests
 
     /// <summary>
     /// Phase 2a: Minimal Pairs, audio history and conversation memory travel only to their owner,
-    /// and a pair or answer only with words that owner can see.
+    /// a pair only with words that owner can see, and an answer only with such words and a pair
+    /// the owner's devices receive.
     /// </summary>
     [Fact]
     public async Task NativeDownload_KeepsOnlyTheOwnersPhase2aRowsWithVisibleWords()
@@ -61,6 +62,11 @@ public sealed class NumberDrillSyncTests
         db.ResourceVocabularyMappings.AddRange(
             new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" },
             new ResourceVocabularyMapping { Id = "m2", ResourceId = "owned-resource", VocabularyWordId = "w2" });
+        // The server's rows the changeset carries (a download sends what the server stores).
+        db.MinimalPairs.AddRange(
+            new MinimalPair { Id = "owned-pair", UserId = Owner, VocabularyWordAId = "w1", VocabularyWordBId = "w2" },
+            new MinimalPair { Id = "hidden-word-pair", UserId = Owner, VocabularyWordAId = "w1", VocabularyWordBId = "hidden" },
+            new MinimalPair { Id = "foreign-pair", UserId = Foreign, VocabularyWordAId = "w1", VocabularyWordBId = "w2" });
         await db.SaveChangesAsync();
 
         var changes = new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 3), SyncAnchor.Null,
@@ -73,10 +79,17 @@ public sealed class NumberDrillSyncTests
                 ("VocabularyWordAId", "w1"), ("VocabularyWordBId", "w2")),
             Item("MinimalPairSession", "owned-session", ("UserId", Owner)),
             Item("MinimalPairSession", "foreign-session", ("UserId", Foreign)),
-            Item("MinimalPairAttempt", "owned-answer", ("UserId", Owner),
+            Item("MinimalPairAttempt", "owned-answer", ("UserId", Owner), ("PairId", "owned-pair"),
                 ("PromptWordId", "w1"), ("SelectedWordId", "w2")),
-            Item("MinimalPairAttempt", "hidden-answer", ("UserId", Owner),
+            Item("MinimalPairAttempt", "hidden-answer", ("UserId", Owner), ("PairId", "hidden-word-pair"),
                 ("PromptWordId", "hidden"), ("SelectedWordId", "w2")),
+            // Review of bf701c42, finding 6: a correct answer names only the owner's word, but
+            // its pair is not sent (its other word is another learner's), so the answer would
+            // break the device's foreign key to its pair.
+            Item("MinimalPairAttempt", "correct-answer-on-hidden-pair", ("UserId", Owner),
+                ("PairId", "hidden-word-pair"), ("PromptWordId", "w1"), ("SelectedWordId", "w1")),
+            Item("MinimalPairAttempt", "answer-on-missing-pair", ("UserId", Owner),
+                ("PairId", "no-such-pair"), ("PromptWordId", "w1"), ("SelectedWordId", "w2")),
             Item("StreamHistory", "owned-audio", ("UserProfileId", Owner)),
             Item("StreamHistory", "unowned-audio"),
             Item("ConversationMemoryState", "cm:owned", ("UserProfileId", Owner)),
@@ -148,7 +161,8 @@ public sealed class NumberDrillSyncTests
     public void Upload_LeavesOutOwnExamplesOnUnreachableWords_KeepsForeignOnesForRefusal()
     {
         var visible = new NativeOwnerSyncProvider.VisibleKeys(
-            new HashSet<string>(["owned-resource"]), new HashSet<string>(["w1"]), new HashSet<string>());
+            new HashSet<string>(["owned-resource"]), new HashSet<string>(["w1"]), new HashSet<string>(),
+            new HashSet<string>());
         var items = new[]
         {
             Item("ExampleSentence", "visible", ("UserProfileId", Owner), ("VocabularyWordId", "w1")),

@@ -385,6 +385,59 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         Assert.False(await verified.VocabularyWords.AnyAsync(word => word.Id == namedForeign));
     }
 
+    // Review of bf701c42, finding 6: a Minimal Pairs answer goes up (and down) only with a pair
+    // the owner's devices receive. A correct answer names only the owner's word, so the word
+    // check alone let one through on a stored pair whose other word is another learner's; the
+    // owner's other devices would then get the answer without its pair. A pair created in the
+    // same upload counts.
+    [ApplicationOperationPostgresFact]
+    public async Task MinimalPairAnswers_TravelOnlyWithAPairTheOwnerReceives()
+    {
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        string w1 = Guid.NewGuid().ToString(), w2 = Guid.NewGuid().ToString(), fx = Guid.NewGuid().ToString();
+        string hiddenPair = Guid.NewGuid().ToString(), newPair = Guid.NewGuid().ToString();
+        string session = Guid.NewGuid().ToString();
+        string onNewPair = Guid.NewGuid().ToString(), onHiddenPair = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.NewContext())
+        {
+            db.VocabularyWords.AddRange(
+                new VocabularyWord { Id = w1, TargetLanguageTerm = "발", UserProfileId = owner },
+                new VocabularyWord { Id = w2, TargetLanguageTerm = "불", UserProfileId = owner },
+                new VocabularyWord { Id = fx, TargetLanguageTerm = "뿔", UserProfileId = foreign });
+            // A legacy pair of the owner's that names another learner's word.
+            db.MinimalPairs.Add(new MinimalPair {
+                Id = hiddenPair, UserId = owner, VocabularyWordAId = w1, VocabularyWordBId = fx,
+                CreatedAt = now, UpdatedAt = now });
+            db.MinimalPairSessions.Add(new MinimalPairSession {
+                Id = session, UserId = owner, StartedAt = now, CreatedAt = now, UpdatedAt = now });
+            await db.SaveChangesAsync();
+        }
+
+        SyncItem Answer(string id, string pair) => new("MinimalPairAttempt", ChangeType.Insert,
+            new Dictionary<string, object?>
+            {
+                ["Id"] = id, ["UserId"] = owner, ["SessionId"] = session, ["PairId"] = pair,
+                ["PromptWordId"] = w1, ["SelectedWordId"] = w1, ["IsCorrect"] = true,
+                ["SequenceNumber"] = 1, ["CreatedAt"] = now
+            });
+        using var response = await _fixture.UploadAsync(owner,
+            new SyncItem("MinimalPair", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = newPair, ["UserId"] = owner, ["VocabularyWordAId"] = w1,
+                ["VocabularyWordBId"] = w2, ["CreatedAt"] = now, ["UpdatedAt"] = now
+            }),
+            Answer(onNewPair, newPair),
+            Answer(onHiddenPair, hiddenPair));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.True(await verified.MinimalPairs.AnyAsync(pair => pair.Id == newPair));
+        Assert.True(await verified.MinimalPairAttempts.AnyAsync(answer => answer.Id == onNewPair));
+        Assert.False(await verified.MinimalPairAttempts.AnyAsync(answer => answer.Id == onHiddenPair),
+            "an answer on a pair the owner's devices never receive stays on the device");
+    }
+
     [ApplicationOperationPostgresFact]
     public async Task NewOwnedMappings_AllowSameUploadProgressAfterReferencesAreVerified()
     {

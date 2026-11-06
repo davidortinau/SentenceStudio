@@ -21,7 +21,8 @@
 --                and one of them is in W (the old filter checked only the phrase word, so a part
 --                whose word it withheld could have failed its foreign key on the device);
 --   pairs        O's minimal pairs, and minimal-pair answers, whose two words are both recorded
---                to O and not both linked from O's resources.
+--                to O and not both linked from O's resources; an answer only on a pair the new
+--                filter sends (O's, its two words recorded to O).
 -- Links need nothing: the old filter already sent every link from O's resources, and the new
 -- one sends fewer. NULL and '' owners are no owner. Only owners that are profiles count.
 --
@@ -210,11 +211,16 @@ JOIN withheld_owned a ON a.word_id = mp."VocabularyWordAId" AND a.owner = mp."Us
 JOIN withheld_owned b ON b.word_id = mp."VocabularyWordBId" AND b.owner = mp."UserId"
 WHERE NOT (a.linked AND b.linked);
 
+-- An answer travels only with a pair the new filter sends (the owner's pair of two words
+-- recorded to them): a correct answer names one word only, so its pair is checked too.
 INSERT INTO withheld_rows (tbl, id, owner)
 SELECT 'MinimalPairAttempt', ma."Id", a.owner
 FROM "MinimalPairAttempt" ma
 JOIN withheld_owned a ON a.word_id = ma."PromptWordId" AND a.owner = ma."UserId"
 JOIN withheld_owned b ON b.word_id = ma."SelectedWordId" AND b.owner = ma."UserId"
+JOIN "MinimalPair" mp ON mp."Id" = ma."PairId" AND mp."UserId" = ma."UserId"
+JOIN withheld_owned pa ON pa.word_id = mp."VocabularyWordAId" AND pa.owner = mp."UserId"
+JOIN withheld_owned pb ON pb.word_id = mp."VocabularyWordBId" AND pb.owner = mp."UserId"
 WHERE NOT (a.linked AND b.linked);
 
 \echo

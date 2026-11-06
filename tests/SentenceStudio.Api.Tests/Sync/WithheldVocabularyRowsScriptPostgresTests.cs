@@ -402,6 +402,11 @@ public sealed class WithheldVocabularyRowsScriptPostgresTests
                 Pair(db, "mp-gone", Gone, "w-neg-pair-gone", "w-pair-partner");
                 Answer(db, "ma-t-link-free", "mp-t-link-link", "o-link", "o-free");
                 Answer(db, "ma-t-link-link", "mp-t-link-link", "o-link", "o-link2");
+                // Review of bf701c42, finding 6: a correct answer names only the target's word,
+                // but its pair names another learner's, so the filter sends neither, and the
+                // script must not count or touch the answer.
+                Pair(db, "mp-t-free-x", Target, "o-free", "xw-free");
+                Answer(db, "ma-t-correct-hidden-pair", "mp-t-free-x", "o-free", "o-free");
                 await db.SaveChangesAsync();
             }
 

@@ -608,6 +608,10 @@ internal sealed class NativeOwnerSyncProvider(
             && !refused.Contains(item) && Value(item, "UserId") == owner
             && visible.WordIds.Contains(Value(item, "VocabularyWordId") ?? string.Empty)))
             visible.ProgressIds.Add(Value(item, "Id")!);
+        // A pair this upload writes that the owner's devices receive can carry its answers.
+        foreach (var item in items.Where(item => item.TableName == "MinimalPair"
+            && !refused.Contains(item) && IsVisible(item, owner, visible)))
+            visible.PairIds.Add(Value(item, "Id")!);
 
         var referencedProgress = contexts
             .Select(item => Value(item, "VocabularyProgressId"))
@@ -790,7 +794,7 @@ internal sealed class NativeOwnerSyncProvider(
     /// The owner's rows that decide what else a device may hold (Captain 2026-11-06: "There is
     /// no reason for a mobile device to sync any data for another user/owner than the one logged
     /// in."): their resources, the words recorded to them (whether or not a resource links them),
-    /// and their progress on those words. Before, a device got the words its owner's resources
+    /// their progress on those words, and their minimal pairs of two such words. Before, a device got the words its owner's resources
     /// linked, which sent another learner's or no one's word sitting in the learner's resource
     /// and withheld the learner's own words outside every resource.
     /// </summary>
@@ -808,7 +812,16 @@ internal sealed class NativeOwnerSyncProvider(
                 && db.VocabularyWords.Any(word => word.Id == progress.VocabularyWordId
                     && word.UserProfileId == owner))
             .Select(progress => progress.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
-        return new VisibleKeys(resourceIds, wordIds, progressIds);
+        // The owner's pairs whose two words are theirs: the pairs a device receives, so the
+        // only pairs its Minimal Pairs answers may name.
+        var pairIds = (await db.MinimalPairs.AsNoTracking()
+            .Where(pair => pair.UserId == owner
+                && db.VocabularyWords.Any(word => word.Id == pair.VocabularyWordAId
+                    && word.UserProfileId == owner)
+                && db.VocabularyWords.Any(word => word.Id == pair.VocabularyWordBId
+                    && word.UserProfileId == owner))
+            .Select(pair => pair.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        return new VisibleKeys(resourceIds, wordIds, progressIds, pairIds);
     }
 
     private static string? Value(SyncItem item, string column) =>
@@ -848,12 +861,15 @@ internal sealed class NativeOwnerSyncProvider(
             // and never stored here to send.
             "ActivitySession" => Value(item, "UserId") == owner
                 && !ActivitySessionTypes.IsDeviceOnly(Value(item, "ActivityType"), id),
-            // A pair or answer travels only with words this owner can see, so a device never
-            // receives one whose words it lacks.
+            // A pair or answer travels only with words this owner can see, and an answer only
+            // with a pair that travels, so a device never receives one whose words or pair it
+            // lacks. A correct answer names only one word (prompt and choice are the same), so
+            // its pair's other word is checked through the pair (review of bf701c42, finding 6).
             "MinimalPair" => Value(item, "UserId") == owner
                 && keys.WordIds.Contains(Value(item, "VocabularyWordAId") ?? string.Empty)
                 && keys.WordIds.Contains(Value(item, "VocabularyWordBId") ?? string.Empty),
             "MinimalPairAttempt" => Value(item, "UserId") == owner
+                && keys.PairIds.Contains(Value(item, "PairId") ?? string.Empty)
                 && keys.WordIds.Contains(Value(item, "PromptWordId") ?? string.Empty)
                 && keys.WordIds.Contains(Value(item, "SelectedWordId") ?? string.Empty),
             // Phase 3: a photo stored on one device and a built-in scenario never travel; rows
@@ -874,12 +890,14 @@ internal sealed class NativeOwnerSyncProvider(
     }
 
     internal sealed record VisibleKeys(
-        HashSet<string> ResourceIds, HashSet<string> WordIds, HashSet<string> ProgressIds)
+        HashSet<string> ResourceIds, HashSet<string> WordIds, HashSet<string> ProgressIds,
+        HashSet<string> PairIds)
     {
         internal VisibleKeys Copy() => new(
             new HashSet<string>(ResourceIds, StringComparer.Ordinal),
             new HashSet<string>(WordIds, StringComparer.Ordinal),
-            new HashSet<string>(ProgressIds, StringComparer.Ordinal));
+            new HashSet<string>(ProgressIds, StringComparer.Ordinal),
+            new HashSet<string>(PairIds, StringComparer.Ordinal));
     }
 
     public Task ApplyProvisionAsync(CancellationToken ct = default) =>
