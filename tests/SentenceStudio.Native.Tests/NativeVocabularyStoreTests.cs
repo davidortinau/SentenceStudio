@@ -399,10 +399,10 @@ public sealed class NativeVocabularyStoreTests
             NativeSliceFixture.UserA, sharedId, default);
         Assert.NotNull(forA);
         Assert.True(forA.IsSharedWithAnotherOwner);
-        // Review 4: the sentence naming nobody, with no resource, is its word owner's (A's),
-        // the phase-3 rule (VocabularyWordOwnership.SentenceOwnersAsync).
-        Assert.Equal(["example attributed to A", "authorship cannot be established"],
-            forA.Examples.Select(example => example.TargetSentence).Order().Reverse().ToArray());
+        // One runtime rule (Captain 2026-11-06): a sentence recorded to no one is no one's, so
+        // it is listed for neither learner.
+        Assert.Equal("example attributed to A",
+            Assert.Single(forA.Examples).TargetSentence);
         Assert.Equal("A's memory story", forA.Draft.MnemonicText);
         Assert.Equal("https://images.example.invalid/a?private=1", forA.Draft.MnemonicImageUri);
         // Terms + A's text + image + one owned example = 5/6.
@@ -440,7 +440,7 @@ public sealed class NativeVocabularyStoreTests
     }
 
     [Fact]
-    public async Task UnattributedExample_CountsForItsWordsOwnerOnly_AsDoMemoryAids()
+    public async Task UnattributedExample_NeverCounts_AndOnlyTheOwnerCountsMemoryAids()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
@@ -464,11 +464,11 @@ public sealed class NativeVocabularyStoreTests
         }
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
 
-        // Review 4: the sentence naming nobody and no resource is its word owner's (phase 3).
-        // A owns the word: terms + text + seeded image + that sentence = 5/6. B: terms only.
-        foreach (var (owner, label, cue, examples) in new[] {
-            (NativeSliceFixture.UserA, "Strong", (string?)"one more encoding cue", 1),
-            (NativeSliceFixture.UserB, "Basic", (string?)null, 0)
+        // A sentence recorded to no one counts for no one. A owns the word: terms + text +
+        // seeded image = 4/6. B: terms only = 2/6.
+        foreach (var (owner, label, cue) in new[] {
+            (NativeSliceFixture.UserA, "Good", (string?)"one more encoding cue"),
+            (NativeSliceFixture.UserB, "Basic", (string?)null)
         })
         {
             fixture.Activate(owner);
@@ -480,7 +480,7 @@ public sealed class NativeVocabularyStoreTests
             Assert.NotNull(detail);
             Assert.True(detail.IsSharedWithAnotherOwner);
             Assert.Equal(cue, detail.Draft.MnemonicText);
-            Assert.Equal(examples, detail.Examples.Count);
+            Assert.Empty(detail.Examples);
             Assert.Equal(label, detail.Word.EncodingLabel);
         }
 
@@ -603,49 +603,13 @@ public sealed class NativeVocabularyStoreTests
             .Where(progress => progress.VocabularyWordId == id).ToListAsync());
     }
 
-    // Review 4: a sentence naming nobody is its resource's owner's, else its word owner's (the
-    // phase-3 rule). With no resource, or a resource that cannot be found, it is the word
-    // owner's: A's own sentence, listed and counted, and A edits as before.
+    // One runtime rule (Captain 2026-11-06): a sentence is the learner's only when it is
+    // recorded to them; one recorded to no one (no resource, or a resource that cannot be
+    // found) is no one's, so the word it sits on is read-only like one another learner uses.
     [Theory]
     [InlineData("missing")]
-    [InlineData("unresolvable")]
-    public async Task UnattributedExampleOnTheOwnersWord_IsTheirs(string exampleLink)
-    {
-        using var fixture = new NativeSliceFixture();
-        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
-        var id = fixture.WordId(NativeSliceFixture.UserA, 0);
-        using (var scope = fixture.Scope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.ExampleSentences.Add(new ExampleSentence {
-                VocabularyWordId = id,
-                LearningResourceId = exampleLink == "unresolvable" ? "resource-with-no-resolvable-owner" : null,
-                Source = ExampleSentenceSource.UserAuthored,
-                TargetSentence = "context with no recorded author"
-            });
-            await db.Database.OpenConnectionAsync();
-            try
-            {
-                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
-                await db.SaveChangesAsync();
-            }
-            finally
-            {
-                await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
-                await db.Database.CloseConnectionAsync();
-            }
-        }
-        fixture.Activate(NativeSliceFixture.UserA);
-        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
-        var detail = (await store.GetOwnedVocabularyAsync(NativeSliceFixture.UserA, id, default))!;
-        Assert.Equal("context with no recorded author", Assert.Single(detail.Examples).TargetSentence);
-        Assert.False(detail.IsSharedWithAnotherOwner);
-        Assert.Equal(NativeVocabularySaveStatus.Saved, await store.SaveOwnedVocabularyAsync(
-            NativeSliceFixture.UserA, detail.Draft with { NativeTerm = "edited" }, default));
-    }
-
-    [Theory]
     [InlineData("foreign")]
+    [InlineData("unresolvable")]
     public async Task UnattributedOrForeignExampleOnly_RefusesBaseWordAndMappingWrites(
         string exampleLink)
     {

@@ -169,16 +169,15 @@ public sealed class MauiUpgradeFromMainTests
     private static async Task AssertConvertedRowsAsync(string connectionString)
     {
         await using var db = CreateContext(connectionString);
-        // Words keep no recorded owner on the device; the sync rules derive the single learner
-        // their links and progress name, and an orphan word has none.
+        // Words keep no recorded owner on the device, and none is inferred from their links or
+        // progress (one runtime rule, Captain 2026-11-06): they are no one's, so read-only, until
+        // the server backfill (scripts/assign-vocabulary-word-owners.sql) records an owner and
+        // the next sync brings it down. The upgrade keeps every word row.
         var words = await db.VocabularyWords.AsNoTracking().ToDictionaryAsync(row => row.Id);
         Assert.Equal(4, words.Count);
         Assert.All(words.Values, row => Assert.Null(row.UserProfileId));
-        var derived = await SyncRowOwners.GetStoredWordOwnersAsync(db, [.. words.Keys], default);
-        Assert.Equal(Owner, derived["word-owner-1"]);
-        Assert.Equal(Owner, derived["word-owner-2"]);
-        Assert.Equal(Other, derived["word-other"]);
-        Assert.Null(derived["word-orphan"]);
+        var stored = await SyncRowOwners.GetStoredWordOwnersAsync(db, [.. words.Keys], default);
+        Assert.All(words.Keys, id => Assert.Null(stored[id]));
 
         var pair = await db.MinimalPairs.AsNoTracking().SingleAsync();
         Assert.Equal(SyncIds.MinimalPair(Owner, "word-owner-1", "word-owner-2"), pair.Id);

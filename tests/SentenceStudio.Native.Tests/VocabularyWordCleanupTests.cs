@@ -286,10 +286,9 @@ public sealed class VocabularyWordCleanupTests
     }
 
     // Review 2026-11-05: AI example sentences carry the owner's UserProfileId and no resource.
-    // Review 4: a sentence recorded to nobody is its resource's owner's, else its word owner's
-    // (the phase-3 backfill rule, VocabularyWordOwnership.SentenceOwnersAsync), so one the
-    // device shows as the learner's never blocks their delete; one on another learner's
-    // resource does.
+    // One runtime rule (Captain 2026-11-06): a sentence is the learner's only when it is
+    // recorded to them. One recorded to no one is no one's, wherever it sits (the learner's
+    // resource or another's), and blocks the delete like another learner's sentence.
     [Fact]
     public async Task Delete_TakesAWordWithTheOwnersOwnSentencesButNotAnotherOwnersSentence()
     {
@@ -320,7 +319,8 @@ public sealed class VocabularyWordCleanupTests
         using var browser = Create(fixture);
         Assert.True(await browser.OpenAsync(UserA));
 
-        foreach (var refused in new[] { withForeignSentence, withSentenceOnTheirResource })
+        var refusedWords = new[] { withForeignSentence, withUnownedSentence, withSentenceOnTheirResource };
+        foreach (var refused in refusedWords)
         {
             await browser.OpenWordAsync(refused);
             Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
@@ -328,21 +328,18 @@ public sealed class VocabularyWordCleanupTests
                 await store.DeleteOwnedVocabularyAsync(UserA, refused, default));
         }
 
-        foreach (var deletable in new[] { withOwnSentence, withUnownedSentence })
-        {
-            await browser.OpenWordAsync(deletable);
-            Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
-            Assert.Single(browser.EditState.Detail!.Examples);
-            Assert.True(browser.EditState.CanDelete);
-            browser.RequestDelete();
-            await browser.ConfirmDeleteAsync();
+        await browser.OpenWordAsync(withOwnSentence);
+        Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.Single(browser.EditState.Detail!.Examples);
+        Assert.True(browser.EditState.CanDelete);
+        browser.RequestDelete();
+        await browser.ConfirmDeleteAsync();
 
-            Assert.False(browser.IsFormOpen);
-            Assert.Null(browser.EditState.DeleteError);
-            Assert.Equal("VocabWordEdit_DeletedSuccess", browser.ListState.Feedback);
-            Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, deletable));
-        }
-        foreach (var kept in new[] { withForeignSentence, withSentenceOnTheirResource })
+        Assert.False(browser.IsFormOpen);
+        Assert.Null(browser.EditState.DeleteError);
+        Assert.Equal("VocabWordEdit_DeletedSuccess", browser.ListState.Feedback);
+        Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, withOwnSentence));
+        foreach (var kept in refusedWords)
         {
             var rows = await RowsAsync(fixture, kept);
             Assert.Equal(1, rows.Words);
@@ -716,13 +713,8 @@ public sealed class VocabularyWordCleanupTests
                 db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
                     Id = $"mapping-{id}", ResourceId = fixture.ResourceId(UserA), VocabularyWordId = id
                 });
-            // Review 4: a word recorded to nobody is no one's only when no single learner's
-            // links name it (one linked by A alone would be A's); here B links it too.
-            if (legacyOwner is null)
-                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
-                    Id = "mapping-dup-legacy-b", ResourceId = fixture.ResourceId(UserB),
-                    VocabularyWordId = "dup-legacy"
-                });
+            // A word recorded to no one is no one's even when only A links it (one runtime
+            // rule, Captain 2026-11-06): nothing infers A from that link.
             await db.SaveChangesAsync();
             if (legacyOwner is null)
                 await db.VocabularyWords.Where(word => word.Id == "dup-legacy")
@@ -766,17 +758,17 @@ public sealed class VocabularyWordCleanupTests
         Assert.False(pending.IsPending(UserA));
     }
 
-    // Review 2026-11-05 (third and fourth pass): native has two rules, checked against what the
-    // server's owner-checked sync does with the same rows (the shared rules it calls).
+    // Review 2026-11-05 (third and fourth pass, and the one runtime rule of 2026-11-06): native
+    // has two rules, checked against what the server's owner-checked sync does with the same
+    // rows (the shared rules it calls).
     // Whose the word is: one rule everywhere (VocabularyWordOwnership.OwnedByAsync): its recorded
-    // owner, else the single learner its links and progress name ("unrecorded-word" is A's; a
-    // word linked by A and B and recorded to nobody, "shared-legacy-word", is no one's).
+    // owner only. A word recorded to no one is no one's, whether only A links it
+    // ("unrecorded-word") or A and B do ("shared-legacy-word"); the server refuses to change it.
     // Edit: the word is the owner's and no one else links, practises or wrote a sentence for it
     // (VocabularyWordDependents.OthersUseAsync; the 2026-10-20 rule). Never an edit the server
     // refuses; stricter only for others' use ("mapping", "progress", "sentence",
-    // "sentence-on-their-resource"). Others' pairs and phrases do not stop an edit. A sentence
-    // recorded to nobody belongs to its resource's owner, else its word's owner (phase 3):
-    // "unowned-sentence" on A's resource is A's.
+    // "sentence-on-their-resource", "unowned-sentence": a sentence recorded to no one is no
+    // one's, wherever it sits). Others' pairs and phrases do not stop an edit.
     // Delete: native refuses exactly what the server refuses, and says why ("pair", "phrase":
     // others' rows; "answer": a Minimal Pairs answer, which the database also refuses).
     [Theory]
@@ -785,11 +777,11 @@ public sealed class VocabularyWordCleanupTests
     [InlineData("progress", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("sentence-on-their-resource", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("unowned-sentence", true, NativeVocabularyDeleteStatus.Deleted)]
+    [InlineData("unowned-sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("pair", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("phrase", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("answer", true, NativeVocabularyDeleteStatus.UsedByAnswers)]
-    [InlineData("unrecorded-word", true, NativeVocabularyDeleteStatus.Deleted)]
+    [InlineData("unrecorded-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("shared-legacy-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     public async Task EditAndDelete_MatchWhatTheServerAcceptsForTheSameRows(
         string use, bool editable, NativeVocabularyDeleteStatus expectedDelete)
@@ -871,8 +863,8 @@ public sealed class VocabularyWordCleanupTests
                 && !(await VocabularyWordDependents.AnswersStillUseAsync(db, [wordId], default))
                     .Contains(wordId);
         }
-        Assert.Equal(use is not "shared-legacy-word", serverUpdates);
-        Assert.Equal(use is "none" or "unrecorded-word" or "unowned-sentence", serverDeletes);
+        Assert.Equal(use is not ("unrecorded-word" or "shared-legacy-word"), serverUpdates);
+        Assert.Equal(use is "none", serverDeletes);
 
         var detail = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
         Assert.Equal(!editable, detail.IsSharedWithAnotherOwner);
@@ -891,8 +883,8 @@ public sealed class VocabularyWordCleanupTests
             NativeVocabularyDeleteStatus.UsedByAnswers => "NativeVocabulary_DeleteUsedByAnswers",
             _ => null
         }, VocabularyWordCommands.DeleteBlockedReason(detail, key => key));
-        // Only the learner's sentences are listed and counted as theirs.
-        Assert.Equal(use is "unowned-sentence" ? 1 : 0, detail.Examples.Count);
+        // Only sentences recorded to the learner are listed and counted as theirs.
+        Assert.Empty(detail.Examples);
 
         var deleted = await store.DeleteOwnedVocabularyAsync(UserA, wordId, default);
         Assert.Equal(expectedDelete, deleted);

@@ -351,7 +351,7 @@ public sealed class CoachVocabularyEditHandler : CoachWriteHandlerBase<CoachVoca
 
         // Ownership is re-proved rather than assumed from the receipt: the window is minutes
         // long, and the learner may have unlinked the word in between.
-        var word = await _ownership.FindOwnedWordAsync(userProfileId, args.WordId, cancellationToken)
+        var word = await _ownership.FindEditableWordAsync(userProfileId, args.WordId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
 
         word.TargetLanguageTerm = prior.TargetTerm;
@@ -375,7 +375,7 @@ public sealed class CoachVocabularyEditHandler : CoachWriteHandlerBase<CoachVoca
     private async Task<(VocabularyWord Word, IReadOnlyList<FieldChange> Changes)> ValidateAsync(
         string userProfileId, CoachVocabularyEditArgs args, CancellationToken cancellationToken)
     {
-        var word = await _ownership.FindOwnedWordAsync(userProfileId, args.WordId, cancellationToken)
+        var word = await _ownership.FindEditableWordAsync(userProfileId, args.WordId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
 
         var changes = new List<FieldChange>();
@@ -599,11 +599,12 @@ public sealed class CoachVocabularyRemovalHandler : CoachWriteHandlerBase<CoachV
 
         // Deleting a row another learner still maps would be a cross-tenant write, so the row
         // only goes when every link to it is the learner's. Then the owner-scoped delete runs
-        // first, on the word as it stands (a word saved before words had owners is the learner's
-        // through these very links), and removes their links and the word in one transaction or
-        // refuses and changes nothing (others' data or a Minimal Pairs answer still uses it;
-        // B66). Unlinking first would leave such a word with no links and no owner, a row no
-        // one can find (review 4). It runs to completion once started.
+        // first and removes their links and the word in one transaction, or refuses and changes
+        // nothing: the word is not recorded to the learner (one runtime rule, Captain
+        // 2026-11-06), or others' data or a Minimal Pairs answer still uses it (B66). A refused
+        // word is only unlinked from the learner's resources; one recorded to no one then stays
+        // as an unlinked row until the backfill or a later review decides
+        // (docs/native-review-backlog.md). It runs to completion once started.
         var deleted = false;
         var ownedLinks = await _ownership.CountOwnedLinksAsync(userProfileId, word.Id, cancellationToken)
             .ConfigureAwait(false);

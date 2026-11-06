@@ -19902,11 +19902,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} word(s) were kept: they aren&apos;t yours, or another learner&apos;s data or a Minimal Pairs answer still uses them..
+        ///   Looks up a localized string similar to {0} word(s) stay in your vocabulary, with their resources: they aren&apos;t recorded as yours, or another learner still uses them..
         /// </summary>
         internal static string Vocabulary_BulkDeleteKept {
             get {
                 return ResourceManager.GetString("Vocabulary_BulkDeleteKept", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} word(s) stay in your vocabulary, with their resources: Minimal Pairs answers still use them..
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteKeptAnswers {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteKeptAnswers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} word(s) were not found in your vocabulary..
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteNotFound {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteNotFound", resourceCulture);
             }
         }
 
@@ -20744,6 +20762,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_FixSwappedFixing {
             get {
                 return ResourceManager.GetString("Vocabulary_FixSwappedFixing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} entries were left as they are: they aren&apos;t recorded as yours, or another learner still uses them..
+        /// </summary>
+        internal static string Vocabulary_FixSwappedKept {
+            get {
+                return ResourceManager.GetString("Vocabulary_FixSwappedKept", resourceCulture);
             }
         }
 

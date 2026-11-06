@@ -10,8 +10,8 @@ namespace SentenceStudio.Services;
 /// (SQLite), so a client can tell before uploading which rows the server treats as another
 /// learner's (docs/sync-all-tables-plan.md, "Owner-checked sync for every client").
 /// A row either names its owner in a column, or takes it from a parent row: a word link from
-/// its resource, a learning record from its progress row, a phrase part from its phrase word,
-/// and a word without a recorded owner from the one learner its links and progress name.
+/// its resource, a learning record from its progress row, a phrase part from its phrase word.
+/// A word is its recorded owner's only; a word recorded to no one is no one's (never inferred).
 /// A row nobody can be proven to own resolves to null; the owner is never guessed.
 /// </summary>
 public static class SyncRowOwners
@@ -77,48 +77,15 @@ public static class SyncRowOwners
         };
 
     /// <summary>
-    /// A word's recorded owner, or for a word saved before words had one, the single learner
-    /// its resource links and progress rows name (null when they name none or several).
+    /// Each existing word's recorded owner (<see cref="VocabularyWord.UserProfileId"/>); null for
+    /// a word recorded to no one. One runtime rule everywhere (Captain 2026-11-06): a word is a
+    /// learner's only when it is recorded to them. Owners are never inferred from links or
+    /// progress at runtime; the one-time backfill (scripts/assign-vocabulary-word-owners.sql)
+    /// and the stamping of new words record them.
     /// </summary>
-    public static async Task<Dictionary<string, string?>> GetStoredWordOwnersAsync(
-        ApplicationDbContext db, string[] ids, CancellationToken ct)
-    {
-        var stored = await db.VocabularyWords.AsNoTracking()
-            .Where(word => ids.Contains(word.Id))
-            .Select(word => new { word.Id, word.UserProfileId })
-            .ToListAsync(ct);
-        if (stored.Count == 0)
-            return new Dictionary<string, string?>(StringComparer.Ordinal);
-        var recorded = stored.Where(word => word.UserProfileId != null)
-            .ToDictionary(word => word.Id, word => word.UserProfileId, StringComparer.Ordinal);
-        var existing = stored.Where(word => word.UserProfileId == null)
-            .Select(word => word.Id).ToList();
-        if (existing.Count == 0)
-            return recorded;
-
-        var mappingOwners = await (
-            from mapping in db.ResourceVocabularyMappings.AsNoTracking()
-            join resource in db.LearningResources.AsNoTracking()
-                on mapping.ResourceId equals resource.Id into resources
-            from resource in resources.DefaultIfEmpty()
-            where existing.Contains(mapping.VocabularyWordId)
-            select new WordOwner(mapping.VocabularyWordId,
-                resource == null ? null : resource.UserProfileId))
-            .ToListAsync(ct);
-        var progressOwners = await db.VocabularyProgresses.AsNoTracking()
-            .Where(progress => existing.Contains(progress.VocabularyWordId))
-            .Select(progress => new WordOwner(progress.VocabularyWordId, progress.UserId))
-            .ToListAsync(ct);
-        var ownersByWord = mappingOwners.Concat(progressOwners)
-            .GroupBy(reference => reference.WordId, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key,
-                group => group.Select(reference => reference.Owner).Distinct().ToArray(),
-                StringComparer.Ordinal);
-        foreach (var id in existing)
-            recorded[id] = ownersByWord.TryGetValue(id, out var owners) && owners.Length == 1
-                ? owners[0] : null;
-        return recorded;
-    }
+    public static Task<Dictionary<string, string?>> GetStoredWordOwnersAsync(
+        ApplicationDbContext db, string[] ids, CancellationToken ct) =>
+        DirectOwnersAsync<VocabularyWord>(db, ids, "UserProfileId", ct);
 
     public static async Task<Dictionary<string, string?>> DirectOwnersAsync<TEntity>(
         ApplicationDbContext db, string[] ids, string ownerProperty, CancellationToken ct)
@@ -176,5 +143,4 @@ public static class SyncRowOwners
     }
 
     private sealed record StoredRowOwner(string Id, string? Owner);
-    private sealed record WordOwner(string WordId, string? Owner);
 }

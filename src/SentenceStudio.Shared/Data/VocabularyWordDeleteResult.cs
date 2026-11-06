@@ -31,8 +31,14 @@ public enum VocabularyWordDeleteResult
     Failed
 }
 
-/// <summary>How many words a bulk delete removed, kept (refused) and failed to delete.</summary>
-public sealed record VocabularyBulkDeleteResult(int Deleted, int Kept, int Failed);
+/// <summary>
+/// What a bulk delete did with each word: removed; kept because it is not the learner's or
+/// someone else still uses it (<see cref="VocabularyWordDeleteResult.RefusedShared"/>); kept
+/// because a Minimal Pairs answer references it; not found; failed. A kept word keeps the
+/// learner's links.
+/// </summary>
+public sealed record VocabularyBulkDeleteResult(
+    int Deleted, int KeptShared, int KeptAnswers, int NotFound, int Failed);
 
 /// <summary>What the web/MAUI word editor's owner-scoped save did.</summary>
 public enum VocabularyWordSaveResult

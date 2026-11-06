@@ -9527,8 +9527,20 @@ For example: {0} ...</value>
     <comment>Duplicate manager (web/MAUI): why a group holding a copy not recorded to the learner cannot merge (B69)</comment>
   </data>
   <data name="Vocabulary_BulkDeleteKept" xml:space="preserve">
-    <value>{0} word(s) were kept: they aren't yours, or another learner's data or a Minimal Pairs answer still uses them.</value>
+    <value>{0} word(s) stay in your vocabulary, with their resources: they aren't recorded as yours, or another learner still uses them.</value>
     <comment>Vocabulary bulk delete (web/MAUI): words the owner-scoped delete refused (B66 review 4)</comment>
+  </data>
+  <data name="Vocabulary_BulkDeleteKeptAnswers" xml:space="preserve">
+    <value>{0} word(s) stay in your vocabulary, with their resources: Minimal Pairs answers still use them.</value>
+    <comment>Vocabulary bulk delete (web/MAUI): words kept because Minimal Pairs answers reference them</comment>
+  </data>
+  <data name="Vocabulary_BulkDeleteNotFound" xml:space="preserve">
+    <value>{0} word(s) were not found in your vocabulary.</value>
+    <comment>Vocabulary bulk delete (web/MAUI): selected words that are no longer in the learner's vocabulary</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedKept" xml:space="preserve">
+    <value>{0} entries were left as they are: they aren't recorded as yours, or another learner still uses them.</value>
+    <comment>Fix swapped languages (web/MAUI): entries the owner-checked swap or merge left unchanged</comment>
   </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>Showing {0}.</value>
