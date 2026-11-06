@@ -64,9 +64,32 @@ public sealed class NativeMinimalPairsPresenter(
     private long _audioVersion;
     private bool _exited;
     private bool _disposed;
+    private readonly object _backgroundSync = new();
+    private Task _background = Task.CompletedTask;
 
     /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
     internal NativeActivityExit ExitFence => _exit;
+
+    /// <summary>
+    /// The prompt playback and trial advance started in the background (after Start and Check
+    /// Answer). Back, Exit and Dispose cancel them; this completes when they have ended, so a
+    /// caller that tears down the storage they use (a test's fixture) waits for their last read.
+    /// </summary>
+    internal Task BackgroundWork
+    {
+        get
+        {
+            lock (_backgroundSync)
+                return _background;
+        }
+    }
+
+    /// <summary>Starts <paramref name="work"/> (which handles its own failures) as background work.</summary>
+    private void RunInBackground(Task work)
+    {
+        lock (_backgroundSync)
+            _background = _background.IsCompleted ? work : Task.WhenAll(_background, work);
+    }
 
     public NativeMinimalPairsState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -398,7 +421,7 @@ public sealed class NativeMinimalPairsPresenter(
         {
             _gate.Release();
         }
-        _ = PlayAfterAsync(FirstPromptDelay, generation);
+        RunInBackground(PlayAfterAsync(FirstPromptDelay, generation));
         return State;
     }
 
@@ -475,7 +498,7 @@ public sealed class NativeMinimalPairsPresenter(
         {
             _gate.Release();
         }
-        _ = AdvanceAfterAsync(generation);
+        RunInBackground(AdvanceAfterAsync(generation));
         return State;
     }
 

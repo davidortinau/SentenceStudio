@@ -336,9 +336,20 @@ internal sealed class NativeSliceFixture : IDisposable
                     if (File.Exists(file))
                         File.Delete(file);
                 }
-                // Recursive: a background write that finishes after the test (for example a
-                // speech clip cached after Back) must not fail cleanup.
-                Directory.Delete(_directory, recursive: true);
+                // Not recursive: anything else left here was written by work that outlived its
+                // test (a lifetime leak, such as a presenter's background playback caching a clip
+                // after Back), and the failure names it.
+                try
+                {
+                    Directory.Delete(_directory);
+                }
+                catch (IOException ex)
+                {
+                    throw new IOException("Work outlived its test and wrote into the fixture's folder: "
+                        + string.Join(", ", Directory.EnumerateFileSystemEntries(
+                            _directory, "*", SearchOption.AllDirectories)
+                            .Select(entry => Path.GetRelativePath(_directory, entry))), ex);
+                }
             }
         }
         finally

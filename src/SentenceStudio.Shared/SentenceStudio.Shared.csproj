@@ -13,6 +13,8 @@
 		     to the unit-test project so we can write regression tests without widening
 		     the public API surface. -->
 		<InternalsVisibleTo Include="SentenceStudio.UnitTests" />
+		<!-- The PostgreSQL regression tests drive the video import's resource creation (B76). -->
+		<InternalsVisibleTo Include="SentenceStudio.Api.Tests" />
 	</ItemGroup>
 
 	<!-- IPlanService lives in this project so both the API head (HTTP) and the

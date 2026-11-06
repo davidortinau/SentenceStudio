@@ -145,9 +145,7 @@ Should produce:
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "topikLevel": 3,
       "lexicalUnitType": "Word | Phrase | Idiom",
-      "relatedTerms": ["constituent1", "constituent2"],
-      "exampleSentence": "The input sentence this entry was taken from, copied exactly (empty for Sentence entries)",
-      "exampleSentenceTranslation": "{{ native_language }} translation of exampleSentence"
+      "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
 }
@@ -158,7 +156,7 @@ Should produce:
 {{ if harvest_phrases }}- CRITICAL: Each input line MUST produce at least one Phrase entry with the full expression. This is the primary purpose of phrase import — do NOT skip it.{{ end }}
 - Phrase entries MUST have relatedTerms populated with constituent words in dictionary form.
 - Word entries should have relatedTerms as an empty array.
-- For every Word, Phrase or Idiom entry, set exampleSentence to the one input sentence it was taken from, copied exactly as written (only that sentence when a line holds several), and exampleSentenceTranslation to its {{ native_language }} translation (the given translation when the input has one). The learner keeps that sentence as the word's example.
+- Example sentence: when a Word, Phrase or Idiom entry comes from a {{ target_language }} sentence in the input, give that sentence as its exampleSentence, copied exactly as written (only that one sentence when a line holds several), and its {{ native_language }} translation as exampleSentenceTranslation (the given translation when the input has one). The learner keeps both on the word; the sentence alone (never its translation) is shown as a quiz hint, so the sentence itself must not contain the entry's meaning. Give no example when the entry did not come from a {{ target_language }} sentence: a word-list line, a line that pairs a term with its translation (such as "사과 - apple"), a line in {{ native_language }} or in mixed languages, or a Phrase entry that is the whole input line.
 - Word-level "targetLanguageTerm" MUST be in dictionary form, even if the source has it conjugated/inflected.
 - Be permissive: extract generously, flag uncertainty via confidence rather than dropping items.
 - Never invent terms that don't appear (directly or as conjugations) in the source text.

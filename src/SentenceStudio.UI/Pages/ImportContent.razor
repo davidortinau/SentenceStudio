@@ -830,6 +830,8 @@
             {
                 RowNumber = r.RowNumber,
                 TargetLanguageTerm = r.TargetLanguageTerm,
+                // The commit compares it with the edited term (B72).
+                ParsedTargetLanguageTerm = r.ParsedTargetLanguageTerm,
                 NativeLanguageTerm = r.NativeLanguageTerm,
                 Status = r.Status,
                 Error = r.Error,
@@ -1050,7 +1052,9 @@
                 HarvestTranscript = harvestTranscript,
                 HarvestSentences = harvestSentences,
                 HarvestPhrases = harvestPhrases,
-                HarvestWords = harvestWords
+                HarvestWords = harvestWords,
+                // The learner reviewed (and could edit) these rows (B72).
+                ReviewedByLearner = true
             };
 
             importResult = await ImportService.CommitImportAsync(commit);

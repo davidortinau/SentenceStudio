@@ -1,3 +1,4 @@
+using CoreFoundation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
@@ -58,7 +59,7 @@ internal sealed partial class ApplicationController
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
             || IsVocabularyOpen || IsQuizOpen || IsResourcesFormOpen || _services is null
-            || VocabularyOwner() is not { } expectedOwner)
+            || LibraryOwner("Vocabulary") is not { } expectedOwner)
             return;
         EnsureVocabulary();
         RunLibrary(async () =>
@@ -72,29 +73,75 @@ internal sealed partial class ApplicationController
     /// <summary>
     /// Find Duplicates in a word editor hosted outside the Vocabulary page (Import Content
     /// results): as the source navigates to the Vocabulary page with its duplicate manager
-    /// focused on the word, the Library returns to its list and opens Vocabulary with that
-    /// focused panel. Back from there returns to the Library list.
+    /// focused on the word, the Library opens Vocabulary with that focused panel and returns the
+    /// import page to the list. Back from there returns to the Library list.
     /// </summary>
-    private void OpenDuplicatesOnVocabularyPage(string term, string wordId) =>
-        RunLibrary(async () =>
+    /// <remarks>
+    /// The editor and the results stay until the Vocabulary page has opened. False (the editor
+    /// says it could not open) when the handoff cannot start now: another Library action is
+    /// running, or the owner is not trusted. The handoff itself runs after the editor's own
+    /// operation has returned (posted to the main queue), because on success it releases that
+    /// editor.
+    /// </remarks>
+    private bool OpenDuplicatesOnVocabularyPage(string term, string wordId)
+    {
+        if (!CanHandOverDuplicates() || LibraryOwner("Find Duplicates") is null)
+            return false;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
         {
-            // The editor that asked finishes first: returning to the list releases it.
-            await Task.Yield();
-            if (_destination != NativeDestination.Dashboard || IsQuizOpen || _services is null
-                || VocabularyOwner() is not { } owner)
-                return;
-            ResetLibraryToList();
-            EnsureVocabulary();
-            if (!await _vocabulary!.OpenAsync(owner))
+            if (!CanHandOverDuplicates() || LibraryOwner("Find Duplicates") is not { } owner)
             {
-                _logger?.LogWarning("Vocabulary navigation refused a changed owner.");
+                _importWords?.ShowEditError(VocabularyBrowser.FindDuplicatesFailedKey);
                 return;
             }
-            await _vocabulary.OpenDuplicatesAsync(term, wordId);
+            RunLibrary(() => HandOverDuplicatesAsync(owner, term, wordId));
         });
+        return true;
+    }
 
-    /// <summary>The signed-in owner when the device scope agrees; null (logged) otherwise.</summary>
-    private string? VocabularyOwner()
+    /// <summary>The import word editor is open and nothing else runs: a handoff can start.</summary>
+    private bool CanHandOverDuplicates() =>
+        !_disposed && !_busy && _destination == NativeDestination.Dashboard && !IsQuizOpen
+        && _services is not null && IsImportWordOpen;
+
+    private async Task HandOverDuplicatesAsync(string owner, string term, string wordId)
+    {
+        var editor = _importWords;
+        EnsureVocabulary();
+        var vocabulary = _vocabulary!;
+        var wasOpen = vocabulary.IsOpen;
+        var opened = false;
+        try
+        {
+            // The scene pushes the Vocabulary page only on an empty Library path, so opening it
+            // here leaves the import page and its editor on screen until they are released below.
+            opened = wasOpen || await vocabulary.OpenAsync(owner);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Find Duplicates could not open the Vocabulary page.");
+        }
+        if (!opened || !ReferenceEquals(_importWords, editor) || editor is not { IsFormOpen: true })
+        {
+            // Nothing moves: a page left half open would be pushed once the import page closes.
+            if (!wasOpen && vocabulary.IsOpen)
+                vocabulary.OnListPopped();
+            _logger?.LogWarning("Find Duplicates kept the import word editor: the Vocabulary page did not open.");
+            editor?.ShowEditError(VocabularyBrowser.FindDuplicatesFailedKey);
+            return;
+        }
+        // The Vocabulary page is ready: the import page and its editor leave (the draft is
+        // discarded, as the source navigates away) and the page opens on the focused panel.
+        ResetLibraryToList(keepVocabulary: true);
+        await vocabulary.OpenDuplicatesAsync(term, wordId);
+    }
+
+    /// <summary>
+    /// The signed-in owner when the device scope agrees, for a Library page (Vocabulary, Import
+    /// Content, an imported word, Find Duplicates); null (logged with <paramref name="page"/>)
+    /// otherwise. One check, so the pages cannot drift apart.
+    /// </summary>
+    private string? LibraryOwner(string page)
     {
         var scope = _services!.Provider.GetRequiredService<DeviceUserScopeProvider>();
         var expectedOwner = _authState is {
@@ -111,7 +158,7 @@ internal sealed partial class ApplicationController
             || current != expectedOwner)
         {
             _logger?.LogWarning(
-                "Vocabulary navigation refused an absent or untrusted owner.");
+                "{Page} navigation refused an absent or untrusted owner.", page);
             return null;
         }
         return expectedOwner;

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 using System.Text.RegularExpressions;
 
@@ -356,28 +357,11 @@ public class ExampleSentenceRepository
         ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
         SpeechRegister register = SpeechRegister.Unspecified,
         int capPerWordPerResource = 2,
-        CancellationToken ct = default,
-        bool requireTermInSentence = true)
+        CancellationToken ct = default)
     {
-        if (word == null || string.IsNullOrWhiteSpace(word.Id) || string.IsNullOrWhiteSpace(targetSentence))
+        if (ReadingSentence(word, targetSentence, requireTermInSentence: true) is not { } prepared)
             return null;
-
-        var trimmedTargetSentence = targetSentence.Trim();
-        // A harvested sentence must contain the word; an import's row carries the sentence its
-        // term came from, which stays the word's example even after the learner edits the term.
-        if (requireTermInSentence && !SentenceContainsWordTerm(word, trimmedTargetSentence))
-            return null;
-
-        // ExampleSentence.TargetSentence is [MaxLength(500)] — enforced as varchar(500) on the
-        // Postgres (WebApp/API) provider. An overlong segment (e.g. a long newline-delimited
-        // transcript line with no sentence-final punctuation) would throw on insert, aborting a
-        // whole harvest run. Such a run-on is a poor example anyway, so skip it rather than truncate.
-        if (trimmedTargetSentence.Length > MaxSentenceLength)
-            return null;
-
-        var normalizedTargetSentence = NormalizeForDedup(trimmedTargetSentence);
-        if (string.IsNullOrWhiteSpace(normalizedTargetSentence))
-            return null;
+        var (trimmedTargetSentence, normalizedTargetSentence) = prepared;
 
         var existingSentences = existingForWord ?? Array.Empty<ExampleSentence>();
         var trackedSentences = _context.ExampleSentences.Local
@@ -389,21 +373,8 @@ public class ExampleSentenceRepository
             .Where(es => es.VocabularyWordId == word.Id)
             .ToList();
 
-        if (sentencesForChecks
-            .Any(es => NormalizeForDedup(es.TargetSentence) == normalizedTargetSentence))
-        {
+        if (HasOrIsCapped(sentencesForChecks, normalizedTargetSentence, learningResourceId, capPerWordPerResource))
             return null;
-        }
-
-        if (learningResourceId != null)
-        {
-            var existingFromReadingCount = sentencesForChecks.Count(es =>
-                es.Source == ExampleSentenceSource.FromReading &&
-                es.LearningResourceId == learningResourceId);
-
-            if (existingFromReadingCount >= capPerWordPerResource)
-                return null;
-        }
 
         if (await OwnerForNewAsync(word.Id, learningResourceId, ct) is not { } owner)
         {
@@ -411,11 +382,134 @@ public class ExampleSentenceRepository
             return null;
         }
 
+        var sentence = NewReadingSentence(owner, word.Id, learningResourceId, trimmedTargetSentence,
+            nativeSentence, status, register);
+
+        _context.ExampleSentences.Add(sentence);
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Created FromReading example sentence {Id} for word {WordId}",
+            sentence.Id, sentence.VocabularyWordId);
+
+        return sentence;
+    }
+
+    /// <summary>One sentence an import keeps as a word's example (see the batch <c>CreateFromReadingIfNewAsync</c>).</summary>
+    /// <param name="RequireTermInSentence">
+    /// False only for an import row whose term the learner edited in the preview: its sentence was
+    /// checked against the source text instead (<see cref="SentenceStudio.Services.ImportExampleSentencePolicy"/>).
+    /// </param>
+    public sealed record ReadingExample(
+        VocabularyWord Word, string TargetSentence, string? NativeSentence, bool RequireTermInSentence = true);
+
+    /// <summary>
+    /// The batch form for an import (inside its transaction): each sentence gets the same checks as
+    /// the single form, against the word's sentences in <paramref name="existingByWordId"/> (read
+    /// from the database after the import's own saves) and the ones added earlier in this batch;
+    /// then all are added and saved once. Returns how many were added.
+    /// </summary>
+    public async Task<int> CreateFromReadingIfNewAsync(
+        IReadOnlyList<ReadingExample> examples,
+        string? learningResourceId,
+        IReadOnlyDictionary<string, IReadOnlyCollection<ExampleSentence>> existingByWordId,
+        ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
+        SpeechRegister register = SpeechRegister.Unspecified,
+        int capPerWordPerResource = 2,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(examples);
+        ArgumentNullException.ThrowIfNull(existingByWordId);
+        var addedByWordId = new Dictionary<string, List<ExampleSentence>>(StringComparer.Ordinal);
+        var added = new List<ExampleSentence>();
+        foreach (var example in examples)
+        {
+            ct.ThrowIfCancellationRequested();
+            var word = example.Word;
+            if (ReadingSentence(word, example.TargetSentence, example.RequireTermInSentence) is not { } prepared)
+                continue;
+            var (trimmedTargetSentence, normalizedTargetSentence) = prepared;
+
+            existingByWordId.TryGetValue(word.Id, out var existingForWord);
+            addedByWordId.TryGetValue(word.Id, out var addedForWord);
+            var sentencesForChecks = (existingForWord ?? Array.Empty<ExampleSentence>())
+                .Concat(addedForWord ?? Enumerable.Empty<ExampleSentence>());
+            if (HasOrIsCapped(sentencesForChecks, normalizedTargetSentence, learningResourceId, capPerWordPerResource))
+                continue;
+
+            if (await OwnerForNewAsync(word.Id, learningResourceId, ct) is not { } owner)
+            {
+                _logger.LogWarning("CreateFromReadingIfNewAsync skipped a sentence with no proven owner.");
+                continue;
+            }
+
+            var sentence = NewReadingSentence(owner, word.Id, learningResourceId, trimmedTargetSentence,
+                example.NativeSentence, status, register);
+            if (addedForWord is null)
+                addedByWordId[word.Id] = addedForWord = new List<ExampleSentence>();
+            addedForWord.Add(sentence);
+            added.Add(sentence);
+        }
+
+        if (added.Count == 0)
+            return 0;
+        _context.ExampleSentences.AddRange(added);
+        await _context.SaveChangesAsync(ct);
+        _logger.LogInformation("Created {Count} FromReading example sentences for resource {ResourceId}",
+            added.Count, learningResourceId);
+        return added.Count;
+    }
+
+    /// <summary>
+    /// The trimmed and normalized form of a harvested sentence, or null when it is blank, too long,
+    /// or (when required) does not contain the word.
+    /// </summary>
+    private static (string Trimmed, string Normalized)? ReadingSentence(
+        VocabularyWord? word, string? targetSentence, bool requireTermInSentence)
+    {
+        if (word == null || string.IsNullOrWhiteSpace(word.Id) || string.IsNullOrWhiteSpace(targetSentence))
+            return null;
+
+        var trimmedTargetSentence = targetSentence.Trim();
+        if (requireTermInSentence && !SentenceContainsWordTerm(word, trimmedTargetSentence))
+            return null;
+
+        // ExampleSentence.TargetSentence is [MaxLength(500)] — enforced as varchar(500) on the
+        // Postgres (WebApp/API) provider. An overlong segment (e.g. a long newline-delimited
+        // transcript line with no sentence-final punctuation) would throw on insert, aborting a
+        // whole harvest run. Such a run-on is a poor example anyway, so skip it rather than truncate.
+        if (trimmedTargetSentence.Length > MaxSentenceLength)
+            return null;
+
+        var normalizedTargetSentence = NormalizeForDedup(trimmedTargetSentence);
+        return string.IsNullOrWhiteSpace(normalizedTargetSentence)
+            ? null
+            : (trimmedTargetSentence, normalizedTargetSentence);
+    }
+
+    /// <summary>The word already has the sentence, or the resource already gave it its cap of reading sentences.</summary>
+    private static bool HasOrIsCapped(IEnumerable<ExampleSentence> sentencesForWord,
+        string normalizedTargetSentence, string? learningResourceId, int capPerWordPerResource)
+    {
+        var fromReadingForResource = 0;
+        foreach (var existing in sentencesForWord)
+        {
+            if (NormalizeForDedup(existing.TargetSentence) == normalizedTargetSentence)
+                return true;
+            if (learningResourceId != null && existing.Source == ExampleSentenceSource.FromReading
+                && existing.LearningResourceId == learningResourceId)
+                fromReadingForResource++;
+        }
+        return learningResourceId != null && fromReadingForResource >= capPerWordPerResource;
+    }
+
+    private static ExampleSentence NewReadingSentence(string owner, string wordId, string? learningResourceId,
+        string trimmedTargetSentence, string? nativeSentence, ExampleSentenceStatus status, SpeechRegister register)
+    {
         var now = DateTime.UtcNow;
-        var sentence = new ExampleSentence
+        return new ExampleSentence
         {
             UserProfileId = owner,
-            VocabularyWordId = word.Id,
+            VocabularyWordId = wordId,
             LearningResourceId = learningResourceId,
             TargetSentence = trimmedTargetSentence,
             NativeSentence = ClampNativeSentence(nativeSentence),
@@ -426,14 +520,6 @@ public class ExampleSentenceRepository
             CreatedAt = now,
             UpdatedAt = now
         };
-
-        _context.ExampleSentences.Add(sentence);
-        await _context.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Created FromReading example sentence {Id} for word {WordId}",
-            sentence.Id, sentence.VocabularyWordId);
-
-        return sentence;
     }
 
     /// <summary>
@@ -540,27 +626,19 @@ public class ExampleSentenceRepository
 
     private static bool SentenceContainsWordTerm(VocabularyWord word, string sentence)
     {
+        // A conjugated Korean verb or adjective is found from its dictionary form (먹다 in
+        // 먹었어요, 가다 in 갔어요, 모르다 in 몰라요; KoreanPredicateMatcher). A word with no lemma
+        // (an imported word) is its own lemma, as a transcript word is.
         return ContainsTerm(sentence, word.TargetLanguageTerm) ||
             ContainsTerm(sentence, word.Lemma) ||
-            ContainsKoreanDictionaryStem(sentence, word.Lemma);
+            KoreanPredicateMatcher.Contains(sentence,
+                string.IsNullOrWhiteSpace(word.Lemma) ? word.TargetLanguageTerm : word.Lemma);
     }
 
     private static bool ContainsTerm(string sentence, string? term)
     {
         return !string.IsNullOrWhiteSpace(term) &&
             sentence.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool ContainsKoreanDictionaryStem(string sentence, string? lemma)
-    {
-        if (string.IsNullOrWhiteSpace(lemma))
-            return false;
-
-        var trimmed = lemma.Trim();
-        if (!trimmed.EndsWith('다') || trimmed.Length <= 1)
-            return false;
-
-        return sentence.Contains(trimmed[..^1], StringComparison.OrdinalIgnoreCase);
     }
 
     private static int? MapCefrToDifficulty(string? targetCefrLevel)

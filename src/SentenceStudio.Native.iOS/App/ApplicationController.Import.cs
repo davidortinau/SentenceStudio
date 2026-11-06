@@ -81,23 +81,10 @@ internal sealed partial class ApplicationController
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
             || IsLibraryPageOpen || IsResourcesFormOpen || IsQuizOpen || _services is null)
             return;
+        if (LibraryOwner("Import Content") is not { } owner)
+            return;
         var provider = _services.Provider;
         var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
-        var owner = _authState is {
-            Phase: NativePhase.Ready,
-            Destination: NativeDestination.Dashboard,
-            UserId: { Length: > 0 } authenticated }
-            ? authenticated : null;
-#if DEBUG
-        if (owner is null && _preview)
-            owner = NativePreviewFixture.FromAssembly()?.Owner;
-#endif
-        if (string.IsNullOrWhiteSpace(owner)
-            || !scope.TryGetUserProfileId(out var current) || current != owner)
-        {
-            _logger?.LogWarning("Import Content navigation refused an absent or untrusted owner.");
-            return;
-        }
         _libraryErrorKey = null;
         _selectedTab = NativeTabs.Library;
         var coordinator = new ImportContentCoordinator(
@@ -223,20 +210,10 @@ internal sealed partial class ApplicationController
             || !IsImportContentOpen || IsImportWordOpen || IsResourcesFormOpen
             || string.IsNullOrWhiteSpace(wordId))
             return;
+        if (LibraryOwner("Imported word") is not { } owner)
+            return;
         var provider = _services.Provider;
         var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
-        var owner = _authState is { Phase: NativePhase.Ready, UserId: { Length: > 0 } authenticated }
-            ? authenticated : null;
-#if DEBUG
-        if (owner is null && _preview)
-            owner = NativePreviewFixture.FromAssembly()?.Owner;
-#endif
-        if (string.IsNullOrWhiteSpace(owner)
-            || !scope.TryGetUserProfileId(out var current) || current != owner)
-        {
-            _logger?.LogWarning("An imported word refused an absent or untrusted owner.");
-            return;
-        }
         if (_importWords is null)
         {
             _importWords = new VocabularyCoordinator(

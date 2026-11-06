@@ -74,6 +74,7 @@ For each vocabulary item, classify it as:
 **IMPORTANT:**
 - Return ONLY valid JSON. No markdown fences, no commentary before or after.
 - The "exampleSentence" MUST be an actual sentence from the provided transcript, not invented. Use the cleaned version if you can identify it.
+- Give an exampleSentence only when that sentence is a {{ target_language }} sentence. Leave exampleSentence and exampleSentenceTranslation empty when the line is in {{ native_language }} or mixes languages (for example a {{ native_language }} explanation around a {{ target_language }} word), or when it is a word list or a term paired with its translation (such as "사과 - apple"). The learner keeps both on the word; the sentence alone (never its translation) is shown as a quiz hint, so the sentence itself must not contain the word's meaning.
 - If a word appears conjugated/inflected in the transcript, the "targetLanguageTerm" must still be the dictionary form.
 - Romanization must follow Revised Romanization of Korean (국어의 로마자 표기법), NOT McCune-Reischauer.
 - For compound expressions or 하다-verbs, include the full expression (e.g. "몰입하다" not just "몰입").

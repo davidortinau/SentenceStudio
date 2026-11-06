@@ -20,16 +20,16 @@ internal sealed record VocabularyBrowserEdit(
     NativeVocabularyEditDraft? Draft, string? ErrorKey,
     bool PlayingAudio, NativeQuizPhotoAsset? Photo,
     bool ConfirmingDelete = false, bool Deleting = false,
-    string? DeleteError = null)
+    string? DeleteError = null, bool HandingOff = false)
 {
     /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving.</summary>
     internal bool CanFindDuplicates =>
-        VocabularyWordCommands.CanFindDuplicates(Saving || Deleting, Draft);
+        VocabularyWordCommands.CanFindDuplicates(Saving || Deleting || HandingOff, Draft);
 
     /// <summary>Source Delete, for a word only this owner uses.</summary>
-    internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting, Detail);
+    internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting || HandingOff, Detail);
 
-    internal bool CanSave => CanSaveWord(Saving || Deleting, Detail, Draft);
+    internal bool CanSave => CanSaveWord(Saving || Deleting || HandingOff, Detail, Draft);
 
     /// <summary>
     /// Source VocabularyWordEdit: Save needs both terms and an editable (owned) word. The iOS
@@ -102,6 +102,12 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     private bool _loading;
     private bool _formLoading;
     private bool _saving;
+    /// <summary>
+    /// Find Duplicates handed this editor's word to the Vocabulary page, which is opening: the
+    /// host releases the editor once it has, so nothing may start that the release would cut
+    /// short (Save, Delete, Close).
+    /// </summary>
+    private bool _handingOff;
     private bool _playingAudio;
     private bool _disposed;
     private long _loadGeneration;
@@ -136,7 +142,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal bool IsFormOpen => _listOpen && _formOpen;
     internal bool IsPhoneFilterPresented =>
         _listOpen && _filters?.PhoneSheetOpen == true;
-    internal bool IsNavigationBlocked => _saving || _cleanup.Deleting;
+    internal bool IsNavigationBlocked => _saving || _cleanup.Deleting || _handingOff;
 
     /// <summary>Source showDeleteConfirm.</summary>
     internal bool IsDeleteConfirmationPresented => _cleanup.IsDeleteConfirmationPresented;
@@ -157,7 +163,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     protected string Text(string key) => _text(key);
 
     /// <summary>Whether Save can run now (the rule of every Save button).</summary>
-    protected bool CanSaveOpenWord => _formOpen
+    protected bool CanSaveOpenWord => _formOpen && !_handingOff
         && VocabularyBrowserEdit.CanSaveWord(_saving || _cleanup.Deleting, _detail, _draft);
 
     protected int DraftResourceCount => _draft?.ResourceIds.Count ?? 0;
@@ -181,7 +187,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
-            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError)
+            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -235,7 +241,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Back or Cancel from the word editor discards the draft.</summary>
     internal void CloseWord()
     {
-        if (!_formOpen || _saving || _cleanup.Deleting)
+        if (!_formOpen || _saving || _cleanup.Deleting || _handingOff)
             return;
         _cleanup.ResetDelete();
         LeaveWord();
@@ -387,7 +393,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal async Task SaveAsync()
     {
-        if (!_formOpen || _saving || _cleanup.Deleting || _detail is null
+        if (!_formOpen || _saving || _cleanup.Deleting || _handingOff || _detail is null
             || _detail.IsSharedWithAnotherOwner || _draft is not { } draft
             || !TryOwner(out var owner))
             return;
@@ -472,13 +478,45 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>
     /// Where Find Duplicates goes when this editor is hosted outside the Vocabulary page (Import
     /// Content results): it receives the term and word and opens that page's duplicate manager.
-    /// Null on the Vocabulary page itself, which opens its own.
+    /// True when the host took the handoff: this editor stays open, with Save, Delete and Close
+    /// waiting, until the Vocabulary page has opened, and the host then releases it (or reports a
+    /// failure with <see cref="ShowEditError"/>).
+    /// False when it cannot start now: the editor stays open and says so. Null on the Vocabulary
+    /// page itself, which opens its own.
     /// </summary>
-    internal Action<string, string>? FindDuplicatesElsewhere { get; init; }
+    internal Func<string, string, bool>? FindDuplicatesElsewhere { get; init; }
 
     /// <summary>Source OpenDuplicateManager (see <see cref="VocabularyWordCleanup"/>).</summary>
     internal Task FindDuplicatesAsync() =>
-        Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere));
+        Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere is { } elsewhere
+            ? (term, wordId) =>
+            {
+                if (!elsewhere(term, wordId))
+                {
+                    ShowEditError(FindDuplicatesFailedKey);
+                    return;
+                }
+                _handingOff = true;
+                Notify(VocabularyChanges.Form);
+            }
+            : null));
+
+    /// <summary>A handoff to the Vocabulary page that did not happen.</summary>
+    internal const string FindDuplicatesFailedKey = "NativeVocabulary_LoadFailed";
+
+    /// <summary>
+    /// The open editor shows <paramref name="key"/> (a host's failure on the editor's behalf); a
+    /// pending handoff has ended, so Save, Delete and Close work again.
+    /// </summary>
+    internal void ShowEditError(string key)
+    {
+        // A handoff that did not happen gives the editor back.
+        _handingOff = false;
+        if (_disposed || !IsFormOpen)
+            return;
+        _editErrorKey = key;
+        Notify(VocabularyChanges.Form);
+    }
 
     /// <summary>The duplicate manager focused on a term and word handed over from an editor elsewhere.</summary>
     internal Task OpenDuplicatesAsync(string term, string? wordId) =>
@@ -774,7 +812,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     }
 
     bool IVocabularyCleanupHost.IsFormOpen => IsFormOpen;
-    bool IVocabularyCleanupHost.IsSaving => _saving;
+    bool IVocabularyCleanupHost.IsSaving => _saving || _handingOff;
     NativeVocabularyDetail? IVocabularyCleanupHost.OpenDetail => _detail;
     NativeVocabularyEditDraft? IVocabularyCleanupHost.OpenDraft => _draft;
     CancellationToken IVocabularyCleanupHost.Lifetime => _lifetimeToken;
