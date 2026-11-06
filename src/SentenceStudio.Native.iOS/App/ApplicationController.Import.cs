@@ -111,11 +111,16 @@ internal sealed partial class ApplicationController
     }
 
     /// <summary>
-    /// An import wrote the owner's resource and words, which marked them for sync (that moves
-    /// the list's source version): the Library's resource list (its count and the Resources
-    /// page) reads again now, not only after the next sync.
+    /// An import wrote the owner's resource and words: the Library's resource list (its count
+    /// and the Resources page) reads again now, not only after the next sync. Marking the rows
+    /// for sync moves the list's source version, but that mark can fail after the commit (it
+    /// is logged), so the write is noted here too.
     /// </summary>
-    private void OnImportResourcesWritten() => ReadResourcesIfStale();
+    private void OnImportResourcesWritten()
+    {
+        _resources?.NoteResourcesWritten();
+        ReadResourcesIfStale();
+    }
 
     private async Task OpenImportContentAsync(ImportContentCoordinator coordinator, string owner)
     {

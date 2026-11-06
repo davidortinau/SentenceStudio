@@ -262,8 +262,10 @@ internal static class QuizView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.quiz.scroll.content");
         content.Spacing = SourceUiLayout.PageGap;
+        // A drag into the keyboard puts it away: the sentence editor's Return adds a line.
         var page = Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.quiz.screen");
+            .WithAccessibilityIdentifier("native.quiz.screen")
+            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively);
         return style.Page(footer is null ? page : Views.BottomInset(page, footer));
     }
 

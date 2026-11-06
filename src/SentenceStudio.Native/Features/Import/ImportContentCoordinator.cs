@@ -141,6 +141,7 @@ public sealed class ImportContentCoordinator : IDisposable
     private string _selectedResourceId = string.Empty;
     private ImmutableArray<NativeImportTargetResource> _resources = [];
     private bool _resourcesLoading;
+    private long _resourcesRead;
     private string? _resourcesErrorKey;
     private DedupMode _dedupMode = DedupMode.Skip;
     private bool _isCommitting;
@@ -236,7 +237,7 @@ public sealed class ImportContentCoordinator : IDisposable
         _open = true;
         _resourcesLoading = true;
         Notify(redraw: true);
-        await LoadAvailableResourcesAsync();
+        await LoadAvailableResourcesAsync(announce: false);
         return TryOwner(out _);
     }
 
@@ -675,13 +676,13 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestWords = _harvestWords
             };
             // The commit is one database transaction: it is not cancelled by leaving the page.
-            var result = await OffUiAsync(() => _import.CommitAsync(owner, commit, CancellationToken.None));
+            var committed = await OffUiAsync(() => _import.CommitAsync(owner, commit, CancellationToken.None));
             if (_disposed || operation != _operation)
                 return;
             // The rows are committed for the owner the import ran for. When the device owner
-            // changed meanwhile, the screen blocks and the result is not shown to the new owner
-            // (the import is not reported as failed either).
-            if (!OwnerIsCurrent())
+            // changed meanwhile (the adapter has no result to show, or the screen's owner moved),
+            // the screen blocks and shows nothing (the import is not reported as failed either).
+            if (committed.Result is not { } result || !OwnerIsCurrent())
             {
                 _logger.LogWarning("Import Content committed, but the device owner changed: the result is not shown.");
                 Block();
@@ -730,8 +731,9 @@ public sealed class ImportContentCoordinator : IDisposable
         {
             _logger.LogError(ex, "A listener failed after an import was committed.");
         }
-        // "Import more" then "Add to existing" offers the resource this import created.
-        await LoadAvailableResourcesAsync();
+        // "Import more" then "Add to existing" offers the resource this import created (the
+        // committed draw above already showed the list as loading).
+        await LoadAvailableResourcesAsync(announce: false);
     }
 
     // ---- Results ----
@@ -808,51 +810,62 @@ public sealed class ImportContentCoordinator : IDisposable
     /// <summary>The existing-resource list could not be read: read it again.</summary>
     public Task RetryResourcesAsync() =>
         _resourcesLoading || _resourcesErrorKey is null ? Task.CompletedTask
-            : LoadAvailableResourcesAsync();
+            : LoadAvailableResourcesAsync(announce: true);
 
-    private async Task LoadAvailableResourcesAsync()
+    /// <summary>
+    /// Reads the owner's resources for "Add to existing". <paramref name="announce"/> redraws
+    /// first to show the loading state; false when the caller's own redraw already showed it.
+    /// Only the latest read applies its outcome; every exit ends its loading state.
+    /// </summary>
+    private async Task LoadAvailableResourcesAsync(bool announce)
     {
-        if (!TryOwner(out var owner))
-            return;
-        if (!_resourcesLoading || _resourcesErrorKey is not null)
-        {
-            _resourcesLoading = true;
-            _resourcesErrorKey = null;
-            Notify(redraw: true);
-        }
+        var read = ++_resourcesRead;
+        _resourcesLoading = true;
+        _resourcesErrorKey = null;
+        var changed = false;
         try
         {
-            var token = _lifetime.Token;
-            var resources = await OffUiAsync(() => _import.ListTargetResourcesAsync(owner, token));
-            if (_disposed || !TryOwner(out _))
+            if (!TryOwner(out var owner))
                 return;
-            _resources = [.. resources];
-        }
-        catch (OperationCanceledException) when (_disposed)
-        {
-            return;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            OnOwnerRefused(ex, _operation);
-            return;
-        }
-        catch (Exception ex)
-        {
-            // The source only logs and shows an empty select; here the list says it could
-            // not be read and offers Retry, so "no resources" is never a hidden failure.
-            _logger.LogError(ex, "Failed to load available resources");
-            if (_disposed)
-                return;
-            _resources = [];
-            _resourcesErrorKey = "NativeResources_LoadError";
+            if (announce)
+                Notify(redraw: true);
+            try
+            {
+                var token = _lifetime.Token;
+                var resources = await OffUiAsync(() => _import.ListTargetResourcesAsync(owner, token));
+                if (_disposed || read != _resourcesRead || !TryOwner(out _))
+                    return;
+                _resources = [.. resources];
+                changed = true;
+            }
+            catch (OperationCanceledException) when (_disposed)
+            {
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                OnOwnerRefused(ex, _operation);
+            }
+            catch (Exception ex)
+            {
+                // The source only logs and shows an empty select; here the list says it could
+                // not be read and offers Retry, so "no resources" is never a hidden failure.
+                _logger.LogError(ex, "Failed to load available resources");
+                if (!_disposed && read == _resourcesRead)
+                {
+                    _resources = [];
+                    _resourcesErrorKey = "NativeResources_LoadError";
+                    changed = true;
+                }
+            }
         }
         finally
         {
-            if (!_disposed)
+            // A newer read keeps its own loading state.
+            if (read == _resourcesRead)
                 _resourcesLoading = false;
         }
-        Notify(redraw: true);
+        if (changed)
+            Notify(redraw: true);
     }
 
     /// <summary>

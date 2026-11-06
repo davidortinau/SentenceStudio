@@ -13,8 +13,10 @@ namespace SentenceStudio.Native.Adapters;
 /// Content page uses) for one verified owner: its AI prompts go through the owner-bound API
 /// gateway, its prompt templates come from this assembly, and its reads and writes use the
 /// owner's device database (the service scopes every query to the active profile). The owner
-/// must be the published device owner and the profile pointer before and after each call;
-/// otherwise nothing is read or written.
+/// must be the published device owner and the profile pointer before each call, or nothing is
+/// read or written; reads are checked again after. A commit's rows are written for the owner
+/// checked before the write: when the owner changed meanwhile, the commit returns no result
+/// to show (fail closed) instead of reporting a committed write as refused.
 /// </summary>
 public sealed class NativeContentImport(
     IServiceProvider services,
@@ -51,7 +53,7 @@ public sealed class NativeContentImport(
         return preview;
     }
 
-    public async Task<ContentImportResult> CommitAsync(
+    public async Task<NativeImportCommitted> CommitAsync(
         string owner, ContentImportCommit commit, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(commit);
@@ -71,9 +73,12 @@ public sealed class NativeContentImport(
         {
             _logger.LogError(ex, "Content import committed but sync tracking was not confirmed.");
         }
-        // The rows are committed for the owner checked before the write; whether the result is
-        // shown when the device owner changed meanwhile is the screen's decision, not a refusal.
-        return result;
+        // The rows are committed for the owner checked before the write. When the owner (or the
+        // profile pointer) changed meanwhile, the result is not for display, and not a refusal.
+        if (IsActiveOwner(owner))
+            return new NativeImportCommitted(result);
+        _logger.LogWarning("Content import committed, but the device owner changed: no result to show.");
+        return new NativeImportCommitted(null);
     }
 
     public async Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(

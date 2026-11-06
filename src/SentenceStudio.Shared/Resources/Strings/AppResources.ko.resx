@@ -6934,8 +6934,8 @@
     <comment>Harvest step description</comment>
   </data>
   <data name="Import_HarvestTranscriptLabel" xml:space="preserve">
-    <value>전체 자막</value>
-    <comment>Harvest checkbox label for transcript</comment>
+    <value>전체 대본</value>
+    <comment>Harvest checkbox label for transcript. Korean changed by the native port (자막 to 대본, one term on the Import Content page); needs review.</comment>
   </data>
   <data name="Import_HarvestTranscriptHint" xml:space="preserve">
     <value>전체 텍스트를 학습 리소스에 저장</value>

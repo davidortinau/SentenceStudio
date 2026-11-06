@@ -369,9 +369,26 @@ public sealed class NativeSourceStylingContractTests
 
         var project = Source("SentenceStudio.Native.iOS.csproj");
         Assert.Contains(
-            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.40\" />",
+            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.41\" />",
             project);
         Assert.Contains("SentenceStudio.Native.SourceAtBuildSha", project);
+    }
+
+    [Fact]
+    public void PagesWithAMultilineEditor_LetADragPutTheKeyboardAway()
+    {
+        // A TextEditor's Return adds a line, so without this nothing but the page's own action
+        // closes the keyboard, and it covers the tab bar (found on Import Content, 2026-11-06).
+        foreach (var page in new[]
+        {
+            "Features/Import/ImportContentView.cs",
+            "Features/LearningResources/LearningResourceView.cs",
+            "Features/Quiz/QuizView.cs",
+            "Features/Skills/SkillProfileFormView.cs",
+            "Features/Vocabulary/VocabularyWordEditView.cs",
+        })
+            Assert.Contains(".WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
+                Source(page));
     }
 
     [Fact]
