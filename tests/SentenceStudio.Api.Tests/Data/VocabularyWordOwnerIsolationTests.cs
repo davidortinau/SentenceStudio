@@ -355,11 +355,13 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         Assert.False(await repository.BulkAssociateWordsWithResourceAsync(ResourceA, ["b-private"], UserA));
     }
 
-    // Saving a resource the learner sees (only their own words) never removes the links of
-    // words they cannot see: rows hidden by the rule stay as they are.
+    // Saving a resource never removes a link (review of bf701c42, finding 1): not one the page
+    // left out of its list, and not one to a word the learner cannot see. Unlinking is its own
+    // owner-scoped path. Rows hidden by the rule stay as they are.
     protected async Task SaveResource_KeepsLinksToHiddenWords()
     {
         var database = await SeedAsync();
+        var linkedBefore = await LinkedToResourceAAsync(database);
         var repository = Repository(database, UserA);
         var resource = await repository.GetResourceAsync(ResourceA, UserA);
         Assert.NotNull(resource);
@@ -368,12 +370,69 @@ public abstract class VocabularyWordOwnerIsolationScenarios
 
         Assert.Equal(ResourceA, await repository.SaveResourceAsync(resource, UserA));
 
+        Assert.Equal(linkedBefore, await LinkedToResourceAAsync(database));
+        Assert.True(await repository.RemoveVocabularyFromResourceAsync(ResourceA, "a-other", UserA));
+        Assert.DoesNotContain("a-other", await LinkedToResourceAAsync(database));
+    }
+
+    // Review of bf701c42, finding 1 (data loss): a caller that loads a resource without its
+    // words (the Coach's rename and its undo) and saves it must not unlink them. Before, the
+    // save replaced the learner's links with the empty list, and the deletes synced everywhere.
+    protected async Task SaveResource_LoadedWithoutItsWords_KeepsEveryLink()
+    {
+        var database = await SeedAsync();
+        var linkedBefore = await LinkedToResourceAAsync(database);
+        Assert.Contains("a-own", linkedBefore);
+        LearningResource resource;
+        await using (var db = Context(database))
+            resource = await db.LearningResources.AsNoTracking().SingleAsync(r => r.Id == ResourceA);
+        Assert.Empty(resource.Vocabulary);
+        resource.Title = "A renamed";
+
+        Assert.Equal(ResourceA, await Repository(database, null).SaveResourceAsync(resource, UserA));
+
+        Assert.Equal(linkedBefore, await LinkedToResourceAAsync(database));
+        await using var check = Context(database);
+        Assert.Equal("A renamed", (await check.LearningResources.AsNoTracking()
+            .SingleAsync(r => r.Id == ResourceA)).Title);
+    }
+
+    // Finding 1 as the learner meets it: renaming a resource through Sam, then undoing the
+    // rename, keeps every word of the resource linked.
+    protected async Task CoachResourceEdit_AndItsUndo_KeepEveryLink()
+    {
+        var database = await SeedAsync();
+        var linkedBefore = await LinkedToResourceAAsync(database);
+        var args = System.Text.Json.JsonSerializer.Serialize(
+            new SentenceStudio.Api.Coach.Operations.Handlers.CoachResourceEditArgs(ResourceA, Title: "Renamed by Sam"),
+            SentenceStudio.Api.Coach.Persistence.CoachNormalizedJson.Options);
+        SentenceStudio.Api.Coach.Operations.CoachWriteExecution executed;
+        await using (var appDb = Context(database))
+        {
+            var handler = new SentenceStudio.Api.Coach.Operations.Handlers.CoachResourceEditHandler(
+                Repository(database, null), new SentenceStudio.Api.Coach.Operations.CoachWriteOwnership(appDb));
+            executed = await handler.ExecuteAsync(UserA, args, default);
+        }
+        Assert.Equal(linkedBefore, await LinkedToResourceAAsync(database));
+
+        await using (var appDb = Context(database))
+        {
+            var handler = new SentenceStudio.Api.Coach.Operations.Handlers.CoachResourceEditHandler(
+                Repository(database, null), new SentenceStudio.Api.Coach.Operations.CoachWriteOwnership(appDb));
+            await handler.UndoAsync(UserA, args, executed.PriorStateJson!, default);
+        }
+        Assert.Equal(linkedBefore, await LinkedToResourceAAsync(database));
+        await using var check = Context(database);
+        Assert.Equal("A", (await check.LearningResources.AsNoTracking()
+            .SingleAsync(r => r.Id == ResourceA)).Title);
+    }
+
+    private async Task<string[]> LinkedToResourceAAsync(Action<IServiceCollection> database)
+    {
         await using var db = Context(database);
-        var linked = await db.ResourceVocabularyMappings.AsNoTracking()
-            .Where(m => m.ResourceId == ResourceA).Select(m => m.VocabularyWordId).ToListAsync();
-        Assert.DoesNotContain("a-other", linked);
-        foreach (var id in new[] { "a-own", "dup-b", "b-linked-by-a", "pear-legacy", "persimmon-legacy" })
-            Assert.Contains(id, linked);
+        return (await db.ResourceVocabularyMappings.AsNoTracking()
+                .Where(m => m.ResourceId == ResourceA).Select(m => m.VocabularyWordId).ToListAsync())
+            .Order(StringComparer.Ordinal).ToArray();
     }
 
     // Item 3 (Captain 2026-11-06): words get their owner when they are created. A new word with
@@ -679,6 +738,8 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task CoachRemoval() => CoachRemoval_ActsOnlyOnTheLearnersOwnWords();
     [Fact] public Task Reads() => Reads_ShowOnlyTheLearnersOwnWords();
     [Fact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
+    [Fact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
+    [Fact] public Task CoachResourceEditKeepsLinks() => CoachResourceEdit_AndItsUndo_KeepEveryLink();
     [Fact] public Task SavesNeverGuessOwners() => Saves_NeverGuessOwners_AndRefuseNewOwnerlessWords();
     [Fact] public Task BulkEdits() => BulkEdits_ChangeOnlyTheLearnersOwnWords();
     [Fact] public Task TermSwap() => TermSwap_TellsRefusalsFromFailures();
@@ -725,6 +786,8 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task CoachRemoval() => CoachRemoval_ActsOnlyOnTheLearnersOwnWords();
     [ApplicationOperationPostgresFact] public Task Reads() => Reads_ShowOnlyTheLearnersOwnWords();
     [ApplicationOperationPostgresFact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
+    [ApplicationOperationPostgresFact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
+    [ApplicationOperationPostgresFact] public Task CoachResourceEditKeepsLinks() => CoachResourceEdit_AndItsUndo_KeepEveryLink();
     [ApplicationOperationPostgresFact] public Task SavesNeverGuessOwners() => Saves_NeverGuessOwners_AndRefuseNewOwnerlessWords();
     [ApplicationOperationPostgresFact] public Task BulkEdits() => BulkEdits_ChangeOnlyTheLearnersOwnWords();
     [ApplicationOperationPostgresFact] public Task TermSwap() => TermSwap_TellsRefusalsFromFailures();

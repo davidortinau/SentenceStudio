@@ -501,6 +501,14 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             "Resource metadata updates require an original resource snapshot.");
     }
 
+    /// <summary>
+    /// Creates or updates the learner's resource (<paramref name="userProfileId"/>, else the
+    /// active one) and links the learner's own words listed in <see cref="LearningResource.Vocabulary"/>.
+    /// It never removes a link: a resource loaded or sent without its words keeps them all.
+    /// Unlinking goes through <see cref="RemoveVocabularyFromResourceAsync"/> or
+    /// <see cref="BulkRemoveWordsFromResourceAsync"/>. Returns the resource ID, or empty when
+    /// refused (no learner, another learner's resource, a listed word that is not theirs) or failed.
+    /// </summary>
     public async Task<string> SaveResourceAsync(LearningResource resource, string? userProfileId = null)
     {
         var userId = ResolveUserId(userProfileId);
@@ -551,22 +559,16 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 db.Entry(existingResource).CurrentValues.SetValues(resource);
                 existingResource.UserProfileId = userId;
 
-                // Handle vocabulary associations: the caller sees (and sends) only the learner's
-                // own words, so only those links change. A link to a word another learner owns,
-                // or no one owns, is not shown and stays exactly as it is.
+                // Vocabulary links are only ever added here, never removed. A caller that loaded
+                // the resource without its words (the Coach's rename and its undo) sends an empty
+                // list, and replacing the links with it unlinked every word of the resource, a
+                // delete that synced to every device. Unlinking has its own owner-scoped paths
+                // (RemoveVocabularyFromResourceAsync, BulkRemoveWordsFromResourceAsync), which
+                // every page uses. Only the learner's own words are linked; a link to a word they
+                // cannot see stays exactly as it is.
                 var dbVocabularyWords = await db.VocabularyWords.OwnedBy(userId)
                     .Where(v => vocabularyWordIds.Contains(v.Id))
                     .ToListAsync();
-                var requested = dbVocabularyWords.Select(word => word.Id)
-                    .ToHashSet(StringComparer.Ordinal);
-
-                foreach (var word in existingResource.Vocabulary
-                    .Where(word => VocabularyWordOwnership.IsLearners(word.UserProfileId, userId)
-                        && !requested.Contains(word.Id))
-                    .ToList())
-                {
-                    existingResource.Vocabulary.Remove(word);
-                }
                 foreach (var word in dbVocabularyWords
                     .Where(word => !existingResource.Vocabulary.Any(linked => linked.Id == word.Id)))
                 {
