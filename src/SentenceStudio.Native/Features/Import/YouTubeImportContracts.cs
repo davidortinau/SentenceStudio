@@ -77,6 +77,14 @@ public interface INativeYouTubeImport
     Task<IReadOnlyList<NativeYouTubeImportRecord>> ListImportsAsync(
         string owner, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Source ChannelMonitorService.GetVideoImportStatusAsync for each video (GET
+    /// /api/imports?videoId=...): the owner's newest import of each video, however old; a video
+    /// with no import is left out.
+    /// </summary>
+    Task<IReadOnlyList<NativeYouTubeImportRecord>> ListLatestImportsForVideosAsync(
+        string owner, IReadOnlyCollection<string> videoIds, CancellationToken cancellationToken);
+
     /// <summary>Source VideoImportPipelineService.RetryImportAsync (POST /api/imports/{id}/retry).</summary>
     Task RetryImportAsync(string owner, string importId, CancellationToken cancellationToken);
 
@@ -101,12 +109,18 @@ public interface INativeYouTubeImport
     /// <summary>
     /// A channel video's import (POST /api/imports): the server runs the import pipeline (source
     /// ChannelDetail ImportSelectedVideos ran VideoImportPipelineService.RunPipelineAsync). The
-    /// import is linked to <paramref name="monitoredChannelId"/> (source MonitoredChannelId); the
     /// server refuses a channel that is not the signed-in owner's.
     /// </summary>
-    Task StartImportAsync(string owner, string videoUrl, string? language, string? monitoredChannelId,
-        CancellationToken cancellationToken);
+    Task StartImportAsync(string owner, NativeYouTubeImportRequest request, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A channel video's import (the API's StartImportRequest), as the source channel page made it:
+/// linked to its channel (MonitoredChannelId) and naming its video (VideoId, VideoTitle), so the
+/// page finds the import even when its metadata step fails.
+/// </summary>
+public sealed record NativeYouTubeImportRequest(
+    string VideoUrl, string? Language, string? MonitoredChannelId, string? VideoId, string? VideoTitle);
 
 /// <summary>
 /// An import history row as the API returns it (source VideoImport). <see cref="CreatedAt"/> is

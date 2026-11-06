@@ -153,6 +153,27 @@ public sealed class NativeYouTubeImport(
                 ?? [],
             cancellationToken);
 
+    public Task<IReadOnlyList<NativeYouTubeImportRecord>> ListLatestImportsForVideosAsync(
+        string owner, IReadOnlyCollection<string> videoIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(videoIds);
+        var ids = videoIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
+        if (ids.Count == 0)
+        {
+            RequireOwner(owner);
+            return Task.FromResult<IReadOnlyList<NativeYouTubeImportRecord>>([]);
+        }
+        var query = string.Join("&", ids.Select(id => "videoId=" + Uri.EscapeDataString(id)));
+        var asked = ids.ToHashSet(StringComparer.Ordinal);
+        return CallAsync<IReadOnlyList<NativeYouTubeImportRecord>>(owner, async (client, token) =>
+        {
+            var rows = await client.GetFromJsonAsync<List<NativeYouTubeImportRecord>>(
+                $"api/imports?{query}", Json, token) ?? [];
+            // Only the videos asked for (an API before this lookup answers with the history).
+            return rows.Where(row => row.VideoId is { } id && asked.Contains(id)).ToList();
+        }, cancellationToken);
+    }
+
     public Task RetryImportAsync(string owner, string importId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(importId);
@@ -209,14 +230,14 @@ public sealed class NativeYouTubeImport(
         return videos.Select(video => new NativeYouTubeVideo(video.VideoId, video.Title, video.Url)).ToList();
     }
 
-    public Task StartImportAsync(string owner, string videoUrl, string? language,
-        string? monitoredChannelId, CancellationToken cancellationToken)
+    public Task StartImportAsync(string owner, NativeYouTubeImportRequest request,
+        CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(videoUrl);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.VideoUrl);
         return CallAsync(owner, async (client, token) =>
         {
-            using var response = await client.PostAsJsonAsync("api/imports",
-                new { videoUrl, language, monitoredChannelId }, Json, token);
+            using var response = await client.PostAsJsonAsync("api/imports", request, Json, token);
             await EnsureSuccessAsync(response, token);
             return true;
         }, cancellationToken);

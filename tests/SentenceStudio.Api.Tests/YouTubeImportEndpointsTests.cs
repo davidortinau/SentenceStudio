@@ -278,6 +278,84 @@ public sealed class YouTubeImportEndpointsTests : IClassFixture<YouTubeImportApi
         korean.MonitoredChannelId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task StartImport_WithTheVideosIdAndTitle_StoresThemBeforeThePipeline_AndRefusesAnotherVideosId()
+    {
+        var owner = $"yt-video-{Guid.NewGuid():N}";
+        await ProfileTestSeed.SeedProfileAsync(_factory.Services, owner);
+        var channelId = await SeedChannelAsync(owner, DateTime.UtcNow, null);
+        var videoId = NewVideoId();
+        var url = $"https://www.youtube.com/watch?v={videoId}";
+        var client = ClientFor(owner);
+
+        var response = await client.PostAsJsonAsync("/api/imports", new
+        {
+            videoUrl = url, language = "Korean", monitoredChannelId = channelId, videoId, videoTitle = "첫 번째 영상"
+        }, Json);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var id = (await response.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("id").GetString()!;
+        // The metadata step fails (the stub), and the row still names its video.
+        var failed = await WaitForImportAsync(id, row => row.ErrorMessage == YouTubeImportStub.Failure(url, 1));
+        failed.Status.Should().Be(VideoImportStatus.Failed);
+        failed.VideoId.Should().Be(videoId);
+        failed.VideoTitle.Should().Be("첫 번째 영상");
+        failed.MonitoredChannelId.Should().Be(channelId);
+
+        // Another video's id for this link is refused, and nothing is created.
+        var otherUrl = $"https://www.youtube.com/watch?v={NewVideoId()}";
+        (await client.PostAsJsonAsync("/api/imports",
+                new { videoUrl = otherUrl, language = "Korean", videoId = NewVideoId() }, Json))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _factory.YouTube.Calls(otherUrl).Should().Be(0);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await db.VideoImports.AsNoTracking().CountAsync(row => row.VideoUrl == otherUrl)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ImportsByVideo_AreTheOwnersNewestImportOfEachVideo_BeyondTheHistoryLimit()
+    {
+        var owner = $"yt-byvideo-a-{Guid.NewGuid():N}";
+        var other = $"yt-byvideo-b-{Guid.NewGuid():N}";
+        await ProfileTestSeed.SeedProfileAsync(_factory.Services, owner);
+        await ProfileTestSeed.SeedProfileAsync(_factory.Services, other);
+        var start = new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc);
+        var old = NewVideoId();
+        var twice = NewVideoId();
+        var oldImport = await SeedImportAsync(owner, VideoImportStatus.Completed, start, start.AddMinutes(3), old);
+        await SeedImportAsync(owner, VideoImportStatus.Failed, start.AddDays(1), start.AddDays(1), twice);
+        var twiceNewer = await SeedImportAsync(owner, VideoImportStatus.Completed, start.AddDays(2), start.AddDays(2), twice);
+        // 55 newer imports push the old video out of the newest 50.
+        for (var index = 0; index < 55; index++)
+            await SeedImportAsync(owner, VideoImportStatus.Completed, start.AddDays(10).AddMinutes(index), null, NewVideoId());
+        // Another owner's newer import of the same video is not the owner's.
+        await SeedImportAsync(other, VideoImportStatus.Failed, start.AddDays(30), null, old);
+        var client = ClientFor(owner);
+
+        var history = await client.GetFromJsonAsync<JsonElement>("/api/imports", Json);
+        history.GetArrayLength().Should().Be(50);
+        history.EnumerateArray().Should().NotContain(row => row.GetProperty("videoId").GetString() == old);
+
+        var byVideo = await client.GetFromJsonAsync<JsonElement>(
+            $"/api/imports?videoId={old}&videoId={twice}&videoId={NewVideoId()}", Json);
+        var rows = byVideo.EnumerateArray().ToList();
+        rows.Select(row => row.GetProperty("id").GetString()).Should().BeEquivalentTo([oldImport, twiceNewer]);
+        rows.Should().OnlyContain(row => row.GetProperty("userProfileId").GetString() == owner);
+        rows.Single(row => row.GetProperty("id").GetString() == oldImport)
+            .GetProperty("status").GetInt32().Should().Be((int)VideoImportStatus.Completed);
+        // The other owner sees only their own import of that video.
+        var theirs = await ClientFor(other).GetFromJsonAsync<JsonElement>($"/api/imports?videoId={old}", Json);
+        theirs.EnumerateArray().Should().ContainSingle()
+            .Which.GetProperty("userProfileId").GetString().Should().Be(other);
+        (await client.GetAsync("/api/imports?" + string.Join("&",
+                Enumerable.Range(0, 51).Select(_ => "videoId=" + NewVideoId()))))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>An 11-character YouTube-shaped video id.</summary>
+    private static string NewVideoId() => Guid.NewGuid().ToString("N")[..11];
+
     private async Task<VideoImport> WaitForImportAsync(string id, Func<VideoImport, bool> settled)
     {
         var deadline = DateTime.UtcNow.AddSeconds(20);
@@ -306,15 +384,15 @@ public sealed class YouTubeImportEndpointsTests : IClassFixture<YouTubeImportApi
     }
 
     private async Task<string> SeedImportAsync(string owner, VideoImportStatus status,
-        DateTime createdAt, DateTime? completedAt)
+        DateTime createdAt, DateTime? completedAt, string videoId = "dQw4w9WgXcQ")
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var import = new VideoImport
         {
             UserProfileId = owner,
-            VideoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            VideoId = "dQw4w9WgXcQ",
+            VideoUrl = $"https://www.youtube.com/watch?v={videoId}",
+            VideoId = videoId,
             Status = status,
             Language = "English",
             CreatedAt = createdAt,

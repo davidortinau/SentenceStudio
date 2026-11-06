@@ -414,14 +414,13 @@ public sealed class YouTubeChannelCoordinator : IDisposable
         {
             var videos = await OffUiAsync(() =>
                 _import.GetRecentVideosAsync(owner, channel, DiscoveryCount, token));
-            var imports = await OffUiAsync(() => _import.ListImportsAsync(owner, token));
+            // Source GetVideoImportStatusAsync: each video's latest import, however old (not
+            // only those among the history's newest rows).
+            var ids = videos.Select(video => video.VideoId).ToList();
+            var imports = await OffUiAsync(() => _import.ListLatestImportsForVideosAsync(owner, ids, token));
             if (_disposed || !TryOwner(out _))
                 return;
-            // Source GetVideoImportStatusAsync: the video's latest import (the history is newest first).
-            var latest = imports
-                .Where(import => !string.IsNullOrEmpty(import.VideoId))
-                .GroupBy(import => import.VideoId!, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.First().Status, StringComparer.Ordinal);
+            var latest = LatestStatusByVideo(imports);
             _videos = videos.Select(video => new YouTubeDiscoveredVideo(video.VideoId, video.Title, video.Url,
                 latest.TryGetValue(video.VideoId, out var status) ? status : null)).ToList();
             foreach (var video in _videos.Where(video => video.CanSelect && !video.IsFailed))
@@ -476,7 +475,8 @@ public sealed class YouTubeChannelCoordinator : IDisposable
 
     /// <summary>
     /// Source ImportSelectedVideos: each selected video starts an import on the server, linked to
-    /// this channel (source MonitoredChannelId = channel.Id), then the list is read again.
+    /// this channel and naming its video (source MonitoredChannelId, VideoId, VideoTitle), then
+    /// the list is read again.
     /// </summary>
     public async Task ImportSelectedAsync()
     {
@@ -489,6 +489,7 @@ public sealed class YouTubeChannelCoordinator : IDisposable
         Notify();
         var token = _lifetime.Token;
         var started = false;
+        var failed = false;
         try
         {
             var selected = _videos.Where(video => _selected.Contains(video.VideoId)).ToList();
@@ -497,10 +498,13 @@ public sealed class YouTubeChannelCoordinator : IDisposable
             {
                 await OffUiAsync(async () =>
                 {
-                    await _import.StartImportAsync(owner, video.Url, channel.Language, channel.Id, token);
+                    await _import.StartImportAsync(owner, new NativeYouTubeImportRequest(
+                        video.Url, channel.Language, channel.Id, video.VideoId, video.Title), token);
                     return true;
                 });
                 count++;
+                // Started: no longer selected, so a later tap does not import it again.
+                _selected.Remove(video.VideoId);
                 if (_disposed || !TryOwner(out _))
                     return;
             }
@@ -520,6 +524,7 @@ public sealed class YouTubeChannelCoordinator : IDisposable
         {
             _logger.LogError(ex, "Failed to import selected videos");
             _discoveryError = NativeMessage.Error("YouTubeChannel_ImportFailed", ex.Message);
+            failed = true;
         }
         finally
         {
@@ -529,6 +534,10 @@ public sealed class YouTubeChannelCoordinator : IDisposable
                 Notify();
             }
         }
+        // Some videos may have started (or the failed request may have reached the server):
+        // their statuses are read again; the error stays.
+        if (failed)
+            await RefreshStatusesAsync();
         if (started)
         {
             var messages = _messages;
@@ -619,7 +628,8 @@ public sealed class YouTubeChannelCoordinator : IDisposable
         var refresh = false;
         try
         {
-            var imports = await OffUiAsync(() => _import.ListImportsAsync(owner, token));
+            var imports = await OffUiAsync(() =>
+                _import.ListLatestImportsForVideosAsync(owner, [videoId], token));
             if (_disposed || !TryOwner(out _))
                 return;
             var failed = imports.FirstOrDefault(import => import.VideoId == videoId
@@ -679,6 +689,54 @@ public sealed class YouTubeChannelCoordinator : IDisposable
             Notify();
         }
     }
+
+    /// <summary>
+    /// The listed videos' import statuses read again (after Import Selected failed partway); the
+    /// list, the error and the selection of what can still be selected stay.
+    /// </summary>
+    private async Task RefreshStatusesAsync()
+    {
+        if (!_open || _blocked || _disposed || _videos.Count == 0 || !TryOwner(out var owner))
+            return;
+        var token = _lifetime.Token;
+        try
+        {
+            var ids = _videos.Select(video => video.VideoId).ToList();
+            var imports = await OffUiAsync(() => _import.ListLatestImportsForVideosAsync(owner, ids, token));
+            if (_disposed || !TryOwner(out _))
+                return;
+            var latest = LatestStatusByVideo(imports);
+            _videos = _videos.Select(video => video with
+            {
+                ImportStatus = latest.TryGetValue(video.VideoId, out var status) ? status : null
+            }).ToList();
+            _selected.RemoveWhere(id => _videos.FirstOrDefault(video => video.VideoId == id) is not { CanSelect: true });
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            OnOwnerRefused(ex);
+        }
+        catch (Exception ex)
+        {
+            // The import's error is already shown; the statuses stay as they were read last.
+            _logger.LogError(ex, "Failed to read the videos' import statuses again");
+        }
+        finally
+        {
+            if (!_disposed)
+                Notify();
+        }
+    }
+
+    /// <summary>Each video's latest import status (one row per video; else the newest listed first).</summary>
+    private static Dictionary<string, VideoImportStatus> LatestStatusByVideo(
+        IEnumerable<NativeYouTubeImportRecord> imports) => imports
+        .Where(import => !string.IsNullOrEmpty(import.VideoId))
+        .GroupBy(import => import.VideoId!, StringComparer.Ordinal)
+        .ToDictionary(group => group.Key, group => group.First().Status, StringComparer.Ordinal);
 
     /// <summary>Messages carried over from the page this one replaced (an unresolved new channel).</summary>
     public void ShowMessages(IEnumerable<NativeMessage> messages)

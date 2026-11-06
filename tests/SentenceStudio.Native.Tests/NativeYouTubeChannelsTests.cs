@@ -53,11 +53,18 @@ public sealed class NativeYouTubeChannelsTests
 
         await adapter.UpdateChannelAsync(A, channels[0], default);
         await adapter.RetryImportAsync(A, "i2", default);
-        await adapter.StartImportAsync(A, "https://www.youtube.com/watch?v=x", "Korean", "c1", default);
-        await adapter.StartImportAsync(A, "https://www.youtube.com/watch?v=y", "Korean", null, default);
+        await adapter.StartImportAsync(A, new NativeYouTubeImportRequest(
+            "https://www.youtube.com/watch?v=x", "Korean", "c1", "x", "Video X"), default);
+        await adapter.StartImportAsync(A, new NativeYouTubeImportRequest(
+            "https://www.youtube.com/watch?v=y", "Korean", null, null, null), default);
+        // Each video's newest import, looked up by video (not the newest 50 of the history).
+        var latest = await adapter.ListLatestImportsForVideosAsync(A, ["v1", "v 9", "v1"], default);
         Assert.Equal(["GET api/imports", "GET api/channels", "PUT api/channels/c1",
-            "POST api/imports/i2/retry", "POST api/imports", "POST api/imports"],
+            "POST api/imports/i2/retry", "POST api/imports", "POST api/imports",
+            "GET api/imports?videoId=v1&videoId=v%209"],
             api.Requests.Select(r => r.Line));
+        // Only the asked videos come back (an older API answers with the history).
+        Assert.Equal(["i1"], latest.Select(row => row.Id));
         Assert.All(api.Requests, request => Assert.Equal(A, request.Owner));
         using (var body = JsonDocument.Parse(api.Requests[2].Body!))
             Assert.Equal("https://www.youtube.com/@one", body.RootElement.GetProperty("channelUrl").GetString());
@@ -67,6 +74,9 @@ public sealed class NativeYouTubeChannelsTests
             Assert.Equal("Korean", body.RootElement.GetProperty("language").GetString());
             // The channel's import names its channel (the API's StartImportRequest.MonitoredChannelId).
             Assert.Equal("c1", body.RootElement.GetProperty("monitoredChannelId").GetString());
+            // The video is named up front, as the source's channel import did.
+            Assert.Equal("x", body.RootElement.GetProperty("videoId").GetString());
+            Assert.Equal("Video X", body.RootElement.GetProperty("videoTitle").GetString());
         }
         using (var body = JsonDocument.Parse(api.Requests[5].Body!))
             Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("monitoredChannelId").ValueKind);
@@ -78,7 +88,10 @@ public sealed class NativeYouTubeChannelsTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             adapter.UpdateChannelAsync(A, channels[0], default));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            adapter.StartImportAsync(A, "https://www.youtube.com/watch?v=x", null, "c1", default));
+            adapter.StartImportAsync(A, new NativeYouTubeImportRequest(
+                "https://www.youtube.com/watch?v=x", null, "c1", "x", null), default));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            adapter.ListLatestImportsForVideosAsync(A, ["v1"], default));
         Assert.Equal(before, api.Requests.Count);
         // B reads only B's history.
         Assert.Equal(["b1"], (await adapter.ListImportsAsync(B, default)).Select(row => row.Id));
@@ -479,8 +492,9 @@ public sealed class NativeYouTubeChannelsTests
         channel.ToggleVideo("v1");
 
         await channel.ImportSelectedAsync();
-        // Each import is linked to this channel (source MonitoredChannelId = channel.Id).
-        Assert.Equal([("https://www.youtube.com/watch?v=v1", "Korean", "c1")], import.Started);
+        // Each import is linked to this channel and names its video (source ImportSelectedVideos).
+        Assert.Equal([new NativeYouTubeImportRequest("https://www.youtube.com/watch?v=v1", "Korean", "c1",
+            "v1", "New one")], import.Started);
         Assert.Contains(channel.State.Messages, message => message.Key == "ChannelDetail_ImportStarted");
 
         // Retry names only the failed import; the server keeps that import's own channel link.
@@ -495,6 +509,81 @@ public sealed class NativeYouTubeChannelsTests
         Assert.True(await foreign.OpenAsync(A, "someone-elses"));
         Assert.Equal("YouTubeChannel_NotFound", foreign.State.Error?.Key);
         Assert.False(foreign.State.ShowsDiscovery);
+    }
+
+    [Fact]
+    public async Task Discovery_FindsEachVideosLatestImport_BeyondTheNewestFifty()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var import = new ScratchImport { HistoryLimit = 50 };
+        import.Channels.Add(new MonitoredChannel
+        {
+            Id = "c1", UserProfileId = A, ChannelUrl = "https://www.youtube.com/@one", Language = "Korean",
+            YouTubeChannelId = "UC_one"
+        });
+        import.Videos.AddRange(
+        [
+            new NativeYouTubeVideo("v1", "New", "https://www.youtube.com/watch?v=v1"),
+            new NativeYouTubeVideo("v2", "Imported long ago", "https://www.youtube.com/watch?v=v2"),
+        ]);
+        // 60 newer imports of other videos; v2's completed import is the 61st newest.
+        for (var index = 0; index < 60; index++)
+            import.Imports.Add(Record($"n{index}", VideoImportStatus.Completed, Now.AddMinutes(-index),
+                videoId: $"other{index}"));
+        import.Imports.Add(Record("old", VideoImportStatus.Completed, Now.AddDays(-90), videoId: "v2"));
+        using var channel = Channel(fixture, import);
+        Assert.True(await channel.OpenAsync(A, "c1"));
+
+        await channel.CheckForNewVideosAsync();
+
+        var videos = channel.State.Videos.ToDictionary(video => video.VideoId);
+        Assert.True(videos["v2"].IsCompleted);
+        Assert.False(videos["v2"].CanSelect);
+        Assert.Null(videos["v1"].ImportStatus);
+        // Only the new video is selected: the old one is not imported again.
+        Assert.Equal(["v1"], channel.State.SelectedVideoIds);
+    }
+
+    [Fact]
+    public async Task ImportSelected_FailingPartway_DropsTheStartedVideos_AndRereadsTheirStatus()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var import = new ScratchImport { RecordStarts = true };
+        import.Channels.Add(new MonitoredChannel
+        {
+            Id = "c1", UserProfileId = A, ChannelUrl = "https://www.youtube.com/@one", Language = "Korean",
+            YouTubeChannelId = "UC_one"
+        });
+        import.Videos.AddRange(
+        [
+            new NativeYouTubeVideo("v1", "One", "https://www.youtube.com/watch?v=v1"),
+            new NativeYouTubeVideo("v2", "Two", "https://www.youtube.com/watch?v=v2"),
+            new NativeYouTubeVideo("v3", "Three", "https://www.youtube.com/watch?v=v3"),
+        ]);
+        using var channel = Channel(fixture, import);
+        Assert.True(await channel.OpenAsync(A, "c1"));
+        await channel.CheckForNewVideosAsync();
+        Assert.Equal(["v1", "v2", "v3"], channel.State.SelectedVideoIds.Order());
+        import.FailStartFor.Add("v2");
+
+        await channel.ImportSelectedAsync();
+
+        Assert.Equal(["v1"], import.Started.Select(request => request.VideoId));
+        Assert.Equal("YouTubeChannel_ImportFailed", channel.State.DiscoveryError?.Key);
+        // v1 started: no longer selected, and its status was read again (in progress).
+        Assert.Equal(["v2", "v3"], channel.State.SelectedVideoIds.Order());
+        var videos = channel.State.Videos.ToDictionary(video => video.VideoId);
+        Assert.True(videos["v1"].IsInProgress);
+        Assert.False(videos["v1"].CanSelect);
+
+        // Tapping again imports only what did not start.
+        import.FailStartFor.Clear();
+        await channel.ImportSelectedAsync();
+        Assert.Equal(["v1", "v2", "v3"], import.Started.Select(request => request.VideoId));
     }
 
     [Fact]
@@ -560,7 +649,13 @@ public sealed class NativeYouTubeChannelsTests
         public List<string> Retried { get; } = [];
         public List<MonitoredChannel> Updated { get; } = [];
         public List<MonitoredChannel> Added { get; } = [];
-        public List<(string Url, string? Language, string? ChannelId)> Started { get; } = [];
+        public List<NativeYouTubeImportRequest> Started { get; } = [];
+        /// <summary>Video ids whose import start fails (the API refused or was unreachable).</summary>
+        public HashSet<string> FailStartFor { get; } = [];
+        /// <summary>A started import shows in the history as Pending (as the server's row does).</summary>
+        public bool RecordStarts { get; set; }
+        /// <summary>The history's row limit (the API's default is 50).</summary>
+        public int HistoryLimit { get; set; } = int.MaxValue;
         public bool AddResolved { get; set; } = true;
         public string? ResolveTo { get; set; }
         public Exception? UpdateFailure { get; set; }
@@ -622,7 +717,15 @@ public sealed class NativeYouTubeChannelsTests
         }
 
         public Task<IReadOnlyList<NativeYouTubeImportRecord>> ListImportsAsync(string owner, CancellationToken token) =>
-            As<IReadOnlyList<NativeYouTubeImportRecord>>(owner, Imports.ToList());
+            As<IReadOnlyList<NativeYouTubeImportRecord>>(owner, Imports.Take(HistoryLimit).ToList());
+
+        public Task<IReadOnlyList<NativeYouTubeImportRecord>> ListLatestImportsForVideosAsync(string owner,
+            IReadOnlyCollection<string> videoIds, CancellationToken token) =>
+            As<IReadOnlyList<NativeYouTubeImportRecord>>(owner, Imports
+                .Where(row => row.VideoId is { } id && videoIds.Contains(id))
+                .GroupBy(row => row.VideoId!)
+                .Select(group => group.OrderByDescending(row => row.CreatedAt ?? DateTime.MinValue).First())
+                .ToList());
 
         public Task RetryImportAsync(string owner, string importId, CancellationToken token)
         {
@@ -654,11 +757,15 @@ public sealed class NativeYouTubeChannelsTests
             int maxResults, CancellationToken token) =>
             As<IReadOnlyList<NativeYouTubeVideo>>(owner, Videos.Take(maxResults).ToList());
 
-        public Task StartImportAsync(string owner, string videoUrl, string? language, string? monitoredChannelId,
-            CancellationToken token)
+        public Task StartImportAsync(string owner, NativeYouTubeImportRequest request, CancellationToken token)
         {
             Owners.Add(owner);
-            Started.Add((videoUrl, language, monitoredChannelId));
+            if (request.VideoId is { } videoId && FailStartFor.Contains(videoId))
+                throw new HttpRequestException("The server could not be reached.");
+            Started.Add(request);
+            if (RecordStarts)
+                Imports.Insert(0, Record($"started-{Started.Count}", VideoImportStatus.Pending, Now,
+                    videoId: request.VideoId));
             return Task.CompletedTask;
         }
     }
@@ -688,7 +795,7 @@ public sealed class NativeYouTubeChannelsTests
             {
                 var path = request.RequestUri!.AbsolutePath.TrimStart('/');
                 var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
-                api.Requests.Add((owner, $"{request.Method} {path}", body));
+                api.Requests.Add((owner, $"{request.Method} {path}{request.RequestUri.Query}", body));
                 var json = (request.Method.Method, path) switch
                 {
                     ("GET", "api/imports") => api.Imports.GetValueOrDefault(owner, "[]"),
