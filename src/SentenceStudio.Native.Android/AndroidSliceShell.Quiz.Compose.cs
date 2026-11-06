@@ -39,19 +39,21 @@ internal sealed partial class AndroidSliceShell
 
         // Prompt autoplay starts once the turn is composed on screen (after a requested photo
         // was drawn and reported), never while loading or in the sentence shortcut.
-        (string Owner, string Turn)? autoPlay = null;
+        // The effect key is a string: Compose effect keys take strings and primitives only.
+        string? autoPlayOwner = null, autoPlayTurn = null;
         if (Destination == NativeDestination.VocabularyQuiz
-            && QuizPhotoOwner() is { } autoPlayOwner
+            && QuizPhotoOwner() is { } playOwner
             && Quiz is { AutoPlayPending: true, Sentence: null,
                 Overlay: NativeQuizOverlay.None,
                 Phase: NativePhase.Ready or NativePhase.Feedback,
-                TurnId: { } autoPlayTurn }
-            && !AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, autoPlayOwner))
-            autoPlay = (autoPlayOwner, autoPlayTurn);
-        composer.LaunchedEffect(autoPlay, _ =>
+                TurnId: { } playTurn }
+            && !AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, playOwner))
+            (autoPlayOwner, autoPlayTurn) = (playOwner, playTurn);
+        var autoPlayKey = autoPlayTurn is null ? null : autoPlayOwner + "/" + autoPlayTurn;
+        composer.LaunchedEffect(autoPlayKey, _ =>
         {
-            if (autoPlay is { } play)
-                StartQuizAutoPlay(play.Owner, play.Turn);
+            if (autoPlayOwner is not null && autoPlayTurn is not null)
+                StartQuizAutoPlay(autoPlayOwner, autoPlayTurn);
             return Task.CompletedTask;
         });
 
