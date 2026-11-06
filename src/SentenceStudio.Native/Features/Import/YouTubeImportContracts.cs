@@ -79,9 +79,38 @@ public interface INativeYouTubeImport
 
     /// <summary>Source VideoImportPipelineService.RetryImportAsync (POST /api/imports/{id}/retry).</summary>
     Task RetryImportAsync(string owner, string importId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Source ChannelMonitorService.AddAsync (POST /api/channels): the channel is saved for the
+    /// signed-in learner, its YouTube metadata resolved by the server when it can be.
+    /// </summary>
+    Task<NativeYouTubeChannelAdded> AddChannelAsync(
+        string owner, MonitoredChannel channel, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Source ChannelMonitorService.ResolveChannelMetadataAsync (YoutubeExplode, on the device):
+    /// fills the channel's name, YouTube id and URL; nothing is written.
+    /// </summary>
+    Task<(bool Resolved, string? Error)> ResolveChannelAsync(
+        string owner, MonitoredChannel channel, CancellationToken cancellationToken);
+
+    /// <summary>Source ChannelMonitorService.GetRecentVideosAsync (YoutubeExplode, on the device).</summary>
+    Task<IReadOnlyList<NativeYouTubeVideo>> GetRecentVideosAsync(
+        string owner, MonitoredChannel channel, int maxResults, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A channel video's import (POST /api/imports): the server runs the import pipeline (source
+    /// ChannelDetail ImportSelectedVideos ran VideoImportPipelineService.RunPipelineAsync).
+    /// </summary>
+    Task StartImportAsync(
+        string owner, string videoUrl, string? language, CancellationToken cancellationToken);
 }
 
-/// <summary>An import history row as the API returns it (source VideoImport).</summary>
+/// <summary>
+/// An import history row as the API returns it (source VideoImport). <see cref="CreatedAt"/> is
+/// null from an API that does not send it yet (before backport B79): the row then has no date and
+/// is never taken as stuck.
+/// </summary>
 public sealed record NativeYouTubeImportRecord(
     string Id,
     string? VideoId,
@@ -91,5 +120,5 @@ public sealed record NativeYouTubeImportRecord(
     VideoImportStatus Status,
     string? ErrorMessage,
     string? LearningResourceId,
-    DateTime CreatedAt,
+    DateTime? CreatedAt,
     DateTime? CompletedAt);

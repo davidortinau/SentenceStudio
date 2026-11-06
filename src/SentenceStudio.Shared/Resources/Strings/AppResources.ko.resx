@@ -9495,4 +9495,60 @@
     <value>멈춘 상태입니다. 다시 시작하려면 다시 시도를 누르세요.</value>
     <comment>YouTube import history: accessibility hint of an import in progress for more than 10 minutes (the source tooltip was English only). Korean draft by the native port; needs review.</comment>
   </data>
+  <data name="YouTubeChannel_NotFound" xml:space="preserve">
+    <value>채널을 찾을 수 없습니다</value>
+    <comment>YouTube channel page: the channel is not among the learner's channels (the source showed this in English only). Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_LoadFailed" xml:space="preserve">
+    <value>채널을 불러오지 못했습니다</value>
+    <comment>YouTube channel page: the channel could not be read (the source showed this in English only). Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_Required" xml:space="preserve">
+    <value>채널 URL과 언어는 필수입니다</value>
+    <comment>YouTube channel page: Save without a link or a language (the source showed this in English only). Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_SavedUnresolved" xml:space="preserve">
+    <value>채널을 저장했지만 YouTube ID를 확인하지 못했습니다: {0}</value>
+    <comment>YouTube channel page: a new channel was saved without its YouTube id (the source toast was English only). {0} is the reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_AddFailed" xml:space="preserve">
+    <value>채널을 추가하지 못했습니다. URL을 확인하고 다시 시도하세요.</value>
+    <comment>YouTube channel page: adding the channel failed (the source showed this in English only). Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_UpdatedUnresolved" xml:space="preserve">
+    <value>채널을 업데이트했지만 YouTube ID를 아직 확인하지 못했습니다: {0}</value>
+    <comment>YouTube channel page: the channel was saved, still without its YouTube id (the source toast was English only). {0} is the reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_SaveFailed" xml:space="preserve">
+    <value>채널을 저장하지 못했습니다: {0}</value>
+    <comment>YouTube channel page: saving failed (the source showed this in English only). {0} is the error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_CheckFailed" xml:space="preserve">
+    <value>동영상을 확인하지 못했습니다: {0}</value>
+    <comment>YouTube channel page: the channel's uploads could not be listed (the source showed this in English only). {0} is the error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_ImportFailed" xml:space="preserve">
+    <value>가져오기에 실패했습니다: {0}</value>
+    <comment>YouTube channel page: starting the selected imports failed (the source showed this in English only). {0} is the error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_Resolved" xml:space="preserve">
+    <value>확인되었습니다! 채널: {0}</value>
+    <comment>YouTube channel page: the channel's YouTube id was resolved (the source toast was English only). {0} is the channel's name and id. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_ResolutionFailed" xml:space="preserve">
+    <value>확인하지 못했습니다: {0}</value>
+    <comment>YouTube channel page: resolving the channel failed (the source toast was English only). {0} is the reason. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_ErrorLabel" xml:space="preserve">
+    <value>오류: {0}</value>
+    <comment>YouTube channel page: the resolution error under the unresolved-channel warning (the source showed this in English only). {0} is the error. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_RetryingVideo" xml:space="preserve">
+    <value>"{0}" 가져오기를 다시 시도합니다. 진행 상황은 가져오기 기록에서 확인하세요.</value>
+    <comment>YouTube channel page: a failed video's import runs again (the source toast was English only). {0} is the video title. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="YouTubeChannel_FailedImportNotFound" xml:space="preserve">
+    <value>다시 시도할 실패한 가져오기를 찾지 못했습니다.</value>
+    <comment>YouTube channel page: no failed import for the video (the source toast was English only). Korean draft by the native port; needs review.</comment>
+  </data>
 </root>

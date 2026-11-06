@@ -1175,6 +1175,7 @@ internal sealed partial class ApplicationController : IDisposable
         _libraryPairsToasts?.Dispose();
         _importContentToasts?.Dispose();
         _youTubeImportToasts?.Dispose();
+        _youTubeChannelToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();

@@ -242,7 +242,7 @@ public sealed class NativeYouTubeImportTests
             fixture.Provider.GetRequiredService<IPreferencesService>(),
             fixture.Provider.GetRequiredService<NativePendingWrites>(), youtube,
             shared.GetRequiredService<TranscriptFormattingService>(),
-            NullLogger<NativeYouTubeImport>.Instance, api);
+            NullLoggerFactory.Instance, api);
     }
 
     /// <summary>The shared YouTube service's calls, without the network.</summary>

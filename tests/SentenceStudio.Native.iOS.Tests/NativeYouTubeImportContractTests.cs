@@ -51,18 +51,70 @@ public sealed class NativeYouTubeImportContractTests
         Assert.Contains("SetAvailability(fetch, style, import.CanFetch);", view);
         // The bridge refuses an unnamed spinner; one in a redraw would fault the action that drew it.
         Assert.DoesNotContain("IndeterminateProgress(string.Empty)", view);
+        // The channel card's switch draws alone; its text is the accessible name (bridge preview.42).
+        Assert.Contains(".WithLabelsHidden()", view);
         // Source: the channel column shows from the md breakpoint, the page's Add Channel button too.
         Assert.Equal(2, Regex.Matches(view, @"style\.ViewportWidth >= 768").Count);
+    }
+
+    [Fact]
+    public void TheChannelPageIsAnEditorAboveTheYouTubePage()
+    {
+        var scene = Source("App/ApplicationScene.YouTube.cs");
+        Assert.Contains("stack.Push(ApplicationYouTubeRoutes.YouTubeChannel,\n                    WithSamToolbar(stack, route, _youTubeChannelSlot));", scene);
+        Assert.Contains(".WithTabBarHidden();", scene);
+        Assert.Contains("_app.OnYouTubeChannelPopped();", scene);
+        // Save or Cancel decides how it closes: a Study entry shows it instead of closing it.
+        Assert.Contains("|| IsImportWordOpen || IsYouTubeChannelOpen;", Source("App/ApplicationController.Library.cs"));
+        var controller = Source("App/ApplicationController.YouTube.cs");
+        Assert.Contains("|| _youTubeChannel?.IsNavigationBlocked == true;", controller);
+        Assert.Contains("ReleaseYouTubeChannel();\n        _youTubeImportToasts?.Reset();", controller);
+        var view = Source("Features/Import/YouTubeChannelView.cs");
+        Assert.DoesNotContain("IndeterminateProgress(string.Empty)", view);
+        // The bridge's picker refuses an empty value: "-- Select Language --" has a placeholder one.
+        Assert.Contains("new(NoLanguage, text(\"ChannelDetail_SelectLanguage\"))", view);
+        Assert.DoesNotContain("new(string.Empty,", view);
+        Assert.DoesNotContain("UIKit", view);
+    }
+
+    [Fact]
+    public void EveryColorIsASixDigitHex()
+    {
+        // The bridge refuses any other color (an #RRGGBBAA "transparent" fill faulted the history
+        // and the channel page's redraws); an outline button leaves its fill unset instead.
+        foreach (var file in new[] { "Features/Import/YouTubeImportView.cs", "Features/Import/YouTubeChannelView.cs" })
+        {
+            var source = Source(file);
+            foreach (Match color in Regex.Matches(source, "\"#[0-9A-Fa-f]*\""))
+                Assert.Matches("^\"#[0-9A-Fa-f]{6}\"$", color.Value);
+            Assert.DoesNotContain("WithRoundedSurface(\"#00000000\"", source);
+        }
+        Assert.Contains("YouTubeImportView.OutlineWarningButton(label,", Source("Features/Import/YouTubeChannelView.cs"));
+    }
+
+    [Fact]
+    public void BadgesAndShortButtonsKeepTheirWidthBesideATruncatedTitle()
+    {
+        // A SwiftUI row gives each item an equal share, which wrapped "Failed" and "Retry" mid-word
+        // on iPhone; source badges are nowrap and the title truncates (bridge preview.43).
+        var import = Source("Features/Import/YouTubeImportView.cs");
+        var channel = Source("Features/Import/YouTubeChannelView.cs");
+        Assert.Equal(2, Regex.Matches(import, @"\.WithFixedSize\(\)").Count); // status badge, Retry
+        Assert.Equal(2, Regex.Matches(channel, @"\.WithFixedSize\(\)").Count); // badge, Select All
+        Assert.Contains("SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth()", channel);
     }
 
     [Fact]
     public void TheTextIsLocalizedInEnglishAndKorean()
     {
         var keys = Regex.Matches(Source("Features/Import/YouTubeImportView.cs")
+                + Source("Features/Import/YouTubeChannelView.cs")
+                + File.ReadAllText(Path.Combine(RepositoryPath,
+                    "src/SentenceStudio.Native/Features/Import/YouTubeChannelCoordinator.cs"))
                 + Source("App/ApplicationController.YouTube.cs")
                 + File.ReadAllText(Path.Combine(RepositoryPath,
                     "src/SentenceStudio.Native/Features/Import/YouTubeImportCoordinator.cs")),
-                "\"((?:Import|YouTubeImport|Common)_[A-Za-z0-9_]+)\"")
+                "\"((?:Import|YouTubeImport|YouTubeChannel|ChannelDetail|Common)_[A-Za-z0-9_]+)\"")
             .Select(match => match.Groups[1].Value)
             .Distinct()
             .ToList();
@@ -74,7 +126,8 @@ public sealed class NativeYouTubeImportContractTests
         var korean = XDocument.Load(Path.Combine(RepositoryPath,
             "src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx"));
         Assert.All(korean.Root!.Elements("data")
-                .Where(data => ((string?)data.Attribute("name"))?.StartsWith("YouTubeImport_") == true),
+                .Where(data => ((string?)data.Attribute("name")) is { } name
+                    && (name.StartsWith("YouTubeImport_") || name.StartsWith("YouTubeChannel_"))),
             data => Assert.Contains("Korean draft", (string?)data.Element("comment") ?? string.Empty));
     }
 

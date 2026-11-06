@@ -88,7 +88,7 @@ internal sealed partial class ApplicationController
     /// </summary>
     internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
         || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage
-        || IsImportWordOpen;
+        || IsImportWordOpen || IsYouTubeChannelOpen;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
     internal long LibraryResetVersion => _libraryResetVersion;

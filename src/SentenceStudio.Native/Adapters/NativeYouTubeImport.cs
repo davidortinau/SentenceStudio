@@ -29,9 +29,11 @@ public sealed class NativeYouTubeImport(
     NativePendingWrites pendingWrites,
     IYouTubeImportService youtube,
     TranscriptFormattingService formatting,
-    ILogger<NativeYouTubeImport> logger,
+    ILoggerFactory loggers,
     INativeYouTubeApi? api = null) : INativeYouTubeImport
 {
+    private readonly ILogger logger = loggers.CreateLogger<NativeYouTubeImport>();
+
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
@@ -162,6 +164,70 @@ public sealed class NativeYouTubeImport(
             return true;
         }, cancellationToken);
     }
+
+    public Task<NativeYouTubeChannelAdded> AddChannelAsync(string owner, MonitoredChannel channel,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        return CallAsync(owner, async (client, token) =>
+        {
+            using var response = await client.PostAsJsonAsync("api/channels", channel, Json, token);
+            await EnsureSuccessAsync(response, token);
+            var body = await response.Content.ReadAsStringAsync(token);
+            // Unresolved: the server answers with the saved channel's fields plus
+            // metadataResolved = false and its resolutionError.
+            var saved = JsonSerializer.Deserialize<MonitoredChannel>(body, Json)
+                ?? throw new InvalidOperationException("The server returned no channel.");
+            using var document = JsonDocument.Parse(body);
+            var resolved = !document.RootElement.TryGetProperty("metadataResolved", out var flag)
+                || flag.ValueKind != JsonValueKind.False;
+            var error = document.RootElement.TryGetProperty("resolutionError", out var reason)
+                && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null;
+            return new NativeYouTubeChannelAdded(saved, resolved, error);
+        }, cancellationToken);
+    }
+
+    public async Task<(bool Resolved, string? Error)> ResolveChannelAsync(string owner,
+        MonitoredChannel channel, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        RequireOwner(owner);
+        var result = await Channels().ResolveChannelMetadataAsync(channel);
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireOwner(owner);
+        return (result.Success, result.Error);
+    }
+
+    public async Task<IReadOnlyList<NativeYouTubeVideo>> GetRecentVideosAsync(string owner,
+        MonitoredChannel channel, int maxResults, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        RequireOwner(owner);
+        var videos = await Channels().GetRecentVideosAsync(channel, maxResults);
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireOwner(owner);
+        return videos.Select(video => new NativeYouTubeVideo(video.VideoId, video.Title, video.Url)).ToList();
+    }
+
+    public Task StartImportAsync(string owner, string videoUrl, string? language,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(videoUrl);
+        return CallAsync(owner, async (client, token) =>
+        {
+            using var response = await client.PostAsJsonAsync("api/imports",
+                new { videoUrl, language }, Json, token);
+            await EnsureSuccessAsync(response, token);
+            return true;
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// The shared ChannelMonitorService for its YouTube calls only (resolving a channel, listing
+    /// its uploads): they read and write no database.
+    /// </summary>
+    private ChannelMonitorService Channels() =>
+        new(services, loggers.CreateLogger<ChannelMonitorService>());
 
     private async Task<T> CallAsync<T>(string owner,
         Func<HttpClient, CancellationToken, Task<T>> call, CancellationToken cancellationToken)

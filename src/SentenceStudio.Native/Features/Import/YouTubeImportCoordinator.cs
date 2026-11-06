@@ -20,7 +20,7 @@ public sealed record YouTubeChannelRow(
 /// </summary>
 public sealed record YouTubeImportRow(
     string Id, string? VideoTitle, bool IsManual, string? ChannelName, VideoImportStatus Status,
-    string? ErrorMessage, DateTime CreatedAt, string? LearningResourceId, bool IsStuck)
+    string? ErrorMessage, DateTime? CreatedAt, string? LearningResourceId, bool IsStuck)
 {
     /// <summary>Source isClickable: a completed import with its resource opens it.</summary>
     public bool IsClickable => Status == VideoImportStatus.Completed
@@ -825,6 +825,37 @@ public sealed class YouTubeImportCoordinator : IDisposable
         }
     }
 
+    /// <summary>
+    /// A message from the channel page shown here after it closed (source: the toast of a saved
+    /// channel shows on the Media Import page it returns to).
+    /// </summary>
+    public void ShowMessage(NativeMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (!_open || _disposed)
+            return;
+        _messages = [message];
+        Notify();
+    }
+
+    /// <summary>
+    /// Source: the channel page's Save and Cancel navigate to /media-import, which loads its
+    /// channels and history again (a channel saved before an edit page's Cancel shows, as do the
+    /// imports it started).
+    /// </summary>
+    public async Task ReloadAfterChannelPageAsync()
+    {
+        if (!_open || _blocked || _disposed)
+            return;
+        var messages = _messages;
+        await Task.WhenAll(LoadChannelsAsync(announce: true), LoadImportsAsync(announce: true));
+        if (!_disposed && _messages.IsEmpty && !messages.IsEmpty)
+        {
+            _messages = messages;
+            Notify();
+        }
+    }
+
     public void DismissMessages()
     {
         if (_messages.IsEmpty)
@@ -852,9 +883,10 @@ public sealed class YouTubeImportCoordinator : IDisposable
     {
         var manual = string.IsNullOrEmpty(import.MonitoredChannelId);
         var channel = manual ? null : _channels.FirstOrDefault(row => row.Id == import.MonitoredChannelId);
+        // An import without its creation time (an API before B79) is never taken as stuck.
         var stuck = import.Status != VideoImportStatus.Failed
             && import.Status != VideoImportStatus.Completed
-            && import.CreatedAt < now - StuckAfter;
+            && import.CreatedAt is { } created && created < now - StuckAfter;
         return new(import.Id, import.VideoTitle, manual, channel?.ChannelName ?? channel?.ChannelHandle,
             import.Status, import.ErrorMessage, import.CreatedAt, import.LearningResourceId, stuck);
     }

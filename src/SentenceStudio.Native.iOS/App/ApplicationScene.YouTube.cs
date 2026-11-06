@@ -19,6 +19,14 @@ internal sealed partial class ApplicationScene
     private double _renderedYouTubeWidth;
     private string? _renderedYouTubeOverlayKey;
     private SourceUiStyle? _renderedYouTubeOverlayStyle;
+    private SwiftView? _youTubeChannelSlot;
+    private SwiftView? _youTubeChannelContent;
+    private SwiftView? _youTubeChannelOverlay;
+    private long _renderedYouTubeChannelVersion = -1;
+    private long _renderedYouTubeChannelGeneration = -1;
+    private SourceUiStyle? _renderedYouTubeChannelStyle;
+    private string? _renderedYouTubeChannelOverlayKey;
+    private SourceUiStyle? _renderedYouTubeChannelOverlayStyle;
 
     private void UpdateLibraryYouTube(bool appearanceChanged)
     {
@@ -66,6 +74,95 @@ internal sealed partial class ApplicationScene
             }
         }
         UpdateYouTubeOverlay();
+        UpdateYouTubeChannel(stack, appearanceChanged);
+    }
+
+    /// <summary>
+    /// The channel page (source /media-import/channel/{Id?}), pushed above the YouTube import page.
+    /// A form with Save and Cancel: the tab bar hides, as for the other Library editors.
+    /// </summary>
+    private void UpdateYouTubeChannel(SwiftView stack, bool appearanceChanged)
+    {
+        const string route = ApplicationYouTubeRoutes.YouTubeChannel;
+        if (_app.IsYouTubeChannelOpen)
+        {
+            if (_youTubeChannelSlot is null)
+            {
+                if (stack.NavigationPath.Count != 1
+                    || stack.NavigationPath[0] != ApplicationYouTubeRoutes.YouTubeImport)
+                    return;
+                _youTubeChannelContent = Views.VStack(_app.RenderYouTubeChannel(_style)).WithFlexibleWidth();
+                _youTubeChannelOverlay = Views.VStack().WithFlexibleWidth();
+                _renderedYouTubeChannelOverlayKey = null;
+                _youTubeChannelSlot = Views.Overlay(_youTubeChannelContent, _youTubeChannelOverlay,
+                        SwiftOverlayEdge.Top)
+                    .WithNavigationTitle(_app.YouTubeChannelTitle)
+                    .WithInlineNavigationTitle()
+                    .WithTabBarHidden();
+                RecordYouTubeChannel();
+                stack.Push(ApplicationYouTubeRoutes.YouTubeChannel,
+                    WithSamToolbar(stack, route, _youTubeChannelSlot));
+            }
+            else if (appearanceChanged || !ReferenceEquals(_renderedYouTubeChannelStyle, _style)
+                || _renderedYouTubeChannelVersion != _app.YouTubeChannelVersion
+                || _renderedYouTubeChannelGeneration != _app.YouTubeChannelGeneration)
+            {
+                if (_renderedYouTubeChannelGeneration != _app.YouTubeChannelGeneration)
+                    _youTubeChannelSlot.WithNavigationTitle(_app.YouTubeChannelTitle);
+                if (_youTubeChannelContent is not null)
+                    Replace(_youTubeChannelContent, _app.RenderYouTubeChannel(_style));
+                RecordYouTubeChannel();
+            }
+            UpdateYouTubeChannelOverlay();
+        }
+        else if (_youTubeChannelSlot is not null)
+        {
+            var onTop = stack.NavigationPath.Count > 0 && stack.NavigationPath[^1] == route;
+            // While Back is blocked the references stay, so the next update pops the page.
+            if (!onTop || stack.CanNavigateBack)
+            {
+                // Cleared first: the route callback must not report this pop as a Back.
+                DropYouTubeChannelReferences();
+                if (onTop)
+                    stack.Pop();
+            }
+        }
+    }
+
+    private void RecordYouTubeChannel()
+    {
+        _renderedYouTubeChannelVersion = _app.YouTubeChannelVersion;
+        _renderedYouTubeChannelGeneration = _app.YouTubeChannelGeneration;
+        _renderedYouTubeChannelStyle = _style;
+    }
+
+    private void UpdateYouTubeChannelOverlay()
+    {
+        if (_youTubeChannelOverlay is not { } layer)
+            return;
+        var key = _app.YouTubeChannelOverlayKey;
+        if (string.Equals(key, _renderedYouTubeChannelOverlayKey, StringComparison.Ordinal)
+            && ReferenceEquals(_renderedYouTubeChannelOverlayStyle, _style))
+            return;
+        _renderedYouTubeChannelOverlayKey = key;
+        _renderedYouTubeChannelOverlayStyle = _style;
+        ClearToastLayer(layer);
+        if (_app.RenderYouTubeChannelOverlay(_style) is not { } overlay)
+            return;
+        var gutter = SourceUiLayout.PageGutter(_style.ViewportWidth);
+        layer.Add(Views.VStack(overlay).WithFlexibleWidth().WithPadding(8, gutter, 0, gutter));
+    }
+
+    private void DropYouTubeChannelReferences()
+    {
+        _youTubeChannelSlot = null;
+        _youTubeChannelContent = null;
+        _youTubeChannelOverlay = null;
+        _renderedYouTubeChannelVersion = -1;
+        _renderedYouTubeChannelGeneration = -1;
+        _renderedYouTubeChannelStyle = null;
+        _renderedYouTubeChannelOverlayKey = null;
+        _renderedYouTubeChannelOverlayStyle = null;
     }
 
     private void RecordYouTube()
@@ -95,6 +192,11 @@ internal sealed partial class ApplicationScene
     /// <summary>System Back (or a swipe) left the YouTube import page.</summary>
     private void OnYouTubeRoutesChanged(IReadOnlyList<string> routes)
     {
+        if (_youTubeChannelSlot is not null && !routes.Contains(ApplicationYouTubeRoutes.YouTubeChannel))
+        {
+            DropYouTubeChannelReferences();
+            _app.OnYouTubeChannelPopped();
+        }
         if (_youTubeSlot is not null && !routes.Contains(ApplicationYouTubeRoutes.YouTubeImport))
         {
             DropYouTubeReferences();
@@ -143,6 +245,7 @@ internal sealed partial class ApplicationScene
 
     private void DropYouTubeReferences()
     {
+        DropYouTubeChannelReferences();
         _youTubeSlot = null;
         _youTubeOverlay = null;
         _renderedYouTubeVersion = -1;

@@ -10148,4 +10148,60 @@ For example: {0} ...</value>
     <value>Stuck. Tap Retry to restart.</value>
     <comment>YouTube import history: accessibility hint of an import in progress for more than 10 minutes (the source tooltip was English only).</comment>
   </data>
+  <data name="YouTubeChannel_NotFound" xml:space="preserve">
+    <value>Channel not found</value>
+    <comment>YouTube channel page: the channel is not among the learner's channels (the source showed this in English only).</comment>
+  </data>
+  <data name="YouTubeChannel_LoadFailed" xml:space="preserve">
+    <value>Failed to load channel</value>
+    <comment>YouTube channel page: the channel could not be read (the source showed this in English only).</comment>
+  </data>
+  <data name="YouTubeChannel_Required" xml:space="preserve">
+    <value>Channel URL and Language are required</value>
+    <comment>YouTube channel page: Save without a link or a language (the source showed this in English only).</comment>
+  </data>
+  <data name="YouTubeChannel_SavedUnresolved" xml:space="preserve">
+    <value>Channel saved but YouTube ID couldn't be resolved: {0}</value>
+    <comment>YouTube channel page: a new channel was saved without its YouTube id (the source toast was English only). {0} is the reason.</comment>
+  </data>
+  <data name="YouTubeChannel_AddFailed" xml:space="preserve">
+    <value>Failed to add channel. Check the URL and try again.</value>
+    <comment>YouTube channel page: adding the channel failed (the source showed this in English only).</comment>
+  </data>
+  <data name="YouTubeChannel_UpdatedUnresolved" xml:space="preserve">
+    <value>Channel updated but YouTube ID still couldn't be resolved: {0}</value>
+    <comment>YouTube channel page: the channel was saved, still without its YouTube id (the source toast was English only). {0} is the reason.</comment>
+  </data>
+  <data name="YouTubeChannel_SaveFailed" xml:space="preserve">
+    <value>Failed to save channel: {0}</value>
+    <comment>YouTube channel page: saving failed (the source showed this in English only). {0} is the error.</comment>
+  </data>
+  <data name="YouTubeChannel_CheckFailed" xml:space="preserve">
+    <value>Failed to check for videos: {0}</value>
+    <comment>YouTube channel page: the channel's uploads could not be listed (the source showed this in English only). {0} is the error.</comment>
+  </data>
+  <data name="YouTubeChannel_ImportFailed" xml:space="preserve">
+    <value>Import failed: {0}</value>
+    <comment>YouTube channel page: starting the selected imports failed (the source showed this in English only). {0} is the error.</comment>
+  </data>
+  <data name="YouTubeChannel_Resolved" xml:space="preserve">
+    <value>Resolved! Channel: {0}</value>
+    <comment>YouTube channel page: the channel's YouTube id was resolved (the source toast was English only). {0} is the channel's name and id.</comment>
+  </data>
+  <data name="YouTubeChannel_ResolutionFailed" xml:space="preserve">
+    <value>Resolution failed: {0}</value>
+    <comment>YouTube channel page: resolving the channel failed (the source toast was English only). {0} is the reason.</comment>
+  </data>
+  <data name="YouTubeChannel_ErrorLabel" xml:space="preserve">
+    <value>Error: {0}</value>
+    <comment>YouTube channel page: the resolution error under the unresolved-channel warning (the source showed this in English only). {0} is the error.</comment>
+  </data>
+  <data name="YouTubeChannel_RetryingVideo" xml:space="preserve">
+    <value>Retrying import for "{0}". Check Import History for progress.</value>
+    <comment>YouTube channel page: a failed video's import runs again (the source toast was English only). {0} is the video title.</comment>
+  </data>
+  <data name="YouTubeChannel_FailedImportNotFound" xml:space="preserve">
+    <value>Could not find the failed import to retry.</value>
+    <comment>YouTube channel page: no failed import for the video (the source toast was English only).</comment>
+  </data>
 </root>

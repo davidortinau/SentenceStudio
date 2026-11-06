@@ -15,6 +15,9 @@ internal static class ApplicationYouTubeRoutes
 {
     /// <summary>Source /media-import (and /import).</summary>
     internal const string YouTubeImport = "youtube-import";
+
+    /// <summary>Source /media-import/channel/{Id?}, above the YouTube import page.</summary>
+    internal const string YouTubeChannel = "youtube-channel";
 }
 
 /// <summary>
@@ -27,14 +30,30 @@ internal sealed partial class ApplicationController
 {
     private YouTubeImportCoordinator? _youTubeImport;
     private NativeToastScheduler? _youTubeImportToasts;
+    private YouTubeChannelCoordinator? _youTubeChannel;
+    private NativeToastScheduler? _youTubeChannelToasts;
+    private long _youTubeChannelGeneration;
 
     internal bool IsYouTubeImportOpen => _youTubeImport?.IsOpen == true;
 
     /// <summary>Changes when the YouTube import page must be drawn again.</summary>
     internal long YouTubeImportVersion => _youTubeImport?.Version ?? -1;
 
-    /// <summary>A save is running: Back and the tabs wait.</summary>
-    internal bool IsYouTubeImportNavigationBlocked => _youTubeImport?.IsNavigationBlocked == true;
+    /// <summary>A save (of a video or a channel) is running: Back and the tabs wait.</summary>
+    internal bool IsYouTubeImportNavigationBlocked => _youTubeImport?.IsNavigationBlocked == true
+        || _youTubeChannel?.IsNavigationBlocked == true;
+
+    /// <summary>The channel page (Save or Cancel decides how it closes) is open.</summary>
+    internal bool IsYouTubeChannelOpen => _youTubeImport is not null && _youTubeChannel?.IsOpen == true;
+
+    /// <summary>Changes when the channel page must be drawn again.</summary>
+    internal long YouTubeChannelVersion => _youTubeChannel?.Version ?? -1;
+
+    /// <summary>Changes when another channel page replaces the open one (its title and content change).</summary>
+    internal long YouTubeChannelGeneration => _youTubeChannelGeneration;
+
+    internal string YouTubeChannelTitle => Text(_youTubeChannel?.IsNew != false
+        ? "ChannelDetail_AddChannel" : "ChannelDetail_EditChannel");
 
     /// <summary>A link or transcript not saved yet (another tab's entry shows the page).</summary>
     internal bool HasYouTubeImportWork => _youTubeImport?.HasUnsavedWork == true;
@@ -105,7 +124,8 @@ internal sealed partial class ApplicationController
     internal SwiftView RenderYouTubeImport(SourceUiStyle style) =>
         _youTubeImport is { IsOpen: true } import
             ? YouTubeImportView.Page(import, style, Text,
-                new YouTubeImportActions(ViewYouTubeResource, AddChannel: null, EditChannel: null))
+                new YouTubeImportActions(ViewYouTubeResource, () => OpenYouTubeChannel(null),
+                    OpenYouTubeChannel))
             : Views.Text(Text("Common_Loading"));
 
     /// <summary>What the overlay shows: the banner ids and the current toast (redrawn when it changes).</summary>
@@ -169,6 +189,171 @@ internal sealed partial class ApplicationController
         Publish();
     }
 
+    // ---- The channel page (source /media-import/channel/{Id?}) ----
+
+    /// <summary>
+    /// Source AddChannel and EditChannel: the channel page above the YouTube import page, for the
+    /// page's owner (an absent or untrusted owner opens nothing).
+    /// </summary>
+    private void OpenYouTubeChannel(string? channelId)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || _services is null
+            || !IsYouTubeImportOpen || IsYouTubeChannelOpen || IsResourcesFormOpen)
+            return;
+        var provider = _services.Provider;
+        var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
+        var owner = _authState is { Phase: NativePhase.Ready, UserId: { Length: > 0 } authenticated }
+            ? authenticated : null;
+#if DEBUG
+        if (owner is null && _preview)
+            owner = NativePreviewFixture.FromAssembly()?.Owner;
+#endif
+        if (string.IsNullOrWhiteSpace(owner)
+            || !scope.TryGetUserProfileId(out var current) || current != owner)
+        {
+            _logger?.LogWarning("YouTube channel navigation refused an absent or untrusted owner.");
+            return;
+        }
+        var coordinator = new YouTubeChannelCoordinator(
+            provider.GetRequiredService<INativeYouTubeImport>(), scope,
+            provider.GetRequiredService<ILogger<YouTubeChannelCoordinator>>());
+        coordinator.Changed += Publish;
+        coordinator.Finished += OnYouTubeChannelFinished;
+        _youTubeChannel = coordinator;
+        _youTubeChannelGeneration++;
+        _ = OpenYouTubeChannelAsync(coordinator, owner, channelId);
+        Publish();
+    }
+
+    private async Task OpenYouTubeChannelAsync(YouTubeChannelCoordinator coordinator, string owner,
+        string? channelId)
+    {
+        try
+        {
+            if (await coordinator.OpenAsync(owner, channelId) || !ReferenceEquals(_youTubeChannel, coordinator))
+                return;
+            _logger?.LogWarning("YouTube channel page open was refused for the owner.");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS YouTube channel page open failed.");
+        }
+        if (!ReferenceEquals(_youTubeChannel, coordinator) || _disposed || coordinator.IsOpen)
+            return;
+        ReleaseYouTubeChannel();
+        Publish();
+    }
+
+    /// <summary>
+    /// Source SaveChannel's navigation: a saved channel returns to the page (its toast shows
+    /// there and the channels and history are read again, as the source page re-initializes); an
+    /// unresolved new channel opens its edit page instead.
+    /// </summary>
+    private void OnYouTubeChannelFinished(YouTubeChannelOutcome outcome, string? channelId)
+    {
+        if (_youTubeChannel is not { } channel)
+            return;
+        var toast = NativeMessages.LatestToast(channel.Messages);
+        var banners = NativeMessages.Banners(channel.Messages);
+        ReleaseYouTubeChannel();
+        if (outcome == YouTubeChannelOutcome.EditSaved && !string.IsNullOrEmpty(channelId))
+        {
+            Publish();
+            OpenYouTubeChannel(channelId);
+            _youTubeChannel?.ShowMessages(banners);
+            return;
+        }
+        if (_youTubeImport is { } import)
+        {
+            if (toast is not null)
+                import.ShowMessage(toast);
+            _ = import.ReloadAfterChannelPageAsync();
+        }
+        Publish();
+    }
+
+    internal SwiftView RenderYouTubeChannel(SourceUiStyle style) =>
+        _youTubeChannel is { IsOpen: true } channel
+            ? YouTubeChannelView.Page(channel, style, Text, CancelYouTubeChannel)
+            : Views.Text(Text("Common_Loading"));
+
+    /// <summary>
+    /// Source Cancel and Back: the channel page closes without saving, and /media-import loads
+    /// its lists again.
+    /// </summary>
+    internal void CancelYouTubeChannel()
+    {
+        if (_youTubeChannel is null || IsYouTubeImportNavigationBlocked)
+            return;
+        ReleaseYouTubeChannel();
+        _ = _youTubeImport?.ReloadAfterChannelPageAsync();
+        Publish();
+    }
+
+    internal string YouTubeChannelOverlayKey
+    {
+        get
+        {
+            if (_youTubeChannel is not { IsOpen: true } channel)
+                return string.Empty;
+            var toast = YouTubeChannelToast;
+            var banners = NativeMessages.Banners(channel.Messages);
+            return $"{string.Join(',', banners.Select(message => message.Id))}|{toast?.Id ?? 0}";
+        }
+    }
+
+    internal SwiftView? RenderYouTubeChannelOverlay(SourceUiStyle style) =>
+        _youTubeChannel is { IsOpen: true } channel
+            ? YouTubeImportView.Messages(channel.Messages, YouTubeChannelToast, style, Text,
+                channel.DismissMessages, DismissYouTubeChannelToast)
+            : null;
+
+    private NativeMessage? YouTubeChannelToast
+    {
+        get
+        {
+            if (_youTubeChannel is not { } channel)
+                return null;
+            var toasts = _youTubeChannelToasts ??= CreateYouTubeChannelToasts();
+            toasts.Offer(NativeMessages.LatestToast(channel.Messages));
+            return toasts.Current;
+        }
+    }
+
+    private void DismissYouTubeChannelToast()
+    {
+        if (_youTubeChannelToasts?.Dismiss() == true)
+            Publish();
+    }
+
+    private NativeToastScheduler CreateYouTubeChannelToasts()
+    {
+        var toasts = new NativeToastScheduler();
+        toasts.Changed += Publish;
+        return toasts;
+    }
+
+    /// <summary>Back (or a swipe) from the channel page: the same as Cancel.</summary>
+    internal void OnYouTubeChannelPopped()
+    {
+        if (_youTubeChannel is null)
+            return;
+        ReleaseYouTubeChannel();
+        _ = _youTubeImport?.ReloadAfterChannelPageAsync();
+        Publish();
+    }
+
+    private void ReleaseYouTubeChannel()
+    {
+        _youTubeChannelToasts?.Reset();
+        if (_youTubeChannel is not { } channel)
+            return;
+        _youTubeChannel = null;
+        channel.Changed -= Publish;
+        channel.Finished -= OnYouTubeChannelFinished;
+        channel.Dispose();
+    }
+
     /// <summary>Back from the YouTube import page to the Library list.</summary>
     internal void OnYouTubeImportPopped()
     {
@@ -180,6 +365,7 @@ internal sealed partial class ApplicationController
 
     private void ReleaseYouTubeImport()
     {
+        ReleaseYouTubeChannel();
         _youTubeImportToasts?.Reset();
         if (_youTubeImport is not { } import)
             return;

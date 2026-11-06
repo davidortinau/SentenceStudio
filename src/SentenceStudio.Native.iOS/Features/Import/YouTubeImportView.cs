@@ -197,12 +197,12 @@ internal static class YouTubeImportView
             .WithFlexibleWidth()
             .WithAccessibilityLabel(title)
             .WithAccessibilityIdentifier($"{id}.open");
-        // Source: the switch's title says what it does next.
-        var monitor = Views.Toggle(string.Empty, channel.IsActive,
+        // Source: a bare switch whose title says what it does next (its accessible name here).
+        var monitor = Views.Toggle(text(channel.IsActive
+                    ? "Import_PauseMonitoring" : "Import_ResumeMonitoring"), channel.IsActive,
                 isOn => _ = import.ToggleChannelActiveAsync(channel.Id))
+            .WithLabelsHidden()
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-            .WithAccessibilityLabel(text(channel.IsActive
-                ? "Import_PauseMonitoring" : "Import_ResumeMonitoring"))
             .WithAccessibilityIdentifier($"{id}.active");
         var row = Views.HStack(open, monitor).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap + 4;
@@ -420,8 +420,9 @@ internal static class YouTubeImportView
                     : row.ChannelName ?? text("YouTubeImport_ChannelFallback"))
                 .WithLineLimit(1)
                 .WithAccessibilityIdentifier($"{id}.channel"));
-        cells.Add(Caption(style, row.CreatedAt.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
-            .WithAccessibilityIdentifier($"{id}.date"));
+        if (row.CreatedAt is { } created)
+            cells.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
+                .WithAccessibilityIdentifier($"{id}.date"));
         if (row.CanRetry)
         {
             var retrying = state.RetryingImportId == row.Id;
@@ -431,12 +432,7 @@ internal static class YouTubeImportView
             label.Add(Views.Image("arrow.clockwise"));
             label.Add(Views.Text(text("Import_Retry")));
             label.Spacing = 4;
-            var retry = Views.Button(label, () => _ = import.RetryImportAsync(row.Id))
-                .WithButtonStyle(SwiftButtonStyle.Plain)
-                .WithForegroundColor(WarningOutline.Light, WarningOutline.Dark)
-                .WithPadding(4, 8, 4, 8)
-                .WithRoundedSurface("#00000000", "#00000000", 6,
-                    style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 1)
+            var retry = OutlineWarningButton(label, () => _ = import.RetryImportAsync(row.Id), style)
                 .WithAccessibilityLabel(text("Import_Retry"))
                 .WithAccessibilityIdentifier($"{id}.retry");
             retry.IsEnabled = state.RetryingImportId is null;
@@ -447,6 +443,21 @@ internal static class YouTubeImportView
         return line.WithPadding(8, 16, 8, 16)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier(id);
+    }
+
+    /// <summary>
+    /// Source btn btn-sm btn-outline-warning: no fill, a warning border and text. The fill stays
+    /// unset (the bridge's surface colors are opaque #RRGGBB only).
+    /// </summary>
+    internal static SwiftView OutlineWarningButton(SwiftView label, Action action, SourceUiStyle style)
+    {
+        label.WithForegroundColor(WarningOutline.Light, WarningOutline.Dark)
+            .WithPadding(4, 8, 4, 8);
+        return Views.Button(label, action)
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithButtonAppearance(null, null,
+                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6)
+            .WithFixedSize();
     }
 
     /// <summary>Source RenderStatusBadge: the status's color, icon and text, with a spinner while it runs.</summary>
@@ -468,10 +479,12 @@ internal static class YouTubeImportView
         content.Spacing = 3;
         if (status >= VideoImportStatus.FetchingTranscript && status < VideoImportStatus.Completed)
             content.Add(Views.IndeterminateProgress(label).WithTintColor(foreground.Light, foreground.Dark));
+        // Source .badge is white-space: nowrap: the badge keeps its width and the title truncates.
         return content
             .WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
+            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }

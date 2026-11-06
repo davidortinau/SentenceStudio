@@ -23205,6 +23205,132 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Failed to add channel. Check the URL and try again..
+        /// </summary>
+        internal static string YouTubeChannel_AddFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_AddFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to check for videos: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_CheckFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_CheckFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_ErrorLabel {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_ErrorLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not find the failed import to retry..
+        /// </summary>
+        internal static string YouTubeChannel_FailedImportNotFound {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_FailedImportNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Import failed: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_ImportFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_ImportFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load channel.
+        /// </summary>
+        internal static string YouTubeChannel_LoadFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Channel not found.
+        /// </summary>
+        internal static string YouTubeChannel_NotFound {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_NotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Channel URL and Language are required.
+        /// </summary>
+        internal static string YouTubeChannel_Required {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_Required", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resolution failed: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_ResolutionFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_ResolutionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resolved! Channel: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_Resolved {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_Resolved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Retrying import for &quot;{0}&quot;. Check Import History for progress..
+        /// </summary>
+        internal static string YouTubeChannel_RetryingVideo {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_RetryingVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Channel saved but YouTube ID couldn&apos;t be resolved: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_SavedUnresolved {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_SavedUnresolved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to save channel: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_SaveFailed {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Channel updated but YouTube ID still couldn&apos;t be resolved: {0}.
+        /// </summary>
+        internal static string YouTubeChannel_UpdatedUnresolved {
+            get {
+                return ResourceManager.GetString("YouTubeChannel_UpdatedUnresolved", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to (auto-generated).
         /// </summary>
         internal static string YouTubeImport_AutoGenerated {
