@@ -261,6 +261,25 @@ internal sealed class RecentLookupsCoordinator : IDisposable
             Changed?.Invoke();
     }
 
+    /// <summary>
+    /// A head's action failed unexpectedly outside this coordinator's own error handling:
+    /// the page says so (and any add in progress ends) instead of failing silently.
+    /// </summary>
+    internal void ReportUnexpectedFailure()
+    {
+        lock (_gate)
+        {
+            if (!_open)
+                return;
+            _state = _state with {
+                AddingId = null,
+                Notice = new NativeMessage(NativeMessageKind.Error, NativeText.UnexpectedError)
+            };
+            ++_viewVersion;
+        }
+        Changed?.Invoke();
+    }
+
     internal void DismissNotice()
     {
         lock (_gate)

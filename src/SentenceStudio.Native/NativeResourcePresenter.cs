@@ -46,15 +46,21 @@ public sealed partial class NativeResourcePresenter(
         _owner is not null && !IsCurrentOwnerStamp(_owner, _ownerStamp)
             ? new(NativeResourceDetailPhase.Blocked) : _detail;
 
+    /// <summary>
+    /// Reads the owner's resources. With <paramref name="refreshInPlace"/>, a list that
+    /// already shows rows keeps them while the read runs (no spinner, no lost scroll
+    /// position) and the new rows replace them when it finishes.
+    /// </summary>
     public async Task<NativeResourceListState> LoadListAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool refreshInPlace = false)
     {
         if (!TryCurrentOwner(out var owner))
             return Block();
         var ownerStamp = userScope.CaptureStamp();
         if (!SelectOwner(owner, ownerStamp))
             return List;
-        await LoadListCoreAsync(owner, ownerStamp, cancellationToken);
+        await LoadListCoreAsync(owner, ownerStamp, cancellationToken,
+            refreshInPlace: refreshInPlace);
         return List;
     }
 
@@ -84,7 +90,8 @@ public sealed partial class NativeResourcePresenter(
     private async Task<bool> LoadListCoreAsync(
         string owner, DeviceUserScopeProvider.ScopeStamp ownerStamp,
         CancellationToken cancellationToken,
-        Task<NativeResourceSyncPhase>? synchronization = null)
+        Task<NativeResourceSyncPhase>? synchronization = null,
+        bool refreshInPlace = false)
     {
         NativeResourceListState previous;
         long generation;
@@ -96,8 +103,10 @@ public sealed partial class NativeResourcePresenter(
                 return false;
             previous = _list;
             generation = ++_listLoadGeneration;
-            _list = _list with {
-                Phase = NativeResourceListPhase.Loading, Items = [], ErrorKey = null };
+            if (!refreshInPlace || previous.Phase is not (NativeResourceListPhase.Populated
+                    or NativeResourceListPhase.Empty or NativeResourceListPhase.NoMatches))
+                _list = _list with {
+                    Phase = NativeResourceListPhase.Loading, Items = [], ErrorKey = null };
         }
         try
         {

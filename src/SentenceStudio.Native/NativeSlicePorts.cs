@@ -15,6 +15,13 @@ public enum NativeSyncOutcome { Confirmed, Offline, Unconfirmed }
 public interface INativeSyncReadiness
 {
     Task<NativeSyncOutcome> SynchronizeAsync(string userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Moves after every local sync run (readiness or background trigger), which may have
+    /// applied downloaded rows. A reader that captured it before reading compares it at
+    /// use time to know whether its rows predate a sync. Zero when no sync runs here.
+    /// </summary>
+    long SyncGeneration => 0;
 }
 
 /// <summary>

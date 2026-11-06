@@ -57,12 +57,20 @@ public sealed class NativeSamContractTests
 
     /// <summary>
     /// Decision 6 (2026-11-03): Sam on every signed-in screen, as the source MainLayout
-    /// mounts it. Tab roots keep the floating entry; every screen pushed on either tab's
-    /// NavigationStack gets the navigation bar entry, so none of them can be missed.
+    /// mounts it. Where the tab bar shows, Sam's tab slot is the one entry (never a second
+    /// toolbar button, Captain 2026-11-06); every pushed screen that hides the tab bar gets
+    /// the navigation bar entry, so none of them can be missed.
     /// </summary>
     [Fact]
-    public void EveryPushedSignedInScreenCarriesTheSamToolbarEntry()
+    public void EveryPushedScreenWithoutTheTabBarCarriesTheSamToolbarEntry()
     {
+        // The browse pages keep the tab bar, so Sam's slot is their entry.
+        var browse = new[]
+        {
+            "\"activity-log\"", "\"profile\"", "\"skills\"", "ApplicationFormRoutes.LibraryResources",
+            "ApplicationFormRoutes.MinimalPairs", "ApplicationFormRoutes.RecentLookups",
+            "ApplicationFormRoutes.Vocabulary",
+        };
         var files = Directory.GetFiles(Path.Combine(HeadPath, "App"), "ApplicationScene*.cs");
         var pushes = files.SelectMany(file => Regex.Matches(File.ReadAllText(file),
                 @"\.Push\(([^,]+),\s*([^\n]*)")
@@ -74,8 +82,18 @@ public sealed class NativeSamContractTests
         // push); the Minimal Pairs child page joined the Library stack.
         Assert.True(pushes.Length >= 11, $"Expected every pushed screen, found {pushes.Length}.");
         foreach (var push in pushes)
-            Assert.True(push.Destination.StartsWith("WithSamToolbar(", StringComparison.Ordinal),
-                $"{push.File} pushes {push.Route} without the Sam entry.");
+        {
+            if (browse.Contains(push.Route))
+                Assert.False(push.Destination.StartsWith("WithSamToolbar(", StringComparison.Ordinal),
+                    $"{push.File} pushes {push.Route} with a second Sam entry beside his tab slot.");
+            else
+                Assert.True(push.Destination.StartsWith("WithSamToolbar(", StringComparison.Ordinal),
+                    $"{push.File} pushes {push.Route} without the Sam entry.");
+        }
+        Assert.Equal(browse.Length, pushes.Count(push => browse.Contains(push.Route)));
+        // A smart resource read in the Library keeps the tab bar: its toolbar entry drops then.
+        Assert.Contains("tabBarShown: () => !_renderedResourceFormHidesTabBar",
+            Source("App/ApplicationScene.cs"));
         var scene = Source("App/ApplicationScene.Sam.cs");
         Assert.Contains("SamView.ToolbarEntry(_app.SamState, _app.Localize, _app.SamActions.Open)", scene);
         Assert.Contains("UpdateSamToolbars();", scene);
@@ -91,6 +109,7 @@ public sealed class NativeSamContractTests
         var update = scene[scene.IndexOf("private void UpdateSamToolbars()", StringComparison.Ordinal)..
             scene.IndexOf("private SwiftView SamToolbarHost()", StringComparison.Ordinal)];
         Assert.Contains("var available = _app.IsSamAvailable;", update);
+        Assert.Contains("if (!available || entry.TabBarShown?.Invoke() == true)", update);
         Assert.Contains("slot.Add(SamToolbarHost());", update);
         Assert.Contains("slot.RemoveAt(0);", update);
 
