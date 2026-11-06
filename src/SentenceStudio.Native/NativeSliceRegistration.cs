@@ -103,6 +103,9 @@ public static class NativeSliceRegistration
         // Import Content: the shared ContentImportService for the verified owner.
         services.TryAddSingleton<SentenceStudio.Native.Features.Import.INativeContentImport,
             NativeContentImport>();
+        // The shared AiService through the owner-bound API gateways (no key on the device), and
+        // the YouTube services the source Media Import page runs on the device.
+        services.AddNativeSharedAi();
         services.TryAddSingleton<INativeSamClient, UnavailableNativeSamClient>();
         services.AddTransient<NativeSamPresenter>();
         return services;
