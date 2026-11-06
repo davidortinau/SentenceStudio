@@ -125,6 +125,7 @@ public sealed class LearningResourceRepositoryDeleteTransactionTests : IDisposab
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = Owner,
             TargetLanguageTerm = "수박",
             NativeLanguageTerm = "watermelon",
             Language = "Korean",
@@ -186,8 +187,10 @@ public sealed class LearningResourceRepositoryDeleteTransactionTests : IDisposab
         db.LearningResources.Any(r => r.Id == resource.Id).Should().BeFalse();
     }
 
+    // The orphan sweep is retired (review of bf701c42, finding 3): the word stays in the
+    // learner's vocabulary, so its progress stays; the due reads keep it out of the plan.
     [Fact]
-    public async Task DeleteResourceAsync_StillSweepsOrphanedProgressUnderARetryingStrategy()
+    public async Task DeleteResourceAsync_KeepsTheWordsProgressUnderARetryingStrategy()
     {
         var (resource, word) = SeedResourceWithWord(Owner);
 
@@ -199,9 +202,9 @@ public sealed class LearningResourceRepositoryDeleteTransactionTests : IDisposab
         using var verify = _provider.CreateScope();
         var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.ResourceVocabularyMappings.Any(m => m.ResourceId == resource.Id).Should().BeFalse();
-        db.VocabularyProgresses.Any(p => p.VocabularyWordId == word.Id).Should().BeFalse(
-            "progress whose last reachable mapping went with the resource would otherwise be "
-            + "eternally due");
+        db.VocabularyWords.Any(w => w.Id == word.Id).Should().BeTrue();
+        db.VocabularyProgresses.Any(p => p.VocabularyWordId == word.Id).Should().BeTrue(
+            "the word stays the learner's, so its history stays");
     }
 
     [Fact]

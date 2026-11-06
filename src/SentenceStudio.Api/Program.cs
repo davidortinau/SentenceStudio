@@ -1235,12 +1235,19 @@ app.MapPost("/api/v1/vocabulary/{wordId}/status", async (
     string wordId,
     SetVocabularyStatusRequest request,
     ClaimsPrincipal user,
-    IVocabularyProgressService progressService) =>
+    IVocabularyProgressService progressService,
+    ApplicationDbContext db) =>
 {
     var userId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
     if (string.IsNullOrWhiteSpace(userId))
     {
         return Results.Unauthorized();
+    }
+
+    // Progress follows its word: only a word recorded to the learner (the one ownership rule).
+    if (!await db.VocabularyWords.AsNoTracking().OwnedBy(userId).AnyAsync(word => word.Id == wordId))
+    {
+        return Results.NotFound();
     }
 
     if (!Enum.TryParse<LearningStatus>(request.Status, ignoreCase: true, out var status))

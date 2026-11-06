@@ -463,7 +463,7 @@ public sealed class NativeWordAssociationPresenterTests
         {
             db.VocabularyWords.Add(new VocabularyWord
             {
-                Id = $"second-word-{i}", TargetLanguageTerm = $"second-{i}",
+                Id = $"second-word-{i}", UserProfileId = owner, TargetLanguageTerm = $"second-{i}",
                 NativeLanguageTerm = $"second-native-{i}", Language = "Korean"
             });
             db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping

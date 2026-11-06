@@ -4,43 +4,111 @@ using SentenceStudio.Shared.Models;
 namespace SentenceStudio.Data;
 
 /// <summary>
-/// Records who owns a <see cref="VocabularyWord"/>. A word with no owner gets one only
-/// when exactly one account links to it, through that account's resources or its own
-/// progress. Words linked to several accounts, or to none, keep a null owner; nothing is
-/// guessed, deleted, or reassigned. Used by startup backfills and by
-/// <see cref="ApplicationDbContext"/> after saves that add words, links, or progress.
+/// Whose a <see cref="VocabularyWord"/> is (Captain 2026-11-06): "every word should have an owner
+/// and only be visible and used by those owners." A word is a learner's only when it is recorded
+/// to them (<see cref="VocabularyWord.UserProfileId"/>). Every client (web, MAUI, native), the
+/// API's owner-checked sync and the Coach read, reuse, edit, merge and delete words by that rule
+/// alone; a word recorded to no one (NULL or '') is no one's and shown to no one. Nothing is
+/// inferred from links or progress at runtime: a word gets its owner when it is created (every
+/// creation path sets it, and <see cref="ApplicationDbContext"/> refuses a new word without one).
+/// Example sentences follow the same rule on their own <see cref="ExampleSentence.UserProfileId"/>.
+/// The one-time startup <see cref="BackfillAsync"/> and scripts/assign-vocabulary-word-owners.sql
+/// recorded the owners of legacy words.
 /// </summary>
 public static class VocabularyWordOwnership
 {
     private const int UpdateBatchSize = 500;
 
     /// <summary>
-    /// The one runtime rule for "this word is the learner's" (Captain 2026-11-06), used by every
-    /// client (web, MAUI, native), the API's owner-checked sync and the Coach for delete, merge,
-    /// edit and memory-aid visibility: the word is recorded to the learner
-    /// (<see cref="VocabularyWord.UserProfileId"/>). Nothing is inferred from links or progress
-    /// at runtime. A word recorded to no one is no one's: read-only for everyone, its memory aids
-    /// hidden, until the one-time backfill (scripts/assign-vocabulary-word-owners.sql) records
-    /// its single user. Example sentences follow the same rule on their own
-    /// <see cref="ExampleSentence.UserProfileId"/>. Returns the learner's words among
-    /// <paramref name="ids"/>.
+    /// The learner's words: those recorded to <paramref name="owner"/>. The one place the rule is
+    /// written as a query; a NULL or '' owner never equals a learner.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
+    public static IQueryable<VocabularyWord> OwnedBy(this IQueryable<VocabularyWord> words, string owner)
+    {
+        RequireOwner(owner);
+        return words.Where(word => word.UserProfileId == owner);
+    }
+
+    /// <summary>The learner's example sentences: those recorded to <paramref name="owner"/>.</summary>
+    /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
+    public static IQueryable<ExampleSentence> OwnedBy(this IQueryable<ExampleSentence> sentences, string owner)
+    {
+        RequireOwner(owner);
+        return sentences.Where(sentence => sentence.UserProfileId == owner);
+    }
+
+    /// <summary>
+    /// Whether a recorded owner names the learner: false for a NULL or '' recorded owner and for a
+    /// blank <paramref name="owner"/>, so an absent identity never matches.
+    /// </summary>
+    public static bool IsLearners(string? recordedOwner, string? owner) =>
+        !string.IsNullOrWhiteSpace(owner)
+        && string.Equals(recordedOwner, owner, StringComparison.Ordinal);
+
+    /// <summary>A recorded owner that names no one: NULL, '' or blank, the same everywhere.</summary>
+    public static bool IsOwnerless(string? recordedOwner) => string.IsNullOrWhiteSpace(recordedOwner);
+
+    /// <summary>
+    /// The learner's words among <paramref name="ids"/>
+    /// (<see cref="OwnedBy(IQueryable{VocabularyWord}, string)"/>).
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
     public static async Task<HashSet<string>> OwnedByAsync(
         ApplicationDbContext db, IReadOnlyCollection<string> ids, string owner,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(owner))
-            throw new ArgumentException("An owner is required to decide whose words these are.",
-                nameof(owner));
+        RequireOwner(owner);
         if (ids.Count == 0)
             return new HashSet<string>(StringComparer.Ordinal);
         var wanted = ids.Distinct(StringComparer.Ordinal).ToArray();
-        return (await db.VocabularyWords.AsNoTracking()
-                .Where(word => wanted.Contains(word.Id) && word.UserProfileId == owner)
+        return (await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+                .Where(word => wanted.Contains(word.Id))
                 .Select(word => word.Id)
                 .ToListAsync(cancellationToken))
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Words a learner may see, link or reuse: only their own
+    /// (<see cref="OwnedBy(IQueryable{VocabularyWord}, string)"/>), never another account's word
+    /// or one recorded to no one.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="userId"/> is null or blank (fail closed).</exception>
+    public static IQueryable<VocabularyWord> AvailableTo(ApplicationDbContext db, string userId) =>
+        db.VocabularyWords.OwnedBy(userId);
+
+    /// <summary>
+    /// On a device, gives the signed-in learner each example sentence recorded to no one whose
+    /// word is recorded to them and whose resource, if it has one, is theirs: the parent's owner,
+    /// the rule of the SyncOwnersPhase3 migration and <see cref="StampExampleSentencesAsync"/>.
+    /// Such sentences exist on MAUI installs upgraded from main: they were written on the device
+    /// before sentences had owners or synced, and the migration could not take the owner from a
+    /// word whose own owner only arrives with the first sync afterwards. Without this they would
+    /// stay hidden (and unsynced) for good. Idempotent: a sentence with an owner is never changed,
+    /// and nothing is deleted. Returns how many sentences took the owner.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
+    public static Task<int> ClaimOwnSentencesOnDeviceAsync(
+        ApplicationDbContext db, string owner, CancellationToken cancellationToken = default)
+    {
+        RequireOwner(owner);
+        return db.ExampleSentences
+            .Where(sentence => (sentence.UserProfileId == null || sentence.UserProfileId == "")
+                && db.VocabularyWords.Any(word => word.Id == sentence.VocabularyWordId
+                    && word.UserProfileId == owner)
+                && (sentence.LearningResourceId == null
+                    || db.LearningResources.Any(resource => resource.Id == sentence.LearningResourceId
+                        && resource.UserProfileId == owner)))
+            .ExecuteUpdateAsync(set => set.SetProperty(sentence => sentence.UserProfileId, owner),
+                cancellationToken);
+    }
+
+    private static void RequireOwner(string? owner)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            throw new ArgumentException("An owner is required to decide whose words these are.",
+                nameof(owner));
     }
 
     /// <summary>Outcome of one stamping pass.</summary>
@@ -62,33 +130,6 @@ public static class VocabularyWordOwnership
 
     private sealed record OwnerLink(string WordId, string Owner);
 
-    /// <summary>
-    /// Words a learner may see, link, or reuse: words they own, or ownerless legacy words
-    /// no other account uses that are either already this learner's (by resource link or
-    /// progress) or carry nothing of anyone else's: no memory aids, and no example sentence
-    /// except the learner's own. Never another account's word. Linking an unlinked ownerless
-    /// word stamps it, and its ownerless sentences, with the linker's owner (see
-    /// <see cref="Stamp"/>), so one holding memory aids, ownerless sentences or another
-    /// learner's sentences is offered to no one.
-    /// </summary>
-    public static IQueryable<VocabularyWord> AvailableTo(ApplicationDbContext db, string userId) =>
-        db.VocabularyWords.Where(word =>
-            word.UserProfileId == userId
-            || word.UserProfileId == null
-                && !db.ResourceVocabularyMappings.Any(mapping =>
-                    mapping.VocabularyWordId == word.Id
-                    && !db.LearningResources.Any(resource =>
-                        resource.Id == mapping.ResourceId && resource.UserProfileId == userId))
-                && !db.VocabularyProgresses.Any(progress =>
-                    progress.VocabularyWordId == word.Id && progress.UserId != userId)
-                && (db.ResourceVocabularyMappings.Any(mapping => mapping.VocabularyWordId == word.Id)
-                    || db.VocabularyProgresses.Any(progress => progress.VocabularyWordId == word.Id)
-                    || (word.MnemonicText == null || word.MnemonicText == "")
-                        && (word.MnemonicImageUri == null || word.MnemonicImageUri == "")
-                        // EF keeps C# null semantics: a null or '' owner differs from userId.
-                        && !db.ExampleSentences.Any(sentence => sentence.VocabularyWordId == word.Id
-                            && sentence.UserProfileId != userId)));
-
     /// <summary>Stamps every ownerless word that has exactly one owner.</summary>
     public static Task<Result> BackfillAsync(
         ApplicationDbContext db, Action? assertSession = null,
@@ -97,9 +138,10 @@ public static class VocabularyWordOwnership
 
     /// <summary>
     /// Stamps the given ownerless words (or all ownerless words when <paramref name="wordIds"/>
-    /// is null) that have exactly one owner.
+    /// is null) that have exactly one owner. Only the one-time startup backfill runs it: saves and
+    /// sync uploads never infer an owner (Captain 2026-11-06).
     /// </summary>
-    public static async Task<Result> StampAsync(
+    private static async Task<Result> StampAsync(
         ApplicationDbContext db, IReadOnlyCollection<string>? wordIds,
         Action? assertSession = null, CancellationToken cancellationToken = default)
     {
@@ -130,42 +172,6 @@ public static class VocabularyWordOwnership
             sentences += await OwnerlessSentencesOf(db, ids)
                 .ExecuteUpdateAsync(set => set.SetProperty(
                     sentence => sentence.UserProfileId, batch.Owner), cancellationToken);
-        }
-
-        return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared - notAProfile))
-        {
-            SentencesStamped = sentences,
-            OwnerNotAProfile = notAProfile
-        };
-    }
-
-    /// <summary>Synchronous twin of <see cref="StampAsync"/> for <c>SaveChanges()</c>.</summary>
-    public static Result Stamp(ApplicationDbContext db, IReadOnlyCollection<string> wordIds)
-    {
-        if (wordIds.Count == 0)
-            return Empty;
-
-        var ownerless = OwnerlessIds(db, wordIds);
-        var links = MappingLinks(db, ownerless).ToList();
-        links.AddRange(ProgressLinks(db, ownerless).ToList());
-        var ownerlessCount = ownerless.Count();
-        var (stamped, shared) = Plan(links);
-        var candidates = stamped.Values.Distinct(StringComparer.Ordinal).ToArray();
-        var notAProfile = OwnersMustBeProfiles(db, wordIds)
-            ? DropOwnersWithoutProfile(stamped, db.UserProfiles.AsNoTracking()
-                .Where(profile => candidates.Contains(profile.Id))
-                .Select(profile => profile.Id).ToList())
-            : 0;
-        var sentences = 0;
-
-        foreach (var batch in Batches(stamped))
-        {
-            var ids = batch.Ids;
-            db.VocabularyWords
-                .Where(word => ids.Contains(word.Id) && word.UserProfileId == null)
-                .ExecuteUpdate(set => set.SetProperty(word => word.UserProfileId, batch.Owner));
-            sentences += OwnerlessSentencesOf(db, ids)
-                .ExecuteUpdate(set => set.SetProperty(sentence => sentence.UserProfileId, batch.Owner));
         }
 
         return new(stamped, shared, Math.Max(0, ownerlessCount - stamped.Count - shared - notAProfile))
@@ -271,10 +277,9 @@ public static class VocabularyWordOwnership
     }
 
     /// <summary>
-    /// Only a profile can own a word. The server checks every planned owner, because progress
-    /// left by deleted accounts exists there. A device's save stamps only words it has just
-    /// created for the signed-in learner, whose profile row can arrive later with the first
-    /// sync, so a device save skips the check. A full backfill checks wherever it runs.
+    /// Only a profile can own a word: the backfill checks every planned owner, because progress
+    /// left by deleted accounts exists. (<paramref name="wordIds"/> is always null now that saves
+    /// no longer stamp; the backfill is left as it ran in production.)
     /// </summary>
     private static bool OwnersMustBeProfiles(
         ApplicationDbContext db, IReadOnlyCollection<string>? wordIds) =>

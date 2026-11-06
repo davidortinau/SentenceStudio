@@ -37,14 +37,17 @@ public class ExampleSentenceRepository
         _logger = logger;
     }
 
-    /// <summary>The active learner's sentences; none when there is no active learner.</summary>
+    /// <summary>
+    /// The active learner's sentences: recorded to them (the one ownership rule, on every store;
+    /// a device's own legacy ownerless sentences take their word's owner on sync,
+    /// <see cref="VocabularyWordOwnership.ClaimOwnSentencesOnDeviceAsync"/>). None when there is
+    /// no active learner.
+    /// </summary>
     private IQueryable<ExampleSentence> Visible(string operation)
     {
         if (!ActiveOwner.TryResolve(_serviceProvider, _logger, operation, out var owner))
             return _context.ExampleSentences.Where(_ => false);
-        return ActiveOwner.ShowsUnownedRows(_context)
-            ? _context.ExampleSentences.Where(es => es.UserProfileId == owner || es.UserProfileId == null)
-            : _context.ExampleSentences.Where(es => es.UserProfileId == owner);
+        return _context.ExampleSentences.OwnedBy(owner);
     }
 
     /// <summary>
@@ -219,6 +222,10 @@ public class ExampleSentenceRepository
             join resource in db.LearningResources.AsNoTracking()
                 on mapping.ResourceId equals resource.Id
             where requestedWordIds.Contains(sentence.VocabularyWordId)
+                // The learner's own sentence on their own word (the one ownership rule).
+                && sentence.UserProfileId == normalizedUserId
+                && db.VocabularyWords.Any(word => word.Id == sentence.VocabularyWordId
+                    && word.UserProfileId == normalizedUserId)
                 && sentence.TargetSentence.Trim() != string.Empty
                 && !sentence.IsFlagged
                 && (sentence.Status == ExampleSentenceStatus.Curated

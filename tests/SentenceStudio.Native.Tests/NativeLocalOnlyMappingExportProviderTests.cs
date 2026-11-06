@@ -450,6 +450,92 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         Assert.Equal(1, await local.VocabularyLearningContexts.CountAsync());
     }
 
+    /// <summary>
+    /// Under the owner filter (Captain 2026-11-06) and the one-time send of rows the old filter
+    /// withheld, the server sends an owner's progress row this device never had as an update:
+    /// the server changed it after creating it. CoreSync's update touches no row and reports a
+    /// conflict. Kept as "local progress pending", the row was skipped and its learning
+    /// contexts then failed their foreign key; it now takes the app's resolution and is inserted.
+    /// </summary>
+    [Fact]
+    public async Task DownloadedUpdateOfAProgressRowMissingHere_InsertsItAndItsContext()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var serverProgress = Guid.NewGuid().ToString();
+        var serverContext = Guid.NewGuid().ToString();
+        var t0 = new DateTime(2026, 11, 6, 9, 0, 0);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(serverProgress, Owner, t0));
+            db.VocabularyLearningContexts.Add(Attempt(serverContext, serverProgress, t0));
+            await db.SaveChangesAsync();
+        }
+        var localStore = await fixture.Local.Provider.GetStoreIdAsync();
+        var download = await fixture.Remote.Provider.GetChangesAsync(localStore);
+        Assert.Contains(download.Items, item => item.TableName == "VocabularyProgress");
+        var asUpdates = new SyncChangeSet(download.SourceAnchor, download.TargetAnchor,
+            download.Items.Select(item => item.TableName == "VocabularyProgress"
+                ? new SyncItem(item.TableName, ChangeType.Update,
+                    item.Values.ToDictionary(pair => pair.Key, pair => pair.Value?.Value))
+                : item).ToArray());
+
+        await fixture.Native.ApplyChangesAsync(asUpdates, AppResolution);
+
+        await using var local = fixture.Local.OpenContext();
+        var row = await local.VocabularyProgresses.AsNoTracking().SingleAsync();
+        Assert.Equal(serverProgress, row.Id);
+        Assert.Equal(1, row.TotalAttempts);
+        Assert.Equal(serverProgress, (await local.VocabularyLearningContexts.AsNoTracking()
+            .SingleAsync(context => context.Id == serverContext)).VocabularyProgressId);
+    }
+
+    /// <summary>
+    /// The other half of the rule: a downloaded update of a progress row this device holds and
+    /// changed since its last upload still keeps the device's row pending (its next upload merges
+    /// with the server's), instead of force-writing it over the device's attempt.
+    /// </summary>
+    [Fact]
+    public async Task DownloadedUpdateOfAProgressRowChangedHere_KeepsTheLocalRow()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var progressId = Guid.NewGuid().ToString();
+        var t0 = new DateTime(2026, 11, 6, 9, 0, 0);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(progressId, Owner, t0));
+            await db.SaveChangesAsync();
+        }
+        await fixture.SynchronizeLikeAppAsync();
+        await using (var db = fixture.Local.OpenContext())
+        {
+            var mine = await db.VocabularyProgresses.SingleAsync(row => row.Id == progressId);
+            mine.TotalAttempts = 5;
+            mine.UpdatedAt = t0.AddMinutes(5);
+            await db.SaveChangesAsync();
+        }
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            var theirs = await db.VocabularyProgresses.SingleAsync(row => row.Id == progressId);
+            theirs.TotalAttempts = 2;
+            theirs.UpdatedAt = t0.AddMinutes(1);
+            await db.SaveChangesAsync();
+        }
+        var localStore = await fixture.Local.Provider.GetStoreIdAsync();
+        var download = await fixture.Remote.Provider.GetChangesAsync(localStore);
+        Assert.Contains(download.Items, item => item.TableName == "VocabularyProgress"
+            && item.ChangeType == ChangeType.Update);
+
+        await fixture.Native.ApplyChangesAsync(download, AppResolution);
+
+        await using var local = fixture.Local.OpenContext();
+        Assert.Equal(5, (await local.VocabularyProgresses.AsNoTracking()
+            .SingleAsync(row => row.Id == progressId)).TotalAttempts);
+    }
+
+    // SyncService's local resolution: skip insert conflicts, force updates and deletes.
+    private static ConflictResolution AppResolution(SyncItem item) =>
+        item.ChangeType == ChangeType.Insert ? ConflictResolution.Skip : ConflictResolution.ForceWrite;
+
     [Fact]
     public async Task ForeignOwnerCollision_IsNeverMerged()
     {
@@ -650,7 +736,7 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
                 });
                 db.VocabularyWords.Add(new VocabularyWord
                 {
-                    Id = Word, TargetLanguageTerm = "practice", NativeLanguageTerm = "test"
+                    Id = Word, UserProfileId = Owner, TargetLanguageTerm = "practice", NativeLanguageTerm = "test"
                 });
                 if (seedRemoteMapping)
                     db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping

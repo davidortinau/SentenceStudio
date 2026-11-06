@@ -389,18 +389,72 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
     {
         await ProvisionWithLateTablesAsync(cancellationToken);
 
+        // The learner's own legacy sentences take their word's owner before this upload.
+        await ClaimOwnSentencesAsync(cancellationToken);
+
         var followUp = _localSyncProvider as ISyncFollowUpSource;
         // A request left by an earlier failed run is answered by this run's own upload.
         followUp?.TakeFollowUpRequest();
         await SynchronizePassAsync(cancellationToken);
-        if (followUp?.TakeFollowUpRequest() != true)
+        // Word owners can arrive with the download; sentences of those words follow them.
+        var claimedAfterDownload = await ClaimOwnSentencesAsync(cancellationToken);
+        if (followUp?.TakeFollowUpRequest() != true && claimedAfterDownload == 0)
             return;
 
-        // The download merged rows that only an upload sends; send them now instead of on
-        // the next sync. Bounded: a request raised by this pass waits for the next sync.
+        // The download merged rows that only an upload sends (or gave sentences their owner);
+        // send them now instead of on the next sync. Bounded: a request raised by this pass
+        // waits for the next sync.
         _logger.LogInformation("Sync: running one follow-up pass to upload rows merged during the download");
         await SynchronizePassAsync(cancellationToken);
-        followUp.TakeFollowUpRequest();
+        followUp?.TakeFollowUpRequest();
+    }
+
+    /// <summary>
+    /// On a device store, gives the signed-in learner the example sentences recorded to no one
+    /// whose word (and resource, if any) is theirs
+    /// (<see cref="VocabularyWordOwnership.ClaimOwnSentencesOnDeviceAsync"/>): written on this
+    /// device before sentences had owners, they would otherwise stay hidden and never sync.
+    /// Fails closed without an owner. A failure is logged and never stops the sync. Returns how
+    /// many sentences took the owner.
+    /// </summary>
+    private async Task<int> ClaimOwnSentencesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            if (scope.ServiceProvider.GetService<ApplicationDbContext>() is not { } db
+                || !db.Database.IsSqlite())
+                return 0;
+            var owner = await SyncOwnerAsync(scope.ServiceProvider, cancellationToken);
+            if (string.IsNullOrWhiteSpace(owner))
+                return 0;
+            var claimed = await VocabularyWordOwnership.ClaimOwnSentencesOnDeviceAsync(
+                db, owner, cancellationToken);
+            if (claimed > 0)
+                _logger.LogInformation(
+                    "Sync: {Count} of the learner's ownerless example sentences took their word's owner", claimed);
+            return claimed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Sync: could not give the learner's ownerless example sentences their owner");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// The verified sync owner: MAUI (one database for every account) names it through
+    /// <see cref="ISyncOwnerSource"/>; native heads use the device scope's readiness lease.
+    /// </summary>
+    private static async Task<string?> SyncOwnerAsync(
+        IServiceProvider services, CancellationToken cancellationToken)
+    {
+        if (services.GetService<ISyncOwnerSource>() is { } owners)
+            return (await owners.GetAsync(cancellationToken))?.Owner;
+        if (services.GetService<SentenceStudio.Services.Plans.IUserScopeProvider>() is { } scopeProvider
+            && scopeProvider.TryGetUserProfileId(out var scoped))
+            return scoped;
+        return null;
     }
 
     /// <summary>
@@ -427,12 +481,7 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
 
         // A head with one database for every account (MAUI) names the verified sync owner;
         // native heads use the device scope's readiness lease.
-        string? owner = null;
-        if (scope.ServiceProvider.GetService<ISyncOwnerSource>() is { } owners)
-            owner = (await owners.GetAsync(cancellationToken))?.Owner;
-        else if (scope.ServiceProvider.GetService<SentenceStudio.Services.Plans.IUserScopeProvider>()
-            is { } scopeProvider && scopeProvider.TryGetUserProfileId(out var scoped))
-            owner = scoped;
+        var owner = await SyncOwnerAsync(scope.ServiceProvider, cancellationToken);
         if (string.IsNullOrWhiteSpace(owner))
         {
             if (untracked.Count > 0)

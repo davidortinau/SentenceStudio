@@ -502,15 +502,22 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         var anyOwnedResource = selectedResourceIds.Count == 0
             || card.PlanItemId.StartsWith("adhoc-")
                 && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0);
-        var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
-            .Join(db.LearningResources.AsNoTracking().Where(resource =>
-                    resource.UserProfileId == userId
-                    && (anyOwnedResource || selectedResourceIds.Contains(resource.Id))),
-                mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, resource) => mapping.VocabularyWordId)
-            .Where(wordId => checkedIds.Contains(wordId))
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        // Only the owner's words (the one ownership rule): with no resource scope every word
+        // recorded to them, linked or not (the quiz's pool); otherwise their words the selected
+        // resources link.
+        var ownedWords = db.VocabularyWords.AsNoTracking().OwnedBy(userId).Select(word => word.Id);
+        var reachable = anyOwnedResource
+            ? await ownedWords.Where(wordId => checkedIds.Contains(wordId))
+                .ToListAsync(cancellationToken)
+            : await db.ResourceVocabularyMappings.AsNoTracking()
+                .Join(db.LearningResources.AsNoTracking().Where(resource =>
+                        resource.UserProfileId == userId
+                        && selectedResourceIds.Contains(resource.Id)),
+                    mapping => mapping.ResourceId, resource => resource.Id,
+                    (mapping, resource) => mapping.VocabularyWordId)
+                .Where(wordId => checkedIds.Contains(wordId) && ownedWords.Contains(wordId))
+                .Distinct()
+                .ToListAsync(cancellationToken);
         if (batchIds.Any(id => !reachable.Contains(id, StringComparer.Ordinal))
             || focus.Count > 0 && batchIds.Any(id => !focus.Contains(
                 id, StringComparer.Ordinal))
@@ -522,7 +529,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             throw new InvalidOperationException(
                 "Quiz pending turn references vocabulary outside its approved owner graph.");
 
-        var word = await db.VocabularyWords.AsNoTracking().SingleOrDefaultAsync(
+        var word = await db.VocabularyWords.AsNoTracking().OwnedBy(userId).SingleOrDefaultAsync(
             item => item.Id == attempt.VocabularyWordId, cancellationToken)
             ?? throw new InvalidOperationException("Quiz pending word is missing.");
         var expected = snapshot.PromptUsesNativeLanguage
@@ -543,8 +550,12 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         if (activity is null)
             return;
 
+        // Only parts recorded to the learner: another learner's or no one's word is not theirs
+        // to practise (the one ownership rule), and its progress would never sync.
+        var ownedWords = db.VocabularyWords.AsNoTracking().OwnedBy(userId).Select(row => row.Id);
         var constituentIds = await db.PhraseConstituents.AsNoTracking()
-            .Where(row => row.PhraseWordId == word.Id && row.ConstituentWordId != null)
+            .Where(row => row.PhraseWordId == word.Id && row.ConstituentWordId != null
+                && ownedWords.Contains(row.ConstituentWordId))
             .Select(row => row.ConstituentWordId!)
             .ToListAsync(cancellationToken);
 
@@ -808,14 +819,19 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 cancellationToken))
             return false;
 
-        var ownedWords = await db.VocabularyWords.AsNoTracking()
-            .Where(word => db.ResourceVocabularyMappings.Any(mapping =>
-                mapping.VocabularyWordId == word.Id
-                && db.LearningResources.Any(resource =>
-                    resource.Id == mapping.ResourceId
-                    && resource.UserProfileId == launch.UserId
-                    && (resourceId == null || resource.Id == resourceId))))
-            .ToListAsync(cancellationToken);
+        // The quiz's pool: every word recorded to the learner, or their words the plan's
+        // resource links (the one ownership rule).
+        var learnersWords = db.VocabularyWords.AsNoTracking().OwnedBy(launch.UserId);
+        var ownedWords = resourceId is null
+            ? await learnersWords.ToListAsync(cancellationToken)
+            : await learnersWords
+                .Where(word => db.ResourceVocabularyMappings.Any(mapping =>
+                    mapping.VocabularyWordId == word.Id
+                    && db.LearningResources.Any(resource =>
+                        resource.Id == mapping.ResourceId
+                        && resource.UserProfileId == launch.UserId
+                        && resource.Id == resourceId)))
+                .ToListAsync(cancellationToken);
         var usable = ownedWords.Where(FocusVocabularySelection.IsUsableVocabularyWord)
             .Select(word => word.Id).ToList();
         if (usable.Count == 0)

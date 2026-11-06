@@ -79,18 +79,59 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         if (adopted.Count > 0)
             Volatile.Write(ref _followUpRequested, 1);
 
-        // A downloaded progress row conflicts only when this device changed the same row
-        // after its last upload: an adopted merge above, or an attempt recorded while this
-        // sync ran. Force-writing it would drop that attempt's counts while its context
-        // survives. Keep the local row pending instead: the server merges its next upload
-        // with the stored row (VocabularyProgressConcurrentMerge), and the server's contexts
-        // still insert under it.
+        // A downloaded progress row this device holds conflicts only when the device changed
+        // the same row after its last upload: an adopted merge above, or an attempt recorded
+        // while this sync ran. Force-writing it would drop that attempt's counts while its
+        // context survives. Keep the local row pending instead: the server merges its next
+        // upload with the stored row (VocabularyProgressConcurrentMerge), and the server's
+        // contexts still insert under it.
+        // A progress row the device does NOT hold also arrives as an update when the server
+        // changed it after creating it (for example the owner's progress on a word this device
+        // was not sent before, Captain 2026-11-06): CoreSync's update touches no row and reports
+        // a conflict. Skipping it would lose the row and fail its contexts' foreign key, so it
+        // takes the caller's resolution (ForceWrite inserts it, as on MAUI).
+        var heldLocally = await LocalProgressIdsAsync(changeSet, cancellationToken);
         return await ApplyLocalAsync(changeSet, item =>
             item.TableName == NativeProgressIdentityReconciler.ProgressTable
                 && item.ChangeType != ChangeType.Delete
+                && item.Values is not null
+                && item.Values.TryGetValue("Id", out var id)
+                && id?.Value?.ToString() is { } progressId
+                && heldLocally.Contains(progressId)
                 ? KeepLocalProgress(item)
                 : onConflictFunc?.Invoke(item) ?? ConflictResolution.Skip,
             cancellationToken);
+    }
+
+    /// <summary>The downloaded VocabularyProgress Ids this device already stores.</summary>
+    private async Task<HashSet<string>> LocalProgressIdsAsync(
+        SyncChangeSet changeSet, CancellationToken cancellationToken)
+    {
+        var ids = changeSet.Items
+            .Where(item => item.TableName == NativeProgressIdentityReconciler.ProgressTable
+                && item.ChangeType != ChangeType.Delete && item.Values is not null
+                && item.Values.TryGetValue("Id", out var id) && id?.Value is not null)
+            .Select(item => item.Values["Id"].Value!.ToString()!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var held = new HashSet<string>(StringComparer.Ordinal);
+        if (ids.Length == 0)
+            return held;
+        await using var connection = new SqliteConnection(local.Configuration.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        foreach (var chunk in ids.Chunk(500))
+        {
+            await using var command = connection.CreateCommand();
+            var names = chunk.Select((_, index) => $"$id{index}").ToArray();
+            command.CommandText =
+                $"SELECT \"Id\" FROM \"{NativeProgressIdentityReconciler.ProgressTable}\" WHERE \"Id\" IN ({string.Join(", ", names)})";
+            for (var index = 0; index < chunk.Length; index++)
+                command.Parameters.AddWithValue(names[index], chunk[index]);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                held.Add(reader.GetString(0));
+        }
+        return held;
     }
 
     private ConflictResolution KeepLocalProgress(SyncItem item)

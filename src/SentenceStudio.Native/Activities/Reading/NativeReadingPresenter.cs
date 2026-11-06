@@ -664,8 +664,10 @@ public sealed class NativeReadingPresenter(
             {
                 var status = await resources.CreateAndAttachOwnedVocabularyAsync(
                     resource.Id,
+                    // The learner saving it creates the word (recorded to them).
                     new VocabularyWord
                     {
+                        UserProfileId = userId,
                         TargetLanguageTerm = panel.Word,
                         NativeLanguageTerm = panel.Definition
                     },

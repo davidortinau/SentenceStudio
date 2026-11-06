@@ -66,7 +66,11 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
             Assert.False(await server.VocabularyProgresses.AnyAsync(row => row.Id == rows.OtherProgress));
             Assert.False(await server.SceneImages.AnyAsync(row => row.Id == rows.UnownedImage));
             Assert.False(await server.VocabularyLists.AnyAsync(row => row.Id == rows.LegacyList));
-            Assert.False(await server.VocabularyWords.AnyAsync(row => row.Id == rows.OrphanWord));
+            // Words go by their recorded owner (Captain 2026-11-06): the learner's word in no
+            // resource syncs too; another learner's word on this install does not.
+            Assert.True(await server.VocabularyWords.AnyAsync(row =>
+                row.Id == rows.OrphanWord && row.UserProfileId == owner));
+            Assert.False(await server.VocabularyWords.AnyAsync(row => row.Id == rows.OtherWord));
             Assert.False(await server.ConversationScenarios.AnyAsync(row => row.Id == rows.BuiltInScenario));
             Assert.Equal("Theirs", (await server.LearningResources.AsNoTracking()
                 .SingleAsync(row => row.Id == otherServerResource)).Title);
@@ -160,12 +164,12 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
     }
 
     [ApplicationOperationPostgresFact]
-    public async Task SharedOldWord_TheServerInfersIsAnothersLearners_IsLeftOut_AndSyncIsNotStuck()
+    public async Task SharedOldWord_RecordedToNoOne_IsLeftOut_AndSyncIsNotStuck()
     {
         // An old word with no recorded owner, linked from another learner's resource. On the
-        // MAUI install the learner also practised it, so locally it names two learners (no owner)
-        // and is uploaded; the server, without that new progress row yet, infers the other
-        // learner. The client and server disagree, and the row must not stop this install's sync.
+        // MAUI install the learner also practised and edited it. It is no one's (the one
+        // ownership rule): the device holds it back, the server leaves the learner's progress on
+        // it out, and the row must not stop this install's sync.
         var (owner, other) = await _fixture.SeedOwnersAsync();
         var word = Guid.NewGuid().ToString();
         var otherResource = Guid.NewGuid().ToString();
@@ -187,12 +191,15 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
         var progress = Guid.NewGuid().ToString();
         var ownResource = Guid.NewGuid().ToString();
         var now = DateTime.UtcNow;
-        // Separate saves: a device records an owner only for a word created in the same save.
+        // The old word as the install holds it: saved before words had owners (a save can no
+        // longer create one, so SQL clears the owner the way the old rows were left).
         await using (var local = device.OpenContext())
         {
             local.LearningResources.Add(new LearningResource { Id = otherResource, UserProfileId = other, Title = "Theirs", CreatedAt = now, UpdatedAt = now });
-            local.VocabularyWords.Add(new VocabularyWord { Id = word, TargetLanguageTerm = "shared", CreatedAt = now, UpdatedAt = now });
+            local.VocabularyWords.Add(new VocabularyWord { Id = word, TargetLanguageTerm = "shared", UserProfileId = owner, CreatedAt = now, UpdatedAt = now });
             await local.SaveChangesAsync();
+            await local.VocabularyWords.Where(row => row.Id == word)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.UserProfileId, (string?)null));
         }
         await using (var local = device.OpenContext())
         {
@@ -337,7 +344,8 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
                 new VocabularyWord { Id = rows.SecondWord, TargetLanguageTerm = "불", NativeLanguageTerm = "fire", UserProfileId = owner, CreatedAt = now, UpdatedAt = now },
                 // A lookup saved as a word before B7: owned but in no resource.
                 new VocabularyWord { Id = rows.OrphanWord, TargetLanguageTerm = "꽃", NativeLanguageTerm = "flower", UserProfileId = owner, CreatedAt = now, UpdatedAt = now },
-                new VocabularyWord { Id = rows.OtherWord, TargetLanguageTerm = "산", NativeLanguageTerm = "mountain", CreatedAt = now, UpdatedAt = now });
+                // Downloaded before owner checks: another learner's word.
+                new VocabularyWord { Id = rows.OtherWord, TargetLanguageTerm = "산", NativeLanguageTerm = "mountain", UserProfileId = other, CreatedAt = now, UpdatedAt = now });
             db.ResourceVocabularyMappings.AddRange(
                 new ResourceVocabularyMapping { Id = rows.Mapping, ResourceId = rows.Resource, VocabularyWordId = rows.Word },
                 new ResourceVocabularyMapping { Id = Guid.NewGuid().ToString(), ResourceId = rows.Resource, VocabularyWordId = rows.SecondWord },

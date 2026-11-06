@@ -455,6 +455,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -537,6 +538,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -617,6 +619,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "hola",
             NativeLanguageTerm = "hello",
             Language = "Spanish",
@@ -691,6 +694,7 @@ public class ContentImportServiceTests : IDisposable
         var sharedWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -813,6 +817,7 @@ public class ContentImportServiceTests : IDisposable
         var sharedWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "감사합니다",
             NativeLanguageTerm = "thank you",
             Language = "Korean",
@@ -895,6 +900,7 @@ public class ContentImportServiceTests : IDisposable
         var sharedWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "사랑",
             NativeLanguageTerm = "love",
             Language = "Korean",
@@ -985,6 +991,7 @@ public class ContentImportServiceTests : IDisposable
         var phraseWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "좋아요",
             NativeLanguageTerm = "like",
             Language = "Korean",
@@ -995,6 +1002,7 @@ public class ContentImportServiceTests : IDisposable
         var constituentWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "좋다",
             NativeLanguageTerm = "good",
             Language = "Korean",
@@ -1085,6 +1093,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -1170,6 +1179,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -1938,6 +1948,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "바나나",
             NativeLanguageTerm = "banana",
             Language = "Korean",
@@ -1983,6 +1994,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "포도",
             NativeLanguageTerm = "grape",
             Language = "Korean",
@@ -2123,6 +2135,7 @@ public class ContentImportServiceTests : IDisposable
         var existingWord = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "딸기",
             NativeLanguageTerm = "strawberry",
             Language = "Korean",
@@ -2232,6 +2245,7 @@ public class ContentImportServiceTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "안녕하세요",
             NativeLanguageTerm = "hello",
             Language = "Korean",
@@ -2271,6 +2285,7 @@ public class ContentImportServiceTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "사과",
             NativeLanguageTerm = "apple",
             Language = "Korean",
@@ -2309,6 +2324,7 @@ public class ContentImportServiceTests : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = Guid.NewGuid().ToString(),
+                UserProfileId = _testUserId,
                 TargetLanguageTerm = $"단어{i}",
                 NativeLanguageTerm = $"word{i}",
                 Language = "Korean",
@@ -2367,6 +2383,7 @@ public class ContentImportServiceTests : IDisposable
         db.VocabularyWords.Add(new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = _testUserId,
             TargetLanguageTerm = "감사합니다",
             NativeLanguageTerm = "thank you",
             Language = "Korean",

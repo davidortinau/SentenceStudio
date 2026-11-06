@@ -370,11 +370,19 @@ internal sealed class CoachToolTestFixture : IDisposable
         return resource;
     }
 
-    public VocabularyWord SeedWord(string target, string native, string? tags = null, string? lemma = null)
+    /// <summary>
+    /// Seeds a word recorded to <paramref name="owner"/> (every word has an owner, Captain
+    /// 2026-11-06). Without one it is recorded to <see cref="UserA"/> until the first
+    /// <see cref="SeedProgress"/> for it names its learner: in these tests the learner who
+    /// practises a word is the one who created it.
+    /// </summary>
+    public VocabularyWord SeedWord(string target, string native, string? tags = null, string? lemma = null,
+        string? owner = null)
     {
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString(),
+            UserProfileId = owner ?? UserA,
             TargetLanguageTerm = target,
             NativeLanguageTerm = native,
             Lemma = lemma,
@@ -386,8 +394,12 @@ internal sealed class CoachToolTestFixture : IDisposable
         };
         Db.VocabularyWords.Add(word);
         Db.SaveChanges();
+        if (owner is null)
+            _wordsAwaitingTheirLearner.Add(word.Id);
         return word;
     }
+
+    private readonly HashSet<string> _wordsAwaitingTheirLearner = new(StringComparer.Ordinal);
 
     public VocabularyProgress SeedProgress(
         string userProfileId,
@@ -413,6 +425,9 @@ internal sealed class CoachToolTestFixture : IDisposable
         };
         Db.VocabularyProgresses.Add(progress);
         Db.SaveChanges();
+        if (_wordsAwaitingTheirLearner.Remove(vocabularyWordId))
+            Db.VocabularyWords.Where(word => word.Id == vocabularyWordId)
+                .ExecuteUpdate(set => set.SetProperty(word => word.UserProfileId, userProfileId));
         return progress;
     }
 

@@ -362,7 +362,42 @@ public class SmartResourcePhrasesTests : IDisposable
     }
 
     /// <summary>
-    /// Scenario 7: Run refresh twice in sequence. Final mapping count equals single-run count. 
+    /// The one ownership rule (Captain 2026-11-06): New Words for a learner come from the words
+    /// recorded to the learner named in the call, not the device's active learner (before, it read
+    /// the active learner's words and could fill another learner's resource with them).
+    /// </summary>
+    [Fact]
+    public async Task RefreshNewWords_UsesTheNamedLearnersOwnWords()
+    {
+        SeedUserProfile(TestUserA);
+        SeedUserProfile(TestUserB);
+        var aWord = SeedVocabularyWord("word-a-new", "사과", LexicalUnitType.Word);
+        var bWord = SeedVocabularyWord("word-b-new", "물", LexicalUnitType.Word);
+        _db.VocabularyWords.Find(bWord.Id)!.UserProfileId = TestUserB;
+        _db.SaveChanges();
+
+        var newWordsB = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "New Words",
+            IsSmartResource = true,
+            SmartResourceType = SmartResourceService.SmartResourceType_NewWords,
+            UserProfileId = TestUserB,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _resourceRepo.SaveResourceAsync(newWordsB, TestUserB);
+
+        // The device's active learner is A (the preferences mock); the refresh names B.
+        await _smartResourceService.RefreshSmartResourceAsync(newWordsB.Id, TestUserB);
+
+        (await _resourceRepo.GetVocabularyWordsByResourceAsync(newWordsB.Id, TestUserB))
+            .Select(word => word.Id).Should().Equal(bWord.Id);
+        aWord.Id.Should().NotBe(bWord.Id);
+    }
+
+    /// <summary>
+    /// Scenario 7: Run refresh twice in sequence. Final mapping count equals single-run count.
     /// No duplicate ResourceVocabularyMapping rows.
     /// </summary>
     [Fact]
@@ -656,6 +691,9 @@ public class SmartResourcePhrasesTests : IDisposable
         var word = new VocabularyWord
         {
             Id = id,
+            // Every word has an owner: TestUserA until the first progress row seeded for it
+            // names its learner (in these tests the learner who practises a word created it).
+            UserProfileId = TestUserA,
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = $"en_{targetTerm}",
             Language = "Korean",
@@ -665,8 +703,11 @@ public class SmartResourcePhrasesTests : IDisposable
         };
         _db.VocabularyWords.Add(word);
         _db.SaveChanges();
+        _wordsAwaitingTheirLearner.Add(word.Id);
         return word;
     }
+
+    private readonly HashSet<string> _wordsAwaitingTheirLearner = new(StringComparer.Ordinal);
 
     private VocabularyProgress SeedVocabularyProgress(
         string vocabularyWordId, 
@@ -693,6 +734,12 @@ public class SmartResourcePhrasesTests : IDisposable
         };
         _db.VocabularyProgresses.Add(progress);
         _db.SaveChanges();
+        if (_wordsAwaitingTheirLearner.Remove(vocabularyWordId)
+            && _db.VocabularyWords.Find(vocabularyWordId) is { } word)
+        {
+            word.UserProfileId = userId;
+            _db.SaveChanges();
+        }
         return progress;
     }
 }

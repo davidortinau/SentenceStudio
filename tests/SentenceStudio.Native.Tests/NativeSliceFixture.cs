@@ -206,6 +206,7 @@ internal sealed class NativeSliceFixture : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = wordId,
+                UserProfileId = userId,
                 TargetLanguageTerm = $"target-{userId}-{i}",
                 NativeLanguageTerm = $"native-{userId}-{i}",
                 Language = "Korean",
@@ -313,6 +314,16 @@ internal sealed class NativeSliceFixture : IDisposable
 
     public string ResourceId(string userId) => $"resource-{userId}";
     public string WordId(string userId, int index) => $"word-{userId}-{index}";
+
+    /// <summary>
+    /// Makes saved words legacy words recorded to no one, as stores hold them from before words
+    /// had owners. The save guard refuses a new word without an owner, so a test saves the word
+    /// with an owner and then clears it outside SaveChanges (as a sync download or migration
+    /// would have left it).
+    /// </summary>
+    public static Task<int> RecordToNoOneAsync(ApplicationDbContext db, params string[] wordIds) =>
+        db.VocabularyWords.Where(word => wordIds.Contains(word.Id))
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
 
     /// <summary>Returns and clears the query-guard findings, for a test that expects one.</summary>
     public IReadOnlyList<string> TakeQueryGuardFindings() => _queryGuardFindings.Drain();

@@ -111,6 +111,7 @@ public sealed class FocusVocabularyRepositoryScopingTests : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = wordId,
+                UserProfileId = otherUserId,
                 TargetLanguageTerm = $"target-{i}",
                 NativeLanguageTerm = $"native-{i}",
                 Language = "Korean",

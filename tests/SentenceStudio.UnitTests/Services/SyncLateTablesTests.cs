@@ -38,8 +38,8 @@ public sealed class SyncLateTablesTests
         {
             // Parents of the Minimal Pairs rows (already-synced tables, so they upload anyway).
             db.VocabularyWords.AddRange(
-                new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
-                new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2" });
+                new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1", UserProfileId = Owner },
+                new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2", UserProfileId = Owner });
             await db.SaveChangesAsync();
             var pairId = SyncIds.MinimalPair(Owner, "w1", "w2");
             db.MinimalPairs.Add(new MinimalPair

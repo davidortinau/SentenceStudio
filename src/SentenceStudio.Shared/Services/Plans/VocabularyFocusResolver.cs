@@ -70,32 +70,20 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
         // NextReviewDate is a UTC instant; due means due by the start of the learner's local day.
         var dueCutoffUtc = _dateContext.DueCutoffUtc();
 
-        // Ownership, both derivations, filtered by the trusted scope.
-        var progressOwned = _db.VocabularyProgresses
-            .Where(p => p.UserId == userId)
-            .Select(p => p.VocabularyWordId);
-
-        var resourceOwned = _db.ResourceVocabularyMappings
-            .Where(m => _db.LearningResources
-                .Any(r => r.Id == m.ResourceId && r.UserProfileId == userId))
-            .Select(m => m.VocabularyWordId);
-
-        var ownedIds = await progressOwned
-            .Union(resourceOwned)
-            .Distinct()
+        // The learner's words: those recorded to them (the one ownership rule, Captain
+        // 2026-11-06), never a word another learner owns, or no one owns, that one of their
+        // resources links or that they have progress on.
+        var ownedWords = await _db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userId)
+            .Select(w => new WordRow(w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.PartOfSpeech, w.Tags))
             .ToListAsync(ct);
 
-        if (ownedIds.Count == 0)
+        if (ownedWords.Count == 0)
         {
             _logger.LogInformation("Vocabulary focus found no owned vocabulary for the active scope.");
             return Empty(request, VocabularyFocusOutcome.NoMatches);
         }
-
-        var ownedWords = await _db.VocabularyWords
-            .AsNoTracking()
-            .Where(w => ownedIds.Contains(w.Id))
-            .Select(w => new WordRow(w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.PartOfSpeech, w.Tags))
-            .ToListAsync(ct);
 
         var classifiedCount = ownedWords.Count(w => w.PartOfSpeech is not null);
 

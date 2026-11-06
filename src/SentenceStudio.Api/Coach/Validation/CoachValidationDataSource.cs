@@ -99,8 +99,10 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
             return [];
         }
 
+        // Only the learner's own words and sentences (the one ownership rule).
         var words = await _db.VocabularyWords
             .AsNoTracking()
+            .OwnedBy(userProfileId)
             .Where(w => wordIds.Contains(w.Id))
             .Select(w => new WordRow(
                 w.Id,
@@ -113,6 +115,7 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
 
         var examples = await _db.ExampleSentences
             .AsNoTracking()
+            .OwnedBy(userProfileId)
             .Where(e => wordIds.Contains(e.VocabularyWordId))
             .Select(e => new ExampleRow(e.VocabularyWordId, e.TargetSentence, e.NativeSentence))
             .ToListAsync(cancellationToken)

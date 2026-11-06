@@ -113,7 +113,7 @@ public sealed class NativeConcurrentProgressMergeTests
         });
         db.VocabularyWords.Add(new VocabularyWord
         {
-            Id = Word, TargetLanguageTerm = "반찬", NativeLanguageTerm = "side dish"
+            Id = Word, UserProfileId = Owner, TargetLanguageTerm = "반찬", NativeLanguageTerm = "side dish"
         });
         db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
         {

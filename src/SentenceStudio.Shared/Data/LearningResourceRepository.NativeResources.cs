@@ -30,18 +30,13 @@ public partial class LearningResourceRepository
                 && !resource.IsSmartResource, cancellationToken))
             return [];
 
-        var ownerWords = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(resource =>
-                    resource.UserProfileId == userProfileId),
-                mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, _) => mapping.VocabularyWordId);
+        // The learner's own words (the one ownership rule), linked or not, not yet in this resource.
         var attached = db.ResourceVocabularyMappings
             .Where(mapping => mapping.ResourceId == resourceId)
             .Select(mapping => mapping.VocabularyWordId);
         var search = query?.ToLower().Trim() ?? string.Empty;
-        var words = db.VocabularyWords.AsNoTracking()
-            .Where(word => ownerWords.Contains(word.Id)
-                && !attached.Contains(word.Id) && word.Language == language);
+        var words = db.VocabularyWords.AsNoTracking().OwnedBy(userProfileId)
+            .Where(word => !attached.Contains(word.Id) && word.Language == language);
         if (search.Length > 0)
             words = words.Where(word =>
                 (word.TargetLanguageTerm != null
@@ -110,9 +105,10 @@ public partial class LearningResourceRepository
             return refusal;
 
         var targetTerm = word.TargetLanguageTerm.Trim();
+        // Only the learner's own words in the resource count; a hidden word is not shown there.
         if (await db.ResourceVocabularyMappings
             .Where(mapping => mapping.ResourceId == resourceId)
-            .Join(db.VocabularyWords, mapping => mapping.VocabularyWordId,
+            .Join(db.VocabularyWords.OwnedBy(userProfileId), mapping => mapping.VocabularyWordId,
                 item => item.Id, (_, item) => item.TargetLanguageTerm)
             .AnyAsync(term => term != null && term.ToLower() == targetTerm.ToLower(),
                 cancellationToken))
@@ -166,7 +162,7 @@ public partial class LearningResourceRepository
 
         var attached = await db.ResourceVocabularyMappings
             .Where(mapping => mapping.ResourceId == resourceId)
-            .Join(db.VocabularyWords, mapping => mapping.VocabularyWordId,
+            .Join(db.VocabularyWords.OwnedBy(userProfileId), mapping => mapping.VocabularyWordId,
                 word => word.Id, (_, word) => word.TargetLanguageTerm)
             .ToListAsync(cancellationToken);
         var seen = attached.Where(term => term is not null)
@@ -239,8 +235,10 @@ public partial class LearningResourceRepository
         if (resource is null)
             return refusal;
 
+        // Only a link to the learner's own word; a hidden word's link stays.
         var mapping = await db.ResourceVocabularyMappings.SingleOrDefaultAsync(
-            row => row.ResourceId == resourceId && row.VocabularyWordId == wordId,
+            row => row.ResourceId == resourceId && row.VocabularyWordId == wordId
+                && db.VocabularyWords.Any(word => word.Id == wordId && word.UserProfileId == userProfileId),
             cancellationToken);
         if (mapping is null)
             return ResourceVocabularyWriteStatus.NotFoundOrForbidden;
@@ -269,9 +267,8 @@ public partial class LearningResourceRepository
         return (resource, ResourceVocabularyWriteStatus.Success);
     }
 
-    // Reuse only a word available to this learner (VocabularyWordOwnership.AvailableTo):
-    // never another account's word, or an ownerless one carrying memory aids or sentences
-    // that are not this learner's own.
+    // Reuse only the learner's own word (VocabularyWordOwnership.AvailableTo); otherwise the
+    // caller creates a new word recorded to them. Never another account's or no one's word.
     private static Task<VocabularyWord?> FindReusableWordAsync(
         ApplicationDbContext db, string owner, string targetTerm, string? language,
         CancellationToken cancellationToken) =>

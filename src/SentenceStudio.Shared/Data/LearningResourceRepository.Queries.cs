@@ -114,7 +114,10 @@ public partial class LearningResourceRepository
             r.Transcript != null && r.Transcript != string.Empty,
             r.Tags,
             r.IsSmartResource,
-            db.ResourceVocabularyMappings.Count(m => m.ResourceId == r.Id)));
+            // Only the resource owner's own words count (the one ownership rule).
+            db.ResourceVocabularyMappings.Count(m => m.ResourceId == r.Id
+                && db.VocabularyWords.Any(word => word.Id == m.VocabularyWordId
+                    && word.UserProfileId == r.UserProfileId))));
 
     private bool HasResourceOwner(string userProfileId, string method)
     {

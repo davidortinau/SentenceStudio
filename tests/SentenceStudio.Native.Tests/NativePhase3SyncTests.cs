@@ -60,7 +60,10 @@ public sealed class NativePhase3SyncTests
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var now = DateTime.UtcNow;
-        db.VocabularyWords.Add(new VocabularyWord { Id = "w-adopt", TargetLanguageTerm = "물" });
+        db.VocabularyWords.Add(new VocabularyWord
+        {
+            Id = "w-adopt", UserProfileId = NativeSliceFixture.UserA, TargetLanguageTerm = "물"
+        });
         db.SceneImages.Add(new SceneImage { Id = "img", Url = "https://example.test/a.jpg" });
         db.ConversationScenarios.AddRange(
             new ConversationScenario

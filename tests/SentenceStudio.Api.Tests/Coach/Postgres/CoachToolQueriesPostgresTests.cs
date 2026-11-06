@@ -258,12 +258,12 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
         db.VocabularyWords.AddRange(
             new VocabularyWord
             {
-                Id = "pg-word-undue", TargetLanguageTerm = "안전", NativeLanguageTerm = "safe",
+                Id = "pg-word-undue", UserProfileId = Owner, TargetLanguageTerm = "안전", NativeLanguageTerm = "safe",
                 Tags = "daily", Language = "Korean", CreatedAt = Created, UpdatedAt = Created
             },
             new VocabularyWord
             {
-                Id = "pg-word-due", TargetLanguageTerm = "만기", NativeLanguageTerm = "due",
+                Id = "pg-word-due", UserProfileId = Owner, TargetLanguageTerm = "만기", NativeLanguageTerm = "due",
                 Tags = "food", Language = "Korean", CreatedAt = Created, UpdatedAt = Created
             });
 

@@ -124,6 +124,7 @@ public sealed class VocabularyPartOfSpeechPersistenceTests : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = id,
+                UserProfileId = "pos-learner",
                 TargetLanguageTerm = "읽다",
                 NativeLanguageTerm = "to read",
                 PartOfSpeech = VocabularyPartOfSpeech.Verb,

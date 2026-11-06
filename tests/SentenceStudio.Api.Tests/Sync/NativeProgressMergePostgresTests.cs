@@ -197,7 +197,7 @@ public sealed class NativeProgressMergePostgresTests : IClassFixture<NativeOwner
         VocabularyProgressService.ApplyAttemptScoring(row, attempt, T0);
         await using var db = _fixture.NewContext();
         db.LearningResources.Add(new LearningResource { Id = seeded.ResourceId, UserProfileId = owner });
-        db.VocabularyWords.Add(new VocabularyWord { Id = seeded.WordId, TargetLanguageTerm = "반찬" });
+        db.VocabularyWords.Add(new VocabularyWord { Id = seeded.WordId, TargetLanguageTerm = "반찬", UserProfileId = owner });
         db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
         {
             Id = Guid.NewGuid().ToString(), ResourceId = seeded.ResourceId, VocabularyWordId = seeded.WordId

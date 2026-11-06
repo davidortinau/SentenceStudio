@@ -298,7 +298,7 @@ public sealed class ProgressServiceFocusVocabularyContractTests : IDisposable
             for (var i = 0; i < 6; i++)
             {
                 var wordId = $"fallback-word-{i}";
-                db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = $"단어{i}" });
+                db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = $"단어{i}", UserProfileId = UserA });
                 db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
                 {
                     Id = $"fallback-map-{i}", ResourceId = "fallback-resource", VocabularyWordId = wordId

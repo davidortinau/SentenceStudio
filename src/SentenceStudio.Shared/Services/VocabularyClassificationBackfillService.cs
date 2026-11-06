@@ -164,7 +164,8 @@ public class VocabularyClassificationBackfillService
 
     /// <summary>
     /// Backfills PhraseConstituent rows for existing Phrase/Sentence VocabularyWords
-    /// by tokenizing and matching against that user's Word vocabulary.
+    /// by tokenizing and matching against that user's Word vocabulary: phrases and parts both
+    /// recorded to that user (VocabularyWord.UserProfileId) that the user has practised.
     /// Idempotent — skips phrases that already have constituents.
     /// </summary>
     public async Task BackfillPhraseConstituentsAsync(CancellationToken cancellationToken = default)
@@ -215,16 +216,19 @@ public class VocabularyClassificationBackfillService
             assertSession();
             _logger.LogDebug("Processing phrase constituents for user {UserId}", userId);
 
-            // Pre-build lemma dictionary ONCE per user to avoid N+1 queries
-            // Query through VocabularyProgress to get user-specific vocabulary
+            // Pre-build lemma dictionary ONCE per user to avoid N+1 queries.
+            // The learner's practised words, and only those recorded to them (the owner-only
+            // rule, Captain 2026-11-06): legacy progress on another learner's word, or on one
+            // recorded to no one, never makes it a part of this learner's phrase, and never
+            // gives that word's phrase parts (review of bf701c42, finding 5).
             var userProgress = await db.VocabularyProgresses
-                .Where(vp => vp.UserId == userId)
+                .Where(vp => vp.UserId == userId
+                    && vp.VocabularyWord != null && vp.VocabularyWord.UserProfileId == userId)
                 .Include(vp => vp.VocabularyWord)
                 .ToListAsync(cancellationToken);
             assertSession();
 
             var userWords = userProgress
-                .Where(vp => vp.VocabularyWord != null)
                 .Select(vp => vp.VocabularyWord!)
                 .ToList();
 

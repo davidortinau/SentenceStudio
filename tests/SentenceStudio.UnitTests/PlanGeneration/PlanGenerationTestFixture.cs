@@ -164,6 +164,8 @@ public class PlanGenerationTestFixture : IDisposable
             var word = new VocabularyWord
             {
                 Id = Guid.NewGuid().ToString(),
+                // The resource's learner creates its words (every word has an owner).
+                UserProfileId = userProfileId ?? TestUserId,
                 TargetLanguageTerm = $"word_{id}_{i}",
                 NativeLanguageTerm = $"word_en_{id}_{i}",
                 Language = language,
@@ -231,6 +233,7 @@ public class PlanGenerationTestFixture : IDisposable
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = vocabularyWordId,
+                UserProfileId = TestUserId,
                 TargetLanguageTerm = $"term_{vocabularyWordId[..8]}",
                 NativeLanguageTerm = $"en_{vocabularyWordId[..8]}",
                 Tags = tags,

@@ -194,6 +194,116 @@ migration-history checks below still apply.
 
 ---
 
+## Ownerless shared words and withheld rows (one-time, owner-only words)
+
+Prepared 2026-11-06 with the owner-only word rule (Captain: "every word should have an owner
+and only be visible and used by those owners. There is no reason for a mobile device to sync any
+data for another user/owner than the one logged in."). **Nothing below has been run against
+Azure.** Rehearsed only on isolated local PostgreSQL. Each step runs only with the Captain's go
+in that turn, never automatically, never from a deploy pipeline.
+
+Two scripts, in this order:
+
+- `scripts/record-shared-vocabulary-words.sql` records to one profile the ownerless words that
+  profile shares only with test accounts (listed email domains) and with progress left by deleted
+  accounts. The 2026-11-05 backup has 96: 52 shared with the test account, 41 with a deleted
+  account's progress, 3 with both, all in the Captain's resources, 60 of them practised by him.
+  The owner backfill left them ownerless because two accounts use them.
+- `scripts/send-withheld-vocabulary-rows.sql` records a no-op change for every row the new sync
+  filter sends that the old one withheld (words recorded to a learner that none of the learner's
+  resources link, and their progress, learning contexts, sentences, phrase parts and minimal
+  pairs), so devices download them. The 2026-11-05 backup has 3 such words of the Captain's.
+
+**Order (do not reorder; each step only with the Captain's go):**
+
+1. Fresh verified backup (Step 1 below). Cloud sync is not a backup.
+2. `record-shared-vocabulary-words.sql`: dry run, then apply with its counts (2026-11-05 backup:
+   52, 41, 3). Production already has `VocabularyWord.UserProfileId` (the 2026-11-05 deploy
+   applied `AddVocabularyWordOwner` and stamped 4753 words), and today's production code still
+   shows these 96 words as normal, so this runs **before** the hiding change ships. The change
+   that hides ownerless words must not reach production before this step commits, or the 96
+   words (60 of them practised) disappear from the Captain's resources on the web, MAUI and
+   native (hidden, not deleted: the rows stay).
+3. Let the Captain's devices sync (they download the newly recorded owners).
+4. Deploy this release (the new owner-only sync filter and the hiding ship together). The touch
+   in step 6 needs the new filter live: under the old filter a touched word outside the
+   learner's resources is filtered out of the download and the device's anchor moves past it,
+   so it would be lost again.
+5. Let every one of the Captain's devices sync against the new server and finish (no pending
+   changes).
+6. `send-withheld-vocabulary-rows.sql`: dry run, then apply with its counts, straight away
+   after step 5 and before he edits or practises again. A device's unsynced delete of a touched
+   row is undone by the touch (the row comes back; nothing is lost), which is why this step runs
+   right after the devices synced.
+7. Let the devices sync again (they download the touched rows).
+
+Look up the target profile at run time; never write a real ID or email into the repository:
+
+```bash
+# PG* variables from the private credentials file of Step 1; never on a command line.
+TARGET=$(psql -d sentencestudio -At -v email="$CAPTAIN_SIGN_IN_EMAIL" <<'SQL'
+SELECT "UserProfileId" FROM "AspNetUsers" WHERE "NormalizedEmail" = upper(:'email');
+SQL
+)
+echo "${TARGET:0:8}"   # check the prefix only; it must be exactly one profile
+
+# Step 2: dry run, then apply with the dry run's counts (2026-11-05: 52, 41, 3).
+psql -d sentencestudio -v ON_ERROR_STOP=1 -v target_profile="$TARGET" \
+  -v test_domains=sentencestudio.test -f scripts/record-shared-vocabulary-words.sql
+psql -d sentencestudio -v ON_ERROR_STOP=1 -v target_profile="$TARGET" \
+  -v test_domains=sentencestudio.test -v expected_test=52 -v expected_nonprofile=41 \
+  -v expected_both=3 -v expected_sentences=<dry run> -v apply=true \
+  -f scripts/record-shared-vocabulary-words.sql
+
+# Step 6: dry run, then apply at once with every count and its "tracked up to" value.
+psql -d sentencestudio -v ON_ERROR_STOP=1 -f scripts/send-withheld-vocabulary-rows.sql
+psql -d sentencestudio -v ON_ERROR_STOP=1 -v expected_words=<n> -v expected_progress=<n> \
+  -v expected_contexts=<n> -v expected_sentences=<n> -v expected_phrases=<n> \
+  -v expected_pairs=<n> -v expected_answers=<n> -v expected_tracked=<n> -v apply=true \
+  -f scripts/send-withheld-vocabulary-rows.sql
+```
+
+The record script refuses a target whose email is in a listed domain, a word any other learner
+uses (link, progress, sentence, pair, answer or phrase), a link from a resource with no owner,
+and a word the target neither links nor practises; it reports those, and the words only the
+target uses (the owner backfill's), without recording them. Other accounts' rows are not
+changed. A second run records nothing. The touch script's `expected_tracked` is the newest
+CoreSync change ID at the dry run, so any sync or edit in between, or an earlier apply, refuses
+the apply until a fresh dry run. Both scripts check that CoreSync recorded one change per row.
+
+**Why "right after every device synced"** (CoreSync.PostgreSQL 0.1.129-local3, CoreSync.Sqlite
+0.1.129, CoreSync.Http.Server/Client 0.1.129, read from the packages):
+
+- Each tracked table has an `AFTER UPDATE ... FOR EACH ROW` trigger with no condition that
+  inserts `(tbl, 'U', id)` into `__core_sync_ct` with `src` NULL, so `SET "Id" = "Id"` is logged.
+  A download sends every row with a change newer than the device's anchor whose `src` is NULL or
+  another store, with the row's current values. The sync agent uploads first, then downloads.
+- A device's **unsynced edit** of a touched row uploads with an anchor older than the touch, so
+  the server's guarded UPDATE (`MAX(__core_sync_ct.id) for the row <= the device's server
+  anchor`) reports a conflict. The CoreSync HTTP server resolves an update conflict with
+  ForceWrite (`SyncAgentController` passes ForceWrite for updates and Skip for deletes;
+  `NativeOwnerSyncProvider` falls back to it), so the device's edit wins and comes back to it
+  unchanged in the same sync. Nothing is lost.
+- A device's **unsynced delete** of a touched row is skipped by the server (delete conflicts are
+  Skip), and the touch then downloads the row, which the device re-inserts (`SyncService`
+  resolves a local update conflict with ForceWrite). Nothing is lost, but the delete is undone.
+  Syncing every device first leaves no pending deletes.
+- A device's edit that the **old filter left out** of an earlier upload (a word the learner's
+  resources stopped linking, edited or practised on a device afterwards) was never stored on the
+  server, and the device's anchor already moved past it. The touch downloads the server's copy
+  over it without a conflict. Syncing first does not help these. The touch script's per-learner
+  counts are the upper bound (2026-11-05: 3 of the Captain's words).
+- **Native heads:** `NativeLocalOnlyMappingExportProvider` used to resolve every downloaded
+  `VocabularyProgress` update conflict as Skip (to protect a local attempt), so a touched
+  progress row the device did not have (an update that changes no row) was skipped instead of
+  inserted, and its learning contexts then failed their foreign key. Fixed with this change: the
+  device keeps its own copy only when that progress row exists locally; otherwise the download
+  inserts it, as MAUI's `SyncService` always did
+  (`tests/SentenceStudio.Native.Tests/NativeLocalOnlyMappingExportProviderTests.cs`). The native
+  build with that fix must be on the devices before step 6.
+
+---
+
 ## Speech clip cache (Phase 4 audio): Azure step awaiting approval
 
 Prepared 2026-11-04. **Nothing below has been run against Azure.** The Captain approves the

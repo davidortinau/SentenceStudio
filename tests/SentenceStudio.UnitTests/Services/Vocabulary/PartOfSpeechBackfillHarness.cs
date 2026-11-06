@@ -52,7 +52,7 @@ internal sealed class PartOfSpeechBackfillHarness : IDisposable
         VocabularyPartOfSpeech? partOfSpeech = null)
     {
         using var db = NewContext();
-        var word = NewWord(id, term, partOfSpeech);
+        var word = NewWord(id, term, partOfSpeech, ownerId);
         db.VocabularyWords.Add(word);
         db.VocabularyProgresses.Add(new VocabularyProgress
         {
@@ -73,7 +73,7 @@ internal sealed class PartOfSpeechBackfillHarness : IDisposable
     {
         using var db = NewContext();
         var resourceId = $"resource-{id}";
-        db.VocabularyWords.Add(NewWord(id, term, partOfSpeech));
+        db.VocabularyWords.Add(NewWord(id, term, partOfSpeech, ownerId));
         db.LearningResources.Add(new LearningResource
         {
             Id = resourceId,
@@ -94,8 +94,12 @@ internal sealed class PartOfSpeechBackfillHarness : IDisposable
     public void AddUnownedWord(string id, string term = "고아")
     {
         using var db = NewContext();
-        db.VocabularyWords.Add(NewWord(id, term, null));
+        // A save cannot create an ownerless word any more; the legacy row is saved with an owner
+        // and then cleared, the way old rows were left.
+        db.VocabularyWords.Add(NewWord(id, term, null, OwnerId));
         db.SaveChanges();
+        db.VocabularyWords.Where(w => w.Id == id)
+            .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, (string?)null));
     }
 
     public VocabularyPartOfSpeech? PartOfSpeechOf(string id)
@@ -140,9 +144,11 @@ internal sealed class PartOfSpeechBackfillHarness : IDisposable
             MaxWords = maxWords
         };
 
-    private static VocabularyWord NewWord(string id, string term, VocabularyPartOfSpeech? partOfSpeech) => new()
+    private static VocabularyWord NewWord(string id, string term, VocabularyPartOfSpeech? partOfSpeech,
+        string owner) => new()
     {
         Id = id,
+        UserProfileId = owner,
         TargetLanguageTerm = term,
         // Private material that must never reach the model.
         NativeLanguageTerm = "SECRET-GLOSS",

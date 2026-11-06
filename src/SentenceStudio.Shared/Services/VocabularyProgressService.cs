@@ -107,9 +107,13 @@ public class VocabularyProgressService : IVocabularyProgressService
                 : CreateConstituentCascadeActivity(word.LexicalUnitType, attempt);
             if (cascadeActivity is not null)
             {
+                // Only constituents recorded to the learner (the one ownership rule): practice
+                // never creates progress on another learner's or no one's word.
                 var constituents = await db.PhraseConstituents
                     .AsNoTracking()
-                    .Where(pc => pc.PhraseWordId == word.Id && pc.ConstituentWordId != null)
+                    .Where(pc => pc.PhraseWordId == word.Id && pc.ConstituentWordId != null
+                        && db.VocabularyWords.Any(constituent => constituent.Id == pc.ConstituentWordId
+                            && constituent.UserProfileId == attempt.UserId))
                     .Select(pc => pc.ConstituentWordId!)
                     .ToListAsync();
 

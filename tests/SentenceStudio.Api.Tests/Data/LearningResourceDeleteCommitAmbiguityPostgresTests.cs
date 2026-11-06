@@ -198,6 +198,7 @@ public sealed class LearningResourceDeleteCommitAmbiguityPostgresTests : IAsyncL
         var word = new VocabularyWord
         {
             Id = Guid.NewGuid().ToString("n"),
+            UserProfileId = owner,
             TargetLanguageTerm = "수박",
             NativeLanguageTerm = "watermelon",
             Language = "Korean",
@@ -256,9 +257,10 @@ public sealed class LearningResourceDeleteCommitAmbiguityPostgresTests : IAsyncL
     /// The related deletes land with the resource, not separately from it.
     /// </summary>
     /// <remarks>
-    /// The orphan sweep runs inside the same transaction, so a commit that lands takes the
-    /// progress rows with it. A verification that only looked at the resource would happily report
-    /// success for a half-applied state; this asserts the state is not half-applied.
+    /// The mappings cascade inside the same transaction, so a commit that lands takes them with
+    /// it. A verification that only looked at the resource would happily report success for a
+    /// half-applied state; this asserts the state is not half-applied. The word and the
+    /// learner's progress on it stay: the word is still theirs (review of bf701c42, finding 3).
     /// </remarks>
     [PostgresFact]
     public async Task An_ambiguous_commit_still_leaves_the_related_rows_consistent()
@@ -276,8 +278,10 @@ public sealed class LearningResourceDeleteCommitAmbiguityPostgresTests : IAsyncL
         (await db.LearningResources.AnyAsync(r => r.Id == resource.Id)).Should().BeFalse();
         (await db.ResourceVocabularyMappings.AnyAsync(m => m.ResourceId == resource.Id))
             .Should().BeFalse("the mapping goes with the resource");
+        (await db.VocabularyWords.AnyAsync(w => w.Id == wordId && w.UserProfileId == Owner))
+            .Should().BeTrue("the word stays in the learner's vocabulary");
         (await db.VocabularyProgresses.AnyAsync(p => p.UserId == Owner && p.VocabularyWordId == wordId))
-            .Should().BeFalse("the orphan sweep committed in the same transaction");
+            .Should().BeTrue("the word stays the learner's, so its history stays");
     }
 
     /// <summary>

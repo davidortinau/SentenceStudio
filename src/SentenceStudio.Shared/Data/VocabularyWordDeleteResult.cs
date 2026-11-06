@@ -10,14 +10,14 @@ public enum VocabularyWordDeleteResult
     Deleted,
 
     /// <summary>
-    /// No such word in the learner's vocabulary, or no active learner (nothing was read or
-    /// written).
+    /// No such word recorded to the learner (another learner's or no one's word is not theirs to
+    /// see), or no active learner (nothing was read or written).
     /// </summary>
     NotFound,
 
     /// <summary>
-    /// The word is not recorded to the learner, or another learner's data (or data recorded to
-    /// nobody) still uses it: the delete would remove or change their rows. Nothing changed.
+    /// The word is the learner's, but another learner's data (or data recorded to nobody) still
+    /// uses it: the delete would remove or change their rows. Nothing changed.
     /// </summary>
     RefusedShared,
 
@@ -32,8 +32,8 @@ public enum VocabularyWordDeleteResult
 }
 
 /// <summary>
-/// What a bulk delete did with each word: removed; kept because it is not the learner's or
-/// someone else still uses it (<see cref="VocabularyWordDeleteResult.RefusedShared"/>); kept
+/// What a bulk delete did with each word: removed; kept because someone else's data still uses
+/// it (<see cref="VocabularyWordDeleteResult.RefusedShared"/>); kept
 /// because a Minimal Pairs answer references it; not found; failed. A kept word keeps the
 /// learner's links.
 /// </summary>
@@ -53,7 +53,17 @@ public enum VocabularyWordSaveResult
 }
 
 /// <summary>
-/// A word as the web/MAUI editor shows it to a learner. A word that is not
-/// <see cref="IsLearnersOwn"/> is read-only and carries no memory aids or audio.
+/// What <see cref="LearningResourceRepository.UpdateVocabularyWordTermsAsync"/> did with a term
+/// change: an expected refusal (the word is not the learner's, or is gone) is kept apart from a
+/// technical failure, so a page never reports a database error as an ownership refusal.
 /// </summary>
-public sealed record LearnerVocabularyWord(SentenceStudio.Shared.Models.VocabularyWord Word, bool IsLearnersOwn);
+public enum VocabularyWordTermsUpdateResult
+{
+    Updated,
+
+    /// <summary>No such word recorded to the learner (or no learner); nothing was written.</summary>
+    NotLearnersOwn,
+
+    /// <summary>The update failed; the error is logged and nothing was saved.</summary>
+    Failed
+}

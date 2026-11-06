@@ -534,7 +534,6 @@ internal sealed partial class AndroidSliceShell
         var state = vocabulary.EditState;
         var header = ScreenHeader(Localize("VocabWordEdit_EditTitle"), palette, back: true,
             backAutomationId: "native.vocabulary.edit.back");
-        var readOnly = state.Detail?.IsSharedWithAnotherOwner == true;
         if (state.Detail is not null && state.Draft is not null && header is TopAppBar bar)
             bar.Actions = VocabularyWordActions(vocabulary, state, palette);
         var rows = new List<VocabularyRow>();
@@ -561,10 +560,7 @@ internal sealed partial class AndroidSliceShell
                 vocabulary.CloseWord, true, primary: false));
             return VocabularyWordColumn(header, rows);
         }
-        var editable = !readOnly && !state.Saving;
-        if (readOnly)
-            Add("readonly", () => StatusAlert(Localize("NativeVocabulary_SharedReadOnly"), palette,
-                automationId: "native.vocabulary.edit.readonly"));
+        var editable = !state.Saving;
         if (state.Saving)
             Add("saving", () => new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
             {
@@ -575,11 +571,11 @@ internal sealed partial class AndroidSliceShell
 
         Add("terms", () => Card(palette, "native.vocabulary.edit.terms",
             VocabularyTermsHeading(vocabulary, state, palette),
-            VocabularyTargetField(vocabulary, state, draft, readOnly, palette),
+            VocabularyTargetField(vocabulary, state, draft, palette),
             WordField(vocabulary, "VocabWordEdit_NativeLanguageTerm", "VocabWordEdit_NativePlaceholder",
                 "native.vocabulary.edit.native", draft.NativeTerm, nameof(draft.NativeTerm),
-                readOnly, editable, palette)));
-        Add("encoding", () => VocabularyEncodingCard(vocabulary, state, detail, draft, readOnly,
+                editable, palette)));
+        Add("encoding", () => VocabularyEncodingCard(vocabulary, state, detail, draft,
             editable, palette));
         if (detail.Examples.Count > 0)
             Add("examples", () =>
@@ -623,7 +619,7 @@ internal sealed partial class AndroidSliceShell
             var entry = item;
             Add($"history.{entry.Id}", () => VocabularyHistoryRow(entry, palette));
         }
-        Add("resources", () => VocabularyResourcesCard(vocabulary, detail, draft, readOnly,
+        Add("resources", () => VocabularyResourcesCard(vocabulary, detail, draft,
             editable, palette));
         Add("actions", () => new Row(Arrangement.SpacedBy(10))
         {
@@ -663,17 +659,10 @@ internal sealed partial class AndroidSliceShell
             .Semantics(semantics => semantics.Heading()));
 
     private ComposableNode WordField(VocabularyBrowser vocabulary, string labelKey, string placeholderKey,
-        string tag, string value, string property, bool readOnly, bool editable,
+        string tag, string value, string property, bool editable,
         AndroidVisualPalette palette, int lines = 1)
     {
         var label = Localize(labelKey);
-        if (readOnly)
-            return new Column(Arrangement.SpacedBy(2))
-            {
-                Modifier.FillMaxWidth().TestTag(tag),
-                Caption(label, palette),
-                Body(value, palette),
-            };
         return new OutlinedTextField(value, text =>
         {
             vocabulary.ChangeDraft(property, text);
@@ -688,7 +677,7 @@ internal sealed partial class AndroidSliceShell
     }
 
     private ComposableNode VocabularyTargetField(VocabularyBrowser vocabulary, VocabularyBrowserEdit state,
-        NativeVocabularyEditDraft draft, bool readOnly, AndroidVisualPalette palette)
+        NativeVocabularyEditDraft draft, AndroidVisualPalette palette)
     {
         var label = Localize("VocabWordEdit_PlayAudio");
         var play = new IconButton(() => RunMoreOnUi(vocabulary.PlayAudioAsync),
@@ -706,7 +695,7 @@ internal sealed partial class AndroidSliceShell
         {
             vocabulary.ChangeDraft(nameof(draft.TargetTerm), text);
             RenderMoreNow();
-        }, enabled: !readOnly && !state.Saving, singleLine: true)
+        }, enabled: !state.Saving, singleLine: true)
         {
             Modifier = Modifier.Weight(1f).TestTag("native.vocabulary.edit.target")
                 .Semantics(semantics => semantics.ContentDescription(
@@ -723,7 +712,7 @@ internal sealed partial class AndroidSliceShell
     }
 
     private ComposableNode VocabularyEncodingCard(VocabularyBrowser vocabulary, VocabularyBrowserEdit state,
-        NativeVocabularyDetail detail, NativeVocabularyEditDraft draft, bool readOnly, bool editable,
+        NativeVocabularyDetail detail, NativeVocabularyEditDraft draft, bool editable,
         AndroidVisualPalette palette)
     {
         var items = new List<ComposableNode>
@@ -733,7 +722,7 @@ internal sealed partial class AndroidSliceShell
                 palette, modifier: Modifier.TestTag("native.vocabulary.edit.encoding")),
             WordField(vocabulary, "VocabWordEdit_Lemma", "VocabWordEdit_LemmaPlaceholder",
                 "native.vocabulary.edit.lemma", draft.Lemma ?? string.Empty, nameof(draft.Lemma),
-                readOnly, editable, palette),
+                editable, palette),
         };
         var languages = new[] { string.Empty }.Concat(Constants.Languages)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -768,13 +757,13 @@ internal sealed partial class AndroidSliceShell
             }, editable && !detail.HasConstituentLinks, palette));
         items.Add(WordField(vocabulary, "VocabWordEdit_Tags", "VocabWordEdit_TagsPlaceholder",
             "native.vocabulary.edit.tags", draft.Tags ?? string.Empty, nameof(draft.Tags),
-            readOnly, editable, palette));
+            editable, palette));
         items.Add(WordField(vocabulary, "VocabWordEdit_MnemonicStory", "VocabWordEdit_MnemonicStory",
             "native.vocabulary.edit.mnemonic", draft.MnemonicText ?? string.Empty, nameof(draft.MnemonicText),
-            readOnly, editable, palette, lines: 4));
+            editable, palette, lines: 4));
         items.Add(WordField(vocabulary, "VocabWordEdit_MnemonicImageUrl", "VocabWordEdit_MnemonicImageUrl",
             "native.vocabulary.edit.image.url", draft.MnemonicImageUri ?? string.Empty,
-            nameof(draft.MnemonicImageUri), readOnly, editable, palette));
+            nameof(draft.MnemonicImageUri), editable, palette));
         if (state.Photo is { } photo && VocabularyPhotoPainter(photo.Bytes) is { } painter)
             items.Add(new Image(painter, Localize("VocabWordEdit_MnemonicAlt"))
             {
@@ -874,7 +863,7 @@ internal sealed partial class AndroidSliceShell
             modifier: Modifier.TestTag($"native.vocabulary.edit.history.{item.Id}"));
 
     private ComposableNode VocabularyResourcesCard(VocabularyBrowser vocabulary, NativeVocabularyDetail detail,
-        NativeVocabularyEditDraft draft, bool readOnly, bool editable, AndroidVisualPalette palette)
+        NativeVocabularyEditDraft draft, bool editable, AndroidVisualPalette palette)
     {
         var selected = draft.ResourceIds.ToHashSet(StringComparer.Ordinal);
         var items = new List<ComposableNode>
@@ -892,7 +881,7 @@ internal sealed partial class AndroidSliceShell
             var id = resource.Id;
             items.Add(SettingSwitch(resource.Title, $"native.vocabulary.edit.resource.{id}",
                 selected.Contains(id), value => vocabulary.ToggleResource(id, value),
-                editable && !readOnly && !resource.IsSmartResource, palette));
+                editable && !resource.IsSmartResource, palette));
         }
         return Card(palette, "native.vocabulary.edit.resources", items.ToArray());
     }

@@ -225,6 +225,7 @@ public sealed class DeterministicPlanBuilderFocusVocabularyContractTests : IClas
             db.VocabularyWords.Add(new VocabularyWord
             {
                 Id = item.WordId,
+                UserProfileId = PlanGenerationTestFixture.TestUserId,
                 TargetLanguageTerm = $"target-{item.WordId}",
                 NativeLanguageTerm = $"native-{item.WordId}",
                 Language = "Korean",

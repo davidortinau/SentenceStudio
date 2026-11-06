@@ -14,15 +14,15 @@ namespace SentenceStudio.Native;
 /// hard-coded user "1" and created pairs with the active profile, so a real
 /// learner's pairs never appeared; that is not copied.
 /// <para>
-/// Pair words must be vocabulary linked to one of the owner's resources (the
-/// words the create page lists). MinimalPair, MinimalPairSession and
-/// MinimalPairAttempt are not in the CoreSync set (SharedSyncRegistration), so
-/// these rows stay on this device and no sync is triggered.
+/// Pair words must be the owner's own vocabulary: words recorded to them (the one
+/// ownership rule, Captain 2026-11-06), the words the create page lists. A pair
+/// whose word is another learner's, or no one's, is not listed, opened or
+/// practised; the row stays on the device.
 /// </para>
 /// </summary>
 public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
 {
-    /// <summary>The owner's vocabulary (linked to an owned resource), ordered by target term.</summary>
+    /// <summary>The owner's vocabulary (words recorded to them), ordered by target term.</summary>
     public async Task<List<VocabularyWord>> ListWordsAsync(string owner, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
@@ -41,10 +41,9 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
             return [];
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.MinimalPairs.AsNoTracking()
+        return await OwnedPairs(db, owner).AsNoTracking()
             .Include(pair => pair.VocabularyWordA)
             .Include(pair => pair.VocabularyWordB)
-            .Where(pair => pair.UserId == owner)
             .OrderBy(pair => pair.CreatedAt)
             .ThenBy(pair => pair.Id)
             .ToListAsync(cancellationToken);
@@ -58,10 +57,10 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
             return [];
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var rows = await db.MinimalPairs.AsNoTracking()
+        var rows = await OwnedPairs(db, owner).AsNoTracking()
             .Include(pair => pair.VocabularyWordA)
             .Include(pair => pair.VocabularyWordB)
-            .Where(pair => pair.UserId == owner && ids.Contains(pair.Id))
+            .Where(pair => ids.Contains(pair.Id))
             .ToListAsync(cancellationToken);
         // Keep the requested order and only pairs whose two words still exist.
         return [.. ids.Distinct()
@@ -173,8 +172,8 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
         if (!await db.MinimalPairSessions.AnyAsync(
                 session => session.Id == sessionId && session.UserId == owner, cancellationToken))
             return null;
-        var pair = await db.MinimalPairs.AsNoTracking().FirstOrDefaultAsync(
-            row => row.Id == pairId && row.UserId == owner, cancellationToken);
+        var pair = await OwnedPairs(db, owner).AsNoTracking().FirstOrDefaultAsync(
+            row => row.Id == pairId, cancellationToken);
         if (pair is null || !InPair(pair, promptWordId) || !InPair(pair, selectedWordId))
             return null;
         var sequence = await db.MinimalPairAttempts
@@ -216,13 +215,19 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
     private static bool InPair(MinimalPair pair, string wordId) =>
         pair.VocabularyWordAId == wordId || pair.VocabularyWordBId == wordId;
 
-    /// <summary>Same owner link as LearningResourceRepository.GetAllVocabularyWordsWithResourcesAsync.</summary>
-    private static IQueryable<VocabularyWord> OwnedWords(ApplicationDbContext db, string owner)
+    /// <summary>
+    /// The owner's words: recorded to them, the rule
+    /// LearningResourceRepository.GetAllVocabularyWordsWithResourcesAsync applies too.
+    /// </summary>
+    private static IQueryable<VocabularyWord> OwnedWords(ApplicationDbContext db, string owner) =>
+        db.VocabularyWords.OwnedBy(owner);
+
+    /// <summary>The owner's pairs whose two words are both the owner's own.</summary>
+    private static IQueryable<MinimalPair> OwnedPairs(ApplicationDbContext db, string owner)
     {
-        var ids = db.ResourceVocabularyMappings
-            .Join(db.LearningResources.Where(resource => resource.UserProfileId == owner),
-                mapping => mapping.ResourceId, resource => resource.Id,
-                (mapping, _) => mapping.VocabularyWordId);
-        return db.VocabularyWords.Where(word => ids.Contains(word.Id));
+        var words = OwnedWords(db, owner).Select(word => word.Id);
+        return db.MinimalPairs.Where(pair => pair.UserId == owner
+            && words.Contains(pair.VocabularyWordAId)
+            && words.Contains(pair.VocabularyWordBId));
     }
 }

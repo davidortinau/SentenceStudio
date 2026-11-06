@@ -44,7 +44,8 @@ public sealed class NumberDrillSyncTests
 
     /// <summary>
     /// Phase 2a: Minimal Pairs, audio history and conversation memory travel only to their owner,
-    /// and a pair or answer only with words that owner can see.
+    /// a pair only with words that owner can see, and an answer only with such words and a pair
+    /// the owner's devices receive.
     /// </summary>
     [Fact]
     public async Task NativeDownload_KeepsOnlyTheOwnersPhase2aRowsWithVisibleWords()
@@ -53,13 +54,19 @@ public sealed class NumberDrillSyncTests
         await connection.OpenAsync();
         await using var db = await CreateAsync(connection);
         db.LearningResources.Add(new LearningResource { Id = "owned-resource", UserProfileId = Owner });
+        // Words go by their recorded owner (Captain 2026-11-06): "hidden" is another learner's.
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
-            new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2" },
-            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1", UserProfileId = Owner },
+            new VocabularyWord { Id = "w2", TargetLanguageTerm = "w2", UserProfileId = Owner },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden", UserProfileId = Foreign });
         db.ResourceVocabularyMappings.AddRange(
             new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" },
             new ResourceVocabularyMapping { Id = "m2", ResourceId = "owned-resource", VocabularyWordId = "w2" });
+        // The server's rows the changeset carries (a download sends what the server stores).
+        db.MinimalPairs.AddRange(
+            new MinimalPair { Id = "owned-pair", UserId = Owner, VocabularyWordAId = "w1", VocabularyWordBId = "w2" },
+            new MinimalPair { Id = "hidden-word-pair", UserId = Owner, VocabularyWordAId = "w1", VocabularyWordBId = "hidden" },
+            new MinimalPair { Id = "foreign-pair", UserId = Foreign, VocabularyWordAId = "w1", VocabularyWordBId = "w2" });
         await db.SaveChangesAsync();
 
         var changes = new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 3), SyncAnchor.Null,
@@ -72,10 +79,17 @@ public sealed class NumberDrillSyncTests
                 ("VocabularyWordAId", "w1"), ("VocabularyWordBId", "w2")),
             Item("MinimalPairSession", "owned-session", ("UserId", Owner)),
             Item("MinimalPairSession", "foreign-session", ("UserId", Foreign)),
-            Item("MinimalPairAttempt", "owned-answer", ("UserId", Owner),
+            Item("MinimalPairAttempt", "owned-answer", ("UserId", Owner), ("PairId", "owned-pair"),
                 ("PromptWordId", "w1"), ("SelectedWordId", "w2")),
-            Item("MinimalPairAttempt", "hidden-answer", ("UserId", Owner),
+            Item("MinimalPairAttempt", "hidden-answer", ("UserId", Owner), ("PairId", "hidden-word-pair"),
                 ("PromptWordId", "hidden"), ("SelectedWordId", "w2")),
+            // Review of bf701c42, finding 6: a correct answer names only the owner's word, but
+            // its pair is not sent (its other word is another learner's), so the answer would
+            // break the device's foreign key to its pair.
+            Item("MinimalPairAttempt", "correct-answer-on-hidden-pair", ("UserId", Owner),
+                ("PairId", "hidden-word-pair"), ("PromptWordId", "w1"), ("SelectedWordId", "w1")),
+            Item("MinimalPairAttempt", "answer-on-missing-pair", ("UserId", Owner),
+                ("PairId", "no-such-pair"), ("PromptWordId", "w1"), ("SelectedWordId", "w2")),
             Item("StreamHistory", "owned-audio", ("UserProfileId", Owner)),
             Item("StreamHistory", "unowned-audio"),
             Item("ConversationMemoryState", "cm:owned", ("UserProfileId", Owner)),
@@ -104,8 +118,8 @@ public sealed class NumberDrillSyncTests
             new LearningResource { Id = "owned-resource", UserProfileId = Owner },
             new LearningResource { Id = "foreign-resource", UserProfileId = Foreign });
         db.VocabularyWords.AddRange(
-            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1" },
-            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden" });
+            new VocabularyWord { Id = "w1", TargetLanguageTerm = "w1", UserProfileId = Owner },
+            new VocabularyWord { Id = "hidden", TargetLanguageTerm = "hidden", UserProfileId = Foreign });
         db.ResourceVocabularyMappings.Add(
             new ResourceVocabularyMapping { Id = "m1", ResourceId = "owned-resource", VocabularyWordId = "w1" });
         await db.SaveChangesAsync();
@@ -137,16 +151,18 @@ public sealed class NumberDrillSyncTests
     }
 
     /// <summary>
-    /// Code review 2026-11-03: a device's own example sentence on a word the owner cannot see
-    /// (an orphan word, a removed mapping) or from another learner's resource is left out of the
-    /// upload instead of refusing the whole upload. A sentence naming another owner stays, so
-    /// the owner checks still refuse it.
+    /// Code review 2026-11-03: a device's own example sentence on a word that is not the owner's
+    /// (an orphan word, a word only a mapping names) or from another learner's resource is left
+    /// out of the upload instead of refusing the whole upload. A word this upload writes counts
+    /// (placement then keeps it only if it is the owner's). A sentence naming another owner
+    /// stays, so the owner checks still refuse it.
     /// </summary>
     [Fact]
     public void Upload_LeavesOutOwnExamplesOnUnreachableWords_KeepsForeignOnesForRefusal()
     {
         var visible = new NativeOwnerSyncProvider.VisibleKeys(
-            new HashSet<string>(["owned-resource"]), new HashSet<string>(["w1"]), new HashSet<string>());
+            new HashSet<string>(["owned-resource"]), new HashSet<string>(["w1"]), new HashSet<string>(),
+            new HashSet<string>());
         var items = new[]
         {
             Item("ExampleSentence", "visible", ("UserProfileId", Owner), ("VocabularyWordId", "w1")),
@@ -154,15 +170,19 @@ public sealed class NumberDrillSyncTests
             Item("ExampleSentence", "foreign-resource", ("UserProfileId", Owner), ("VocabularyWordId", "w1"),
                 ("LearningResourceId", "foreign-resource")),
             Item("LearningResource", "new-resource", ("UserProfileId", Owner)),
+            Item("VocabularyWord", "w-new", ("UserProfileId", Owner)),
             Item("ResourceVocabularyMapping", "m-new", ("ResourceId", "new-resource"), ("VocabularyWordId", "w-new")),
             Item("ExampleSentence", "newly-mapped", ("UserProfileId", Owner), ("VocabularyWordId", "w-new"),
                 ("LearningResourceId", "new-resource")),
+            // A mapping alone no longer makes a word the owner's.
+            Item("ResourceVocabularyMapping", "m-only", ("ResourceId", "new-resource"), ("VocabularyWordId", "w-mapped")),
+            Item("ExampleSentence", "mapped-only", ("UserProfileId", Owner), ("VocabularyWordId", "w-mapped")),
             Item("ExampleSentence", "foreign-owner", ("UserProfileId", Foreign), ("VocabularyWordId", "orphan")),
         };
 
         var kept = NativeOwnerSyncProvider.WithoutUnreachableExamples(items, Owner, visible);
 
-        Assert.Equal(["visible", "new-resource", "m-new", "newly-mapped", "foreign-owner"],
+        Assert.Equal(["visible", "new-resource", "w-new", "m-new", "newly-mapped", "m-only", "foreign-owner"],
             kept.Select(item => item.Values["Id"].Value?.ToString() ?? string.Empty));
     }
 

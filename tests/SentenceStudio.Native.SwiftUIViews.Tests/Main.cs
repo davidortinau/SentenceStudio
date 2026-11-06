@@ -222,40 +222,21 @@ var cases = new (string Name, Action Test)[]
         foreach (var id in new[] { "w-strong", "w-good", "w-basic" })
             Assert(Find(panel, $"native.vocabulary.duplicates.word.{id}.encoding") is not null);
     }),
-    ("Duplicate manager: a group with another learner's copy shows why it cannot merge", () =>
+    // One ownership rule (Captain 2026-11-06): every copy in a group is the learner's own, so a
+    // blocked group always shows the source's reason and its "Edit before merge" advice.
+    ("Duplicate manager: a blocked group shows the source's reason and edit advice", () =>
     {
-        var blocked = DuplicatePanel() with
+        var sourceOnly = DuplicatePanel() with
         {
-            Groups = [DuplicatePanel().Groups[0] with { CanMergeAutomatically = false, HasAnotherOwnersCopy = true }]
-        };
-        using var panel = VocabularyDuplicatesView.Panel(blocked, style, key => key,
-            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
-        Assert(Find(panel, "native.vocabulary.duplicates.group.0.merge") is null);
-        var reason = Find(panel, "native.vocabulary.duplicates.group.0.reason")
-            ?? throw new Exception("The reason is missing.");
-        Assert(reason.Text == "NativeVocabulary_DuplicatesAnotherOwner");
-        Assert(Find(panel, "native.vocabulary.duplicates.word.w-good.edit") is not null);
-        // Review 2026-11-05 (third pass): editing cannot unblock it, so no "Edit before merge"
-        // badge and no "Edit record" help.
-        Assert(Find(panel, "native.vocabulary.duplicates.group.0.blocked")?.Text
-            == "NativeVocabulary_DuplicatesCannotMerge");
-        Assert(Find(panel, "native.vocabulary.duplicates.group.0.help") is null);
-
-        // Blocked for both reasons: both show. Blocked by the source only: its advice stays.
-        var both = blocked with
-        {
-            Groups = [blocked.Groups[0] with { MergeBlockedReason = "Language differs" }]
-        };
-        using var bothPanel = VocabularyDuplicatesView.Panel(both, style, key => key,
-            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
-        Assert(Find(bothPanel, "native.vocabulary.duplicates.group.0.reason")?.Text
-            == "NativeVocabulary_DuplicatesAnotherOwner\nLanguage differs");
-        var sourceOnly = both with
-        {
-            Groups = [both.Groups[0] with { HasAnotherOwnersCopy = false }]
+            Groups = [DuplicatePanel().Groups[0] with
+                { CanMergeAutomatically = false, MergeBlockedReason = "Language differs" }]
         };
         using var sourcePanel = VocabularyDuplicatesView.Panel(sourceOnly, style, key => key,
             new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.merge") is null);
+        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.reason")?.Text
+            == "Language differs");
+        Assert(Find(sourcePanel, "native.vocabulary.duplicates.word.w-good.edit") is not null);
         Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.blocked")?.Text
             == "NativeVocabulary_DuplicatesEditBeforeMerge");
         Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.help")?.Text
@@ -312,7 +293,7 @@ static VocabularyBrowserEdit WordState(bool history)
     var detail = new NativeVocabularyDetail(entry, draft, [resource],
         new NativeVocabularyProgress(LearningStatus.Learning, false, 0.4f, 1.5f, 1, created.AddDays(3), 4),
         history ? [new NativeVocabularyHistory("h-1", "VocabularyQuiz", created, true, false, "Story")] : [],
-        [], [], false, false, NativeVocabularyDeleteBlock.None);
+        [], [], false, NativeVocabularyDeleteBlock.None);
     return new VocabularyBrowserEdit(false, false, detail, draft, null, false, null);
 }
 

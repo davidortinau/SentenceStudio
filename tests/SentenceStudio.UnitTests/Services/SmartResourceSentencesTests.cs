@@ -386,6 +386,9 @@ public class SmartResourceSentencesTests : IDisposable
         var word = new VocabularyWord
         {
             Id = id,
+            // Every word has an owner: TestUserA until the first progress row seeded for it
+            // names its learner (in these tests the learner who practises a word created it).
+            UserProfileId = TestUserA,
             TargetLanguageTerm = targetTerm,
             NativeLanguageTerm = $"en_{targetTerm}",
             Language = "Korean",
@@ -395,8 +398,11 @@ public class SmartResourceSentencesTests : IDisposable
         };
         _db.VocabularyWords.Add(word);
         _db.SaveChanges();
+        _wordsAwaitingTheirLearner.Add(word.Id);
         return word;
     }
+
+    private readonly HashSet<string> _wordsAwaitingTheirLearner = new(StringComparer.Ordinal);
 
     private VocabularyProgress SeedVocabularyProgress(
         string vocabularyWordId, 
@@ -423,6 +429,12 @@ public class SmartResourceSentencesTests : IDisposable
         };
         _db.VocabularyProgresses.Add(progress);
         _db.SaveChanges();
+        if (_wordsAwaitingTheirLearner.Remove(vocabularyWordId)
+            && _db.VocabularyWords.Find(vocabularyWordId) is { } word)
+        {
+            word.UserProfileId = userId;
+            _db.SaveChanges();
+        }
         return progress;
     }
 }

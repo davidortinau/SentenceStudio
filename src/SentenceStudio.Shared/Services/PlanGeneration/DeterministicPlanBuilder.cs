@@ -435,7 +435,10 @@ public class DeterministicPlanBuilder
         // Get all available resources with vocabulary counts (user-scoped)
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync(userProfileId: userProfileId);
 
+        // Only the learner's own words count (the one ownership rule).
         var vocabularyCounts = await db.ResourceVocabularyMappings
+            .Where(rvm => db.VocabularyWords.Any(word => word.Id == rvm.VocabularyWordId
+                && word.UserProfileId == userProfileId))
             .GroupBy(rvm => rvm.ResourceId)
             .Select(g => new { ResourceId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ResourceId, x => x.Count, ct);

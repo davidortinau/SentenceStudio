@@ -80,6 +80,8 @@ public sealed class TranscriptSentenceHarvestService : ITranscriptSentenceHarves
                     from mapping in _db.ResourceVocabularyMappings.AsNoTracking()
                     join word in _db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
                     where mapping.ResourceId == resource.Id
+                        // Only the learner's own words (the one ownership rule).
+                        && word.UserProfileId == userId
                     select word)
                 .Distinct()
                 .ToListAsync(ct);

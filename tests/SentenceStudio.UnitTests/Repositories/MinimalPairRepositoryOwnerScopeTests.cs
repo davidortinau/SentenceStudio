@@ -51,11 +51,11 @@ public sealed class MinimalPairRepositoryOwnerScopeTests : IDisposable
             new UserProfile { Id = UserB, Name = UserB, CreatedAt = DateTime.UtcNow });
         var resourceA = Resource(UserA);
         var resourceB = Resource(UserB);
-        _a1 = Word("바다", "sea");
-        _a2 = Word("파다", "dig");
-        _a3 = Word("빠다", "butter");
-        _b1 = Word("달", "moon");
-        _b2 = Word("탈", "mask");
+        _a1 = Word("바다", "sea", UserA);
+        _a2 = Word("파다", "dig", UserA);
+        _a3 = Word("빠다", "butter", UserA);
+        _b1 = Word("달", "moon", UserB);
+        _b2 = Word("탈", "mask", UserB);
         _db.LearningResources.AddRange(resourceA, resourceB);
         _db.VocabularyWords.AddRange(_a1, _a2, _a3, _b1, _b2);
         foreach (var word in new[] { _a1, _a2, _a3 })
@@ -116,6 +116,41 @@ public sealed class MinimalPairRepositoryOwnerScopeTests : IDisposable
         (await _pairs.CreatePairAsync(UserA, _a1.Id, _b1.Id)).Should().BeNull();
         (await _pairs.CreatePairAsync(UserA, _a1.Id, _a1.Id)).Should().BeNull();
         (await _db.MinimalPairs.CountAsync()).Should().Be(0);
+    }
+
+    // The one ownership rule (Captain 2026-11-06): a pair follows its words. A's legacy pair whose
+    // word is recorded to another learner, or to no one, is not listed or opened (its row stays);
+    // a pair of A's own words is.
+    [Fact]
+    public async Task Pairs_AreShownOnlyWhenBothWordsAreTheOwners()
+    {
+        var own = await _pairs.CreatePairAsync(UserA, _a1.Id, _a2.Id);
+        own.Should().NotBeNull();
+        _db.MinimalPairs.AddRange(
+            new MinimalPair
+            {
+                Id = "mp-a-with-b-word", UserId = UserA,
+                VocabularyWordAId = _a1.Id, VocabularyWordBId = _b1.Id,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            },
+            new MinimalPair
+            {
+                Id = "mp-a-with-legacy-word", UserId = UserA,
+                VocabularyWordAId = _a2.Id, VocabularyWordBId = _a3.Id,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+        await _db.SaveChangesAsync();
+        await _db.VocabularyWords.Where(word => word.Id == _a3.Id)
+            .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
+        _db.ChangeTracker.Clear();
+
+        (await _pairs.GetUserPairsAsync(UserA)).Select(p => p.Id).Should().Equal(own!.Id);
+        (await _pairs.GetPairByIdAsync(UserA, "mp-a-with-b-word")).Should().BeNull();
+        (await _pairs.GetPairByIdAsync(UserA, "mp-a-with-legacy-word")).Should().BeNull();
+        (await _pairs.GetPairsByWordIdAsync(UserA, _a2.Id)).Select(p => p.Id).Should().Equal(own.Id);
+        (await _pairs.CreatePairAsync(UserA, _a1.Id, _a3.Id)).Should().BeNull(
+            "a word recorded to no one is not the learner's to pair");
+        (await _db.MinimalPairs.CountAsync()).Should().Be(3, "hidden pairs stay on disk");
     }
 
     [Fact]
@@ -214,9 +249,10 @@ public sealed class MinimalPairRepositoryOwnerScopeTests : IDisposable
         UpdatedAt = DateTime.UtcNow,
     };
 
-    private static VocabularyWord Word(string target, string native) => new()
+    private static VocabularyWord Word(string target, string native, string owner) => new()
     {
         Id = Guid.NewGuid().ToString(),
+        UserProfileId = owner,
         TargetLanguageTerm = target,
         NativeLanguageTerm = native,
         Language = "Korean",

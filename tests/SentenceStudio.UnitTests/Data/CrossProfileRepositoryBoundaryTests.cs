@@ -741,8 +741,10 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
             .Should().Be(1);
     }
 
+    // The one ownership rule (Captain 2026-11-06): only the learner's own word is reused; a
+    // word recorded to no one is no one's, so it is neither found nor linked.
     [Fact]
-    public async Task TargetTermLookup_ReusesOnlyReachableOrUnownedWords()
+    public async Task TargetTermLookup_ReusesOnlyTheLearnersOwnWords()
     {
         const string commonTerm = "공통";
         var resourceA = SeedResource(UserA);
@@ -755,14 +757,14 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
         (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
             .Should().BeNull("a foreign-only mapping is not reusable");
 
-        var unowned = SeedWord(commonTerm);
+        var unowned = SeedLegacyWord(commonTerm);
         (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
-            ?.Id.Should().Be(unowned.Id);
+            .Should().BeNull("a word recorded to no one is not reusable");
 
         (await ResourceRepository.AddVocabularyToResourceAsync(resourceB.Id, unowned.Id, UserB))
-            .Should().BeTrue();
+            .Should().BeFalse("a word recorded to no one cannot be linked");
         (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
-            ?.Id.Should().Be(unowned.Id);
+            .Should().BeNull();
     }
 
     [Fact]
@@ -862,12 +864,17 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
         return skill;
     }
 
+    /// <summary>
+    /// Seeds a word (every word has an owner): recorded to <see cref="UserA"/> until its first
+    /// <see cref="Map"/> records it to that resource's learner, who in these tests created it.
+    /// </summary>
     private VocabularyWord SeedWord(string? targetTerm = null)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var word = new VocabularyWord
         {
+            UserProfileId = UserA,
             TargetLanguageTerm = targetTerm ?? $"target-{Guid.NewGuid()}",
             NativeLanguageTerm = $"native-{Guid.NewGuid()}",
             Language = "Korean",
@@ -876,13 +883,36 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
         };
         db.VocabularyWords.Add(word);
         db.SaveChanges();
+        _wordsAwaitingTheirLearner.Add(word.Id);
         return word;
     }
+
+    /// <summary>A legacy word saved before words had owners: recorded to no one.</summary>
+    private VocabularyWord SeedLegacyWord(string targetTerm)
+    {
+        var word = SeedWord(targetTerm);
+        _wordsAwaitingTheirLearner.Remove(word.Id);
+        using var scope = _provider.CreateScope();
+        scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyWords
+            .Where(w => w.Id == word.Id)
+            .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, (string?)null));
+        word.UserProfileId = null;
+        return word;
+    }
+
+    private readonly HashSet<string> _wordsAwaitingTheirLearner = new(StringComparer.Ordinal);
 
     private void Map(string resourceId, string vocabularyWordId)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (_wordsAwaitingTheirLearner.Remove(vocabularyWordId))
+        {
+            var owner = db.LearningResources.AsNoTracking()
+                .Where(r => r.Id == resourceId).Select(r => r.UserProfileId).Single();
+            db.VocabularyWords.Where(w => w.Id == vocabularyWordId)
+                .ExecuteUpdate(set => set.SetProperty(w => w.UserProfileId, owner));
+        }
         db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
         {
             ResourceId = resourceId,

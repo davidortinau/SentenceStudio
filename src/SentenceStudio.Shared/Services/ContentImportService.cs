@@ -1340,7 +1340,8 @@ public class ContentImportService : IContentImportService
                 from mapping in db.ResourceVocabularyMappings.AsNoTracking()
                 join resource in db.LearningResources.AsNoTracking() on mapping.ResourceId equals resource.Id
                 join word in db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
-                where resource.UserProfileId == userId
+                // Only the learner's own words (the one ownership rule).
+                where resource.UserProfileId == userId && word.UserProfileId == userId
                 select word)
             .Distinct()
             .ToListAsync(ct);
@@ -1509,7 +1510,9 @@ public class ContentImportService : IContentImportService
                         from mapping in db.ResourceVocabularyMappings
                         join resource in db.LearningResources on mapping.ResourceId equals resource.Id
                         join word in db.VocabularyWords on mapping.VocabularyWordId equals word.Id
-                        where resource.UserProfileId == userId
+                        // Reuse only the learner's own words (the one ownership rule); any other
+                        // term becomes a new word recorded to them.
+                        where resource.UserProfileId == userId && word.UserProfileId == userId
                         select word)
                         .Distinct()
                         .ToListAsync(token);

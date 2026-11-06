@@ -327,6 +327,7 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
         _db.VocabularyWords.Add(new VocabularyWord
         {
             Id = "owner-a-due-food",
+            UserProfileId = OwnerId,
             TargetLanguageTerm = "빵",
             NativeLanguageTerm = "owner-a-only-gloss",
             Lemma = "빵",
@@ -419,6 +420,7 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
         _db.VocabularyWords.Add(new VocabularyWord
         {
             Id = "newly-due-word",
+            UserProfileId = CoachApplicationHarness.OwnerUserId,
             TargetLanguageTerm = "기억 단서 대상",
             NativeLanguageTerm = "unrelated mnemonic source",
             Lemma = "기억 단서",

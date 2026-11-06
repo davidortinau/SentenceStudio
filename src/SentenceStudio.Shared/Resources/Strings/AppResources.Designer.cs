@@ -4576,6 +4576,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to “{0}” stays in your vocabulary..
+        /// </summary>
+        internal static string Coach_VocabularyRemoval_Kept {
+            get {
+                return ResourceManager.GetString("Coach_VocabularyRemoval_Kept", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Removed “{0}” from your resources. It stays in your vocabulary..
+        /// </summary>
+        internal static string Coach_VocabularyRemoval_Unlinked {
+            get {
+                return ResourceManager.GetString("Coach_VocabularyRemoval_Unlinked", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Apply this change.
         /// </summary>
         internal static string Coach_WriteAccept {
@@ -12325,15 +12343,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Keep at least one owned resource selected so this word remains in your vocabulary..
-        /// </summary>
-        internal static string NativeVocabulary_AssociationRequired {
-            get {
-                return ResourceManager.GetString("NativeVocabulary_AssociationRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Audio is unavailable right now. Please retry..
         /// </summary>
         internal static string NativeVocabulary_AudioUnavailable {
@@ -12379,20 +12388,11 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to This word can&apos;t be deleted: another learner&apos;s minimal pairs or phrases, or ones not recorded to you, still use it. You can still edit it..
+        ///   Looks up a localized string similar to This word can&apos;t be deleted: data that isn&apos;t yours (another learner&apos;s, or not recorded to anyone) still uses it, such as a resource link, practice, a sentence, a minimal pair or a phrase. You can still edit it..
         /// </summary>
         internal static string NativeVocabulary_DeleteUsedByOthers {
             get {
                 return ResourceManager.GetString("NativeVocabulary_DeleteUsedByOthers", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged here. You can open each copy, but only copies recorded to you can be edited..
-        /// </summary>
-        internal static string NativeVocabulary_DuplicatesAnotherOwner {
-            get {
-                return ResourceManager.GetString("NativeVocabulary_DuplicatesAnotherOwner", resourceCulture);
             }
         }
 
@@ -12411,15 +12411,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeVocabulary_DuplicatesBlockedFallback {
             get {
                 return ResourceManager.GetString("NativeVocabulary_DuplicatesBlockedFallback", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Can&apos;t merge here.
-        /// </summary>
-        internal static string NativeVocabulary_DuplicatesCannotMerge {
-            get {
-                return ResourceManager.GetString("NativeVocabulary_DuplicatesCannotMerge", resourceCulture);
             }
         }
 
@@ -12555,15 +12546,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeVocabulary_SavedSyncUnconfirmed {
             get {
                 return ResourceManager.GetString("NativeVocabulary_SavedSyncUnconfirmed", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to This word is shared with another profile. You can view it here, but cannot edit the shared word..
-        /// </summary>
-        internal static string NativeVocabulary_SharedReadOnly {
-            get {
-                return ResourceManager.GetString("NativeVocabulary_SharedReadOnly", resourceCulture);
             }
         }
 
@@ -19902,7 +19884,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} word(s) stay in your vocabulary, with their resources: they aren&apos;t recorded as yours, or another learner still uses them..
+        ///   Looks up a localized string similar to {0} word(s) stay in your vocabulary, with their resources: another learner&apos;s data, or data not recorded to anyone, still uses them..
         /// </summary>
         internal static string Vocabulary_BulkDeleteKept {
             get {
@@ -20388,15 +20370,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged..
-        /// </summary>
-        internal static string Vocabulary_DuplicatesNotRecordedToYou {
-            get {
-                return ResourceManager.GetString("Vocabulary_DuplicatesNotRecordedToYou", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Recommended keeper.
         /// </summary>
         internal static string Vocabulary_DuplicatesRecommendedKeeper {
@@ -20757,6 +20730,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} entries could not be updated because of an error. Try again..
+        /// </summary>
+        internal static string Vocabulary_FixSwappedFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_FixSwappedFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Fixing {0} entries....
         /// </summary>
         internal static string Vocabulary_FixSwappedFixing {
@@ -20766,7 +20748,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} entries were left as they are: they aren&apos;t recorded as yours, or another learner still uses them..
+        ///   Looks up a localized string similar to {0} entries were left as they are: they are no longer yours, or they could not be merged safely..
         /// </summary>
         internal static string Vocabulary_FixSwappedKept {
             get {
@@ -21657,7 +21639,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to This word can&apos;t be deleted: it isn&apos;t recorded as yours, or another learner&apos;s data (or data not recorded to anyone) still uses it..
+        ///   Looks up a localized string similar to This word can&apos;t be deleted: another learner&apos;s data, or data not recorded to anyone, still uses it..
         /// </summary>
         internal static string VocabWordEdit_DeleteRefusedShared {
             get {

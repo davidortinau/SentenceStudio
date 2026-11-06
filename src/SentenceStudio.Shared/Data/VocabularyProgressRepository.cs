@@ -32,10 +32,11 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        // Progress follows its word: only the learner's own words (the one ownership rule).
         return await db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
-            .Where(vp => vp.UserId == userId)
+            .Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId))
             .ToListAsync();
     }
 
@@ -141,7 +142,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
                 .Include(vp => vp.VocabularyWord)
                 .Include(vp => vp.LearningContexts)
                     .ThenInclude(lc => lc.LearningResource)
-                .Where(vp => vp.UserId == userId)
+                .Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId))
                 .Where(vp => batch.Contains(vp.VocabularyWordId))
                 .ToListAsync();
 
@@ -159,12 +160,15 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
     public async Task<List<VocabularyProgress>> GetAllForUserAsync(string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return new List<VocabularyProgress>();
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Progress follows its word: only the learner's own words (the one ownership rule).
         return await db.VocabularyProgresses
             .AsNoTracking()
-            .Where(vp => vp.UserId == userId)
+            .Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId))
             .ToListAsync();
     }
 
@@ -278,12 +282,13 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Count vocabulary words belonging to this user's resources (via ResourceVocabularyMapping)
+        // Count the learner's own words (the one ownership rule) that their resources link.
         var totalVocabWords = await db.Set<ResourceVocabularyMapping>()
             .Where(rvm => db.Set<LearningResource>()
                 .Where(lr => lr.UserProfileId == userId)
                 .Select(lr => lr.Id)
-                .Contains(rvm.ResourceId))
+                .Contains(rvm.ResourceId)
+                && db.VocabularyWords.Any(w => w.Id == rvm.VocabularyWordId && w.UserProfileId == userId))
             .Select(rvm => rvm.VocabularyWordId)
             .Distinct()
             .CountAsync();
@@ -295,6 +300,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         // wordsNeverSeen math. See Brot incident, 2026-06-12.
         var allProgress = await db.VocabularyProgresses
             .Where(vp => vp.UserId == userId
+                && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)
                 && db.Set<ResourceVocabularyMapping>().Any(rvm =>
                     rvm.VocabularyWordId == vp.VocabularyWordId
                     && db.Set<LearningResource>().Any(lr =>
@@ -341,6 +347,8 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
     public async Task<double> GetSuccessRate7dAsync(string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return 0; // No learner: nothing is read (fail closed).
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -384,6 +392,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
                 && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
+                && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)
                 && db.ResourceVocabularyMappings.Any(m =>
                     m.VocabularyWordId == vp.VocabularyWordId
                     && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userId)))
@@ -419,6 +428,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
                 && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
+                && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)
                 && db.ResourceVocabularyMappings.Any(m =>
                     m.VocabularyWordId == vp.VocabularyWordId
                     && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userId)))
@@ -452,6 +462,8 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
                 mapping => mapping.ResourceId,
                 resource => resource.Id,
                 (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
+            .Where(candidate => db.VocabularyWords.Any(word =>
+                word.Id == candidate.VocabularyWordId && word.UserProfileId == userId))
             .Where(candidate => !db.VocabularyProgresses.Any(progress =>
                 progress.UserId == userId && progress.VocabularyWordId == candidate.VocabularyWordId))
             .GroupBy(candidate => candidate.VocabularyWordId)
@@ -470,6 +482,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         var wordIds = candidates.Select(candidate => candidate.VocabularyWordId).ToList();
         var wordsById = await db.VocabularyWords
             .AsNoTracking()
+            .OwnedBy(userId)
             .Where(word => wordIds.Contains(word.Id))
             .ToDictionaryAsync(word => word.Id, ct);
 
@@ -525,13 +538,15 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
     public async Task<ResourceProgressAggregation?> GetResourceProgressAggregationAsync(string resourceId, string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return null; // No learner: nothing is read (fail closed).
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var result = await db.ResourceVocabularyMappings
             .Where(rvm => rvm.ResourceId == resourceId)
             .Join(
-                db.VocabularyProgresses.Where(vp => vp.UserId == userId),
+                db.VocabularyProgresses.Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)),
                 rvm => rvm.VocabularyWordId,
                 vp => vp.VocabularyWordId,
                 (rvm, vp) => vp
@@ -555,13 +570,15 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
     public async Task<Dictionary<string, ResourceProgressAggregation>> GetMultipleResourceProgressAggregationsAsync(List<string> resourceIds, string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return new Dictionary<string, ResourceProgressAggregation>(); // No learner: nothing is read (fail closed).
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = await db.ResourceVocabularyMappings
             .Where(rvm => resourceIds.Contains(rvm.ResourceId))
             .Join(
-                db.VocabularyProgresses.Where(vp => vp.UserId == userId),
+                db.VocabularyProgresses.Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)),
                 rvm => rvm.VocabularyWordId,
                 vp => vp.VocabularyWordId,
                 (rvm, vp) => new { rvm.ResourceId, Progress = vp }
@@ -589,11 +606,13 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
     public async Task<ResourceProgressAggregation?> GetOverallProgressAggregationAsync(string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+            return null; // No learner: nothing is read (fail closed).
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var result = await db.VocabularyProgresses
-            .Where(vp => vp.UserId == userId)
+            .Where(vp => vp.UserId == userId && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId))
             .GroupBy(vp => 1)
             .Select(g => new ResourceProgressAggregation
             {

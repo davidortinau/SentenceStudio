@@ -106,7 +106,6 @@ public sealed class VocabularyBrowserTests
     [Theory]
     [InlineData(NativeVocabularySaveStatus.Duplicate, "VocabWordEdit_DuplicateExists")]
     [InlineData(NativeVocabularySaveStatus.Conflict, "NativeVocabulary_Conflict")]
-    [InlineData(NativeVocabularySaveStatus.SharedReadOnly, "NativeVocabulary_SharedReadOnly")]
     [InlineData(NativeVocabularySaveStatus.NotFoundOrForbidden, "VocabWordEdit_NotFound")]
     public void SaveErrorKey_MatchesTheSourceMessages(NativeVocabularySaveStatus status, string key)
     {
@@ -121,8 +120,10 @@ public sealed class VocabularyBrowserTests
         Assert.Equal("NativeVocabulary_ConstituentsLocked", VocabularyBrowser.SaveErrorKey(
             NativeVocabularySaveStatus.Invalid, linked,
             linkedDraft with { LexicalUnitType = LexicalUnitType.Phrase }));
+        // A word with no links and no progress is still the owner's (Captain 2026-11-06): no
+        // "keep a resource" reason exists for it any more.
         var (orphan, orphanDraft) = Detail(LexicalUnitType.Word, links: false, resources: []);
-        Assert.Equal("NativeVocabulary_AssociationRequired", VocabularyBrowser.SaveErrorKey(
+        Assert.Equal("VocabWordEdit_SaveFailed", VocabularyBrowser.SaveErrorKey(
             NativeVocabularySaveStatus.Invalid, orphan, orphanDraft));
         var (plain, plainDraft) = Detail(LexicalUnitType.Word, links: false, resources: ["r1"]);
         Assert.Equal("VocabWordEdit_SaveFailed", VocabularyBrowser.SaveErrorKey(
@@ -144,7 +145,7 @@ public sealed class VocabularyBrowserTests
         var draft = new NativeVocabularyEditDraft("w", now, "target", "native", null,
             "Korean", null, null, null, type, resources);
         return (new NativeVocabularyDetail(entry, draft, [], null, [], [], [],
-            IsSharedWithAnotherOwner: false, HasConstituentLinks: links,
+            HasConstituentLinks: links,
             DeleteBlock: NativeVocabularyDeleteBlock.None), draft);
     }
 }

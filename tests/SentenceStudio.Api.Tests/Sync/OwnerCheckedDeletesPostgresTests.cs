@@ -321,7 +321,7 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         var mapping = Guid.NewGuid().ToString();
         db.UserProfiles.Add(new UserProfile { Id = owner, Email = $"{owner}@example.test" });
         db.LearningResources.Add(new LearningResource { Id = resource, UserProfileId = owner });
-        db.VocabularyWords.Add(new VocabularyWord { Id = word, TargetLanguageTerm = "물" });
+        db.VocabularyWords.Add(new VocabularyWord { Id = word, TargetLanguageTerm = "물", UserProfileId = owner });
         db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
         {
             Id = mapping, ResourceId = resource, VocabularyWordId = word
