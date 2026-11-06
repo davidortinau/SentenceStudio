@@ -9548,4 +9548,12 @@
     <value>다시 시도할 실패한 가져오기를 찾지 못했습니다.</value>
     <comment>YouTube channel page: no failed import for the video (the source toast was English only). Korean draft by the native port; needs review.</comment>
   </data>
+  <data name="Coach_VocabularyRemoval_Unlinked" xml:space="preserve">
+    <value>“{0}”을(를) 내 리소스에서 제거했습니다. 이 단어는 내 어휘에 그대로 남아 있습니다.</value>
+    <comment>Sam's remove-word reply when the delete keeps the learner's word: unlinked from their resources only (B85). {0} is the word. Korean draft; needs review.</comment>
+  </data>
+  <data name="Coach_VocabularyRemoval_Kept" xml:space="preserve">
+    <value>“{0}”은(는) 내 어휘에 그대로 남아 있습니다.</value>
+    <comment>Sam's remove-word reply when the delete keeps the learner's word and none of their resources linked it (B85). {0} is the word. Korean draft; needs review.</comment>
+  </data>
 </root>

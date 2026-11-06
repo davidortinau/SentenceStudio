@@ -4576,6 +4576,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to “{0}” stays in your vocabulary..
+        /// </summary>
+        internal static string Coach_VocabularyRemoval_Kept {
+            get {
+                return ResourceManager.GetString("Coach_VocabularyRemoval_Kept", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Removed “{0}” from your resources. It stays in your vocabulary..
+        /// </summary>
+        internal static string Coach_VocabularyRemoval_Unlinked {
+            get {
+                return ResourceManager.GetString("Coach_VocabularyRemoval_Unlinked", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Apply this change.
         /// </summary>
         internal static string Coach_WriteAccept {

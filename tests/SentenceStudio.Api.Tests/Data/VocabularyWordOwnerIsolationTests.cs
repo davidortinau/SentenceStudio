@@ -275,6 +275,55 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         Assert.Equal(before, await SnapshotOfBAsync(database));
     }
 
+    // Review of bf701c42, finding 4: when the delete keeps the learner's word (another learner
+    // practises it; the learner's own Minimal Pairs answer uses it), the Coach unlinks it from
+    // the learner's resources and says so: it stays in their vocabulary, and why, in the
+    // learner's interface language. A free word of theirs is deleted, as the delete rule allows.
+    protected async Task CoachRemoval_KeptWord_SaysItStaysInTheVocabularyAndWhy()
+    {
+        var database = await SeedAsync();
+        var before = await SnapshotOfBAsync(database);
+        await using (var db = Context(database))
+            await db.UserProfiles.Where(profile => profile.Id == UserA)
+                .ExecuteUpdateAsync(set => set.SetProperty(profile => profile.DisplayLanguage, "Korean"));
+        var korean = System.Globalization.CultureInfo.GetCultureInfo("ko");
+        string Text(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, korean);
+
+        async Task<SentenceStudio.Api.Coach.Operations.CoachWriteExecution> RemoveAsync(string wordId)
+        {
+            await using var appDb = Context(database);
+            var handler = new SentenceStudio.Api.Coach.Operations.Handlers.CoachVocabularyRemovalHandler(
+                new SentenceStudio.Api.Coach.Operations.CoachWriteOwnership(appDb),
+                Repository(database, null));
+            return await handler.ExecuteAsync(UserA, System.Text.Json.JsonSerializer.Serialize(
+                new SentenceStudio.Api.Coach.Operations.Handlers.CoachVocabularyRemovalArgs(wordId),
+                SentenceStudio.Api.Coach.Persistence.CoachNormalizedJson.Options), default);
+        }
+
+        var shared = await RemoveAsync("a-used-by-b");
+        Assert.Equal(string.Format(Text("Coach_VocabularyRemoval_Unlinked"), "셋"), shared.Summary);
+        Assert.Equal([Text("VocabWordEdit_DeleteRefusedShared")], shared.Lines);
+        var answered = await RemoveAsync("a-answered");
+        Assert.Equal(string.Format(Text("Coach_VocabularyRemoval_Unlinked"), "넷"), answered.Summary);
+        Assert.Equal([Text("NativeVocabulary_DeleteUsedByAnswers")], answered.Lines);
+        // Asked again, nothing is left to unlink: it still stays, and the reply says only that.
+        var again = await RemoveAsync("a-used-by-b");
+        Assert.Equal(string.Format(Text("Coach_VocabularyRemoval_Kept"), "셋"), again.Summary);
+        var deleted = await RemoveAsync("a-own");
+        Assert.Equal("Removed “하나” from your vocabulary", deleted.Summary);
+
+        await using (var db = Context(database))
+        {
+            foreach (var id in new[] { "a-used-by-b", "a-answered" })
+            {
+                Assert.True(await db.VocabularyWords.AnyAsync(word => word.Id == id && word.UserProfileId == UserA), id);
+                Assert.False(await db.ResourceVocabularyMappings.AnyAsync(m => m.VocabularyWordId == id), id);
+            }
+            Assert.False(await db.VocabularyWords.AnyAsync(word => word.Id == "a-own"));
+        }
+        Assert.Equal(before, await SnapshotOfBAsync(database));
+    }
+
     // Review finding 11: the refusal is the Coach's specific not-found-or-not-owned refusal,
     // raised before any preview, not any exception. B's word that A's resource links, and a
     // word recorded to no one, are refused; A's own word is edited.
@@ -790,6 +839,7 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
     [Fact] public Task CoachEdit() => CoachEdit_RefusesWordsNotRecordedToTheLearner();
     [Fact] public Task CoachRemoval() => CoachRemoval_ActsOnlyOnTheLearnersOwnWords();
+    [Fact] public Task CoachRemovalKeptWord() => CoachRemoval_KeptWord_SaysItStaysInTheVocabularyAndWhy();
     [Fact] public Task Reads() => Reads_ShowOnlyTheLearnersOwnWords();
     [Fact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
     [Fact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
@@ -839,6 +889,7 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
     [ApplicationOperationPostgresFact] public Task CoachEdit() => CoachEdit_RefusesWordsNotRecordedToTheLearner();
     [ApplicationOperationPostgresFact] public Task CoachRemoval() => CoachRemoval_ActsOnlyOnTheLearnersOwnWords();
+    [ApplicationOperationPostgresFact] public Task CoachRemovalKeptWord() => CoachRemoval_KeptWord_SaysItStaysInTheVocabularyAndWhy();
     [ApplicationOperationPostgresFact] public Task Reads() => Reads_ShowOnlyTheLearnersOwnWords();
     [ApplicationOperationPostgresFact] public Task SaveResourceKeepsHiddenLinks() => SaveResource_KeepsLinksToHiddenWords();
     [ApplicationOperationPostgresFact] public Task SaveResourceWithoutWords() => SaveResource_LoadedWithoutItsWords_KeepsEveryLink();
