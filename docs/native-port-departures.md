@@ -56,6 +56,19 @@ for the WebApp and MAUI app.
 | 24 | Hard-coded English strings have Korean translations | English only | Keep |
 | 29 | Vocabulary Quiz "Use in a sentence" shows the target word without its translation (Captain, 2026-11-06: "I shouldn't see the translation"); WebApp/MAUI backport B70 | Showed the native-language term under the target word | Keep (Captain) |
 
+## Import Content (iOS, 2026-11-06)
+
+Source: `src/SentenceStudio.UI/Pages/ImportContent.razor`. The native page runs the same
+shared `ContentImportService`; these are the presentation differences.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 30 | The Import (commit) action is in the toolbar at every width (a plain toolbar button on a phone, the primary button on iPad) | `PageHeader` shows `PrimaryActions` only at 768 px and wider, so a phone-width web page or the MAUI phone app has no way to commit an import (B71) | |
+| 31 | Errors and warnings are pinned over the top of the page until dismissed or the next action; success is a toast | Toasts fixed over the page | |
+| 32 | The preview table is a list of row cards: the row checkbox, the status and duplicate badges, and the two term fields (side by side from 680 pt); a row's error is read by VoiceOver with its status badge | Table; the row error is the badge's hover tooltip | |
+| 33 | Hard-coded English (the auto-detect gate, the Sentences option, OK/Warning/Error, the type and status badges) uses resources; new keys have English and draft Korean | English only (B73) | |
+| 34 | A result row opens the word editor above the results, and Back returns to them. That editor's Find Duplicates opens the duplicate panel of the Vocabulary page, which is not on screen here, so it closes the editor without showing duplicates | `/vocabulary/edit/{id}`; Find Duplicates navigates to the Vocabulary page | Captain: keep, or route Find Duplicates to the Vocabulary page? |
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

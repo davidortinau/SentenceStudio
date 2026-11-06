@@ -6969,6 +6969,58 @@
     <value>계속하려면 최소 하나의 추출 옵션을 선택해주세요.</value>
     <comment>Harvest validation error message</comment>
   </data>
+  <data name="Import_ContentType_Sentences" xml:space="preserve">
+    <value>문장</value>
+    <comment>Import Content type option (the source select listed it in English only). Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetected" xml:space="preserve">
+    <value>자동 감지됨: {0} (신뢰도 {1})</value>
+    <comment>Import Content auto-detect, high confidence. {0} is the content type, {1} the confidence percent. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectChange" xml:space="preserve">
+    <value>변경</value>
+    <comment>Import Content auto-detect: opens the content type chooser. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectNotSure" xml:space="preserve">
+    <value>확실하지 않습니다.</value>
+    <comment>Import Content auto-detect, medium confidence heading. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectLooksLike" xml:space="preserve">
+    <value>{0}(으)로 보입니다 (신뢰도 {1}). 확인하거나 올바른 유형을 선택하세요:</value>
+    <comment>Import Content auto-detect, medium confidence. {0} is the content type, {1} the confidence percent. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectConfirm" xml:space="preserve">
+    <value>네, {0}입니다</value>
+    <comment>Import Content auto-detect: confirms the suggested type. {0} is the content type. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectPickDifferent" xml:space="preserve">
+    <value>다른 유형 선택</value>
+    <comment>Import Content auto-detect: opens the content type chooser. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectConfirmedAs" xml:space="preserve">
+    <value>{0}(으)로 확인됨</value>
+    <comment>Import Content auto-detect: the type the learner confirmed. {0} is the content type. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectFailed" xml:space="preserve">
+    <value>콘텐츠 유형을 자동으로 감지하지 못했습니다.</value>
+    <comment>Import Content auto-detect, low confidence heading. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectLowHint" xml:space="preserve">
+    <value>힌트: {0}일 수 있지만 신뢰도가 낮습니다 ({1}).</value>
+    <comment>Import Content auto-detect, low confidence. {0} is the content type, {1} the confidence percent. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_AutoDetectSelectType" xml:space="preserve">
+    <value>콘텐츠 유형을 선택하세요:</value>
+    <comment>Import Content auto-detect, low confidence: the type buttons follow. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_SelectContentType" xml:space="preserve">
+    <value>콘텐츠 유형 선택:</value>
+    <comment>Import Content type chooser heading. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_SelectRow" xml:space="preserve">
+    <value>{0}행 가져오기</value>
+    <comment>Import Content preview: accessibility label of a row's checkbox. {0} is the row number. Korean draft by the native port; needs review.</comment>
+  </data>
   <data name="PlanItemNumberDrillTitle" xml:space="preserve">
     <value>숫자 연습</value>
     <comment>Plan item title for NumberDrill activity</comment>

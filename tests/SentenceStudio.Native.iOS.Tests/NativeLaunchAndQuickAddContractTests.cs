@@ -49,11 +49,12 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.Contains("() => OpenLibraryQuickAdd(OpenResourceCreate)", controller);
         Assert.Contains("() => OpenLibraryQuickAdd(() => OpenSkills(create: true))", controller);
         Assert.Contains("() => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))", controller);
-        // The imports stay off until their native flows exist.
-        Assert.Contains("private const bool ImportContentReady = false;", controller);
-        Assert.Contains("private const bool YouTubeImportReady = false;", controller);
-        Assert.Contains("internal void OpenImportContent()", controller);
-        Assert.Contains("internal void OpenYouTubeImport()", controller);
+        // Import content opens its native page; YouTube import joins when its flow exists.
+        Assert.Contains("new(\"import-content\", \"square.and.arrow.down\", \"Nav_ImportContent\",", controller);
+        Assert.Contains("() => OpenLibraryQuickAdd(OpenImportContent)", controller);
+        Assert.DoesNotContain("youtube-import", controller);
+        Assert.Contains("internal void OpenImportContent()",
+            Source("App/ApplicationController.Import.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
             "MinimalPairs_CreatePair", "Nav_ImportContent", "ImportFromYouTube" })

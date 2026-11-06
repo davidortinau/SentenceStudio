@@ -172,6 +172,7 @@ internal sealed partial class ApplicationScene
             DropVocabularyReferences();
             DropSkillsReferences();
             DropPairsReferences();
+            DropImportReferences();
             _renderedLibraryResetVersion = _app.LibraryResetVersion;
         }
         var key = LibraryListKey();
@@ -182,6 +183,7 @@ internal sealed partial class ApplicationScene
         }
         UpdateLibraryResources(appearanceChanged);
         UpdateLibraryPairs(appearanceChanged);
+        UpdateLibraryImport(appearanceChanged);
     }
 
     /// <summary>The Resources page, pushed by its list row.</summary>
@@ -236,6 +238,7 @@ internal sealed partial class ApplicationScene
             ForgetPairsChildToastLayer();
             _app.OnLibraryPairsChildPopped();
         }
+        OnImportRoutesChanged(routes);
     }
 
     // ---- Minimal Pairs ----

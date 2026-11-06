@@ -101,6 +101,15 @@ Native fix references are commits on `native-platform-heads`.
 
 **One ownership rule for vocabulary words (review 4, 2026-11-05; web, MAUI, native).** A word is the learner's when its stored owner is them: its recorded owner (`VocabularyWord.UserProfileId`), or, for a word saved before words had owners, the single learner its resource links and progress name, the rule the server's owner-checked sync uses (`SyncRowOwners.GetStoredWordOwnersAsync`). `VocabularyWordOwnership.OwnedByAsync` is the one place it is decided, and every client uses it for delete, merge, the duplicate scan's masking, edit, and whose memory aids are shown. A word nobody can be shown to own (recorded to nobody and linked by two learners, or by none) is no one's. An example sentence belongs to its recorded owner, else its resource's owner, else its word's owner (`VocabularyWordOwnership.SentenceOwnersAsync`, the phase-3 backfill rule); a sentence no one can be shown to own counts as someone else's. `VocabularyWordDependents.OthersUseAsync` (links, progress, sentences) decides whether someone else uses a word (native edit), and `OthersDependOnAsync` adds others' minimal pairs and phrases (delete, on the server and every client).
 
+## Import Content (found porting to iOS, 2026-11-06; open)
+
+| # | Area | Defect in WebApp/MAUI | Where |
+|---|---|---|---|
+| B71 | Import Content (phone widths) | The Import (commit) button is in `PageHeader` `PrimaryActions`, which render only at `d-md-flex` (768 px and wider); there are no `SecondaryActions`, so below 768 px (MAUI phone, narrow browser) an import can be previewed but never committed. Native shows the action at every width (departure 29) | UI `ImportContent.razor`, `PageHeader.razor` |
+| B72 | Import Content (example sentences) | `RunPreview` copies each parsed row into its editable rows without `SourceSentence` and `SourceSentenceTranslation`, so `CommitImportAsync` never creates the curated example sentences its AI extraction returned. Native keeps the source behavior (same fields copied) until the Captain decides | UI `ImportContent.razor` |
+| B73 | Import Content (localization) | The auto-detect gate, the "Sentences" option, the preview status badges (OK/Warning/Error), the result type and status badges and the harvest toast are hard-coded English. Native uses existing keys and adds `Import_ContentType_Sentences`, `Import_AutoDetect*`, `Import_SelectContentType`, `Import_SelectRow` (English and draft Korean) | UI `ImportContent.razor` |
+| B74 | Import Content (AI failures) | `ContentImportService.ClassifyContentAsync` turns an AI failure into a 30% "Vocabulary" classification, so the page says "Couldn't auto-detect the content type" instead of reporting the failure (seen 2026-11-06: the local API timed out reaching Azure OpenAI). The target and native languages also default to Korean and English instead of the profile's | Shared `ContentImportService`; UI `ImportContent.razor` |
+
 ## Platform (MAUI app only)
 
 | # | Area | Defect | Where |

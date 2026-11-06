@@ -79,14 +79,15 @@ internal sealed partial class ApplicationController
 
     /// <summary>A page is open above the Library list.</summary>
     internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
-        || IsSkillsOpen || _libraryPairs is not null;
+        || IsSkillsOpen || _libraryPairs is not null || IsImportContentOpen;
 
     /// <summary>
     /// An editor is open in the Library: Save or Cancel decides how it closes, so nothing
     /// from another tab replaces it. A smart resource being read is not an editor.
     /// </summary>
     internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
-        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
+        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage
+        || IsImportWordOpen;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
     internal long LibraryResetVersion => _libraryResetVersion;
@@ -134,17 +135,9 @@ internal sealed partial class ApplicationController
     internal sealed record LibraryQuickAddItem(string Id, string Symbol, string TitleKey, Action Open);
 
     /// <summary>
-    /// Native Import content and YouTube import are being built separately; their buttons
-    /// stay off until <see cref="OpenImportContent"/> and <see cref="OpenYouTubeImport"/> open
-    /// a real flow, so the grid ships only working buttons.
-    /// </summary>
-    private const bool ImportContentReady = false;
-    private const bool YouTubeImportReady = false;
-
-    /// <summary>
     /// The quick-add grid under the Library list, in order: every existing native create flow
-    /// (a new resource, skill profile or minimal pair), then the imports once they exist.
-    /// Add an item here to add a button.
+    /// (a new resource, skill profile or minimal pair), then Import content. Add an item here
+    /// to add a button (YouTube import joins when its native flow exists).
     /// </summary>
     internal IReadOnlyList<LibraryQuickAddItem> LibraryQuickAddItems
     {
@@ -158,15 +151,9 @@ internal sealed partial class ApplicationController
                     () => OpenLibraryQuickAdd(() => OpenSkills(create: true))),
                 new("minimal-pair", "waveform.badge.plus", NativeMinimalPairsText.CreatePair,
                     () => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))),
+                new("import-content", "square.and.arrow.down", "Nav_ImportContent",
+                    () => OpenLibraryQuickAdd(OpenImportContent)),
             };
-#pragma warning disable CS0162 // The imports are off until their flows exist.
-            if (ImportContentReady)
-                items.Add(new("import-content", "square.and.arrow.down", "Nav_ImportContent",
-                    () => OpenLibraryQuickAdd(OpenImportContent)));
-            if (YouTubeImportReady)
-                items.Add(new("youtube-import", "play.rectangle", "ImportFromYouTube",
-                    () => OpenLibraryQuickAdd(OpenYouTubeImport)));
-#pragma warning restore CS0162
             return items;
         }
     }
@@ -181,19 +168,7 @@ internal sealed partial class ApplicationController
         open();
     }
 
-    /// <summary>
-    /// Native Import content (another agent's work): not wired yet, so its quick-add button
-    /// is off (<see cref="ImportContentReady"/>).
-    /// </summary>
-    internal void OpenImportContent() =>
-        _logger?.LogWarning("Import content is not available on iOS yet.");
-
-    /// <summary>
-    /// Native YouTube import (another agent's work): not wired yet, so its quick-add button
-    /// is off (<see cref="YouTubeImportReady"/>).
-    /// </summary>
-    internal void OpenYouTubeImport() =>
-        _logger?.LogWarning("YouTube import is not available on iOS yet.");
+    // OpenImportContent: ApplicationController.Import.cs.
 
     /// <summary>Back from the Resources page to the Library list.</summary>
     internal void OnLibraryResourcesPopped()
@@ -252,6 +227,7 @@ internal sealed partial class ApplicationController
         if (IsSkillsOpen)
             _skills!.Close();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _libraryResetVersion++;
     }
 

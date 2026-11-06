@@ -165,6 +165,7 @@ internal sealed partial class ApplicationController : IDisposable
         || _resources?.IsNavigationBlocked == true
         || _skills?.IsPending == true
         || _vocabulary?.IsNavigationBlocked == true
+        || IsImportNavigationBlocked
         || IsSamSlotCheckingShown;
 
     private bool _launching = true;
@@ -1007,6 +1008,7 @@ internal sealed partial class ApplicationController : IDisposable
         _resources = null;
         ReleaseVocabulary();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _libraryResourcesOpen = false;
         _libraryErrorKey = null;
         _profileSummary = null;
@@ -1161,6 +1163,7 @@ internal sealed partial class ApplicationController : IDisposable
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _skills?.Dispose();
         _profile?.Dispose();
         _activityLog?.Dispose();
