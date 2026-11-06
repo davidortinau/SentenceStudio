@@ -219,6 +219,53 @@ public sealed class NativeYouTubeImportTests
         Assert.Equal(["ko", "en"], youtube.Downloads);
     }
 
+    [Fact]
+    public async Task TheDevicesYouTubeCalls_AndThePolish_GetThePagesToken()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var youtube = new ScratchYouTube();
+        var ai = new NativeSharedAiTests.ScratchOwnerAi { Polished = "polished" };
+        var adapter = Adapter(fixture, youtube, ai);
+        using var page = new CancellationTokenSource();
+        var owner = NativeSliceFixture.UserA;
+        const string url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+
+        await adapter.GetVideoTitleAsync(owner, url, page.Token);
+        var tracks = await adapter.GetTracksAsync(owner, url, page.Token);
+        await adapter.DownloadTranscriptAsync(owner, tracks[0], page.Token);
+        Assert.Equal("polished", await adapter.PolishAsync(owner, "첫 문장입니다", "ko", page.Token));
+
+        // Leaving the page cancels these requests, not only the check after they return.
+        Assert.Equal([page.Token, page.Token, page.Token], youtube.Tokens);
+        Assert.Equal([page.Token], ai.Tokens);
+    }
+
+    [Fact]
+    public async Task ThePolish_IsSentAsThePagesOwner_AndRefusedWhenTheDeviceChangedHands()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserB);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var ai = new NativeSharedAiTests.ScratchOwnerAi { Polished = "polished" };
+        // The device signs in as B while the polish is on its way (after the page's own check,
+        // just before the AI request).
+        var connectivity = new NativeSharedAiTests.Online
+        {
+            OnCheck = () => fixture.Activate(NativeSliceFixture.UserB)
+        };
+        var adapter = Adapter(fixture, new ScratchYouTube(), ai, connectivity: connectivity);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            adapter.PolishAsync(NativeSliceFixture.UserA, "첫 문장입니다", "ko", default));
+
+        // A's transcript never went out, as B or as anyone.
+        Assert.Empty(ai.Prompts);
+        Assert.Empty(ai.Owners);
+    }
+
     // ---- Helpers ----
 
     internal static YouTubeImportCoordinator Coordinator(NativeSliceFixture fixture,
@@ -226,7 +273,7 @@ public sealed class NativeYouTubeImportTests
         new(adapter, fixture.UserScope, NullLogger<YouTubeImportCoordinator>.Instance);
 
     internal static NativeYouTubeImport Adapter(NativeSliceFixture fixture, IYouTubeImportService youtube,
-        IOwnerBoundNativeAiGateway ai, INativeYouTubeApi? api = null)
+        IOwnerBoundNativeAiGateway ai, INativeYouTubeApi? api = null, IConnectivityService? connectivity = null)
     {
         // The shared AiService and TranscriptFormattingService as the native registration builds
         // them, over this test's owner-bound gateway.
@@ -234,7 +281,7 @@ public sealed class NativeYouTubeImportTests
         services.AddLogging();
         services.AddSingleton(fixture.Provider.GetRequiredService<IPreferencesService>());
         services.AddSingleton(fixture.UserScope);
-        services.AddSingleton<IConnectivityService>(new NativeSharedAiTests.Online());
+        services.AddSingleton(connectivity ?? new NativeSharedAiTests.Online());
         services.AddSingleton(ai);
         services.AddNativeSharedAi();
         var shared = services.BuildServiceProvider();
@@ -252,6 +299,8 @@ public sealed class NativeYouTubeImportTests
         public Exception? TrackFailure { get; set; }
         public int Calls { get; private set; }
         public List<string> Downloads { get; } = [];
+        /// <summary>The token each call was given.</summary>
+        public List<CancellationToken> Tokens { get; } = [];
 
         public static List<TranscriptTrack> DefaultTracks() =>
         [
@@ -268,26 +317,31 @@ public sealed class NativeYouTubeImportTests
                 new Language(code, name), auto)
         };
 
-        public Task<Video> GetVideoMetadataAsync(string videoUrl)
+        public Task<Video> GetVideoMetadataAsync(string videoUrl, CancellationToken cancellationToken = default)
         {
             Calls++;
+            Tokens.Add(cancellationToken);
             return Task.FromResult(new Video(VideoId.Parse(videoUrl), "A short Korean video",
                 new Author(new YoutubeExplode.Channels.ChannelId("UC0000000000000000000000"), "Channel"),
                 DateTimeOffset.UnixEpoch, string.Empty, TimeSpan.FromMinutes(2), [], [],
                 new Engagement(0, 0, 0)));
         }
 
-        public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl)
+        public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl,
+            CancellationToken cancellationToken = default)
         {
             Calls++;
+            Tokens.Add(cancellationToken);
             if (TrackFailure is not null)
                 throw TrackFailure;
             return Task.FromResult(Tracks ?? []);
         }
 
-        public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track)
+        public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track,
+            CancellationToken cancellationToken = default)
         {
             Calls++;
+            Tokens.Add(cancellationToken);
             Downloads.Add(track.LanguageCode);
             return Task.FromResult(track.LanguageCode == "ko"
                 ? "첫 문장입니다\n둘째 문장입니다\n"

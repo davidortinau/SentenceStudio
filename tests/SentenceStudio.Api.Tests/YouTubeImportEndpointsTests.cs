@@ -461,16 +461,19 @@ public sealed class YouTubeImportStub : IYouTubeImportService
 
     public int Calls(string url) => _calls.GetValueOrDefault(url);
 
-    public Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl)
+    public Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl,
+        CancellationToken cancellationToken = default)
     {
         var run = _calls.AddOrUpdate(videoUrl, 1, (_, count) => count + 1);
         throw new VideoImportException(Failure(videoUrl, run), "StubNoNetwork");
     }
 
-    public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl) =>
+    public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl,
+        CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not reached: the metadata call fails first.");
 
-    public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track) =>
+    public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track,
+        CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not reached: the metadata call fails first.");
 
     public Task<StreamHistory> ExtractAudioClipAsync(string videoUrl, double startTime, double duration) =>

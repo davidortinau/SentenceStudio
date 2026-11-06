@@ -133,8 +133,10 @@ public class TranscriptFormattingService
     /// </summary>
     /// <param name="transcript">Transcript text to polish</param>
     /// <param name="language">Language of the transcript</param>
+    /// <param name="cancellationToken">Cancels the AI request (the caller left).</param>
     /// <returns>AI-polished transcript text</returns>
-    public async Task<string> PolishWithAiAsync(string transcript, string? language = null)
+    public async Task<string> PolishWithAiAsync(string transcript, string? language = null,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(transcript))
             return transcript;
@@ -174,7 +176,7 @@ public class TranscriptFormattingService
 
             _logger.LogDebug("🤖 Sending to AI...");
 
-            var polished = await _aiService.SendPrompt<string>(prompt);
+            var polished = await _aiService.SendPrompt<string>(prompt, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(polished))
             {
@@ -196,6 +198,10 @@ public class TranscriptFormattingService
             _aiPolishCache[hash] = polished;
             _logger.LogInformation("✅ AI polish complete, cached result (length: {Length} chars)", polished.Length);
             return polished;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

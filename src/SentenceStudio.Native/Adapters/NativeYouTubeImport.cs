@@ -53,7 +53,7 @@ public sealed class NativeYouTubeImport(
         string owner, string videoUrl, CancellationToken cancellationToken)
     {
         RequireOwner(owner);
-        var video = await youtube.GetVideoMetadataAsync(videoUrl);
+        var video = await youtube.GetVideoMetadataAsync(videoUrl, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return video?.Title;
@@ -63,7 +63,7 @@ public sealed class NativeYouTubeImport(
         string owner, string videoUrl, CancellationToken cancellationToken)
     {
         RequireOwner(owner);
-        var tracks = await youtube.GetAvailableTranscriptsAsync(videoUrl);
+        var tracks = await youtube.GetAvailableTranscriptsAsync(videoUrl, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return tracks ?? [];
@@ -74,7 +74,7 @@ public sealed class NativeYouTubeImport(
     {
         ArgumentNullException.ThrowIfNull(track);
         RequireOwner(owner);
-        var raw = await youtube.DownloadTranscriptTextAsync(track);
+        var raw = await youtube.DownloadTranscriptTextAsync(track, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return formatting.SmartCleanup(raw, track.LanguageCode);
@@ -84,7 +84,19 @@ public sealed class NativeYouTubeImport(
         string owner, string transcript, string? languageCode, CancellationToken cancellationToken)
     {
         RequireOwner(owner);
-        var polished = await formatting.PolishWithAiAsync(transcript, languageCode);
+        string polished;
+        try
+        {
+            // The AI request goes out as this page's owner: once the device belongs to someone
+            // else it is refused before it is sent, never sent with the other owner's token.
+            using (NativeOwnerCall.Bind(owner))
+                polished = await formatting.PolishWithAiAsync(transcript, languageCode, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && !IsActiveOwner(owner))
+        {
+            // The shared service reports every failure as its own; an owner change is a refusal.
+            throw new UnauthorizedAccessException("YouTube import requires the current device owner.", ex);
+        }
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return polished;
@@ -213,7 +225,7 @@ public sealed class NativeYouTubeImport(
     {
         ArgumentNullException.ThrowIfNull(channel);
         RequireOwner(owner);
-        var result = await Channels().ResolveChannelMetadataAsync(channel);
+        var result = await Channels().ResolveChannelMetadataAsync(channel, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return (result.Success, result.Error);
@@ -224,7 +236,7 @@ public sealed class NativeYouTubeImport(
     {
         ArgumentNullException.ThrowIfNull(channel);
         RequireOwner(owner);
-        var videos = await Channels().GetRecentVideosAsync(channel, maxResults);
+        var videos = await Channels().GetRecentVideosAsync(channel, maxResults, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         RequireOwner(owner);
         return videos.Select(video => new NativeYouTubeVideo(video.VideoId, video.Title, video.Url)).ToList();

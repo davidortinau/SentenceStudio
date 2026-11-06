@@ -120,7 +120,11 @@ public sealed class NativeOwnerSpeechGatewayClient(
     }
 }
 
-/// <summary>The device owner a shared service's request is sent as: absent or inconsistent fails closed.</summary>
+/// <summary>
+/// The device owner a shared service's request is sent as: absent or inconsistent fails closed.
+/// Inside <see cref="NativeOwnerCall.Bind"/> it must also be the bound owner (the page's), so a
+/// device that changed hands mid-call sends nothing rather than the other owner's request.
+/// </summary>
 internal static class NativeCurrentOwner
 {
     internal static string Require(DeviceUserScopeProvider scope, IPreferencesService preferences)
@@ -131,9 +135,36 @@ internal static class NativeCurrentOwner
             && string.Equals(stamp.PublishedOwner, owner, StringComparison.Ordinal)
             && string.Equals(
                 preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty),
-                owner, StringComparison.Ordinal))
+                owner, StringComparison.Ordinal)
+            && (NativeOwnerCall.Current is not { } bound
+                || string.Equals(bound, owner, StringComparison.Ordinal)))
             return owner;
         throw new UnauthorizedAccessException("Native AI requires a current device owner.");
+    }
+}
+
+/// <summary>
+/// The owner a shared service's AI and speech requests belong to for the call in progress (a
+/// page's owner). It flows with the async call into the shared service; outside a binding the
+/// current device owner is used, as before.
+/// </summary>
+internal static class NativeOwnerCall
+{
+    private static readonly AsyncLocal<string?> Bound = new();
+
+    internal static string? Current => Bound.Value;
+
+    internal static IDisposable Bind(string owner)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        var previous = Bound.Value;
+        Bound.Value = owner;
+        return new Restore(previous);
+    }
+
+    private sealed class Restore(string? previous) : IDisposable
+    {
+        public void Dispose() => Bound.Value = previous;
     }
 }
 

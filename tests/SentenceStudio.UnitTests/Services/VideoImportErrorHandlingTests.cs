@@ -59,13 +59,16 @@ public sealed class VideoImportErrorHandlingTests : IDisposable
         public Func<TranscriptTrack, Task<string>>? DownloadTranscriptTextFunc { get; set; }
         public Func<string, double, double, Task<StreamHistory>>? ExtractAudioClipFunc { get; set; }
 
-        public Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl) =>
+        public Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl,
+            CancellationToken cancellationToken = default) =>
             GetVideoMetadataFunc?.Invoke(videoUrl) ?? throw new NotImplementedException();
 
-        public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl) =>
+        public Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl,
+            CancellationToken cancellationToken = default) =>
             GetAvailableTranscriptsFunc?.Invoke(videoUrl) ?? throw new NotImplementedException();
 
-        public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track) =>
+        public Task<string> DownloadTranscriptTextAsync(TranscriptTrack track,
+            CancellationToken cancellationToken = default) =>
             DownloadTranscriptTextFunc?.Invoke(track) ?? throw new NotImplementedException();
 
         public Task<StreamHistory> ExtractAudioClipAsync(string videoUrl, double startTime, double duration) =>

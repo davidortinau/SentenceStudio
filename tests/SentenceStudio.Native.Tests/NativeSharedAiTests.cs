@@ -73,7 +73,19 @@ public sealed class NativeSharedAiTests
 
     internal sealed class Online : IConnectivityService
     {
-        public bool IsInternetAvailable => true;
+        /// <summary>Runs once, the first time a request checks the connection.</summary>
+        public Action? OnCheck { get; set; }
+
+        public bool IsInternetAvailable
+        {
+            get
+            {
+                var check = OnCheck;
+                OnCheck = null;
+                check?.Invoke();
+                return true;
+            }
+        }
     }
 
     internal sealed class ScratchOwnerAi : IOwnerBoundNativeAiGateway
@@ -83,6 +95,7 @@ public sealed class NativeSharedAiTests
         public List<string> Owners { get; } = [];
         public List<AiTier> Tiers { get; } = [];
         public List<string> Prompts { get; } = [];
+        public List<CancellationToken> Tokens { get; } = [];
 
         public Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken) =>
             SendPromptAsync<T>(owner, prompt, AiTier.Fast, cancellationToken);
@@ -95,6 +108,7 @@ public sealed class NativeSharedAiTests
             Owners.Add(owner);
             Tiers.Add(tier);
             Prompts.Add(prompt);
+            Tokens.Add(cancellationToken);
             return Task.FromResult((T?)(object?)Polished);
         }
     }

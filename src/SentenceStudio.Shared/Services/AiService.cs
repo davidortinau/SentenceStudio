@@ -73,6 +73,14 @@ public class AiService : IAiService
     }
 
     public Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null) =>
+        SendPrompt<T>(prompt, CancellationToken.None, tier, reasoningEffort);
+
+    /// <summary>
+    /// <see cref="SendPrompt{T}(string, AiTier, string?)"/> whose request ends when
+    /// <paramref name="cancellationToken"/> is cancelled (the caller left).
+    /// </summary>
+    public Task<T> SendPrompt<T>(string prompt, CancellationToken cancellationToken,
+        AiTier tier = AiTier.Fast, string? reasoningEffort = null) =>
         SendWhenOnlineAsync(nameof(SendPrompt), async () =>
         {
             var model = tier == AiTier.Reasoning
@@ -89,7 +97,8 @@ public class AiService : IAiService
             {
                 _logger.LogDebug("Sending prompt to AI via gateway (tier: {Tier} → {Model}, effort: {ReasoningEffort})",
                     tier, model, reasoningEffort ?? "<default>");
-                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt, tier, reasoningEffort);
+                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt, tier, reasoningEffort,
+                    cancellationToken);
                 _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
                 return gatewayResult;
             }
@@ -101,7 +110,8 @@ public class AiService : IAiService
                 {
                     new ChatMessage(ChatRole.User, prompt)
                 },
-                AiChatOptionsFactory.Create(reasoningEffort: reasoningEffort));
+                AiChatOptionsFactory.Create(reasoningEffort: reasoningEffort),
+                cancellationToken: cancellationToken);
             var hasResult = response != null && response.Result != null;
             _logger.LogDebug("AI response received: {HasResult}", hasResult);
             return response.Result;
