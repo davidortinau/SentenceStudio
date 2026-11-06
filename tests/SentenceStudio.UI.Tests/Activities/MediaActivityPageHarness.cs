@@ -368,6 +368,11 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         public bool AnswerAsOlderServer { get; set; }
         public List<string> Requests { get; } = new();
         public List<string> Bodies { get; } = new();
+        /// <summary>When set, each request waits for it (a clip still loading).</summary>
+        public TaskCompletionSource? Hold { get; set; }
+        /// <summary>Completes when the first request arrives.</summary>
+        public TaskCompletionSource RequestStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public HttpClient CreateClient() =>
             new(this, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
@@ -375,6 +380,9 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            RequestStarted.TrySetResult();
+            if (Hold is { } hold)
+                await hold.Task.WaitAsync(cancellationToken);
             Requests.Add(request.RequestUri?.AbsolutePath ?? string.Empty);
             Bodies.Add(request.Content is null
                 ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));

@@ -33,7 +33,7 @@ internal static class QuizSentenceView
             headerAction.IsEnabled = !busy && !state.IsSentenceSubmitting
                 && (!graded || state.Phase == NativePhase.Ready);
         // The target word only: no translation while the learner writes with it
-        // (Captain, 2026-11-06; the source header also showed the native term).
+        // (Captain, 2026-11-06; the web/MAUI source matches since B70).
         var heading = Views.VStack(
                 style.Text(Views.Text(text("VocabQuiz_SentenceShortcut")),
                     SourceTextRole.Caption1, SourceTextTone.Primary),

@@ -54,7 +54,7 @@ for the WebApp and MAUI app.
 | 22 | Video Watching transcript scrolls with the page | Fixed 300-pt scrolling box | Keep |
 | 23 | Describe a Scene shows accuracy color as a badge | Colored left border | Keep |
 | 24 | Hard-coded English strings have Korean translations | English only | Keep |
-| 29 | Vocabulary Quiz "Use in a sentence" shows the target word without its translation (Captain, 2026-11-06: "I shouldn't see the translation"); WebApp/MAUI backport B70 | Showed the native-language term under the target word | Keep (Captain) |
+| 29 | ~~Vocabulary Quiz "Use in a sentence" shows the target word without its translation~~ **No longer a departure**: the WebApp/MAUI quiz now shows the target word only too (B70; Captain, 2026-11-06: "I shouldn't see the translation") | Showed the native-language term under the target word | Keep (Captain); all clients match |
 
 ## Import Content (iOS, 2026-11-06)
 

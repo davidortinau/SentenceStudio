@@ -310,7 +310,7 @@ public sealed record NativeQuizSentenceHint(string ExampleSentenceId, string Tar
 /// <summary>
 /// "Use in a sentence": the learner produces a target-language sentence from the target word
 /// alone. It carries no native-language translation, so no head can show or announce it
-/// (Captain, 2026-11-06: the source header also showed the translation; native leaves it out).
+/// (Captain, 2026-11-06; the web/MAUI source header dropped it too, B70).
 /// </summary>
 public sealed record NativeQuizSentencePrompt(
     string WordId,

@@ -134,8 +134,9 @@ else if (currentItem != null)
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
                     <div>
                         <span class="badge bg-primary-subtle text-primary-emphasis mb-2">@Localize["VocabQuiz_SentenceShortcut"]</span>
+                        @* B70: the target word only. No translation while the learner writes with it
+                           (Captain, 2026-11-06); native heads match (departure 29 retired). *@
                         <h2 class="ss-title2 mb-1" style="color: var(--bs-primary);">@currentItem.Word.TargetLanguageTerm</h2>
-                        <p class="ss-body2 text-secondary-ss mb-0">@currentItem.Word.NativeLanguageTerm</p>
                     </div>
                     @if (sentenceShortcutResults.Any())
                     {
@@ -158,7 +159,7 @@ else if (currentItem != null)
                 </div>
 
                 <p class="ss-body1 mb-2">
-                    @string.Format(Localize["VocabQuiz_WriteOneSentence"], currentItem.Word.TargetLanguageTerm)
+                    @GetSentenceShortcutInstruction()
                 </p>
                 <p class="ss-body2 text-secondary-ss mb-3">
                     @Localize["VocabQuiz_OnlyMeaningful"]
@@ -170,6 +171,7 @@ else if (currentItem != null)
                               @bind="sentenceShortcutInput"
                               @bind:event="oninput"
                               disabled="@isSentenceShortcutSubmitting"
+                              aria-label="@GetSentenceShortcutInstruction()"
                               placeholder="@GetSentenceShortcutPlaceholder()"></textarea>
 
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -1932,7 +1934,7 @@ else
         sentenceShortcutResults.Clear();
     }
 
-    private void OpenSentenceShortcut()
+    private async Task OpenSentenceShortcut()
     {
         if (currentItem?.Word == null)
             return;
@@ -1945,6 +1947,12 @@ else
         sentenceShortcutInput = "";
         sentenceShortcutSuccessCount = 0;
         sentenceShortcutResults.Clear();
+
+        // B70: no prompt audio while the learner writes; in NativeToTarget a prompt clip still
+        // playing (autoplay) would speak the translation. PlayAudioTextAsync also refuses to
+        // start one that was still loading.
+        _nativeAudio.Stop();
+        await StopBrowserAudioAsync();
     }
 
     private void CancelSentenceShortcut()
@@ -1966,6 +1974,9 @@ else
         ResetSentenceShortcutState();
         await NextItem();
     }
+
+    private string GetSentenceShortcutInstruction() =>
+        string.Format(Localize["VocabQuiz_WriteOneSentence"], currentItem?.Word?.TargetLanguageTerm ?? "");
 
     private string GetSentenceShortcutPlaceholder()
     {
@@ -2753,7 +2764,7 @@ else
 
     private async Task PlayAudioTextAsync(string text, string language)
     {
-        if (_audioDisposed || isPlayingAudio || string.IsNullOrWhiteSpace(text)) return;
+        if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
 
         try
@@ -2778,6 +2789,10 @@ else
                     await EnableTextFallbackAsync();
                     return;
             }
+
+            // B70: "Use in a sentence" opened while the clip loaded; it must not play there.
+            if (isSentenceShortcutMode)
+                return;
 
             if (AudioPlayerFactory.CanPlayLocally)
             {
