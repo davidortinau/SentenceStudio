@@ -28,10 +28,11 @@ public sealed class OwnerBoundNativeSyncReadiness(
     IRemoteSyncCompletion sync,
     IHttpClientFactory clients,
     ILogger<OwnerBoundNativeSyncReadiness> logger,
+    NativeSyncDownloads downloads,
     NativeServerReachability? reachability = null) : INativeSyncReadiness
 {
     /// <inheritdoc />
-    public long SyncGeneration => (sync as ISyncGenerationSource)?.SyncGeneration ?? 0;
+    public long SyncGeneration => downloads.Generation;
 
     public async Task<NativeSyncOutcome> SynchronizeAsync(
         string userId, CancellationToken cancellationToken)
@@ -250,6 +251,7 @@ public static class OwnerBoundNativeSyncReadinessRegistration
         services.TryAddTransient<AuthenticatedHttpMessageHandler>();
         services.TryAddTransient<OwnerBoundNativeSyncBearerHandler>();
         services.TryAddSingleton(NativeSyncTimeouts.Default);
+        services.TryAddSingleton<NativeSyncDownloads>();
         services.TryAddSingleton<NativeServerReachability>();
         services.TryAddTransient<NativeSyncResponseTimeoutHandler>();
         services.TryAddTransient<NativeServerReachabilityHandler>();
@@ -284,6 +286,7 @@ public static class OwnerBoundNativeSyncReadinessRegistration
                     UserProfileRepository.ActiveProfileIdKey, string.Empty),
                     owner, StringComparison.Ordinal)
                     ? owner : null,
-            provider.GetRequiredService<ILogger<NativeLocalOnlyMappingExportProvider>>());
+            provider.GetRequiredService<ILogger<NativeLocalOnlyMappingExportProvider>>(),
+            downloads: provider.GetRequiredService<NativeSyncDownloads>());
     }
 }

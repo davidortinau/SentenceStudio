@@ -55,13 +55,16 @@ internal sealed partial class ApplicationController
                     DismissNotice: lookups.DismissNotice))
             : Views.Text(Text("Common_Loading"));
 
-    /// <summary>An unexpected failure is shown on Recent lookups (or on the Library list when it never opened).</summary>
+    /// <summary>
+    /// An unexpected failure is shown on Recent lookups; one before the page opened is the
+    /// shell's notice over the Vocabulary page the learner is on.
+    /// </summary>
     private void OnRecentLookupsFailed()
     {
         if (_recentLookups is { IsOpen: true } lookups)
             lookups.ReportUnexpectedFailure();
         else
-            OnLibraryActionFailed();
+            ShowShellNotice(Text("Lookups_LoadFailed"));
     }
 
     internal void OnRecentLookupsPopped()

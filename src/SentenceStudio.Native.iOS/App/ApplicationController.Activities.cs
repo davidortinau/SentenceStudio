@@ -17,6 +17,8 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationController
 {
     private IActivityScreen? _activity;
+    /// <summary>The screen whose OpenAsync threw: the host shows its shared error with Go Back instead.</summary>
+    private IActivityScreen? _activityOpenFailure;
     private IServiceScope? _activityScope;
     private bool _activityPopPending;
     private NativeToastScheduler? _activityToasts;
@@ -29,12 +31,18 @@ internal sealed partial class ApplicationController
 
     internal string ActivityTitle => _activity is null ? string.Empty : Text(_activity.TitleKey);
 
-    internal SwiftView RenderActivity(SourceUiStyle style) =>
-        _activity?.Render(style) ?? Views.VStack();
+    /// <summary>The open threw outside the screen, so the screen never left its loading state.</summary>
+    private bool HasActivityOpenFailed => _activity is not null
+        && ReferenceEquals(_activityOpenFailure, _activity);
+
+    internal SwiftView RenderActivity(SourceUiStyle style) => HasActivityOpenFailed
+        ? ActivityOpenFailureView.Render(style, Text, ExitActivity)
+        : _activity?.Render(style) ?? Views.VStack();
 
     internal bool ActivityHasSheet => _activity?.HasSheet == true;
 
-    internal bool IsActivitySheetPresented => _activity?.IsSheetPresented == true;
+    internal bool IsActivitySheetPresented => !HasActivityOpenFailed
+        && _activity?.IsSheetPresented == true;
 
     internal double ActivitySheetDetent => _activity?.SheetDetentFraction ?? 0.45;
 
@@ -44,8 +52,9 @@ internal sealed partial class ApplicationController
     internal void DismissActivitySheet() => _activity?.OnSheetDismissed();
 
     internal bool TryUpdateActivityInPlace(SourceUiStyle style) =>
-        _activity?.TryUpdateInPlace(style) == true;
-    internal bool ActivityHasChildPage => IsActivityOpen && _activity?.HasChildPage == true;
+        !HasActivityOpenFailed && _activity?.TryUpdateInPlace(style) == true;
+    internal bool ActivityHasChildPage => IsActivityOpen && !HasActivityOpenFailed
+        && _activity?.HasChildPage == true;
 
     internal string ActivityChildTitle => _activity?.ChildTitle ?? string.Empty;
 
@@ -209,9 +218,8 @@ internal sealed partial class ApplicationController
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS activity open failed.");
-            // Instead of an endless spinner: the screen's error with its Go Back.
-            if (ReferenceEquals(_activity, screen) && !_disposed)
-                screen.OnOpenFailed();
+            // Instead of an endless spinner: the host's error with Go Back, for every activity.
+            _activityOpenFailure = screen;
         }
         if (ReferenceEquals(_activity, screen) && !_disposed)
             Publish();
@@ -273,6 +281,7 @@ internal sealed partial class ApplicationController
     {
         _activity?.Dispose();
         _activity = null;
+        _activityOpenFailure = null;
         _activityToasts?.Reset();
         _activityScope?.Dispose();
         _activityScope = null;

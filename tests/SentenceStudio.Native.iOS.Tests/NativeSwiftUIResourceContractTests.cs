@@ -352,12 +352,14 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("_libraryStack = Views.NavigationStack(_libraryRoot,", library);
         Assert.Contains("_resourcesSlot = Views.VStack(_app.RenderResources(_style))", library);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot,", scene + library);
-        // One freshness path: the list is read again only when a sync ran since its last
-        // successful read (the sync generation captured when that read started).
+        // One freshness path: the list is read again when its source moved since its last
+        // successful read (a download applied rows or a local write), or it is not shown.
         Assert.Contains("internal void ReadListIfStale()", coordinator);
-        Assert.Contains("var generation = _syncGeneration();", coordinator);
-        Assert.Contains("ErrorKey: null } ? generation : null;", coordinator);
+        Assert.Contains("var version = _presenter.ListSourceVersion;", coordinator);
+        Assert.Contains("_readVersion = null;", coordinator);
+        Assert.Contains("return _readVersion == current && _presenter.List is {", coordinator);
         Assert.Contains("refreshInPlace: true", coordinator);
+        Assert.DoesNotContain("_rereadRequested", coordinator);
         Assert.DoesNotContain("TickCount", coordinator);
         var app = Source("App/ApplicationController.cs");
         Assert.DoesNotContain("MarkListStale", app + Source("App/ApplicationController.Sam.cs"));

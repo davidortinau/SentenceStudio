@@ -17,9 +17,9 @@ public interface INativeSyncReadiness
     Task<NativeSyncOutcome> SynchronizeAsync(string userId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Moves after every local sync run (readiness or background trigger), which may have
-    /// applied downloaded rows. A reader that captured it before reading compares it at
-    /// use time to know whether its rows predate a sync. Zero when no sync runs here.
+    /// Moves each time a sync applied downloaded rows to this device's database (readiness
+    /// or background trigger). A reader that captured it before reading compares it at use
+    /// time to know whether its rows predate a download. A port that never downloads keeps 0.
     /// </summary>
     long SyncGeneration => 0;
 }

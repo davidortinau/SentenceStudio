@@ -22,6 +22,37 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
     private const string ServerMapping = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
 
     [Fact]
+    public async Task OnlyADownloadThatAppliedRowsMovesTheSyncDownloadCount()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var downloads = new NativeSyncDownloads();
+        var native = new NativeLocalOnlyMappingExportProvider(
+            fixture.Local.Provider, fixture.Server, () => Owner,
+            NullLogger<NativeLocalOnlyMappingExportProvider>.Instance, downloads: downloads);
+
+        // A resource made on another device downloads: the count moves.
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = Guid.NewGuid().ToString(), UserProfileId = Owner, Title = "From the web"
+            });
+            await db.SaveChangesAsync();
+        }
+        await fixture.SynchronizeLikeAppAsync(native);
+        var afterDownload = downloads.Generation;
+        Assert.True(afterDownload > 0);
+
+        // An empty download applies nothing: readers keep their rows.
+        var empty = new NativeLocalOnlyMappingExportProvider(
+            fixture.Local.Provider, fixture.Server, () => Owner,
+            NullLogger<NativeLocalOnlyMappingExportProvider>.Instance,
+            (changes, _, _) => Task.FromResult(changes.TargetAnchor), downloads);
+        await empty.ApplyChangesAsync(new SyncChangeSet(new SyncAnchor(), new SyncAnchor(), []));
+        Assert.Equal(afterDownload, downloads.Generation);
+    }
+
+    [Fact]
     public async Task LocalImportUndo_OriginalDeleteIsRejected_OnlyGhostDeletesAreCoalesced()
     {
         await using var fixture = await Fixture.CreateAsync();

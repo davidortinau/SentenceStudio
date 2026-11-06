@@ -22,7 +22,8 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     ILogger<NativeLocalOnlyMappingExportProvider> logger,
     // Test seam only: wraps the local CoreSync apply to simulate interruption.
     Func<SyncChangeSet, Func<SyncItem, ConflictResolution>?, CancellationToken,
-        Task<SyncAnchor>>? applyLocalOverride = null) : ISyncProvider, ISyncFollowUpSource
+        Task<SyncAnchor>>? applyLocalOverride = null,
+    NativeSyncDownloads? downloads = null) : ISyncProvider, ISyncFollowUpSource
 {
     private int _followUpRequested;
 
@@ -44,9 +45,28 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         Guid otherStoreId, long version, CancellationToken cancellationToken = default) =>
         local.SaveVersionForStoreAsync(otherStoreId, version, cancellationToken);
 
+    /// <summary>
+    /// Applies a download. One with rows moves <see cref="NativeSyncDownloads"/>, even when
+    /// it failed part way (some rows may be applied), so readers re-read.
+    /// </summary>
     public async Task<SyncAnchor> ApplyChangesAsync(
         SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc = null,
         CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ApplyDownloadAsync(changeSet, onConflictFunc, cancellationToken);
+        }
+        finally
+        {
+            if (changeSet.Items.Count > 0)
+                downloads?.Applied();
+        }
+    }
+
+    private async Task<SyncAnchor> ApplyDownloadAsync(
+        SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc,
+        CancellationToken cancellationToken)
     {
         if (activeOwner() is not { Length: > 0 } owner
             || !Guid.TryParse(owner, out var ownerId) || ownerId == Guid.Empty)

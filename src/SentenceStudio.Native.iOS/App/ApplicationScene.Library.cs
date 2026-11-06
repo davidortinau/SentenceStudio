@@ -47,11 +47,11 @@ internal sealed partial class ApplicationScene
     }
 
     /// <summary>
-    /// What the list shows: the count that is already loaded, a row's error, the style, and the
-    /// quick-add buttons with their column count.
+    /// What the list shows: the count that is already loaded, a row's error, the style, and
+    /// the quick-add grid's column count (its buttons are fixed).
     /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{string.Join(',', _app.LibraryQuickAddItems.Select(item => item.Id))}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}");
 
     private const double QuickAddTileHeight = 84;
 

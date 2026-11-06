@@ -46,6 +46,24 @@ public sealed partial class NativeResourcePresenter(
         _owner is not null && !IsCurrentOwnerStamp(_owner, _ownerStamp)
             ? new(NativeResourceDetailPhase.Blocked) : _detail;
 
+    private long _unmarkedWrites;
+
+    /// <summary>
+    /// Moves when the rows the list reads may have changed outside this presenter: a sync
+    /// applied downloaded rows, this device recorded a write for the owner (the
+    /// <see cref="NativePendingWrites"/> revision every local write marks), or a write that
+    /// marks no pending sync was noted (<see cref="NoteResourcesWritten"/>). A list read at
+    /// an older version is stale.
+    /// </summary>
+    public long ListSourceVersion => sync.SyncGeneration + Interlocked.Read(ref _unmarkedWrites)
+        + (TryCurrentOwner(out var owner) ? pendingWrites.Revision(owner) : 0);
+
+    /// <summary>
+    /// A local write that may add the owner's resources without marking a pending sync: a
+    /// profile save (the server saved first) creates the smart resources of its languages.
+    /// </summary>
+    public void NoteResourcesWritten() => Interlocked.Increment(ref _unmarkedWrites);
+
     /// <summary>
     /// Reads the owner's resources. With <paramref name="refreshInPlace"/>, a list that
     /// already shows rows keeps them while the read runs (no spinner, no lost scroll

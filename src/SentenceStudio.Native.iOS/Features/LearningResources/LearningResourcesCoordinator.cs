@@ -52,12 +52,13 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private bool _formOpen;
     private bool _creating;
     private bool _loadingList;
-    private bool _rereadRequested;
-    /// <summary>The sync generation the last successful read started at (null: none yet).</summary>
-    private long? _readSyncGeneration;
-    /// <summary>The sync generation the running read started at.</summary>
-    private long? _loadingSyncGeneration;
-    private readonly Func<long> _syncGeneration;
+    /// <summary>
+    /// The <see cref="NativeResourcePresenter.ListSourceVersion"/> the last successful read
+    /// started at; null before one, and from the start of every read until it succeeds.
+    /// </summary>
+    private long? _readVersion;
+    /// <summary>The version the running read started at.</summary>
+    private long? _loadingVersion;
     private bool _generating;
     private bool _importing;
     private bool _quickAdding;
@@ -67,20 +68,14 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private bool _controlledStarterLoading;
 #endif
 
-    /// <param name="syncGeneration">
-    /// The device's sync generation (<see cref="INativeSyncReadiness.SyncGeneration"/>): a
-    /// read that started before the latest sync is stale.
-    /// </param>
     internal LearningResourcesCoordinator(
         NativeResourcePresenter presenter,
         ILogger<LearningResourcesCoordinator> logger,
-        Func<string, string> text,
-        Func<long>? syncGeneration = null)
+        Func<string, string> text)
     {
         _presenter = presenter;
         _logger = logger;
         _text = text;
-        _syncGeneration = syncGeneration ?? (static () => 0);
     }
 
     internal event Action? Changed;
@@ -328,26 +323,26 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Reads the owner's resources now (after a change made on this device). A read already
-    /// running is followed by one more, so the change is never missed.
-    /// </summary>
-    internal void ReloadList() => Run(LoadListAsync);
-
-    /// <summary>
-    /// The list shows the owner's resources as of the latest sync: its last read succeeded
-    /// and started after the latest sync (or the running read did and nothing asked for
-    /// another).
+    /// The list shows the owner's resources as they are now: the running read started at
+    /// the current <see cref="NativeResourcePresenter.ListSourceVersion"/>, or the last read
+    /// did, succeeded, and the presenter still shows it (not Idle, a load error or Blocked).
     /// </summary>
     internal bool IsListFresh
     {
         get
         {
-            var current = _syncGeneration();
-            return _loadingList
-                ? _loadingSyncGeneration == current && !_rereadRequested
-                : _readSyncGeneration == current;
+            var current = _presenter.ListSourceVersion;
+            if (_loadingList)
+                return _loadingVersion == current;
+            return _readVersion == current && _presenter.List is {
+                Phase: NativeResourceListPhase.Populated or NativeResourceListPhase.Empty
+                    or NativeResourceListPhase.NoMatches,
+                ErrorKey: null };
         }
     }
+
+    /// <summary>A profile save may have added smart resources: the list is stale.</summary>
+    internal void NoteResourcesWritten() => _presenter.NoteResourcesWritten();
 
     /// <summary>The one freshness path: reads the list unless it is fresh.</summary>
     internal void ReadListIfStale()
@@ -414,42 +409,33 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Reads the list in place (rows already shown stay until the new ones arrive). The sync
-    /// generation is captured before the read, so a read that started before a sync is never
-    /// stamped fresh; only a read without an error counts.
+    /// Reads the list in place (rows already shown stay until the new ones arrive). The
+    /// version is captured before the read, so a read that started before a change is never
+    /// fresh; a read that fails or throws leaves the list stale.
     /// </summary>
     private async Task LoadListAsync()
     {
-        if (_disposed)
+        if (_disposed || _loadingList)
             return;
-        if (_loadingList)
-        {
-            _rereadRequested = true;
-            return;
-        }
         _loadingList = true;
+        var version = _presenter.ListSourceVersion;
+        _loadingVersion = version;
+        _readVersion = null;
         try
         {
-            do
-            {
-                _rereadRequested = false;
-                var generation = _syncGeneration();
-                _loadingSyncGeneration = generation;
-                var load = _presenter.LoadListAsync(_lifetime.Token, refreshInPlace: true);
-                Publish(formChanged: false);
-                var list = await load;
-                _readSyncGeneration = list is {
+            var load = _presenter.LoadListAsync(_lifetime.Token, refreshInPlace: true);
+            Publish(formChanged: false);
+            if (await load is {
                     Phase: NativeResourceListPhase.Populated or NativeResourceListPhase.Empty
                         or NativeResourceListPhase.NoMatches,
-                    ErrorKey: null } ? generation : null;
-                Publish(formChanged: false);
-            }
-            while (_rereadRequested && !_disposed);
+                    ErrorKey: null })
+                _readVersion = version;
+            Publish(formChanged: false);
         }
         finally
         {
             _loadingList = false;
-            _loadingSyncGeneration = null;
+            _loadingVersion = null;
         }
     }
 

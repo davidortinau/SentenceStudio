@@ -34,16 +34,6 @@ public interface IRemoteSyncCompletion
 }
 
 /// <summary>
-/// Counts local CoreSync runs, each of which may have applied downloaded rows. A reader
-/// that captured the value before reading knows its rows predate a sync when the value
-/// has moved since (one central signal instead of each caller marking data stale).
-/// </summary>
-public interface ISyncGenerationSource
-{
-    long SyncGeneration { get; }
-}
-
-/// <summary>
 /// Implemented by a local provider whose download can leave a local row that only an
 /// upload sends to the server (for example a merge of two devices' concurrent progress).
 /// <see cref="SyncService"/> then runs at most one follow-up pass in the same sync.
@@ -63,9 +53,8 @@ public class NoOpSyncService : ISyncService
     public void BeginInitialSync() { /* intentionally empty — no sync occurs in webapp */ }
 }
 
-public class SyncService : ISyncService, IRemoteSyncCompletion, ISyncGenerationSource
+public class SyncService : ISyncService, IRemoteSyncCompletion
 {
-    private long _syncGeneration;
     private readonly ISyncProvider _localSyncProvider;
     private readonly ISyncProviderHttpClient _remoteSyncProvider;
     private readonly ILogger<SyncService> _logger;
@@ -75,9 +64,6 @@ public class SyncService : ISyncService, IRemoteSyncCompletion, ISyncGenerationS
     
     public bool IsInitialSyncInProgress { get; private set; }
     public event Action? InitialSyncCompleted;
-
-    /// <inheritdoc />
-    public long SyncGeneration => Interlocked.Read(ref _syncGeneration);
 
     public void BeginInitialSync()
     {
@@ -401,28 +387,20 @@ public class SyncService : ISyncService, IRemoteSyncCompletion, ISyncGenerationS
 
     private async Task SynchronizeCoreAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            await ProvisionWithLateTablesAsync(cancellationToken);
+        await ProvisionWithLateTablesAsync(cancellationToken);
 
-            var followUp = _localSyncProvider as ISyncFollowUpSource;
-            // A request left by an earlier failed run is answered by this run's own upload.
-            followUp?.TakeFollowUpRequest();
-            await SynchronizePassAsync(cancellationToken);
-            if (followUp?.TakeFollowUpRequest() != true)
-                return;
+        var followUp = _localSyncProvider as ISyncFollowUpSource;
+        // A request left by an earlier failed run is answered by this run's own upload.
+        followUp?.TakeFollowUpRequest();
+        await SynchronizePassAsync(cancellationToken);
+        if (followUp?.TakeFollowUpRequest() != true)
+            return;
 
-            // The download merged rows that only an upload sends; send them now instead of on
-            // the next sync. Bounded: a request raised by this pass waits for the next sync.
-            _logger.LogInformation("Sync: running one follow-up pass to upload rows merged during the download");
-            await SynchronizePassAsync(cancellationToken);
-            followUp.TakeFollowUpRequest();
-        }
-        finally
-        {
-            // Even a failed run may have applied part of a download: readers re-read.
-            Interlocked.Increment(ref _syncGeneration);
-        }
+        // The download merged rows that only an upload sends; send them now instead of on
+        // the next sync. Bounded: a request raised by this pass waits for the next sync.
+        _logger.LogInformation("Sync: running one follow-up pass to upload rows merged during the download");
+        await SynchronizePassAsync(cancellationToken);
+        followUp.TakeFollowUpRequest();
     }
 
     /// <summary>

@@ -171,8 +171,8 @@ internal sealed partial class ApplicationController : IDisposable
 
     /// <summary>
     /// The app is starting: the launch look (the launch screen's color and logo) stays
-    /// until sign-in is resolved, so a remembered session goes straight to Study and Sign In
-    /// is drawn only when there is no session to restore or the restore failed.
+    /// until sign-in is resolved and, for a remembered session, until Study's first load
+    /// starts; Sign In is drawn only when there is no session to restore or the restore failed.
     /// </summary>
     internal bool IsLaunching => _launching;
 
@@ -244,12 +244,6 @@ internal sealed partial class ApplicationController : IDisposable
         if (_authState.Destination == NativeDestination.Dashboard)
         {
             _destination = NativeDestination.Dashboard;
-            if (_launching)
-            {
-                // Study shows at once (its plan loads in place), not after the plan load.
-                _launching = false;
-                Publish();
-            }
 #if DEBUG
             if (_services is not null)
             {
@@ -278,7 +272,20 @@ internal sealed partial class ApplicationController : IDisposable
             }
             if (_dashboard is not null)
             {
-                _dashboardState = await _dashboard.LoadAfterSignInAsync(_lifetime.Token);
+                // The launch look ends as Study's first load starts: Study shows that load
+                // (its Loading state is published at once), and Refresh and the mode switch
+                // wait for it like any running action instead of racing it.
+                _launching = false;
+                var wasBusy = _busy;
+                _busy = true;
+                try
+                {
+                    _dashboardState = await _dashboard.LoadAfterSignInAsync(_lifetime.Token);
+                }
+                finally
+                {
+                    _busy = wasBusy;
+                }
             }
             RefreshSamAvailability();
         }
@@ -328,12 +335,11 @@ internal sealed partial class ApplicationController : IDisposable
     {
         if (_resources is not null || _services is null)
             return;
-        var readiness = _services.Provider.GetRequiredService<INativeSyncReadiness>();
         _resources = new LearningResourcesCoordinator(
             _services.Provider.GetRequiredService<NativeResourcePresenter>(),
             _services.Provider
                 .GetRequiredService<ILogger<LearningResourcesCoordinator>>(),
-            Text, () => readiness.SyncGeneration);
+            Text);
         _resources.Changed += Publish;
         _resources.FormOpenChanged += open =>
         {
@@ -594,8 +600,8 @@ internal sealed partial class ApplicationController : IDisposable
                 if (created.Result == NativeResourceMutationResult.Success)
                     await _dashboard.EnsureStarterSkillAsync(_lifetime.Token);
                 _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
-                // A resource made on this device: read the list again.
-                _resources?.ReloadList();
+                // A resource made on this device (a recorded write): the list reads it again.
+                ReadResourcesIfStale();
             }
             else
                 _dashboardStarterErrorKey = created.ErrorKey switch

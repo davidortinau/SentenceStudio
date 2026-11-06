@@ -271,7 +271,10 @@ internal sealed class RecentLookupsCoordinator : IDisposable
         {
             if (!_open)
                 return;
+            // A failure during a load never leaves the spinner: the load error offers Retry.
             _state = _state with {
+                Phase = _state.Phase == RecentLookupsPhase.Loading
+                    ? RecentLookupsPhase.LoadError : _state.Phase,
                 AddingId = null,
                 Notice = new NativeMessage(NativeMessageKind.Error, NativeText.UnexpectedError)
             };

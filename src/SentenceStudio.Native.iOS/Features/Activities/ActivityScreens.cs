@@ -78,9 +78,6 @@ internal interface IActivityScreen : IDisposable
     /// </summary>
     long PageVersion => ChildVersion;
 
-    /// <summary>The host's OpenAsync call failed outside the screen: show the screen's own error.</summary>
-    void OnOpenFailed() { }
-
     SwiftView RenderChild(SourceUiStyle style) => Microsoft.SwiftUI.SwiftUI.VStack();
 
     /// <summary>The NavigationStack popped the child page (system Back or swipe).</summary>
@@ -98,6 +95,29 @@ internal interface IActivityScreen : IDisposable
     /// with it: drop any node kept from <see cref="PresentOver"/> before the exit renders.
     /// </summary>
     void OnPagePopped() { }
+}
+
+/// <summary>
+/// The host's fallback when an activity's OpenAsync throws outside the screen (the screen
+/// never leaves its loading state): the unexpected-error text and Go Back, for every activity.
+/// </summary>
+internal static class ActivityOpenFailureView
+{
+    internal static SwiftView Render(SourceUiStyle style, Func<string, string> text, Action goBack)
+    {
+        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
+        var content = Microsoft.SwiftUI.SwiftUI.VStack(
+                style.Text(Microsoft.SwiftUI.SwiftUI.Text(text(NativeText.UnexpectedError)),
+                        SourceTextRole.Body1, SourceTextTone.Danger)
+                    .WithAccessibilityIdentifier("native.activity.open-failed.message"),
+                style.SecondaryButton(text("Common_GoBack"), goBack)
+                    .WithAccessibilityIdentifier("native.activity.open-failed.go-back"))
+            .WithPadding(16, gutter, 16, gutter)
+            .WithFlexibleWidth();
+        content.Spacing = SourceUiLayout.PageGap;
+        return style.Page(Microsoft.SwiftUI.SwiftUI.Scroll(content)
+            .WithAccessibilityIdentifier("native.activity.open-failed"));
+    }
 }
 
 internal static class ActivityScreens

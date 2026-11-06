@@ -125,6 +125,37 @@ public sealed class NativeLookupHistoryTests
     }
 
     [Fact]
+    public async Task RecentLookups_AnUnexpectedFailureDuringALoad_OffersRetryNotTheSpinner()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 0);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        await fixture.Provider.GetRequiredService<VocabularyLookupRepository>().RecordAsync(NativeSliceFixture.UserA,
+            new("바다", "sea", VocabularyLookupOrigin.OwnedTargetTerm, VocabularyLookupActivity.Reading));
+        using var lookups = Coordinator(fixture);
+        Assert.True(await lookups.OpenAsync(NativeSliceFixture.UserA));
+
+        // The head's render throws as the reload shows its spinner.
+        var failRender = true;
+        lookups.Changed += () =>
+        {
+            if (!failRender)
+                return;
+            failRender = false;
+            throw new InvalidOperationException("render");
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lookups.ReloadAsync());
+        Assert.Equal(RecentLookupsPhase.Loading, lookups.State.Phase);
+
+        lookups.ReportUnexpectedFailure();
+        var state = lookups.State;
+        Assert.Equal(RecentLookupsPhase.LoadError, state.Phase);
+        Assert.Equal(NativeText.UnexpectedError, state.Notice?.Key);
+        await lookups.ReloadAsync();
+        Assert.Equal(RecentLookupsPhase.Ready, lookups.State.Phase);
+    }
+
+    [Fact]
     public async Task RecentLookups_ACancelledLoad_NeverLeavesTheSpinner()
     {
         using var fixture = new NativeSliceFixture();

@@ -64,7 +64,12 @@ internal sealed partial class ApplicationController
                     profile.SetTargetCefrLevel,
                     () => Run(() => profile.ReloadAsync(_lifetime.Token)),
                     profile.RequestDelete,
-                    () => Run(() => profile.SaveAsync(_lifetime.Token))))
+                    () => Run(async () =>
+                    {
+                        // A saved language creates its smart resources on this device.
+                        if (await profile.SaveAsync(_lifetime.Token))
+                            _resources?.NoteResourcesWritten();
+                    })))
             : Views.Text(Text("Common_Loading"));
 
     internal void CancelProfileDelete() => _profile?.CancelDelete();

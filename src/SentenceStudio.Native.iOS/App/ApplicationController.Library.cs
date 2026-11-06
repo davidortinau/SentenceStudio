@@ -133,43 +133,21 @@ internal sealed partial class ApplicationController
     /// </summary>
     internal sealed record LibraryQuickAddItem(string Id, string Symbol, string TitleKey, Action Open);
 
-    /// <summary>
-    /// Native Import content and YouTube import are being built separately; their buttons
-    /// stay off until <see cref="OpenImportContent"/> and <see cref="OpenYouTubeImport"/> open
-    /// a real flow, so the grid ships only working buttons.
-    /// </summary>
-    private const bool ImportContentReady = false;
-    private const bool YouTubeImportReady = false;
+    private IReadOnlyList<LibraryQuickAddItem>? _libraryQuickAddItems;
 
     /// <summary>
     /// The quick-add grid under the Library list, in order: every existing native create flow
-    /// (a new resource, skill profile or minimal pair), then the imports once they exist.
-    /// Add an item here to add a button.
+    /// (a new resource, skill profile or minimal pair). Add an item here to add a button.
     /// </summary>
-    internal IReadOnlyList<LibraryQuickAddItem> LibraryQuickAddItems
-    {
-        get
-        {
-            var items = new List<LibraryQuickAddItem>
-            {
-                new("resource", "doc.badge.plus", "Resources_AddResource",
-                    () => OpenLibraryQuickAdd(OpenResourceCreate)),
-                new("skill", "target", "Skills_AddSkillProfile",
-                    () => OpenLibraryQuickAdd(() => OpenSkills(create: true))),
-                new("minimal-pair", "waveform.badge.plus", NativeMinimalPairsText.CreatePair,
-                    () => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))),
-            };
-#pragma warning disable CS0162 // The imports are off until their flows exist.
-            if (ImportContentReady)
-                items.Add(new("import-content", "square.and.arrow.down", "Nav_ImportContent",
-                    () => OpenLibraryQuickAdd(OpenImportContent)));
-            if (YouTubeImportReady)
-                items.Add(new("youtube-import", "play.rectangle", "ImportFromYouTube",
-                    () => OpenLibraryQuickAdd(OpenYouTubeImport)));
-#pragma warning restore CS0162
-            return items;
-        }
-    }
+    internal IReadOnlyList<LibraryQuickAddItem> LibraryQuickAddItems => _libraryQuickAddItems ??=
+    [
+        new("resource", "doc.badge.plus", "Resources_AddResource",
+            () => OpenLibraryQuickAdd(OpenResourceCreate)),
+        new("skill", "target", "Skills_AddSkillProfile",
+            () => OpenLibraryQuickAdd(() => OpenSkills(create: true))),
+        new("minimal-pair", "waveform.badge.plus", NativeMinimalPairsText.CreatePair,
+            () => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))),
+    ];
 
     /// <summary>A quick-add button works from the Library list, like its rows.</summary>
     private void OpenLibraryQuickAdd(Action open)
@@ -180,20 +158,6 @@ internal sealed partial class ApplicationController
         _libraryErrorKey = null;
         open();
     }
-
-    /// <summary>
-    /// Native Import content (another agent's work): not wired yet, so its quick-add button
-    /// is off (<see cref="ImportContentReady"/>).
-    /// </summary>
-    internal void OpenImportContent() =>
-        _logger?.LogWarning("Import content is not available on iOS yet.");
-
-    /// <summary>
-    /// Native YouTube import (another agent's work): not wired yet, so its quick-add button
-    /// is off (<see cref="YouTubeImportReady"/>).
-    /// </summary>
-    internal void OpenYouTubeImport() =>
-        _logger?.LogWarning("YouTube import is not available on iOS yet.");
 
     /// <summary>Back from the Resources page to the Library list.</summary>
     internal void OnLibraryResourcesPopped()
@@ -361,7 +325,11 @@ internal sealed partial class ApplicationController
     }
 
     private SamSlotPhase _samSlotPhase;
-    private int _samSlotCheck;
+    /// <summary>
+    /// The running check (also its identity): Cancel, sign-out and the 10 s limit cancel its
+    /// request, so a cancelled read never changes Sam's state later.
+    /// </summary>
+    private CancellationTokenSource? _samSlotCheck;
     private string _samSlotCheckingText = string.Empty;
     private string _samSlotAnswerText = string.Empty;
 
@@ -407,13 +375,12 @@ internal sealed partial class ApplicationController
         Publish();
     }
 
-    /// <summary>Cancel on the checking overlay: the late answer is ignored.</summary>
+    /// <summary>Cancel on the checking overlay: the request stops and says nothing.</summary>
     internal void CancelSamSlotCheck()
     {
         if (_samSlotPhase is not (SamSlotPhase.Checking or SamSlotPhase.CheckingShown))
             return;
-        _samSlotCheck++;
-        _samSlotPhase = SamSlotPhase.Idle;
+        ResetSamSlot();
         Publish();
     }
 
@@ -433,25 +400,28 @@ internal sealed partial class ApplicationController
         if (!IsSamSlotShown || _samSlotPhase is SamSlotPhase.Checking or SamSlotPhase.CheckingShown
             || EnsureSam() is not { } sam)
             return;
-        var check = ++_samSlotCheck;
+        var check = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        check.CancelAfter(SamSlotCheckLimit);
+        _samSlotCheck = check;
         _samSlotPhase = SamSlotPhase.Checking;
         _samSlotCheckingText = SamSlotText(NativeSamAvailabilityText.Checking);
-        _ = ShowSamSlotCheckingAsync(check);
-        _ = CheckSamForSlotAsync(sam, check);
+        _ = ShowSamSlotCheckingAsync(check, check.Token);
+        _ = CheckSamForSlotAsync(sam, check, check.Token);
     }
 
     /// <summary>The brief loading state: shown only when the check is still running after a moment.</summary>
-    private async Task ShowSamSlotCheckingAsync(int check)
+    private async Task ShowSamSlotCheckingAsync(CancellationTokenSource check, CancellationToken token)
     {
         try
         {
-            await Task.Delay(SamSlotCheckingDelay, _lifetime.Token);
-            if (_disposed || check != _samSlotCheck || _samSlotPhase != SamSlotPhase.Checking)
+            await Task.Delay(SamSlotCheckingDelay, token);
+            if (_disposed || !ReferenceEquals(check, _samSlotCheck)
+                || _samSlotPhase != SamSlotPhase.Checking)
                 return;
             _samSlotPhase = SamSlotPhase.CheckingShown;
             Publish();
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
         catch (Exception ex)
@@ -472,10 +442,12 @@ internal sealed partial class ApplicationController
     }
 
     /// <summary>
-    /// Only this read's answer decides the text: a read that failed or gave up before the
-    /// server answered is "not reachable"; a cancelled check (Cancel, sign-out) says nothing.
+    /// Only this read's answer decides the text: a read that failed or reached the limit
+    /// before the server answered is "not reachable"; a cancelled check (Cancel, sign-out)
+    /// says nothing.
     /// </summary>
-    private async Task CheckSamForSlotAsync(NativeSamPresenter sam, int check)
+    private async Task CheckSamForSlotAsync(NativeSamPresenter sam, CancellationTokenSource check,
+        CancellationToken token)
     {
         try
         {
@@ -485,13 +457,11 @@ internal sealed partial class ApplicationController
             else
             {
                 answer = NativeSamAvailability.Unreachable;
-                using var limit = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-                limit.CancelAfter(SamSlotCheckLimit);
                 try
                 {
-                    answer = await sam.RefreshAvailabilityAsync(limit.Token);
+                    answer = await sam.RefreshAvailabilityAsync(token);
                 }
-                catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
+                catch (OperationCanceledException) when (_disposed || !ReferenceEquals(check, _samSlotCheck))
                 {
                     return;
                 }
@@ -500,7 +470,7 @@ internal sealed partial class ApplicationController
                     _logger?.LogWarning(ex, "Sam's slot could not read availability.");
                 }
             }
-            if (_disposed || check != _samSlotCheck)
+            if (_disposed || !ReferenceEquals(check, _samSlotCheck))
                 return;
             _logger?.LogInformation("Sam's slot read availability: {Availability}.", answer);
             if (IsSamAvailable)
@@ -518,15 +488,29 @@ internal sealed partial class ApplicationController
         }
         catch (Exception ex)
         {
-            // Not awaited: log instead of leaving an unobserved exception, and never leave
-            // the checking overlay up.
+            // Not awaited: log instead of leaving an unobserved exception, and answer "not
+            // reachable" instead of a tap that seems to do nothing.
             _logger?.LogError(ex, "Sam's slot check failed.");
-            if (!_disposed && check == _samSlotCheck)
-            {
-                _samSlotPhase = SamSlotPhase.Idle;
-                PublishLoggingFailure();
-            }
+            if (!_disposed && ReferenceEquals(check, _samSlotCheck))
+                ShowShellNotice(SamSlotText(NativeSamAvailabilityText.Unreachable));
         }
+        finally
+        {
+            if (ReferenceEquals(check, _samSlotCheck))
+                _samSlotCheck = null;
+            check.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The tab shell's notice alert, shown over whatever page is up: Sam's slot answer, or
+    /// a page that could not open (Recent lookups).
+    /// </summary>
+    private void ShowShellNotice(string text)
+    {
+        _samSlotAnswerText = text;
+        _samSlotPhase = SamSlotPhase.Answered;
+        PublishLoggingFailure();
     }
 
     /// <summary>A slot text with Sam's persona name (the same name as his panel).</summary>
@@ -536,7 +520,9 @@ internal sealed partial class ApplicationController
 
     private void ResetSamSlot()
     {
-        _samSlotCheck++;
+        var check = _samSlotCheck;
+        _samSlotCheck = null;
+        check?.Cancel();
         _samSlotPhase = SamSlotPhase.Idle;
     }
 
@@ -601,17 +587,14 @@ internal sealed partial class ApplicationController
     /// <summary>
     /// Source NavMenu Minimal Pairs: the pair list for the signed-in owner with no
     /// resource or skill. Minimal Pairs keeps no timer or plan item, so the list can
-    /// stay open in the Library like any other page.
+    /// stay open in the Library like any other page. With <paramref name="create"/>, its
+    /// create page opens above it (Library quick add).
     /// </summary>
-    private bool _libraryPairsCreateRequested;
-
-    /// <summary>The Minimal Pairs list; with <paramref name="create"/>, its create page opens above it.</summary>
     private void OpenLibraryPairs(bool create)
     {
         if (_destination != NativeDestination.Dashboard || _libraryPairs is not null
             || _services is null || _dashboard is null)
             return;
-        _libraryPairsCreateRequested = create;
         RunLibrary(async () =>
         {
             var selection = _dashboard.SelectNavigationEntry();
@@ -644,19 +627,18 @@ internal sealed partial class ApplicationController
             }
             _libraryPairsScope = scope;
             _libraryPairs = screen;
-            _ = OpenLibraryPairsOutsideBusyAsync(screen, launch);
+            _ = OpenLibraryPairsOutsideBusyAsync(screen, launch, create);
         });
     }
 
-    private async Task OpenLibraryPairsOutsideBusyAsync(IActivityScreen screen, NativeActivityLaunch launch)
+    private async Task OpenLibraryPairsOutsideBusyAsync(IActivityScreen screen,
+        NativeActivityLaunch launch, bool create)
     {
         try
         {
             await screen.OpenAsync(launch, _lifetime.Token);
-            if (_libraryPairsCreateRequested && ReferenceEquals(_libraryPairs, screen)
-                && screen is MinimalPairsScreen pairs)
+            if (create && ReferenceEquals(_libraryPairs, screen) && screen is MinimalPairsScreen pairs)
                 pairs.OpenCreate();
-            _libraryPairsCreateRequested = false;
         }
         catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
         {
@@ -672,8 +654,9 @@ internal sealed partial class ApplicationController
         {
             _logger?.LogError(ex, "Native iOS Minimal Pairs open failed.");
             // Instead of an endless spinner: the list's error with its Go Back.
-            if (ReferenceEquals(_libraryPairs, screen) && !_disposed)
-                screen.OnOpenFailed();
+            if (ReferenceEquals(_libraryPairs, screen) && !_disposed
+                && screen is MinimalPairsScreen pairs)
+                pairs.OnOpenFailed();
         }
         if (ReferenceEquals(_libraryPairs, screen) && !_disposed)
             Publish();

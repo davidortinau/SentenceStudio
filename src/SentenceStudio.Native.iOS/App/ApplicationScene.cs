@@ -1171,6 +1171,13 @@ internal sealed partial class ApplicationScene : IDisposable
     private enum RootKind { None, Launch, SignIn, Onboarding, Tabs }
 
     /// <summary>
+    /// The LaunchBackground color asset that Info.plist's UILaunchScreen names (the bridge
+    /// takes hex colors only); a contract test keeps the two equal, so the handover from the
+    /// system launch screen never flashes.
+    /// </summary>
+    internal const string LaunchBackgroundHex = "#0C0B10";
+
+    /// <summary>
     /// The launch look (Info.plist UILaunchScreen: LaunchBackground and LaunchLogo) while a
     /// remembered session is restored, so the launch screen hands over without a Sign In
     /// frame. Laid out under the safe areas so the logo stays where the launch screen drew it.
@@ -1179,7 +1186,7 @@ internal sealed partial class ApplicationScene : IDisposable
         Views.VStack(Views.AssetImage("LaunchLogo"))
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
             .WithFlexibleHeight()
-            .WithBackgroundColor("#0C0B10")
+            .WithBackgroundColor(LaunchBackgroundHex)
             .WithIgnoresSafeArea()
             .WithAccessibilityIdentifier("native.launch");
 }

@@ -367,7 +367,9 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("\"native.profile.save.status\"", view);
         Assert.Contains("\"native.profile.email\", actions.EmailChanged, enabled: false", view);
         Assert.Contains("NativeProfile_EmailReadOnly", view);
-        Assert.Contains("() => Run(() => profile.SaveAsync(_lifetime.Token))", app);
+        Assert.Contains("if (await profile.SaveAsync(_lifetime.Token))", app);
+        // A saved language's smart resources make the Library's resource list stale.
+        Assert.Contains("_resources?.NoteResourcesWritten();", app);
         Assert.Contains("GetRequiredService<INativeProfileRemoteStore>()", app);
         Assert.Contains("delete.IsEnabled = false;", scene);
         Assert.Contains("Views.Alert(_profileSlot,", scene);

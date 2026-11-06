@@ -33,6 +33,25 @@ public sealed class NativeResourcePresenterTests
     }
 
     [Fact]
+    public async Task ListSourceVersion_MovesOnALocalWriteAndANotedWrite()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var presenter = fixture.Resources;
+
+        var start = presenter.ListSourceVersion;
+        Assert.Equal(start, presenter.ListSourceVersion);
+        // Any recorded write for the owner (Recent lookups add, onboarding smart resources).
+        fixture.Provider.GetRequiredService<NativePendingWrites>().MarkPending(NativeSliceFixture.UserA);
+        var afterWrite = presenter.ListSourceVersion;
+        Assert.True(afterWrite > start);
+        // A profile save's smart resources mark no pending sync: noted instead.
+        presenter.NoteResourcesWritten();
+        Assert.True(presenter.ListSourceVersion > afterWrite);
+    }
+
+    [Fact]
     public async Task List_UsesSourceSmartFirstOrderingAndFullSourceFilterCatalog()
     {
         using var fixture = new NativeSliceFixture();
