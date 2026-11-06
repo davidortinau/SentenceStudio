@@ -23,8 +23,11 @@ namespace SentenceStudio.Native;
 /// bubble, and no AI or speech call holds the presenter lock: Back cancels them
 /// and always stops and saves the timer at once. Late results apply only while
 /// their generation is current.
+///
+/// Voice mode (NativeConversationPresenter.Voice.cs) is offered when the head registers the
+/// platform audio and the API is configured.
 /// </summary>
-public sealed class NativeConversationPresenter(
+public sealed partial class NativeConversationPresenter(
     NativeActivityOwner owner,
     NativeActivityTimer timer,
     LearningResourceRepository resources,
@@ -34,8 +37,12 @@ public sealed class NativeConversationPresenter(
     INativeShadowingPlayer player,
     IServiceScopeFactory scopes,
     NativePendingWrites pendingWrites,
-    ILogger<NativeConversationPresenter> logger) : IDisposable
+    ILogger<NativeConversationPresenter> logger,
+    INativeConversationVoice? voice = null,
+    INativeVoiceAudio? voiceAudio = null) : IDisposable
 {
+    private readonly INativeConversationVoice? _voiceService = voice;
+    private readonly INativeVoiceAudio? _voiceAudio = voiceAudio;
     public const string ScoringActivity = "Conversation";
     public const float DifficultyWeight = 1.2f;
     public const float PenaltyOverride = 0.8f;
@@ -207,7 +214,8 @@ public sealed class NativeConversationPresenter(
         {
             if (!CanCommand(out var refused))
                 return refused;
-            if (_state.Phase != NativePhase.Ready || _waiting || string.IsNullOrWhiteSpace(_draft))
+            if (_state.Phase != NativePhase.Ready || _waiting || _voice != NativeConversationVoice.Off
+                || string.IsNullOrWhiteSpace(_draft))
                 return State;
             var message = _draft.Trim();
             _draft = string.Empty;
@@ -301,7 +309,7 @@ public sealed class NativeConversationPresenter(
         {
             if (!CanCommand(out var refused))
                 return refused;
-            if (_state.Phase != NativePhase.Ready || _waiting)
+            if (_state.Phase != NativePhase.Ready || _waiting || _voice != NativeConversationVoice.Off)
                 return State;
             _showPhrases = !_showPhrases;
             return PublishReady();
@@ -321,7 +329,7 @@ public sealed class NativeConversationPresenter(
         {
             if (!CanCommand(out var refused))
                 return refused;
-            if (_state.Phase != NativePhase.Ready || _waiting
+            if (_state.Phase != NativePhase.Ready || _waiting || _voice != NativeConversationVoice.Off
                 || index < 0 || index >= NativeConversationState.QuickPhrases.Length)
                 return State;
             _draft = NativeConversationState.QuickPhrases[index];
@@ -370,8 +378,10 @@ public sealed class NativeConversationPresenter(
         {
             if (!CanCommand(out var refused))
                 return refused;
-            if (_state.Phase != NativePhase.Ready || index < 0 || index >= _chunks.Count
+            if (_state.Phase != NativePhase.Ready || _voice != NativeConversationVoice.Off
+                || index < 0 || index >= _chunks.Count
                 || _chunks[index].Role != ConversationRole.Assistant
+                || _voiceChunks.Contains(_chunks[index])
                 || string.IsNullOrEmpty(_chunks[index].Text))
                 return State;
             StopAudioCore();
@@ -465,6 +475,7 @@ public sealed class NativeConversationPresenter(
             {
                 _generation++;
                 _exited = exited = true;
+                StopVoiceCore();
                 StopAudioCore();
                 string? errorKey = null;
                 try
@@ -499,7 +510,9 @@ public sealed class NativeConversationPresenter(
     private OpeningRequest BeginOpeningLocked()
     {
         _generation++;
+        StopVoiceCore();
         _chunks.Clear();
+        ForgetVoiceTurns();
         _waiting = false;
         _starting = true;
         _showPhrases = false;
@@ -675,16 +688,7 @@ public sealed class NativeConversationPresenter(
             .ToImmutableArray(),
         ActiveScenarioId: _active?.Id,
         TargetLanguage: _language,
-        Messages: _chunks.Select((chunk, index) => new NativeConversationMessage(
-                index,
-                chunk.Role == ConversationRole.User,
-                chunk.Author ?? string.Empty,
-                chunk.Text ?? string.Empty,
-                chunk.GrammarCorrections
-                    .Select(item => new NativeConversationCorrection(item.Original, item.Corrected, item.Explanation))
-                    .ToImmutableArray(),
-                Reply.NormalizeComprehension(chunk.Comprehension)))
-            .ToImmutableArray(),
+        Messages: _chunks.Select((chunk, index) => Message(chunk, index)).ToImmutableArray(),
         IsStarting: _starting,
         IsWaitingForReply: _waiting,
         IsPlayingAudio: _playing,
@@ -692,7 +696,11 @@ public sealed class NativeConversationPresenter(
         Draft: _draft,
         DraftVersion: _draftVersion,
         Notices: _notices,
-        HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId));
+        HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId),
+        Voice: _voice,
+        IsVoiceAvailable: VoiceAvailable,
+        MicLevel: _micLevel,
+        PartnerName: PartnerName);
 
     /// <summary>Source: the spinner page shows while starting with no messages; otherwise the chat.</summary>
     private NativeConversationState PublishCurrent() =>
@@ -705,6 +713,7 @@ public sealed class NativeConversationPresenter(
         _generation++;
         if (_exited)
             return State;
+        StopVoiceCore();
         StopAudioCore();
         return Publish(new(NativePhase.Blocked, ErrorKey: NativeConversationText.Unavailable));
     }
@@ -727,6 +736,8 @@ public sealed class NativeConversationPresenter(
         if (_subscribed)
             player.Ended -= OnPlayerEnded;
         _audioLoad?.Cancel();
+        Interlocked.Increment(ref _voiceGeneration);
+        ReleaseVoice();
         player.Stop();
         player.Dispose();
         timer.Dispose();

@@ -57,6 +57,9 @@
                       LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ContinueConversation.scenario.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scenario.scriban-txt" />
+    <!-- Conversation voice mode: the realtime partner's instructions (NativeConversationVoiceService). -->
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/Conversation.voice.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.Conversation.voice.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GenerateDiaryPrompt.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GenerateDiaryPrompt.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeDiaryEntry.scriban-txt"

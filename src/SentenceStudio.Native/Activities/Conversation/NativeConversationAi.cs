@@ -101,7 +101,7 @@ public sealed class NativeConversationAi(IServiceProvider services) : INativeCon
         services.GetService<IOwnerBoundNativeAiGateway>()
             ?? throw new InvalidOperationException("Conversation AI is not available on this host.");
 
-    private static async Task<string> RenderAsync(string name, object model,
+    internal static async Task<string> RenderAsync(string name, object model,
         CancellationToken cancellationToken)
     {
         var resource = Prefix + name;

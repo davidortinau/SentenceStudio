@@ -1,8 +1,10 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
@@ -15,7 +17,8 @@ public sealed class OwnerBoundNativeAiGateway(
     DeviceUserScopeProvider scope,
     IHttpMessageHandlerFactory handlers,
     ILogger<AiGatewayClient> aiLogger,
-    Uri apiRoot) : IOwnerBoundNativeAiGateway, IOwnerBoundNativeReasoningAiGateway
+    Uri apiRoot) : IOwnerBoundNativeAiGateway, IOwnerBoundNativeReasoningAiGateway,
+    IOwnerBoundNativeRealtimeSecrets
 {
     internal const string ClientName = "NativeOwnerAiClient";
 
@@ -47,8 +50,33 @@ public sealed class OwnerBoundNativeAiGateway(
         SendAsync(owner, gateway => gateway.SendMessagesAsync<T>(
             [("user", message)], instructions, cancellationToken), cancellationToken);
 
-    private async Task<T?> SendAsync<T>(
-        string owner, Func<AiGatewayClient, Task<T?>> send, CancellationToken cancellationToken)
+    /// <summary>
+    /// Voice mode: a short-lived realtime client secret minted by the API for this owner. Sent once,
+    /// never retried: each secret is single-use and the API limits how many a learner may start.
+    /// </summary>
+    public Task<RealtimeClientSecretResponse> CreateRealtimeClientSecretAsync(
+        string owner, CancellationToken cancellationToken) =>
+        SendCoreAsync(owner, async client =>
+        {
+            using var response = await client.PostAsync("/api/v1/realtime/client-secret", content: null,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var secret = await response.Content.ReadFromJsonAsync<RealtimeClientSecretResponse>(
+                cancellationToken);
+            if (secret is null || string.IsNullOrWhiteSpace(secret.ClientSecret)
+                || !Uri.TryCreate(secret.Endpoint, UriKind.Absolute, out var endpoint)
+                || endpoint.Scheme != Uri.UriSchemeHttps)
+                throw new InvalidOperationException("The API returned no usable realtime client secret.");
+            return secret;
+        }, cancellationToken);
+
+    private Task<T?> SendAsync<T>(
+        string owner, Func<AiGatewayClient, Task<T?>> send, CancellationToken cancellationToken) =>
+        SendCoreAsync(owner, client => send(new AiGatewayClient(new AiApiClient(client), aiLogger)),
+            cancellationToken);
+
+    private async Task<T> SendCoreAsync<T>(
+        string owner, Func<HttpClient, Task<T>> send, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stamp = scope.CaptureStamp();
@@ -77,8 +105,7 @@ public sealed class OwnerBoundNativeAiGateway(
         {
             BaseAddress = apiRoot
         };
-        var gateway = new AiGatewayClient(new AiApiClient(client), aiLogger);
-        var response = await send(gateway);
+        var response = await send(client);
         cancellationToken.ThrowIfCancellationRequested();
         if (!HasOwner())
             throw new UnauthorizedAccessException(
@@ -150,6 +177,20 @@ public static class OwnerBoundNativeAiGatewayRegistration
                 provider.GetRequiredService<IHttpMessageHandlerFactory>(),
                 provider.GetRequiredService<ILogger<AiGatewayClient>>(),
                 apiRoot));
+        services.TryAddSingleton<IOwnerBoundNativeRealtimeSecrets>(provider =>
+            new OwnerBoundNativeAiGateway(
+                provider.GetRequiredService<IAuthService>(),
+                provider.GetRequiredService<IPreferencesService>(),
+                provider.GetRequiredService<DeviceUserScopeProvider>(),
+                provider.GetRequiredService<IHttpMessageHandlerFactory>(),
+                provider.GetRequiredService<ILogger<AiGatewayClient>>(),
+                apiRoot));
+        // Conversation voice mode opens its realtime session with a secret minted for the owner.
+        services.TryAddSingleton<INativeConversationVoice>(provider =>
+            new NativeConversationVoiceService(
+                provider.GetRequiredService<IOwnerBoundNativeRealtimeSecrets>(),
+                provider,
+                provider.GetRequiredService<ILoggerFactory>()));
         services.TryAddSingleton<IOwnerBoundNativeReasoningAiGateway>(provider =>
             new OwnerBoundNativeAiGateway(
                 provider.GetRequiredService<IAuthService>(),

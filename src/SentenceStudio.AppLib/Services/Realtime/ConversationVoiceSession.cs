@@ -1,3 +1,4 @@
+#nullable enable
 #pragma warning disable MEAI001 // IRealtimeClient is experimental in Microsoft.Extensions.AI.
 #pragma warning disable OPENAI002 // OpenAI.Realtime types are experimental in the OpenAI SDK.
 
@@ -8,6 +9,45 @@ using SentenceStudio.Shared.Models;
 namespace SentenceStudio.Services.Realtime;
 
 /// <summary>
+/// A live voice conversation: microphone audio in, partner audio and transcripts out.
+/// </summary>
+public interface IConversationVoiceSession : IAsyncDisposable
+{
+    /// <summary>A chunk of partner audio, base64 PCM16 mono at <see cref="ConversationVoiceSession.SampleRate"/>.</summary>
+    event Action<string>? AudioDelta;
+
+    /// <summary>The learner started speaking. Clear any queued partner audio.</summary>
+    event Action? SpeechStarted;
+
+    /// <summary>A learner turn was committed. Argument: item id.</summary>
+    event Action<string>? UserTurnStarted;
+
+    /// <summary>A learner turn was transcribed. Arguments: item id, transcript (empty when transcription failed).</summary>
+    event Action<string, string>? UserTranscriptCompleted;
+
+    /// <summary>Partial partner transcript. Arguments: item id, text delta.</summary>
+    event Action<string, string>? AssistantTranscriptDelta;
+
+    /// <summary>Final partner transcript. Arguments: item id, full text.</summary>
+    event Action<string, string>? AssistantTranscriptCompleted;
+
+    /// <summary>The vocabulary tool ran. Arguments: the term, a short result summary.</summary>
+    event Action<string, string>? ToolInvoked;
+
+    /// <summary>The provider reported an error, or the session ended unexpectedly. Argument: message.</summary>
+    event Action<string>? Failed;
+
+    /// <summary>The session is gone (the connection failed or the provider closed it) before it was disposed.</summary>
+    event Action? Ended;
+
+    /// <summary>Starts receiving events and asks the partner to speak first.</summary>
+    Task BeginAsync();
+
+    /// <summary>Appends one chunk of microphone audio (PCM16 mono). Callers send one chunk at a time.</summary>
+    Task AppendAudioAsync(byte[] pcm16);
+}
+
+/// <summary>
 /// One live voice conversation for the Conversation activity, built on <see cref="IRealtimeClient"/>.
 /// </summary>
 /// <remarks>
@@ -15,7 +55,7 @@ namespace SentenceStudio.Services.Realtime;
 /// websocket, the instructions, and one read-only tool over the learner's own vocabulary. It never
 /// writes learner data; the page decides what to show and keep.
 /// </remarks>
-public sealed class ConversationVoiceSession : IAsyncDisposable
+public sealed class ConversationVoiceSession : IConversationVoiceSession
 {
     /// <summary>PCM16 mono at 24 kHz, the format both directions use.</summary>
     public const int SampleRate = 24000;
@@ -23,6 +63,7 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
     private const string ToolName = "lookup_my_vocabulary";
 
     private readonly IRealtimeClientSession _session;
+    private readonly IRealtimeClient? _ownedClient;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts;
     private Task? _receiveLoop;
@@ -52,14 +93,23 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
     /// <summary>The provider reported an error. Argument: message.</summary>
     public event Action<string>? Failed;
 
-    private ConversationVoiceSession(IRealtimeClientSession session, ILogger logger, CancellationTokenSource cts)
+    /// <inheritdoc />
+    public event Action? Ended;
+
+    private ConversationVoiceSession(IRealtimeClientSession session, IRealtimeClient? ownedClient,
+        ILogger logger, CancellationTokenSource cts)
     {
         _session = session;
+        _ownedClient = ownedClient;
         _logger = logger;
         _cts = cts;
     }
 
     /// <summary>Opens a realtime session configured for spoken practice in <paramref name="targetLanguage"/>.</summary>
+    /// <param name="disposeClient">
+    /// True when <paramref name="client"/> was made for this session alone: the session then disposes
+    /// it when it ends, or right away when the session cannot open.
+    /// </param>
     public static async Task<ConversationVoiceSession> StartAsync(
         IRealtimeClient client,
         string instructions,
@@ -67,7 +117,8 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
         string transcriptionModel,
         IReadOnlyList<VocabularyWord> vocabulary,
         ILogger logger,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool disposeClient = false)
     {
         ArgumentNullException.ThrowIfNull(client);
 
@@ -96,8 +147,22 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
             Tools = [lookup],
         };
 
-        var session = await client.CreateSessionAsync(options, cts.Token).ConfigureAwait(false);
-        voice = new ConversationVoiceSession(session, logger, cts);
+        IRealtimeClientSession session;
+        try
+        {
+            session = await client.CreateSessionAsync(options, cts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+            cts.Dispose();
+            if (disposeClient)
+            {
+                client.Dispose();
+            }
+            throw;
+        }
+
+        voice = new ConversationVoiceSession(session, disposeClient ? client : null, logger, cts);
         return voice;
     }
 
@@ -129,14 +194,23 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
             {
                 Dispatch(message);
             }
+
+            // The provider closed the session (for example at its time limit). Tell the page, so it
+            // does not keep listening on a session that is gone.
+            if (!_cts.IsCancellationRequested)
+            {
+                _logger.LogInformation("Realtime voice session closed by the provider");
+                Ended?.Invoke();
+            }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
         {
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Realtime voice session ended unexpectedly");
             Failed?.Invoke(ex.Message);
+            Ended?.Invoke();
         }
     }
 
@@ -250,7 +324,14 @@ public sealed class ConversationVoiceSession : IAsyncDisposable
         {
         }
 
-        await _session.DisposeAsync().ConfigureAwait(false);
-        _cts.Dispose();
+        try
+        {
+            await _session.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _ownedClient?.Dispose();
+            _cts.Dispose();
+        }
     }
 }

@@ -102,7 +102,7 @@ internal sealed class RealtimeClientSecretIssuer
             return new(RealtimeSecretStatus.Throttled);
         }
 
-        var model = RealtimeVoiceRegistration.RealtimeModel(_configuration);
+        var model = RealtimeVoiceClients.RealtimeModel(_configuration);
         var token = await _credential.GetTokenAsync(new TokenRequestContext(Scopes), cancellationToken);
         var client = new OaiRealtimeClient(
             new ApiKeyCredential(token.Token),
@@ -124,7 +124,7 @@ internal sealed class RealtimeClientSecretIssuer
             ExpiresAt = DateTimeOffset.FromUnixTimeSeconds(root.GetProperty("expires_at").GetInt64()),
             Endpoint = endpoint,
             Model = model,
-            TranscriptionModel = RealtimeVoiceRegistration.TranscriptionModel(_configuration),
+            TranscriptionModel = RealtimeVoiceClients.TranscriptionModel(_configuration),
         };
 
         // Never log the secret itself.
