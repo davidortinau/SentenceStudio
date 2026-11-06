@@ -91,6 +91,35 @@ public class VideoImportPipelineService : IVideoImportPipeline
     }
 
     /// <summary>
+    /// The owner's newest import of each of these videos, however old (one query; the source
+    /// channel page asked <see cref="ChannelMonitorService.GetVideoImportStatusAsync"/> per video).
+    /// A video with no import is left out. Without an owner: nothing.
+    /// </summary>
+    public async Task<List<VideoImport>> GetLatestImportsForVideosAsync(
+        IReadOnlyCollection<string> videoIds, string userProfileId)
+    {
+        ArgumentNullException.ThrowIfNull(videoIds);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("GetLatestImportsForVideosAsync called without a user profile id");
+            return new List<VideoImport>();
+        }
+        var ids = videoIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (ids.Length == 0)
+            return new List<VideoImport>();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var imports = await db.VideoImports
+            .Where(vi => vi.UserProfileId == userProfileId && vi.VideoId != null && ids.Contains(vi.VideoId))
+            .ToListAsync();
+        return imports
+            .GroupBy(vi => vi.VideoId!, StringComparer.Ordinal)
+            .Select(group => group.OrderByDescending(vi => vi.CreatedAt).First())
+            .ToList();
+    }
+
+    /// <summary>
     /// Retry a failed or stuck import by resetting its status and re-running the pipeline.
     /// Accepts Failed imports and any in-progress import older than the stale threshold.
     /// </summary>

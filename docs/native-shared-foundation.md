@@ -288,7 +288,7 @@ dotnet process**:
 
 | Direct native client | Required private configuration key | Source |
 | --- | --- | --- |
-| OpenAI chat and the OpenAI audio fallback in `AiService` | `Settings:OpenAIKey` | `src/SentenceStudio.AppLib/appsettings.json` |
+| The OpenAI chat clients the MAUI app builder registers, and `AiService`'s direct audio fallback (read only when that fallback runs) | `Settings:OpenAIKey` | `src/SentenceStudio.AppLib/appsettings.json` |
 | `ElevenLabsSpeechService` (including shadowing/timestamped audio) | `Settings:ElevenLabsKey` | Same private file |
 
 Use `src/SentenceStudio.AppLib/appsettings.template.json` for the **names and
@@ -344,9 +344,10 @@ never executes it; `--platform macos --launch` is refused. The existing
 AppKit bundle identity can reach Captain's keychain/preferences/SQLite.
 Unlike mobile, the desktop direct OpenAI chat and ElevenLabs registrations
 read the app process's `AI__OpenAI__ApiKey` and `ElevenLabsKey` environment
-variables. `AiService` separately reads `Settings:OpenAIKey` for its audio
-client: supply it via the private native `appsettings.json` or the macOS
-process's `Settings__OpenAIKey`. The printed command is **not** credential
+variables. `AiService` reads `Settings:OpenAIKey` only when its direct audio
+fallback runs (no speech gateway audio), not at construction: supply it via
+the private native `appsettings.json` or the macOS process's
+`Settings__OpenAIKey`. The printed command is **not** credential
 preflighted and must not be executed without these values and an isolated
 test identity.
 **Do not execute the printed command on his normal macOS identity without

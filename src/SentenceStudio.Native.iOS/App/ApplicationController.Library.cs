@@ -79,7 +79,8 @@ internal sealed partial class ApplicationController
 
     /// <summary>A page is open above the Library list.</summary>
     internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
-        || IsSkillsOpen || _libraryPairs is not null || IsImportContentOpen;
+        || IsSkillsOpen || _libraryPairs is not null || IsImportContentOpen
+        || IsYouTubeImportOpen;
 
     /// <summary>
     /// An editor is open in the Library: Save or Cancel decides how it closes, so nothing
@@ -87,7 +88,7 @@ internal sealed partial class ApplicationController
     /// </summary>
     internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
         || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage
-        || IsImportWordOpen;
+        || IsImportWordOpen || IsYouTubeChannelOpen;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
     internal long LibraryResetVersion => _libraryResetVersion;
@@ -138,8 +139,8 @@ internal sealed partial class ApplicationController
 
     /// <summary>
     /// The quick-add grid under the Library list, in order: every existing native create flow
-    /// (a new resource, skill profile or minimal pair), then Import content. Add an item here
-    /// to add a button (YouTube import joins when its native flow exists).
+    /// (a new resource, skill profile or minimal pair), then the import pages (Import content,
+    /// YouTube import). Add an item here to add a button.
     /// </summary>
     internal IReadOnlyList<LibraryQuickAddItem> LibraryQuickAddItems => _libraryQuickAddItems ??=
     [
@@ -151,6 +152,8 @@ internal sealed partial class ApplicationController
             () => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))),
         new("import-content", "square.and.arrow.down", "Nav_ImportContent",
             () => OpenLibraryQuickAdd(OpenImportContent)),
+        new("youtube-import", "play.rectangle", "Import_YouTubeImport",
+            () => OpenLibraryQuickAdd(OpenYouTubeImport)),
     ];
 
     /// <summary>A quick-add button works from the Library list, like its rows.</summary>
@@ -163,7 +166,7 @@ internal sealed partial class ApplicationController
         open();
     }
 
-    // OpenImportContent: ApplicationController.Import.cs.
+    // OpenImportContent: ApplicationController.Import.cs; OpenYouTubeImport: ApplicationController.YouTube.cs.
 
     /// <summary>Back from the Resources page to the Library list.</summary>
     internal void OnLibraryResourcesPopped()
@@ -225,6 +228,7 @@ internal sealed partial class ApplicationController
             _skills!.Close();
         ReleaseLibraryPairs();
         ReleaseImportContent();
+        ReleaseYouTubeImport();
         _libraryResetVersion++;
     }
 

@@ -78,5 +78,8 @@
                       LogicalName="SentenceStudio.Native.Prompts.ShareTextToVocab.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/TranslateMissingNativeTerms.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.TranslateMissingNativeTerms.scriban-txt" />
+    <!-- YouTube import: the shared TranscriptFormattingService's prompt (NativeTranscriptPrompts). -->
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/CleanTranscript.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.CleanTranscript.scriban-txt" />
   </ItemGroup>
 </Project>

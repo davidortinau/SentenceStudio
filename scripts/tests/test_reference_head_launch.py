@@ -1060,7 +1060,9 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
             "new ElevenLabsClient(elevenLabsKey)",
         ):
             self.assertIn(contract, app_builder)
-        self.assertIn('GetRequiredSection("Settings").Get<Settings>().OpenAIKey', ai_service)
+        # AiService reads the key only on its direct speech path, never at construction.
+        self.assertIn('_configuration["Settings:OpenAIKey"]', ai_service)
+        self.assertNotIn('GetRequiredSection("Settings")', ai_service)
         self.assertIn("services.AddSingleton<ElevenLabsSpeechService>()", core_services)
 
 

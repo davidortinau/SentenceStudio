@@ -42,7 +42,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains(project.Descendants("PackageReference"),
             reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Essentials");
         Assert.Equal("true", project.Descendants("UseMauiEssentials").Single().Value);
-        Assert.Equal("0.1.0-preview.41", project.Descendants("PackageVersion")
+        Assert.Equal("0.1.0-preview.43", project.Descendants("PackageVersion")
             .Single(item => item.Attribute("Include")?.Value == "Microsoft.SwiftUI")
             .Attribute("Version")?.Value);
         Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
