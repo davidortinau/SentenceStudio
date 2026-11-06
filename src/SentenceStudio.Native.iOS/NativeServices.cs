@@ -136,6 +136,8 @@ public sealed class NativeServices : IDisposable
         }
 
         services.AddTransient<INativeShadowingPlayer, NativeShadowingPlayer>();
+        // Conversation voice mode: microphone and speaker (offered only with an API origin).
+        services.AddTransient<INativeVoiceAudio, NativeVoiceAudio>();
         services.AddSentenceStudioNativeSlice();
         if (endpoint is not null)
             services.AddOwnerBoundNativeSyncReadiness();

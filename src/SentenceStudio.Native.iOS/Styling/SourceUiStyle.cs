@@ -486,6 +486,46 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
         Input(field.WithPlaceholderColor(
             appearance.TertiaryText.Light, appearance.TertiaryText.Dark));
 
+    /// <summary>Height of a Messages-style composer: the capsule and its round buttons.</summary>
+    internal const double ComposerHeight = 40;
+
+    /// <summary>
+    /// A text field inside a Messages-style composer capsule: input typography and colors only;
+    /// <see cref="ComposerCapsule"/> draws the surface around the field and its inline buttons.
+    /// </summary>
+    internal SwiftView ComposerField(SwiftView field)
+    {
+        var metrics = SourceUiTypography.For(
+            SourceTextRole.Input, ViewportWidth, appearance.Selection.FontScale,
+            appearance.Selection.ThemeId);
+        TypedNodes.Remove(field);
+        TypedNodes.Add(field, new TextRoleTag(SourceTextRole.Input,
+            sourceHeading: false, strongElement: false));
+        return field.WithPlaceholderColor(appearance.TertiaryText.Light, appearance.TertiaryText.Dark)
+            .WithTypography(metrics.Size, metrics.Weight, metrics.LineHeight,
+                appearance.FontPostScriptName(metrics.Weight))
+            .WithForegroundColor(appearance.Text.Light, appearance.Text.Dark);
+    }
+
+    /// <summary>The rounded capsule of a Messages-style composer (field plus inline buttons).</summary>
+    internal SwiftView ComposerCapsule(SwiftView content) =>
+        content.WithPadding(4, 14, 4, 8)
+            .WithMinimumHeight(ComposerHeight)
+            .WithRoundedSurface(appearance.CardSurface.Light, appearance.CardSurface.Dark,
+                ComposerHeight / 2, appearance.Border.Light, appearance.Border.Dark, 1);
+
+    /// <summary>A round icon button beside a composer capsule (the place of Messages' plus button).</summary>
+    internal SwiftView ComposerIconButton(string symbol, Action action, string name, string accessibilityIdentifier) =>
+        Views.Button(Views.Image(symbol)
+                .WithFixedSymbolSize(17 * appearance.Selection.FontScale)
+                .WithForegroundColor(appearance.Text.Light, appearance.Text.Dark), action)
+            .WithButtonAppearance(appearance.CardSurface.Light, appearance.CardSurface.Dark,
+                appearance.Border.Light, appearance.Border.Dark, ComposerHeight / 2)
+            .WithButtonBorderWidth(1)
+            .WithButtonCircle(ComposerHeight)
+            .WithAccessibilityLabel(name)
+            .WithAccessibilityIdentifier(accessibilityIdentifier);
+
     internal SwiftView Progress(SwiftView progress, bool completion)
     {
         var tint = completion ? appearance.Success : appearance.Primary;

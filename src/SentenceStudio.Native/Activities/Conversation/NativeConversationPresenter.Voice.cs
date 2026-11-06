@@ -148,7 +148,7 @@ public sealed partial class NativeConversationPresenter
             {
                 var micWriter = microphone.Writer;
                 var eventWriter = events.Writer;
-                _voiceAudio!.Start(
+                await _voiceAudio!.StartAsync(
                     pcm => micWriter.TryWrite(pcm),
                     level => eventWriter.TryWrite(() => SetMicLevel(level)),
                     () => eventWriter.TryWrite(PartnerFinished));

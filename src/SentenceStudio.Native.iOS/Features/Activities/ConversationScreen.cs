@@ -8,13 +8,19 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.Activities;
 
 /// <summary>
-/// SwiftUI Conversation (source Conversation.razor). Toolbar language menu;
-/// scenario picker above the scrolling chat; persona and learner bubbles with
-/// grammar corrections, comprehension and Listen; reply-pending indicator;
-/// Playing audio / Stop bar; the input card with quick phrases pinned at the
-/// bottom. While the layout is unchanged, state updates mutate the mounted
-/// slots in place, so the mounted text field (and any Korean IME composition
-/// or keyboard focus in it) survives replies and audio events.
+/// SwiftUI Conversation (source Conversation.razor). Toolbar scenario and
+/// language menus; persona and learner bubbles with grammar corrections,
+/// comprehension and Listen; reply-pending indicator; Playing audio / Stop bar.
+/// The composer follows Messages (Captain, 2026-11-06): a round quick-phrases
+/// button before a capsule text field, Return sends (no Send button), and the
+/// waveform button inside the field starts voice mode. While voice runs, a
+/// voice panel (status, input level, End) takes the composer's place and
+/// spoken turns join the chat.
+///
+/// While the layout is unchanged, state updates mutate the mounted slots in
+/// place, so the mounted text field (and any Korean IME composition or
+/// keyboard focus in it) survives replies and audio events. The chat is only
+/// rebuilt when its content changed, so input-level updates stay cheap.
 /// </summary>
 internal sealed class ConversationScreen : IActivityScreen
 {
@@ -22,6 +28,7 @@ internal sealed class ConversationScreen : IActivityScreen
     private readonly NativeConversationPresenter _presenter;
     private NativeConversationState _state = new(NativePhase.Loading, IsStarting: true);
     private string? _layoutKey;
+    private int _chatKey;
     private int _renderedDraftVersion = -1;
     private SwiftView? _top;
     private SwiftView? _chat;
@@ -29,7 +36,9 @@ internal sealed class ConversationScreen : IActivityScreen
     private SwiftView? _phrases;
     private SwiftView? _field;
     private SwiftView? _toggle;
-    private SwiftView? _send;
+    private SwiftView? _voiceStart;
+    private SwiftView? _voiceStatus;
+    private SwiftView? _voiceLevel;
 
     public ConversationScreen(ActivityScreenHost host)
     {
@@ -83,22 +92,53 @@ internal sealed class ConversationScreen : IActivityScreen
 
     private string LayoutKey(NativeConversationState state, SourceUiStyle style) =>
         string.Join('|', state.Phase, state.Destination, state.TargetLanguage, state.ActiveScenarioId,
-            state.Scenarios.IsDefault ? 0 : state.Scenarios.Length,
+            state.Scenarios.IsDefault ? 0 : state.Scenarios.Length, state.IsVoiceOn, state.IsVoiceAvailable,
             style.GetHashCode(), Math.Round(style.ViewportWidth));
+
+    /// <summary>Changes when anything a bubble shows changes; the mic level alone leaves it alone.</summary>
+    private static int ChatKey(NativeConversationState state)
+    {
+        var hash = new HashCode();
+        hash.Add(state.IsWaitingForReply);
+        foreach (var message in state.Messages.IsDefault ? [] : state.Messages)
+        {
+            hash.Add(message.Index);
+            hash.Add(message.Text);
+            hash.Add(message.IsVoice);
+            hash.Add(message.Comprehension);
+            hash.Add(message.Corrections.IsDefault ? 0 : message.Corrections.Length);
+            hash.Add(message.ToolNotes.IsDefault ? 0 : message.ToolNotes.Length);
+        }
+        return hash.ToHashCode();
+    }
 
     public bool TryUpdateInPlace(SourceUiStyle style)
     {
         var state = _state;
         if (_layoutKey is null || _layoutKey != LayoutKey(state, style) || state.Phase != NativePhase.Ready
-            || _top is null || _chat is null || _audio is null || _phrases is null
-            || _field is null || _toggle is null || _send is null)
+            || _top is null || _chat is null || _audio is null)
+            return false;
+        if (state.IsVoiceOn ? _voiceStatus is null || _voiceLevel is null : _phrases is null || _field is null || _toggle is null)
             return false;
         var text = _host.Text;
         Fill(_top, TopRows(state, style, text));
-        Fill(_chat, ChatRows(state, style, text));
+        var chatKey = ChatKey(state);
+        if (chatKey != _chatKey)
+        {
+            _chatKey = chatKey;
+            Fill(_chat, ChatRows(state, style, text));
+        }
         Fill(_audio, AudioRows(state, style, text));
-        Fill(_phrases, PhraseRows(state, style, text));
-        UpdateInput(state, style);
+        if (state.IsVoiceOn)
+        {
+            Fill(_voiceStatus!, VoiceStatusRows(state, style, text));
+            _voiceLevel!.Value = state.Voice == NativeConversationVoice.Listening ? state.MicLevel : 0;
+        }
+        else
+        {
+            Fill(_phrases!, PhraseRows(state, style, text));
+            UpdateInput(state);
+        }
         return true;
     }
 
@@ -106,7 +146,7 @@ internal sealed class ConversationScreen : IActivityScreen
     {
         var text = _host.Text;
         var state = _state;
-        _top = _chat = _audio = _phrases = _field = _toggle = _send = null;
+        _top = _chat = _audio = _phrases = _field = _toggle = _voiceStart = _voiceStatus = _voiceLevel = null;
         _layoutKey = LayoutKey(state, style);
         var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
         SwiftView page;
@@ -141,8 +181,10 @@ internal sealed class ConversationScreen : IActivityScreen
                 break;
         }
         page = style.Page(page);
-        return state.Phase is NativePhase.Blocked || state.Destination != NativeDestination.Activity
-            ? page
+        if (state.Phase is NativePhase.Blocked || state.Destination != NativeDestination.Activity)
+            return page;
+        return state.Phase == NativePhase.Ready && !state.Scenarios.IsDefaultOrEmpty
+            ? Views.Toolbar(page, ScenarioMenu(state, text), LanguageMenu(state, style, text))
             : Views.Toolbar(page, LanguageMenu(state, style, text));
     }
 
@@ -153,45 +195,22 @@ internal sealed class ConversationScreen : IActivityScreen
             .WithPadding(8, gutter, 0, gutter)
             .WithFlexibleWidth();
         _top.Spacing = 8;
+        _chatKey = ChatKey(state);
         _chat = Views.VStack(ChatRows(state, style, text).ToArray())
             .WithPadding(8, gutter, 8, gutter)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier(NativeConversationAccess.Messages);
         _chat.Spacing = 8;
         _audio = Views.VStack(AudioRows(state, style, text).ToArray()).WithFlexibleWidth();
-        _phrases = Views.VStack(PhraseRows(state, style, text).ToArray()).WithFlexibleWidth();
 
-        var field = style.TextInput(Views.TextField(text(NativeConversationText.TypeMessage), state.Draft,
-                value =>
-                {
-                    _presenter.SetDraft(value);
-                    UpdateSendAvailability(style, value, _state.IsWaitingForReply);
-                }))
-            .WithFlexibleWidth()
-            .WithAccessibilityLabel(text(NativeConversationText.TypeMessage))
-            .WithAccessibilityIdentifier(NativeConversationAccess.Input)
-            .OnSubmit(() => Fire(_presenter.SendAsync));
-        _field = field;
-        _renderedDraftVersion = state.DraftVersion;
-        // Source: chat-quote toggle (its title reuses the placeholder text; native names it).
-        _toggle = style.LabelButton(Views.Image("quote.bubble"),
-                () => Fire(_presenter.ToggleQuickPhrasesAsync), SourceButtonRole.FilledSecondary, 10)
-            .WithAccessibilityLabel(text(NativeConversationText.QuickPhrases))
-            .WithAccessibilityIdentifier(NativeConversationAccess.QuickPhrasesToggle);
-        _send = style.LabelButton(Views.Text(text(NativeConversationText.Send)),
-                () => Fire(_presenter.SendAsync), SourceButtonRole.Primary, 20)
-            .WithAccessibilityLabel(text(NativeConversationText.Send))
-            .WithAccessibilityIdentifier(NativeConversationAccess.Send);
-        var inputRow = Views.HStack(field, _toggle, _send).WithFlexibleWidth();
-        inputRow.Spacing = 8;
-        var card = Views.VStack(_phrases, inputRow).WithPadding(SourceUiLayout.CardInset);
-        card.Spacing = 8;
-        var footer = Views.VStack(_audio, style.Card(card))
+        var composer = state.IsVoiceOn
+            ? VoicePanel(state, style, text)
+            : Composer(state, style, text);
+        var footer = Views.VStack(_audio, composer)
             .WithPadding(8, gutter, 8, gutter)
             .WithFlexibleWidth()
             .WithBackgroundColor(style.Appearance.BodyBackground.Light, style.Appearance.BodyBackground.Dark);
         footer.Spacing = 8;
-        UpdateInput(state, style);
 
         var chat = Views.BottomInset(Views.Scroll(_chat).WithScrollAnchoredToBottom(), footer);
         var page = Views.VStack(_top, chat).WithFlexibleWidth()
@@ -200,34 +219,118 @@ internal sealed class ConversationScreen : IActivityScreen
         return page;
     }
 
+    /// <summary>
+    /// Messages-style composer: quick phrases above when open; a round quick-phrases button, then
+    /// the capsule with the field and the waveform button. Return sends.
+    /// </summary>
+    private SwiftView Composer(NativeConversationState state, SourceUiStyle style, Func<string, string> text)
+    {
+        _phrases = Views.VStack(PhraseRows(state, style, text).ToArray()).WithFlexibleWidth();
+        var field = style.ComposerField(Views.TextField(text(NativeConversationText.TypeMessage), state.Draft,
+                value => _presenter.SetDraft(value)))
+            .WithFlexibleWidth()
+            .WithAccessibilityLabel(text(NativeConversationText.TypeMessage))
+            .WithAccessibilityIdentifier(NativeConversationAccess.Input)
+            .OnSubmit(() => Fire(_presenter.SendAsync));
+        _field = field;
+        _renderedDraftVersion = state.DraftVersion;
+        // Source: chat-quote toggle (its title reuses the placeholder text; native names it).
+        _toggle = style.ComposerIconButton("quote.bubble", () => Fire(_presenter.ToggleQuickPhrasesAsync),
+            text(NativeConversationText.QuickPhrases), NativeConversationAccess.QuickPhrasesToggle);
+        var capsuleRow = new List<SwiftView> { field };
+        if (state.IsVoiceAvailable)
+        {
+            var appearance = style.Appearance;
+            _voiceStart = Views.Button(Views.Image("waveform")
+                        .WithFixedSymbolSize(19 * appearance.Selection.FontScale)
+                        .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
+                    () => Fire(_presenter.StartVoiceAsync))
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithMinimumHeight(SourceUiStyle.ComposerHeight - 8)
+                .WithAccessibilityLabel(text(NativeConversationText.VoiceStart))
+                .WithAccessibilityIdentifier(NativeConversationAccess.VoiceStart);
+            capsuleRow.Add(_voiceStart);
+        }
+        var capsuleContent = Views.HStack(capsuleRow.ToArray()).WithFlexibleWidth();
+        capsuleContent.Spacing = 8;
+        var row = Views.HStack(_toggle, style.ComposerCapsule(capsuleContent)).WithFlexibleWidth();
+        row.Spacing = 8;
+        var composer = Views.VStack(_phrases, row).WithFlexibleWidth();
+        composer.Spacing = 8;
+        UpdateInput(state);
+        return composer;
+    }
+
+    /// <summary>Voice mode: what is happening (connecting, listening, partner speaking), the input level, and End.</summary>
+    private SwiftView VoicePanel(NativeConversationState state, SourceUiStyle style, Func<string, string> text)
+    {
+        _voiceStatus = Views.HStack(VoiceStatusRows(state, style, text).ToArray());
+        _voiceLevel = style.Progress(Views.Progress(
+                state.Voice == NativeConversationVoice.Listening ? state.MicLevel : 0, 1, 4,
+                text(NativeConversationText.VoiceListening)), completion: false)
+            .WithAccessibilityIdentifier(NativeConversationAccess.VoiceLevel);
+        var middle = Views.VStack(_voiceStatus, _voiceLevel).WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading);
+        middle.Spacing = 6;
+        var end = style.LabelButton(
+                Views.HStack(Views.Image("stop.fill"), Views.Text(text(NativeConversationText.VoiceEnd))),
+                () => Fire(_presenter.StopVoiceAsync), SourceButtonRole.FilledSecondary, 12)
+            .WithAccessibilityLabel(text(NativeConversationText.VoiceEnd))
+            .WithAccessibilityIdentifier(NativeConversationAccess.VoiceStop);
+        var row = Views.HStack(middle, end).WithFlexibleWidth();
+        row.Spacing = 12;
+        return row.WithPadding(8, 16, 8, 8)
+            .WithRoundedSurface(style.Appearance.CardSurface.Light, style.Appearance.CardSurface.Dark,
+                24, style.Appearance.Border.Light, style.Appearance.Border.Dark, 1)
+            .WithAccessibilityIdentifier(NativeConversationAccess.VoicePanel);
+    }
+
+    private IEnumerable<SwiftView> VoiceStatusRows(NativeConversationState state, SourceUiStyle style,
+        Func<string, string> text)
+    {
+        var status = state.Voice switch
+        {
+            NativeConversationVoice.Connecting => text(NativeConversationText.VoiceConnecting),
+            NativeConversationVoice.PartnerSpeaking => string.Format(CultureInfo.CurrentCulture,
+                text(NativeConversationText.VoiceSpeaking), state.PartnerName),
+            _ => text(NativeConversationText.VoiceListening),
+        };
+        var primary = style.Appearance.Primary;
+        yield return state.Voice == NativeConversationVoice.Connecting
+            ? Views.IndeterminateProgress(status)
+            : Views.Image(state.Voice == NativeConversationVoice.PartnerSpeaking ? "speaker.wave.2.fill" : "mic.fill")
+                .WithForegroundColor(primary.Light, primary.Dark);
+        yield return style.Text(Views.Text(status), SourceTextRole.Body2)
+            .WithAccessibilityIdentifier(NativeConversationAccess.VoiceStatus);
+    }
+
     private IEnumerable<SwiftView> TopRows(NativeConversationState state, SourceUiStyle style,
         Func<string, string> text)
     {
         if (!state.Notices.IsDefaultOrEmpty)
             if (Notices(state, style, text) is { } notices)
                 yield return notices;
-        if (!state.Scenarios.IsDefaultOrEmpty)
-        {
-            var options = state.Scenarios
-                .Select(item => new SwiftPickerOption(item.Id, item.DisplayName))
-                .ToArray();
-            var selected = state.ActiveScenarioId ?? state.Scenarios[0].Id;
-            var picker = Views.Picker(text(NativeConversationText.Scenario), options, selected,
-                    value =>
-                    {
-                        if (!string.IsNullOrEmpty(value))
-                            Fire(token => _presenter.SelectScenarioAsync(value, token));
-                    })
-                .WithPickerStyle(SwiftPickerStyle.Menu)
-                .WithAccessibilityIdentifier(NativeConversationAccess.Scenario);
-            var row = Views.HStack(
-                style.Text(Views.Text(text(NativeConversationText.Scenario)),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary),
-                picker,
-                Views.VStack().WithFlexibleWidth());
-            row.Spacing = 8;
-            yield return row;
-        }
+    }
+
+    /// <summary>Scenario: a toolbar menu (Captain, 2026-11-06) instead of the source picker above the chat.</summary>
+    private SwiftView ScenarioMenu(NativeConversationState state, Func<string, string> text)
+    {
+        var selected = state.ActiveScenarioId ?? state.Scenarios[0].Id;
+        var actions = state.Scenarios.Select(item =>
+            {
+                var active = item.Id == selected;
+                var id = item.Id;
+                var button = active
+                    ? Views.Button(Views.HStack(Views.Text(item.DisplayName), Views.Image("checkmark")),
+                        () => Fire(token => _presenter.SelectScenarioAsync(id, token)))
+                    : Views.Button(item.DisplayName, () => Fire(token => _presenter.SelectScenarioAsync(id, token)));
+                return button.WithAccessibilitySelected(active)
+                    .WithAccessibilityIdentifier($"{NativeConversationAccess.Scenario}.{id}");
+            })
+            .ToArray();
+        var name = state.Scenarios.FirstOrDefault(item => item.Id == selected)?.DisplayName ?? string.Empty;
+        return Views.Menu(Views.Image("theatermasks"), actions)
+            .WithAccessibilityLabel($"{text(NativeConversationText.Scenario)}, {name}")
+            .WithAccessibilityIdentifier(NativeConversationAccess.Scenario);
     }
 
     /// <summary>Errors and warnings stay inline until the next action; success and info are the scene's toast.</summary>
@@ -257,11 +360,36 @@ internal sealed class ConversationScreen : IActivityScreen
     {
         var appearance = style.Appearance;
         var id = message.AccessibilityId;
-        var rows = new List<SwiftView>
+        var rows = new List<SwiftView>();
+        var noteIndex = 0;
+        foreach (var note in message.ToolNotes.IsDefault ? [] : message.ToolNotes)
         {
-            style.Text(Views.Text(message.Text), SourceTextRole.Body1)
-                .WithAccessibilityIdentifier($"{id}.text")
-        };
+            var noteRow = Views.HStack(
+                    Views.Image("book.closed")
+                        .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
+                    style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        text(NativeConversationText.VoiceToolNote), note)), SourceTextRole.Caption1,
+                        SourceTextTone.Secondary))
+                .WithAccessibilityIdentifier($"{id}.tool.{noteIndex++}");
+            noteRow.Spacing = 4;
+            rows.Add(noteRow);
+        }
+        SwiftView body = message.IsTranscribing
+            ? style.Text(Views.Text(text(NativeConversationText.VoiceTranscribing)), SourceTextRole.Body1,
+                SourceTextTone.Secondary)
+            : style.Text(Views.Text(message.Text), SourceTextRole.Body1);
+        if (message.IsVoice)
+        {
+            // Source demo: a small microphone marks a spoken turn.
+            var spoken = Views.HStack(
+                Views.Image("mic.fill")
+                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark)
+                    .WithAccessibilityLabel(text(NativeConversationText.Voice)),
+                body);
+            spoken.Spacing = 6;
+            body = spoken;
+        }
+        rows.Add(body.WithAccessibilityIdentifier($"{id}.text"));
         if (!message.Corrections.IsDefaultOrEmpty)
         {
             var corrections = new List<SwiftView> { Views.Divider() };
@@ -293,7 +421,7 @@ internal sealed class ConversationScreen : IActivityScreen
                         text(NativeConversationText.Comprehension), (int)message.Comprehension)),
                     SourceTextRole.Small, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier($"{id}.comprehension"));
-        if (!message.IsUser)
+        if (message.CanListen)
         {
             var listen = Views.Button(
                     Views.HStack(Views.Image("speaker.wave.2"),
@@ -380,7 +508,7 @@ internal sealed class ConversationScreen : IActivityScreen
             .WithAccessibilityIdentifier(NativeConversationAccess.Language);
     }
 
-    private void UpdateInput(NativeConversationState state, SourceUiStyle style)
+    private void UpdateInput(NativeConversationState state)
     {
         if (_field is null)
             return;
@@ -395,17 +523,10 @@ internal sealed class ConversationScreen : IActivityScreen
         var editable = state.CanEdit;
         if (_field.IsEnabled != editable)
             _field.IsEnabled = editable;
-        if (_toggle is not null)
-            SourceUiStyle.SetCustomButtonAvailability(_toggle, style.Appearance,
-                SourceButtonRole.FilledSecondary, editable);
-        UpdateSendAvailability(style, _presenter.State.Draft, state.IsWaitingForReply);
-    }
-
-    private void UpdateSendAvailability(SourceUiStyle style, string? draft, bool waiting)
-    {
-        if (_send is not null)
-            SourceUiStyle.SetCustomButtonAvailability(_send, style.Appearance, SourceButtonRole.Primary,
-                !waiting && !string.IsNullOrWhiteSpace(draft) && _state.Phase == NativePhase.Ready);
+        if (_toggle is not null && _toggle.IsEnabled != editable)
+            _toggle.IsEnabled = editable;
+        if (_voiceStart is not null && _voiceStart.IsEnabled != state.CanStartVoice)
+            _voiceStart.IsEnabled = state.CanStartVoice;
     }
 
     private static void Fill(SwiftView slot, IEnumerable<SwiftView> children)

@@ -369,12 +369,13 @@ public sealed class NativeConversationVoiceTests
 
         public Task<bool> RequestMicrophoneAsync(CancellationToken cancellationToken) => Task.FromResult(Granted);
 
-        public void Start(Action<byte[]> microphone, Action<double> level, Action playbackIdle)
+        public Task StartAsync(Action<byte[]> microphone, Action<double> level, Action playbackIdle)
         {
             Started = true;
             Microphone = microphone;
             Level = level;
             PlaybackIdle = playbackIdle;
+            return Task.CompletedTask;
         }
 
         public void Play(byte[] pcm16) => Played.Add(pcm16);

@@ -226,16 +226,19 @@ public interface INativeVoiceAudio
     /// Starts capture and playback. <paramref name="microphone"/> receives about 100 ms of audio
     /// at a time, <paramref name="level"/> the input level (0 to 1), and
     /// <paramref name="playbackIdle"/> fires when queued partner audio has finished.
-    /// Throws when the audio hardware cannot start.
+    /// Fails when the audio hardware cannot start.
     /// </summary>
-    void Start(Action<byte[]> microphone, Action<double> level, Action playbackIdle);
+    Task StartAsync(Action<byte[]> microphone, Action<double> level, Action playbackIdle);
 
-    /// <summary>Queues partner audio after any already queued.</summary>
+    /// <summary>Queues partner audio after any already queued. Ignored once stopped.</summary>
     void Play(byte[] pcm16);
 
     /// <summary>Drops queued partner audio (the learner started speaking).</summary>
     void ClearPlayback();
 
-    /// <summary>Stops capture and playback and releases the audio session. Safe to call more than once.</summary>
+    /// <summary>
+    /// Stops capture and playback at once (no callback or Play has effect after it) and releases
+    /// the audio session in the background. Safe to call more than once.
+    /// </summary>
     void Stop();
 }
