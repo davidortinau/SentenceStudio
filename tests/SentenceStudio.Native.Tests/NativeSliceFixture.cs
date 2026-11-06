@@ -336,7 +336,9 @@ internal sealed class NativeSliceFixture : IDisposable
                     if (File.Exists(file))
                         File.Delete(file);
                 }
-                Directory.Delete(_directory);
+                // Recursive: a background write that finishes after the test (for example a
+                // speech clip cached after Back) must not fail cleanup.
+                Directory.Delete(_directory, recursive: true);
             }
         }
         finally
