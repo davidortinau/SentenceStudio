@@ -297,33 +297,11 @@ public sealed partial class NativeQuizPresenter
             return RefuseLaunch();
 
         _questionStartedAt = _clock.Elapsed;
-        if (quizPreferences.AutoPlayVocabAudio && _audioAvailable)
-        {
-            try
-            {
-                _audioHeard = await PlayAudioAsync(
-                    promptTerm, language, cancellationToken);
-                if (!_audioHeard)
-                {
-                    _audioAvailable = false;
-                    mediaError = true;
-                }
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException
-                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                if (_disposed)
-                    throw;
-                logger.LogWarning("Quiz prompt autoplay unavailable: {Failure}",
-                    ex.GetType().Name);
-                _audioAvailable = false;
-                mediaError = true;
-            }
-            if (_disposed)
-                throw new OperationCanceledException();
-            if (!HasOwner(_launch.UserId))
-                return RefuseLaunch();
-        }
+        // Source VocabQuiz.razor sets up the question and then starts PlayWordAudio without
+        // awaiting it. Here the turn is returned (and saved) first; the head renders it and
+        // then calls PlayAutoPromptAsync, so the learner sees the prompt before hearing it.
+        _autoPlayTurnId = quizPreferences.AutoPlayVocabAudio && _audioAvailable
+            ? _turnId : null;
         return QuestionState(graded, mediaError ? NativeText.ConnectionError : null);
     }
 
@@ -411,6 +389,7 @@ public sealed partial class NativeQuizPresenter
             CanShowSentenceHints = !hints.IsDefaultOrEmpty,
             SentenceHintsExpanded = _sentenceHintsExpanded,
             CanPlayAnswerAudio = _answerAudioAvailable,
+            AutoPlayPending = _autoPlayTurnId is not null && _autoPlayTurnId == _turnId,
             HeardAnswerChoiceIndices =
                 _heardAnswerChoices.Order().ToImmutableArray(),
             FeedbackStartedAt = graded && !_requiresCorrection

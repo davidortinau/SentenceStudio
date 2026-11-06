@@ -627,6 +627,11 @@ public sealed class NativeSliceBoundaryTests
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
         Assert.Equal(NativePhase.Ready, question.Phase);
+        // The turn is returned to be shown first; its autoplay follows (Captain, 2026-11-06).
+        Assert.True(question.AutoPlayPending);
+        Assert.Empty(fixture.Media.Played);
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
+        Assert.False(question.AutoPlayPending);
         // NativeToTarget: the autoplayed prompt is the cue and the audio letters can be picked
         // at once (AF-Q03), so both directions can answer immediately.
         Assert.True(question.CanSubmit);
@@ -646,6 +651,12 @@ public sealed class NativeSliceBoundaryTests
         await quiz.AnswerAsync(question.Choices[0].Text);
         var next = await quiz.NextAsync();
         Assert.Equal(NativePhase.Ready, next.Phase);
+        Assert.True(next.AutoPlayPending);
+        Assert.Equal(heardCount, fixture.Media.Played.Count);
+        await quiz.PlayAutoPromptAsync(next.TurnId!);
+        // Once per turn: a repeated or stale request plays nothing more.
+        await quiz.PlayAutoPromptAsync(next.TurnId!);
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
         Assert.Equal(heardCount + 1, fixture.Media.Played.Count);
         Assert.Equal(expectedLanguage, fixture.Media.Played[^1].Language);
     }

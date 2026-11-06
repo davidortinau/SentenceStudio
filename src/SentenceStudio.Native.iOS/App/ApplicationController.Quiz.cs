@@ -17,13 +17,19 @@ internal sealed partial class ApplicationController
 
     private CancellationTokenSource? _quizAudioCancellation;
     private QuizAudioNavigation _quizNavigationAfterAudio;
+    // Autoplay runs beside the quiz (not as a busy action), once per turn, after the
+    // turn's prompt appears on screen.
+    private CancellationTokenSource? _quizAutoPlayCancellation;
+    private string? _quizAutoPlayTurnId;
+    // The quiz is pushed with its loading state while the presenter opens the run.
+    private bool _quizOpening;
     // The typed answer belongs to one turn. Every path that reaches a new
     // Ready turn (manual Next, auto-advance, resume, retry, continue round)
     // must start with an empty field and a disabled Submit.
     private string? _quizAnswerTurnId;
 
     internal bool CanNavigateBackDuringQuizAudio =>
-        IsQuizOpen && _quizAudioCancellation is not null;
+        IsQuizOpen && (_quizAudioCancellation is not null || _quizOpening);
 
     internal NativeQuizState QuizViewState => _feedbackAutoAdvanceCanceled
         ? _quizState with { FeedbackStartedAt = null }
@@ -48,6 +54,7 @@ internal sealed partial class ApplicationController
         if (_quiz is null || !CanOpenQuizSentence)
             return;
         CancelAutoAdvance();
+        CancelQuizAutoPlay();
         _sentenceInput = string.Empty;
         _quizState = _quiz.OpenSentenceShortcut();
         _sentenceDraftRestoredTurn = _quizState.TurnId;
@@ -155,6 +162,7 @@ internal sealed partial class ApplicationController
                 // (Captain, 2026-11-03); the presenter accepts any shown option.
                 if (_busy || _quizState.Phase != NativePhase.Ready)
                     return;
+                CancelQuizAutoPlay();
                 _quizState = _quizState with { SelectedAnswer = value };
                 Run(async () =>
                 {
@@ -162,12 +170,16 @@ internal sealed partial class ApplicationController
                     ScheduleAutoAdvance();
                 });
             },
-            PlayPrompt: () => PlayQuizAudio(
-                token => _quiz.PlayPromptAsync(token)),
+            PlayPrompt: () =>
+            {
+                CancelQuizAutoPlay();
+                PlayQuizAudio(token => _quiz.PlayPromptAsync(token));
+            },
             PlayChoiceAudio: index =>
             {
                 if (_quizState.TurnId is not { } turnId)
                     return;
+                CancelQuizAutoPlay();
                 PlayQuizAudio(token => _quiz.PlayAnswerChoiceAsync(
                     index, turnId, token));
             },
@@ -176,6 +188,7 @@ internal sealed partial class ApplicationController
                 if (_busy || _quizState.Phase != NativePhase.Ready
                     || string.IsNullOrWhiteSpace(_answer))
                     return;
+                CancelQuizAutoPlay();
                 Run(async () =>
                 {
                     _quizState = await _quiz.AnswerAsync(_answer, _lifetime.Token);
@@ -268,7 +281,73 @@ internal sealed partial class ApplicationController
                 _sentenceDraftRestoredTurn = null;
                 if (_quizState.Phase == NativePhase.Summary)
                     _destination = NativeDestination.QuizSummary;
-            })));
+            }),
+            PromptAppeared: OnQuizPromptAppeared));
+    }
+
+    /// <summary>
+    /// The turn's prompt is on screen (SwiftUI onAppear of the question). Its autoplay starts
+    /// now, once, beside the quiz rather than as a busy action, as the source starts
+    /// PlayWordAudio without awaiting it (Captain, 2026-11-06: see the quiz, then hear it).
+    /// A requested photo is shown first; its render report re-renders the prompt.
+    /// </summary>
+    private void OnQuizPromptAppeared(string turnId)
+    {
+        if (_disposed || _nativePopPending || !IsQuizOpen || _quiz is not { } quiz
+            || _quizState is not {
+                AutoPlayPending: true, Sentence: null, Overlay: NativeQuizOverlay.None,
+                Phase: NativePhase.Ready or NativePhase.Feedback }
+            || _quizState.TurnId != turnId
+            || _quizState.Prompt is { PhotoRequested: true, ShowPhoto: false, Photo: not null }
+            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))
+            return;
+        _quizAutoPlayTurnId = turnId;
+        CancelQuizAutoPlay();
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _quizAutoPlayCancellation = cancellation;
+        _ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);
+    }
+
+    private async Task RunQuizAutoPlayAsync(
+        NativeQuizPresenter quiz, string turnId, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var state = await quiz.PlayAutoPromptAsync(turnId, cancellation.Token);
+            // Applied only while it is still the presenter's latest state; an action that
+            // ran meanwhile publishes its own result.
+            if (_disposed || cancellation.IsCancellationRequested
+                || !ReferenceEquals(_quiz, quiz) || !IsQuizOpen || _nativePopPending
+                || !ReferenceEquals(quiz.State, state) || state.TurnId != turnId)
+                return;
+            _quizState = state;
+            Publish();
+        }
+        catch (OperationCanceledException) when (
+            cancellation.IsCancellationRequested || _disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS quiz prompt autoplay failed.");
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _quizAutoPlayCancellation, null, cancellation);
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelQuizAutoPlay()
+    {
+        var current = Interlocked.Exchange(ref _quizAutoPlayCancellation, null);
+        try
+        {
+            current?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     internal SwiftView RenderQuizContent(SourceUiStyle style, out SwiftView? photoCover) =>
@@ -304,6 +383,7 @@ internal sealed partial class ApplicationController
         if (!IsQuizOpen || _nativePopPending)
             return;
         CancelAutoAdvance();
+        CancelQuizAutoPlay();
         _nativePopPending = true;
         if (!_busy)
             HandlePoppedQuiz();
@@ -333,6 +413,7 @@ internal sealed partial class ApplicationController
     internal void BackFromQuiz()
     {
         CancelAutoAdvance();
+        CancelQuizAutoPlay();
         if (QueueQuizAudioNavigation(QuizAudioNavigation.Back))
             return;
         Run(BackFromQuizAsync);
@@ -501,6 +582,8 @@ internal sealed partial class ApplicationController
         if (_services is null)
             return;
         CancelAutoAdvance();
+        CancelQuizAutoPlay();
+        _quizAutoPlayTurnId = null;
         _feedbackAutoAdvanceCanceled = false;
         _quiz?.Dispose();
         _quiz = _services.Provider.GetRequiredService<NativeQuizPresenter>();
@@ -512,7 +595,19 @@ internal sealed partial class ApplicationController
         _sentenceInput = string.Empty;
         _sentenceDraftRestoredTurn = null;
         _destination = NativeDestination.VocabularyQuiz;
-        _quizState = await _quiz.OpenAsync(launch, _lifetime.Token);
+        // Push the quiz at once with its loading state; the first question replaces it when
+        // the presenter has it, instead of holding the Study tab disabled meanwhile.
+        _quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
+        _quizOpening = true;
+        Publish();
+        try
+        {
+            _quizState = await _quiz.OpenAsync(launch, _lifetime.Token);
+        }
+        finally
+        {
+            _quizOpening = false;
+        }
         if (_quizState.Phase == NativePhase.Summary)
             _destination = NativeDestination.QuizSummary;
     }
@@ -591,6 +686,8 @@ internal sealed partial class ApplicationController
     private async Task ReturnToDashboardAsync()
     {
         CancelAutoAdvance();
+        CancelQuizAutoPlay();
+        _quizAutoPlayTurnId = null;
         _feedbackAutoAdvanceCanceled = false;
         _autoAdvanceDisplayStartedAt = null;
         _destination = NativeDestination.Dashboard;

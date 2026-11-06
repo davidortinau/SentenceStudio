@@ -63,6 +63,7 @@ public sealed partial class NativeQuizPresenter
 
             var launch = _launch;
             var turnId = _turnId;
+            _autoPlayTurnId = null;
             var word = _round[_turnIndex].Word;
             var text = _promptUsesNative ? word.NativeLanguageTerm! : word.TargetLanguageTerm!;
             var language = _promptUsesNative
@@ -96,6 +97,74 @@ public sealed partial class NativeQuizPresenter
             _audioHeard = heard;
             return SetState(QuestionState(graded: false,
                 errorKey: errorKey));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Plays the prompt of a turn whose state asked for autoplay (AutoPlayPending), once. The head
+    /// calls it after that turn's prompt is on screen; a turn that changed, was answered, was
+    /// played by hand, is in the sentence shortcut or has an overlay open is left as it is.
+    /// </summary>
+    public async Task<NativeQuizState> PlayAutoPromptAsync(
+        string turnId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_disposed || _launch is null || !HasOwner(_launch.UserId)
+                || _profile is null || _autoPlayTurnId is null
+                || _autoPlayTurnId != turnId || _turnId != turnId
+                || State.TurnId != turnId
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
+                || State.Overlay != NativeQuizOverlay.None || State.Sentence is not null
+                || _turnIndex >= _round.Count || !_audioAvailable)
+                return State;
+
+            _autoPlayTurnId = null;
+            var launch = _launch;
+            var graded = State.Phase == NativePhase.Feedback;
+            var word = _round[_turnIndex].Word;
+            var text = _promptUsesNative ? word.NativeLanguageTerm! : word.TargetLanguageTerm!;
+            var language = _promptUsesNative
+                ? _profile.NativeLanguage : word.Language ?? _profile.TargetLanguage;
+            bool heard;
+            try
+            {
+                heard = await PlayAudioAsync(text, language, cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                if (_disposed)
+                    throw;
+                logger.LogWarning("Quiz prompt autoplay unavailable: {Failure}",
+                    ex.GetType().Name);
+                heard = false;
+            }
+            if (_disposed)
+                throw new OperationCanceledException();
+            if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
+                return State;
+            if (!HasOwner(launch.UserId))
+                return RefuseLaunch();
+            if (!heard)
+                _audioAvailable = false;
+            _audioHeard = heard;
+            // The sentence shortcut may have opened while it played; it keeps its screen.
+            if (State.Sentence is not null
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback))
+                return State;
+            var next = QuestionState(graded,
+                heard ? State.ErrorKey : NativeText.ConnectionError);
+            // Learning Details or the photo viewer may have opened meanwhile (synchronous
+            // commands); they stay open over the updated question.
+            if (State.Overlay != NativeQuizOverlay.None)
+                next = next with { Overlay = State.Overlay, Details = State.Details };
+            return SetState(next);
         }
         finally
         {
@@ -347,6 +416,7 @@ public sealed partial class NativeQuizPresenter
                 return SetState(State with { ErrorKey = NativeText.QuizUnavailable });
             }
 
+            _autoPlayTurnId = null;
             var word = _round[_turnIndex].Word;
             var expected = _promptUsesNative
                 ? word.TargetLanguageTerm! : word.NativeLanguageTerm!;
@@ -563,8 +633,10 @@ public sealed partial class NativeQuizPresenter
         var word = _round[_turnIndex].Word;
         ResetSentenceSubmission();
         ResetSentenceHints(VocabQuizSentenceHintTransition.SentenceShortcut);
+        _autoPlayTurnId = null;
         return SetState(State with {
             Mode = "Sentence",
+            AutoPlayPending = false,
             Sentence = NativeQuizModality.RenderSentence(
                 word, _profile!.TargetLanguage),
             CanSubmit = false,

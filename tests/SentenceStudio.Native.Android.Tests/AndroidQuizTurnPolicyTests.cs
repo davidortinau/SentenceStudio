@@ -76,7 +76,7 @@ public sealed class AndroidQuizTurnPolicyTests
             question with { Phase = NativePhase.Feedback }, false));
         Assert.False(AndroidQuizTurnPolicy.CanOpenSentence(question with
         {
-            Sentence = new NativeQuizSentencePrompt("owned-word", "개", "dog", "Korean")
+            Sentence = new NativeQuizSentencePrompt("owned-word", "개", "Korean")
         }, false));
 
         Assert.False(AndroidQuizTurnPolicy.CanTogglePhotoText(question, false));
@@ -132,7 +132,7 @@ public sealed class AndroidQuizTurnPolicyTests
         Assert.Equal(AndroidQuizRetry.Sentence, AndroidQuizTurnPolicy.Route(
             failed with
             {
-                Sentence = new NativeQuizSentencePrompt("owned-word", "개", "dog", "Korean")
+                Sentence = new NativeQuizSentencePrompt("owned-word", "개", "Korean")
             }, AndroidQuizFailedCommand.None, hasLaunch: true));
         Assert.Equal(AndroidQuizRetry.Done, AndroidQuizTurnPolicy.Route(
             new NativeQuizState(NativePhase.Error, NativeDestination.QuizSummary,
@@ -173,5 +173,45 @@ public sealed class AndroidQuizTurnPolicyTests
             Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed
         }));
         Assert.False(AndroidQuizTurnPolicy.BackLeavesQuiz(AudioChoices()));
+    }
+
+    [Fact]
+    public void SentenceShortcut_ShowsTheTargetWordWithoutItsTranslation()
+    {
+        // Captain, 2026-11-06: writing a sentence with the word must not show its translation.
+        var headRoot = typeof(AndroidQuizTurnPolicyTests).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .Cast<System.Reflection.AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!;
+        var sentence = File.ReadAllText(Path.Combine(
+            headRoot, "AndroidSliceShell.QuizSentence.Compose.cs"));
+
+        Assert.Contains("Heading(sentence.TargetLanguageTerm", sentence);
+        Assert.DoesNotContain("NativeLanguage", sentence);
+        Assert.DoesNotContain("native.quiz.sentence.gloss", sentence);
+    }
+
+    [Fact]
+    public void PromptAutoplay_StartsFromAComposedTurnWithAStringEffectKey()
+    {
+        // Captain, 2026-11-06: see the quiz, then hear it. The turn's autoplay starts from a
+        // LaunchedEffect once that turn is composed. Compose effect keys accept strings and
+        // primitives only (a tuple key threw NotSupportedException on the emulator).
+        var headRoot = typeof(AndroidQuizTurnPolicyTests).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .Cast<System.Reflection.AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!;
+        var effects = File.ReadAllText(Path.Combine(
+            headRoot, "AndroidSliceShell.Quiz.Compose.cs"));
+        var quiz = File.ReadAllText(Path.Combine(headRoot, "AndroidSliceShell.Quiz.cs"));
+
+        Assert.Contains("var autoPlayKey = autoPlayTurn is null ? null : autoPlayOwner + \"/\" + autoPlayTurn;",
+            effects);
+        Assert.Contains("composer.LaunchedEffect(autoPlayKey,", effects);
+        Assert.Contains("AutoPlayPending: true, Sentence: null", effects);
+        Assert.Contains("!AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, playOwner)", effects);
+        Assert.Contains("await quiz.PlayAutoPromptAsync(turnId, cancellation.Token);", quiz);
+        Assert.Contains("string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal)",
+            quiz);
     }
 }

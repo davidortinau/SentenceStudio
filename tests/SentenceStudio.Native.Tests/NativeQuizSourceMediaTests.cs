@@ -27,6 +27,9 @@ public sealed class NativeQuizSourceMediaTests
         Assert.False(awaitingImage.Prompt.ShowPhoto);
         Assert.True(awaitingImage.Prompt.ShowWrittenPrompt);
         var question = await quiz.PhotoRenderedAsync(awaitingImage.TurnId!);
+        Assert.Empty(fixture.Media.Played);
+        // The head plays the turn's autoplay once the prompt is on screen.
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
         Assert.Equal(NativePhase.Ready, question.Phase);
         Assert.True(question.Prompt!.ShowPhoto);
         Assert.NotNull(question.Prompt.Photo);
@@ -275,6 +278,8 @@ public sealed class NativeQuizSourceMediaTests
         using var quiz = fixture.Quiz;
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        // The head plays the turn's autoplay once the prompt is on screen.
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
         Assert.True(question.CanPlayAnswerAudio);
         Assert.True(question.CanSubmit);
         Assert.False(question.HasPendingSync);
@@ -345,6 +350,8 @@ public sealed class NativeQuizSourceMediaTests
         using var quiz = fixture.Quiz;
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        // The head plays the turn's autoplay once the prompt is on screen.
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
         fixture.Media.HoldPlaybackCompletion = true;
         var stateChanges = 0;
         quiz.StateChanged += _ => Interlocked.Increment(ref stateChanges);
@@ -488,6 +495,8 @@ public sealed class NativeQuizSourceMediaTests
         using var quiz = fixture.Quiz;
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        // The head plays the turn's autoplay once the prompt is on screen.
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
         await quiz.PlayAnswerChoiceAsync(0, question.TurnId!);
         var feedback = await quiz.AnswerAsync(question.Choices[0].Text);
         Assert.Equal(NativePhase.Feedback, feedback.Phase);
@@ -519,6 +528,8 @@ public sealed class NativeQuizSourceMediaTests
         using var quiz = fixture.Quiz;
         var question = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        // The head plays the turn's autoplay once the prompt is on screen.
+        question = await quiz.PlayAutoPromptAsync(question.TurnId!);
         fixture.Media.HoldPlaybackCompletion = true;
         using var cancellation = new CancellationTokenSource();
         var playing = quiz.PlayAnswerChoiceAsync(
@@ -559,7 +570,7 @@ public sealed class NativeQuizSourceMediaTests
     }
 
     [Fact]
-    public async Task DisposingQuizDuringAutoplay_CancelsBeforeSavingAnOldQuestion()
+    public async Task DisposingQuizDuringAutoplay_CancelsWithoutAnotherWrite()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -572,13 +583,16 @@ public sealed class NativeQuizSourceMediaTests
         using var quiz = fixture.Quiz;
         var launch = await fixture.Dashboard.SelectAssignedQuizAsync(planId);
 
-        var opening = quiz.OpenAsync(launch!);
+        // The question opens without waiting for its audio; the head plays it once shown.
+        var question = await quiz.OpenAsync(launch!).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(question.AutoPlayPending);
+        var playing = quiz.PlayAutoPromptAsync(question.TurnId!);
         await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
         var staleCompletion = fixture.Media.PendingPlayback!;
         quiz.Dispose();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await opening.WaitAsync(TimeSpan.FromSeconds(5)));
+            async () => await playing.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.False(staleCompletion.TrySetResult(true));
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }

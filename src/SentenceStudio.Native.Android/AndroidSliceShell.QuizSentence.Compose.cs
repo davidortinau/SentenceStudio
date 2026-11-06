@@ -8,7 +8,8 @@ namespace SentenceStudio.Native.Android;
 
 /// <summary>
 /// "Use in a sentence" (source VocabQuiz.razor sentence shortcut): the target
-/// word and gloss, one or more learner sentences graded by the source
+/// word without its translation (Captain, 2026-11-06; the source also showed the
+/// native term), one or more learner sentences graded by the source
 /// GradeSentence path, mastery credit only for UsageCorrect results, and
 /// Cancel before grading or Continue quiz after it. A sentence turn saved by
 /// any client renders here on resume.
@@ -41,8 +42,6 @@ internal sealed partial class AndroidSliceShell
             Modifier.Weight(1f),
             badge,
             term,
-            Body(sentence.NativeLanguageGloss, palette, secondary: true,
-                modifier: Modifier.TestTag("native.quiz.sentence.gloss")),
         };
         var header = new Row(Arrangement.SpacedBy(12), Alignment.Vertical.CenterVertically)
         {

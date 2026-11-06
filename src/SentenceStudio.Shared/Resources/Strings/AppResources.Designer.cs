@@ -11956,15 +11956,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Your progress is saved on this device and will finish syncing when you return..
-        /// </summary>
-        internal static string NativeVocabQuiz_SyncPending {
-            get {
-                return ResourceManager.GetString("NativeVocabQuiz_SyncPending", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Use in a sentence.
         /// </summary>
         internal static string NativeVocabQuiz_UseInSentence {

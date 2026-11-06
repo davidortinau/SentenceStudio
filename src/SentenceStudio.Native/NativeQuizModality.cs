@@ -56,10 +56,12 @@ public static class NativeQuizModality
     public static NativeQuizSentencePrompt RenderSentence(
         VocabularyWord word, string targetLanguage)
     {
+        // Only a usable quiz word (target and native terms) reaches a turn, but the prompt
+        // carries the target term alone: the translation is not shown while producing.
         if (!FocusVocabularySelection.IsUsableVocabularyWord(word))
-            throw new ArgumentException("A sentence prompt needs a target word and native gloss.", nameof(word));
+            throw new ArgumentException("A sentence prompt needs a usable quiz word.", nameof(word));
         return new NativeQuizSentencePrompt(
-            word.Id, word.TargetLanguageTerm!, word.NativeLanguageTerm!, targetLanguage);
+            word.Id, word.TargetLanguageTerm!, targetLanguage);
     }
 
     public static NativeQuizPrompt Render(

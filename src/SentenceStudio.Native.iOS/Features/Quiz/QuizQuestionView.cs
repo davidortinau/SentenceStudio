@@ -33,18 +33,18 @@ internal static class QuizQuestionView
         Action<string> photoRendered,
         Action<string, string> photoFailed,
         Action openPhoto,
-        Action togglePhotoVisible)
+        Action togglePhotoVisible,
+        Action<string>? promptAppeared = null)
     {
         if (state.Prompt is { } prompt)
         {
-            if (prompt.ShowWrittenPrompt && !string.IsNullOrWhiteSpace(prompt.PromptText))
-                items.Add(style.Text(Views.Text(prompt.PromptText),
+            var question = prompt.ShowWrittenPrompt && !string.IsNullOrWhiteSpace(prompt.PromptText)
+                ? style.Text(Views.Text(prompt.PromptText),
                         SourceTextRole.Display, SourceTextTone.Primary,
                         sourceHeading: true)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier(NativeAccess.QuizQuestion));
-            else
-                items.Add(style.Text(Views.Text(text(prompt.ShowPhoto
+                    .WithAccessibilityIdentifier(NativeAccess.QuizQuestion)
+                : style.Text(Views.Text(text(prompt.ShowPhoto
                             ? prompt.CanPlayPromptAudio
                                 ? "VocabQuiz_ListenLookAnswer"
                                 : "VocabQuiz_LookAndAnswer"
@@ -52,7 +52,12 @@ internal static class QuizQuestionView
                         SourceTextRole.Display, SourceTextTone.Primary,
                         sourceHeading: true)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier(NativeAccess.QuizQuestion));
+                    .WithAccessibilityIdentifier(NativeAccess.QuizQuestion);
+            // Autoplay waits until this turn's question is actually on screen.
+            if (promptAppeared is not null && state.AutoPlayPending
+                && state.TurnId is { } appearedTurn)
+                question.OnAppear(() => promptAppeared(appearedTurn));
+            items.Add(question);
             var actions = new List<SwiftView>();
             if (prompt.CanPlayPromptAudio)
                 actions.Add(style.QuizPromptIconButton(
