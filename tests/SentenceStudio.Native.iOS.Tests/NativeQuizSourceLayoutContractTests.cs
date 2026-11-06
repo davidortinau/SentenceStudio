@@ -356,7 +356,8 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.Contains("question.OnAppear(() => promptAppeared(appearedTurn));", question);
         Assert.DoesNotContain("AutoPlayPending", question);
         Assert.Contains("PromptAppeared: OnQuizPromptAppeared", app);
-        Assert.Contains("if (!_quizState.AutoPlayPending || _quizAutoPlayCancellation is not null)",
+        Assert.Contains("if (!_quizState.AutoPlayPending\n"
+            + "            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))",
             app);
         Assert.Contains("_ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);", app);
         Assert.Contains("quiz.PlayAutoPromptAsync(turnId, cancellation.Token)", app);

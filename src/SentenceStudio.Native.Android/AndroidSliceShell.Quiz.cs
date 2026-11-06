@@ -24,6 +24,7 @@ internal sealed partial class AndroidSliceShell
     private string? _detailsFocusTurnId;
     private int _detailsFocusRestoreVersion;
     private CancellationTokenSource? _quizAutoPlay;
+    private string? _quizAutoPlayTurnId;
     private string? _quizPromptShownTurnId;
 
     /// <summary>The "Use in a sentence" draft; a Compose TextFieldValue keeps Korean IME composition local.</summary>
@@ -79,10 +80,13 @@ internal sealed partial class AndroidSliceShell
             _quizPromptShownTurnId = turnId;
             global::Android.Util.Log.Info("SentenceStudio.Native", "Native Android quiz prompt on screen.");
         }
-        if (!autoPlay || _quizAutoPlay is not null)
+        // One request per turn; one still finishing for an earlier turn gives way.
+        if (!autoPlay || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))
             return;
+        CancelQuizAutoPlay();
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _quizAutoPlay = cancellation;
+        _quizAutoPlayTurnId = turnId;
         _ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);
     }
 
@@ -104,7 +108,10 @@ internal sealed partial class AndroidSliceShell
         }
         finally
         {
-            Interlocked.CompareExchange(ref _quizAutoPlay, null, cancellation);
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(ref _quizAutoPlay, null, cancellation),
+                    cancellation))
+                _quizAutoPlayTurnId = null;
             cancellation.Dispose();
         }
     }
@@ -113,6 +120,7 @@ internal sealed partial class AndroidSliceShell
     private void CancelQuizAutoPlay()
     {
         var current = Interlocked.Exchange(ref _quizAutoPlay, null);
+        _quizAutoPlayTurnId = null;
         try
         {
             current?.Cancel();

@@ -20,6 +20,7 @@ internal sealed partial class ApplicationController
     // Autoplay runs beside the quiz (not as a busy action), once per turn, after the
     // turn's prompt appears on screen.
     private CancellationTokenSource? _quizAutoPlayCancellation;
+    private string? _quizAutoPlayTurnId;
     private string? _quizPromptShownTurnId;
     // The quiz is pushed with its loading state while the presenter opens the run; Back then
     // cancels the open, so a run left before its first turn creates nothing.
@@ -299,10 +300,14 @@ internal sealed partial class ApplicationController
             _quizPromptShownTurnId = turnId;
             _logger?.LogInformation("Native iOS quiz prompt on screen.");
         }
-        if (!_quizState.AutoPlayPending || _quizAutoPlayCancellation is not null)
+        // One request per turn; one still finishing for an earlier turn gives way.
+        if (!_quizState.AutoPlayPending
+            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))
             return;
+        CancelQuizAutoPlay();
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _quizAutoPlayCancellation = cancellation;
+        _quizAutoPlayTurnId = turnId;
         _ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);
     }
 
@@ -339,7 +344,10 @@ internal sealed partial class ApplicationController
         }
         finally
         {
-            Interlocked.CompareExchange(ref _quizAutoPlayCancellation, null, cancellation);
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(ref _quizAutoPlayCancellation, null, cancellation),
+                    cancellation))
+                _quizAutoPlayTurnId = null;
             cancellation.Dispose();
         }
     }
@@ -347,6 +355,7 @@ internal sealed partial class ApplicationController
     private void CancelQuizAutoPlay()
     {
         var current = Interlocked.Exchange(ref _quizAutoPlayCancellation, null);
+        _quizAutoPlayTurnId = null;
         try
         {
             current?.Cancel();
