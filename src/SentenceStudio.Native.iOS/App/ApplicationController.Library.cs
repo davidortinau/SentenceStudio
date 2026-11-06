@@ -241,11 +241,34 @@ internal sealed partial class ApplicationController
     // ---- Sam's tab slot ----
 
     /// <summary>
+    /// Sam's slot is shown to every signed-in owner (Captain's request for the trial,
+    /// 2026-11-05), also while Sam is not offered to them; the Debug preview has no Sam.
+    /// </summary>
+    internal bool IsSamSlotShown => IsSamShellDestination(_destination) && !_preview;
+
+    /// <summary>Sam is not offered to this owner and the slot's notice is up.</summary>
+    internal bool IsSamUnavailableNoticePresented { get; private set; }
+
+    internal void DismissSamUnavailableNotice()
+    {
+        if (!IsSamUnavailableNoticePresented)
+            return;
+        IsSamUnavailableNoticePresented = false;
+        Publish();
+    }
+
+    /// <summary>
     /// The trailing slot opens the same Sam as every other entry: full height on a
-    /// phone (or a narrow window), the side panel at its usual size on iPad.
+    /// phone (or a narrow window), the side panel at its usual size on iPad. When Sam is
+    /// not offered to this owner it says so with Sam's own settings text instead.
     /// </summary>
     private void OpenSamFromTab()
     {
+        if (!IsSamAvailable)
+        {
+            IsSamUnavailableNoticePresented = IsSamSlotShown;
+            return;
+        }
         if (!IsSamEntryVisible)
             return;
         var size = NativeDeviceIdiom.IsPhone || _samViewportWidth < 768

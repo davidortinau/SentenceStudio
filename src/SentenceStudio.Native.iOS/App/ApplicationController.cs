@@ -948,6 +948,7 @@ internal sealed partial class ApplicationController : IDisposable
         ReleaseVocabulary();
         ReleaseLibraryPairs();
         _profileSummary = null;
+        IsSamUnavailableNoticePresented = false;
         _skills?.Dispose();
         _skills = null;
         _profile?.Dispose();

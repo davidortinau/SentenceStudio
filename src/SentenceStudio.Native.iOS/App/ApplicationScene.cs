@@ -37,6 +37,7 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _resourcesSearch;
     private SwiftView? _settingsStack;
     private SwiftView? _samTab;
+    private SwiftView? _samUnavailableNotice;
     private SwiftView? _skillsSlot;
     private SwiftView? _skillFormSlot;
     private SwiftView? _skillDeleteConfirmation;
@@ -267,7 +268,7 @@ internal sealed partial class ApplicationScene : IDisposable
                 "bubble.left.and.bubble.right.fill",
                 Views.VStack().WithAccessibilityIdentifier("native.tab.sam.content"))
             .WithTabRole(SwiftTabRole.Search)
-            .WithTabHidden(!_app.IsSamAvailable)
+            .WithTabHidden(!_app.IsSamSlotShown)
             .WithAccessibilityIdentifier("native.tab.sam");
         _tabs = Views.TabView(_app.SelectedTab, _app.SelectTab,
                 Views.Tab(localize("Nav_Study"), "graduationcap", _dashboardStack)
@@ -278,8 +279,14 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
             .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
+        _samUnavailableNotice = Views.Alert(WrapWithSam(_tabs),
+                SamView.Title(_app.SamState, localize),
+                localize("Coach_SettingsUnavailable"),
+                Views.Button(localize("Common_Close"), _app.DismissSamUnavailableNotice)
+                    .WithAccessibilityIdentifier("native.tab.sam.unavailable.close"))
+            .WithAccessibilityIdentifier("native.tab.sam.unavailable");
         _starterOverlay = Views.StarterBlockingOverlay(
-                WrapWithSam(_tabs), _app.StarterBusyTitle)
+                _samUnavailableNotice, _app.StarterBusyTitle)
             .WithAccessibilityIdentifier("native.starter.blocking-overlay");
         _starterOverlay.IsPresented = _app.IsStarterBusy;
         Install(_starterOverlay, RootKind.Tabs);
@@ -1084,6 +1091,7 @@ internal sealed partial class ApplicationScene : IDisposable
             DropPairsReferences();
             _settingsStack = null;
             _samTab = null;
+            _samUnavailableNotice = null;
             _settingsSlot = null;
             _renderedSettingsVersion = -1;
             DropProfileReferences();

@@ -19,7 +19,9 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
         Assert.Contains("\"bubble.left.and.bubble.right.fill\"", scene);
         Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
-        Assert.Contains(".WithTabHidden(!_app.IsSamAvailable)", scene);
+        // Shown to every signed-in owner; when Sam is not offered, the slot's alert says so.
+        Assert.Contains(".WithTabHidden(!_app.IsSamSlotShown)", scene);
+        Assert.Contains("localize(\"Coach_SettingsUnavailable\")", scene);
         Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
         foreach (var id in new[] { "native.tab.study", "native.tab.library", "native.tab.settings", "native.tab.sam" })
             Assert.Contains($"\"{id}\"", scene);
