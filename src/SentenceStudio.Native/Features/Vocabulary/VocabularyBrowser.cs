@@ -777,6 +777,31 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     Task IVocabularyCleanupHost.ReloadListAsync() => ReloadAsync();
 
+    async Task IVocabularyCleanupHost.RefreshOpenWordAsync()
+    {
+        if (!_formOpen || _selectedWordId is not { } id || !TryOwner(out var owner))
+            return;
+        var generation = Volatile.Read(ref _formGeneration);
+        try
+        {
+            var fresh = await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
+                owner, id, _lifetimeToken));
+            if (fresh is null || generation != Volatile.Read(ref _formGeneration)
+                || !_formOpen || _selectedWordId != id || !TryOwner(out _))
+                return;
+            // The learner's draft stays; only what the word allows now changes.
+            _detail = fresh;
+            Notify(VocabularyChanges.Form);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Native Vocabulary word refresh after a refused delete failed.");
+        }
+    }
+
     void IVocabularyCleanupHost.PublishChanges(bool list, bool form, bool deleteDialog) =>
         Notify((list ? VocabularyChanges.List : VocabularyChanges.None)
             | (form ? VocabularyChanges.Form : VocabularyChanges.None)

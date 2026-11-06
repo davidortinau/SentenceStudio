@@ -1321,15 +1321,16 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// <summary>
     /// Deletes a word for the learner (<paramref name="userProfileId"/>, else the active one)
     /// with its links and, by cascade, its progress, history, sentences and pairs (B66). With
-    /// no learner nothing is read or written. A word must be the learner's by the rule the
-    /// server's owner-checked sync applies to a word delete: its stored owner is the learner
-    /// (<see cref="SentenceStudio.Services.SyncRowOwners.GetStoredWordOwnersAsync"/>) and no
-    /// other learner's data, or data recorded to nobody, uses it
+    /// no learner nothing is read or written. The word must be the learner's
+    /// (<see cref="VocabularyWordOwnership.OwnedByAsync"/>, the one rule every client uses) and
+    /// no other learner's data, or data no one owns, may use it
     /// (<see cref="VocabularyWordDependents.OthersDependOnAsync"/>), so only the learner's own
     /// links go. A word a Minimal Pairs answer references is refused too
     /// (<see cref="VocabularyWordDependents.AnswersStillUseAsync(ApplicationDbContext, string[], CancellationToken)"/>),
-    /// since the database would refuse it. Failures are logged and returned, never reported as
-    /// a delete.
+    /// since the database would refuse it. The checks and the delete run in one serializable
+    /// transaction, so a row another learner adds meanwhile is never removed with the word
+    /// (PostgreSQL fails the transaction instead; SQLite holds the write lock). Failures are
+    /// logged and returned, never reported as a delete.
     /// </summary>
     public async Task<VocabularyWordDeleteResult> DeleteVocabularyWordAsync(
         string wordId, string? userProfileId = null, CancellationToken ct = default)
@@ -1343,46 +1344,38 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (string.IsNullOrWhiteSpace(wordId))
             return VocabularyWordDeleteResult.NotFound;
 
+        VocabularyWordDeleteResult result;
         try
         {
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            string[] ids = [wordId];
-            var owners = await SentenceStudio.Services.SyncRowOwners.GetStoredWordOwnersAsync(db, ids, ct);
-            if (!owners.TryGetValue(wordId, out var storedOwner))
-                return VocabularyWordDeleteResult.NotFound;
-            if (storedOwner != owner)
+            // A retrying execution strategy (the web's PostgreSQL) runs the whole transaction
+            // again on a transient failure, so each attempt starts clean.
+            result = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
-                // In the learner's vocabulary (their link or progress) but not theirs: refused.
-                // Otherwise the learner cannot see the word at all.
-                var inVocabulary = await db.ResourceVocabularyMappings.AnyAsync(mapping =>
-                        mapping.VocabularyWordId == wordId
-                        && db.LearningResources.Any(resource =>
-                            resource.Id == mapping.ResourceId && resource.UserProfileId == owner), ct)
-                    || await db.VocabularyProgresses.AnyAsync(progress =>
-                        progress.VocabularyWordId == wordId && progress.UserId == owner, ct);
-                return inVocabulary
-                    ? VocabularyWordDeleteResult.RefusedShared
-                    : VocabularyWordDeleteResult.NotFound;
-            }
-            if ((await VocabularyWordDependents.OthersDependOnAsync(db, ids, owner, ct)).Count > 0)
-                return VocabularyWordDeleteResult.RefusedShared;
-            if ((await VocabularyWordDependents.AnswersStillUseAsync(db, ids, ct)).Count > 0)
-                return VocabularyWordDeleteResult.RefusedAnswers;
+                db.ChangeTracker.Clear();
+                await using var transaction = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, ct);
+                var refusal = await DeleteRefusalAsync(db, wordId, owner, ct);
+                if (refusal is { } refused)
+                    return refused;
 
-            // Every remaining link is on one of the learner's resources (another would have
-            // refused the delete above).
-            var mappings = await db.ResourceVocabularyMappings
-                .Where(mapping => mapping.VocabularyWordId == wordId
-                    && db.LearningResources.Any(resource =>
-                        resource.Id == mapping.ResourceId && resource.UserProfileId == owner))
-                .ToListAsync(ct);
-            db.ResourceVocabularyMappings.RemoveRange(mappings);
-            var word = await db.VocabularyWords.FindAsync(new object[] { wordId }, ct);
-            if (word is null)
-                return VocabularyWordDeleteResult.NotFound;
-            db.VocabularyWords.Remove(word);
-            await db.SaveChangesAsync(ct);
+                // Every remaining link is on one of the learner's resources (another would have
+                // refused the delete above).
+                var mappings = await db.ResourceVocabularyMappings
+                    .Where(mapping => mapping.VocabularyWordId == wordId
+                        && db.LearningResources.Any(resource =>
+                            resource.Id == mapping.ResourceId && resource.UserProfileId == owner))
+                    .ToListAsync(ct);
+                db.ResourceVocabularyMappings.RemoveRange(mappings);
+                var word = await db.VocabularyWords.FindAsync(new object[] { wordId }, ct);
+                if (word is null)
+                    return VocabularyWordDeleteResult.NotFound;
+                db.VocabularyWords.Remove(word);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return VocabularyWordDeleteResult.Deleted;
+            });
         }
         catch (OperationCanceledException)
         {
@@ -1394,8 +1387,109 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             return VocabularyWordDeleteResult.Failed;
         }
 
-        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-        return VocabularyWordDeleteResult.Deleted;
+        if (result == VocabularyWordDeleteResult.Deleted)
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>
+    /// Why <paramref name="owner"/> may not delete the word, or null when they may: NotFound
+    /// when it is not in their vocabulary, RefusedShared when it is but is not theirs or others
+    /// use it, RefusedAnswers when a Minimal Pairs answer references it.
+    /// </summary>
+    private static async Task<VocabularyWordDeleteResult?> DeleteRefusalAsync(
+        ApplicationDbContext db, string wordId, string owner, CancellationToken ct)
+    {
+        string[] ids = [wordId];
+        if (!await db.VocabularyWords.AnyAsync(word => word.Id == wordId, ct))
+            return VocabularyWordDeleteResult.NotFound;
+        if (!(await VocabularyWordOwnership.OwnedByAsync(db, ids, owner, ct)).Contains(wordId))
+            return await IsInVocabularyOfAsync(db, wordId, owner, ct)
+                ? VocabularyWordDeleteResult.RefusedShared
+                : VocabularyWordDeleteResult.NotFound;
+        if ((await VocabularyWordDependents.OthersDependOnAsync(db, ids, owner, ct)).Count > 0)
+            return VocabularyWordDeleteResult.RefusedShared;
+        if ((await VocabularyWordDependents.AnswersStillUseAsync(db, ids, ct)).Count > 0)
+            return VocabularyWordDeleteResult.RefusedAnswers;
+        return null;
+    }
+
+    /// <summary>Whether one of the learner's resources links the word or they have progress on it.</summary>
+    private static async Task<bool> IsInVocabularyOfAsync(
+        ApplicationDbContext db, string wordId, string owner, CancellationToken ct) =>
+        await db.ResourceVocabularyMappings.AnyAsync(mapping =>
+                mapping.VocabularyWordId == wordId
+                && db.LearningResources.Any(resource =>
+                    resource.Id == mapping.ResourceId && resource.UserProfileId == owner), ct)
+        || await db.VocabularyProgresses.AnyAsync(progress =>
+            progress.VocabularyWordId == wordId && progress.UserId == owner, ct);
+
+    /// <summary>
+    /// The web/MAUI word editor's load (B66/B69 review 4): a word in the learner's vocabulary
+    /// (their link or progress) or theirs by <see cref="VocabularyWordOwnership.OwnedByAsync"/>;
+    /// null for any other word, or with no learner. A word that is not theirs comes back
+    /// read-only, without its memory aids and audio (they are its owner's).
+    /// </summary>
+    public async Task<LearnerVocabularyWord?> GetVocabularyWordForLearnerAsync(
+        string wordId, string? userProfileId, CancellationToken ct = default)
+    {
+        var owner = ResolveUserId(userProfileId);
+        if (string.IsNullOrEmpty(owner))
+        {
+            _logger.LogWarning("GetVocabularyWordForLearnerAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(wordId))
+            return null;
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var word = await db.VocabularyWords.AsNoTracking().FirstOrDefaultAsync(w => w.Id == wordId, ct);
+        if (word is null)
+            return null;
+        if ((await VocabularyWordOwnership.OwnedByAsync(db, [wordId], owner, ct)).Contains(wordId))
+            return new LearnerVocabularyWord(word, IsLearnersOwn: true);
+        if (!await IsInVocabularyOfAsync(db, wordId, owner, ct))
+            return null;
+        HideMemoryAids(word);
+        return new LearnerVocabularyWord(word, IsLearnersOwn: false);
+    }
+
+    /// <summary>
+    /// The web/MAUI word editor's save: a new word, or an update of a word that is the
+    /// learner's (<see cref="VocabularyWordOwnership.OwnedByAsync"/>). Another learner's word,
+    /// or one no one owns, is never written (NotLearnersOwn); with no learner nothing is.
+    /// </summary>
+    public async Task<VocabularyWordSaveResult> SaveLearnersVocabularyWordAsync(
+        VocabularyWord word, string? userProfileId, CancellationToken ct = default)
+    {
+        var owner = ResolveUserId(userProfileId);
+        if (string.IsNullOrEmpty(owner) || word is null)
+        {
+            _logger.LogWarning("SaveLearnersVocabularyWordAsync called without an active user — refusing to save to prevent cross-tenant data changes.");
+            return VocabularyWordSaveResult.NotLearnersOwn;
+        }
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (!string.IsNullOrEmpty(word.Id)
+                && await db.VocabularyWords.AnyAsync(w => w.Id == word.Id, ct)
+                && !(await VocabularyWordOwnership.OwnedByAsync(db, [word.Id], owner, ct)).Contains(word.Id))
+            {
+                _logger.LogWarning("Refused saving vocabulary word {WordId}: it is not the learner's.", word.Id);
+                return VocabularyWordSaveResult.NotLearnersOwn;
+            }
+        }
+        return await SaveWordAsync(word, owner) < 0
+            ? VocabularyWordSaveResult.Failed
+            : VocabularyWordSaveResult.Saved;
+    }
+
+    /// <summary>Clears a word's memory aids and audio, the parts that are its owner's alone.</summary>
+    private static void HideMemoryAids(VocabularyWord word)
+    {
+        word.MnemonicText = null;
+        word.MnemonicImageUri = null;
+        word.AudioPronunciationUri = null;
     }
 
     /// <summary>
@@ -1559,38 +1653,50 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// <summary>
     /// Bulk delete multiple vocabulary words
     /// </summary>
-    public async Task<bool> BulkDeleteVocabularyWordsAsync(List<string> vocabularyWordIds)
+    /// <summary>
+    /// The Vocabulary page's bulk delete (review 4 of B66): each word goes through
+    /// <see cref="DeleteVocabularyWordAsync"/> for the learner, so a word that is not theirs,
+    /// or that others or a Minimal Pairs answer still use, stays (Kept) and only the learner's
+    /// links go. Before, every account's links and the words were removed in one sweep.
+    /// </summary>
+    public async Task<VocabularyBulkDeleteResult> BulkDeleteVocabularyWordsAsync(
+        List<string> vocabularyWordIds, string? userProfileId = null, CancellationToken ct = default)
     {
+        int deleted = 0, kept = 0, failed = 0;
+        foreach (var id in (vocabularyWordIds ?? []).Distinct(StringComparer.Ordinal))
+        {
+            switch (await DeleteVocabularyWordAsync(id, userProfileId, ct))
+            {
+                case VocabularyWordDeleteResult.Deleted:
+                    deleted++;
+                    break;
+                case VocabularyWordDeleteResult.Failed:
+                    failed++;
+                    break;
+                default:
+                    kept++;
+                    break;
+            }
+        }
+        return new VocabularyBulkDeleteResult(deleted, kept, failed);
+    }
+
+    /// <summary>
+    /// The learner's words among <paramref name="wordIds"/> by
+    /// <see cref="VocabularyWordOwnership.OwnedByAsync"/>; none with no learner.
+    /// </summary>
+    public async Task<IReadOnlySet<string>> GetLearnersWordIdsAsync(
+        IReadOnlyCollection<string> wordIds, string? userProfileId, CancellationToken ct = default)
+    {
+        var owner = ResolveUserId(userProfileId);
+        if (string.IsNullOrEmpty(owner))
+        {
+            _logger.LogWarning("GetLearnersWordIdsAsync called without an active user — returning none.");
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        try
-        {
-            // Remove all resource associations first
-            var mappings = await db.ResourceVocabularyMappings
-                .Where(rvm => vocabularyWordIds.Contains(rvm.VocabularyWordId))
-                .ToListAsync();
-
-            db.ResourceVocabularyMappings.RemoveRange(mappings);
-
-            // Then remove the vocabulary words
-            var words = await db.VocabularyWords
-                .Where(vw => vocabularyWordIds.Contains(vw.Id))
-                .ToListAsync();
-
-            db.VocabularyWords.RemoveRange(words);
-
-            await db.SaveChangesAsync();
-
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            // UXDivers popup removed - error already logged above
-            return false;
-        }
+        return await VocabularyWordOwnership.OwnedByAsync(db, wordIds, owner, ct);
     }
 
     /// <summary>
@@ -1705,13 +1811,22 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             VocabularyDuplicatePolicy.NormalizeKeyPart(word.NativeLanguageTerm) == nativeKey);
     }
 
+    /// <summary>
+    /// The learner's duplicate groups: words their resources link that share a target term. A
+    /// copy that is not the learner's (<see cref="VocabularyWordOwnership.OwnedByAsync"/>, the
+    /// one rule every client uses) comes back without its memory aids and audio, its strength
+    /// counts only what is left, and its group cannot merge (B69,
+    /// <see cref="VocabularyDuplicateGroup.HasCopyNotOwnedByLearner"/>). Every client shows these
+    /// masked copies as they are; none masks again.
+    /// </summary>
     public async Task<VocabularyDuplicateScanResult> FindDuplicateVocabularyGroupsAsync(
         string? focusTerm = null,
         int skip = 0,
         int take = 20,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? userProfileId = null)
     {
-        var userId = ActiveUserId;
+        var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
         {
             _logger.LogWarning("FindDuplicateVocabularyGroupsAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
@@ -1738,36 +1853,37 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 })
             .ToListAsync(ct);
 
-        var wordInfos = rows
+        var candidateGroups = rows
             .GroupBy(row => row.WordId)
-            .Select(group =>
+            .Select(group => new
             {
-                var word = group.First().Word;
-                // B69: a copy not recorded to the learner shows none of its memory aids or
-                // audio (they are its owner's), and its strength counts only what is shown.
-                // The row is read without tracking, so nothing here is saved.
-                if (word.UserProfileId != userId)
-                {
-                    word.MnemonicText = null;
-                    word.MnemonicImageUri = null;
-                    word.AudioPronunciationUri = null;
-                }
-                return new
-                {
-                    Key = VocabularyDuplicatePolicy.BuildTargetKey(word),
-                    Info = new VocabularyDuplicateWordInfo(
-                        word,
-                        group.Select(row => row.ResourceId).Distinct(StringComparer.Ordinal).Count(),
-                        EncodingScoreHelper.CalculateWithLabel(word, 0).Score)
-                };
+                Word = group.First().Word,
+                ResourceCount = group.Select(row => row.ResourceId).Distinct(StringComparer.Ordinal).Count()
             })
+            .Select(item => new { item.Word, item.ResourceCount, Key = VocabularyDuplicatePolicy.BuildTargetKey(item.Word) })
             .Where(item => !string.IsNullOrWhiteSpace(item.Key))
             .Where(item => string.IsNullOrWhiteSpace(focusKey) || item.Key == focusKey)
             .GroupBy(item => item.Key)
             .Where(group => group.Count() > 1)
+            .ToList();
+        var owned = await VocabularyWordOwnership.OwnedByAsync(
+            db, candidateGroups.SelectMany(group => group.Select(item => item.Word.Id)).ToArray(), userId, ct);
+
+        var wordInfos = candidateGroups
             .Select(group =>
             {
-                var words = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Select(item => item.Info));
+                var words = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Select(item =>
+                {
+                    var isLearnersOwn = owned.Contains(item.Word.Id);
+                    // Read without tracking, so clearing the aids saves nothing.
+                    if (!isLearnersOwn)
+                        HideMemoryAids(item.Word);
+                    return new VocabularyDuplicateWordInfo(item.Word, item.ResourceCount,
+                        EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score)
+                    {
+                        IsLearnersOwn = isLearnersOwn
+                    };
+                }));
 
                 var safetySignatures = words
                     .Select(info => VocabularyDuplicatePolicy.BuildSafetySignature(info.Word))
@@ -1777,17 +1893,17 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 var blockedReason = fieldsMatch
                     ? null
                     : BuildDuplicateMergeBlockedReason(words);
-                // B69: a copy recorded to another learner or to nobody blocks the merge
+                // B69: a copy that is not the learner's blocks the merge
                 // (MergeVocabularyWordsWithResultAsync refuses it too); editing cannot fix that.
-                var hasCopyNotRecordedToUser = words.Any(info => info.Word.UserProfileId != userId);
+                var hasCopyNotOwned = words.Any(info => !info.IsLearnersOwn);
 
                 return new VocabularyDuplicateGroup(
                     group.Key,
                     words.First().Word.TargetLanguageTerm?.Trim() ?? group.Key,
                     words,
-                    fieldsMatch && !hasCopyNotRecordedToUser,
+                    fieldsMatch && !hasCopyNotOwned,
                     blockedReason,
-                    hasCopyNotRecordedToUser);
+                    hasCopyNotOwned);
             })
             .OrderByDescending(group => group.Words.Count)
             .ThenBy(group => group.DisplayTerm, StringComparer.OrdinalIgnoreCase)
@@ -2007,15 +2123,18 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// engine the live attempt path uses). Progress is merged PER USER — each user keeps exactly one combined
     /// keeper record; users are never collapsed together.
     /// </summary>
-    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default) =>
-        (await MergeVocabularyWordsWithResultAsync(keeperWordId, deleteWordIds, ct)).Deleted;
+    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds,
+        CancellationToken ct = default, string? userProfileId = null) =>
+        (await MergeVocabularyWordsWithResultAsync(keeperWordId, deleteWordIds, ct, userProfileId)).Deleted;
 
     /// <summary>
     /// <see cref="MergeVocabularyWordsAsync"/>, also saying whether anything was saved: a copy
     /// another learner's data still references is kept, yet its links and history still move
-    /// to the keeper, so zero deleted words can still be a committed change.
+    /// to the keeper, so zero deleted words can still be a committed change. The learner is
+    /// <paramref name="userProfileId"/>, else the active one; with none nothing changes.
     /// </summary>
-    public async Task<VocabularyMergeResult> MergeVocabularyWordsWithResultAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default)
+    public async Task<VocabularyMergeResult> MergeVocabularyWordsWithResultAsync(string keeperWordId,
+        List<string> deleteWordIds, CancellationToken ct = default, string? userProfileId = null)
     {
         if (string.IsNullOrWhiteSpace(keeperWordId) || deleteWordIds == null || !deleteWordIds.Any())
             return VocabularyMergeResult.None;
@@ -2025,7 +2144,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (!deleteWordIds.Any())
             return VocabularyMergeResult.None;
 
-        var userId = ActiveUserId;
+        var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
         {
             _logger.LogWarning("MergeVocabularyWordsAsync called without an active user — refusing to merge to prevent cross-tenant data changes.");
@@ -2035,20 +2154,23 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // B69: a copy recorded to another learner, or to nobody, is never merged. The field
-        // merge would hand its memory aids to the keeper, and the delete would remove a row
-        // the learner does not own; a keeper not recorded to them would receive their aids.
-        // FindDuplicateVocabularyGroupsAsync marks such groups as blocked.
-        var notRecordedToUser = await db.VocabularyWords.AsNoTracking()
-            .Where(word => (word.Id == keeperWordId || deleteWordIds.Contains(word.Id))
-                && word.UserProfileId != userId)
+        // B69: a word that is not the learner's (VocabularyWordOwnership.OwnedByAsync, the one
+        // rule every client uses) is never merged. The field merge would hand its memory aids
+        // to the keeper, and the delete would remove a row the learner does not own; a keeper
+        // that is not theirs would receive their aids. FindDuplicateVocabularyGroupsAsync marks
+        // such groups as blocked.
+        string[] requested = [keeperWordId, .. deleteWordIds];
+        var existing = await db.VocabularyWords.AsNoTracking()
+            .Where(word => requested.Contains(word.Id))
             .Select(word => word.Id)
             .ToListAsync(ct);
-        if (notRecordedToUser.Count > 0)
+        var ownedWords = await VocabularyWordOwnership.OwnedByAsync(db, existing, userId, ct);
+        var notOwned = existing.Count(id => !ownedWords.Contains(id));
+        if (notOwned > 0)
         {
             _logger.LogWarning(
-                "MergeVocabularyWordsAsync refused: {Count} copies are not recorded to active user {UserId}.",
-                notRecordedToUser.Count, userId);
+                "MergeVocabularyWordsAsync refused: {Count} copies are not active user {UserId}'s.",
+                notOwned, userId);
             return VocabularyMergeResult.None;
         }
 
@@ -2131,7 +2253,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .ToList();
 
         // Preserve + recombine learning history before the words (and their cascade) are removed.
-        changed |= await MergeVocabularyWordFieldsAsync(db, keeperWordId, unsharedDeleteWordIds, userId, ct);
+        changed |= await MergeVocabularyWordFieldsAsync(db, keeperWordId, unsharedDeleteWordIds, ownedWords, ct);
         changed |= await MergeLearningProgressAsync(db, keeperWordId, mergeableDeleteWordIds, userId, ct);
         changed |= await ReparentDependentVocabularyArtifactsAsync(db, keeperWordId, mergeableDeleteWordIds, unsharedDeleteWordIds, userId, ct);
 
@@ -2292,23 +2414,25 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// Copies fields the keeper lacks from the duplicates. Only between words recorded to
-    /// <paramref name="userId"/> (B69): another learner's memory aids never move.
+    /// Copies fields the keeper lacks from the duplicates. Only between the learner's own words
+    /// (<paramref name="learnersWords"/>, B69): another learner's memory aids never move.
     /// </summary>
     private static async Task<bool> MergeVocabularyWordFieldsAsync(
         ApplicationDbContext db,
         string keeperWordId,
         IReadOnlyCollection<string> deleteWordIds,
-        string userId,
+        IReadOnlySet<string> learnersWords,
         CancellationToken ct)
     {
-        var keeper = await db.VocabularyWords.FirstOrDefaultAsync(
-            w => w.Id == keeperWordId && w.UserProfileId == userId, ct);
-        if (keeper == null || deleteWordIds.Count == 0)
+        if (!learnersWords.Contains(keeperWordId) || deleteWordIds.Count == 0)
+            return false;
+        var keeper = await db.VocabularyWords.FirstOrDefaultAsync(w => w.Id == keeperWordId, ct);
+        if (keeper == null)
             return false;
 
+        var ownDuplicates = deleteWordIds.Where(learnersWords.Contains).ToArray();
         var duplicates = await db.VocabularyWords
-            .Where(w => deleteWordIds.Contains(w.Id) && w.UserProfileId == userId)
+            .Where(w => ownDuplicates.Contains(w.Id))
             .ToListAsync(ct);
 
         var changed = false;

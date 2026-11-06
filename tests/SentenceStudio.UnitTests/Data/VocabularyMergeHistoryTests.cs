@@ -336,7 +336,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         // Arrange — same target exists for two users, but the active user owns only one copy.
         SeedUserProfile(UserB);
         var userAWord = SeedWord("사과", "apple");
-        var userBWord = SeedWord(" 사과 ", "apple");
+        var userBWord = SeedWord(" 사과 ", "apple", owner: UserB);
         EnsureWordsMappedToUser(UserA, userAWord);
         EnsureWordsMappedToUser(UserB, userBWord);
 
@@ -348,6 +348,56 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
 
         // Assert
         result.TotalGroupCount.Should().Be(0, "duplicate cleanup must not compare active-user words with another tenant's vocabulary");
+    }
+
+    // B69 (review 4): a copy recorded to another learner, which the active learner's resource
+    // links, is shown without its memory aids, blocks the group, and is never merged.
+    [Fact]
+    public async Task Merge_RefusesACopyRecordedToAnotherLearner_AndCopiesNothing()
+    {
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("배", "pear");
+        var theirs = SeedWord(" 배 ", "pear", owner: UserB);
+        AddEncodingAids(theirs);
+        EnsureWordsMappedToUser(UserA, keeper, theirs);
+
+        using (var scope = _fixture.ServiceProvider.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+            var group = (await repo.FindDuplicateVocabularyGroupsAsync("배")).Groups.Single();
+            group.HasCopyNotOwnedByLearner.Should().BeTrue();
+            group.CanMergeAutomatically.Should().BeFalse();
+            var shown = group.Words.Single(info => info.Word.Id == theirs);
+            shown.IsLearnersOwn.Should().BeFalse();
+            shown.Word.MnemonicText.Should().BeNull("another learner's memory aid is not shown");
+        }
+
+        (await MergeAsync(keeper, theirs)).Should().Be(0);
+        (await MergeAsync(theirs, keeper)).Should().Be(0);
+
+        WordExists(theirs).Should().BeTrue();
+        using var check = _fixture.ServiceProvider.CreateScope();
+        var db = check.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.VocabularyWords.AsNoTracking().Single(w => w.Id == theirs).MnemonicText.Should().NotBeNull();
+        db.VocabularyWords.AsNoTracking().Single(w => w.Id == keeper).MnemonicText.Should().BeNull();
+    }
+
+    // Review 4 (one ownership rule): a legacy copy recorded to nobody is the learner's when only
+    // their links and progress name it, and merges; when two learners link it, it is no one's.
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task Merge_OfALegacyCopy_FollowsWhoseItIs(bool anotherLearnerLinksIt, int expectedDeleted)
+    {
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("감", "persimmon");
+        var legacy = SeedWord(" 감 ", "persimmon", owner: null);
+        EnsureWordsMappedToUser(UserA, keeper, legacy);
+        if (anotherLearnerLinksIt)
+            EnsureWordsMappedToUser(UserB, legacy);
+
+        (await MergeAsync(keeper, legacy)).Should().Be(expectedDeleted);
+        WordExists(legacy).Should().Be(anotherLearnerLinksIt);
     }
 
     [Fact]

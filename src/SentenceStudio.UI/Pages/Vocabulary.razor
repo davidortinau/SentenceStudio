@@ -472,7 +472,7 @@ else
                                         <div>
                                             <strong>@group.DisplayTerm</strong>
                                             <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
-                                            @if (group.HasCopyNotRecordedToOwner)
+                                            @if (group.HasCopyNotOwnedByLearner)
                                             {
                                                 @* B69: editing cannot unblock a group with a copy that is not the learner's. *@
                                                 <span class="badge bg-warning text-dark ms-2">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</span>
@@ -510,7 +510,8 @@ else
                                                {
                                                    <div class="small text-success mt-1">Best retained version based on encoding strength and memory aids.</div>
                                                }
-                                               @if (!group.CanMergeAutomatically)
+                                               @* Review 4: another learner's copy is never offered for editing. *@
+                                               @if (!group.CanMergeAutomatically && wordInfo.IsLearnersOwn)
                                                {
                                                    <button class="btn btn-sm btn-outline-secondary mt-2"
                                                            @onclick="() => EditWord(wordInfo.Word.Id)" disabled="@isCleanupRunning">
@@ -520,7 +521,7 @@ else
                                            </div>
                                        }
                                     </div>
-                                    @if (group.HasCopyNotRecordedToOwner)
+                                    @if (group.HasCopyNotOwnedByLearner)
                                     {
                                         <div class="alert alert-warning py-2 mt-2 mb-2" data-testid="duplicate-not-yours">
                                             <div class="fw-semibold">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</div>
@@ -714,6 +715,8 @@ else
     [Inject] private AiService AiSvc { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    // Passed to every owner-scoped call (AGENTS.md: always pass the active user ID).
+    private string ActiveUserId => Preferences.Get("active_profile_id", string.Empty);
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "q")]
@@ -1212,17 +1215,27 @@ else
         try
         {
             var ids = selectedWordIds.ToList();
-            var ok = await ResourceRepo.BulkDeleteVocabularyWordsAsync(ids);
-            if (ok)
+            // Review 4 (B66): each word goes through the owner-scoped delete; words that are not
+            // the learner's, or that others or Minimal Pairs answers still use, stay.
+            var result = await ResourceRepo.BulkDeleteVocabularyWordsAsync(ids, ActiveUserId);
+            if (result.Failed == 0)
             {
                 CacheService.InvalidateVocabSummary();
                 await LoadData();
-                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], ids.Count)}");
+                if (result.Deleted > 0)
+                    Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], result.Deleted)}");
+                if (result.Kept > 0)
+                    Toast.ShowInfo($"{string.Format(Localize["Vocabulary_BulkDeleteKept"], result.Kept)}");
                 showBulkDeleteConfirm = false;
                 ExitBulkEditMode();
             }
             else
             {
+                if (result.Deleted > 0)
+                {
+                    CacheService.InvalidateVocabSummary();
+                    await LoadData();
+                }
                 Toast.ShowError($"{Localize["Vocabulary_BulkDeleteFailedGeneric"]}");
             }
         }
@@ -1607,7 +1620,7 @@ else
 
     private async Task MergeDuplicateGroup(VocabularyDuplicateGroup group)
     {
-        if (group.HasCopyNotRecordedToOwner)
+        if (group.HasCopyNotOwnedByLearner)
         {
             Toast.ShowInfo(Localize["Vocabulary_DuplicatesNotRecordedToYou"]);
             return;
@@ -1629,7 +1642,7 @@ else
             var keeper = sorted.First();
             var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds, default, ActiveUserId);
             cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {deleted}");
             CacheService.InvalidateVocabSummary();
             await LoadData();
@@ -1673,7 +1686,7 @@ else
                 var keeper = sorted.First();
                 var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
 
-                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds);
+                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds, default, ActiveUserId);
                 totalMerged += deleted;
             }
             catch (Exception ex)
@@ -1880,29 +1893,43 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             cleanupStatus = $"Fixing {cleanupTotal} entries...";
             StateHasChanged();
 
+            // Review 4 (B66/B69): only the learner's own words change. A swapped copy folds into
+            // the existing word through the owner-checked merge, which keeps its progress,
+            // history and memory aids on the keeper, moves only the learner's links, saves in one
+            // step, and changes nothing when either word is not the learner's.
+            var userId = ActiveUserId;
+            var learnersWords = await ResourceRepo.GetLearnersWordIdsAsync(
+                wordsToSwap.Select(swap => swap.Item1).ToList(), userId);
+            var keptCount = 0;
             foreach (var (fromId, toId) in wordsToMerge)
             {
-                var wordResources = await ResourceRepo.GetResourcesContainingWordAsync(fromId);
-                foreach (var resource in wordResources)
-                {
-                    await ResourceRepo.BulkAssociateWordsWithResourceAsync(resource.Id, new List<string> { toId });
-                }
-                // B66: counted only when the owner-scoped delete happened.
-                if (await ResourceRepo.DeleteVocabularyWordAsync(fromId) == VocabularyWordDeleteResult.Deleted)
+                var merged = await ResourceRepo.MergeVocabularyWordsWithResultAsync(
+                    toId, new List<string> { fromId }, default, userId);
+                if (merged.Changed)
                     mergedCount++;
+                else
+                    keptCount++;
                 cleanupProgress++;
                 StateHasChanged();
             }
 
             foreach (var (id, newTarget, newNative) in wordsToSwap)
             {
-                await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative);
-                swappedCount++;
+                if (!learnersWords.Contains(id))
+                {
+                    keptCount++;
+                }
+                else
+                {
+                    await ResourceRepo.UpdateVocabularyWordTermsAsync(id, newTarget, newNative);
+                    swappedCount++;
+                }
                 cleanupProgress++;
                 StateHasChanged();
             }
 
-            cleanupResults.Add($"Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)");
+            cleanupResults.Add($"Swapped {swappedCount} word(s), merged {mergedCount} duplicate(s)"
+                + (keptCount > 0 ? $", left {keptCount} that are not yours or are still used elsewhere" : ""));
 
             await LoadData();
         }
@@ -2030,7 +2057,9 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         var result = await ResourceRepo.FindDuplicateVocabularyGroupsAsync(
             duplicateFocusLabel,
             append ? duplicateGroups.Count : 0,
-            duplicatePageSize);
+            duplicatePageSize,
+            default,
+            ActiveUserId);
 
         if (append)
             duplicateGroups.AddRange(result.Groups);

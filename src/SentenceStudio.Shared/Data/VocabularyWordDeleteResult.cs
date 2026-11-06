@@ -30,3 +30,24 @@ public enum VocabularyWordDeleteResult
     /// <summary>The delete failed; the error is logged and nothing was saved.</summary>
     Failed
 }
+
+/// <summary>How many words a bulk delete removed, kept (refused) and failed to delete.</summary>
+public sealed record VocabularyBulkDeleteResult(int Deleted, int Kept, int Failed);
+
+/// <summary>What the web/MAUI word editor's owner-scoped save did.</summary>
+public enum VocabularyWordSaveResult
+{
+    Saved,
+
+    /// <summary>The word is not the learner's (or there is no learner); nothing was written.</summary>
+    NotLearnersOwn,
+
+    /// <summary>The save failed; the error is logged.</summary>
+    Failed
+}
+
+/// <summary>
+/// A word as the web/MAUI editor shows it to a learner. A word that is not
+/// <see cref="IsLearnersOwn"/> is read-only and carries no memory aids or audio.
+/// </summary>
+public sealed record LearnerVocabularyWord(SentenceStudio.Shared.Models.VocabularyWord Word, bool IsLearnersOwn);

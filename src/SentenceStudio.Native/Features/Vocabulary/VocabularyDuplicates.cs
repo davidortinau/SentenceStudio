@@ -66,6 +66,12 @@ internal interface IVocabularyCleanupHost
     Task ReloadListAsync();
 
     /// <summary>
+    /// Reloads the open word's detail (read-only state and why Delete is blocked) and keeps the
+    /// learner's draft. Used after a refused delete: the word changed since it was opened.
+    /// </summary>
+    Task RefreshOpenWordAsync();
+
+    /// <summary>
     /// Tells the UI what changed. <paramref name="deleteDialog"/> is the delete confirmation alone,
     /// which the iOS scene updates in place without rebuilding the editor.
     /// </summary>
@@ -219,6 +225,7 @@ internal sealed class VocabularyWordCleanup
         // The confirmation shows its pending state; the editor under it stays as it is.
         _host.PublishChanges(deleteDialog: true);
         var deleted = false;
+        var refused = false;
         try
         {
             var result = await _host.OffUiAsync(() => _store.DeleteOwnedVocabularyAsync(
@@ -235,7 +242,12 @@ internal sealed class VocabularyWordCleanup
                 _host.LeaveWord();
             }
             else if (_host.TryOpenOwner(out _))
+            {
                 _deleteError = VocabularyWordCommands.DeleteError(result, detail, _text);
+                refused = result is NativeVocabularyDeleteStatus.SharedReadOnly
+                    or NativeVocabularyDeleteStatus.UsedByOthers
+                    or NativeVocabularyDeleteStatus.UsedByAnswers;
+            }
         }
         catch (OperationCanceledException) when (_host.IsDisposed)
         {
@@ -257,6 +269,12 @@ internal sealed class VocabularyWordCleanup
         {
             await _host.ReloadListAsync();
             await RescanDuplicatesAsync();
+        }
+        else if (refused)
+        {
+            // The word changed since it was opened (review 4): show its current read-only state
+            // and Delete block, not the ones it loaded with.
+            await _host.RefreshOpenWordAsync();
         }
     }
 

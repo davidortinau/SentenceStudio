@@ -286,9 +286,12 @@ public sealed class VocabularyWordCleanupTests
     }
 
     // Review 2026-11-05: AI example sentences carry the owner's UserProfileId and no resource.
-    // A sentence naming nobody counts as another's, as on the server (VocabularyWordDependents).
+    // Review 4: a sentence recorded to nobody is its resource's owner's, else its word owner's
+    // (the phase-3 backfill rule, VocabularyWordOwnership.SentenceOwnersAsync), so one the
+    // device shows as the learner's never blocks their delete; one on another learner's
+    // resource does.
     [Fact]
-    public async Task Delete_TakesAWordWithTheOwnersOwnAiSentencesButNotAnotherOwnersSentence()
+    public async Task Delete_TakesAWordWithTheOwnersOwnSentencesButNotAnotherOwnersSentence()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA, known: true);
@@ -296,6 +299,7 @@ public sealed class VocabularyWordCleanupTests
         var withOwnSentence = fixture.WordId(UserA, 0);
         var withForeignSentence = fixture.WordId(UserA, 1);
         var withUnownedSentence = fixture.WordId(UserA, 2);
+        var withSentenceOnTheirResource = fixture.WordId(UserA, 3);
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -305,6 +309,10 @@ public sealed class VocabularyWordCleanupTests
             unowned.UserProfileId = null;
             unowned.LearningResourceId = fixture.ResourceId(UserA);
             db.ExampleSentences.Add(unowned);
+            var onTheirs = AiSentence("legacy-on-theirs", withSentenceOnTheirResource, UserA);
+            onTheirs.UserProfileId = null;
+            onTheirs.LearningResourceId = fixture.ResourceId(UserB);
+            db.ExampleSentences.Add(onTheirs);
             await db.SaveChangesAsync();
         }
         fixture.Activate(UserA);
@@ -312,7 +320,7 @@ public sealed class VocabularyWordCleanupTests
         using var browser = Create(fixture);
         Assert.True(await browser.OpenAsync(UserA));
 
-        foreach (var refused in new[] { withForeignSentence, withUnownedSentence })
+        foreach (var refused in new[] { withForeignSentence, withSentenceOnTheirResource })
         {
             await browser.OpenWordAsync(refused);
             Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
@@ -320,19 +328,26 @@ public sealed class VocabularyWordCleanupTests
                 await store.DeleteOwnedVocabularyAsync(UserA, refused, default));
         }
 
-        await browser.OpenWordAsync(withOwnSentence);
-        Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
-        Assert.True(browser.EditState.CanDelete);
-        browser.RequestDelete();
-        await browser.ConfirmDeleteAsync();
+        foreach (var deletable in new[] { withOwnSentence, withUnownedSentence })
+        {
+            await browser.OpenWordAsync(deletable);
+            Assert.False(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+            Assert.Single(browser.EditState.Detail!.Examples);
+            Assert.True(browser.EditState.CanDelete);
+            browser.RequestDelete();
+            await browser.ConfirmDeleteAsync();
 
-        Assert.False(browser.IsFormOpen);
-        Assert.Null(browser.EditState.DeleteError);
-        Assert.Equal("VocabWordEdit_DeletedSuccess", browser.ListState.Feedback);
-        Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, withOwnSentence));
-        var foreign = await RowsAsync(fixture, withForeignSentence);
-        Assert.Equal(1, foreign.Words);
-        Assert.Equal(1, foreign.Examples);
+            Assert.False(browser.IsFormOpen);
+            Assert.Null(browser.EditState.DeleteError);
+            Assert.Equal("VocabWordEdit_DeletedSuccess", browser.ListState.Feedback);
+            Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, deletable));
+        }
+        foreach (var kept in new[] { withForeignSentence, withSentenceOnTheirResource })
+        {
+            var rows = await RowsAsync(fixture, kept);
+            Assert.Equal(1, rows.Words);
+            Assert.Equal(1, rows.Examples);
+        }
     }
 
     // Review 2026-11-05: a committed delete whose sync tracking fails says so, as Save does.
@@ -701,6 +716,13 @@ public sealed class VocabularyWordCleanupTests
                 db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
                     Id = $"mapping-{id}", ResourceId = fixture.ResourceId(UserA), VocabularyWordId = id
                 });
+            // Review 4: a word recorded to nobody is no one's only when no single learner's
+            // links name it (one linked by A alone would be A's); here B links it too.
+            if (legacyOwner is null)
+                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                    Id = "mapping-dup-legacy-b", ResourceId = fixture.ResourceId(UserB),
+                    VocabularyWordId = "dup-legacy"
+                });
             await db.SaveChangesAsync();
             if (legacyOwner is null)
                 await db.VocabularyWords.Where(word => word.Id == "dup-legacy")
@@ -744,28 +766,31 @@ public sealed class VocabularyWordCleanupTests
         Assert.False(pending.IsPending(UserA));
     }
 
-    // Review 2026-11-05 (third pass): native has two rules, and each is checked against what the
-    // server's owner-checked sync does with the same rows (the shared rules it calls:
-    // SyncRowOwners for an update, VocabularyWordDependents for a delete).
-    // Edit: the server applies an update of a stored word that is the owner's and that one of
-    // their resources links. Native asks for that, with the owner recorded on the word, and keeps
-    // the 2026-10-20 rule that no one else links, practises or wrote a sentence for the word; so
-    // it is stricter only in those rows ("mapping", "progress", "sentence", "unowned-sentence",
-    // "unrecorded-word") and never offers an edit the server refuses. Others' pairs and phrases
-    // no longer stop an edit.
-    // Delete: native refuses exactly what the server refuses for a word recorded to the owner,
-    // and says why ("pair", "phrase": others' rows; "answer": a Minimal Pairs answer, which the
-    // database also refuses).
+    // Review 2026-11-05 (third and fourth pass): native has two rules, checked against what the
+    // server's owner-checked sync does with the same rows (the shared rules it calls).
+    // Whose the word is: one rule everywhere (VocabularyWordOwnership.OwnedByAsync): its recorded
+    // owner, else the single learner its links and progress name ("unrecorded-word" is A's; a
+    // word linked by A and B and recorded to nobody, "shared-legacy-word", is no one's).
+    // Edit: the word is the owner's and no one else links, practises or wrote a sentence for it
+    // (VocabularyWordDependents.OthersUseAsync; the 2026-10-20 rule). Never an edit the server
+    // refuses; stricter only for others' use ("mapping", "progress", "sentence",
+    // "sentence-on-their-resource"). Others' pairs and phrases do not stop an edit. A sentence
+    // recorded to nobody belongs to its resource's owner, else its word's owner (phase 3):
+    // "unowned-sentence" on A's resource is A's.
+    // Delete: native refuses exactly what the server refuses, and says why ("pair", "phrase":
+    // others' rows; "answer": a Minimal Pairs answer, which the database also refuses).
     [Theory]
     [InlineData("none", true, NativeVocabularyDeleteStatus.Deleted)]
     [InlineData("mapping", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("progress", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     [InlineData("sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
-    [InlineData("unowned-sentence", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
+    [InlineData("sentence-on-their-resource", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
+    [InlineData("unowned-sentence", true, NativeVocabularyDeleteStatus.Deleted)]
     [InlineData("pair", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("phrase", true, NativeVocabularyDeleteStatus.UsedByOthers)]
     [InlineData("answer", true, NativeVocabularyDeleteStatus.UsedByAnswers)]
-    [InlineData("unrecorded-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
+    [InlineData("unrecorded-word", true, NativeVocabularyDeleteStatus.Deleted)]
+    [InlineData("shared-legacy-word", false, NativeVocabularyDeleteStatus.SharedReadOnly)]
     public async Task EditAndDelete_MatchWhatTheServerAcceptsForTheSameRows(
         string use, bool editable, NativeVocabularyDeleteStatus expectedDelete)
     {
@@ -782,6 +807,7 @@ public sealed class VocabularyWordCleanupTests
             switch (use)
             {
                 case "mapping":
+                case "shared-legacy-word":
                     db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
                         Id = "use-mapping", ResourceId = fixture.ResourceId(UserB), VocabularyWordId = wordId });
                     break;
@@ -793,9 +819,11 @@ public sealed class VocabularyWordCleanupTests
                     db.ExampleSentences.Add(AiSentence("use-sentence", wordId, UserB));
                     break;
                 case "unowned-sentence":
+                case "sentence-on-their-resource":
                     var sentence = AiSentence("use-unowned", wordId, UserA);
                     sentence.UserProfileId = null;
-                    sentence.LearningResourceId = fixture.ResourceId(UserA);
+                    sentence.LearningResourceId = fixture.ResourceId(
+                        use == "unowned-sentence" ? UserA : UserB);
                     db.ExampleSentences.Add(sentence);
                     break;
                 case "pair":
@@ -820,7 +848,7 @@ public sealed class VocabularyWordCleanupTests
                     break;
             }
             await db.SaveChangesAsync();
-            if (use == "unrecorded-word")
+            if (use is "unrecorded-word" or "shared-legacy-word")
                 await db.VocabularyWords.Where(word => word.Id == wordId)
                     .ExecuteUpdateAsync(set => set.SetProperty(word => word.UserProfileId, (string?)null));
         }
@@ -843,10 +871,8 @@ public sealed class VocabularyWordCleanupTests
                 && !(await VocabularyWordDependents.AnswersStillUseAsync(db, [wordId], default))
                     .Contains(wordId);
         }
-        Assert.True(serverUpdates, "the server accepts the owner's update in every row here");
-        // A word recorded to nobody that only the owner links is theirs to the server (it infers
-        // the owner); native asks for the recorded owner, so it is stricter there alone.
-        Assert.Equal(use is "none" or "unrecorded-word", serverDeletes);
+        Assert.Equal(use is not "shared-legacy-word", serverUpdates);
+        Assert.Equal(use is "none" or "unrecorded-word" or "unowned-sentence", serverDeletes);
 
         var detail = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
         Assert.Equal(!editable, detail.IsSharedWithAnotherOwner);
@@ -865,15 +891,13 @@ public sealed class VocabularyWordCleanupTests
             NativeVocabularyDeleteStatus.UsedByAnswers => "NativeVocabulary_DeleteUsedByAnswers",
             _ => null
         }, VocabularyWordCommands.DeleteBlockedReason(detail, key => key));
-        // A sentence not recorded to the owner is never listed or counted as theirs.
-        Assert.Empty(detail.Examples);
+        // Only the learner's sentences are listed and counted as theirs.
+        Assert.Equal(use is "unowned-sentence" ? 1 : 0, detail.Examples.Count);
 
         var deleted = await store.DeleteOwnedVocabularyAsync(UserA, wordId, default);
         Assert.Equal(expectedDelete, deleted);
-        // Native never deletes a word the server keeps.
-        Assert.True(deleted != NativeVocabularyDeleteStatus.Deleted || serverDeletes);
-        if (use != "unrecorded-word")
-            Assert.Equal(serverDeletes, deleted == NativeVocabularyDeleteStatus.Deleted);
+        // Native deletes exactly what the server would.
+        Assert.Equal(serverDeletes, deleted == NativeVocabularyDeleteStatus.Deleted);
         Assert.Equal(deleted == NativeVocabularyDeleteStatus.Deleted ? 0 : 1,
             (await RowsAsync(fixture, wordId)).Words);
         if (deleted == NativeVocabularyDeleteStatus.Deleted)
@@ -889,6 +913,61 @@ public sealed class VocabularyWordCleanupTests
         Assert.Equal(editable ? "changed" : $"native-{UserA}-0", (await after.ServiceProvider
             .GetRequiredService<ApplicationDbContext>().VocabularyWords.AsNoTracking()
             .SingleAsync(word => word.Id == wordId)).NativeLanguageTerm);
+    }
+
+    // Review 4: Save may remove every link while the learner keeps progress on the word; the
+    // word stays theirs and editable, not "shared with another profile", and can be deleted.
+    [Fact]
+    public async Task SavingWithNoResources_KeepsTheWordEditableAndDeletable()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA, known: true);
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        var wordId = fixture.WordId(UserA, 0);
+        var detail = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
+        Assert.Equal(NativeVocabularySaveStatus.Saved, await store.SaveOwnedVocabularyAsync(UserA,
+            detail.Draft with { ResourceIds = [] }, default));
+
+        var reopened = (await store.GetOwnedVocabularyAsync(UserA, wordId, default))!;
+        Assert.Empty(reopened.Draft.ResourceIds);
+        Assert.False(reopened.IsSharedWithAnotherOwner);
+        Assert.Equal(NativeVocabularyDeleteBlock.None, reopened.DeleteBlock);
+        Assert.Equal(NativeVocabularyDeleteStatus.Deleted,
+            await store.DeleteOwnedVocabularyAsync(UserA, wordId, default));
+    }
+
+    // Review 4: a refused delete maps the shared delete's reason to what is true now. Another
+    // learner's progress that arrives after the editor opened makes the word read-only: the
+    // message says so and the open editor refreshes, instead of keeping Delete offered.
+    [Fact]
+    public async Task RefusedDelete_AfterAnotherLearnersRowArrives_SaysReadOnlyAndRefreshesTheEditor()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var wordId = fixture.WordId(UserA, 0);
+        await browser.OpenWordAsync(wordId);
+        Assert.True(browser.EditState.CanDelete);
+        browser.RequestDelete();
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyProgresses.Add(new VocabularyProgress {
+                Id = "arrived-by-sync", VocabularyWordId = wordId, UserId = UserB });
+            await db.SaveChangesAsync();
+        }
+
+        await browser.ConfirmDeleteAsync();
+
+        Assert.True(browser.IsFormOpen);
+        Assert.Equal("NativeVocabulary_SharedReadOnly", browser.EditState.DeleteError);
+        Assert.True(browser.EditState.Detail!.IsSharedWithAnotherOwner);
+        Assert.False(browser.EditState.CanDelete);
+        Assert.Equal(1, (await RowsAsync(fixture, wordId)).Words);
     }
 
     // Review 2026-11-05 (third pass): a group blocked by the source's own check and by a copy
@@ -1106,6 +1185,7 @@ public sealed class VocabularyWordCleanupTests
         public void LeaveWord() { }
         public void ShowListFeedback(string message, bool warning) { }
         public Task ReloadListAsync() => Task.CompletedTask;
+        public Task RefreshOpenWordAsync() => Task.CompletedTask;
         public void PublishChanges(bool list = false, bool form = false, bool deleteDialog = false) { }
         public Task<T> OffUiAsync<T>(Func<Task<T>> work) => work();
     }
