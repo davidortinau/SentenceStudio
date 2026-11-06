@@ -31,7 +31,8 @@ internal sealed partial class AndroidSliceShell
             && Quiz.Prompt?.Photo is { } asset
             && media.TryGetPhoto(asset, out _))
             drawn = (quizOwner, Quiz.TurnId!, asset);
-        composer.Effect(AndroidEffectKey.Of(drawn?.Owner, drawn?.Turn, drawn?.Asset), _ =>
+        composer.Effect(AndroidEffectKey.Of(drawn?.Owner, drawn?.Turn, drawn?.Asset),
+            cancellationToken =>
         {
             if (drawn is { } photo)
                 _ = ReportQuizPhotoRenderedAsync(photo.Owner, photo.Turn, photo.Asset);
