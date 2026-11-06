@@ -33,7 +33,7 @@ public static class ImportEndpoints
 
         var clampedLimit = Math.Clamp(limit, 1, MaxImportHistoryLimit);
         var imports = await pipelineService.GetImportHistoryAsync(userProfileId, clampedLimit);
-        return Results.Ok(imports);
+        return Results.Ok(imports.Select(VideoImportResponse.From));
     }
 
     private static async Task<IResult> GetImport(
@@ -49,7 +49,7 @@ public static class ImportEndpoints
         if (import == null)
             return Results.NotFound();
 
-        return Results.Ok(import);
+        return Results.Ok(VideoImportResponse.From(import));
     }
 
     private static async Task<IResult> StartImport(
@@ -155,3 +155,35 @@ public static class ImportEndpoints
 internal sealed class ImportEndpointsLog { }
 
 public record StartImportRequest(string VideoUrl, string? Language);
+
+/// <summary>
+/// An import history row: the fields the model serializes (same names and types as before) plus
+/// <see cref="CreatedAt"/> and <see cref="CompletedAt"/>, which the model keeps out of JSON. A
+/// client needs them for the history's date and its "stuck for more than 10 minutes" test.
+/// </summary>
+public sealed record VideoImportResponse(
+    string Id,
+    string? UserProfileId,
+    string? VideoId,
+    string? VideoTitle,
+    string? VideoUrl,
+    string? MonitoredChannelId,
+    VideoImportStatus Status,
+    string? ErrorMessage,
+    string? LearningResourceId,
+    string? RawTranscript,
+    string? CleanedTranscript,
+    string? Language,
+    DateTime CreatedAt,
+    DateTime? CompletedAt)
+{
+    public static VideoImportResponse From(VideoImport import) => new(
+        import.Id, import.UserProfileId, import.VideoId, import.VideoTitle, import.VideoUrl,
+        import.MonitoredChannelId, import.Status, import.ErrorMessage, import.LearningResourceId,
+        import.RawTranscript, import.CleanedTranscript, import.Language, Utc(import.CreatedAt),
+        import.CompletedAt is { } completed ? Utc(completed) : null);
+
+    /// <summary>The server writes these times in UTC; a provider that drops the kind still says so.</summary>
+    private static DateTime Utc(DateTime value) =>
+        value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value;
+}
