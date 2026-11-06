@@ -67,6 +67,8 @@ public sealed record ImportContentState(
     string NativeLanguage,
     string SelectedResourceId,
     ImmutableArray<NativeImportTargetResource> Resources,
+    bool ResourcesLoading,
+    string? ResourcesErrorKey,
     DedupMode DedupMode,
     bool IsCommitting,
     ContentImportResult? Result,
@@ -74,8 +76,12 @@ public sealed record ImportContentState(
     ImmutableArray<ContentImportItemResult> FilteredItems,
     ImmutableArray<NativeMessage> Messages)
 {
-    /// <summary>Source: the Import (commit) action shows once a preview is up.</summary>
-    public bool CanCommit => Step == ImportContentStep.Preview && HasPreview && Result is null;
+    /// <summary>
+    /// Source: the Import (commit) action shows once a preview is up. A blocked screen (the
+    /// owner changed) offers no action.
+    /// </summary>
+    public bool CanCommit => !Blocked && Step == ImportContentStep.Preview && HasPreview
+        && Result is null;
 
     /// <summary>Source: the paste area and format hints lock once the source step is left.</summary>
     public bool SourceLocked => Step > ImportContentStep.Source;
@@ -89,8 +95,10 @@ public sealed record ImportContentState(
 /// ContentImportService); an absent or changed owner blocks the screen and nothing is read or
 /// written. <see cref="Version"/> changes when the page must be drawn again; typing, row
 /// checkboxes and the other bound inputs only update the state, as the source bindings do.
+/// Service work runs off the UI thread through <see cref="OffUiAsync{T}"/> and resumes on the
+/// caller's synchronization context (UIKit's on iOS, the looper's on Android).
 /// </summary>
-public sealed class ImportContentCoordinator : IDisposable
+public class ImportContentCoordinator : IDisposable
 {
     private readonly INativeContentImport _import;
     private readonly DeviceUserScopeProvider _userScope;
@@ -132,6 +140,8 @@ public sealed class ImportContentCoordinator : IDisposable
     private string _nativeLanguage = "English";
     private string _selectedResourceId = string.Empty;
     private ImmutableArray<NativeImportTargetResource> _resources = [];
+    private bool _resourcesLoading;
+    private string? _resourcesErrorKey;
     private DedupMode _dedupMode = DedupMode.Skip;
     private bool _isCommitting;
     private ContentImportResult? _result;
@@ -150,12 +160,34 @@ public sealed class ImportContentCoordinator : IDisposable
     /// <summary>Raised when the page must be drawn again (<see cref="Version"/> changed).</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Raised after a commit wrote the owner's resource and words, so a head can mark its
+    /// resource list stale without waiting for a sync.
+    /// </summary>
+    public event Action? ResourcesWritten;
+
     public long Version { get; private set; }
+
+    /// <summary>
+    /// Changes only when the preview rows themselves change (a new preview, Select all), so a
+    /// head can keep the drawn rows through other redraws.
+    /// </summary>
+    public long RowsVersion { get; private set; }
 
     public bool IsOpen => _open;
 
     /// <summary>A commit is running: Back waits for its result (source: the page shows a spinner).</summary>
     public bool IsNavigationBlocked => _isCommitting;
+
+    /// <summary>
+    /// Typed or previewed content that is not imported yet: leaving would lose it, so another
+    /// tab's entry shows the page instead of closing it (a finished import holds nothing).
+    /// </summary>
+    public bool HasUnsavedWork => _open && !_blocked && _result is null
+        && (_preview is not null || !string.IsNullOrWhiteSpace(_rawText));
+
+    /// <summary>The page's errors, warnings and toasts, without building the whole state.</summary>
+    public ImmutableArray<NativeMessage> Messages => _messages;
 
     /// <summary>The source language choices (SentenceStudio.Common.Constants.Languages).</summary>
     public static IReadOnlyList<string> Languages => SentenceStudio.Common.Constants.Languages;
@@ -177,8 +209,8 @@ public sealed class ImportContentCoordinator : IDisposable
                 _preview?.Warnings.ToImmutableArray() ?? [], rows, _selectAllRows,
                 _rows.Count(row => row.IsSelected), _targetMode, _newResourceTitle,
                 _newResourceDescription, _showTitleValidationError, _targetLanguage, _nativeLanguage,
-                _selectedResourceId, _resources, _dedupMode, _isCommitting, _result, _resultFilter,
-                FilteredItems(), _messages);
+                _selectedResourceId, _resources, _resourcesLoading, _resourcesErrorKey, _dedupMode,
+                _isCommitting, _result, _resultFilter, FilteredItems(), _messages);
         }
     }
 
@@ -261,7 +293,7 @@ public sealed class ImportContentCoordinator : IDisposable
             {
                 var text = _rawText;
                 var token = _lifetime.Token;
-                var classification = await OffUi(() => _import.ClassifyAsync(owner, text, token));
+                var classification = await OffUiAsync(() => _import.ClassifyAsync(owner, text, token));
                 if (!IsCurrent(operation))
                     return;
                 var band = ClassifyConfidence(classification.Confidence);
@@ -341,7 +373,7 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestWords = _harvestWords
             };
             var token = _lifetime.Token;
-            var preview = await OffUi(() => _import.PreviewAsync(owner, request, token));
+            var preview = await OffUiAsync(() => _import.PreviewAsync(owner, request, token));
             if (!IsCurrent(operation))
                 return;
             _preview = preview;
@@ -361,6 +393,7 @@ public sealed class ImportContentCoordinator : IDisposable
             }).ToList();
             _step = ImportContentStep.Preview;
             _selectAllRows = _rows.All(row => row.IsSelected);
+            RowsVersion++;
         }
         catch (OperationCanceledException) when (_disposed)
         {
@@ -498,6 +531,7 @@ public sealed class ImportContentCoordinator : IDisposable
         _selectAllRows = selected;
         foreach (var row in _rows.Where(row => row.Status != RowStatus.Error))
             row.IsSelected = selected;
+        RowsVersion++;
         Notify(redraw: true);
     }
 
@@ -639,9 +673,19 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestWords = _harvestWords
             };
             // The commit is one database transaction: it is not cancelled by leaving the page.
-            var result = await OffUi(() => _import.CommitAsync(owner, commit, CancellationToken.None));
+            var result = await OffUiAsync(() => _import.CommitAsync(owner, commit, CancellationToken.None));
             if (_disposed || operation != _operation)
                 return;
+            // Fail closed: when the device owner changed during the commit, the screen blocks
+            // and the result is not shown to the new owner.
+            if (!OwnerIsCurrent())
+            {
+                _logger.LogWarning("Import Content stopped: the device owner changed during a commit.");
+                AddErrorSilently("Import_ProfileNotFound");
+                Block();
+                return;
+            }
+            ResourcesWritten?.Invoke();
             _result = result;
             _resultFilter = null;
             _step = ImportContentStep.Complete;
@@ -718,6 +762,7 @@ public sealed class ImportContentCoordinator : IDisposable
         _harvestStepReady = false;
         _isParsing = false;
         _messages = [];
+        RowsVersion++;
         Notify(redraw: true);
     }
 
@@ -742,39 +787,64 @@ public sealed class ImportContentCoordinator : IDisposable
 
     // ---- Helpers ----
 
+    /// <summary>The existing-resource list could not be read: read it again.</summary>
+    public Task RetryResourcesAsync() =>
+        _resourcesLoading || _resourcesErrorKey is null ? Task.CompletedTask
+            : LoadAvailableResourcesAsync();
+
     private async Task LoadAvailableResourcesAsync()
     {
         if (!TryOwner(out var owner))
             return;
+        _resourcesLoading = true;
+        _resourcesErrorKey = null;
+        Notify(redraw: true);
         try
         {
             var token = _lifetime.Token;
-            var resources = await OffUi(() => _import.ListTargetResourcesAsync(owner, token));
+            var resources = await OffUiAsync(() => _import.ListTargetResourcesAsync(owner, token));
             if (_disposed || !TryOwner(out _))
                 return;
             _resources = [.. resources];
-            Notify(redraw: true);
         }
         catch (OperationCanceledException) when (_disposed)
         {
+            return;
         }
         catch (UnauthorizedAccessException ex)
         {
             OnOwnerRefused(ex, _operation);
+            return;
         }
         catch (Exception ex)
         {
-            // Source: logged only; the existing-resource list stays empty.
+            // The source only logs and shows an empty select; here the list says it could
+            // not be read and offers Retry, so "no resources" is never a hidden failure.
             _logger.LogError(ex, "Failed to load available resources");
+            if (_disposed)
+                return;
+            _resources = [];
+            _resourcesErrorKey = "NativeResources_LoadError";
         }
+        finally
+        {
+            if (!_disposed)
+                _resourcesLoading = false;
+        }
+        Notify(redraw: true);
     }
 
     /// <summary>
-    /// The shared import service runs its database work in-line; it runs on the thread pool
-    /// so a large preview or commit does not hold the UI. The state is applied after the
-    /// await, back on the caller's context.
+    /// Runs service work off the UI thread: the shared import service does its SQLite work
+    /// in-line under its async API. The caller resumes on its synchronization context.
     /// </summary>
-    private static Task<T> OffUi<T>(Func<Task<T>> work) => Task.Run(work);
+    protected virtual Task<T> OffUiAsync<T>(Func<Task<T>> work) => Task.Run(work);
+
+    /// <summary>The device owner is still the one the screen opened for (no side effects).</summary>
+    private bool OwnerIsCurrent() =>
+        !_disposed && _open && !_blocked && !string.IsNullOrWhiteSpace(_owner)
+        && _userScope.IsCurrent(_ownerStamp)
+        && _userScope.TryGetUserProfileId(out var active) && active == _owner;
 
     internal static ImportConfidenceBand ClassifyConfidence(float confidence) =>
         confidence >= 0.85f ? ImportConfidenceBand.High

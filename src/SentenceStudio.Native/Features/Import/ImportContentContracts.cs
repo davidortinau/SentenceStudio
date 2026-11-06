@@ -31,26 +31,3 @@ public interface INativeContentImport
     Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(
         string owner, CancellationToken cancellationToken);
 }
-
-/// <summary>A head without the import services (the default before the production adapter registers).</summary>
-internal sealed class UnavailableNativeContentImport : INativeContentImport
-{
-    private static InvalidOperationException Unavailable() =>
-        new("Native content import is not registered for this head.");
-
-    public Task<ContentClassificationResult> ClassifyAsync(
-        string owner, string content, CancellationToken cancellationToken) =>
-        throw Unavailable();
-
-    public Task<ContentImportPreview> PreviewAsync(
-        string owner, ContentImportRequest request, CancellationToken cancellationToken) =>
-        throw Unavailable();
-
-    public Task<ContentImportResult> CommitAsync(
-        string owner, ContentImportCommit commit, CancellationToken cancellationToken) =>
-        throw Unavailable();
-
-    public Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(
-        string owner, CancellationToken cancellationToken) =>
-        throw Unavailable();
-}

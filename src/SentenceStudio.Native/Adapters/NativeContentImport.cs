@@ -71,6 +71,8 @@ public sealed class NativeContentImport(
         {
             _logger.LogError(ex, "Content import committed but sync tracking was not confirmed.");
         }
+        // Fail closed: the result is returned only to the owner the commit ran for.
+        RequireOwner(owner);
         return result;
     }
 

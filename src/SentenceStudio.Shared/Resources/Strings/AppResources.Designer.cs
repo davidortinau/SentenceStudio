@@ -8455,6 +8455,60 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Comma-delimited (CSV).
+        /// </summary>
+        internal static string Import_Format_Csv {
+            get {
+                return ResourceManager.GetString("Import_Format_Csv", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Free-form text (AI-extracted).
+        /// </summary>
+        internal static string Import_Format_FreeText {
+            get {
+                return ResourceManager.GetString("Import_Format_FreeText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Phrases (parsed + AI-extracted).
+        /// </summary>
+        internal static string Import_Format_Phrases {
+            get {
+                return ResourceManager.GetString("Import_Format_Phrases", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pipe-delimited.
+        /// </summary>
+        internal static string Import_Format_Pipe {
+            get {
+                return ResourceManager.GetString("Import_Format_Pipe", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sentences (parsed + AI-extracted).
+        /// </summary>
+        internal static string Import_Format_Sentences {
+            get {
+                return ResourceManager.GetString("Import_Format_Sentences", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tab-delimited (TSV).
+        /// </summary>
+        internal static string Import_Format_Tsv {
+            get {
+                return ResourceManager.GetString("Import_Format_Tsv", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Generating....
         /// </summary>
         internal static string Import_Generating {
@@ -8851,6 +8905,42 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Already exists in resource.
+        /// </summary>
+        internal static string Import_Reason_AlreadyExists {
+            get {
+                return ResourceManager.GetString("Import_Reason_AlreadyExists", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Native language term is empty (AI translation not yet implemented).
+        /// </summary>
+        internal static string Import_Reason_NativeEmpty {
+            get {
+                return ResourceManager.GetString("Import_Reason_NativeEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Phrase-linked entries require manual edit.
+        /// </summary>
+        internal static string Import_Reason_PhraseLinked {
+            get {
+                return ResourceManager.GetString("Import_Reason_PhraseLinked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Target language term is empty.
+        /// </summary>
+        internal static string Import_Reason_TargetEmpty {
+            get {
+                return ResourceManager.GetString("Import_Reason_TargetEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Refresh.
         /// </summary>
         internal static string Import_Refresh {
@@ -8937,6 +9027,69 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_Retry {
             get {
                 return ResourceManager.GetString("Import_Retry", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI extraction failed: {0}. Please check your content or provide a structured format..
+        /// </summary>
+        internal static string Import_RowError_AiExtractionFailed {
+            get {
+                return ResourceManager.GetString("Import_RowError_AiExtractionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Native language term missing (will use AI translation)..
+        /// </summary>
+        internal static string Import_RowError_NativeMissing {
+            get {
+                return ResourceManager.GetString("Import_RowError_NativeMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI could not translate this term..
+        /// </summary>
+        internal static string Import_RowError_NotTranslated {
+            get {
+                return ResourceManager.GetString("Import_RowError_NotTranslated", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary extracted. Check language settings or provide structured data..
+        /// </summary>
+        internal static string Import_RowError_NoVocabulary {
+            get {
+                return ResourceManager.GetString("Import_RowError_NoVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Target language term is required..
+        /// </summary>
+        internal static string Import_RowError_TargetRequired {
+            get {
+                return ResourceManager.GetString("Import_RowError_TargetRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Content exceeds size limit for free-text extraction (50KB)..
+        /// </summary>
+        internal static string Import_RowError_TooLargeFreeText {
+            get {
+                return ResourceManager.GetString("Import_RowError_TooLargeFreeText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Content exceeds size limit for phrase extraction (50KB)..
+        /// </summary>
+        internal static string Import_RowError_TooLargePhrases {
+            get {
+                return ResourceManager.GetString("Import_RowError_TooLargePhrases", resourceCulture);
             }
         }
 
@@ -9180,6 +9333,69 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_ViewVocab {
             get {
                 return ResourceManager.GetString("Import_ViewVocab", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI extraction failed: {0}.
+        /// </summary>
+        internal static string Import_Warn_AiExtractionFailed {
+            get {
+                return ResourceManager.GetString("Import_Warn_AiExtractionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI translation failed: {0}. Please provide translations manually..
+        /// </summary>
+        internal static string Import_Warn_AiTranslationFailed {
+            get {
+                return ResourceManager.GetString("Import_Warn_AiTranslationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI word extraction failed: {0}. Primary entries are still available..
+        /// </summary>
+        internal static string Import_Warn_AiWordExtractionFailed {
+            get {
+                return ResourceManager.GetString("Import_Warn_AiWordExtractionFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Content is too large for free-text extraction ({0} chars). Please provide structured data or split into smaller chunks..
+        /// </summary>
+        internal static string Import_Warn_TooLargeFreeText {
+            get {
+                return ResourceManager.GetString("Import_Warn_TooLargeFreeText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Content is too large for phrase extraction ({0} chars). Please split into smaller chunks..
+        /// </summary>
+        internal static string Import_Warn_TooLargePhrases {
+            get {
+                return ResourceManager.GetString("Import_Warn_TooLargePhrases", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary extracted from transcript. The transcript will still be stored on the resource..
+        /// </summary>
+        internal static string Import_Warn_TranscriptNoVocab {
+            get {
+                return ResourceManager.GetString("Import_Warn_TranscriptNoVocab", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcript will be stored but no vocabulary extraction was requested..
+        /// </summary>
+        internal static string Import_Warn_TranscriptOnly {
+            get {
+                return ResourceManager.GetString("Import_Warn_TranscriptOnly", resourceCulture);
             }
         }
 

@@ -22,11 +22,18 @@ internal static class ImportContentView
 {
     internal const string ScrollId = "native.import.content.scroll";
     internal const string ContentId = "native.import.content.scroll.content";
+    internal const string RowsId = "native.import.content.rows";
+    internal const string CommitId = "native.import.content.commit";
 
     private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");
 
-    internal static SwiftView Page(ImportContentCoordinator import, SourceUiStyle style,
-        Func<string, string> text, ImportContentActions actions)
+    /// <summary>
+    /// The page. <paramref name="reusableRows"/> is the preview rows grid of the previous draw
+    /// when the rows did not change (<see cref="ImportContentCoordinator.RowsVersion"/>): it is
+    /// placed as is, so a redraw for another part of the page keeps the rows and what was typed.
+    /// </summary>
+    internal static SwiftView Page(ImportContentScreen import, SourceUiStyle style,
+        Func<string, string> text, ImportContentActions actions, SwiftView? reusableRows = null)
     {
         var state = import.State;
         var items = new List<SwiftView>();
@@ -41,7 +48,7 @@ internal static class ImportContentView
             items.Add(style.Alert(Views.Text(text("Import_ProfileNotFound")), success: false)
                 .WithAccessibilityIdentifier("native.import.content.blocked"));
         else
-            items.AddRange(Wizard(import, state, style, text));
+            items.AddRange(Wizard(import, state, style, text, reusableRows));
 
         var content = Views.VStack(items.ToArray())
             .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
@@ -56,9 +63,22 @@ internal static class ImportContentView
         var commit = style.ViewportWidth < 768
             ? Views.Button(text("Import_CommitButton"), () => _ = import.CommitAsync())
             : style.PrimaryButton(text("Import_CommitButton"), () => _ = import.CommitAsync());
-        commit.WithAccessibilityIdentifier("native.import.content.commit");
-        commit.IsEnabled = !state.IsCommitting && !state.IsParsing;
+        commit.WithAccessibilityIdentifier(CommitId);
+        SetCommitAvailability(commit, style, !state.IsCommitting && !state.IsParsing);
         return Views.Toolbar(page, commit);
+    }
+
+    /// <summary>
+    /// The Import action's availability, with the source's disabled look for the primary
+    /// button on wide pages (a plain toolbar button on a phone dims by itself).
+    /// </summary>
+    internal static void SetCommitAvailability(SwiftView commit, SourceUiStyle style, bool enabled)
+    {
+        if (style.ViewportWidth < 768)
+            commit.IsEnabled = enabled;
+        else
+            SourceUiStyle.SetCustomButtonAvailability(commit, style.Appearance,
+                SourceButtonRole.Primary, enabled);
     }
 
     /// <summary>
@@ -66,11 +86,12 @@ internal static class ImportContentView
     /// errors and warnings stay until dismissed or the next action, the success toast expires.
     /// Null when there is nothing to show.
     /// </summary>
-    internal static SwiftView? Messages(ImportContentState state, NativeMessage? toast,
-        SourceUiStyle style, Func<string, string> text, Action dismissBanners, Action dismissToast)
+    internal static SwiftView? Messages(System.Collections.Immutable.ImmutableArray<NativeMessage> messages,
+        NativeMessage? toast, SourceUiStyle style, Func<string, string> text, Action dismissBanners,
+        Action dismissToast)
     {
         var items = new List<SwiftView>();
-        if (style.MessageBanners(state.Messages, text,
+        if (style.MessageBanners(messages, text,
                 index => $"native.import.content.message.{index}", dismissBanners,
                 "native.import.content.message.dismiss") is { } banners)
             items.Add(style.Card(banners.WithPadding(8), elevated: true, radius: 8));
@@ -85,8 +106,9 @@ internal static class ImportContentView
 
     // ---- Wizard (source steps 1-6) ----
 
-    private static IEnumerable<SwiftView> Wizard(ImportContentCoordinator import,
-        ImportContentState state, SourceUiStyle style, Func<string, string> text)
+    private static IEnumerable<SwiftView> Wizard(ImportContentScreen import,
+        ImportContentState state, SourceUiStyle style, Func<string, string> text,
+        SwiftView? reusableRows)
     {
         var locked = state.SourceLocked;
         SwiftView? preview = null;
@@ -199,12 +221,12 @@ internal static class ImportContentView
         if (!state.HasPreview || state.Step < ImportContentStep.Preview)
             yield break;
 
-        yield return PreviewCard(import, state, style, text);
+        yield return PreviewCard(import, state, style, text, reusableRows);
         yield return TargetCard(import, state, style, text);
         yield return DedupCard(import, state, style, text);
     }
 
-    private static SwiftView AutoDetectGate(ImportContentCoordinator import, ImportContentState state,
+    private static SwiftView AutoDetectGate(ImportContentScreen import, ImportContentState state,
         ImportAutoDetect detected, SourceUiStyle style, Func<string, string> text)
     {
         var type = TypeName(detected.ContentType, text);
@@ -273,7 +295,7 @@ internal static class ImportContentView
     }
 
     /// <summary>The four type buttons of the low-confidence gate and the chooser (source: no Auto).</summary>
-    private static SwiftView TypeButtons(ImportContentCoordinator import, ImportContentState state,
+    private static SwiftView TypeButtons(ImportContentScreen import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text, string idPrefix)
     {
         ContentType[] types = [ContentType.Vocabulary, ContentType.Phrases,
@@ -298,7 +320,7 @@ internal static class ImportContentView
         return grid;
     }
 
-    private static SwiftView Harvest(ImportContentCoordinator import, bool isOn, ImportHarvest harvest,
+    private static SwiftView Harvest(ImportContentScreen import, bool isOn, ImportHarvest harvest,
         string labelKey, string hintKey, string id, SourceUiStyle style, Func<string, string> text)
     {
         var toggle = Views.Toggle(text(labelKey), isOn, value => import.SetHarvest(harvest, value))
@@ -312,13 +334,14 @@ internal static class ImportContentView
 
     // ---- Preview, target, duplicate handling ----
 
-    private static SwiftView PreviewCard(ImportContentCoordinator import, ImportContentState state,
-        SourceUiStyle style, Func<string, string> text)
+    private static SwiftView PreviewCard(ImportContentScreen import, ImportContentState state,
+        SourceUiStyle style, Func<string, string> text, SwiftView? reusableRows)
     {
+        var format = ImportServiceText.DetectedFormat(state.DetectedFormat, text);
         var children = new List<SwiftView>
         {
             Heading(style, text("Import_Step3_Title")),
-            style.Text(Views.Text($"{text("Import_DetectedFormat")}: {state.DetectedFormat}"),
+            style.Text(Views.Text($"{text("Import_DetectedFormat")}: {format}"),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.import.content.format.detected"),
         };
@@ -329,7 +352,8 @@ internal static class ImportContentView
                 var line = Views.HStack(
                     Views.Image("exclamationmark.triangle")
                         .WithAccessibilityLabel(text("NativeMessage_Warning")),
-                    style.Text(Views.Text(warning), SourceTextRole.Caption1).WithFlexibleWidth());
+                    style.Text(Views.Text(ImportServiceText.Message(warning, text)),
+                        SourceTextRole.Caption1).WithFlexibleWidth());
                 line.Spacing = 4;
                 return line;
             }).ToList();
@@ -340,24 +364,38 @@ internal static class ImportContentView
         var count = style.Text(Views.Text(SelectedCount(state.SelectedCount, state.Rows.Length, text)),
                 SourceTextRole.Caption1, SourceTextTone.Secondary)
             .WithAccessibilityIdentifier("native.import.content.selected.count");
+        import.SelectedCountLabel = count;
         children.Add(style.Text(Views.Toggle(text("Vocabulary_SelectAll"), state.SelectAllRows,
                     import.SetSelectAll), SourceTextRole.Body2Strong)
             .WithAccessibilityIdentifier("native.import.content.select-all"));
-        foreach (var row in state.Rows)
-            children.Add(PreviewRow(import, row, style, text, count, state.Rows.Length));
+        // A lazy grid draws only the rows on screen (a long AI preview stays cheap).
+        children.Add(reusableRows ?? PreviewRows(import, state, style, text));
         children.Add(count);
         return Card(style, "native.import.content.preview.card", children.ToArray());
     }
 
-    private static SwiftView PreviewRow(ImportContentCoordinator import, ImportPreviewRow row,
-        SourceUiStyle style, Func<string, string> text, SwiftView count, int total)
+    private static SwiftView PreviewRows(ImportContentScreen import, ImportContentState state,
+        SourceUiStyle style, Func<string, string> text)
+    {
+        var total = state.Rows.Length;
+        var grid = Views.LazyVGrid(1, state.Rows
+                .Select(row => PreviewRow(import, row, style, text, total)).ToArray())
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier(RowsId);
+        grid.Spacing = SourceUiLayout.ItemGap;
+        return grid;
+    }
+
+    private static SwiftView PreviewRow(ImportContentScreen import, ImportPreviewRow row,
+        SourceUiStyle style, Func<string, string> text, int total)
     {
         var id = $"native.import.content.row.{row.Index}";
         var number = row.RowNumber.ToString(CultureInfo.CurrentCulture);
         var select = style.Text(Views.Toggle($"#{number}", row.Selected, value =>
                 {
                     var selected = import.SetRowSelected(row.Index, value);
-                    count.Text = SelectedCount(selected, total, text);
+                    if (import.SelectedCountLabel is { } count)
+                        count.Text = SelectedCount(selected, total, text);
                 }), SourceTextRole.Body2, SourceTextTone.Secondary)
             .WithAccessibilityLabel(Format(text("Import_SelectRow"), number))
             .WithAccessibilityIdentifier($"{id}.select");
@@ -419,11 +457,11 @@ internal static class ImportContentView
         var badge = Badge(style, symbol, text(key), fill, foreground, $"{id}.status");
         // Source shows the row's error as the badge's title (a hover tooltip).
         return row.Error is { Length: > 0 } error
-            ? badge.WithAccessibilityLabel($"{text(key)}: {error}")
+            ? badge.WithAccessibilityLabel($"{text(key)}: {ImportServiceText.Message(error, text)}")
             : badge;
     }
 
-    private static SwiftView TargetCard(ImportContentCoordinator import, ImportContentState state,
+    private static SwiftView TargetCard(ImportContentScreen import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text)
     {
         var children = new List<SwiftView>
@@ -493,12 +531,29 @@ internal static class ImportContentView
             children.Add(Choice(style, text("Import_SelectExistingResourceLabel"), options,
                 state.SelectedResourceId.Length == 0 ? none : state.SelectedResourceId,
                 "native.import.content.resource",
-                value => import.SetSelectedResource(value == none ? string.Empty : value), true));
+                value => import.SetSelectedResource(value == none ? string.Empty : value),
+                !state.ResourcesLoading));
+            if (state.ResourcesLoading)
+                children.Add(Views.IndeterminateProgress(text("Common_Loading"))
+                    .WithAccessibilityIdentifier("native.import.content.resource.loading"));
+            else if (state.ResourcesErrorKey is { } resourcesError)
+            {
+                // The list could not be read: say so and offer Retry instead of an empty select.
+                var retry = style.SecondaryButton(text(NativeText.Retry),
+                        () => _ = import.RetryResourcesAsync())
+                    .WithAccessibilityIdentifier("native.import.content.resource.retry");
+                var failure = Views.VStack(
+                    style.Alert(Views.Text(text(resourcesError)), success: false, compact: true)
+                        .WithAccessibilityIdentifier("native.import.content.resource.error"),
+                    retry).WithFlexibleWidth();
+                failure.Spacing = SourceUiLayout.ItemGap;
+                children.Add(failure);
+            }
         }
         return Card(style, "native.import.content.target", children.ToArray());
     }
 
-    private static SwiftView DedupCard(ImportContentCoordinator import, ImportContentState state,
+    private static SwiftView DedupCard(ImportContentScreen import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text) =>
         Card(style, "native.import.content.dedup",
             Heading(style, text("Import_Step6_Title")),
@@ -514,7 +569,7 @@ internal static class ImportContentView
 
     // ---- Results (source step 7) ----
 
-    private static IEnumerable<SwiftView> Results(ImportContentCoordinator import, ImportContentState state,
+    private static IEnumerable<SwiftView> Results(ImportContentScreen import, ImportContentState state,
         ContentImportResult result, SourceUiStyle style, Func<string, string> text,
         ImportContentActions actions)
     {
@@ -578,7 +633,8 @@ internal static class ImportContentView
 
         var rows = state.FilteredItems.Select((item, index) =>
             ResultRow(item, index, style, text, actions)).ToArray();
-        var list = Views.VStack(rows).WithFlexibleWidth();
+        // A lazy grid draws only the result rows on screen.
+        var list = Views.LazyVGrid(1, rows).WithFlexibleWidth();
         list.Spacing = 0;
         yield return style.BorderedCard(list, radius: 8).WithAccessibilityIdentifier("native.import.content.items");
     }
@@ -598,7 +654,7 @@ internal static class ImportContentView
         return style.Card(column);
     }
 
-    private static SwiftView Pill(ImportContentCoordinator import, SourceUiStyle style, string label,
+    private static SwiftView Pill(ImportContentScreen import, SourceUiStyle style, string label,
         int count, ImportItemStatus? status, ImportItemStatus? current, string id)
     {
         var selected = status == current;
@@ -660,10 +716,11 @@ internal static class ImportContentView
             style.Text(Views.Text(item.NativeLanguageTerm), SourceTextRole.Body2, SourceTextTone.Secondary),
             badgeRow
         };
-        if (!string.IsNullOrEmpty(item.Reason))
+        var reasonText = ImportServiceText.Message(item.Reason, text);
+        if (reasonText.Length > 0)
         {
             var reason = Views.HStack(Views.Image("exclamationmark.circle"),
-                style.Text(Views.Text(item.Reason), SourceTextRole.Caption1, SourceTextTone.Danger));
+                style.Text(Views.Text(reasonText), SourceTextRole.Caption1, SourceTextTone.Danger));
             reason.Spacing = 4;
             column.Add(reason.WithForegroundColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark));
         }
@@ -681,7 +738,7 @@ internal static class ImportContentView
             // The badges' type and status are part of what VoiceOver reads, not color only.
             .WithAccessibilityLabel(string.Join(", ", new[]
                 {
-                    item.Lemma, item.NativeLanguageTerm, text(typeKey), text(statusKey), item.Reason
+                    item.Lemma, item.NativeLanguageTerm, text(typeKey), text(statusKey), reasonText
                 }.Where(part => !string.IsNullOrWhiteSpace(part))))
             .WithAccessibilityIdentifier(id);
         row.IsEnabled = clickable;

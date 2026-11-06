@@ -362,6 +362,139 @@ public sealed class NativeContentImportTests
         Assert.True(fresh.HarvestWords);
     }
 
+    [Fact]
+    public async Task OwnerChangeDuringCommit_ShowsNoResultToTheNewOwner_AndBlocksTheScreen()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        await fixture.SeedProfileAsync(B);
+        fixture.Activate(A);
+        var import = new SwitchingImport(Adapter(fixture, new ScratchImportAi()),
+            afterCommit: () => fixture.Activate(B));
+        using var screen = Coordinator(fixture, import);
+        var written = 0;
+        screen.ResourcesWritten += () => written++;
+        Assert.True(await screen.OpenAsync(A));
+        screen.SetRawText("하나,one");
+        await screen.PreviewAsync();
+        screen.SetNewResourceTitle("Switched during commit");
+
+        await screen.CommitAsync();
+
+        var state = screen.State;
+        Assert.True(state.Blocked);
+        Assert.Null(state.Result);
+        Assert.False(state.CanCommit);
+        Assert.Equal(0, written);
+        Assert.Contains(state.Messages, message => message.Key == "Import_ProfileNotFound");
+        // The rows were written for A (the owner the commit ran for), never for B.
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var resource = await db.LearningResources.AsNoTracking()
+            .SingleAsync(row => row.Title == "Switched during commit");
+        Assert.Equal(A, resource.UserProfileId);
+    }
+
+    [Fact]
+    public async Task SuccessfulCommit_SignalsResourcesWritten_AndUnsavedWorkFollowsTheDraft()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        using var screen = Coordinator(fixture, Adapter(fixture, new ScratchImportAi()));
+        var written = 0;
+        screen.ResourcesWritten += () => written++;
+        Assert.True(await screen.OpenAsync(A));
+        Assert.False(screen.HasUnsavedWork);
+        screen.SetRawText("하나,one");
+        Assert.True(screen.HasUnsavedWork);
+        await screen.PreviewAsync();
+        var rowsVersion = screen.RowsVersion;
+        // A redraw for another part of the page keeps the rows' version.
+        screen.SetDedupMode(DedupMode.ImportAll);
+        screen.SetTargetMode(ImportTargetMode.New);
+        Assert.Equal(rowsVersion, screen.RowsVersion);
+        screen.SetSelectAll(false);
+        Assert.NotEqual(rowsVersion, screen.RowsVersion);
+        screen.SetSelectAll(true);
+        screen.SetNewResourceTitle("Signal");
+        await screen.CommitAsync();
+        Assert.NotNull(screen.State.Result);
+        Assert.Equal(1, written);
+        Assert.False(screen.HasUnsavedWork);
+    }
+
+    [Fact]
+    public async Task ResourceListFailure_IsShownWithRetry_NotAnEmptyPicker()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(A, wordCount: 1);
+        fixture.Activate(A);
+        var import = new SwitchingImport(Adapter(fixture, new ScratchImportAi())) { FailListOnce = true };
+        using var screen = Coordinator(fixture, import);
+        Assert.True(await screen.OpenAsync(A));
+        Assert.Equal("NativeResources_LoadError", screen.State.ResourcesErrorKey);
+        Assert.False(screen.State.ResourcesLoading);
+        Assert.Empty(screen.State.Resources);
+
+        await screen.RetryResourcesAsync();
+        Assert.Null(screen.State.ResourcesErrorKey);
+        Assert.Equal([fixture.ResourceId(A)], screen.State.Resources.Select(resource => resource.Id));
+    }
+
+    [Fact]
+    public void ServiceTexts_MapToResourceKeys_AndUnknownTextStaysAsIs()
+    {
+        static string Text(string key) => key switch
+        {
+            "Import_Warn_AiWordExtractionFailed" => "W[{0}]",
+            "Import_Warn_TooLargePhrases" => "P[{0}]",
+            "Import_RowError_AiExtractionFailed" => "R[{0}]",
+            "Import_Warn_AiExtractionFailed" => "E[{0}]",
+            _ => $"<{key}>"
+        };
+        Assert.Equal("<Import_Format_Csv>", ImportServiceText.DetectedFormat("Comma-delimited (CSV)", Text));
+        Assert.Equal("<Import_ContentType_Transcript>", ImportServiceText.DetectedFormat("Transcript", Text));
+        Assert.Equal("JSON", ImportServiceText.DetectedFormat("JSON", Text));
+        Assert.Equal("<Import_Reason_AlreadyExists>", ImportServiceText.Message("Already exists in resource", Text));
+        Assert.Equal("<Import_PreviewDuplicate_DuplicateWithinBatch>",
+            ImportServiceText.Message("Duplicate within batch", Text));
+        Assert.Equal("<Import_RowError_NativeMissing>",
+            ImportServiceText.Message("Native language term missing (will use AI translation).", Text));
+        Assert.Equal("W[timeout]", ImportServiceText.Message(
+            "AI word extraction failed: timeout. Primary entries are still available.", Text));
+        Assert.Equal("P[60000]", ImportServiceText.Message(
+            "Content is too large for phrase extraction (60000 chars). Please split into smaller chunks.", Text));
+        Assert.Equal("R[boom]", ImportServiceText.Message(
+            "AI extraction failed: boom. Please check your content or provide a structured format.", Text));
+        Assert.Equal("E[boom]", ImportServiceText.Message("AI extraction failed: boom", Text));
+        Assert.Equal("Confidence: low - unsure", ImportServiceText.Message("Confidence: low - unsure", Text));
+        Assert.Equal(string.Empty, ImportServiceText.Message(null, Text));
+    }
+
+    [Fact]
+    public async Task ServiceTextsTheImportProduces_AreKnownToTheMap()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(A, wordCount: 1);
+        fixture.Activate(A);
+        using var screen = Coordinator(fixture, Adapter(fixture, new ScratchImportAi()));
+        Assert.True(await screen.OpenAsync(A));
+        screen.SetRawText($"target-{A}-0,mine\n\t\n하나");
+        screen.SetDelimiter(ImportDelimiters.Comma);
+        await screen.PreviewAsync();
+        static string Text(string key) => $"<{key}>";
+        Assert.StartsWith("<", ImportServiceText.DetectedFormat(screen.State.DetectedFormat, Text));
+        Assert.All(screen.State.Rows.Where(row => row.Error is not null),
+            row => Assert.StartsWith("<", ImportServiceText.Message(row.Error, Text)));
+        screen.SetTargetMode(ImportTargetMode.Existing);
+        screen.SetSelectedResource(fixture.ResourceId(A));
+        await screen.CommitAsync();
+        Assert.All(screen.State.Result!.Items.Where(item => item.Reason is not null),
+            item => Assert.StartsWith("<", ImportServiceText.Message(item.Reason, Text)));
+        Assert.Contains(screen.State.Result.Items, item => item.Reason == "Already exists in resource");
+    }
+
     private static NativeContentImport Adapter(NativeSliceFixture fixture, ScratchImportAi ai) =>
         new(fixture.Provider, fixture.UserScope, fixture.Preferences,
             fixture.Provider.GetRequiredService<NativePendingWrites>(),
@@ -369,6 +502,39 @@ public sealed class NativeContentImportTests
 
     private static ImportContentCoordinator Coordinator(NativeSliceFixture fixture, INativeContentImport import) =>
         new(import, fixture.UserScope, NullLogger<ImportContentCoordinator>.Instance, key => key);
+
+    /// <summary>The real adapter, with an owner switch after a commit and a failing first list read.</summary>
+    private sealed class SwitchingImport(INativeContentImport inner, Action? afterCommit = null)
+        : INativeContentImport
+    {
+        public bool FailListOnce { get; set; }
+
+        public Task<ContentClassificationResult> ClassifyAsync(
+            string owner, string content, CancellationToken cancellationToken) =>
+            inner.ClassifyAsync(owner, content, cancellationToken);
+
+        public Task<ContentImportPreview> PreviewAsync(
+            string owner, ContentImportRequest request, CancellationToken cancellationToken) =>
+            inner.PreviewAsync(owner, request, cancellationToken);
+
+        public async Task<ContentImportResult> CommitAsync(
+            string owner, ContentImportCommit commit, CancellationToken cancellationToken)
+        {
+            // The rows commit for the owner; the device owner changes before the screen applies them.
+            var result = await inner.CommitAsync(owner, commit, cancellationToken);
+            afterCommit?.Invoke();
+            return result;
+        }
+
+        public Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(
+            string owner, CancellationToken cancellationToken)
+        {
+            if (!FailListOnce)
+                return inner.ListTargetResourcesAsync(owner, cancellationToken);
+            FailListOnce = false;
+            throw new InvalidOperationException("Simulated resource list failure.");
+        }
+    }
 
     /// <summary>Answers each prompt with the JSON stored for its response type (by type name).</summary>
     private sealed class ScratchImportAi : IOwnerBoundNativeAiGateway
