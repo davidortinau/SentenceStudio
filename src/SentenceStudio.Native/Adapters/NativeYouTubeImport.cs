@@ -210,13 +210,13 @@ public sealed class NativeYouTubeImport(
     }
 
     public Task StartImportAsync(string owner, string videoUrl, string? language,
-        CancellationToken cancellationToken)
+        string? monitoredChannelId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(videoUrl);
         return CallAsync(owner, async (client, token) =>
         {
             using var response = await client.PostAsJsonAsync("api/imports",
-                new { videoUrl, language }, Json, token);
+                new { videoUrl, language, monitoredChannelId }, Json, token);
             await EnsureSuccessAsync(response, token);
             return true;
         }, cancellationToken);

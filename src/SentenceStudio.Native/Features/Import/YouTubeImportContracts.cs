@@ -100,10 +100,12 @@ public interface INativeYouTubeImport
 
     /// <summary>
     /// A channel video's import (POST /api/imports): the server runs the import pipeline (source
-    /// ChannelDetail ImportSelectedVideos ran VideoImportPipelineService.RunPipelineAsync).
+    /// ChannelDetail ImportSelectedVideos ran VideoImportPipelineService.RunPipelineAsync). The
+    /// import is linked to <paramref name="monitoredChannelId"/> (source MonitoredChannelId); the
+    /// server refuses a channel that is not the signed-in owner's.
     /// </summary>
-    Task StartImportAsync(
-        string owner, string videoUrl, string? language, CancellationToken cancellationToken);
+    Task StartImportAsync(string owner, string videoUrl, string? language, string? monitoredChannelId,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

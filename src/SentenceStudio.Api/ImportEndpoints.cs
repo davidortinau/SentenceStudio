@@ -56,6 +56,7 @@ public static class ImportEndpoints
         [FromBody] StartImportRequest request,
         ClaimsPrincipal user,
         [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ChannelMonitorService channelService,
         [FromServices] ILogger<ImportEndpointsLog> logger)
     {
         var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
@@ -65,10 +66,23 @@ public static class ImportEndpoints
         if (string.IsNullOrWhiteSpace(request.VideoUrl))
             return Results.BadRequest("VideoUrl is required");
 
+        // A channel's import is linked to it (source ChannelDetail ImportSelectedVideos), but
+        // only to the owner's own channel: a missing or another owner's channel refuses the
+        // request, so nothing is written and no import is created unlinked.
+        if (request.MonitoredChannelId is not null)
+        {
+            var channel = await channelService.GetByIdAsync(request.MonitoredChannelId);
+            if (channel == null)
+                return Results.NotFound();
+            if (channel.UserProfileId != userProfileId)
+                return Results.Forbid();
+        }
+
         // Create the import record and return immediately
         var import = new VideoImport
         {
             UserProfileId = userProfileId,
+            MonitoredChannelId = request.MonitoredChannelId,
             VideoUrl = request.VideoUrl,
             Language = request.Language ?? "Korean",
             CreatedAt = DateTime.UtcNow
@@ -154,7 +168,11 @@ public static class ImportEndpoints
 // Marker type for ILogger<T> category name on background import tasks.
 internal sealed class ImportEndpointsLog { }
 
-public record StartImportRequest(string VideoUrl, string? Language);
+/// <summary>
+/// <see cref="MonitoredChannelId"/> is optional (additive): an import started from one of the
+/// owner's channels names it and is linked to it; without it the import is a manual one.
+/// </summary>
+public record StartImportRequest(string VideoUrl, string? Language, string? MonitoredChannelId = null);
 
 /// <summary>
 /// An import history row: the fields the model serializes (same names and types as before) plus

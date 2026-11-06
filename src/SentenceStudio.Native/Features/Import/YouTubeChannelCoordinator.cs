@@ -475,8 +475,8 @@ public sealed class YouTubeChannelCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Source ImportSelectedVideos: each selected video starts an import on the server, then the
-    /// list is read again.
+    /// Source ImportSelectedVideos: each selected video starts an import on the server, linked to
+    /// this channel (source MonitoredChannelId = channel.Id), then the list is read again.
     /// </summary>
     public async Task ImportSelectedAsync()
     {
@@ -497,7 +497,7 @@ public sealed class YouTubeChannelCoordinator : IDisposable
             {
                 await OffUiAsync(async () =>
                 {
-                    await _import.StartImportAsync(owner, video.Url, channel.Language, token);
+                    await _import.StartImportAsync(owner, video.Url, channel.Language, channel.Id, token);
                     return true;
                 });
                 count++;
@@ -601,7 +601,10 @@ public sealed class YouTubeChannelCoordinator : IDisposable
         }
     }
 
-    /// <summary>Source RetryFailedVideo: the video's latest failed import runs again on the server.</summary>
+    /// <summary>
+    /// Source RetryFailedVideo: the video's latest failed import runs again on the server, which
+    /// keeps the import's own channel link (the retry names only the import).
+    /// </summary>
     public async Task RetryFailedVideoAsync(string videoId)
     {
         if (!_open || _blocked || _disposed || _isRetryingImport
