@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Configuration;
-using OpenAI.Audio;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,12 +10,18 @@ using SentenceStudio.Services.Api;
 
 namespace SentenceStudio.Services;
 
+/// <summary>
+/// The app's AI calls. On client hosts (MAUI, the native heads) prompts go through
+/// <see cref="IAiGatewayClient"/> and speech through <see cref="ISpeechGatewayClient"/>, that is,
+/// through our API, which alone holds the Foundry credentials. Server hosts (API, Workers, web)
+/// call Foundry directly through the registered <see cref="IChatClient"/>s. Nothing that only the
+/// direct path uses is read or built at construction: the chat client is optional, and the
+/// <c>Settings:OpenAIKey</c> credential and the Foundry audio client are taken only when the
+/// direct speech path runs.
+/// </summary>
 public class AiService : IAiService
 {
-
-    private readonly string _openAiApiKey;
-    private readonly IChatClient _client;
-    private readonly AudioClient _audio;
+    private readonly IChatClient? _client;
     private readonly ILogger<AiService> _logger;
     private readonly IConnectivityService _connectivity;
     private readonly IAiGatewayClient? _aiGatewayClient;
@@ -25,15 +30,16 @@ public class AiService : IAiService
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
     private readonly string _ttsModel;
+
     public AiService(
         IConfiguration configuration,
-        IChatClient client,
         ILogger<AiService> logger,
         IConnectivityService connectivity,
         IHttpClientFactory httpClientFactory,
         IServiceProvider serviceProvider,
         IAiGatewayClient? aiGatewayClient = null,
-        ISpeechGatewayClient? speechGatewayClient = null)
+        ISpeechGatewayClient? speechGatewayClient = null,
+        IChatClient? client = null)
     {
         _client = client;
         _logger = logger;
@@ -43,27 +49,27 @@ public class AiService : IAiService
         _configuration = configuration;
         _aiGatewayClient = aiGatewayClient;
         _speechGatewayClient = speechGatewayClient;
-        _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
-
         _ttsModel = configuration["AI:OpenAI:TtsModel"] ?? "tts-1";
-
-        // Route the audio client through the Polly-backed HttpClient and the configured
-        // (Foundry) endpoint, same as the tiered chat clients.
-        var httpClient = _httpClientFactory.CreateClient("openai");
-        var openAiClient = AiClientRegistration.CreateOpenAIClient(configuration, _openAiApiKey, httpClient);
-
-        _audio = openAiClient.GetAudioClient(_ttsModel);
     }
 
     /// <summary>Resolves the keyed IChatClient for the requested tier, falling back to the default client.</summary>
-    private IChatClient ResolveClient(AiTier tier)
+    private IChatClient ResolveClient(AiTier tier) =>
+        _serviceProvider.GetKeyedService<IChatClient>(tier.ToKey())
+        ?? _client
+        ?? throw new InvalidOperationException(
+            "No direct AI chat client is registered on this host; its AI goes through the API gateway.");
+
+    /// <summary>
+    /// The credential of the direct (Foundry) speech path, required only there. Server hosts set
+    /// it (or "not-configured") at startup; a client host without a speech gateway has none.
+    /// </summary>
+    private string DirectSpeechApiKey()
     {
-        var client = _serviceProvider.GetKeyedService<IChatClient>(tier.ToKey());
-        if (client == null)
-        {
-            return _client;
-        }
-        return client;
+        var key = _configuration["Settings:OpenAIKey"];
+        if (string.IsNullOrWhiteSpace(key))
+            throw new InvalidOperationException(
+                "Direct speech requires Settings:OpenAIKey; this host has no speech gateway or key.");
+        return key;
     }
 
     public Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null) =>
@@ -215,11 +221,12 @@ public class AiService : IAiService
             }
         }
 
-        // Direct client fallback for standalone (non-Aspire) mode
-        // Use the "openai" named HttpClient which has Polly resilience configured
+        // Direct client fallback for standalone (non-Aspire) mode: the Foundry audio client is
+        // built here, only on this path, through the "openai" named HttpClient (Polly resilience).
+        var apiKey = DirectSpeechApiKey();
         var httpClient = _httpClientFactory.CreateClient("openai");
         var aiClient = new AIClient(
-            httpClient, _openAiApiKey, _connectivity,
+            httpClient, apiKey, _connectivity,
             configuration: _configuration, ttsModel: _ttsModel);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
