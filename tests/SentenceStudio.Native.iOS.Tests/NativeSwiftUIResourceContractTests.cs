@@ -17,9 +17,11 @@ public sealed class NativeSwiftUIResourceContractTests
     public async Task TwoNativeTabs_ResourceJourneyCancelsAndSavesAgainstOwnerScopedStorage()
     {
         var scene = Source("App/ApplicationScene.cs");
-        Assert.Equal(2, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
-        Assert.Contains("Views.Tab(localize(\"Dashboard_Title\"), \"house\",", scene);
-        Assert.Contains("Views.Tab(localize(\"Resources_Title\"), \"books.vertical\",", scene);
+        // iOS tab shell trial: Resources is the Library's first page.
+        Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
+        Assert.Contains("(LibrarySection.Resources, \"Library_Resources\", \"native.library.segment.resources\")",
+            Source("App/ApplicationScene.Library.cs"));
 
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -344,8 +346,11 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("private const string ViewModeKey = \"resources-view-mode\"", presenter);
         Assert.Contains("Views.TextField(", resources);
         Assert.Contains("Search: Search,", coordinator);
-        Assert.Contains("_resourcesStack = Views.NavigationStack(_resourcesSlot,", scene);
-        Assert.DoesNotContain("Views.Searchable(_resourcesSlot,", scene);
+        // Resources is the Library's first page on the Library stack.
+        var library = Source("App/ApplicationScene.Library.cs");
+        Assert.Contains("_libraryStack = Views.NavigationStack(_libraryRoot,", library);
+        Assert.Contains("_resourcesSlot = Views.VStack(_app.RenderResources(_style))", library);
+        Assert.DoesNotContain("Views.Searchable(_resourcesSlot,", scene + library);
         Assert.Contains("OnBrowserAppeared", coordinator);
         Assert.Contains("if (state.Phase == NativeResourceListPhase.Loading)",
             resources);
@@ -462,7 +467,7 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("_presenter.SaveAsync(_lifetime.Token)", coordinator);
         Assert.Contains("_formStatus = _text(\"ResourceEdit_SavedSuccess\")", coordinator);
         Assert.Contains("_presenter.CancelEdit();", coordinator);
-        Assert.Contains("_resourcesStack.Push(\"resource-form\",", scene);
+        Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);
     }
 
@@ -593,7 +598,7 @@ public sealed class NativeSwiftUIResourceContractTests
     public void NativePopAndDisposeInvalidateOutstandingResourceDetailAndSync()
     {
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
-        var scene = Source("App/ApplicationScene.cs");
+        var scene = Source("App/ApplicationScene.Library.cs");
         Assert.Contains("_app.OnResourcesFormPopped()", scene);
         Assert.Contains("if (!_formOpen || IsNavigationBlocked)", coordinator);
         Assert.Contains("_presenter.CancelEdit();", coordinator);
@@ -605,8 +610,8 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("_presenter.InvalidateSync();", coordinator);
         Assert.Contains("_quickSearch?.Cancel();", coordinator);
         Assert.Contains("Interlocked.Increment(ref _quickSearchVersion)", coordinator);
-        Assert.Contains("_resourcesStack.CanNavigateBack = !_app.NavigationBlocked",
-            scene);
+        Assert.Contains("_libraryStack.CanNavigateBack = !_app.NavigationBlocked",
+            Source("App/ApplicationScene.cs"));
     }
 
     [Fact]

@@ -20,24 +20,15 @@ internal sealed partial class ApplicationScene
     private long _renderedVocabularyFormVersion = -1;
     private long _renderedVocabularySheetVersion = -1;
 
+    /// <summary>The list is the Library page; the word editor or Recent lookups sit one level above it.</summary>
     private void OnVocabularyRoutesChanged(int count)
     {
-        if (count == 0 && _vocabularySlot is not null)
-        {
-            if (_lookupsSlot is not null)
-            {
-                DropRecentLookupsReferences();
-                _app.OnRecentLookupsPopped();
-            }
-            DropVocabularyReferences();
-            _app.OnVocabularyListPopped();
-        }
-        else if (count == 1 && _vocabularyWordSlot is not null)
+        if (count == 0 && _vocabularyWordSlot is not null)
         {
             DropVocabularyWordReferences();
             _app.OnVocabularyWordPopped();
         }
-        else if (count == 1 && _lookupsSlot is not null)
+        else if (count == 0 && _lookupsSlot is not null)
         {
             DropRecentLookupsReferences();
             _app.OnRecentLookupsPopped();
@@ -51,12 +42,12 @@ internal sealed partial class ApplicationScene
     private void UpdateRecentLookups(SwiftView stack, bool appearanceChanged)
     {
         if (_app.IsRecentLookupsOpen && _lookupsSlot is null
-            && stack.NavigationPath.Count == 1 && _vocabularyWordSlot is null)
+            && stack.NavigationPath.Count == 0 && _vocabularyWordSlot is null)
         {
+            // A browse list one level down: the tab bar stays.
             _lookupsSlot = Views.VStack(_app.RenderRecentLookups(_style))
                 .WithNavigationTitle(_app.Localize("Lookups_Title"))
-                .WithInlineNavigationTitle()
-                .WithTabBarHidden();
+                .WithInlineNavigationTitle();
             _renderedLookupsVersion = _app.RecentLookupsViewVersion;
             stack.Push(ApplicationFormRoutes.RecentLookups,
                 WithSamToolbar(stack, ApplicationFormRoutes.RecentLookups, _lookupsSlot));
@@ -77,29 +68,25 @@ internal sealed partial class ApplicationScene
 
     private void UpdateVocabulary(bool appearanceChanged)
     {
-        if (!_app.IsVocabularyOpen)
+        if (!_app.IsVocabularyOpen || _app.SelectedLibrarySection != LibrarySection.Vocabulary)
             return;
-        var stack = _app.VocabularyOriginTab == 0
-            ? _dashboardStack : _resourcesStack;
+        var stack = _libraryStack;
         if (stack is null)
             return;
-        if (_vocabularySlot is null && stack.NavigationPath.Count == 0)
+        if (_vocabularySlot is null)
         {
-            _vocabularySlot = Views.VStack(_app.RenderVocabularyList(_style))
-                .WithNavigationTitle(_app.Localize("Vocabulary_Title"))
-                .WithInlineNavigationTitle();
+            // The Library's Vocabulary page (the tab bar stays); the filters sheet covers it.
+            _vocabularySlot = Views.VStack(_app.RenderVocabularyList(_style)).WithFlexibleWidth();
             _vocabularySearch = Find(_vocabularySlot, "native.vocabulary.search");
             _vocabularyFilterSlot = Views.VStack(
                 _app.RenderVocabularyFilters(_style));
             _vocabularySheet = Views.Sheet(_vocabularySlot,
                     _vocabularyFilterSlot, _app.CancelVocabularyFilters)
                 .WithSheetDetentFraction(0.85)
-                .WithTabBarHidden()
                 .WithAccessibilityIdentifier("native.vocabulary.filters.host");
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
             _renderedVocabularySheetVersion = _app.VocabularySheetVersion;
-            stack.Push(ApplicationFormRoutes.Vocabulary,
-                WithSamToolbar(stack, ApplicationFormRoutes.Vocabulary, _vocabularySheet));
+            MountLibraryPage(_vocabularySheet);
         }
         if (_vocabularySlot is null || _vocabularySheet is null
             || _vocabularyFilterSlot is null)
@@ -119,7 +106,7 @@ internal sealed partial class ApplicationScene
         _vocabularySheet.IsPresented = _app.IsVocabularyFilterPresented;
 
         if (_app.IsVocabularyWordOpen && _vocabularyWordSlot is null
-            && stack.NavigationPath.Count == 1)
+            && stack.NavigationPath.Count == 0)
         {
             _vocabularyWordContent = Views.VStack(_app.RenderVocabularyWord(_style));
             _vocabularyDeleteMessage = _app.VocabularyDeleteMessage;
@@ -137,10 +124,7 @@ internal sealed partial class ApplicationScene
         else if (ApplicationFormRoutes.ShouldPopVocabularyWordForm(
             _app.IsVocabularyWordOpen, _vocabularyWordSlot is not null,
             stack.CanNavigateBack, stack.NavigationPath))
-        {
-            stack.Pop();
-            DropVocabularyWordReferences();
-        }
+            PopLibraryPage(DropVocabularyWordReferences);
         else if (_vocabularyWordSlot is not null
             && (appearanceChanged
                 || _renderedVocabularyFormVersion != _app.VocabularyFormVersion))

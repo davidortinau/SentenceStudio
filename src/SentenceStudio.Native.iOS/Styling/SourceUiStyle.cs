@@ -171,6 +171,18 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
         SourceButton(Views.Text(title), action, SourceButtonRole.FilledSecondary,
             fullWidth: fullWidth, groupPosition: groupPosition);
 
+    /// <summary>
+    /// One segment of a compact switcher (the Library pages): the selected segment is a
+    /// primary button, the others outline buttons, with tighter padding so four labels
+    /// share a phone width. The label stays on one line.
+    /// </summary>
+    internal SwiftView SegmentButton(string title, bool selected, Action action,
+        SourceButtonGroupPosition groupPosition) =>
+        SourceButton(Views.Text(title).WithLineLimit(1), action,
+            selected ? SourceButtonRole.Primary : SourceButtonRole.OutlineSecondary,
+            fullWidth: true, verticalPadding: 6, horizontalPadding: 6,
+            groupPosition: groupPosition);
+
     internal SwiftView OutlineButton(SwiftView label, Action action,
         bool fullWidth = false,
         SourceButtonGroupPosition groupPosition = SourceButtonGroupPosition.None) =>

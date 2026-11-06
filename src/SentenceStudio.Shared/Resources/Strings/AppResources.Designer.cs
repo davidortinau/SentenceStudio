@@ -9265,6 +9265,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Pairs.
+        /// </summary>
+        internal static string Library_Pairs {
+            get {
+                return ResourceManager.GetString("Library_Pairs", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resources.
+        /// </summary>
+        internal static string Library_Resources {
+            get {
+                return ResourceManager.GetString("Library_Resources", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Library section.
+        /// </summary>
+        internal static string Library_Sections {
+            get {
+                return ResourceManager.GetString("Library_Sections", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to List Name.
         /// </summary>
         internal static string ListName {
@@ -12154,6 +12181,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to History.
+        /// </summary>
+        internal static string Nav_History {
+            get {
+                return ResourceManager.GetString("Nav_History", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Import.
         /// </summary>
         internal static string Nav_Import {
@@ -12177,6 +12213,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Nav_LearningResources {
             get {
                 return ResourceManager.GetString("Nav_LearningResources", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Library.
+        /// </summary>
+        internal static string Nav_Library {
+            get {
+                return ResourceManager.GetString("Nav_Library", resourceCulture);
             }
         }
 
@@ -12231,6 +12276,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Nav_Skills {
             get {
                 return ResourceManager.GetString("Nav_Skills", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Study.
+        /// </summary>
+        internal static string Nav_Study {
+            get {
+                return ResourceManager.GetString("Nav_Study", resourceCulture);
             }
         }
 

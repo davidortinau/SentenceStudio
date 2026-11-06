@@ -22,10 +22,9 @@ internal sealed partial class ApplicationController
 
     internal void OpenProfile()
     {
-        if (_destination != NativeDestination.Dashboard || _selectedTab != 0
-            || NavigationBlocked || _settingsOpen || IsQuizOpen
-            || IsResourcesFormOpen || IsSkillsOpen || IsVocabularyOpen
-            || _services is null || IsProfileOpen)
+        // The profile row at the top of the Settings tab.
+        if (_destination != NativeDestination.Dashboard || _selectedTab != NativeTabs.Settings
+            || NavigationBlocked || IsQuizOpen || _services is null || IsProfileOpen)
             return;
         var expectedOwner = _authState is {
             Phase: NativePhase.Ready,
@@ -74,5 +73,7 @@ internal sealed partial class ApplicationController
     {
         _profile?.Close();
         Publish();
+        // A saved name or language shows on the Settings profile row.
+        _ = RefreshProfileSummaryAsync();
     }
 }

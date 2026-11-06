@@ -452,7 +452,7 @@ internal sealed partial class ApplicationController
 
     private async Task OpenAssignedQuizAsync(string cardId)
     {
-        if (_dashboard is null || _services is null || _settingsOpen)
+        if (_dashboard is null || _services is null)
             throw new InvalidOperationException("The native dashboard is not available.");
         if (_dashboardState.Cards.IsDefaultOrEmpty
             || _dashboardState.Cards.FirstOrDefault(card => card.Id == cardId)
@@ -471,7 +471,7 @@ internal sealed partial class ApplicationController
 
     private async Task OpenChooseOwnQuizAsync()
     {
-        if (_dashboard is null || _services is null || _settingsOpen
+        if (_dashboard is null || _services is null
             || _dashboardState.Mode != NativeDashboardMode.ChooseOwn)
             return;
         var selection = await _dashboard.SelectChooseOwnQuizAsync(_lifetime.Token);
@@ -741,7 +741,7 @@ internal sealed partial class ApplicationController
         if (fixture.Surface == "starter-loading")
         {
             await _resources!.BeginControlledStarterPreviewAsync(_lifetime.Token);
-            _selectedTab = 1;
+            _selectedTab = NativeTabs.Library;
             _ = ReleaseControlledStarterPreviewAsync();
             return;
         }

@@ -42,7 +42,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains(project.Descendants("PackageReference"),
             reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Essentials");
         Assert.Equal("true", project.Descendants("UseMauiEssentials").Single().Value);
-        Assert.Equal("0.1.0-preview.38", project.Descendants("PackageVersion")
+        Assert.Equal("0.1.0-preview.39", project.Descendants("PackageVersion")
             .Single(item => item.Attribute("Include")?.Value == "Microsoft.SwiftUI")
             .Attribute("Version")?.Value);
         Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
@@ -165,7 +165,8 @@ public sealed class NativeHeadContractTests
 
         Assert.Contains("Views.VStack(_app.RenderDashboardContent(_style))", scene);
         Assert.Contains("_app.RenderQuizContent(_style, out _quizPhotoCover)", scene);
-        Assert.Contains("Views.VStack(_app.RenderResources", scene);
+        Assert.Contains("Views.VStack(_app.RenderResources", File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationScene.Library.cs")));
         Assert.Contains("Views.VStack(ResourceFormContent())", scene);
         Assert.Contains("SelectedAnswer = value", controller);
         Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Plan)", dashboard);

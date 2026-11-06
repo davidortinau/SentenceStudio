@@ -77,7 +77,6 @@ internal sealed partial class ApplicationController : IDisposable
     private int _onboardingStepsDone;
     private bool _onboardingCreatingStarter;
     private int _selectedTab;
-    private int _skillsOriginTab;
     internal SourceUiAppearance Appearance { get; private set; } =
         LoadAppearance();
 
@@ -129,6 +128,9 @@ internal sealed partial class ApplicationController : IDisposable
         ? Text("ResourceAdd_Title")
         : _resources?.FormState.Title is { Length: > 0 } title
             ? title : Text("Resources_Title");
+    /// <summary>An open smart resource: the page is read, not edited.</summary>
+    internal bool IsResourceFormReadOnly => _resources is { IsFormOpen: true, IsCreatingForm: false } resources
+        && resources.FormState.IsSmartResource;
     internal bool IsConflictPresented =>
         _resources?.FormState.Phase == NativeResourceDetailPhase.Conflict;
     internal bool IsChooseOwnSelectorPresented => _chooseOwnSelector is not null;
@@ -142,16 +144,16 @@ internal sealed partial class ApplicationController : IDisposable
     internal bool IsSkillDeletePresented =>
         _skills?.IsDeleteConfirmationPresented == true;
     internal bool IsSkillDeletePending => _skills?.IsDeletePending == true;
-    internal int SkillsOriginTab => _skillsOriginTab;
     internal long SkillsListVersion => _skills?.ListVersion ?? -1;
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
         ? "SkillAdd_Title" : "SkillEdit_Title");
-    internal int SettingsProjectionVersion => _settings is null ? -1
-        : HashCode.Combine(_settings.ViewVersion, SamSettingsVersion);
+    internal int SettingsProjectionVersion => !_settingsOpen ? -1
+        : HashCode.Combine(_settings?.ViewVersion ?? -2, SamSettingsVersion,
+            _profileSummary);
     internal string Localize(string key) => Text(key);
     internal string DashboardTitle => Text(_dashboardState.IsNewUser
-        ? "Dashboard_Welcome" : "Dashboard_Title");
+        ? "Dashboard_Welcome" : "Nav_Study");
     internal bool IsNewDashboardUser => _dashboardState.IsNewUser;
     internal string SignOutTitle => Text("Nav_Logout");
     internal bool CanRegeneratePlan =>
@@ -243,9 +245,16 @@ internal sealed partial class ApplicationController : IDisposable
 #endif
             EnsureResources();
             if (_authState.UserId is { Length: > 0 } owner)
-                _dashboardName = (await _services!.Provider
+            {
+                var profile = await _services!.Provider
                     .GetRequiredService<UserProfileRepository>()
-                    .GetByIdAsync(owner, _lifetime.Token))?.Name;
+                    .GetByIdAsync(owner, _lifetime.Token);
+                _dashboardName = profile?.Name;
+                if (profile is not null)
+                    _profileSummary = (profile.Name ?? string.Empty,
+                        profile.NativeLanguage ?? string.Empty,
+                        profile.TargetLanguage ?? string.Empty);
+            }
             if (_dashboard is not null)
             {
                 _dashboardState = await _dashboard.LoadAfterSignInAsync(_lifetime.Token);
@@ -302,7 +311,7 @@ internal sealed partial class ApplicationController : IDisposable
             _services.Provider.GetRequiredService<NativeResourcePresenter>(),
             _services.Provider
                 .GetRequiredService<ILogger<LearningResourcesCoordinator>>(),
-            Text, OpenSkills, OpenVocabulary);
+            Text);
         _resources.Changed += Publish;
         _resources.FormOpenChanged += open =>
         {
@@ -515,12 +524,11 @@ internal sealed partial class ApplicationController : IDisposable
             isTablet: style.ViewportWidth >= 768);
 
     internal SwiftView RenderDashboardContent(SourceUiStyle style) =>
-        DashboardView.WithToolbar(WithSamEntry(RenderDashboard(style), style), style, Text,
+        DashboardView.WithToolbar(RenderDashboard(style), style, Text,
             _dashboardState.IsNewUser, _busy, _dashboardRefreshing,
-            CanRegeneratePlan, SignOutTitle,
+            CanRegeneratePlan,
             new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,
-                OpenSettings, OpenProfile, OpenSkills, OpenVocabulary,
-                OpenActivityLog, SignOut, OpenMinimalPairs));
+                OpenActivityLog));
 
     private async Task CreateDashboardStarterAsync()
     {
@@ -589,13 +597,20 @@ internal sealed partial class ApplicationController : IDisposable
         }
     }
 
+    /// <summary>
+    /// The Settings tab: the profile row first (iOS Settings starts with your name), the
+    /// settings, then Sign out last (both were in the Dashboard More menu).
+    /// </summary>
     internal SwiftView RenderSettings(SourceUiStyle style)
     {
+        if (!_settingsOpen)
+            return SettingsView.Loading(style, Text);
+        var signOut = SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut);
         var settings = _settings;
         var state = settings?.State;
         if (settings is null || state is not { IsOpen: true, OwnerBlocked: false,
                 Quiz: { } quiz })
-            return SettingsView.OwnerUnavailable(style, Text);
+            return SettingsView.OwnerUnavailable(style, Text, signOut);
         return SettingsView.Page(style, Appearance.Selection,
             quiz, Text,
             theme => SetAppearance(settings, Appearance.Selection.WithTheme(theme)),
@@ -604,63 +619,9 @@ internal sealed partial class ApplicationController : IDisposable
             language => SelectSettingsVoiceLanguage(settings, language),
             changed => settings.Edit(changed),
             () => SaveQuizSettings(settings), state.FeedbackKey,
-            state.VoiceLoading, state.VoiceErrorKey, RenderSamSettings(style));
-    }
-
-    internal void OpenSettings()
-    {
-        if (_destination != NativeDestination.Dashboard || _selectedTab != 0
-            || NavigationBlocked || _services is null || _settingsOpen
-            || IsProfileOpen || IsActivityLogOpen || IsSkillsOpen
-            || IsVocabularyOpen || IsResourcesFormOpen || IsQuizOpen)
-            return;
-#if DEBUG
-        const bool debugFixtureBuild = true;
-        static string? PreviewOwner() => NativePreviewFixture.FromAssembly()?.Owner;
-#else
-        const bool debugFixtureBuild = false;
-        static string? PreviewOwner() => null;
-#endif
-        var provider = _services.Provider;
-        var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
-        var preferences = provider.GetRequiredService<IPreferencesService>();
-        var owner = SettingsOwnerAccess.Resolve(
-            _authState, _preview, debugFixtureBuild,
-            NSBundle.MainBundle.BundleIdentifier, PreviewOwner,
-            scope, preferences, _logger!);
-        if (owner is null)
-        {
-            _settingsOpen = true;
-            Publish();
-            return;
-        }
-        var settings = new SettingsCoordinator(scope,
-            preferences,
-            provider.GetRequiredService<NativeQuizSettings>(),
-            provider.GetRequiredService<ILogger<SettingsCoordinator>>(),
-            allowVoiceDiscovery: !_preview);
-        settings.Changed += OnSettingsChanged;
-        _settings = settings;
-        if (!settings.Open(owner))
-        {
-            _logger?.LogWarning("Settings refused an unavailable owner.");
-            settings.Dispose();
-            _settings = null;
-        }
-        _settingsOpen = true;
-        Publish();
-        OpenSamSettings();
-        if (_settings is not null)
-            _ = LoadSettingsVoicesAsync(
-                settings, owner, settings.State.Quiz!.VoiceLanguage);
-    }
-
-    internal void OnSettingsPopped()
-    {
-        _settings?.Dispose();
-        _settings = null;
-        _settingsOpen = false;
-        Publish();
+            state.VoiceLoading, state.VoiceErrorKey, RenderSamSettings(style),
+            header: SettingsView.ProfileRow(style, Text, _profileSummary, OpenProfile),
+            footer: signOut);
     }
 
     private void OnSettingsChanged() => Publish();
@@ -734,7 +695,7 @@ internal sealed partial class ApplicationController : IDisposable
     {
         EnsureResources();
         return _resources is { } resources
-            ? WithResourcesSamEntry(resources.RenderBrowser(style, ResourcesSamEntry(style)))
+            ? resources.RenderBrowser(style, samEntry: null)
             : Views.Text(Text("Common_Loading"));
     }
 
@@ -742,25 +703,10 @@ internal sealed partial class ApplicationController : IDisposable
         _resources?.RenderForm(style)
         ?? Views.Text(Text("NativeResources_LoadError"));
 
-    internal void SelectTab(int index)
-    {
-        if (_destination != NativeDestination.Dashboard
-            || IsSkillsOpen || IsProfileOpen || IsVocabularyOpen
-            || IsActivityLogOpen)
-            return;
-        _selectedTab = index == 1 ? 1 : 0;
-        if (_selectedTab == 1)
-            _resources?.OnBrowserAppeared();
-        Publish();
-        if (_selectedTab == 0 && _refreshChooseOwnAfterSkills)
-            ReloadChooseOwnAfterSkills();
-    }
-
     internal void OpenSkills()
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
-            || IsSkillsOpen || _settingsOpen || IsProfileOpen || IsQuizOpen
-            || IsResourcesFormOpen || _services is null)
+            || IsSkillsOpen || IsQuizOpen || IsResourcesFormOpen || _services is null)
             return;
         var scope = _services.Provider.GetRequiredService<DeviceUserScopeProvider>();
         var expectedOwner = _authState is {
@@ -780,7 +726,6 @@ internal sealed partial class ApplicationController : IDisposable
             return;
         }
         EnsureSkills();
-        _skillsOriginTab = _selectedTab;
         Run(async () =>
         {
             if (await _skills!.OpenAsync(expectedOwner))
@@ -823,7 +768,7 @@ internal sealed partial class ApplicationController : IDisposable
         if (!IsSkillsOpen)
             return;
         _skills!.Close();
-        if (_selectedTab == 0 && _refreshChooseOwnAfterSkills)
+        if (_selectedTab == NativeTabs.Study && _refreshChooseOwnAfterSkills)
             ReloadChooseOwnAfterSkills();
     }
 
@@ -850,8 +795,7 @@ internal sealed partial class ApplicationController : IDisposable
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
             || string.IsNullOrWhiteSpace(resourceId) || IsResourcesFormOpen
-            || IsQuizOpen || _settingsOpen || IsSkillsOpen || IsProfileOpen
-            || IsVocabularyOpen || IsActivityLogOpen
+            || IsQuizOpen || HasLibraryRoute
             || _dashboardState.Phase != NativePhase.Ready
             || _dashboardState.Narrative?.Resources.Any(resource =>
                 resource.Id == resourceId) != true)
@@ -860,13 +804,13 @@ internal sealed partial class ApplicationController : IDisposable
         if (_resources is null)
             return;
         _resourceFormFromDashboard = true;
-        _selectedTab = 1;
+        _selectedTab = NativeTabs.Library;
         _resources.OnBrowserAppeared();
         _resources.Open(resourceId);
         if (!IsResourcesFormOpen)
         {
             _resourceFormFromDashboard = false;
-            _selectedTab = 0;
+            _selectedTab = NativeTabs.Study;
         }
         Publish();
     }
@@ -876,7 +820,7 @@ internal sealed partial class ApplicationController : IDisposable
         if (!_resourceFormFromDashboard || IsResourcesFormOpen)
             return;
         _resourceFormFromDashboard = false;
-        _selectedTab = 0;
+        _selectedTab = NativeTabs.Study;
         Publish();
     }
 
@@ -900,8 +844,11 @@ internal sealed partial class ApplicationController : IDisposable
 
     private void OpenResourceAddFromDashboard()
     {
+        if (HasLibraryRoute)
+            return;
         EnsureResources();
-        _selectedTab = 1;
+        ShowLibraryResources();
+        _selectedTab = NativeTabs.Library;
         _resources?.OnBrowserAppeared();
         _resources?.OpenCreate();
         Publish();
@@ -999,6 +946,8 @@ internal sealed partial class ApplicationController : IDisposable
         _resources?.Dispose();
         _resources = null;
         ReleaseVocabulary();
+        ReleaseLibraryPairs();
+        _profileSummary = null;
         _skills?.Dispose();
         _skills = null;
         _profile?.Dispose();
@@ -1022,7 +971,7 @@ internal sealed partial class ApplicationController : IDisposable
         _quizLaunch = null;
         ReleaseActivity();
         _feedbackAutoAdvanceCanceled = false;
-        _selectedTab = 0;
+        _selectedTab = NativeTabs.Study;
         _destination = NativeDestination.SignIn;
     }
 
@@ -1134,6 +1083,7 @@ internal sealed partial class ApplicationController : IDisposable
         _activityToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
+        ReleaseLibraryPairs();
         _skills?.Dispose();
         _profile?.Dispose();
         _activityLog?.Dispose();

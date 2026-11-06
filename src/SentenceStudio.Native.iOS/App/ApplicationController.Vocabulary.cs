@@ -14,13 +14,11 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationController
 {
     private VocabularyCoordinator? _vocabulary;
-    private int _vocabularyOriginTab;
 
     internal bool IsVocabularyOpen => _vocabulary?.IsOpen == true;
     internal bool IsVocabularyWordOpen => _vocabulary?.IsFormOpen == true;
     internal bool IsVocabularyFilterPresented =>
         _vocabulary?.IsPhoneFilterPresented == true;
-    internal int VocabularyOriginTab => _vocabularyOriginTab;
     internal long VocabularyListVersion => _vocabulary?.ListVersion ?? -1;
     internal long VocabularyFormVersion => _vocabulary?.FormVersion ?? -1;
     internal long VocabularySheetVersion => _vocabulary?.SheetVersion ?? -1;
@@ -59,8 +57,7 @@ internal sealed partial class ApplicationController
     internal void OpenVocabulary()
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
-            || IsVocabularyOpen || IsSkillsOpen || _settingsOpen || IsQuizOpen
-            || IsResourcesFormOpen || _services is null)
+            || IsVocabularyOpen || IsQuizOpen || IsResourcesFormOpen || _services is null)
             return;
         var scope = _services.Provider.GetRequiredService<DeviceUserScopeProvider>();
         var expectedOwner = _authState is {
@@ -81,7 +78,6 @@ internal sealed partial class ApplicationController
             return;
         }
         EnsureVocabulary();
-        _vocabularyOriginTab = _selectedTab;
         Run(async () =>
         {
             if (!await _vocabulary!.OpenAsync(expectedOwner))

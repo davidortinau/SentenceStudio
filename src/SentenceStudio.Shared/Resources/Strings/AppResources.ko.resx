@@ -9218,4 +9218,28 @@
     <value>이 단어를 추가하지 못했습니다.</value>
     <comment>Add to vocabulary failed</comment>
   </data>
+  <data name="Nav_Study" xml:space="preserve">
+    <value>학습</value>
+    <comment>Native tab name: the daily plan and activities (was Dashboard)</comment>
+  </data>
+  <data name="Nav_Library" xml:space="preserve">
+    <value>자료실</value>
+    <comment>Native tab name: resources, vocabulary, skills and minimal pairs</comment>
+  </data>
+  <data name="Nav_History" xml:space="preserve">
+    <value>기록</value>
+    <comment>Native Study page entry that opens the practice log calendar</comment>
+  </data>
+  <data name="Library_Resources" xml:space="preserve">
+    <value>자료</value>
+    <comment>Library switcher segment: learning resources</comment>
+  </data>
+  <data name="Library_Pairs" xml:space="preserve">
+    <value>대립쌍</value>
+    <comment>Library switcher segment: minimal pair sets</comment>
+  </data>
+  <data name="Library_Sections" xml:space="preserve">
+    <value>자료실 구역</value>
+    <comment>Accessible name of the Library switcher</comment>
+  </data>
 </root>
