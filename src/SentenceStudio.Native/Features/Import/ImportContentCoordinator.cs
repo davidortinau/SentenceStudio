@@ -379,7 +379,8 @@ public sealed class ImportContentCoordinator : IDisposable
             if (!IsCurrent(operation))
                 return;
             _preview = preview;
-            // Source copies these fields of each row (not the source sentence) into its editable rows.
+            // Source copies these fields of each row into its editable rows, with the sentence a
+            // term came from (it becomes the word's example sentence on commit, B72).
             _rows = preview.Rows.Select(row => new ImportRow
             {
                 RowNumber = row.RowNumber,
@@ -391,7 +392,9 @@ public sealed class ImportContentCoordinator : IDisposable
                 IsAiTranslated = row.IsAiTranslated,
                 LexicalUnitType = row.LexicalUnitType,
                 IsDuplicate = row.IsDuplicate,
-                DuplicateReason = row.DuplicateReason
+                DuplicateReason = row.DuplicateReason,
+                SourceSentence = row.SourceSentence,
+                SourceSentenceTranslation = row.SourceSentenceTranslation
             }).ToList();
             _step = ImportContentStep.Preview;
             _selectAllRows = _rows.All(row => row.IsSelected);

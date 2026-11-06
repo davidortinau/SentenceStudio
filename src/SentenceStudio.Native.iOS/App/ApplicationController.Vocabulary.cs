@@ -57,9 +57,46 @@ internal sealed partial class ApplicationController
     internal void OpenVocabulary()
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked
-            || IsVocabularyOpen || IsQuizOpen || IsResourcesFormOpen || _services is null)
+            || IsVocabularyOpen || IsQuizOpen || IsResourcesFormOpen || _services is null
+            || VocabularyOwner() is not { } expectedOwner)
             return;
-        var scope = _services.Provider.GetRequiredService<DeviceUserScopeProvider>();
+        EnsureVocabulary();
+        RunLibrary(async () =>
+        {
+            if (!await _vocabulary!.OpenAsync(expectedOwner))
+                _logger?.LogWarning(
+                    "Vocabulary navigation refused a changed owner.");
+        });
+    }
+
+    /// <summary>
+    /// Find Duplicates in a word editor hosted outside the Vocabulary page (Import Content
+    /// results): as the source navigates to the Vocabulary page with its duplicate manager
+    /// focused on the word, the Library returns to its list and opens Vocabulary with that
+    /// focused panel. Back from there returns to the Library list.
+    /// </summary>
+    private void OpenDuplicatesOnVocabularyPage(string term, string wordId) =>
+        RunLibrary(async () =>
+        {
+            // The editor that asked finishes first: returning to the list releases it.
+            await Task.Yield();
+            if (_destination != NativeDestination.Dashboard || IsQuizOpen || _services is null
+                || VocabularyOwner() is not { } owner)
+                return;
+            ResetLibraryToList();
+            EnsureVocabulary();
+            if (!await _vocabulary!.OpenAsync(owner))
+            {
+                _logger?.LogWarning("Vocabulary navigation refused a changed owner.");
+                return;
+            }
+            await _vocabulary.OpenDuplicatesAsync(term, wordId);
+        });
+
+    /// <summary>The signed-in owner when the device scope agrees; null (logged) otherwise.</summary>
+    private string? VocabularyOwner()
+    {
+        var scope = _services!.Provider.GetRequiredService<DeviceUserScopeProvider>();
         var expectedOwner = _authState is {
             Phase: NativePhase.Ready,
             Destination: NativeDestination.Dashboard,
@@ -75,15 +112,9 @@ internal sealed partial class ApplicationController
         {
             _logger?.LogWarning(
                 "Vocabulary navigation refused an absent or untrusted owner.");
-            return;
+            return null;
         }
-        EnsureVocabulary();
-        RunLibrary(async () =>
-        {
-            if (!await _vocabulary!.OpenAsync(expectedOwner))
-                _logger?.LogWarning(
-                    "Vocabulary navigation refused a changed owner.");
-        });
+        return expectedOwner;
     }
 
     internal SwiftView RenderVocabularyList(SourceUiStyle style) =>
