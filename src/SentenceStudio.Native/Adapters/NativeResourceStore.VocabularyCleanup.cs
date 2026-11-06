@@ -47,10 +47,18 @@ public sealed partial class NativeResourceStore
             return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
         var removed = await scope.ServiceProvider
             .GetRequiredService<LearningResourceRepository>()
-            .DeleteVocabularyWordAsync(wordId);
-        // The repository reports success for a word it did not find, and swallows its own
-        // failure, so the row itself is the proof.
-        if (!removed || await db.VocabularyWords.AsNoTracking()
+            .DeleteVocabularyWordAsync(wordId, owner, CancellationToken.None);
+        switch (removed)
+        {
+            case VocabularyWordDeleteResult.RefusedShared:
+                return NativeVocabularyDeleteStatus.UsedByOthers;
+            case VocabularyWordDeleteResult.RefusedAnswers:
+                return NativeVocabularyDeleteStatus.UsedByAnswers;
+            case VocabularyWordDeleteResult.NotFound:
+                return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
+        }
+        // The row itself is the proof.
+        if (removed != VocabularyWordDeleteResult.Deleted || await db.VocabularyWords.AsNoTracking()
                 .AnyAsync(candidate => candidate.Id == wordId, CancellationToken.None))
         {
             logger.LogWarning("Native vocabulary delete did not remove the word.");

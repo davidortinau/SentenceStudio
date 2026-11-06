@@ -647,7 +647,9 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
 
     #region Helpers
 
-    private string SeedWord(string target, string native)
+    // Recorded to its creator, as every save path stamps a new word (a09596c3). B69: only
+    // copies recorded to the learner merge.
+    private string SeedWord(string target, string native, string? owner = UserA)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -657,6 +659,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             TargetLanguageTerm = target,
             NativeLanguageTerm = native,
             Language = "Korean",
+            UserProfileId = owner,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };

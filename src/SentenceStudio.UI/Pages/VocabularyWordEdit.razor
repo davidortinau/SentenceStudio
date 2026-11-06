@@ -1011,9 +1011,27 @@ else
         isDeleting = true;
         try
         {
-            await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
-            Toast.ShowSuccess($"{Localize["VocabWordEdit_DeletedSuccess"]}");
-            GoBack();
+            // B66: the shared delete is owner-scoped and says what happened.
+            var result = await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
+            switch (result)
+            {
+                case VocabularyWordDeleteResult.Deleted:
+                    Toast.ShowSuccess($"{Localize["VocabWordEdit_DeletedSuccess"]}");
+                    GoBack();
+                    break;
+                case VocabularyWordDeleteResult.RefusedShared:
+                    Toast.ShowError($"{Localize["VocabWordEdit_DeleteRefusedShared"]}");
+                    break;
+                case VocabularyWordDeleteResult.RefusedAnswers:
+                    Toast.ShowError($"{Localize["NativeVocabulary_DeleteUsedByAnswers"]}");
+                    break;
+                case VocabularyWordDeleteResult.NotFound:
+                    Toast.ShowError($"{Localize["VocabWordEdit_NotFound"]}");
+                    break;
+                default:
+                    Toast.ShowError($"{string.Format(Localize["Common_DeleteFailed"], word.TargetLanguageTerm)}");
+                    break;
+            }
         }
         catch (Exception ex)
         {

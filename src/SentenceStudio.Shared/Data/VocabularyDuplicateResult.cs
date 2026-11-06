@@ -7,12 +7,18 @@ public sealed record VocabularyDuplicateScanResult(
     int TotalGroupCount,
     int ExtraRecordCount);
 
+/// <param name="MergeBlockedReason">Why the copies' fields block the merge, or null when they match.</param>
+/// <param name="HasCopyNotRecordedToOwner">
+/// A copy is recorded to another learner or to nobody (B69): the group cannot merge, and that
+/// copy's memory aids and audio are not shown.
+/// </param>
 public sealed record VocabularyDuplicateGroup(
     string NormalizedTerm,
     string DisplayTerm,
     IReadOnlyList<VocabularyDuplicateWordInfo> Words,
     bool CanMergeAutomatically,
-    string? MergeBlockedReason)
+    string? MergeBlockedReason,
+    bool HasCopyNotRecordedToOwner = false)
 {
     public string RecommendedKeeperId => RecommendedKeeper?.Word.Id ?? string.Empty;
 

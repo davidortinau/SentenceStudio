@@ -472,7 +472,12 @@ else
                                         <div>
                                             <strong>@group.DisplayTerm</strong>
                                             <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
-                                            @if (!group.CanMergeAutomatically)
+                                            @if (group.HasCopyNotRecordedToOwner)
+                                            {
+                                                @* B69: editing cannot unblock a group with a copy that is not the learner's. *@
+                                                <span class="badge bg-warning text-dark ms-2">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</span>
+                                            }
+                                            else if (!group.CanMergeAutomatically)
                                             {
                                                 <span class="badge bg-warning text-dark ms-2">Edit before merge</span>
                                             }
@@ -515,7 +520,18 @@ else
                                            </div>
                                        }
                                     </div>
-                                    @if (!group.CanMergeAutomatically)
+                                    @if (group.HasCopyNotRecordedToOwner)
+                                    {
+                                        <div class="alert alert-warning py-2 mt-2 mb-2" data-testid="duplicate-not-yours">
+                                            <div class="fw-semibold">@Localize["NativeVocabulary_DuplicatesCannotMerge"]</div>
+                                            <div class="small">@Localize["Vocabulary_DuplicatesNotRecordedToYou"]</div>
+                                            @if (!string.IsNullOrWhiteSpace(group.MergeBlockedReason))
+                                            {
+                                                <div class="small mt-1">@group.MergeBlockedReason</div>
+                                            }
+                                        </div>
+                                    }
+                                    else if (!group.CanMergeAutomatically)
                                     {
                                         <div class="alert alert-warning py-2 mt-2 mb-2">
                                             <div class="fw-semibold">Merge is not available yet.</div>
@@ -1591,6 +1607,11 @@ else
 
     private async Task MergeDuplicateGroup(VocabularyDuplicateGroup group)
     {
+        if (group.HasCopyNotRecordedToOwner)
+        {
+            Toast.ShowInfo(Localize["Vocabulary_DuplicatesNotRecordedToYou"]);
+            return;
+        }
         if (!group.CanMergeAutomatically)
         {
             Toast.ShowInfo(group.MergeBlockedReason ?? "This duplicate group needs review before merging.");
@@ -1866,8 +1887,9 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
                 {
                     await ResourceRepo.BulkAssociateWordsWithResourceAsync(resource.Id, new List<string> { toId });
                 }
-                await ResourceRepo.DeleteVocabularyWordAsync(fromId);
-                mergedCount++;
+                // B66: counted only when the owner-scoped delete happened.
+                if (await ResourceRepo.DeleteVocabularyWordAsync(fromId) == VocabularyWordDeleteResult.Deleted)
+                    mergedCount++;
                 cleanupProgress++;
                 StateHasChanged();
             }

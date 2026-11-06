@@ -19929,6 +19929,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNotRecordedToYou {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNotRecordedToYou", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Recommended keeper.
         /// </summary>
         internal static string Vocabulary_DuplicatesRecommendedKeeper {
@@ -21176,6 +21185,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_DeleteMessage {
             get {
                 return ResourceManager.GetString("VocabWordEdit_DeleteMessage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word can&apos;t be deleted: it isn&apos;t recorded as yours, or another learner&apos;s data (or data not recorded to anyone) still uses it..
+        /// </summary>
+        internal static string VocabWordEdit_DeleteRefusedShared {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_DeleteRefusedShared", resourceCulture);
             }
         }
 

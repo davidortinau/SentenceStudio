@@ -164,7 +164,8 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
             // compensation is best effort by necessity — the caller is already being refused, and
             // a failure here must not replace that refusal — but it is not allowed to be silent,
             // because a word left orphaned is a row nobody will ever find again.
-            if (!await _resources.DeleteVocabularyWordAsync(word.Id).ConfigureAwait(false))
+            if (await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, cancellationToken)
+                    .ConfigureAwait(false) != VocabularyWordDeleteResult.Deleted)
             {
                 _logger.LogError(
                     "[Coach] A vocabulary entry created for a link that failed could not be removed. Entity {EntityId}.",
@@ -209,8 +210,11 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
         {
             var remaining = await _ownership.CountAllLinksAsync(prior.WordId, cancellationToken)
                 .ConfigureAwait(false);
+            // A word another learner's data or a Minimal Pairs answer still uses stays (B66):
+            // the link this operation made is gone, which is the undo. Only a failure is one.
             if (remaining == 0
-                && !await _resources.DeleteVocabularyWordAsync(prior.WordId).ConfigureAwait(false))
+                && await _resources.DeleteVocabularyWordAsync(prior.WordId, userProfileId, cancellationToken)
+                    .ConfigureAwait(false) == VocabularyWordDeleteResult.Failed)
             {
                 throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not removed."));
             }
@@ -586,12 +590,16 @@ public sealed class CoachVocabularyRemovalHandler : CoachWriteHandlerBase<CoachV
         if (remaining == 0)
         {
             // Deleting a row another learner still maps would be a cross-tenant write, so the
-            // row only goes when nothing points at it any more.
-            deleted = await _resources.DeleteVocabularyWordAsync(word.Id).ConfigureAwait(false);
-            if (!deleted)
+            // row only goes when nothing points at it any more. The shared delete also keeps a
+            // word other learners' data or a Minimal Pairs answer uses (B66); the learner's
+            // resources no longer hold it either way.
+            var result = await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+            if (result == VocabularyWordDeleteResult.Failed)
             {
                 throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not deleted."));
             }
+            deleted = result == VocabularyWordDeleteResult.Deleted;
         }
 
         return new CoachWriteExecution(
