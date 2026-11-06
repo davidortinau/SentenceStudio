@@ -179,4 +179,101 @@ public sealed class NativeQuizAutoPlayTests
         Assert.Equal(question.TurnId, failed.TurnId);
         Assert.NotNull(failed.Prompt!.PromptText);
     }
+
+    [Fact]
+    public async Task AnAnswerWhileTheClipPlays_IsAccepted_AndNextStopsTheClipWithoutAnError()
+    {
+        // The gate is not held while the clip plays, so answering does not wait for it; Next
+        // stops it on purpose, which is not a playback failure.
+        var (fixture, quiz, question) = await OpenAsync(holdPlayback: true);
+        using var _ = fixture;
+        using var __ = quiz;
+
+        var playing = quiz.PlayAutoPromptAsync(question.TurnId!);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var answered = await quiz.AnswerAsync(question.Choices[0].Text)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(NativePhase.Feedback, answered.Phase);
+        Assert.False(playing.IsCompleted);
+
+        fixture.Media.HoldPlaybackCompletion = false;
+        var next = await quiz.NextAsync(answered.TurnId!).WaitAsync(TimeSpan.FromSeconds(5));
+        var stopped = await playing.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(NativePhase.Ready, next.Phase);
+        Assert.Null(next.ErrorKey);
+        Assert.True(next.Prompt!.CanPlayPromptAudio);
+        Assert.True(next.AutoPlayPending);
+        // Stopped on purpose: whichever turn it returns, nothing is marked failed.
+        Assert.Null(stopped.ErrorKey);
+        Assert.Equal(next.TurnId, quiz.State.TurnId);
+        Assert.Null(quiz.State.ErrorKey);
+        Assert.True(quiz.State.Prompt!.CanPlayPromptAudio);
+    }
+
+    [Fact]
+    public async Task PlayingByHandDuringAutoplay_StopsItWithoutMarkingAudioUnavailable()
+    {
+        var (fixture, quiz, question) = await OpenAsync(holdPlayback: true);
+        using var _ = fixture;
+        using var __ = quiz;
+
+        var playing = quiz.PlayAutoPromptAsync(question.TurnId!);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.Media.HoldPlaybackCompletion = false;
+        var manual = await quiz.PlayPromptAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        var auto = await playing.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, fixture.Media.Played.Count);
+        Assert.Null(manual.ErrorKey);
+        Assert.True(manual.Prompt!.CanPlayPromptAudio);
+        Assert.Null(auto.ErrorKey);
+        Assert.True(quiz.State.Prompt!.CanPlayPromptAudio);
+        Assert.False(quiz.State.AutoPlayPending);
+    }
+
+    [Fact]
+    public async Task APhotoPromptTurn_AutoplaysOnlyAfterItsPhotoIsDrawn()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.UsePhotoPrompt = true;
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.QuizPreferences.AutoPlayVocabAudio = true;
+        fixture.Media.AudioAvailable = true;
+        fixture.Media.PhotoAvailable = true;
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        Assert.True(question.Prompt!.PhotoRequested);
+        Assert.False(question.Prompt.ShowPhoto);
+        Assert.False(question.AutoPlayPending);
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
+        Assert.Empty(fixture.Media.Played);
+
+        var drawn = await quiz.PhotoRenderedAsync(question.TurnId!);
+        Assert.True(drawn.AutoPlayPending);
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
+        Assert.Single(fixture.Media.Played);
+    }
+
+    [Fact]
+    public async Task AnOpenOverlay_HoldsAutoplayBackUntilItCloses()
+    {
+        var (fixture, quiz, question) = await OpenAsync();
+        using var _ = fixture;
+        using var __ = quiz;
+
+        var details = quiz.OpenDetails();
+        Assert.Equal(NativeQuizOverlay.LearningDetails, details.Overlay);
+        Assert.False(details.AutoPlayPending);
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
+        Assert.Empty(fixture.Media.Played);
+
+        var closed = quiz.DismissOverlay();
+        Assert.True(closed.AutoPlayPending);
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
+        Assert.Single(fixture.Media.Played);
+    }
 }

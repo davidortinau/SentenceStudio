@@ -53,9 +53,8 @@ internal static class QuizQuestionView
                         sourceHeading: true)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier(NativeAccess.QuizQuestion);
-            // Autoplay waits until this turn's question is actually on screen.
-            if (promptAppeared is not null && state.AutoPlayPending
-                && state.TurnId is { } appearedTurn)
+            // The question reports when it is on screen; the turn's autoplay waits for it.
+            if (promptAppeared is not null && state.TurnId is { } appearedTurn)
                 question.OnAppear(() => promptAppeared(appearedTurn));
             items.Add(question);
             var actions = new List<SwiftView>();

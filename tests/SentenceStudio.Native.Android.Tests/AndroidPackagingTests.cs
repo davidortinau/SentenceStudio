@@ -144,7 +144,7 @@ public sealed class AndroidPackagingTests
         Assert.Contains("RenderOnboardingSteps(palette)", onboarding);
         Assert.Contains("new Row(Arrangement.Center", onboarding);
         Assert.Contains(".VerticalScroll(_onboardingScroll)", onboarding);
-        Assert.Contains("composer.LaunchedEffect(onboardingKey", composition);
+        Assert.Contains("composer.Effect(onboardingKey", composition);
         Assert.Contains("_onboardingScroll.ScrollToAsync(0, cancellationToken)",
             composition);
         Assert.Contains("_onboardingMinutes = 15", onboarding);
@@ -368,7 +368,7 @@ public sealed class AndroidPackagingTests
         Assert.Contains("ReferenceEquals(photo.Asset, asset)", media);
         // The thumbnail draws the presenter's asset and reports it drawn.
         Assert.Contains("_media.TryGetPhoto(prompt.Photo, out var bitmap)", quiz);
-        Assert.Contains("AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, owner)", quiz);
+        Assert.Contains("AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, quizOwner)", quiz);
         Assert.Contains("ReportQuizPhotoRenderedAsync(photo.Owner, photo.Turn, photo.Asset)", quiz);
         Assert.Contains("quiz.PhotoRenderedAsync(turnId, _lifetime.Token)", commands);
         Assert.Contains("ReferenceEquals(current.Prompt?.Photo, asset)", commands);
@@ -506,7 +506,7 @@ public sealed class AndroidPackagingTests
         Assert.Contains("ApplyQuizState(_quiz.DismissOverlay())", dismiss);
         Assert.Contains("QueuePhotoFocusRestore()", dismiss);
         Assert.Contains("private void ClosePhotoDialogWithoutRestore()", dismiss);
-        Assert.Contains("composer.LaunchedEffect(restoreVersion", composition);
+        Assert.Contains("composer.Effect(restoreVersion", composition);
         Assert.Contains(".FocusRequester(_photoFocus!)", File.ReadAllText(
             Path.Combine(HeadRoot, "AndroidSliceShell.Quiz.Compose.cs")));
     }

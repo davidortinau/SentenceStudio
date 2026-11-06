@@ -45,5 +45,7 @@
              Link="AndroidSamProjection.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidThemeTokens.cs"
              Link="AndroidThemeTokens.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidEffectKey.cs"
+             Link="AndroidEffectKey.cs" />
   </ItemGroup>
 </Project>

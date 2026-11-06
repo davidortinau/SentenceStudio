@@ -23,37 +23,33 @@ internal sealed partial class AndroidSliceShell
         _correctionFocus = composer.Remember(() => new FocusRequester());
         _detailsFocus = composer.Remember(() => new FocusRequester());
 
+        var quizOwner = Destination == NativeDestination.VocabularyQuiz
+            ? QuizPhotoOwner() : null;
         (string Owner, string Turn, NativeQuizPhotoAsset Asset)? drawn = null;
-        if (Destination == NativeDestination.VocabularyQuiz && _media is { } media
-            && QuizPhotoOwner() is { } owner
-            && AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, owner)
+        if (quizOwner is not null && _media is { } media
+            && AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, quizOwner)
             && Quiz.Prompt?.Photo is { } asset
             && media.TryGetPhoto(asset, out _))
-            drawn = (owner, Quiz.TurnId!, asset);
-        composer.LaunchedEffect(drawn, cancellationToken =>
+            drawn = (quizOwner, Quiz.TurnId!, asset);
+        composer.Effect(AndroidEffectKey.Of(drawn?.Owner, drawn?.Turn, drawn?.Asset), _ =>
         {
             if (drawn is { } photo)
                 _ = ReportQuizPhotoRenderedAsync(photo.Owner, photo.Turn, photo.Asset);
             return Task.CompletedTask;
         });
 
-        // Prompt autoplay starts once the turn is composed on screen (after a requested photo
-        // was drawn and reported), never while loading or in the sentence shortcut.
-        // The effect key is a string: Compose effect keys take strings and primitives only.
-        string? autoPlayOwner = null, autoPlayTurn = null;
-        if (Destination == NativeDestination.VocabularyQuiz
-            && QuizPhotoOwner() is { } playOwner
-            && Quiz is { AutoPlayPending: true, Sentence: null,
-                Overlay: NativeQuizOverlay.None,
-                Phase: NativePhase.Ready or NativePhase.Feedback,
-                TurnId: { } playTurn }
-            && !AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, playOwner))
-            (autoPlayOwner, autoPlayTurn) = (playOwner, playTurn);
-        var autoPlayKey = autoPlayTurn is null ? null : autoPlayOwner + "/" + autoPlayTurn;
-        composer.LaunchedEffect(autoPlayKey, _ =>
+        // The turn's question is composed on screen: report it. The presenter decides whether it
+        // autoplays (AutoPlayPending: once, after a requested photo is drawn, no overlay or
+        // sentence shortcut); the key changes when that becomes true for the same turn.
+        var shownTurn = quizOwner is not null
+            && Quiz is { Prompt: not null, Sentence: null,
+                Phase: NativePhase.Ready or NativePhase.Feedback }
+            ? Quiz.TurnId : null;
+        var autoPlay = shownTurn is not null && Quiz.AutoPlayPending;
+        composer.Effect(AndroidEffectKey.Of(shownTurn, autoPlay), _ =>
         {
-            if (autoPlayOwner is not null && autoPlayTurn is not null)
-                StartQuizAutoPlay(autoPlayOwner, autoPlayTurn);
+            if (shownTurn is not null)
+                OnQuizPromptShown(shownTurn, autoPlay);
             return Task.CompletedTask;
         });
 
@@ -64,7 +60,7 @@ internal sealed partial class AndroidSliceShell
                 Mode: "Text", Sentence: null }
             && !Busy.Value
                 ? Quiz.TurnId : null;
-        composer.LaunchedEffect(correctionTurn, _ =>
+        composer.Effect(correctionTurn, _ =>
         {
             if (correctionTurn is not null && correctionTurn == Quiz.TurnId)
                 RequestFocusQuietly(_correctionFocus);
@@ -72,7 +68,7 @@ internal sealed partial class AndroidSliceShell
         });
 
         var detailsVersion = _detailsFocusRestoreVersion;
-        composer.LaunchedEffect(detailsVersion, _ =>
+        composer.Effect(detailsVersion, _ =>
         {
             if (detailsVersion > 0 && detailsVersion == _detailsFocusRestoreVersion
                 && Destination == NativeDestination.VocabularyQuiz

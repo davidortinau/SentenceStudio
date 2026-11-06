@@ -288,7 +288,7 @@ internal sealed partial class AndroidSliceShell
         Func<string, ComposableNode> controls) => new Composed(composer =>
     {
         var typed = edit.Value.Value.Text ?? string.Empty;
-        composer.LaunchedEffect(typed, _ =>
+        composer.Effect(typed, _ =>
         {
             if (edit.Key is not null && !string.Equals(typed, edit.Synced, StringComparison.Ordinal))
             {

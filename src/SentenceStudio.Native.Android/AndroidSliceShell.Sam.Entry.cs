@@ -45,7 +45,7 @@ internal sealed partial class AndroidSliceShell
         var offsets = composer.RememberTopAppBarState();
         var observer = composer.PinnedScrollBehavior(offsets);
         _samEntryScroll = composer.Remember(() => observer.NestedScrollConnection);
-        composer.LaunchedEffect(offsets, async cancellationToken =>
+        composer.Effect(offsets, async cancellationToken =>
         {
             try
             {

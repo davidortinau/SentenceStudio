@@ -20,9 +20,11 @@ internal sealed partial class ApplicationController
     // Autoplay runs beside the quiz (not as a busy action), once per turn, after the
     // turn's prompt appears on screen.
     private CancellationTokenSource? _quizAutoPlayCancellation;
-    private string? _quizAutoPlayTurnId;
-    // The quiz is pushed with its loading state while the presenter opens the run.
+    private string? _quizPromptShownTurnId;
+    // The quiz is pushed with its loading state while the presenter opens the run; Back then
+    // cancels the open, so a run left before its first turn creates nothing.
     private bool _quizOpening;
+    private CancellationTokenSource? _quizOpenCancellation;
     // The typed answer belongs to one turn. Every path that reaches a new
     // Ready turn (manual Next, auto-advance, resume, retry, continue round)
     // must start with an empty field and a disabled Submit.
@@ -160,9 +162,9 @@ internal sealed partial class ApplicationController
             {
                 // An audio answer letter can be picked at once, like the source
                 // (Captain, 2026-11-03); the presenter accepts any shown option.
-                if (_busy || _quizState.Phase != NativePhase.Ready)
+                if (_busy || _quizState.Phase != NativePhase.Ready
+                    || !_quizState.CanSubmit)
                     return;
-                CancelQuizAutoPlay();
                 _quizState = _quizState with { SelectedAnswer = value };
                 Run(async () =>
                 {
@@ -170,25 +172,20 @@ internal sealed partial class ApplicationController
                     ScheduleAutoAdvance();
                 });
             },
-            PlayPrompt: () =>
-            {
-                CancelQuizAutoPlay();
-                PlayQuizAudio(token => _quiz.PlayPromptAsync(token));
-            },
+            // Manual playback stops a running autoplay itself (presenter), and only when it runs.
+            PlayPrompt: () => PlayQuizAudio(token => _quiz.PlayPromptAsync(token)),
             PlayChoiceAudio: index =>
             {
                 if (_quizState.TurnId is not { } turnId)
                     return;
-                CancelQuizAutoPlay();
                 PlayQuizAudio(token => _quiz.PlayAnswerChoiceAsync(
                     index, turnId, token));
             },
             SubmitText: () =>
             {
                 if (_busy || _quizState.Phase != NativePhase.Ready
-                    || string.IsNullOrWhiteSpace(_answer))
+                    || !_quizState.CanSubmit || string.IsNullOrWhiteSpace(_answer))
                     return;
-                CancelQuizAutoPlay();
                 Run(async () =>
                 {
                     _quizState = await _quiz.AnswerAsync(_answer, _lifetime.Token);
@@ -286,23 +283,24 @@ internal sealed partial class ApplicationController
     }
 
     /// <summary>
-    /// The turn's prompt is on screen (SwiftUI onAppear of the question). Its autoplay starts
-    /// now, once, beside the quiz rather than as a busy action, as the source starts
+    /// The turn's question is on screen (SwiftUI onAppear). The presenter decides whether the
+    /// turn autoplays (<see cref="NativeQuizState.AutoPlayPending"/>: once, after a requested
+    /// photo is drawn, with no overlay or sentence shortcut); the head only reports it, one
+    /// request at a time, beside the quiz rather than as a busy action, as the source starts
     /// PlayWordAudio without awaiting it (Captain, 2026-11-06: see the quiz, then hear it).
-    /// A requested photo is shown first; its render report re-renders the prompt.
     /// </summary>
     private void OnQuizPromptAppeared(string turnId)
     {
         if (_disposed || _nativePopPending || !IsQuizOpen || _quiz is not { } quiz
-            || _quizState is not {
-                AutoPlayPending: true, Sentence: null, Overlay: NativeQuizOverlay.None,
-                Phase: NativePhase.Ready or NativePhase.Feedback }
-            || _quizState.TurnId != turnId
-            || _quizState.Prompt is { PhotoRequested: true, ShowPhoto: false, Photo: not null }
-            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))
+            || _quizState.TurnId != turnId)
             return;
-        _quizAutoPlayTurnId = turnId;
-        CancelQuizAutoPlay();
+        if (!string.Equals(_quizPromptShownTurnId, turnId, StringComparison.Ordinal))
+        {
+            _quizPromptShownTurnId = turnId;
+            _logger?.LogInformation("Native iOS quiz prompt on screen.");
+        }
+        if (!_quizState.AutoPlayPending || _quizAutoPlayCancellation is not null)
+            return;
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _quizAutoPlayCancellation = cancellation;
         _ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);
@@ -314,22 +312,30 @@ internal sealed partial class ApplicationController
         try
         {
             var state = await quiz.PlayAutoPromptAsync(turnId, cancellation.Token);
-            // Applied only while it is still the presenter's latest state; an action that
-            // ran meanwhile publishes its own result.
+            // Applied only while it is still the presenter's latest state and new to the head;
+            // an action that ran meanwhile publishes its own result.
             if (_disposed || cancellation.IsCancellationRequested
                 || !ReferenceEquals(_quiz, quiz) || !IsQuizOpen || _nativePopPending
-                || !ReferenceEquals(quiz.State, state) || state.TurnId != turnId)
+                || !ReferenceEquals(quiz.State, state) || ReferenceEquals(_quizState, state)
+                || state.TurnId != turnId)
                 return;
             _quizState = state;
             Publish();
         }
         catch (OperationCanceledException) when (
-            cancellation.IsCancellationRequested || _disposed)
+            cancellation.IsCancellationRequested || _disposed || !ReferenceEquals(_quiz, quiz))
         {
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS quiz prompt autoplay failed.");
+            // Shown like any other failure on the quiz: the learner can still press Play.
+            if (!_disposed && ReferenceEquals(_quiz, quiz) && IsQuizOpen
+                && quiz.State.TurnId == turnId)
+            {
+                _quizState = quiz.State with { ErrorKey = NativeText.UnexpectedError };
+                Publish();
+            }
         }
         finally
         {
@@ -344,6 +350,17 @@ internal sealed partial class ApplicationController
         try
         {
             current?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private void CancelQuizOpen()
+    {
+        try
+        {
+            Volatile.Read(ref _quizOpenCancellation)?.Cancel();
         }
         catch (ObjectDisposedException)
         {
@@ -384,6 +401,8 @@ internal sealed partial class ApplicationController
             return;
         CancelAutoAdvance();
         CancelQuizAutoPlay();
+        if (_quizOpening)
+            CancelQuizOpen();
         _nativePopPending = true;
         if (!_busy)
             HandlePoppedQuiz();
@@ -583,7 +602,7 @@ internal sealed partial class ApplicationController
             return;
         CancelAutoAdvance();
         CancelQuizAutoPlay();
-        _quizAutoPlayTurnId = null;
+        _quizPromptShownTurnId = null;
         _feedbackAutoAdvanceCanceled = false;
         _quiz?.Dispose();
         _quiz = _services.Provider.GetRequiredService<NativeQuizPresenter>();
@@ -598,15 +617,25 @@ internal sealed partial class ApplicationController
         // Push the quiz at once with its loading state; the first question replaces it when
         // the presenter has it, instead of holding the Study tab disabled meanwhile.
         _quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
+        _logger?.LogInformation("Native iOS quiz opening.");
+        using var opening = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _quizOpenCancellation = opening;
         _quizOpening = true;
         Publish();
         try
         {
-            _quizState = await _quiz.OpenAsync(launch, _lifetime.Token);
+            _quizState = await _quiz.OpenAsync(launch, opening.Token);
+        }
+        catch (OperationCanceledException) when (
+            opening.IsCancellationRequested && !_disposed)
+        {
+            // Backed out during loading: the queued pop returns to Study (BackFromQuizAsync).
+            _quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
         }
         finally
         {
             _quizOpening = false;
+            Interlocked.CompareExchange(ref _quizOpenCancellation, null, opening);
         }
         if (_quizState.Phase == NativePhase.Summary)
             _destination = NativeDestination.QuizSummary;
@@ -631,8 +660,9 @@ internal sealed partial class ApplicationController
             "Native iOS quiz Back invoked in {Phase} at turn {Turn}.",
             _quizState.Phase, _quizState.CurrentTurn);
         if (_quizState.CurrentTurn == 0
-            && _quizState.Phase is (NativePhase.Empty
-                or NativePhase.Error or NativePhase.Blocked)
+            && (_quizState.Phase is (NativePhase.Empty
+                    or NativePhase.Error or NativePhase.Blocked)
+                || _quizState is { Phase: NativePhase.Loading, Sentence: null })
             && _quizState.Destination != NativeDestination.QuizSummary)
         {
             await ReturnToDashboardAsync();
@@ -687,7 +717,7 @@ internal sealed partial class ApplicationController
     {
         CancelAutoAdvance();
         CancelQuizAutoPlay();
-        _quizAutoPlayTurnId = null;
+        _quizPromptShownTurnId = null;
         _feedbackAutoAdvanceCanceled = false;
         _autoAdvanceDisplayStartedAt = null;
         _destination = NativeDestination.Dashboard;

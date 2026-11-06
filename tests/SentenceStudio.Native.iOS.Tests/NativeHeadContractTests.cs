@@ -362,7 +362,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains("|| string.IsNullOrWhiteSpace(_answer)",
             File.ReadAllText(Path.Combine(
                 HeadPath, "App/ApplicationController.Quiz.cs")));
-        Assert.Contains("if (_busy || _quizState.Phase != NativePhase.Ready)",
+        Assert.Contains("if (_busy || _quizState.Phase != NativePhase.Ready\n",
             File.ReadAllText(Path.Combine(
                 HeadPath, "App/ApplicationController.Quiz.cs")));
     }

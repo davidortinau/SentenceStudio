@@ -228,6 +228,7 @@ internal sealed partial class ApplicationController : IDisposable
             _destination = NativeDestination.SignIn;
             _preview = false;
             _authenticatedSample = false;
+            CancelQuizAutoPlay();
             _quiz?.Dispose();
             _quiz = null;
             _quizLaunch = null;
@@ -1037,6 +1038,7 @@ internal sealed partial class ApplicationController : IDisposable
         _dashboardState = new(NativePhase.Idle);
         _chooseOwnSelector = null;
         _onboardingOwner = null;
+        CancelQuizAutoPlay();
         _quiz?.Dispose();
         _quiz = null;
         _quizLaunch = null;
@@ -1161,6 +1163,7 @@ internal sealed partial class ApplicationController : IDisposable
         _disposed = true;
         CancelAutoAdvance();
         CancelQuizAudioPlayback();
+        CancelQuizAutoPlay();
         _lifetime.Cancel();
         _quiz?.Dispose();
         ReleaseActivity();

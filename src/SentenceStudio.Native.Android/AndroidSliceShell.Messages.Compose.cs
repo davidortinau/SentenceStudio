@@ -56,7 +56,7 @@ internal sealed partial class AndroidSliceShell
         var text = toast?.Format(Localize);
         // Keyed by the toast: a new toast, its expiry (key 0) or leaving the
         // activity cancels the previous effect, which removes its snackbar.
-        composer.LaunchedEffect(toast?.Id ?? 0L, async token =>
+        composer.Effect(toast?.Id ?? 0L, async token =>
         {
             if (toast is null || text is null)
                 return;

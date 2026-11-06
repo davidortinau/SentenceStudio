@@ -98,7 +98,7 @@ internal sealed partial class AndroidSliceShell
         var version = _samFollowVersion;
         var target = _samFollowTarget;
         var mode = _samFollow;
-        composer.LaunchedEffect(version, async cancellationToken =>
+        composer.Effect(version, async cancellationToken =>
         {
             if (version == 0 || target < 0)
                 return;
@@ -264,7 +264,7 @@ internal sealed partial class AndroidSliceShell
             panel.Add(new Composed(composer =>
             {
                 var typed = _samDraft.Value.Text ?? string.Empty;
-                composer.LaunchedEffect(typed, _ =>
+                composer.Effect(typed, _ =>
                 {
                     // The field owns its TextFieldValue (selection, IME composition such
                     // as Korean); the presenter's draft follows each committed edit.

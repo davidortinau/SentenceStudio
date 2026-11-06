@@ -357,6 +357,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     {
         if (_scope is null)
             throw new InvalidOperationException("The quiz services are not available.");
+        global::Android.Util.Log.Info("SentenceStudio.Native", "Native Android quiz opening.");
         if (_quiz is null)
         {
             _quiz = _scope.ServiceProvider.GetRequiredService<NativeQuizPresenter>();
@@ -384,7 +385,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void AnswerQuiz(string response) => Execute(async cancellationToken =>
     {
-        CancelQuizAutoPlay();
         if (Quiz is { Phase: NativePhase.Ready, Mode: "MultipleChoice" })
             Publish(() => Quiz = Quiz with { SelectedAnswer = response });
         var previous = Quiz.TurnId;
@@ -398,9 +398,12 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void SubmitTextAnswer() => AnswerQuiz(Answer.Value.Text ?? string.Empty);
 
+    // Scoped to the displayed feedback turn: a repeated Next is ignored instead of stopping
+    // the next turn's audio and being refused.
     public void NextQuestion() => Execute(async cancellationToken =>
-        await ApplyQuizStateAsync(
-            await RequiredQuiz().NextAsync(cancellationToken), cancellationToken));
+        await ApplyQuizStateAsync(Quiz.TurnId is { } displayed
+            ? await RequiredQuiz().NextAsync(displayed, cancellationToken)
+            : await RequiredQuiz().NextAsync(cancellationToken), cancellationToken));
 
     public void SubmitCorrection() => Execute(async cancellationToken =>
     {
@@ -533,12 +536,10 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         });
     }
 
+    // Manual playback stops a running autoplay itself (presenter), and only when it runs.
     public void PlayPrompt() => Execute(async cancellationToken =>
-    {
-        CancelQuizAutoPlay();
         await ApplyQuizStateAsync(
-            await RequiredQuiz().PlayPromptAsync(cancellationToken), cancellationToken);
-    });
+            await RequiredQuiz().PlayPromptAsync(cancellationToken), cancellationToken));
 
     public void SetPhotoVisible(bool visible) => Execute(async cancellationToken =>
     {

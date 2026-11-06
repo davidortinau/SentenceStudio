@@ -198,17 +198,12 @@ def main():
     ready_question = one(text_ready, "native.quiz.question")
     cold_question = one(cold_feedback, "native.quiz.question")
     assert ready_question["text"] == cold_question["text"]
-    pending_offset = frame(cold_question)["y"] - frame(ready_question)["y"]
-    if [node for node in all_nodes(cold_feedback)
-            if node.get("automationId") == "native.quiz.pending"]:
-        assert pending_offset > 0, "Pending-sync banner did not shift the content"
+    # The quiz has no sync caption (Captain, 2026-11-06), so a cold resume keeps the layout.
     for identifier in ("native.quiz.question", "native.quiz.answer"):
         before = frame(one(text_ready, identifier))
         after = frame(one(cold_feedback, identifier))
-        for key in ("x", "width", "height"):
+        for key in ("x", "y", "width", "height"):
             near(after[key], before[key], f"cold-resumed {identifier}.{key}")
-        near(after["y"] - before["y"], pending_offset,
-             f"cold-resumed {identifier} pending offset")
     assert one(correction, "native.quiz.answer")["value"] == (
         one(cold_feedback, "native.quiz.answer")["value"])
     assert not one(cold_feedback, "native.quiz.answer")["state"]["enabled"]

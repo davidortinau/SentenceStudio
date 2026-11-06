@@ -16,7 +16,15 @@ public sealed partial class NativeQuizPresenter
     public TimeSpan AutoAdvanceDelay =>
         TimeSpan.FromMilliseconds(quizPreferences.AutoAdvanceDuration);
 
-    private async Task<bool> PlayAudioAsync(
+    private enum AudioOutcome { Heard, Failed, Stopped }
+
+    /// <summary>
+    /// Plays one clip. The caller's cancellation is thrown. A deliberate stop (Next, Back,
+    /// another sound, the sentence shortcut: <see cref="StopActiveAudioBeforeNavigation"/>) or
+    /// the presenter's disposal is Stopped, not a failure; a fetch or playback failure (offline,
+    /// timeout, undecodable clip) is Failed.
+    /// </summary>
+    private async Task<AudioOutcome> PlayAudioAsync(
         string text, string language, CancellationToken cancellationToken)
     {
         using var playback = CancellationTokenSource.CreateLinkedTokenSource(
@@ -24,11 +32,56 @@ public sealed partial class NativeQuizPresenter
         Volatile.Write(ref _activeAudio, playback);
         try
         {
-            return await media.PlayPromptAsync(text, language, playback.Token);
+            if (await media.PlayPromptAsync(text, language, playback.Token))
+                return AudioOutcome.Heard;
+            cancellationToken.ThrowIfCancellationRequested();
+            return playback.IsCancellationRequested ? AudioOutcome.Stopped : AudioOutcome.Failed;
+        }
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested && playback.IsCancellationRequested)
+        {
+            return AudioOutcome.Stopped;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException
+            || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Quiz audio unavailable: {Failure}", ex.GetType().Name);
+            return AudioOutcome.Failed;
         }
         finally
         {
             Interlocked.CompareExchange(ref _activeAudio, null, playback);
+        }
+    }
+
+    /// <summary>The prompt side's word and the language it is spoken in (manual and autoplay).</summary>
+    private (string Text, string Language) PromptAudio()
+    {
+        var word = _round[_turnIndex].Word;
+        return _promptUsesNative
+            ? (word.NativeLanguageTerm!, _profile!.NativeLanguage)
+            : (word.TargetLanguageTerm!, word.Language ?? _profile!.TargetLanguage);
+    }
+
+    /// <summary>
+    /// The turn's autoplay may start: it asked for one (AutoPlayVocabAudio with prompt audio),
+    /// has not started it, and a requested photo is already drawn. The state also needs no
+    /// overlay and no sentence shortcut (<see cref="NativeQuizState.AutoPlayPending"/>).
+    /// </summary>
+    private bool AutoPlayEligible =>
+        _autoPlayTurnId is not null && _autoPlayTurnId == _turnId && _audioAvailable
+        && !(_photoAsset is not null && _photoDesired && !_photoVisible);
+
+    /// <summary>Stops a running autoplay on purpose; it ends as Stopped, never as a failure.</summary>
+    private void StopAutoPlay()
+    {
+        var stop = Interlocked.Exchange(ref _autoPlayStop, null);
+        try
+        {
+            stop?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 
@@ -38,6 +91,7 @@ public sealed partial class NativeQuizPresenter
             || expectedTurnId is not null
                 && (_turnId != expectedTurnId || State.Phase != NativePhase.Feedback))
             return;
+        StopAutoPlay();
         var playback = Volatile.Read(ref _activeAudio);
         if (playback is null)
             return;
@@ -63,40 +117,25 @@ public sealed partial class NativeQuizPresenter
 
             var launch = _launch;
             var turnId = _turnId;
+            // Playing it by hand replaces the turn's autoplay (a running one is stopped).
             _autoPlayTurnId = null;
-            var word = _round[_turnIndex].Word;
-            var text = _promptUsesNative ? word.NativeLanguageTerm! : word.TargetLanguageTerm!;
-            var language = _promptUsesNative
-                ? _profile!.NativeLanguage : word.Language ?? _profile!.TargetLanguage;
-            bool heard;
-            string? errorKey = null;
-            try
-            {
-                heard = await PlayAudioAsync(text, language, cancellationToken);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException
-                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                logger.LogWarning("Quiz prompt audio playback failed: {Failure}",
-                    ex.GetType().Name);
-                heard = false;
-                errorKey = NativeText.ConnectionError;
-            }
+            StopAutoPlay();
+            var (text, language) = PromptAudio();
+            var outcome = await PlayAudioAsync(text, language, cancellationToken);
             if (_disposed)
                 return new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
             if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
                 return State;
             if (!HasOwner(launch.UserId))
                 return RefuseLaunch();
+            if (outcome == AudioOutcome.Stopped)
+                return State;
+            var heard = outcome == AudioOutcome.Heard;
             if (!heard)
-            {
-                logger.LogWarning("Quiz prompt audio failed.");
                 _audioAvailable = false;
-                errorKey ??= NativeText.ConnectionError;
-            }
             _audioHeard = heard;
             return SetState(QuestionState(graded: false,
-                errorKey: errorKey));
+                errorKey: heard ? null : NativeText.ConnectionError));
         }
         finally
         {
@@ -105,65 +144,86 @@ public sealed partial class NativeQuizPresenter
     }
 
     /// <summary>
-    /// Plays the prompt of a turn whose state asked for autoplay (AutoPlayPending), once. The head
-    /// calls it after that turn's prompt is on screen; a turn that changed, was answered, was
-    /// played by hand, is in the sentence shortcut or has an overlay open is left as it is.
+    /// The head reports that this turn's prompt is on screen. When the state asked for autoplay
+    /// (<see cref="NativeQuizState.AutoPlayPending"/>), the prompt plays once; otherwise nothing
+    /// happens. The presenter's gate is held only to read and record the turn, not while the
+    /// clip is fetched and played, so answering and the photo and text toggles stay responsive.
     /// </summary>
     public async Task<NativeQuizState> PlayAutoPromptAsync(
         string turnId, CancellationToken cancellationToken = default)
     {
+        NativeQuizLaunch launch;
+        NativePhase phase;
+        string text, language;
+        CancellationTokenSource stop;
         await _gate.WaitAsync(cancellationToken);
         try
         {
             if (_disposed || _launch is null || !HasOwner(_launch.UserId)
-                || _profile is null || _autoPlayTurnId is null
-                || _autoPlayTurnId != turnId || _turnId != turnId
+                || _profile is null || !AutoPlayEligible || _turnId != turnId
                 || State.TurnId != turnId
                 || State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
                 || State.Overlay != NativeQuizOverlay.None || State.Sentence is not null
-                || _turnIndex >= _round.Count || !_audioAvailable)
+                || _turnIndex >= _round.Count)
                 return State;
-
             _autoPlayTurnId = null;
-            var launch = _launch;
-            var graded = State.Phase == NativePhase.Feedback;
-            var word = _round[_turnIndex].Word;
-            var text = _promptUsesNative ? word.NativeLanguageTerm! : word.TargetLanguageTerm!;
-            var language = _promptUsesNative
-                ? _profile.NativeLanguage : word.Language ?? _profile.TargetLanguage;
-            bool heard;
-            try
-            {
-                heard = await PlayAudioAsync(text, language, cancellationToken);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException
-                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                if (_disposed)
-                    throw;
-                logger.LogWarning("Quiz prompt autoplay unavailable: {Failure}",
-                    ex.GetType().Name);
-                heard = false;
-            }
+            launch = _launch;
+            phase = State.Phase;
+            (text, language) = PromptAudio();
+            stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Volatile.Write(ref _autoPlayStop, stop);
+            SetState(State with { AutoPlayPending = false });
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        logger.LogInformation("Quiz prompt autoplay started.");
+        AudioOutcome outcome;
+        try
+        {
+            outcome = await PlayAudioAsync(text, language, stop.Token);
+        }
+        catch (OperationCanceledException) when (
+            stop.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            outcome = AudioOutcome.Stopped;
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _autoPlayStop, null, stop);
+            stop.Dispose();
+        }
+        logger.LogInformation("Quiz prompt autoplay finished: {Outcome}.", outcome);
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
             if (_disposed)
                 throw new OperationCanceledException();
             if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
                 return State;
             if (!HasOwner(launch.UserId))
                 return RefuseLaunch();
-            if (!heard)
+            if (outcome == AudioOutcome.Heard)
+                _audioHeard = true;
+            else if (outcome == AudioOutcome.Failed)
                 _audioAvailable = false;
-            _audioHeard = heard;
-            // The sentence shortcut may have opened while it played; it keeps its screen.
-            if (State.Sentence is not null
-                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback))
+            // A stop on purpose changes nothing, and an answer, Next or the sentence shortcut
+            // that came while it played keeps its own screen.
+            if (outcome == AudioOutcome.Stopped || State.Phase != phase
+                || State.Sentence is not null)
                 return State;
-            var next = QuestionState(graded,
-                heard ? State.ErrorKey : NativeText.ConnectionError);
-            // Learning Details or the photo viewer may have opened meanwhile (synchronous
-            // commands); they stay open over the updated question.
-            if (State.Overlay != NativeQuizOverlay.None)
-                next = next with { Overlay = State.Overlay, Details = State.Details };
+            var next = QuestionState(phase == NativePhase.Feedback,
+                outcome == AudioOutcome.Heard ? State.ErrorKey : NativeText.ConnectionError);
+            // Learning Details or the photo viewer opened meanwhile stays open over the updated
+            // question, but never over a turn that can no longer be shown.
+            if (State.Overlay != NativeQuizOverlay.None && next.Phase != NativePhase.Blocked)
+                next = next with
+                {
+                    Overlay = State.Overlay, Details = State.Details, AutoPlayPending = false
+                };
             return SetState(next);
         }
         finally
@@ -188,27 +248,20 @@ public sealed partial class NativeQuizPresenter
 
             var launch = _launch;
             var choice = _choices[optionIndex];
-            bool heard;
-            try
-            {
-                heard = await PlayAudioAsync(
-                    choice.Text, choice.AudioLanguage ?? _profile!.TargetLanguage,
-                    cancellationToken);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException
-                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                logger.LogWarning("Quiz answer-choice audio unavailable: {Failure}",
-                    ex.GetType().Name);
-                heard = false;
-            }
+            // A running prompt autoplay gives way (Stopped, not a failure).
+            StopAutoPlay();
+            var outcome = await PlayAudioAsync(
+                choice.Text, choice.AudioLanguage ?? _profile!.TargetLanguage,
+                cancellationToken);
             if (_disposed)
                 return new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
             if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
                 return State;
             if (!HasOwner(launch.UserId))
                 return RefuseLaunch();
-            if (heard)
+            if (outcome == AudioOutcome.Stopped)
+                return State;
+            if (outcome == AudioOutcome.Heard)
             {
                 _heardAnswerChoices.Add(optionIndex);
                 return SetState(QuestionState(
@@ -368,7 +421,8 @@ public sealed partial class NativeQuizPresenter
             Math.Clamp(p?.QuizRecognitionDemonstrations ?? 0, 0, 3));
         return SetState(State with {
             Overlay = NativeQuizOverlay.LearningDetails,
-            Details = details
+            Details = details,
+            AutoPlayPending = false
         });
     }
 
@@ -383,7 +437,7 @@ public sealed partial class NativeQuizPresenter
         ResetSentenceHints(VocabQuizSentenceHintTransition.OpenFullscreen);
         return SetState(State with {
             Overlay = NativeQuizOverlay.FullscreenPhoto,
-            SentenceHintsExpanded = false, SentenceHints = []
+            SentenceHintsExpanded = false, SentenceHints = [], AutoPlayPending = false
         });
     }
 
@@ -391,7 +445,12 @@ public sealed partial class NativeQuizPresenter
     {
         if (State.Overlay == NativeQuizOverlay.None)
             return RefuseInvalidAction();
-        return SetState(State with { Overlay = NativeQuizOverlay.None, Details = null });
+        return SetState(State with
+        {
+            Overlay = NativeQuizOverlay.None, Details = null,
+            AutoPlayPending = AutoPlayEligible && State.Sentence is null
+                && State.Phase is NativePhase.Ready or NativePhase.Feedback
+        });
     }
 
     public async Task<NativeQuizState> AnswerAsync(
@@ -633,7 +692,9 @@ public sealed partial class NativeQuizPresenter
         var word = _round[_turnIndex].Word;
         ResetSentenceSubmission();
         ResetSentenceHints(VocabQuizSentenceHintTransition.SentenceShortcut);
+        // No prompt audio while writing: in NativeToTarget it would speak the translation.
         _autoPlayTurnId = null;
+        StopAutoPlay();
         return SetState(State with {
             Mode = "Sentence",
             AutoPlayPending = false,

@@ -26,14 +26,14 @@ internal sealed partial class AndroidSliceShell
         RememberSam(composer);
         var onboardingKey = Destination == NativeDestination.Onboarding
             ? _onboardingStep + 1 : 0;
-        composer.LaunchedEffect(onboardingKey, async cancellationToken =>
+        composer.Effect(onboardingKey, async cancellationToken =>
         {
             if (onboardingKey > 0)
                 await _onboardingScroll.ScrollToAsync(0, cancellationToken);
         });
         var detailsKey = Quiz.Overlay == NativeQuizOverlay.LearningDetails
             ? Quiz.TurnId : null;
-        composer.LaunchedEffect(detailsKey, async cancellationToken =>
+        composer.Effect(detailsKey, async cancellationToken =>
         {
             if (detailsKey is not null)
                 await _detailsScroll.ScrollToAsync(0, cancellationToken);
@@ -41,7 +41,7 @@ internal sealed partial class AndroidSliceShell
         RememberQuizEffects(composer);
         _photoFocus = composer.Remember(() => new FocusRequester());
         var restoreVersion = _photoFocusRestoreVersion;
-        composer.LaunchedEffect(restoreVersion, _ =>
+        composer.Effect(restoreVersion, _ =>
         {
             if (restoreVersion > 0 && restoreVersion == _photoFocusRestoreVersion
                 && Destination == NativeDestination.VocabularyQuiz
@@ -57,7 +57,7 @@ internal sealed partial class AndroidSliceShell
                 Quiz, Auth.UserId, viewer.OwnerId, viewer.TurnId,
                 viewer.PhotoUri, viewer.OpenedPhase)
             ? viewer : null;
-        composer.LaunchedEffect(photoViewer, _ =>
+        composer.Effect(AndroidEffectKey.Of(photoViewer), _ =>
         {
             if (photoViewer is not null
                 && ReferenceEquals(_photoDialog, photoViewer)
@@ -940,7 +940,7 @@ internal sealed partial class AndroidSliceShell
                     if (needsCorrection
                         && !string.IsNullOrWhiteSpace(Correction.Value.Text))
                         SubmitCorrection();
-                    else if (isQuestion
+                    else if (isQuestion && state.CanSubmit
                         && !string.IsNullOrWhiteSpace(Answer.Value.Text))
                         SubmitTextAnswer();
                 })

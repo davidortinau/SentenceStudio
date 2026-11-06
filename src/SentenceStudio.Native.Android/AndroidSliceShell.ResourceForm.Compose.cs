@@ -685,7 +685,7 @@ internal sealed partial class AndroidSliceShell
         var focusable = state.CanQuickAdd && !busy;
         // One primitive key (effect keys must be Java-comparable): the version, and
         // whether the field can take focus yet.
-        composer.LaunchedEffect(version * 2L + (focusable ? 1 : 0), _ =>
+        composer.Effect(version * 2L + (focusable ? 1 : 0), _ =>
         {
             if (focusable && version > 0 && version != _quickAddFocusHandled
                 && resources.QuickFocusVersion == version)

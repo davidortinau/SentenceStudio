@@ -389,7 +389,7 @@ public sealed partial class NativeQuizPresenter
             CanShowSentenceHints = !hints.IsDefaultOrEmpty,
             SentenceHintsExpanded = _sentenceHintsExpanded,
             CanPlayAnswerAudio = _answerAudioAvailable,
-            AutoPlayPending = _autoPlayTurnId is not null && _autoPlayTurnId == _turnId,
+            AutoPlayPending = AutoPlayEligible,
             HeardAnswerChoiceIndices =
                 _heardAnswerChoices.Order().ToImmutableArray(),
             FeedbackStartedAt = graded && !_requiresCorrection

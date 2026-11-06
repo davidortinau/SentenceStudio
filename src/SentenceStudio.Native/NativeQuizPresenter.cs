@@ -83,6 +83,8 @@ public sealed partial class NativeQuizPresenter(
     private bool _audioAvailable;
     // The turn whose prompt still autoplays once the head shows it (PlayAutoPromptAsync).
     private string? _autoPlayTurnId;
+    // Stops a running autoplay on purpose (it plays outside the gate).
+    private CancellationTokenSource? _autoPlayStop;
     private CancellationTokenSource? _activeAudio;
     private bool _photoLoaded;
     private bool _photoVisible;

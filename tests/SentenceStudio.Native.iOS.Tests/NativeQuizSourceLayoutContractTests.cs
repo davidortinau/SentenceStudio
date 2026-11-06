@@ -195,7 +195,7 @@ public sealed class NativeQuizSourceLayoutContractTests
             ..controller.IndexOf("private static string Text(",
                 StringComparison.Ordinal)];
 
-        Assert.Contains("PlayQuizAudio(token => _quiz.PlayPromptAsync(token));", app);
+        Assert.Contains("PlayPrompt: () => PlayQuizAudio(", app);
         Assert.Contains("PlayQuizAudio(token => _quiz.PlayAnswerChoiceAsync(", app);
         Assert.Contains("cancellation.IsCancellationRequested || _disposed", app);
         Assert.Contains("if (QueueQuizAudioNavigation(QuizAudioNavigation.Next))", app);
@@ -341,24 +341,34 @@ public sealed class NativeQuizSourceLayoutContractTests
             "_quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);",
             StringComparison.Ordinal);
         var publish = start.IndexOf("Publish();", StringComparison.Ordinal);
-        var open = start.IndexOf("await _quiz.OpenAsync(launch, _lifetime.Token)",
+        var open = start.IndexOf("await _quiz.OpenAsync(launch, opening.Token)",
             StringComparison.Ordinal);
         Assert.True(loading >= 0 && publish > loading && open > publish);
         Assert.Contains("_quizAudioCancellation is not null || _quizOpening", app);
 
-        // The prompt's own SwiftUI onAppear starts autoplay, once per turn, outside Run.
-        Assert.Contains("state.AutoPlayPending", question);
+        // Backing out while it loads cancels the open, so nothing is created for that run.
+        Assert.Contains("_quizState = await _quiz.OpenAsync(launch, opening.Token);", start);
+        Assert.Contains("if (_quizOpening)\n            CancelQuizOpen();", app);
+        Assert.Contains("_quizState is { Phase: NativePhase.Loading, Sentence: null }", app);
+
+        // The question's SwiftUI onAppear reports it; the presenter decides about autoplay
+        // (AutoPlayPending), and the head sends one request at a time, outside Run.
         Assert.Contains("question.OnAppear(() => promptAppeared(appearedTurn));", question);
+        Assert.DoesNotContain("AutoPlayPending", question);
         Assert.Contains("PromptAppeared: OnQuizPromptAppeared", app);
+        Assert.Contains("if (!_quizState.AutoPlayPending || _quizAutoPlayCancellation is not null)",
+            app);
         Assert.Contains("_ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);", app);
         Assert.Contains("quiz.PlayAutoPromptAsync(turnId, cancellation.Token)", app);
-        Assert.Contains("string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal)",
-            app);
-        Assert.Contains("Prompt is { PhotoRequested: true, ShowPhoto: false, Photo: not null }",
-            app);
+        Assert.Contains("ErrorKey = NativeText.UnexpectedError", app);
         Assert.DoesNotContain("Run(() => _quiz.PlayAutoPromptAsync", app);
-        // An answer, a played sound, Back or the sentence shortcut ends the turn's autoplay.
-        Assert.True(Regex.Matches(app, "CancelQuizAutoPlay\\(\\);").Count >= 8);
+        // Answers and manual playback no longer cancel it (the presenter stops it when a
+        // manual sound actually plays); an answer needs CanSubmit like its button.
+        Assert.Contains("PlayPrompt: () => PlayQuizAudio(token => _quiz.PlayPromptAsync(token)),",
+            app);
+        Assert.Contains("|| !_quizState.CanSubmit || string.IsNullOrWhiteSpace(_answer))", app);
+        var controller = Read("App/ApplicationController.cs");
+        Assert.Equal(3, Regex.Matches(controller, "CancelQuizAutoPlay\\(\\);").Count);
     }
 
     private static string Read(string file) =>
