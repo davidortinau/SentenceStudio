@@ -704,9 +704,14 @@ else
     // The current prompt or choice playback (load and start). Cancelled when the prompt context
     // changes (Use in a sentence, the next turn, Back), so its clip never plays out of context.
     private CancellationTokenSource? _promptPlayback;
+    // Above zero while LoadCurrentItem moves to the next turn or the summary: Play is refused.
+    private int _promptContextChanges;
     private UiSpeechClipCache? _clipCache;
     private UiSpeechClipCache ClipCache =>
         _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
+    // Set before the browser is asked to load a clip and cleared only by the stop, so the stop is
+    // sent whenever a clip may be loading, starting or playing there. BrowserAudioPlayback sends
+    // no stop for a cancelled request; ending it is EndPromptAudioAsync's job.
     private bool _browserAudioAttempted;
     private bool _audioDisposed;
     private bool _disposeStarted;
@@ -1875,8 +1880,38 @@ else
 
     private async Task LoadCurrentItem(bool preservePromptState = false)
     {
-        // A clip the previous turn requested never plays on this one.
-        CancelPromptPlayback();
+        // Play is refused until the next turn (or the round summary) is in place: a tap handled
+        // while the previous clip is being stopped would start that clip again, after the stop,
+        // and take the new turn's autoplay.
+        _promptContextChanges++;
+        bool turnShown;
+        try
+        {
+            turnShown = await ShowCurrentItemAsync(preservePromptState);
+        }
+        finally
+        {
+            _promptContextChanges--;
+        }
+
+        if (turnShown && QuizPrefs.AutoPlayVocabAudio && audioPromptAvailable)
+        {
+            // Autoplay is not an event handler, so nothing redraws the page when it ends: draw
+            // it then, or the Play buttons stay disabled.
+            _ = InvokeAsync(async () =>
+            {
+                await PlayWordAudio();
+                if (!_audioDisposed)
+                    await InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    /// <summary>Shows the current turn, or the round summary when the round is complete (false).</summary>
+    private async Task<bool> ShowCurrentItemAsync(bool preservePromptState)
+    {
+        // A clip the previous turn requested or started never plays on this one or the summary.
+        await EndPromptAudioAsync();
         await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
 
@@ -1888,7 +1923,7 @@ else
 
             sessionItems = vocabItems.ToList();
             showSessionSummary = true;
-            return;
+            return false;
         }
 
         currentItem = roundWordOrder[currentTurnInRound];
@@ -1924,11 +1959,7 @@ else
         ApplyPromptPreferences();
 
         responseTimer.Restart();
-
-        if (QuizPrefs.AutoPlayVocabAudio && audioPromptAvailable)
-        {
-            _ = InvokeAsync(PlayWordAudio);
-        }
+        return true;
     }
 
     private void ResetSentenceShortcutState()
@@ -1955,11 +1986,8 @@ else
         sentenceShortcutResults.Clear();
 
         // B70: no prompt audio while the learner writes; in NativeToTarget a prompt clip still
-        // loading, starting or playing (autoplay) would speak the translation. The request is
-        // cancelled first, so the stop that aborts it is not reported as an audio failure.
-        CancelPromptPlayback();
-        StopNativeAudioSafely();
-        await StopBrowserAudioAsync();
+        // loading, starting or playing (autoplay) would speak the translation.
+        await EndPromptAudioAsync();
     }
 
     private void CancelSentenceShortcut()
@@ -2394,6 +2422,9 @@ else
                 requireCorrectTyping = false;
                 showMnemonicImage = false;
                 showInfoPanel = false;
+                // Its clip never plays over the summary. The summary is set first, so a Play
+                // tap handled while the clip is being stopped is refused.
+                await EndPromptAudioAsync();
                 await PersistSnapshotAsync();
                 return;
             }
@@ -2538,11 +2569,10 @@ else
 
     private async Task GoBack()
     {
+        // Leaving the quiz also ends any clip still being made.
         _audioDisposed = true;
-        CancelPromptPlayback();
         _audioLifetime.Cancel();
-        StopNativeAudioSafely();
-        await StopBrowserAudioAsync();
+        await EndPromptAudioAsync();
         await CloseImageFullscreenAsync(restoreFocus: false);
         if (showSessionSummary)
             await CompleteActiveSessionAsync();
@@ -2772,8 +2802,10 @@ else
 
     private async Task PlayAudioTextAsync(string text, string language)
     {
-        // An autoplay queued before "Use in a sentence" opened must not start there (B70).
-        if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || string.IsNullOrWhiteSpace(text)) return;
+        // An autoplay queued before "Use in a sentence" opened must not start there (B70), and
+        // no prompt plays while the turn is changing or on the round summary.
+        if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || _promptContextChanges > 0
+            || showSessionSummary || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
         var playback = CancellationTokenSource.CreateLinkedTokenSource(_audioLifetime.Token);
         _promptPlayback = playback;
@@ -2783,10 +2815,13 @@ else
             var voiceId = VoicePrefs.GetVoiceForLanguage(language);
             // The owner's cached clip is found by file name under today's AudioCache (the stored
             // absolute path changes when iOS moves the app container); otherwise it is
-            // synthesized once and cached, pointing the existing row at it (B35).
+            // synthesized once and cached, pointing the existing row at it (B35). Synthesis runs
+            // for the page's lifetime, not this playback's: a clip still being made when the
+            // prompt context changes is finished and cached (the paid call is not wasted), and
+            // only its playback is dropped.
             var clip = await ClipCache.GetOrCreateAsync(text, voiceId, Connectivity.IsInternetAvailable, "word",
                 (voice, token) => SpeechService.TextToSpeechAsync(text, voice, 0.5f, 0.75f, 0.85f, cancellationToken: token),
-                playback.Token);
+                _audioLifetime.Token);
             // The prompt context changed while the clip loaded: nothing to play or report here.
             if (_audioDisposed || playback.IsCancellationRequested)
                 return;
@@ -2813,16 +2848,24 @@ else
                 await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, playback.Token, Logger);
             }
         }
-        catch (Exception) when (_audioDisposed || playback.IsCancellationRequested)
+        catch (Exception ex) when (ex is OperationCanceledException or JSException
+            && (_audioDisposed || playback.IsCancellationRequested))
         {
             // A deliberate stop, not a failure: the playback was cancelled, or the browser's
-            // load/start was aborted by the stop that followed. The turn keeps its audio prompt.
+            // load/start was interrupted by the stop that followed. The turn keeps its audio prompt.
+        }
+        catch (Exception ex) when (_audioDisposed || playback.IsCancellationRequested)
+        {
+            // A request the prompt context has already left failed. It owns nothing the current
+            // turn uses: that turn's clip, audio prompt and answer mode stay as they are.
+            Logger.LogWarning("A superseded quiz audio request failed: {Failure}.", ex.GetType().Name);
         }
         catch (Exception ex)
         {
             StopNativeAudioSafely();
             await EnableTextFallbackAsync();
-            Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
+            // The phrase is learner content; only the failure type is logged (as UiSpeechClipCache).
+            Logger.LogError("Quiz audio could not be played: {Failure}.", ex.GetType().Name);
         }
         finally
         {
@@ -2836,9 +2879,20 @@ else
     }
 
     /// <summary>
-    /// Ends the current prompt or choice playback request because the prompt context changed;
-    /// a clip still loading or starting then never plays. The next request may start at once.
+    /// Ends the prompt or choice audio because the prompt context changed (Use in a sentence,
+    /// the next turn or the round summary, Back). A clip still being made is cached but not
+    /// played, and one loading, starting or playing is stopped on the device or in the browser:
+    /// cancelling the request alone ends only the .NET await, while the browser would go on to
+    /// play it. The request is cancelled first, so the stop is not reported as an audio failure.
+    /// The next request may start at once.
     /// </summary>
+    private async Task EndPromptAudioAsync()
+    {
+        CancelPromptPlayback();
+        StopNativeAudioSafely();
+        await StopBrowserAudioAsync();
+    }
+
     private void CancelPromptPlayback()
     {
         var playback = _promptPlayback;
