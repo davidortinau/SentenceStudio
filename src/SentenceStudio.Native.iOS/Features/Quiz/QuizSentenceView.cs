@@ -32,15 +32,15 @@ internal static class QuizSentenceView
         if (headerAction is not null)
             headerAction.IsEnabled = !busy && !state.IsSentenceSubmitting
                 && (!graded || state.Phase == NativePhase.Ready);
+        // The target word only: no translation while the learner writes with it
+        // (Captain, 2026-11-06; the source header also showed the native term).
         var heading = Views.VStack(
                 style.Text(Views.Text(text("VocabQuiz_SentenceShortcut")),
                     SourceTextRole.Caption1, SourceTextTone.Primary),
                 style.Text(Views.Text(sentence.TargetLanguageTerm),
                         SourceTextRole.Title2, SourceTextTone.Primary)
                     .WithAccessibilityIdentifier(
-                        "native.quiz.sentence.target-term"),
-                style.Text(Views.Text(sentence.NativeLanguageGloss),
-                    SourceTextRole.Body2, SourceTextTone.Secondary))
+                        "native.quiz.sentence.target-term"))
             .WithFlexibleWidth();
         var header = headerAction is null
             ? Views.HStack(heading)

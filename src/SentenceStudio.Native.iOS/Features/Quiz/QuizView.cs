@@ -49,14 +49,11 @@ internal static class QuizView
         var submitSentence = actions.SubmitSentence;
         var cancelSentence = actions.CancelSentence;
         var continueAfterSentence = actions.ContinueAfterSentence;
+        var promptAppeared = actions.PromptAppeared;
         var items = new List<SwiftView>();
-        // The quiz confirms its writes on return; connection failures are
-        // reported separately through ErrorKey, not by this caption.
-        if (state.HasPendingSync)
-            items.Add(style.Text(Views.Text(
-                    text("NativeVocabQuiz_SyncPending")),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.quiz.pending"));
+        // Like the source quiz, no sync caption: pending writes are still recorded and
+        // retried by the presenter, and connection failures show through ErrorKey
+        // (Captain, 2026-11-06).
         if (state.Phase == NativePhase.Loading && state.Sentence is null)
         {
             items.Add(Views.IndeterminateProgress(text("Common_Loading"))
@@ -111,7 +108,7 @@ internal static class QuizView
                     selectChoice, playPrompt, playChoiceAudio,
                     submitText, submitCorrection,
                     openDetails, toggleSentenceHints, photoRendered, photoFailed,
-                    openPhoto, togglePhotoVisible);
+                    openPhoto, togglePhotoVisible, promptAppeared);
                 if (state.Phase == NativePhase.Feedback)
                     QuizFeedbackView.Add(items, state, style, text, overrideAsCorrect, next);
                 break;

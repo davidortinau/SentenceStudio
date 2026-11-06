@@ -72,8 +72,33 @@ public sealed class NativeQuizModalityTests
 
         var sentence = NativeQuizModality.RenderSentence(Word, "French");
         Assert.Equal(Word.TargetLanguageTerm, sentence.TargetLanguageTerm);
-        Assert.Equal(Word.NativeLanguageTerm, sentence.NativeLanguageGloss);
         Assert.Equal("VocabQuiz_WriteOneSentence", sentence.InstructionKey);
+        AssertSentencePromptHasNoTranslation(sentence);
+    }
+
+    [Fact]
+    public void SentencePrompt_CarriesTheTargetWordButNeverItsTranslation()
+    {
+        // Captain, 2026-11-06: writing a sentence with the word must not show its
+        // translation. The prompt has no member that can hold one, so no head can render
+        // or announce it (heading, accessibility label, placeholder or instruction).
+        var sentence = NativeQuizModality.RenderSentence(Word, "French");
+
+        Assert.Equal(Word.Id, sentence.WordId);
+        Assert.Equal(Word.TargetLanguageTerm, sentence.TargetLanguageTerm);
+        Assert.Equal("French", sentence.TargetLanguage);
+        AssertSentencePromptHasNoTranslation(sentence);
+        Assert.DoesNotContain(typeof(NativeQuizSentencePrompt).GetProperties(),
+            property => property.Name.Contains("Native", StringComparison.Ordinal)
+                || property.Name.Contains("Gloss", StringComparison.Ordinal));
+    }
+
+    private static void AssertSentencePromptHasNoTranslation(NativeQuizSentencePrompt sentence)
+    {
+        foreach (var property in typeof(NativeQuizSentencePrompt).GetProperties())
+            Assert.NotEqual(Word.NativeLanguageTerm, property.GetValue(sentence) as string);
+        Assert.DoesNotContain(Word.NativeLanguageTerm!, sentence.ToString(),
+            StringComparison.Ordinal);
     }
 
     [Theory]

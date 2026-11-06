@@ -83,7 +83,7 @@ public sealed class AndroidQuizPhotoPolicyTests
             state with { Phase = NativePhase.Error },
             state with { Destination = NativeDestination.TodaysPlan },
             state with { Sentence = new NativeQuizSentencePrompt(
-                "owned-word", "target", "gloss", "Korean") },
+                "owned-word", "target", "Korean") },
         ];
         foreach (var candidate in hidden)
         {

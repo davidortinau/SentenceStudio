@@ -7216,6 +7216,58 @@ For example: {0} ...</value>
     <value>Please select at least one harvest option before continuing.</value>
     <comment>Harvest validation error message</comment>
   </data>
+  <data name="Import_ContentType_Sentences" xml:space="preserve">
+    <value>Sentences</value>
+    <comment>Import Content type option (the source select listed it in English only).</comment>
+  </data>
+  <data name="Import_AutoDetected" xml:space="preserve">
+    <value>Auto-detected: {0} ({1} confidence)</value>
+    <comment>Import Content auto-detect, high confidence. {0} is the content type, {1} the confidence percent.</comment>
+  </data>
+  <data name="Import_AutoDetectChange" xml:space="preserve">
+    <value>Change</value>
+    <comment>Import Content auto-detect: opens the content type chooser.</comment>
+  </data>
+  <data name="Import_AutoDetectNotSure" xml:space="preserve">
+    <value>We're not 100% sure.</value>
+    <comment>Import Content auto-detect, medium confidence heading.</comment>
+  </data>
+  <data name="Import_AutoDetectLooksLike" xml:space="preserve">
+    <value>Looks like {0} ({1} confidence). Please confirm or pick the correct type:</value>
+    <comment>Import Content auto-detect, medium confidence. {0} is the content type, {1} the confidence percent.</comment>
+  </data>
+  <data name="Import_AutoDetectConfirm" xml:space="preserve">
+    <value>Yes, it's {0}</value>
+    <comment>Import Content auto-detect: confirms the suggested type. {0} is the content type.</comment>
+  </data>
+  <data name="Import_AutoDetectPickDifferent" xml:space="preserve">
+    <value>Pick a different type</value>
+    <comment>Import Content auto-detect: opens the content type chooser.</comment>
+  </data>
+  <data name="Import_AutoDetectConfirmedAs" xml:space="preserve">
+    <value>Confirmed as {0}</value>
+    <comment>Import Content auto-detect: the type the learner confirmed. {0} is the content type.</comment>
+  </data>
+  <data name="Import_AutoDetectFailed" xml:space="preserve">
+    <value>Couldn't auto-detect the content type.</value>
+    <comment>Import Content auto-detect, low confidence heading.</comment>
+  </data>
+  <data name="Import_AutoDetectLowHint" xml:space="preserve">
+    <value>Hint: might be {0}, but confidence is low ({1}).</value>
+    <comment>Import Content auto-detect, low confidence. {0} is the content type, {1} the confidence percent.</comment>
+  </data>
+  <data name="Import_AutoDetectSelectType" xml:space="preserve">
+    <value>Please select the content type:</value>
+    <comment>Import Content auto-detect, low confidence: the type buttons follow.</comment>
+  </data>
+  <data name="Import_SelectContentType" xml:space="preserve">
+    <value>Select content type:</value>
+    <comment>Import Content type chooser heading.</comment>
+  </data>
+  <data name="Import_SelectRow" xml:space="preserve">
+    <value>Import row {0}</value>
+    <comment>Import Content preview: accessibility label of a row's checkbox. {0} is the row number.</comment>
+  </data>
   <data name="PlanItemNumberDrillTitle" xml:space="preserve">
     <value>Number Drill</value>
     <comment>Plan item title for NumberDrill activity</comment>
@@ -9275,9 +9327,6 @@ For example: {0} ...</value>
   </data>
   <data name="NativeVocabQuiz_Details_RecognitionDemonstrations" xml:space="preserve">
     <value>Recognition demonstrations</value>
-  </data>
-  <data name="NativeVocabQuiz_SyncPending" xml:space="preserve">
-    <value>Your progress is saved on this device and will finish syncing when you return.</value>
   </data>
   <data name="NativeResources_SyncPending" xml:space="preserve">
     <value>Sync is pending. Check your connection and refresh.</value>

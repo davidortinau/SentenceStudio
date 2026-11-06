@@ -23,6 +23,8 @@ internal sealed partial class AndroidSliceShell
     private FocusRequester? _detailsFocus;
     private string? _detailsFocusTurnId;
     private int _detailsFocusRestoreVersion;
+    private CancellationTokenSource? _quizAutoPlay;
+    private string? _quizAutoPlayTurnId;
 
     /// <summary>The "Use in a sentence" draft; a Compose TextFieldValue keeps Korean IME composition local.</summary>
     internal MutableState<TextFieldValue> SentenceDraft { get; } =
@@ -33,6 +35,8 @@ internal sealed partial class AndroidSliceShell
     {
         _quizFailedCommand = AndroidQuizFailedCommand.None;
         _quizMenuOpen = false;
+        CancelQuizAutoPlay();
+        _quizAutoPlayTurnId = null;
         _sentenceDraftTurnId = null;
         _detailsFocusTurnId = null;
         SentenceDraft.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
@@ -60,8 +64,64 @@ internal sealed partial class AndroidSliceShell
             ? active : null;
     }
 
+    /// <summary>
+    /// Plays a turn's prompt once after the turn is on screen, beside the quiz rather than as a
+    /// busy action, as the source starts PlayWordAudio without awaiting it (Captain,
+    /// 2026-11-06: see the quiz, then hear it). The presenter's StateChanged publishes the
+    /// heard prompt or its playback failure.
+    /// </summary>
+    private void StartQuizAutoPlay(string owner, string turnId)
+    {
+        if (_disposed || _quiz is not { } quiz || QuizPhotoOwner() != owner
+            || Quiz is not { AutoPlayPending: true } || Quiz.TurnId != turnId
+            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))
+            return;
+        _quizAutoPlayTurnId = turnId;
+        CancelQuizAutoPlay();
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _quizAutoPlay = cancellation;
+        _ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);
+    }
+
+    private async Task RunQuizAutoPlayAsync(
+        NativeQuizPresenter quiz, string turnId, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await quiz.PlayAutoPromptAsync(turnId, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (
+            cancellation.IsCancellationRequested || _disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!_disposed && ReferenceEquals(_quiz, quiz))
+                ShowFailure(ex);
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _quizAutoPlay, null, cancellation);
+            cancellation.Dispose();
+        }
+    }
+
+    /// <summary>An answer, a played sound or Back replaces the turn's autoplay.</summary>
+    private void CancelQuizAutoPlay()
+    {
+        var current = Interlocked.Exchange(ref _quizAutoPlay, null);
+        try
+        {
+            current?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     public void PlayQuizChoice(int index) => Execute(async cancellationToken =>
     {
+        CancelQuizAutoPlay();
         if (_quiz is not { } quiz || Quiz.TurnId is not { } turnId
             || !AndroidQuizTurnPolicy.CanPlayChoice(Quiz, busy: false))
             return;
@@ -129,6 +189,7 @@ internal sealed partial class AndroidSliceShell
         Publish(() => _quizMenuOpen = false);
         if (_quiz is null || !AndroidQuizTurnPolicy.CanOpenSentence(Quiz, Busy.Value))
             return;
+        CancelQuizAutoPlay();
         var state = _quiz.OpenSentenceShortcut();
         SentenceDraft.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
         _sentenceDraftTurnId = state.Sentence is null ? null : state.TurnId;
@@ -243,6 +304,7 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void BackFromQuiz() => Execute(async cancellationToken =>
     {
+        CancelQuizAutoPlay();
         if (_quiz is null)
             return;
         var state = await _quiz.BackAsync(cancellationToken);

@@ -8032,6 +8032,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Change.
+        /// </summary>
+        internal static string Import_AutoDetectChange {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectChange", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Yes, it&apos;s {0}.
+        /// </summary>
+        internal static string Import_AutoDetectConfirm {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Confirmed as {0}.
+        /// </summary>
+        internal static string Import_AutoDetectConfirmedAs {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectConfirmedAs", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto-detected: {0} ({1} confidence).
+        /// </summary>
+        internal static string Import_AutoDetected {
+            get {
+                return ResourceManager.GetString("Import_AutoDetected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t auto-detect the content type..
+        /// </summary>
+        internal static string Import_AutoDetectFailed {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Looks like {0} ({1} confidence). Please confirm or pick the correct type:.
+        /// </summary>
+        internal static string Import_AutoDetectLooksLike {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectLooksLike", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hint: might be {0}, but confidence is low ({1})..
+        /// </summary>
+        internal static string Import_AutoDetectLowHint {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectLowHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to We&apos;re not 100% sure..
+        /// </summary>
+        internal static string Import_AutoDetectNotSure {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectNotSure", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pick a different type.
+        /// </summary>
+        internal static string Import_AutoDetectPickDifferent {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectPickDifferent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please select the content type:.
+        /// </summary>
+        internal static string Import_AutoDetectSelectType {
+            get {
+                return ResourceManager.GetString("Import_AutoDetectSelectType", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Channel monitoring paused.
         /// </summary>
         internal static string Import_ChannelPaused {
@@ -8154,6 +8244,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_ContentType_Phrases {
             get {
                 return ResourceManager.GetString("Import_ContentType_Phrases", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sentences.
+        /// </summary>
+        internal static string Import_ContentType_Sentences {
+            get {
+                return ResourceManager.GetString("Import_ContentType_Sentences", resourceCulture);
             }
         }
 
@@ -8860,6 +8959,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Select content type:.
+        /// </summary>
+        internal static string Import_SelectContentType {
+            get {
+                return ResourceManager.GetString("Import_SelectContentType", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Selected for import.
         /// </summary>
         internal static string Import_SelectedCount {
@@ -8892,6 +9000,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_SelectResourceRequired {
             get {
                 return ResourceManager.GetString("Import_SelectResourceRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Import row {0}.
+        /// </summary>
+        internal static string Import_SelectRow {
+            get {
+                return ResourceManager.GetString("Import_SelectRow", resourceCulture);
             }
         }
 
@@ -11952,15 +12069,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeVocabQuiz_ShowImage {
             get {
                 return ResourceManager.GetString("NativeVocabQuiz_ShowImage", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Your progress is saved on this device and will finish syncing when you return..
-        /// </summary>
-        internal static string NativeVocabQuiz_SyncPending {
-            get {
-                return ResourceManager.GetString("NativeVocabQuiz_SyncPending", resourceCulture);
             }
         }
 

@@ -100,6 +100,9 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeQuizPresenter>();
         services.TryAddSingleton<INativeResourceStore, NativeResourceStore>();
         services.AddTransient<NativeResourcePresenter>();
+        // Import Content: the shared ContentImportService for the verified owner.
+        services.TryAddSingleton<SentenceStudio.Native.Features.Import.INativeContentImport,
+            NativeContentImport>();
         services.TryAddSingleton<INativeSamClient, UnavailableNativeSamClient>();
         services.AddTransient<NativeSamPresenter>();
         return services;

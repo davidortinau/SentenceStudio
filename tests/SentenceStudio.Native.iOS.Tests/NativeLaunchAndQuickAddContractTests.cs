@@ -66,6 +66,12 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.DoesNotContain("#pragma warning disable CS0162", controller);
         Assert.DoesNotContain("_libraryPairsCreateRequested", controller);
         Assert.Contains("_ = OpenLibraryPairsOutsideBusyAsync(screen, launch, create);", controller);
+        // Import content opens its native page; YouTube import joins when its flow exists.
+        Assert.Contains("new(\"import-content\", \"square.and.arrow.down\", \"Nav_ImportContent\",", controller);
+        Assert.Contains("() => OpenLibraryQuickAdd(OpenImportContent)", controller);
+        Assert.DoesNotContain("youtube-import", controller);
+        Assert.Contains("internal void OpenImportContent()",
+            Source("App/ApplicationController.Import.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
             "MinimalPairs_CreatePair" })

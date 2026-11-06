@@ -195,7 +195,7 @@ public sealed class NativeQuizSourceLayoutContractTests
             ..controller.IndexOf("private static string Text(",
                 StringComparison.Ordinal)];
 
-        Assert.Contains("PlayPrompt: () => PlayQuizAudio(", app);
+        Assert.Contains("PlayQuizAudio(token => _quiz.PlayPromptAsync(token));", app);
         Assert.Contains("PlayQuizAudio(token => _quiz.PlayAnswerChoiceAsync(", app);
         Assert.Contains("cancellation.IsCancellationRequested || _disposed", app);
         Assert.Contains("if (QueueQuizAudioNavigation(QuizAudioNavigation.Next))", app);
@@ -307,6 +307,58 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.Contains("_quiz.SubmitSentenceAsync(", app);
         Assert.Contains("|| !_quizState.SentenceResults.IsDefaultOrEmpty)",
             app);
+    }
+
+    [Fact]
+    public void Quiz_ShowsNoSyncCaption_AndSentenceHeaderShowsNoTranslation()
+    {
+        // Captain, 2026-11-06: the source quiz has no "progress is saved" caption, and
+        // writing a sentence with the word must not show its translation.
+        var quiz = Read("Features/Quiz/QuizView.cs");
+        var sentence = Read("Features/Quiz/QuizSentenceView.cs");
+
+        Assert.DoesNotContain("SyncPending", quiz);
+        Assert.DoesNotContain("native.quiz.pending", quiz);
+        Assert.DoesNotContain("state.HasPendingSync", quiz);
+        Assert.DoesNotContain("NativeLanguage", sentence);
+        Assert.DoesNotContain("Gloss", sentence);
+        Assert.Contains("Views.Text(sentence.TargetLanguageTerm)", sentence);
+    }
+
+    [Fact]
+    public void QuizLaunch_PushesAtOnce_AndAutoplaysOnlyAfterThePromptAppears()
+    {
+        // Captain, 2026-11-06: the Study tab was held disabled while the run opened and the
+        // prompt audio played; the quiz then rendered after the audio.
+        var app = Read("App/ApplicationController.Quiz.cs");
+        var question = Read("Features/Quiz/QuizQuestionView.cs");
+        var start = app[app.IndexOf("private async Task StartQuizAsync(",
+                StringComparison.Ordinal)
+            ..app.IndexOf("private async Task ReturnFromQuizAsync(",
+                StringComparison.Ordinal)];
+
+        var loading = start.IndexOf(
+            "_quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);",
+            StringComparison.Ordinal);
+        var publish = start.IndexOf("Publish();", StringComparison.Ordinal);
+        var open = start.IndexOf("await _quiz.OpenAsync(launch, _lifetime.Token)",
+            StringComparison.Ordinal);
+        Assert.True(loading >= 0 && publish > loading && open > publish);
+        Assert.Contains("_quizAudioCancellation is not null || _quizOpening", app);
+
+        // The prompt's own SwiftUI onAppear starts autoplay, once per turn, outside Run.
+        Assert.Contains("state.AutoPlayPending", question);
+        Assert.Contains("question.OnAppear(() => promptAppeared(appearedTurn));", question);
+        Assert.Contains("PromptAppeared: OnQuizPromptAppeared", app);
+        Assert.Contains("_ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);", app);
+        Assert.Contains("quiz.PlayAutoPromptAsync(turnId, cancellation.Token)", app);
+        Assert.Contains("string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal)",
+            app);
+        Assert.Contains("Prompt is { PhotoRequested: true, ShowPhoto: false, Photo: not null }",
+            app);
+        Assert.DoesNotContain("Run(() => _quiz.PlayAutoPromptAsync", app);
+        // An answer, a played sound, Back or the sentence shortcut ends the turn's autoplay.
+        Assert.True(Regex.Matches(app, "CancelQuizAutoPlay\\(\\);").Count >= 8);
     }
 
     private static string Read(string file) =>

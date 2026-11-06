@@ -79,14 +79,15 @@ internal sealed partial class ApplicationController
 
     /// <summary>A page is open above the Library list.</summary>
     internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
-        || IsSkillsOpen || _libraryPairs is not null;
+        || IsSkillsOpen || _libraryPairs is not null || IsImportContentOpen;
 
     /// <summary>
     /// An editor is open in the Library: Save or Cancel decides how it closes, so nothing
     /// from another tab replaces it. A smart resource being read is not an editor.
     /// </summary>
     internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
-        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
+        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage
+        || IsImportWordOpen;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
     internal long LibraryResetVersion => _libraryResetVersion;
@@ -137,7 +138,8 @@ internal sealed partial class ApplicationController
 
     /// <summary>
     /// The quick-add grid under the Library list, in order: every existing native create flow
-    /// (a new resource, skill profile or minimal pair). Add an item here to add a button.
+    /// (a new resource, skill profile or minimal pair), then Import content. Add an item here
+    /// to add a button (YouTube import joins when its native flow exists).
     /// </summary>
     internal IReadOnlyList<LibraryQuickAddItem> LibraryQuickAddItems => _libraryQuickAddItems ??=
     [
@@ -147,6 +149,8 @@ internal sealed partial class ApplicationController
             () => OpenLibraryQuickAdd(() => OpenSkills(create: true))),
         new("minimal-pair", "waveform.badge.plus", NativeMinimalPairsText.CreatePair,
             () => OpenLibraryQuickAdd(() => OpenLibraryPairs(create: true))),
+        new("import-content", "square.and.arrow.down", "Nav_ImportContent",
+            () => OpenLibraryQuickAdd(OpenImportContent)),
     ];
 
     /// <summary>A quick-add button works from the Library list, like its rows.</summary>
@@ -158,6 +162,8 @@ internal sealed partial class ApplicationController
         _libraryErrorKey = null;
         open();
     }
+
+    // OpenImportContent: ApplicationController.Import.cs.
 
     /// <summary>Back from the Resources page to the Library list.</summary>
     internal void OnLibraryResourcesPopped()
@@ -216,6 +222,7 @@ internal sealed partial class ApplicationController
         if (IsSkillsOpen)
             _skills!.Close();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _libraryResetVersion++;
     }
 

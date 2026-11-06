@@ -69,7 +69,7 @@ public sealed class NativeSamContractTests
         {
             "\"activity-log\"", "\"profile\"", "\"skills\"", "ApplicationFormRoutes.LibraryResources",
             "ApplicationFormRoutes.MinimalPairs", "ApplicationFormRoutes.RecentLookups",
-            "ApplicationFormRoutes.Vocabulary",
+            "ApplicationFormRoutes.Vocabulary", "ApplicationImportRoutes.ImportContent",
         };
         var files = Directory.GetFiles(Path.Combine(HeadPath, "App"), "ApplicationScene*.cs");
         var pushes = files.SelectMany(file => Regex.Matches(File.ReadAllText(file),

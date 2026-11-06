@@ -69,7 +69,7 @@ public sealed class AndroidQuizPhotoPresentationTests
             feedback with { Destination = NativeDestination.QuizSummary },
             feedback with { Overlay = NativeQuizOverlay.None },
             feedback with { Sentence = new NativeQuizSentencePrompt(
-                "owned-word", "target", "gloss", "Korean") },
+                "owned-word", "target", "Korean") },
         ];
         foreach (var candidate in closes)
             Assert.False(AndroidQuizPhotoPresentationPolicy.CanPresent(candidate,
