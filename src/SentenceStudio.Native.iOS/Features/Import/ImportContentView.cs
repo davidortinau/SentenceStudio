@@ -438,21 +438,25 @@ internal static class ImportContentView
         };
         if (state.TargetMode == ImportTargetMode.New)
         {
-            var error = style.Text(Views.Text(text("Import_NewResourceTitleRequired")),
-                    SourceTextRole.Caption1, SourceTextTone.Danger)
-                .WithAccessibilityIdentifier("native.import.content.title.error");
+            // The error takes room only while it is shown; typing hides it in place.
+            var error = state.ShowTitleValidationError
+                ? style.Text(Views.Text(text("Import_NewResourceTitleRequired")),
+                        SourceTextRole.Caption1, SourceTextTone.Danger)
+                    .WithAccessibilityIdentifier("native.import.content.title.error")
+                : null;
             var title = style.TextInput(Views.TextField(text("Import_ResourceTitlePlaceholder"),
                     state.NewResourceTitle, value =>
                     {
                         if (import.SetNewResourceTitle(value))
-                            error.WithHidden(true);
+                            error?.WithHidden(true);
                     }))
                 .WithAccessibilityLabel(text("Import_ResourceTitleLabel"))
                 .WithAccessibilityIdentifier("native.import.content.title");
-            var titleField = Views.VStack(Label(style, text("Import_ResourceTitleLabel")), title, error)
+            var titleField = (error is not null
+                    ? Views.VStack(Label(style, text("Import_ResourceTitleLabel")), title, error)
+                    : Views.VStack(Label(style, text("Import_ResourceTitleLabel")), title))
                 .WithFlexibleWidth();
             titleField.Spacing = SourceUiLayout.ItemGap;
-            error.WithHidden(!state.ShowTitleValidationError);
             var description = style.TextInput(Views.TextField(
                     text("Import_ResourceDescriptionPlaceholder"), state.NewResourceDescription,
                     import.SetNewResourceDescription))

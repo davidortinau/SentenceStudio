@@ -259,7 +259,9 @@ public sealed class ImportContentCoordinator : IDisposable
         {
             if (_contentType == ContentType.Auto)
             {
-                var classification = await _import.ClassifyAsync(owner, _rawText, _lifetime.Token);
+                var text = _rawText;
+                var token = _lifetime.Token;
+                var classification = await OffUi(() => _import.ClassifyAsync(owner, text, token));
                 if (!IsCurrent(operation))
                     return;
                 var band = ClassifyConfidence(classification.Confidence);
@@ -338,7 +340,8 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestPhrases = _harvestPhrases,
                 HarvestWords = _harvestWords
             };
-            var preview = await _import.PreviewAsync(owner, request, _lifetime.Token);
+            var token = _lifetime.Token;
+            var preview = await OffUi(() => _import.PreviewAsync(owner, request, token));
             if (!IsCurrent(operation))
                 return;
             _preview = preview;
@@ -636,7 +639,7 @@ public sealed class ImportContentCoordinator : IDisposable
                 HarvestWords = _harvestWords
             };
             // The commit is one database transaction: it is not cancelled by leaving the page.
-            var result = await _import.CommitAsync(owner, commit, CancellationToken.None);
+            var result = await OffUi(() => _import.CommitAsync(owner, commit, CancellationToken.None));
             if (_disposed || operation != _operation)
                 return;
             _result = result;
@@ -745,7 +748,8 @@ public sealed class ImportContentCoordinator : IDisposable
             return;
         try
         {
-            var resources = await _import.ListTargetResourcesAsync(owner, _lifetime.Token);
+            var token = _lifetime.Token;
+            var resources = await OffUi(() => _import.ListTargetResourcesAsync(owner, token));
             if (_disposed || !TryOwner(out _))
                 return;
             _resources = [.. resources];
@@ -764,6 +768,13 @@ public sealed class ImportContentCoordinator : IDisposable
             _logger.LogError(ex, "Failed to load available resources");
         }
     }
+
+    /// <summary>
+    /// The shared import service runs its database work in-line; it runs on the thread pool
+    /// so a large preview or commit does not hold the UI. The state is applied after the
+    /// await, back on the caller's context.
+    /// </summary>
+    private static Task<T> OffUi<T>(Func<Task<T>> work) => Task.Run(work);
 
     internal static ImportConfidenceBand ClassifyConfidence(float confidence) =>
         confidence >= 0.85f ? ImportConfidenceBand.High
