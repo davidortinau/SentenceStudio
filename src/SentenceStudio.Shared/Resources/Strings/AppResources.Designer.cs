@@ -11164,6 +11164,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} is not available on this account right now..
+        /// </summary>
+        internal static string NativeSam_SlotNotOffered {
+            get {
+                return ResourceManager.GetString("NativeSam_SlotNotOffered", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to You are offline. {0} needs a connection..
         /// </summary>
         internal static string NativeSam_SlotOffline {

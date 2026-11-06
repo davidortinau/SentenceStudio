@@ -27,6 +27,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     private readonly NativeMinimalPairsPresenter _presenter;
     private NativeMinimalPairsState _state = new(NativePhase.Loading);
     private long _childVersion;
+    private long _pageVersion;
     private bool _childDismissed;
     private SwiftView? _deleteAlert;
     private SourceUiStyle? _style;
@@ -54,6 +55,16 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         ? NativeMinimalPairsText.CreateTitle : NativeMinimalPairsText.Title);
 
     public long ChildVersion => _childVersion;
+
+    public long PageVersion => _pageVersion;
+
+    /// <summary>An open that threw leaves the list on its error with Go Back (never a spinner).</summary>
+    public void OnOpenFailed()
+    {
+        if (_state.Phase is not (NativePhase.Idle or NativePhase.Loading))
+            return;
+        Apply(_state with { Phase = NativePhase.Error, ErrorKey = NativeMinimalPairsText.Unavailable });
+    }
 
     public async Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken) =>
         Apply(await _presenter.OpenAsync(launch, cancellationToken));
@@ -100,12 +111,24 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     /// <summary>Every published change re-renders the child page; typing never publishes.</summary>
     private void Apply(NativeMinimalPairsState state)
     {
+        if (ListPageChanged(_state, state))
+            _pageVersion++;
         _state = state;
         if (state.Page == NativeMinimalPairsPage.List)
             _childDismissed = false;
         _childVersion++;
         UpdateDeleteAlert();
     }
+
+    /// <summary>
+    /// What the list page renders: its phase and error, the list, and the notices (shown
+    /// only while the list is the current page). Create and session changes leave it alone.
+    /// </summary>
+    private static bool ListPageChanged(NativeMinimalPairsState previous, NativeMinimalPairsState next) =>
+        previous.Phase != next.Phase || previous.ErrorKey != next.ErrorKey
+        || !Equals(previous.List, next.List)
+        || (previous.Page == NativeMinimalPairsPage.List) != (next.Page == NativeMinimalPairsPage.List)
+        || next.Page == NativeMinimalPairsPage.List && previous.Notices != next.Notices;
 
     /// <summary>The source modal: "Confirm Delete" with "Delete A vs B?".</summary>
     private void UpdateDeleteAlert()

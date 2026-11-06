@@ -674,6 +674,8 @@ internal sealed partial class ApplicationController : IDisposable
             finally
             {
                 _dashboardRefreshing = false;
+                // The refresh synced: the Library reads the owner's resources again.
+                _resources?.MarkListStale();
             }
         });
     }
@@ -870,14 +872,14 @@ internal sealed partial class ApplicationController : IDisposable
             return;
         if (IsResourcesFormOpen)
             _resources.OnFormPopped();
-        if (IsLibraryPageOpen && !_libraryResourcesOpen || IsRecentLookupsOpen)
+        // Vocabulary, Skills or Minimal Pairs (and Recent lookups above Vocabulary) close.
+        if (IsLibraryPageOpen && !_libraryResourcesOpen)
             ResetLibraryToList();
         _resourceFormFromDashboard = false;
         _libraryErrorKey = null;
         _libraryResourcesOpen = true;
         _selectedTab = NativeTabs.Library;
-        _resourcesListReadByTab = false;
-        _resources.OnBrowserAppeared();
+        ReadResourcesIfStale();
         _resources.OpenCreate();
         Publish();
     }
@@ -976,7 +978,6 @@ internal sealed partial class ApplicationController : IDisposable
         ReleaseVocabulary();
         ReleaseLibraryPairs();
         _libraryResourcesOpen = false;
-        _resourcesListReadByTab = false;
         _libraryErrorKey = null;
         _profileSummary = null;
         ResetSamSlot();

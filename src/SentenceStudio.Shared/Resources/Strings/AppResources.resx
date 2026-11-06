@@ -9915,6 +9915,10 @@ For example: {0} ...</value>
     <value>Checking whether {0} is available...</value>
     <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>
   </data>
+  <data name="NativeSam_SlotNotOffered" xml:space="preserve">
+    <value>{0} is not available on this account right now.</value>
+    <comment>Sam's tab slot: the server answered that Sam is not offered to this account. {0} is Sam's name.</comment>
+  </data>
   <data name="NativeSam_SlotOffline" xml:space="preserve">
     <value>You are offline. {0} needs a connection.</value>
     <comment>Sam's tab slot: the device is offline. {0} is Sam's name.</comment>

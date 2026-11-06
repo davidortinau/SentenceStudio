@@ -9262,6 +9262,10 @@
     <value>{0} 사용 가능 여부를 확인하는 중...</value>
     <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>
   </data>
+  <data name="NativeSam_SlotNotOffered" xml:space="preserve">
+    <value>현재 이 계정에서는 {0} 기능을 사용할 수 없습니다.</value>
+    <comment>Sam's tab slot: the server answered that Sam is not offered to this account. {0} is Sam's name.</comment>
+  </data>
   <data name="NativeSam_SlotOffline" xml:space="preserve">
     <value>오프라인 상태입니다. {0} 기능은 인터넷 연결이 필요합니다.</value>
     <comment>Sam's tab slot: the device is offline. {0} is Sam's name.</comment>

@@ -229,18 +229,20 @@ internal sealed partial class ApplicationScene
                 ApplicationFormRoutes.MinimalPairs,
                 _app.PresentLibraryPairsOver(page).WithTabBarHidden(false)));
         }
-        else if (appearanceChanged || _renderedPairsVersion != _app.LibraryPairsVersion
-            || !ReferenceEquals(_renderedPairsStyle, _style)
-            || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5)
+        else
         {
-            // Only a changed screen state re-renders the list; the same shape swaps its
-            // content in place, so the scroll position stays.
-            var next = _app.RenderLibraryPairs(_style);
-            if (appearanceChanged || !ReferenceEquals(_renderedPairsStyle, _style)
-                || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5
-                || !TryReplaceScrollContent(_pairsSlot, next))
-                Replace(_pairsSlot, next);
-            RecordPairs();
+            // Only a changed list re-renders the list page (not the create page or the
+            // session above it); the same shape swaps its content in place, so the scroll
+            // position stays. A new appearance, style or width re-renders it whole.
+            var reshaped = appearanceChanged || !ReferenceEquals(_renderedPairsStyle, _style)
+                || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5;
+            if (reshaped || _renderedPairsVersion != _app.LibraryPairsVersion)
+            {
+                var next = _app.RenderLibraryPairs(_style);
+                if (reshaped || !TryReplaceScrollContent(_pairsSlot, next))
+                    Replace(_pairsSlot, next);
+                RecordPairs();
+            }
         }
 
         if (_app.LibraryPairsHasChildPage)
@@ -260,7 +262,7 @@ internal sealed partial class ApplicationScene
             }
             else if (_pairsChildSlot is not null)
             {
-                if (appearanceChanged || _renderedPairsChildVersion != _app.LibraryPairsVersion
+                if (appearanceChanged || _renderedPairsChildVersion != _app.LibraryPairsChildVersion
                     || !ReferenceEquals(_renderedPairsChildStyle, _style)
                     || Math.Abs(_renderedPairsChildWidth - _style.ViewportWidth) >= 0.5)
                 {
@@ -296,7 +298,7 @@ internal sealed partial class ApplicationScene
 
     private void RecordPairsChild()
     {
-        _renderedPairsChildVersion = _app.LibraryPairsVersion;
+        _renderedPairsChildVersion = _app.LibraryPairsChildVersion;
         _renderedPairsChildStyle = _style;
         _renderedPairsChildWidth = _style.ViewportWidth;
     }

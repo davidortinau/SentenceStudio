@@ -72,6 +72,15 @@ internal interface IActivityScreen : IDisposable
     /// </summary>
     long ChildVersion => 0;
 
+    /// <summary>
+    /// Changes when the activity page itself shows something new; a host that keeps the
+    /// page mounted re-renders it only then. Defaults to <see cref="ChildVersion"/>.
+    /// </summary>
+    long PageVersion => ChildVersion;
+
+    /// <summary>The host's OpenAsync call failed outside the screen: show the screen's own error.</summary>
+    void OnOpenFailed() { }
+
     SwiftView RenderChild(SourceUiStyle style) => Microsoft.SwiftUI.SwiftUI.VStack();
 
     /// <summary>The NavigationStack popped the child page (system Back or swipe).</summary>

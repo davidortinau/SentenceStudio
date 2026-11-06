@@ -44,30 +44,65 @@ public sealed class NativeSamPresenterTests
         var sam = Create(fixture, api);
         Assert.Equal(NativeSamAvailability.Unknown, sam.State.Availability);
 
-        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Offered, await sam.RefreshAvailabilityAsync());
         Assert.Equal(NativeSamAvailability.Offered, sam.State.Availability);
         Assert.True(sam.State.IsVisible);
+        Assert.Null(NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.Offered));
 
         api.Availability = new CoachAvailabilityResponse
         {
             IsAvailable = false, State = CoachAvailabilityState.Disabled
         };
-        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.NotOffered, await sam.RefreshAvailabilityAsync());
         Assert.Equal(NativeSamAvailability.NotOffered, sam.State.Availability);
         Assert.False(sam.State.IsVisible);
+        Assert.Equal(NativeSamAvailabilityText.NotOffered,
+            NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.NotOffered));
 
         api.Overrides[nameof(ICoachApiClient.GetAvailabilityAsync)] = _ =>
             Task.FromException<CoachAvailabilityResponse>(new HttpRequestException("down"));
-        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Unreachable, await sam.RefreshAvailabilityAsync());
         Assert.Equal(NativeSamAvailability.Unreachable, sam.State.Availability);
         Assert.False(sam.State.IsVisible);
+        Assert.Equal(NativeSamAvailabilityText.Unreachable,
+            NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.Unreachable));
+        // A read that established nothing is never shown as "not offered".
+        Assert.Equal(NativeSamAvailabilityText.Unreachable,
+            NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.Unknown));
 
         sam.ClearForAccountBoundary();
         Assert.Equal(NativeSamAvailability.Unknown, sam.State.Availability);
         fixture.SetConnectivity(false);
-        await sam.RefreshAvailabilityAsync();
+        Assert.Equal(NativeSamAvailability.Offline, await sam.RefreshAvailabilityAsync());
         Assert.Equal(NativeSamAvailability.Offline, sam.State.Availability);
         Assert.False(sam.State.IsVisible);
+        Assert.Equal(NativeSamAvailabilityText.Offline,
+            NativeSamAvailabilityText.NoticeKey(NativeSamAvailability.Offline));
+    }
+
+    [Fact]
+    public void SamNoticeTextKeysExistInEnglishAndKorean()
+    {
+        DirectoryInfo? repository = new(AppContext.BaseDirectory);
+        while (repository is not null
+            && !Directory.Exists(Path.Combine(repository.FullName, "src", "SentenceStudio.Shared")))
+            repository = repository.Parent;
+        Assert.NotNull(repository);
+        var root = Path.Combine(repository!.FullName, "src", "SentenceStudio.Shared",
+            "Resources", "Strings");
+        foreach (var file in new[] { "AppResources.resx", "AppResources.ko.resx" })
+        {
+            var strings = System.Xml.Linq.XDocument.Load(Path.Combine(root, file));
+            foreach (var key in new[] { NativeSamAvailabilityText.Checking,
+                NativeSamAvailabilityText.NotOffered, NativeSamAvailabilityText.Offline,
+                NativeSamAvailabilityText.Unreachable })
+            {
+                var value = strings.Root!.Elements("data")
+                    .Single(data => (string?)data.Attribute("name") == key)
+                    .Element("value")!.Value;
+                Assert.Contains("{0}", value);
+            }
+        }
     }
 
     [Fact]

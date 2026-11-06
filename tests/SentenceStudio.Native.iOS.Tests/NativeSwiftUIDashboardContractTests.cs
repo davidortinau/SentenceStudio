@@ -25,11 +25,15 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains(".WithTabHidden(!_app.IsSamSlotShown)", scene);
         Assert.Contains("_app.SamSlotNoticeText, string.Empty,", scene);
         var libraryController = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationController.Library.cs"));
-        Assert.Contains("await sam.RefreshAvailabilityAsync(_lifetime.Token);", libraryController);
-        Assert.Contains("sam.State.Availability == NativeSamAvailability.NotOffered", libraryController);
-        foreach (var key in new[] { "NativeSam_SlotChecking", "NativeSam_SlotOffline",
-            "NativeSam_SlotUnreachable", "Coach_SettingsUnavailable" })
-            Assert.Contains($"\"{key}\"", libraryController);
+        // Only this read's answer decides; the shared mapping gives the persona-aware text.
+        Assert.Contains("answer = await sam.RefreshAvailabilityAsync(limit.Token);", libraryController);
+        Assert.Contains("NativeSamAvailabilityText.NoticeKey(answer)", libraryController);
+        Assert.Contains("SamSlotText(NativeSamAvailabilityText.Checking)", libraryController);
+        // Checking is the busy overlay (not a presentation); the alert presents once, with the answer.
+        Assert.Contains("_starterOverlay.IsPresented = _app.IsBlockingOverlayPresented;", scene);
+        var samScene = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationScene.Sam.cs"));
+        Assert.Contains("notice.Text = _app.SamSlotNoticeText;", samScene);
+        Assert.DoesNotContain("DispatchAfter", samScene);
         Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
         foreach (var id in new[] { "native.tab.study", "native.tab.library", "native.tab.settings", "native.tab.sam" })
             Assert.Contains($"\"{id}\"", scene);

@@ -181,8 +181,8 @@ internal sealed partial class ApplicationScene : IDisposable
             _tabs.IsEnabled = !_app.NavigationBlocked;
         if (_starterOverlay is not null)
         {
-            _starterOverlay.Text = _app.StarterBusyTitle;
-            _starterOverlay.IsPresented = _app.IsStarterBusy;
+            _starterOverlay.Text = _app.BlockingOverlayTitle;
+            _starterOverlay.IsPresented = _app.IsBlockingOverlayPresented;
         }
         if (_dashboardStack is not null)
             _dashboardStack.CanNavigateBack =
@@ -279,16 +279,17 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
             .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
-        // The slot's notice: checking, not offered, offline or not reachable (its title).
+        // The slot's answer when it cannot open Sam: not offered, offline or not reachable
+        // (its title). It presents once, with the answer; checking is the busy overlay.
         _samUnavailableNotice = Views.Alert(WrapWithSam(_tabs),
                 _app.SamSlotNoticeText, string.Empty,
                 Views.Button(localize("Common_Close"), _app.DismissSamUnavailableNotice)
                     .WithAccessibilityIdentifier("native.tab.sam.unavailable.close"))
             .WithAccessibilityIdentifier("native.tab.sam.unavailable");
         _starterOverlay = Views.StarterBlockingOverlay(
-                _samUnavailableNotice, _app.StarterBusyTitle)
+                _samUnavailableNotice, _app.BlockingOverlayTitle)
             .WithAccessibilityIdentifier("native.starter.blocking-overlay");
-        _starterOverlay.IsPresented = _app.IsStarterBusy;
+        _starterOverlay.IsPresented = _app.IsBlockingOverlayPresented;
         Install(_starterOverlay, RootKind.Tabs);
     }
 
@@ -1100,6 +1101,7 @@ internal sealed partial class ApplicationScene : IDisposable
             DropPairsReferences();
             _settingsStack = null;
             _samTab = null;
+            _renderedSamTabPersona = null;
             _samUnavailableNotice = null;
             _settingsSlot = null;
             _renderedSettingsVersion = -1;

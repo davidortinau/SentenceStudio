@@ -33,19 +33,6 @@ internal enum LibrarySection
     Pairs
 }
 
-/// <summary>What Sam's slot is saying instead of opening Sam.</summary>
-internal enum SamSlotNotice
-{
-    None,
-    /// <summary>The tap is reading availability again.</summary>
-    Checking,
-    /// <summary>The server answered that Sam is not offered to this owner.</summary>
-    NotOffered,
-    Offline,
-    /// <summary>The availability read failed while the device was online.</summary>
-    Unreachable
-}
-
 /// <summary>
 /// Tab selection, the Library list (each row pushes a page on the Library stack, the
 /// Apple Music Library pattern), the Settings tab, Sam's tab slot, and the Minimal Pairs
@@ -55,7 +42,6 @@ internal sealed partial class ApplicationController
 {
     private (string Name, string NativeLanguage, string TargetLanguage)? _profileSummary;
     private bool _libraryResourcesOpen;
-    private bool _resourcesListReadByTab;
     private long _libraryResetVersion;
     private string? _libraryErrorKey;
     /// <summary>Counts the Settings coordinators opened, so a retried one always re-renders.</summary>
@@ -74,17 +60,12 @@ internal sealed partial class ApplicationController
         }
         _selectedTab = index is NativeTabs.Library or NativeTabs.Settings
             ? index : NativeTabs.Study;
-        _resourcesListReadByTab = false;
         if (_selectedTab == NativeTabs.Library)
         {
-            // The first visit reads the owner's resources once, for the Resources row's
-            // count; the Resources page reads them again when it opens.
+            // The owner's resources (the Resources row's count, and the Resources page when
+            // it is open) are read when never read, after a failed read, or when stale.
             EnsureResources();
-            if (_resources is { ListState.Phase: NativeResourceListPhase.Idle } resources)
-            {
-                _resourcesListReadByTab = true;
-                resources.OnBrowserAppeared();
-            }
+            ReadResourcesIfStale();
         }
         else if (_selectedTab == NativeTabs.Settings)
             OpenSettings();
@@ -100,15 +81,11 @@ internal sealed partial class ApplicationController
     internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
         || IsSkillsOpen || _libraryPairs is not null;
 
-    /// <summary>An editor or second page is open in the Library (its root is not on screen).</summary>
-    internal bool HasLibraryRoute => IsResourcesFormOpen || IsVocabularyWordOpen
-        || IsRecentLookupsOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
-
     /// <summary>
     /// An editor is open in the Library: Save or Cancel decides how it closes, so nothing
     /// from another tab replaces it. A smart resource being read is not an editor.
     /// </summary>
-    internal bool HasLibraryEditor => IsResourcesFormOpen && !IsResourceFormReadOnly
+    internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
         || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
@@ -132,10 +109,8 @@ internal sealed partial class ApplicationController
                 if (_resources is null)
                     return;
                 _libraryResourcesOpen = true;
-                // A list this Library visit has just read is not read twice.
-                if (!_resourcesListReadByTab)
-                    _resources.OnBrowserAppeared();
-                _resourcesListReadByTab = false;
+                // A list read a moment ago (the Library tab's own read) is not read twice.
+                ReadResourcesIfStale();
                 Publish();
                 break;
             case LibrarySection.Vocabulary:
@@ -169,8 +144,26 @@ internal sealed partial class ApplicationController
             && !state.Items.IsDefault
         ? state.Items.Length : null;
 
+    /// <summary>A resource list read younger than this is not read again when the Library shows it.</summary>
+    private static readonly TimeSpan ResourcesListFreshFor = TimeSpan.FromMinutes(1);
+
     /// <summary>
-    /// A Library row's open failed: Study's plan is untouched (Run's Dashboard handling is
+    /// Reads the owner's resources unless a read is running or the last one succeeded
+    /// recently: never read, a failed or refused read, a read older than a minute, or one
+    /// marked stale by a sync or a Study change is read again.
+    /// </summary>
+    private void ReadResourcesIfStale()
+    {
+        if (_resources is not { IsListLoading: false } resources)
+            return;
+        if (resources.ListState.Phase is NativeResourceListPhase.Idle
+                or NativeResourceListPhase.LoadError or NativeResourceListPhase.Blocked
+            || resources.ListAge is not { } age || age > ResourcesListFreshFor)
+            resources.OnBrowserAppeared();
+    }
+
+    /// <summary>
+    /// A Library row's action failed: Study's plan is untouched (Run's Dashboard handling is
     /// for Study actions) and the Library list says so.
     /// </summary>
     private void OnLibraryActionFailed() =>
@@ -183,20 +176,16 @@ internal sealed partial class ApplicationController
     private void ShowLibraryEditor()
     {
         _selectedTab = NativeTabs.Library;
-        _resourcesListReadByTab = false;
         Publish();
     }
 
     /// <summary>
-    /// Closes the pages a learner was browsing in the Library (none of them holds unsaved
-    /// work) so a Study entry can open the Resources page from the list.
+    /// Closes the browse pages above the Library list (none of them holds unsaved work) so
+    /// a Study entry can open the Resources page from the list. The caller has closed any
+    /// resource detail and sets the Resources page itself.
     /// </summary>
     private void ResetLibraryToList()
     {
-        if (IsResourcesFormOpen)
-            _resources!.OnFormPopped();
-        _resourceFormFromDashboard = false;
-        _libraryResourcesOpen = false;
         if (IsRecentLookupsOpen)
             _recentLookups?.Close();
         if (IsVocabularyOpen)
@@ -300,12 +289,17 @@ internal sealed partial class ApplicationController
 
     // ---- Sam's tab slot ----
 
-    private SamSlotNotice _samSlotNotice;
     private int _samSlotCheck;
+    private bool _samSlotChecking;
     private bool _samSlotCheckingShown;
+    private string _samSlotCheckingText = string.Empty;
+    private string? _samSlotNoticeText;
 
     /// <summary>A check that answers within this time shows its answer without a "checking" step.</summary>
     private static readonly TimeSpan SamSlotCheckingDelay = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>The longest the slot's availability read may hold the screen.</summary>
+    private static readonly TimeSpan SamSlotCheckLimit = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Sam's slot is shown to every signed-in owner (Captain's request for the trial,
@@ -314,41 +308,29 @@ internal sealed partial class ApplicationController
     internal bool IsSamSlotShown => IsSamShellDestination(_destination) && !_preview;
 
     /// <summary>
-    /// The slot's notice is up: not offered, offline, or not reachable, or "checking" once
-    /// the check has taken longer than a moment.
+    /// The slot's brief loading state: the busy overlay (a SwiftUI overlay, not a
+    /// presentation), shown once the check has taken longer than a moment. Sam's sheet
+    /// or the answer alert can present in the same update that hides it.
     /// </summary>
-    internal bool IsSamUnavailableNoticePresented => _samSlotNotice switch
-    {
-        SamSlotNotice.None => false,
-        SamSlotNotice.Checking => _samSlotCheckingShown,
-        _ => true
-    };
+    internal bool IsSamSlotCheckingShown => _samSlotChecking && _samSlotCheckingShown;
 
-    internal string SamSlotNoticeText
-    {
-        get
-        {
-            var key = _samSlotNotice switch
-            {
-                SamSlotNotice.Checking => "NativeSam_SlotChecking",
-                SamSlotNotice.Offline => "NativeSam_SlotOffline",
-                SamSlotNotice.Unreachable => "NativeSam_SlotUnreachable",
-                _ => "Coach_SettingsUnavailable"
-            };
-            var text = Text(key);
-            return key.StartsWith("NativeSam_", StringComparison.Ordinal)
-                ? string.Format(System.Globalization.CultureInfo.CurrentCulture, text,
-                    SamView.Persona(SamState))
-                : text;
-        }
-    }
+    /// <summary>The busy overlay over the tab shell: starter creation, or Sam's slot checking.</summary>
+    internal bool IsBlockingOverlayPresented => IsStarterBusy || IsSamSlotCheckingShown;
+
+    internal string BlockingOverlayTitle => !IsStarterBusy && IsSamSlotCheckingShown
+        ? _samSlotCheckingText : StarterBusyTitle;
+
+    /// <summary>The answer alert is up: not offered, offline, or not reachable.</summary>
+    internal bool IsSamUnavailableNoticePresented => _samSlotNoticeText is not null;
+
+    /// <summary>The answer, formatted once when the check finished.</summary>
+    internal string SamSlotNoticeText => _samSlotNoticeText ?? string.Empty;
 
     internal void DismissSamUnavailableNotice()
     {
-        if (_samSlotNotice == SamSlotNotice.None)
+        if (_samSlotNoticeText is null)
             return;
-        _samSlotNotice = SamSlotNotice.None;
-        _samSlotCheckingShown = false;
+        _samSlotNoticeText = null;
         Publish();
     }
 
@@ -365,11 +347,13 @@ internal sealed partial class ApplicationController
             OpenSamPanelFromTab();
             return;
         }
-        if (!IsSamSlotShown || EnsureSam() is not { } sam)
+        if (!IsSamSlotShown || _samSlotChecking || EnsureSam() is not { } sam)
             return;
         var check = ++_samSlotCheck;
-        _samSlotNotice = SamSlotNotice.Checking;
+        _samSlotChecking = true;
         _samSlotCheckingShown = false;
+        _samSlotNoticeText = null;
+        _samSlotCheckingText = SamSlotText(NativeSamAvailabilityText.Checking);
         _ = ShowSamSlotCheckingAsync(check);
         _ = CheckSamForSlotAsync(sam, check);
     }
@@ -385,7 +369,7 @@ internal sealed partial class ApplicationController
         {
             return;
         }
-        if (_disposed || check != _samSlotCheck || _samSlotNotice != SamSlotNotice.Checking)
+        if (_disposed || check != _samSlotCheck || !_samSlotChecking)
             return;
         _samSlotCheckingShown = true;
         Publish();
@@ -401,15 +385,20 @@ internal sealed partial class ApplicationController
         RunSam(sam => sam.OpenAsync(size, _lifetime.Token));
     }
 
+    /// <summary>Only this read's answer decides the text: a read that failed is "not reachable".</summary>
     private async Task CheckSamForSlotAsync(NativeSamPresenter sam, int check)
     {
-        var offline = _services?.Provider.GetService<IConnectivityService>()
-            is { IsInternetAvailable: false };
-        if (!offline)
+        NativeSamAvailability answer;
+        if (_services?.Provider.GetService<IConnectivityService>() is { IsInternetAvailable: false })
+            answer = NativeSamAvailability.Offline;
+        else
         {
+            answer = NativeSamAvailability.Unreachable;
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            limit.CancelAfter(SamSlotCheckLimit);
             try
             {
-                await sam.RefreshAvailabilityAsync(_lifetime.Token);
+                answer = await sam.RefreshAvailabilityAsync(limit.Token);
             }
             catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
             {
@@ -420,29 +409,30 @@ internal sealed partial class ApplicationController
                 _logger?.LogWarning(ex, "Sam's slot could not read availability.");
             }
         }
-        // Closed (or tapped again) while checking: nothing more to say.
-        if (_disposed || check != _samSlotCheck || _samSlotNotice != SamSlotNotice.Checking)
+        if (_disposed || check != _samSlotCheck)
             return;
+        _samSlotChecking = false;
+        _samSlotCheckingShown = false;
         if (IsSamAvailable)
-        {
-            _samSlotNotice = SamSlotNotice.None;
             OpenSamPanelFromTab();
-        }
         else
-            _samSlotNotice = offline || sam.State.Availability == NativeSamAvailability.Offline
-                ? SamSlotNotice.Offline
-                : sam.State.Availability == NativeSamAvailability.NotOffered
-                    ? SamSlotNotice.NotOffered : SamSlotNotice.Unreachable;
-        _logger?.LogInformation("Sam's slot read availability {Availability}: {Notice}.",
-            sam.State.Availability, _samSlotNotice);
+            _samSlotNoticeText = SamSlotText(NativeSamAvailabilityText.NoticeKey(answer)
+                ?? NativeSamAvailabilityText.Unreachable);
+        _logger?.LogInformation("Sam's slot read availability: {Availability}.", answer);
         Publish();
     }
 
+    /// <summary>A slot text with Sam's persona name (the same name as his panel).</summary>
+    private string SamSlotText(string key) =>
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, Text(key),
+            SamView.Persona(SamState));
+
     private void ResetSamSlot()
     {
-        _samSlotNotice = SamSlotNotice.None;
-        _samSlotCheckingShown = false;
         _samSlotCheck++;
+        _samSlotChecking = false;
+        _samSlotCheckingShown = false;
+        _samSlotNoticeText = null;
     }
 
     // ---- Minimal Pairs in the Library ----
@@ -459,8 +449,11 @@ internal sealed partial class ApplicationController
 
     internal string LibraryPairsChildTitle => _libraryPairs?.ChildTitle ?? string.Empty;
 
-    /// <summary>Changes with every state the Minimal Pairs screen applies (its list and its child page).</summary>
-    internal long LibraryPairsVersion => _libraryPairs?.ChildVersion ?? 0;
+    /// <summary>Changes when what the Minimal Pairs list page shows changes.</summary>
+    internal long LibraryPairsVersion => _libraryPairs?.PageVersion ?? 0;
+
+    /// <summary>Changes when the create page or the listening session changes.</summary>
+    internal long LibraryPairsChildVersion => _libraryPairs?.ChildVersion ?? 0;
 
     internal SwiftView RenderLibraryPairs(SourceUiStyle style) =>
         _libraryPairs?.Render(style) ?? Views.Text(Text("Common_Loading"));
@@ -565,6 +558,9 @@ internal sealed partial class ApplicationController
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS Minimal Pairs open failed.");
+            // Instead of an endless spinner: the list's error with its Go Back.
+            if (ReferenceEquals(_libraryPairs, screen) && !_disposed)
+                screen.OnOpenFailed();
         }
         if (ReferenceEquals(_libraryPairs, screen) && !_disposed)
             Publish();

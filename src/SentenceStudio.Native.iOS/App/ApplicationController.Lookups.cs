@@ -39,16 +39,16 @@ internal sealed partial class ApplicationController
             provider.GetRequiredService<ILogger<RecentLookupsCoordinator>>());
         _recentLookups.Changed -= Publish;
         _recentLookups.Changed += Publish;
-        Run(async () => await _recentLookups.OpenAsync(owner, _lifetime.Token));
+        RunLibrary(async () => await _recentLookups.OpenAsync(owner, _lifetime.Token));
     }
 
     internal SwiftView RenderRecentLookups(SourceUiStyle style) =>
         _recentLookups is { IsOpen: true } lookups
             ? RecentLookupsView.Page(lookups.State, style, Text,
                 new RecentLookupsActions(
-                    Reload: () => Run(() => lookups.ReloadAsync(_lifetime.Token)),
+                    Reload: () => RunLibrary(() => lookups.ReloadAsync(_lifetime.Token)),
                     Add: (lookupId, resourceId) =>
-                        Run(() => lookups.AddAsync(lookupId, resourceId, _lifetime.Token)),
+                        RunLibrary(() => lookups.AddAsync(lookupId, resourceId, _lifetime.Token)),
                     DismissNotice: lookups.DismissNotice))
             : Views.Text(Text("Common_Loading"));
 

@@ -72,14 +72,16 @@ public sealed partial class NativeSamPresenter(
     /// Reads availability for the current owner. Only <c>IsSamOverlayAvailable</c>
     /// shows the entry (source CoachSurfaceGate). A failed read hides Sam, except
     /// that an owner already known to have Sam keeps the entry while offline so
-    /// the panel can say so honestly.
+    /// the panel can say so honestly. Returns what this read established
+    /// (<see cref="NativeSamAvailability.Unknown"/> when it established nothing).
     /// </summary>
-    public async Task RefreshAvailabilityAsync(CancellationToken cancellationToken = default)
+    public async Task<NativeSamAvailability> RefreshAvailabilityAsync(
+        CancellationToken cancellationToken = default)
     {
         if (!TryOwner(out var owner) || !client.IsConfigured)
         {
             Reset(null);
-            return;
+            return NativeSamAvailability.Unknown;
         }
         if (!connectivity.IsInternetAvailable)
         {
@@ -87,7 +89,7 @@ public sealed partial class NativeSamPresenter(
                 Publish(_state with { IsVisible = false, Availability = NativeSamAvailability.Offline });
             else if (_state.IsOpen)
                 Publish(_state with { Status = NativeSamStatus.Offline });
-            return;
+            return NativeSamAvailability.Offline;
         }
 
         try
@@ -95,16 +97,17 @@ public sealed partial class NativeSamPresenter(
             var availability = await client.CallAsync(owner,
                 (api, token) => api.GetAvailabilityAsync(token), cancellationToken);
             if (!IsCurrent(owner))
-                return;
+                return NativeSamAvailability.Unknown;
             _availability = availability;
             var persona = await ResolvePersonaCultureAsync(owner, cancellationToken);
             if (!IsCurrent(owner))
-                return;
+                return NativeSamAvailability.Unknown;
             var visible = availability.IsSamOverlayAvailable;
+            var answer = visible ? NativeSamAvailability.Offered : NativeSamAvailability.NotOffered;
             Publish(_state with
             {
                 IsVisible = visible,
-                Availability = visible ? NativeSamAvailability.Offered : NativeSamAvailability.NotOffered,
+                Availability = answer,
                 IsDurableHistoryAvailable = availability.IsDurableHistoryAvailable,
                 SamWriteAvailable = availability.IsSamWriteAvailable,
                 Settings = _state.SafeSettings with { IsAvailable = availability.IsAvailable },
@@ -115,6 +118,7 @@ public sealed partial class NativeSamPresenter(
                     : availability.State == CoachAvailabilityState.LimitReached
                         && _state.IsOpen ? NativeSamStatus.Limited : _state.Status,
             });
+            return answer;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -125,7 +129,7 @@ public sealed partial class NativeSamPresenter(
         {
             logger.LogWarning(ex, "Sam availability could not be read; Sam stays hidden.");
             if (!IsCurrent(owner))
-                return;
+                return NativeSamAvailability.Unknown;
             _availability = null;
             Publish(_state with
             {
@@ -134,6 +138,7 @@ public sealed partial class NativeSamPresenter(
                 SamWriteAvailable = false,
                 Settings = _state.SafeSettings with { IsAvailable = false },
             });
+            return NativeSamAvailability.Unreachable;
         }
     }
 

@@ -230,6 +230,7 @@ internal sealed partial class ApplicationController
         finally
         {
             _dashboardRefreshing = false;
+            _resources?.MarkListStale();
             Publish();
         }
     }
@@ -266,9 +267,23 @@ internal sealed partial class ApplicationController
                 return;
             }
             _sam?.Close();
+            CloseResourceOpenedFromStudy();
             _selectedTab = NativeTabs.Study;
             await StartQuizAsync(launch);
         });
+    }
+
+    /// <summary>
+    /// A resource detail Study opened (Back returns to Study) closes when Study starts Sam's
+    /// review quiz: it would otherwise stay in the Library and its Back would jump to Study.
+    /// A smart resource is only read, so nothing unsaved is lost.
+    /// </summary>
+    private void CloseResourceOpenedFromStudy()
+    {
+        if (!IsResourceFormFromStudy || !IsResourceFormReadOnly)
+            return;
+        _resources!.OnFormPopped();
+        _resourceFormFromDashboard = false;
     }
 
     // The floating Sam button on the Dashboard and Resources roots is replaced by Sam's

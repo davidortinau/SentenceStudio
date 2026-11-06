@@ -124,6 +124,31 @@ public enum NativeSamAvailability
     Unreachable
 }
 
+/// <summary>
+/// What an entry to Sam says when it cannot open him, by the availability read it just
+/// made (the iOS tab slot today; the Android entry can use the same keys). Each text
+/// takes Sam's persona name as <c>{0}</c>.
+/// </summary>
+public static class NativeSamAvailabilityText
+{
+    public const string Checking = "NativeSam_SlotChecking";
+    public const string NotOffered = "NativeSam_SlotNotOffered";
+    public const string Offline = "NativeSam_SlotOffline";
+    public const string Unreachable = "NativeSam_SlotUnreachable";
+
+    /// <summary>
+    /// Null when Sam is offered (the entry opens him). Only the server's answer says
+    /// "not offered"; an unknown read reads as "could not be reached".
+    /// </summary>
+    public static string? NoticeKey(NativeSamAvailability availability) => availability switch
+    {
+        NativeSamAvailability.Offered => null,
+        NativeSamAvailability.NotOffered => NotOffered,
+        NativeSamAvailability.Offline => Offline,
+        _ => Unreachable
+    };
+}
+
 /// <summary>Source CoachMemoryAvailability: the panel disappears unless the route group answers.</summary>
 public enum NativeSamMemoryAvailability { Unknown, Available, Unavailable }
 

@@ -52,6 +52,7 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private bool _formOpen;
     private bool _creating;
     private bool _loadingList;
+    private long? _listReadAt;
     private bool _generating;
     private bool _importing;
     private bool _quickAdding;
@@ -317,6 +318,18 @@ internal sealed class LearningResourcesCoordinator : IDisposable
 
     internal void OnBrowserAppeared() => Run(LoadListAsync);
 
+    /// <summary>A list read is running.</summary>
+    internal bool IsListLoading => _loadingList;
+
+    /// <summary>
+    /// How long ago the list was last read successfully; null when it never was, or when
+    /// something that changes the owner's resources (a sync) marked it stale.
+    /// </summary>
+    internal TimeSpan? ListAge => _listReadAt is { } readAt
+        ? TimeSpan.FromMilliseconds(Environment.TickCount64 - readAt) : null;
+
+    internal void MarkListStale() => _listReadAt = null;
+
     /// <summary>Opens an owned resource detail from outside the browser (Dashboard insight links).</summary>
     internal void Open(string id)
     {
@@ -384,6 +397,9 @@ internal sealed class LearningResourcesCoordinator : IDisposable
             var load = _presenter.LoadListAsync(_lifetime.Token);
             Publish(formChanged: false);
             await load;
+            _listReadAt = _presenter.List.Phase is NativeResourceListPhase.Populated
+                or NativeResourceListPhase.Empty or NativeResourceListPhase.NoMatches
+                ? Environment.TickCount64 : null;
             Publish(formChanged: false);
         }
         finally
