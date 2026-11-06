@@ -22,10 +22,9 @@ internal sealed partial class ApplicationController
     private CancellationTokenSource? _quizAutoPlayCancellation;
     private string? _quizAutoPlayTurnId;
     private string? _quizPromptShownTurnId;
-    // The quiz is pushed with its loading state while the presenter opens the run; Back then
-    // cancels the open, so a run left before its first turn creates nothing.
+    // The quiz is pushed with its loading state while the presenter opens the run. Back is
+    // allowed then; the open finishes and the queued pop suspends or leaves the run.
     private bool _quizOpening;
-    private CancellationTokenSource? _quizOpenCancellation;
     // The typed answer belongs to one turn. Every path that reaches a new
     // Ready turn (manual Next, auto-advance, resume, retry, continue round)
     // must start with an empty field and a disabled Submit.
@@ -317,15 +316,16 @@ internal sealed partial class ApplicationController
         try
         {
             var state = await quiz.PlayAutoPromptAsync(turnId, cancellation.Token);
-            // Applied only while it is still the presenter's latest state and new to the head;
-            // an action that ran meanwhile publishes its own result.
-            if (_disposed || cancellation.IsCancellationRequested
+            // Applied only when it is the presenter's latest state, no action is in flight
+            // (that action publishes its own result, and SelectChoice's highlight is kept), and
+            // the quiz is not showing a failure the presenter does not know about.
+            if (_disposed || cancellation.IsCancellationRequested || _busy
                 || !ReferenceEquals(_quiz, quiz) || !IsQuizOpen || _nativePopPending
                 || !ReferenceEquals(quiz.State, state) || ReferenceEquals(_quizState, state)
-                || state.TurnId != turnId)
+                || state.TurnId != turnId || ShowsHeadOnlyFailure(quiz))
                 return;
             _quizState = state;
-            Publish();
+            PublishAfterAutoPlay();
         }
         catch (OperationCanceledException) when (
             cancellation.IsCancellationRequested || _disposed || !ReferenceEquals(_quiz, quiz))
@@ -335,11 +335,11 @@ internal sealed partial class ApplicationController
         {
             _logger?.LogError(ex, "Native iOS quiz prompt autoplay failed.");
             // Shown like any other failure on the quiz: the learner can still press Play.
-            if (!_disposed && ReferenceEquals(_quiz, quiz) && IsQuizOpen
-                && quiz.State.TurnId == turnId)
+            if (!_disposed && !_busy && ReferenceEquals(_quiz, quiz) && IsQuizOpen
+                && quiz.State.TurnId == turnId && !ShowsHeadOnlyFailure(quiz))
             {
                 _quizState = quiz.State with { ErrorKey = NativeText.UnexpectedError };
-                Publish();
+                PublishAfterAutoPlay();
             }
         }
         finally
@@ -352,6 +352,23 @@ internal sealed partial class ApplicationController
         }
     }
 
+    /// <summary>The quiz shows an error the presenter's state does not have (RunSafelyAsync).</summary>
+    private bool ShowsHeadOnlyFailure(NativeQuizPresenter quiz) =>
+        _quizState.Phase == NativePhase.Error && quiz.State.Phase != NativePhase.Error;
+
+    /// <summary>A render failure after autoplay is logged as one, never as an autoplay failure.</summary>
+    private void PublishAfterAutoPlay()
+    {
+        try
+        {
+            Publish();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS render after quiz autoplay failed.");
+        }
+    }
+
     private void CancelQuizAutoPlay()
     {
         var current = Interlocked.Exchange(ref _quizAutoPlayCancellation, null);
@@ -359,17 +376,6 @@ internal sealed partial class ApplicationController
         try
         {
             current?.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-    }
-
-    private void CancelQuizOpen()
-    {
-        try
-        {
-            Volatile.Read(ref _quizOpenCancellation)?.Cancel();
         }
         catch (ObjectDisposedException)
         {
@@ -410,8 +416,6 @@ internal sealed partial class ApplicationController
             return;
         CancelAutoAdvance();
         CancelQuizAutoPlay();
-        if (_quizOpening)
-            CancelQuizOpen();
         _nativePopPending = true;
         if (!_busy)
             HandlePoppedQuiz();
@@ -627,27 +631,17 @@ internal sealed partial class ApplicationController
         // the presenter has it, instead of holding the Study tab disabled meanwhile.
         _quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
         _logger?.LogInformation("Native iOS quiz opening.");
-        using var opening = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _quizOpenCancellation = opening;
         _quizOpening = true;
         Publish();
         try
         {
-            // The run's database work stays off the main thread even when awaits resume there.
-            var quiz = _quiz;
-            _quizState = await Task.Run(
-                () => quiz.OpenAsync(launch, opening.Token), opening.Token);
-        }
-        catch (OperationCanceledException) when (
-            opening.IsCancellationRequested && !_disposed)
-        {
-            // Backed out during loading: the queued pop returns to Study (BackFromQuizAsync).
-            _quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
+            // Not cancelled by Back: an open stopped midway could leave an ad-hoc plan row with
+            // no run. A Back during loading is queued and suspends or leaves the opened run.
+            _quizState = await _quiz.OpenAsync(launch, _lifetime.Token);
         }
         finally
         {
             _quizOpening = false;
-            Interlocked.CompareExchange(ref _quizOpenCancellation, null, opening);
         }
         if (_quizState.Phase == NativePhase.Summary)
             _destination = NativeDestination.QuizSummary;
@@ -672,9 +666,8 @@ internal sealed partial class ApplicationController
             "Native iOS quiz Back invoked in {Phase} at turn {Turn}.",
             _quizState.Phase, _quizState.CurrentTurn);
         if (_quizState.CurrentTurn == 0
-            && (_quizState.Phase is (NativePhase.Empty
-                    or NativePhase.Error or NativePhase.Blocked)
-                || _quizState is { Phase: NativePhase.Loading, Sentence: null })
+            && _quizState.Phase is (NativePhase.Empty
+                or NativePhase.Error or NativePhase.Blocked)
             && _quizState.Destination != NativeDestination.QuizSummary)
         {
             await ReturnToDashboardAsync();

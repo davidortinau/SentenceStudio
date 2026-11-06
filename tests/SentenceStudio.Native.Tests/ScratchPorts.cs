@@ -135,9 +135,27 @@ internal sealed class ScratchQuizMedia : INativeQuizMedia
                 TaskCreationOptions.RunContinuationsAsynchronously);
             Volatile.Write(ref _pendingPlayback, completion);
             _playbackStarted.TrySetResult(true);
-            return completion.Task.WaitAsync(cancellationToken);
+            return StoppedAsHttpError
+                ? HeldPlaybackAsync(completion, cancellationToken)
+                : completion.Task.WaitAsync(cancellationToken);
         }
         return Task.FromResult(PlaySucceeds);
+    }
+
+    /// <summary>A stopped fetch reports an HTTP error instead of a cancellation.</summary>
+    public bool StoppedAsHttpError { get; set; }
+
+    private static async Task<bool> HeldPlaybackAsync(
+        TaskCompletionSource<bool> completion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await completion.Task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new HttpRequestException("Scratch fetch stopped.");
+        }
     }
 
     public Task<bool> CanShowPhotoAsync(string photoUri, CancellationToken cancellationToken) =>

@@ -362,9 +362,15 @@ public sealed class NativeHeadContractTests
         Assert.Contains("|| string.IsNullOrWhiteSpace(_answer)",
             File.ReadAllText(Path.Combine(
                 HeadPath, "App/ApplicationController.Quiz.cs")));
-        Assert.Contains("if (_busy || _quizState.Phase != NativePhase.Ready\n",
-            File.ReadAllText(Path.Combine(
-                HeadPath, "App/ApplicationController.Quiz.cs")));
+        var app = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationController.Quiz.cs"));
+        var selectStart = app.IndexOf("SelectChoice: value =>", StringComparison.Ordinal);
+        var selectEnd = app.IndexOf("PlayPrompt:", selectStart, StringComparison.Ordinal);
+        Assert.True(selectStart >= 0 && selectEnd > selectStart);
+        var selectChoice = System.Text.RegularExpressions.Regex.Replace(
+            app[selectStart..selectEnd], @"\s+", " ");
+        Assert.Contains(
+            "if (_busy || _quizState.Phase != NativePhase.Ready || !_quizState.CanSubmit) return;",
+            selectChoice);
     }
 
     [Fact]

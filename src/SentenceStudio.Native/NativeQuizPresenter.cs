@@ -476,7 +476,6 @@ public sealed partial class NativeQuizPresenter(
                     Phase = _sentenceResults.Length > 0 && receipt is null
                         ? NativePhase.Error : NativePhase.Ready,
                     Mode = "Sentence",
-                    AutoPlayPending = false,
                     Sentence = NativeQuizModality.RenderSentence(
                         _round[_turnIndex].Word, _profile!.TargetLanguage),
                     SentenceResults = _sentenceCreditApplied ? _sentenceResults : [],
@@ -713,7 +712,13 @@ public sealed partial class NativeQuizPresenter(
     private NativeQuizState SetState(NativeQuizState value)
     {
         _stateOwner = _launch?.UserId;
-        _state = value;
+        // Derived here, from the turn and the state shown, so no transition can leave it stale.
+        _state = value with
+        {
+            AutoPlayPending = AutoPlayEligible && value.TurnId == _turnId
+                && value.Overlay == NativeQuizOverlay.None && value.Sentence is null
+                && value.Phase is NativePhase.Ready or NativePhase.Feedback
+        };
         StateChanged?.Invoke(State);
         return State;
     }

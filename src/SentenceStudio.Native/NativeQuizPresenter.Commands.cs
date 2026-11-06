@@ -40,9 +40,11 @@ public sealed partial class NativeQuizPresenter
             logger.LogWarning("Quiz audio did not play.");
             return AudioOutcome.Failed;
         }
-        catch (OperationCanceledException) when (
-            !cancellationToken.IsCancellationRequested && playback.IsCancellationRequested)
+        catch (Exception ex) when (playback.IsCancellationRequested
+            && (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
+            // A stopped fetch may surface as an HTTP or IO error rather than a cancellation.
             return AudioOutcome.Stopped;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException
@@ -94,17 +96,27 @@ public sealed partial class NativeQuizPresenter
             || expectedTurnId is not null
                 && (_turnId != expectedTurnId || State.Phase != NativePhase.Feedback))
             return;
+        StopActiveAudio();
+    }
+
+    /// <summary>
+    /// Stops the autoplay and the clip that is playing on purpose, so either ends as Stopped
+    /// rather than as a failure. Next and every new turn call it while holding the gate, so an
+    /// autoplay request that took the gate first is stopped too.
+    /// </summary>
+    private void StopActiveAudio()
+    {
         StopAutoPlay();
         var playback = Volatile.Read(ref _activeAudio);
-        if (playback is null)
-            return;
-        try
+        if (playback is not null)
         {
-            playback.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            return;
+            try
+            {
+                playback.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
         media.StopPlayback();
     }
@@ -175,7 +187,7 @@ public sealed partial class NativeQuizPresenter
             (text, language) = PromptAudio();
             stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             Volatile.Write(ref _autoPlayStop, stop);
-            SetState(State with { AutoPlayPending = false });
+            SetState(State);
         }
         finally
         {
@@ -213,20 +225,19 @@ public sealed partial class NativeQuizPresenter
                 _audioHeard = true;
             else if (outcome == AudioOutcome.Failed)
                 _audioAvailable = false;
-            // A stop on purpose changes nothing, and an answer, Next or the sentence shortcut
-            // that came while it played keeps its own screen.
-            if (outcome == AudioOutcome.Stopped || State.Phase != phase
-                || State.Sentence is not null)
+            // A stop on purpose changes nothing, the sentence shortcut keeps its screen, and a
+            // clip heard after the learner answered has nothing left to show. A failure is
+            // shown on the question or its feedback.
+            if (outcome == AudioOutcome.Stopped || State.Sentence is not null
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
+                || outcome == AudioOutcome.Heard && State.Phase != phase)
                 return State;
-            var next = QuestionState(phase == NativePhase.Feedback,
+            var next = QuestionState(State.Phase == NativePhase.Feedback,
                 outcome == AudioOutcome.Heard ? State.ErrorKey : NativeText.ConnectionError);
             // Learning Details or the photo viewer opened meanwhile stays open over the updated
             // question, but never over a turn that can no longer be shown.
             if (State.Overlay != NativeQuizOverlay.None && next.Phase != NativePhase.Blocked)
-                next = next with
-                {
-                    Overlay = State.Overlay, Details = State.Details, AutoPlayPending = false
-                };
+                next = next with { Overlay = State.Overlay, Details = State.Details };
             return SetState(next);
         }
         finally
@@ -424,8 +435,7 @@ public sealed partial class NativeQuizPresenter
             Math.Clamp(p?.QuizRecognitionDemonstrations ?? 0, 0, 3));
         return SetState(State with {
             Overlay = NativeQuizOverlay.LearningDetails,
-            Details = details,
-            AutoPlayPending = false
+            Details = details
         });
     }
 
@@ -440,7 +450,7 @@ public sealed partial class NativeQuizPresenter
         ResetSentenceHints(VocabQuizSentenceHintTransition.OpenFullscreen);
         return SetState(State with {
             Overlay = NativeQuizOverlay.FullscreenPhoto,
-            SentenceHintsExpanded = false, SentenceHints = [], AutoPlayPending = false
+            SentenceHintsExpanded = false, SentenceHints = []
         });
     }
 
@@ -448,12 +458,7 @@ public sealed partial class NativeQuizPresenter
     {
         if (State.Overlay == NativeQuizOverlay.None)
             return RefuseInvalidAction();
-        return SetState(State with
-        {
-            Overlay = NativeQuizOverlay.None, Details = null,
-            AutoPlayPending = AutoPlayEligible && State.Sentence is null
-                && State.Phase is NativePhase.Ready or NativePhase.Feedback
-        });
+        return SetState(State with { Overlay = NativeQuizOverlay.None, Details = null });
     }
 
     public async Task<NativeQuizState> AnswerAsync(
@@ -700,7 +705,6 @@ public sealed partial class NativeQuizPresenter
         StopAutoPlay();
         return SetState(State with {
             Mode = "Sentence",
-            AutoPlayPending = false,
             Sentence = NativeQuizModality.RenderSentence(
                 word, _profile!.TargetLanguage),
             CanSubmit = false,

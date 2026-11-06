@@ -276,4 +276,75 @@ public sealed class NativeQuizAutoPlayTests
         await quiz.PlayAutoPromptAsync(question.TurnId!);
         Assert.Single(fixture.Media.Played);
     }
+
+    [Fact]
+    public async Task AFetchStoppedByManualPlay_IsAStopEvenWhenItReportsAnHttpError()
+    {
+        // Audio-only prompt: marking audio unavailable here would block the turn.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.UseTextPrompt = false;
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.QuizPreferences.AutoPlayVocabAudio = true;
+        fixture.Media.AudioAvailable = true;
+        fixture.Media.HoldPlaybackCompletion = true;
+        fixture.Media.StoppedAsHttpError = true;
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+
+        var playing = quiz.PlayAutoPromptAsync(question.TurnId!);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.Media.HoldPlaybackCompletion = false;
+        var manual = await quiz.PlayPromptAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        await playing.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(NativePhase.Ready, quiz.State.Phase);
+        Assert.Null(quiz.State.ErrorKey);
+        Assert.True(quiz.State.Prompt!.CanPlayPromptAudio);
+        Assert.True(quiz.State.CanSubmit);
+        Assert.True(manual.CanSubmit);
+    }
+
+    [Fact]
+    public async Task AnAutoplayFailureAfterTheAnswer_IsShownOnTheFeedback()
+    {
+        var (fixture, quiz, question) = await OpenAsync(holdPlayback: true);
+        using var _ = fixture;
+        using var __ = quiz;
+        var published = new List<NativeQuizState>();
+        quiz.StateChanged += published.Add;
+
+        var playing = quiz.PlayAutoPromptAsync(question.TurnId!);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var answered = await quiz.AnswerAsync(question.Choices[0].Text)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(NativePhase.Feedback, answered.Phase);
+        Assert.True(fixture.Media.FinishPlayback(false));
+        var failed = await playing.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(NativePhase.Feedback, failed.Phase);
+        Assert.Equal(NativeText.ConnectionError, failed.ErrorKey);
+        Assert.False(failed.Prompt!.CanPlayPromptAudio);
+        Assert.Same(quiz.State, published[^1]);
+        Assert.Equal(NativeText.ConnectionError, published[^1].ErrorKey);
+    }
+
+    [Fact]
+    public async Task AutoPlayPending_IsFalseOnAnErrorState()
+    {
+        // Derived when the state is set, so an error path cannot keep a stale request.
+        var (fixture, quiz, question) = await OpenAsync();
+        using var _ = fixture;
+        using var __ = quiz;
+        await quiz.PlayAutoPromptAsync(question.TurnId!);
+        var answered = await quiz.AnswerAsync(question.Choices[0].Text);
+        fixture.FaultSessions.FailNextSnapshot = true;
+
+        var next = await quiz.NextAsync(answered.TurnId!);
+
+        Assert.Equal(NativePhase.Error, next.Phase);
+        Assert.False(next.AutoPlayPending);
+    }
 }

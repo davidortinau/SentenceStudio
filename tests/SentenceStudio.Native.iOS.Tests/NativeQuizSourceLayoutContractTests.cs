@@ -330,7 +330,7 @@ public sealed class NativeQuizSourceLayoutContractTests
     {
         // Captain, 2026-11-06: the Study tab was held disabled while the run opened and the
         // prompt audio played; the quiz then rendered after the audio.
-        var app = Read("App/ApplicationController.Quiz.cs");
+        var app = Regex.Replace(Read("App/ApplicationController.Quiz.cs"), @"\s+", " ");
         var question = Read("Features/Quiz/QuizQuestionView.cs");
         var start = app[app.IndexOf("private async Task StartQuizAsync(",
                 StringComparison.Ordinal)
@@ -341,24 +341,29 @@ public sealed class NativeQuizSourceLayoutContractTests
             "_quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);",
             StringComparison.Ordinal);
         var publish = start.IndexOf("Publish();", StringComparison.Ordinal);
-        var open = start.IndexOf("() => quiz.OpenAsync(launch, opening.Token), opening.Token)",
+        var open = start.IndexOf("_quizState = await _quiz.OpenAsync(launch, _lifetime.Token);",
             StringComparison.Ordinal);
         Assert.True(loading >= 0 && publish > loading && open > publish);
         Assert.Contains("_quizAudioCancellation is not null || _quizOpening", app);
 
-        // Backing out while it loads cancels the open, so nothing is created for that run.
-        Assert.Contains("_quizState = await Task.Run(", start);
-        Assert.Contains("if (_quizOpening)\n            CancelQuizOpen();", app);
-        Assert.Contains("_quizState is { Phase: NativePhase.Loading, Sentence: null }", app);
+        // Back while it loads is queued, not a cancellation: an open stopped midway could leave
+        // an ad-hoc plan row with no run. It runs on the main context like every other open.
+        Assert.DoesNotContain("Task.Run(", start);
+        Assert.DoesNotContain("CancelQuizOpen", app);
+        Assert.Contains("_nativePopPending = true; if (!_busy) HandlePoppedQuiz();", app);
 
         // The question's SwiftUI onAppear reports it; the presenter decides about autoplay
         // (AutoPlayPending), and the head sends one request at a time, outside Run.
         Assert.Contains("question.OnAppear(() => promptAppeared(appearedTurn));", question);
         Assert.DoesNotContain("AutoPlayPending", question);
         Assert.Contains("PromptAppeared: OnQuizPromptAppeared", app);
-        Assert.Contains("if (!_quizState.AutoPlayPending\n"
-            + "            || string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))",
-            app);
+        Assert.Contains("if (!_quizState.AutoPlayPending "
+            + "|| string.Equals(_quizAutoPlayTurnId, turnId, StringComparison.Ordinal))", app);
+        // A finished request never replaces head-local state, and a render failure is not
+        // reported (or rendered again) as an autoplay failure.
+        Assert.Contains("|| cancellation.IsCancellationRequested || _busy", app);
+        Assert.Contains("|| state.TurnId != turnId || ShowsHeadOnlyFailure(quiz))", app);
+        Assert.Contains("_quizState = state; PublishAfterAutoPlay();", app);
         Assert.Contains("_ = RunQuizAutoPlayAsync(quiz, turnId, cancellation);", app);
         Assert.Contains("quiz.PlayAutoPromptAsync(turnId, cancellation.Token)", app);
         Assert.Contains("ErrorKey = NativeText.UnexpectedError", app);

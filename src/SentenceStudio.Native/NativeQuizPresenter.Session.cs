@@ -197,7 +197,7 @@ public sealed partial class NativeQuizPresenter
         _mode = mode;
         _audioHeard = false; // Restored turns must re-engage with audio before answering.
         _heardAnswerChoices.Clear();
-        media.StopPlayback();
+        StopActiveAudio();
         ResetSentenceHints(VocabQuizSentenceHintTransition.LoadCurrentItem);
         _feedbackStartedAt = null;
 
@@ -389,7 +389,6 @@ public sealed partial class NativeQuizPresenter
             CanShowSentenceHints = !hints.IsDefaultOrEmpty,
             SentenceHintsExpanded = _sentenceHintsExpanded,
             CanPlayAnswerAudio = _answerAudioAvailable,
-            AutoPlayPending = AutoPlayEligible,
             HeardAnswerChoiceIndices =
                 _heardAnswerChoices.Order().ToImmutableArray(),
             FeedbackStartedAt = graded && !_requiresCorrection
