@@ -27,7 +27,7 @@ does not replace these running-head checks.
 | Bulk/generation | Paste/file import and generate from an owned transcript through authenticated AI API | Duplicate terms skipped, real target-language words and mappings persist; unavailable/failed AI is an error, never a success toast |
 | Unlink | Remove one vocabulary row on a non-smart resource | Mapping disappears, but shared word and its other-resource association remain; smart rows have no Remove |
 | Starter | From an empty/no-match view create starter after profile languages are configured | Real target-language vocabulary is generated for the active owner once; progress and failures are visible; never insert source Korean placeholders for a different target language |
-| Delete confirmation | Request deletion, Cancel, then confirm only on a backed-up disposable row | Cancel preserves resource, mappings and progress; confirm removes only the owned resource and eligible orphan progress, refreshes list, and shows pending sync; smart/foreign delete refused |
+| Delete confirmation | Request deletion, Cancel, then confirm only on a backed-up disposable row | Cancel preserves resource, mappings and progress; confirm removes only the owned resource and its links (its words stay in the learner's vocabulary with their progress and history, and a word no resource of theirs links is not due in the plan; B85), refreshes list, and shows pending sync; smart/foreign delete refused |
 
 ### Native iOS Resources current-subset smoke checks (NOT source parity)
 

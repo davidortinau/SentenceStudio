@@ -12,6 +12,12 @@
 //   2. LearningResourceRepository.DeleteResourceAsync did not sweep orphan progress at
 //      delete time, so future plan-generation would re-pick those words forever.
 //
+// Fix 1 (the reachability filter on every due read) is what keeps a word out of the plan, and
+// it stays. Fix 2 (the delete-time sweep) was retired on 2026-11-06 (review of bf701c42,
+// finding 3; B85): under the owner-only rule a word stays in its owner's vocabulary when its
+// last resource goes, so its progress and learning history stay with it. The delete tests
+// below now prove that history is kept AND that the kept word is not due in plans.
+//
 // If these tests fail, the Brot bug is back. DO NOT DELETE OR WEAKEN.
 
 using Xunit;
@@ -253,34 +259,47 @@ public class BrotOrphanProgressRegressionTests : IDisposable
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // DeleteResourceAsync orphan sweep
+    // DeleteResourceAsync keeps the history of words it unlinks (the sweep is retired)
     // ──────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DeleteResourceAsync_RemovesProgressForWordsThatLoseLastUserMapping()
+    public async Task DeleteResourceAsync_KeepsTheLearnersHistoryOnWordsThatLoseTheirLastMapping_ButNotDue()
     {
-        // Setup: resource R1 maps to W1; Captain has progress on W1.
+        // Setup: resource R1 maps to W1; Captain has long-overdue progress and history on W1.
         SeedReachableWord(Captain, "w1", "r1");
         SeedProgress(Captain, "w1");
-
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.VocabularyProgresses.Count(p => p.UserId == Captain).Should().Be(1);
+            var progressId = db.VocabularyProgresses.Single(p => p.UserId == Captain).Id;
+            db.VocabularyLearningContexts.Add(new VocabularyLearningContext
+            {
+                Id = "w1-history", VocabularyProgressId = progressId, Activity = "VocabularyQuiz",
+                InputMode = "TextEntry", LearnedAt = DateTime.UtcNow.AddDays(-100),
+                CreatedAt = DateTime.UtcNow.AddDays(-100), UpdatedAt = DateTime.UtcNow.AddDays(-100)
+            });
+            db.SaveChanges();
         }
+        (await _progressRepo.GetDueVocabularyAsync(DateTime.UtcNow, Captain)).Should().HaveCount(1);
 
-        // Act: delete R1.
+        // Act: delete R1, W1's only resource.
         var resource = await GetResource("r1");
         var deleted = await _resourceRepo.DeleteResourceAsync(resource);
 
-        // Assert: progress on W1 is gone because no other resource of Captain maps to W1.
+        // Assert: W1 stays Captain's word, so its progress and history stay (owner-only rule,
+        // 2026-11-06); the reachability filter keeps it out of due review and the plan.
         deleted.Should().BeGreaterThan(0);
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.VocabularyProgresses.Count(p => p.UserId == Captain).Should().Be(0,
-                "removing the last reachable resource must sweep its orphaned progress");
+            db.VocabularyWords.Any(w => w.Id == "w1" && w.UserProfileId == Captain).Should().BeTrue();
+            db.VocabularyProgresses.Count(p => p.UserId == Captain && p.VocabularyWordId == "w1").Should().Be(1,
+                "the word stays the learner's, so its history stays");
+            db.VocabularyLearningContexts.Any(c => c.Id == "w1-history").Should().BeTrue();
         }
+        (await _progressRepo.GetDueVocabularyAsync(DateTime.UtcNow, Captain)).Should().BeEmpty(
+            "a word no resource of the learner's links is not picked for due review (Brot)");
+        (await _progressRepo.GetDueVocabCountAsync(DateTime.UtcNow, Captain)).Should().Be(0);
     }
 
     [Fact]
@@ -306,7 +325,7 @@ public class BrotOrphanProgressRegressionTests : IDisposable
     public async Task DeleteResourceAsync_DoesNotTouchProgressOfOtherUsers()
     {
         // Captain and OtherUser both have their own resource mapping to the SAME global word.
-        // Captain deletes Captain's resource → only Captain's progress is swept.
+        // Captain deletes Captain's resource: neither learner's progress is removed.
         SeedReachableWord(Captain, "w1", "captain-r1");
         AddAdditionalMapping(OtherUser, "w1", "other-r1");
         SeedProgress(Captain, "w1");
@@ -317,8 +336,8 @@ public class BrotOrphanProgressRegressionTests : IDisposable
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.VocabularyProgresses.Count(p => p.UserId == Captain).Should().Be(0,
-            "Captain's progress should be swept");
+        db.VocabularyProgresses.Count(p => p.UserId == Captain).Should().Be(1,
+            "Captain's progress stays with the word, which stays Captain's");
         db.VocabularyProgresses.Count(p => p.UserId == OtherUser).Should().Be(1,
             "OtherUser's progress on the shared word must be preserved");
     }

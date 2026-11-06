@@ -679,7 +679,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// Deletes a resource the caller owns, together with the progress its words no longer reach.
+    /// Deletes a resource the caller owns and its word links. Its words stay in the learner's
+    /// vocabulary, with their progress and history.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -764,54 +765,15 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                         return 0;
                     }
 
-                    // Capture the vocab IDs reachable via this resource BEFORE removing the resource;
-                    // ResourceVocabularyMapping cascades to gone, so we can't read them after the fact.
-                    var resourceWordIds = await db.ResourceVocabularyMappings
-                        .Where(m => m.ResourceId == ownedResource.Id)
-                        .Select(m => m.VocabularyWordId)
-                        .Distinct()
-                        .ToListAsync(ct);
-
+                    // The resource's links cascade with it; its words, and the learner's progress
+                    // and history on them, stay. Under the owner-only rule (Captain 2026-11-06) a
+                    // word stays in its owner's vocabulary when its last resource goes, so its
+                    // history stays with it. The orphan sweep that deleted that progress here
+                    // (Brot incident, 2026-06-12) is retired (review of bf701c42, finding 3): the
+                    // reachability filter on the due reads (GetDueVocabularyAsync,
+                    // GetDueVocabCountAsync) is what keeps such a word out of the plan.
                     db.LearningResources.Remove(ownedResource);
-                    int removed = await db.SaveChangesAsync(ct);
-
-                    // Cascade orphan sweep: for each vocab word this resource owned a mapping for,
-                    // check whether the SAME user can still reach the word via another of their
-                    // resources. If not, delete the user's VocabularyProgress row so it doesn't become
-                    // an "eternally due" orphan that pollutes plan generation. Matches the user's
-                    // mental model — "if I removed the resource, my progress on its words is gone too".
-                    // See Brot incident, 2026-06-12. Inside the same transaction as the removal, so
-                    // the two either both land or neither does.
-                    var ownerUserId = userId;
-                    if (resourceWordIds.Count > 0 && !string.IsNullOrEmpty(ownerUserId))
-                    {
-                        var stillReachableWordIds = await db.ResourceVocabularyMappings
-                            .Where(m => resourceWordIds.Contains(m.VocabularyWordId))
-                            .Join(db.LearningResources.Where(r => r.UserProfileId == ownerUserId),
-                                  m => m.ResourceId,
-                                  r => r.Id,
-                                  (m, r) => m.VocabularyWordId)
-                            .Distinct()
-                            .ToListAsync(ct);
-                        var orphanedWordIds = resourceWordIds.Except(stillReachableWordIds).ToList();
-                        if (orphanedWordIds.Count > 0)
-                        {
-                            var orphanProgress = await db.VocabularyProgresses
-                                .Where(vp => vp.UserId == ownerUserId
-                                    && orphanedWordIds.Contains(vp.VocabularyWordId))
-                                .ToListAsync(ct);
-                            if (orphanProgress.Count > 0)
-                            {
-                                db.VocabularyProgresses.RemoveRange(orphanProgress);
-                                await db.SaveChangesAsync(ct);
-                                _logger.LogInformation(
-                                    "DeleteResourceAsync orphan sweep: removed {Count} VocabularyProgress rows for user {UserId} that lost their last reachable mapping after deleting resource {ResourceId}",
-                                    orphanProgress.Count, ownerUserId, resourceId);
-                            }
-                        }
-                    }
-
-                    return removed;
+                    return await db.SaveChangesAsync(ct);
                 },
                 verifySucceeded: async ct =>
                 {
