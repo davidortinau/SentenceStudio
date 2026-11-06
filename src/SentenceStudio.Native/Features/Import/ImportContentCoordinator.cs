@@ -95,10 +95,10 @@ public sealed record ImportContentState(
 /// ContentImportService); an absent or changed owner blocks the screen and nothing is read or
 /// written. <see cref="Version"/> changes when the page must be drawn again; typing, row
 /// checkboxes and the other bound inputs only update the state, as the source bindings do.
-/// Service work runs off the UI thread through <see cref="OffUiAsync{T}"/> and resumes on the
-/// caller's synchronization context (UIKit's on iOS, the looper's on Android).
+/// Service work runs off the UI thread and resumes on the caller's synchronization context
+/// (UIKit's on iOS, the looper's on Android).
 /// </summary>
-public class ImportContentCoordinator : IDisposable
+public sealed class ImportContentCoordinator : IDisposable
 {
     private readonly INativeContentImport _import;
     private readonly DeviceUserScopeProvider _userScope;
@@ -234,6 +234,7 @@ public class ImportContentCoordinator : IDisposable
         _owner = expectedOwner;
         _ownerStamp = stamp;
         _open = true;
+        _resourcesLoading = true;
         Notify(redraw: true);
         await LoadAvailableResourcesAsync();
         return TryOwner(out _);
@@ -638,6 +639,7 @@ public class ImportContentCoordinator : IDisposable
             _messages = _messages.Add(NativeMessage.Warning("Import_UpdateModeWarning"));
 
         var operation = ++_operation;
+        var shown = false;
         _isCommitting = true;
         Notify(redraw: true);
         try
@@ -676,20 +678,22 @@ public class ImportContentCoordinator : IDisposable
             var result = await OffUiAsync(() => _import.CommitAsync(owner, commit, CancellationToken.None));
             if (_disposed || operation != _operation)
                 return;
-            // Fail closed: when the device owner changed during the commit, the screen blocks
-            // and the result is not shown to the new owner.
+            // The rows are committed for the owner the import ran for. When the device owner
+            // changed meanwhile, the screen blocks and the result is not shown to the new owner
+            // (the import is not reported as failed either).
             if (!OwnerIsCurrent())
             {
-                _logger.LogWarning("Import Content stopped: the device owner changed during a commit.");
-                AddErrorSilently("Import_ProfileNotFound");
+                _logger.LogWarning("Import Content committed, but the device owner changed: the result is not shown.");
                 Block();
                 return;
             }
-            ResourcesWritten?.Invoke();
             _result = result;
             _resultFilter = null;
             _step = ImportContentStep.Complete;
             _messages = _messages.Add(NativeMessage.Success("Import_ImportSuccess"));
+            // The list is read again below (one redraw with the result, not one more).
+            _resourcesLoading = true;
+            shown = true;
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -714,6 +718,20 @@ public class ImportContentCoordinator : IDisposable
                 Notify(redraw: true);
             }
         }
+        if (!shown)
+            return;
+        // After the committed state is shown: a listener's failure cannot turn a committed
+        // import into "commit failed" (which would invite importing it twice).
+        try
+        {
+            ResourcesWritten?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "A listener failed after an import was committed.");
+        }
+        // "Import more" then "Add to existing" offers the resource this import created.
+        await LoadAvailableResourcesAsync();
     }
 
     // ---- Results ----
@@ -796,9 +814,12 @@ public class ImportContentCoordinator : IDisposable
     {
         if (!TryOwner(out var owner))
             return;
-        _resourcesLoading = true;
-        _resourcesErrorKey = null;
-        Notify(redraw: true);
+        if (!_resourcesLoading || _resourcesErrorKey is not null)
+        {
+            _resourcesLoading = true;
+            _resourcesErrorKey = null;
+            Notify(redraw: true);
+        }
         try
         {
             var token = _lifetime.Token;
@@ -838,7 +859,7 @@ public class ImportContentCoordinator : IDisposable
     /// Runs service work off the UI thread: the shared import service does its SQLite work
     /// in-line under its async API. The caller resumes on its synchronization context.
     /// </summary>
-    protected virtual Task<T> OffUiAsync<T>(Func<Task<T>> work) => Task.Run(work);
+    private static Task<T> OffUiAsync<T>(Func<Task<T>> work) => Task.Run(work);
 
     /// <summary>The device owner is still the one the screen opened for (no side effects).</summary>
     private bool OwnerIsCurrent() =>
@@ -865,8 +886,7 @@ public class ImportContentCoordinator : IDisposable
         owner = _owner ?? string.Empty;
         if (_disposed || !_open || _blocked || string.IsNullOrWhiteSpace(_owner))
             return false;
-        if (_userScope.IsCurrent(_ownerStamp) && _userScope.TryGetUserProfileId(out var active)
-            && active == _owner)
+        if (OwnerIsCurrent())
             return true;
         _logger.LogWarning("Import Content stopped: the device owner changed.");
         Block();

@@ -7045,12 +7045,24 @@
     <value>구문 (구문 분석 + AI 추출)</value>
     <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
   </data>
+  <data name="Import_Format_Json" xml:space="preserve">
+    <value>JSON</value>
+    <comment>Import Content detected format. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_Format_Unknown" xml:space="preserve">
+    <value>알 수 없음</value>
+    <comment>Import Content detected format when the format is not recognized. Korean draft by the native port; needs review.</comment>
+  </data>
+  <data name="Import_RowNote_Confidence" xml:space="preserve">
+    <value>신뢰도: {0}</value>
+    <comment>Import Content preview row note for an AI-extracted entry; {0} is the AI's confidence and note. Korean draft by the native port; needs review.</comment>
+  </data>
   <data name="Import_Warn_TranscriptOnly" xml:space="preserve">
-    <value>자막은 저장되지만 어휘 추출은 요청되지 않았습니다.</value>
+    <value>대본은 저장되지만 어휘 추출은 요청되지 않았습니다.</value>
     <comment>Import Content preview warning. Korean draft by the native port; needs review.</comment>
   </data>
   <data name="Import_Warn_TranscriptNoVocab" xml:space="preserve">
-    <value>자막에서 어휘를 추출하지 못했습니다. 자막은 리소스에 그대로 저장됩니다.</value>
+    <value>대본에서 어휘를 추출하지 못했습니다. 대본은 리소스에 그대로 저장됩니다.</value>
     <comment>Import Content preview warning. Korean draft by the native port; needs review.</comment>
   </data>
   <data name="Import_Warn_AiWordExtractionFailed" xml:space="preserve">

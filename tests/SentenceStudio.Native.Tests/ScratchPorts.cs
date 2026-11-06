@@ -21,9 +21,13 @@ internal sealed class ScratchAmbientSync : ISyncService
     public event Action? InitialSyncCompleted { add { } remove { } }
     public void BeginInitialSync() { }
     public Task InitializeDatabaseAsync() => Task.CompletedTask;
+    /// <summary>Runs inside the trigger (a shared service triggers sync after its write).</summary>
+    public Action? OnTrigger { get; set; }
+
     public Task TriggerSyncAsync()
     {
         Interlocked.Increment(ref _calls);
+        OnTrigger?.Invoke();
         return Task.CompletedTask;
     }
 }

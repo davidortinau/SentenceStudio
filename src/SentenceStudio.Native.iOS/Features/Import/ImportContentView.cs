@@ -12,6 +12,23 @@ namespace SentenceStudio.Native.iOS.Features.Import;
 internal sealed record ImportContentActions(Action<string> ViewResource, Action<string>? OpenWord);
 
 /// <summary>
+/// The drawn nodes the page changes in place, kept by the scene across draws: the slot that
+/// holds the preview rows grid (moved into the next draw while the rows did not change) and
+/// the "Selected for import" text the row checkboxes update.
+/// </summary>
+internal sealed class ImportContentDrawn
+{
+    internal SwiftView? RowsSlot { get; set; }
+    internal SwiftView? SelectedCount { get; set; }
+
+    internal void Clear()
+    {
+        RowsSlot = null;
+        SelectedCount = null;
+    }
+}
+
+/// <summary>
 /// The source Import Content page (src/SentenceStudio.UI/Pages/ImportContent.razor) in SwiftUI:
 /// the cards of the wizard (source, format hints, auto-detect gate, harvest, preview, target,
 /// duplicate handling), the commit action, and the results with their filter. Typed text and
@@ -28,14 +45,23 @@ internal static class ImportContentView
     private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");
 
     /// <summary>
-    /// The page. <paramref name="reusableRows"/> is the preview rows grid of the previous draw
-    /// when the rows did not change (<see cref="ImportContentCoordinator.RowsVersion"/>): it is
-    /// placed as is, so a redraw for another part of the page keeps the rows and what was typed.
+    /// The page. With <paramref name="reuseRows"/> (the rows did not change since the last draw,
+    /// <see cref="ImportContentCoordinator.RowsVersion"/>), the drawn rows grid moves into this
+    /// draw as is, so a redraw for another part of the page keeps the rows and what was typed.
     /// </summary>
-    internal static SwiftView Page(ImportContentScreen import, SourceUiStyle style,
-        Func<string, string> text, ImportContentActions actions, SwiftView? reusableRows = null)
+    internal static SwiftView Page(ImportContentCoordinator import, SourceUiStyle style,
+        Func<string, string> text, ImportContentActions actions, ImportContentDrawn drawn,
+        bool reuseRows)
     {
         var state = import.State;
+        // The previous draw's rows: taken only when reused; the slot itself leaves with that draw.
+        SwiftView? reusableRows = null;
+        if (reuseRows && drawn.RowsSlot is { Children.Count: 1 } previousSlot)
+        {
+            reusableRows = previousSlot.Children[0];
+            previousSlot.RemoveAt(0);
+        }
+        drawn.Clear();
         var items = new List<SwiftView>();
         if (state.IsCommitting)
             items.Add(Views.IndeterminateProgress(text("Import_CommitButton"))
@@ -48,7 +74,11 @@ internal static class ImportContentView
             items.Add(style.Alert(Views.Text(text("Import_ProfileNotFound")), success: false)
                 .WithAccessibilityIdentifier("native.import.content.blocked"));
         else
-            items.AddRange(Wizard(import, state, style, text, reusableRows));
+            items.AddRange(Wizard(import, state, style, text, drawn, reusableRows));
+        // Rows taken from the last draw but not shown in this one (the page moved on) end here.
+        if (reusableRows is not null
+            && !ReferenceEquals(drawn.RowsSlot?.Children.FirstOrDefault(), reusableRows))
+            reusableRows.Dispose();
 
         var content = Views.VStack(items.ToArray())
             .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
@@ -106,9 +136,9 @@ internal static class ImportContentView
 
     // ---- Wizard (source steps 1-6) ----
 
-    private static IEnumerable<SwiftView> Wizard(ImportContentScreen import,
+    private static IEnumerable<SwiftView> Wizard(ImportContentCoordinator import,
         ImportContentState state, SourceUiStyle style, Func<string, string> text,
-        SwiftView? reusableRows)
+        ImportContentDrawn drawn, SwiftView? reusableRows)
     {
         var locked = state.SourceLocked;
         SwiftView? preview = null;
@@ -221,12 +251,12 @@ internal static class ImportContentView
         if (!state.HasPreview || state.Step < ImportContentStep.Preview)
             yield break;
 
-        yield return PreviewCard(import, state, style, text, reusableRows);
+        yield return PreviewCard(import, state, style, text, drawn, reusableRows);
         yield return TargetCard(import, state, style, text);
         yield return DedupCard(import, state, style, text);
     }
 
-    private static SwiftView AutoDetectGate(ImportContentScreen import, ImportContentState state,
+    private static SwiftView AutoDetectGate(ImportContentCoordinator import, ImportContentState state,
         ImportAutoDetect detected, SourceUiStyle style, Func<string, string> text)
     {
         var type = TypeName(detected.ContentType, text);
@@ -295,7 +325,7 @@ internal static class ImportContentView
     }
 
     /// <summary>The four type buttons of the low-confidence gate and the chooser (source: no Auto).</summary>
-    private static SwiftView TypeButtons(ImportContentScreen import, ImportContentState state,
+    private static SwiftView TypeButtons(ImportContentCoordinator import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text, string idPrefix)
     {
         ContentType[] types = [ContentType.Vocabulary, ContentType.Phrases,
@@ -320,7 +350,7 @@ internal static class ImportContentView
         return grid;
     }
 
-    private static SwiftView Harvest(ImportContentScreen import, bool isOn, ImportHarvest harvest,
+    private static SwiftView Harvest(ImportContentCoordinator import, bool isOn, ImportHarvest harvest,
         string labelKey, string hintKey, string id, SourceUiStyle style, Func<string, string> text)
     {
         var toggle = Views.Toggle(text(labelKey), isOn, value => import.SetHarvest(harvest, value))
@@ -334,8 +364,9 @@ internal static class ImportContentView
 
     // ---- Preview, target, duplicate handling ----
 
-    private static SwiftView PreviewCard(ImportContentScreen import, ImportContentState state,
-        SourceUiStyle style, Func<string, string> text, SwiftView? reusableRows)
+    private static SwiftView PreviewCard(ImportContentCoordinator import, ImportContentState state,
+        SourceUiStyle style, Func<string, string> text, ImportContentDrawn drawn,
+        SwiftView? reusableRows)
     {
         var format = ImportServiceText.DetectedFormat(state.DetectedFormat, text);
         var children = new List<SwiftView>
@@ -364,37 +395,41 @@ internal static class ImportContentView
         var count = style.Text(Views.Text(SelectedCount(state.SelectedCount, state.Rows.Length, text)),
                 SourceTextRole.Caption1, SourceTextTone.Secondary)
             .WithAccessibilityIdentifier("native.import.content.selected.count");
-        import.SelectedCountLabel = count;
+        drawn.SelectedCount = count;
         children.Add(style.Text(Views.Toggle(text("Vocabulary_SelectAll"), state.SelectAllRows,
                     import.SetSelectAll), SourceTextRole.Body2Strong)
             .WithAccessibilityIdentifier("native.import.content.select-all"));
         // A lazy grid draws only the rows on screen (a long AI preview stays cheap).
-        children.Add(reusableRows ?? PreviewRows(import, state, style, text));
+        var rowsSlot = Views.VStack(reusableRows ?? PreviewRows(import, state, style, text, drawn))
+            .WithFlexibleWidth();
+        rowsSlot.Spacing = 0;
+        drawn.RowsSlot = rowsSlot;
+        children.Add(rowsSlot);
         children.Add(count);
         return Card(style, "native.import.content.preview.card", children.ToArray());
     }
 
-    private static SwiftView PreviewRows(ImportContentScreen import, ImportContentState state,
-        SourceUiStyle style, Func<string, string> text)
+    private static SwiftView PreviewRows(ImportContentCoordinator import, ImportContentState state,
+        SourceUiStyle style, Func<string, string> text, ImportContentDrawn drawn)
     {
         var total = state.Rows.Length;
         var grid = Views.LazyVGrid(1, state.Rows
-                .Select(row => PreviewRow(import, row, style, text, total)).ToArray())
+                .Select(row => PreviewRow(import, row, style, text, drawn, total)).ToArray())
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier(RowsId);
         grid.Spacing = SourceUiLayout.ItemGap;
         return grid;
     }
 
-    private static SwiftView PreviewRow(ImportContentScreen import, ImportPreviewRow row,
-        SourceUiStyle style, Func<string, string> text, int total)
+    private static SwiftView PreviewRow(ImportContentCoordinator import, ImportPreviewRow row,
+        SourceUiStyle style, Func<string, string> text, ImportContentDrawn drawn, int total)
     {
         var id = $"native.import.content.row.{row.Index}";
         var number = row.RowNumber.ToString(CultureInfo.CurrentCulture);
         var select = style.Text(Views.Toggle($"#{number}", row.Selected, value =>
                 {
                     var selected = import.SetRowSelected(row.Index, value);
-                    if (import.SelectedCountLabel is { } count)
+                    if (drawn.SelectedCount is { } count)
                         count.Text = SelectedCount(selected, total, text);
                 }), SourceTextRole.Body2, SourceTextTone.Secondary)
             .WithAccessibilityLabel(Format(text("Import_SelectRow"), number))
@@ -461,7 +496,7 @@ internal static class ImportContentView
             : badge;
     }
 
-    private static SwiftView TargetCard(ImportContentScreen import, ImportContentState state,
+    private static SwiftView TargetCard(ImportContentCoordinator import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text)
     {
         var children = new List<SwiftView>
@@ -553,7 +588,7 @@ internal static class ImportContentView
         return Card(style, "native.import.content.target", children.ToArray());
     }
 
-    private static SwiftView DedupCard(ImportContentScreen import, ImportContentState state,
+    private static SwiftView DedupCard(ImportContentCoordinator import, ImportContentState state,
         SourceUiStyle style, Func<string, string> text) =>
         Card(style, "native.import.content.dedup",
             Heading(style, text("Import_Step6_Title")),
@@ -569,7 +604,7 @@ internal static class ImportContentView
 
     // ---- Results (source step 7) ----
 
-    private static IEnumerable<SwiftView> Results(ImportContentScreen import, ImportContentState state,
+    private static IEnumerable<SwiftView> Results(ImportContentCoordinator import, ImportContentState state,
         ContentImportResult result, SourceUiStyle style, Func<string, string> text,
         ImportContentActions actions)
     {
@@ -654,7 +689,7 @@ internal static class ImportContentView
         return style.Card(column);
     }
 
-    private static SwiftView Pill(ImportContentScreen import, SourceUiStyle style, string label,
+    private static SwiftView Pill(ImportContentCoordinator import, SourceUiStyle style, string label,
         int count, ImportItemStatus? status, ImportItemStatus? current, string id)
     {
         var selected = status == current;

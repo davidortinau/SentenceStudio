@@ -900,7 +900,9 @@ internal sealed partial class ApplicationController : IDisposable
     {
         if (_destination != NativeDestination.Dashboard || NavigationBlocked || IsQuizOpen)
             return;
-        if (HasLibraryEditor)
+        // An import draft would be closed by this entry (the Library returns to its list): it is
+        // shown instead, like an editor. Other entries keep it (they do not close the page).
+        if (HasLibraryEditor || HasImportContentWork)
         {
             ShowLibraryEditor();
             return;

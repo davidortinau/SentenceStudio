@@ -8473,6 +8473,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to JSON.
+        /// </summary>
+        internal static string Import_Format_Json {
+            get {
+                return ResourceManager.GetString("Import_Format_Json", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Phrases (parsed + AI-extracted).
         /// </summary>
         internal static string Import_Format_Phrases {
@@ -8505,6 +8514,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_Format_Tsv {
             get {
                 return ResourceManager.GetString("Import_Format_Tsv", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown.
+        /// </summary>
+        internal static string Import_Format_Unknown {
+            get {
+                return ResourceManager.GetString("Import_Format_Unknown", resourceCulture);
             }
         }
 
@@ -9090,6 +9108,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_RowError_TooLargePhrases {
             get {
                 return ResourceManager.GetString("Import_RowError_TooLargePhrases", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Confidence: {0}.
+        /// </summary>
+        internal static string Import_RowNote_Confidence {
+            get {
+                return ResourceManager.GetString("Import_RowNote_Confidence", resourceCulture);
             }
         }
 

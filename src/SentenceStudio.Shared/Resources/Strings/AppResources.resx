@@ -7292,6 +7292,18 @@ For example: {0} ...</value>
     <value>Phrases (parsed + AI-extracted)</value>
     <comment>Import Content detected format.</comment>
   </data>
+  <data name="Import_Format_Json" xml:space="preserve">
+    <value>JSON</value>
+    <comment>Import Content detected format.</comment>
+  </data>
+  <data name="Import_Format_Unknown" xml:space="preserve">
+    <value>Unknown</value>
+    <comment>Import Content detected format when the format is not recognized.</comment>
+  </data>
+  <data name="Import_RowNote_Confidence" xml:space="preserve">
+    <value>Confidence: {0}</value>
+    <comment>Import Content preview row note for an AI-extracted entry; {0} is the AI's confidence and note.</comment>
+  </data>
   <data name="Import_Warn_TranscriptOnly" xml:space="preserve">
     <value>Transcript will be stored but no vocabulary extraction was requested.</value>
     <comment>Import Content preview warning.</comment>

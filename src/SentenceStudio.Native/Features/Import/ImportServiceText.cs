@@ -5,8 +5,9 @@ namespace SentenceStudio.Native.Features.Import;
 
 /// <summary>
 /// The shared <c>ContentImportService</c> returns its detected format, warnings, row errors and
-/// result reasons as English text. A native page shows them through these resource keys; text
-/// the map does not know (an AI note, an exception message) is shown as it came (B74).
+/// result reasons as English text. A native page shows them through these resource keys; an
+/// exception message or AI note inside a mapped text, and text the map does not know, show as
+/// they came (B74). A test runs each text the page can show through this map.
 /// </summary>
 public static partial class ImportServiceText
 {
@@ -19,7 +20,8 @@ public static partial class ImportServiceText
         ["Transcript"] = "Import_ContentType_Transcript",
         ["Sentences (parsed + AI-extracted)"] = "Import_Format_Sentences",
         ["Phrases (parsed + AI-extracted)"] = "Import_Format_Phrases",
-        ["Unknown"] = "Vocabulary_Unknown",
+        ["JSON"] = "Import_Format_Json",
+        ["Unknown"] = "Import_Format_Unknown",
     };
 
     private static readonly Dictionary<string, string> Fixed = new(StringComparer.Ordinal)
@@ -53,6 +55,8 @@ public static partial class ImportServiceText
         (TooLargeFreeText(), "Import_Warn_TooLargeFreeText"),
         (RowExtractionFailed(), "Import_RowError_AiExtractionFailed"),
         (ExtractionFailed(), "Import_Warn_AiExtractionFailed"),
+        // An AI-extracted row below high confidence: the AI's label and note stay as it wrote them.
+        (ConfidenceNote(), "Import_RowNote_Confidence"),
     ];
 
     /// <summary>The detected format line (ContentImportPreview.DetectedFormat).</summary>
@@ -96,4 +100,7 @@ public static partial class ImportServiceText
 
     [GeneratedRegex(@"^AI extraction failed: (.*)$", RegexOptions.Singleline)]
     private static partial Regex ExtractionFailed();
+
+    [GeneratedRegex(@"^Confidence: (.*)$", RegexOptions.Singleline)]
+    private static partial Regex ConfidenceNote();
 }

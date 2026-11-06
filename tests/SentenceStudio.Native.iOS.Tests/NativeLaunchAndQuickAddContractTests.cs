@@ -72,6 +72,12 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.DoesNotContain("youtube-import", controller);
         Assert.Contains("internal void OpenImportContent()",
             Source("App/ApplicationController.Import.cs"));
+        // An import draft is not an editor: it does not block Sam's review quiz or a Study
+        // insight link; only Study's Add resource (which closes the page) shows it instead.
+        var editor = controller[controller.IndexOf("internal bool HasLibraryEditor =>", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("HasImportContentWork", editor[..editor.IndexOf(';')]);
+        Assert.Contains("if (HasLibraryEditor || HasImportContentWork)",
+            Source("App/ApplicationController.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
             "MinimalPairs_CreatePair" })

@@ -16,6 +16,7 @@ internal sealed partial class ApplicationScene
     private SwiftView? _importContentOverlay;
     private long _renderedImportContentVersion = -1;
     private long _renderedImportRowsVersion = -1;
+    private readonly ImportContentDrawn _importDrawn = new();
     private SourceUiStyle? _renderedImportContentStyle;
     private double _renderedImportContentWidth;
     private string? _renderedImportOverlayKey;
@@ -49,7 +50,9 @@ internal sealed partial class ApplicationScene
         {
             if (stack.NavigationPath.Count != 0)
                 return;
-            _importContentSlot = Views.VStack(_app.RenderImportContent(_style)).WithFlexibleWidth();
+            _importDrawn.Clear();
+            _importContentSlot = Views.VStack(_app.RenderImportContent(_style, _importDrawn, false))
+                .WithFlexibleWidth();
             RecordImportContent();
             _importContentOverlay = Views.VStack().WithFlexibleWidth();
             _renderedImportOverlayKey = null;
@@ -67,11 +70,9 @@ internal sealed partial class ApplicationScene
             {
                 // Unchanged preview rows move into the new draw as they are (their typed text
                 // and scroll stay); new rows, a new appearance or width draw them again.
-                var rows = !reshaped && _renderedImportRowsVersion == _app.ImportContentRowsVersion
-                    ? DetachImportRows(_importContentSlot) : null;
-                var next = _app.RenderImportContent(_style, rows);
-                if (rows is not null && !Contains(next, rows))
-                    rows.Dispose();
+                var reuseRows = !reshaped
+                    && _renderedImportRowsVersion == _app.ImportContentRowsVersion;
+                var next = _app.RenderImportContent(_style, _importDrawn, reuseRows);
                 if (reshaped || !TrySwapImportScroll(_importContentSlot, next))
                     Replace(_importContentSlot, next);
                 RecordImportContent();
@@ -172,33 +173,6 @@ internal sealed partial class ApplicationScene
         _renderedImportContentWidth = _style.ViewportWidth;
     }
 
-    /// <summary>Removes the drawn preview rows grid from its card (null when none is drawn).</summary>
-    private static SwiftView? DetachImportRows(SwiftView root)
-    {
-        for (var index = 0; index < root.Children.Count; index++)
-        {
-            var child = root.Children[index];
-            if (child.AccessibilityIdentifier == ImportContentView.RowsId)
-            {
-                root.RemoveAt(index);
-                return child;
-            }
-            if (DetachImportRows(child) is { } found)
-                return found;
-        }
-        return null;
-    }
-
-    private static bool Contains(SwiftView root, SwiftView node)
-    {
-        if (ReferenceEquals(root, node))
-            return true;
-        foreach (var child in root.Children)
-            if (Contains(child, node))
-                return true;
-        return false;
-    }
-
     private void UpdateImportOverlay()
     {
         if (_importContentOverlay is not { } layer)
@@ -282,6 +256,7 @@ internal sealed partial class ApplicationScene
         _importContentOverlay = null;
         _renderedImportContentVersion = -1;
         _renderedImportRowsVersion = -1;
+        _importDrawn.Clear();
         _renderedImportContentStyle = null;
         _renderedImportOverlayKey = null;
         _renderedImportOverlayStyle = null;

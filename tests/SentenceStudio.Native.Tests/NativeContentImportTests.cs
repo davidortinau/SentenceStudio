@@ -386,7 +386,9 @@ public sealed class NativeContentImportTests
         Assert.Null(state.Result);
         Assert.False(state.CanCommit);
         Assert.Equal(0, written);
-        Assert.Contains(state.Messages, message => message.Key == "Import_ProfileNotFound");
+        // The rows were committed: nothing reports the import as refused or failed.
+        Assert.DoesNotContain(state.Messages, message =>
+            message.Key is "Import_ProfileNotFound" or "Import_CommitError");
         // The rows were written for A (the owner the commit ran for), never for B.
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -451,11 +453,13 @@ public sealed class NativeContentImportTests
             "Import_Warn_TooLargePhrases" => "P[{0}]",
             "Import_RowError_AiExtractionFailed" => "R[{0}]",
             "Import_Warn_AiExtractionFailed" => "E[{0}]",
+            "Import_RowNote_Confidence" => "C[{0}]",
             _ => $"<{key}>"
         };
         Assert.Equal("<Import_Format_Csv>", ImportServiceText.DetectedFormat("Comma-delimited (CSV)", Text));
         Assert.Equal("<Import_ContentType_Transcript>", ImportServiceText.DetectedFormat("Transcript", Text));
-        Assert.Equal("JSON", ImportServiceText.DetectedFormat("JSON", Text));
+        Assert.Equal("<Import_Format_Json>", ImportServiceText.DetectedFormat("JSON", Text));
+        Assert.Equal("<Import_Format_Unknown>", ImportServiceText.DetectedFormat("Unknown", Text));
         Assert.Equal("<Import_Reason_AlreadyExists>", ImportServiceText.Message("Already exists in resource", Text));
         Assert.Equal("<Import_PreviewDuplicate_DuplicateWithinBatch>",
             ImportServiceText.Message("Duplicate within batch", Text));
@@ -468,31 +472,187 @@ public sealed class NativeContentImportTests
         Assert.Equal("R[boom]", ImportServiceText.Message(
             "AI extraction failed: boom. Please check your content or provide a structured format.", Text));
         Assert.Equal("E[boom]", ImportServiceText.Message("AI extraction failed: boom", Text));
-        Assert.Equal("Confidence: low - unsure", ImportServiceText.Message("Confidence: low - unsure", Text));
+        Assert.Equal("C[low - unsure]", ImportServiceText.Message("Confidence: low - unsure", Text));
+        Assert.Equal("Something new", ImportServiceText.Message("Something new", Text));
         Assert.Equal(string.Empty, ImportServiceText.Message(null, Text));
     }
 
     [Fact]
-    public async Task ServiceTextsTheImportProduces_AreKnownToTheMap()
+    public async Task EveryServiceTextThePageCanShow_MapsToAResourceKey()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(A, wordCount: 1);
         fixture.Activate(A);
-        using var screen = Coordinator(fixture, Adapter(fixture, new ScratchImportAi()));
-        Assert.True(await screen.OpenAsync(A));
-        screen.SetRawText($"target-{A}-0,mine\n\t\n하나");
-        screen.SetDelimiter(ImportDelimiters.Comma);
-        await screen.PreviewAsync();
         static string Text(string key) => $"<{key}>";
-        Assert.StartsWith("<", ImportServiceText.DetectedFormat(screen.State.DetectedFormat, Text));
-        Assert.All(screen.State.Rows.Where(row => row.Error is not null),
-            row => Assert.StartsWith("<", ImportServiceText.Message(row.Error, Text)));
-        screen.SetTargetMode(ImportTargetMode.Existing);
-        screen.SetSelectedResource(fixture.ResourceId(A));
+        var shown = new List<(string Raw, string Mapped)>();
+
+        // Each preview path: its detected format, warnings and row errors (what the page shows).
+        async Task Preview(ContentImportRequest request, Action<ScratchImportAi>? arrange = null)
+        {
+            var ai = new ScratchImportAi();
+            arrange?.Invoke(ai);
+            var preview = await Adapter(fixture, ai).PreviewAsync(A, request, default);
+            shown.Add((preview.DetectedFormat, ImportServiceText.DetectedFormat(preview.DetectedFormat, Text)));
+            foreach (var text in preview.Warnings.Concat(preview.Rows.Select(row => row.Error)).OfType<string>())
+                shown.Add((text, ImportServiceText.Message(text, Text)));
+        }
+
+        var tooLarge = new string('가', 50_001);
+        const string phrases = "잘 지내요\n밥 먹었어요";
+        const string medium =
+            """{"vocabulary":[{"targetLanguageTerm":"밥","nativeLanguageTerm":"rice","confidence":"medium","notes":"food"}]}""";
+        // Vocabulary: each delimited format, a missing target, a missing native term.
+        await Preview(new() { RawText = "사과,apple\n,blank\n바나나,", DelimiterOverride = ',' });
+        await Preview(new() { RawText = "하나\tone\n둘\ttwo" });
+        await Preview(new() { RawText = "하나|one\n둘|two" });
+        await Preview(new() { RawText = """[{"target":"하나","native":"one"},{"native":"no target"}]""" });
+        // Single column: a term the AI cannot translate, and a failed translation.
+        await Preview(new() { RawText = "하나\n둘", DelimiterOverride = ',' }, ai => ai.Json["BulkTranslationResponse"] =
+            """{"translations":[{"targetLanguageTerm":"하나","nativeLanguageTerm":"[unknown]"}]}""");
+        await Preview(new() { RawText = "하나\n둘", DelimiterOverride = ',' },
+            ai => ai.Fails.Add("BulkTranslationResponse"));
+        // Free text: nothing extracted, a medium-confidence entry, a failed AI, too large.
+        await Preview(new() { RawText = "그냥 문장입니다" });
+        await Preview(new() { RawText = "그냥 문장입니다" },
+            ai => ai.Json["FreeTextVocabularyExtractionResponse"] = medium);
+        await Preview(new() { RawText = "그냥 문장입니다" },
+            ai => ai.Fails.Add("FreeTextVocabularyExtractionResponse"));
+        await Preview(new() { RawText = tooLarge });
+        // Phrases and sentences: a medium-confidence entry, a failed AI, too large.
+        await Preview(new() { RawText = phrases, ContentType = ContentType.Phrases },
+            ai => ai.Json["FreeTextVocabularyExtractionResponse"] = medium);
+        await Preview(new() { RawText = phrases, ContentType = ContentType.Phrases },
+            ai => ai.Fails.Add("FreeTextVocabularyExtractionResponse"));
+        await Preview(new() { RawText = tooLarge, ContentType = ContentType.Phrases });
+        await Preview(new() { RawText = phrases, ContentType = ContentType.Sentences, HarvestSentences = true });
+        // Transcript: stored without extraction, and nothing extracted.
+        await Preview(new()
+        {
+            RawText = phrases, ContentType = ContentType.Transcript, HarvestTranscript = true, HarvestWords = false
+        });
+        await Preview(new() { RawText = phrases, ContentType = ContentType.Transcript, HarvestTranscript = true });
+
+        // The commit's result reasons: empty target, empty native, existing word, repeat in the batch.
+        var result = await Adapter(fixture, new ScratchImportAi()).CommitAsync(A, new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows =
+                [
+                    new ImportRow { RowNumber = 1, TargetLanguageTerm = "", NativeLanguageTerm = "blank" },
+                    new ImportRow { RowNumber = 2, TargetLanguageTerm = "셋", NativeLanguageTerm = "" },
+                    new ImportRow { RowNumber = 3, TargetLanguageTerm = $"target-{A}-0", NativeLanguageTerm = "mine" },
+                    new ImportRow { RowNumber = 4, TargetLanguageTerm = "넷", NativeLanguageTerm = "four" },
+                    new ImportRow { RowNumber = 5, TargetLanguageTerm = "넷", NativeLanguageTerm = "four" }
+                ]
+            },
+            Target = new ImportTarget { Mode = ImportTargetMode.Existing, ExistingResourceId = fixture.ResourceId(A) }
+        }, default);
+        foreach (var reason in result.Items.Select(item => item.Reason).OfType<string>())
+            shown.Add((reason, ImportServiceText.Message(reason, Text)));
+        // Not reachable from this page's inputs here: the unknown format (the service throws
+        // first) and a phrase-linked word in Update mode.
+        shown.Add(("Unknown", ImportServiceText.DetectedFormat("Unknown", Text)));
+        shown.Add(("Phrase-linked entries require manual edit",
+            ImportServiceText.Message("Phrase-linked entries require manual edit", Text)));
+
+        Assert.All(shown, text => Assert.True(text.Mapped.StartsWith("<Import_", StringComparison.Ordinal),
+            $"The page would show the service's English as is: \"{text.Raw}\""));
+        // Every path above ran: each mapped key was produced at least once.
+        var keys = shown.Select(text => text.Mapped).ToHashSet(StringComparer.Ordinal);
+        string[] expected =
+        [
+            "Import_Format_Csv", "Import_Format_Tsv", "Import_Format_Pipe", "Import_Format_Json",
+            "Import_Format_FreeText", "Import_Format_Phrases", "Import_Format_Sentences",
+            "Import_ContentType_Transcript", "Import_Format_Unknown",
+            "Import_Warn_TranscriptOnly", "Import_Warn_TranscriptNoVocab", "Import_Warn_AiWordExtractionFailed",
+            "Import_Warn_AiTranslationFailed", "Import_Warn_TooLargePhrases", "Import_Warn_TooLargeFreeText",
+            "Import_Warn_AiExtractionFailed",
+            "Import_RowError_TargetRequired", "Import_RowError_NativeMissing", "Import_RowError_NotTranslated",
+            "Import_RowError_TooLargePhrases", "Import_RowError_TooLargeFreeText", "Import_RowError_NoVocabulary",
+            "Import_RowError_AiExtractionFailed", "Import_RowNote_Confidence",
+            "Import_Reason_AlreadyExists", "Import_PreviewDuplicate_DuplicateWithinBatch",
+            "Import_Reason_PhraseLinked", "Import_Reason_TargetEmpty", "Import_Reason_NativeEmpty",
+        ];
+        Assert.All(expected, key => Assert.Contains($"<{key}>", keys));
+    }
+
+    [Fact]
+    public async Task Commit_ShowsTheResultBeforeListenersRun_AndOffersTheNewResourceToTheNextImport()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        using var screen = Coordinator(fixture, Adapter(fixture, new ScratchImportAi()));
+        ImportContentState? seen = null;
+        screen.ResourcesWritten += () =>
+        {
+            seen = screen.State;
+            throw new InvalidOperationException("Simulated listener failure.");
+        };
+        Assert.True(await screen.OpenAsync(A));
+        Assert.Empty(screen.State.Resources);
+        screen.SetRawText("하나,one");
+        await screen.PreviewAsync();
+        screen.SetNewResourceTitle("Listener");
+
         await screen.CommitAsync();
-        Assert.All(screen.State.Result!.Items.Where(item => item.Reason is not null),
-            item => Assert.StartsWith("<", ImportServiceText.Message(item.Reason, Text)));
-        Assert.Contains(screen.State.Result.Items, item => item.Reason == "Already exists in resource");
+
+        // The listener saw the committed state; its failure does not report the import as failed.
+        Assert.Equal(ImportContentStep.Complete, seen!.Step);
+        Assert.NotNull(seen.Result);
+        Assert.False(seen.IsCommitting);
+        var done = screen.State;
+        Assert.Equal(ImportContentStep.Complete, done.Step);
+        Assert.False(done.CanCommit);
+        Assert.Contains(done.Messages, message => message.Key == "Import_ImportSuccess");
+        Assert.DoesNotContain(done.Messages, message => message.Key == "Import_CommitError");
+        var created = done.Result!.ResourceId;
+        Assert.Equal([created], done.Resources.Select(resource => resource.Id));
+        Assert.False(done.ResourcesLoading);
+
+        // Import more, then Add to existing: the resource just created is offered.
+        screen.StartNewImport();
+        screen.SetRawText("둘,two");
+        await screen.PreviewAsync();
+        screen.SetTargetMode(ImportTargetMode.Existing);
+        screen.SetSelectedResource(created);
+        Assert.Equal(created, screen.State.SelectedResourceId);
+        await screen.CommitAsync();
+        Assert.Equal(created, screen.State.Result!.ResourceId);
+        Assert.Equal(1, screen.State.Result.CreatedCount);
+    }
+
+    [Fact]
+    public async Task OwnerChangeInsideTheAdapterCommit_ReturnsTheCommittedResult_ForTheOwnerItRanFor()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        await fixture.SeedProfileAsync(B);
+        fixture.Activate(A);
+        var adapter = Adapter(fixture, new ScratchImportAi());
+        // The shared service triggers sync after its transaction: the device owner changes there.
+        fixture.AmbientSync.OnTrigger = () => fixture.Activate(B);
+        var result = await adapter.CommitAsync(A, new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = [new ImportRow { RowNumber = 1, TargetLanguageTerm = "하나", NativeLanguageTerm = "one" }]
+            },
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Flipped" }
+        }, default);
+        fixture.AmbientSync.OnTrigger = null;
+
+        // Not reported as refused: the rows are committed (and marked for sync) for A only.
+        Assert.Equal(1, result.CreatedCount);
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var resource = await db.LearningResources.AsNoTracking().SingleAsync(row => row.Title == "Flipped");
+        Assert.Equal(A, resource.UserProfileId);
+        Assert.Equal(result.ResourceId, resource.Id);
+        Assert.False(await db.VocabularyWords.AnyAsync(word => word.UserProfileId == B));
+        Assert.True(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(A));
+        Assert.False(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(B));
     }
 
     private static NativeContentImport Adapter(NativeSliceFixture fixture, ScratchImportAi ai) =>
@@ -545,9 +705,14 @@ public sealed class NativeContentImportTests
 
         public List<(string Owner, string Type)> Calls { get; } = [];
 
+        /// <summary>Response types whose prompt fails (as an unreachable AI would).</summary>
+        public HashSet<string> Fails { get; } = new(StringComparer.Ordinal);
+
         public Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
         {
             Calls.Add((owner, typeof(T).Name));
+            if (Fails.Contains(typeof(T).Name))
+                throw new InvalidOperationException("scratch failure");
             return Task.FromResult(Json.TryGetValue(typeof(T).Name, out var json)
                 ? JsonSerializer.Deserialize<T>(json, Options) : default);
         }
