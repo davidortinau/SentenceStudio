@@ -189,6 +189,48 @@ public sealed class VocabularyWordCleanupTests
     }
 
     [Fact]
+    public async Task FindDuplicates_FromAnEditorElsewhere_HandsOverToTheVocabularyPagesFocusedPanel()
+    {
+        // An editor hosted outside the Vocabulary page (Import Content results) leaves its word
+        // and hands the term and word over; the Vocabulary page opens the same focused panel.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var handedOver = new List<(string Term, string WordId)>();
+        using var importEditor = new VocabularyBrowser(
+            fixture.Provider.GetRequiredService<INativeResourceStore>(),
+            fixture.UserScope, fixture.Preferences, new ScratchQuizMedia(),
+            NullLogger<VocabularyBrowser>.Instance, key => key)
+        {
+            FindDuplicatesElsewhere = (term, wordId) => handedOver.Add((term, wordId))
+        };
+        Assert.True(await importEditor.OpenAsync(UserA));
+        await importEditor.OpenWordAsync("dup-a-1");
+
+        await importEditor.FindDuplicatesAsync();
+
+        Assert.False(importEditor.IsFormOpen);
+        Assert.Null(importEditor.ListState.Duplicates);
+        Assert.Equal([("사과", "dup-a-1")], handedOver);
+
+        using var vocabularyPage = Create(fixture);
+        Assert.True(await vocabularyPage.OpenAsync(UserA));
+        await vocabularyPage.OpenDuplicatesAsync(handedOver[0].Term, handedOver[0].WordId);
+        var panel = Assert.IsType<VocabularyDuplicatePanel>(vocabularyPage.ListState.Duplicates);
+        Assert.Equal(("dup-a-1", "사과"), (panel.FocusedWordId, panel.FocusLabel));
+        Assert.True(panel.IsFocused(Assert.Single(panel.Groups)));
+
+        // Another owner on the device opens nothing.
+        fixture.Activate(UserB);
+        using var other = Create(fixture);
+        Assert.False(await other.OpenAsync(UserA));
+        await other.OpenDuplicatesAsync("사과", "dup-a-1");
+        Assert.Null(other.ListState.Duplicates);
+    }
+
+    [Fact]
     public async Task FindDuplicates_BlockedGroupExplainsAndMergesNothing()
     {
         using var fixture = new NativeSliceFixture();

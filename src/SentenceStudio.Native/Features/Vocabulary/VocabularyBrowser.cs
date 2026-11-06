@@ -469,8 +469,20 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _ => "VocabWordEdit_NotFound"
     };
 
+    /// <summary>
+    /// Where Find Duplicates goes when this editor is hosted outside the Vocabulary page (Import
+    /// Content results): it receives the term and word and opens that page's duplicate manager.
+    /// Null on the Vocabulary page itself, which opens its own.
+    /// </summary>
+    internal Action<string, string>? FindDuplicatesElsewhere { get; init; }
+
     /// <summary>Source OpenDuplicateManager (see <see cref="VocabularyWordCleanup"/>).</summary>
-    internal Task FindDuplicatesAsync() => Guard(_cleanup.FindDuplicatesAsync);
+    internal Task FindDuplicatesAsync() =>
+        Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere));
+
+    /// <summary>The duplicate manager focused on a term and word handed over from an editor elsewhere.</summary>
+    internal Task OpenDuplicatesAsync(string term, string? wordId) =>
+        Guard(() => _cleanup.OpenDuplicatesAsync(term, wordId));
 
     /// <summary>Source ShowMoreDuplicates.</summary>
     internal Task ShowMoreDuplicatesAsync() => Guard(_cleanup.ShowMoreDuplicatesAsync);

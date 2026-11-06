@@ -83,6 +83,9 @@ public sealed class NativeLaunchAndQuickAddContractTests
         var blocked = importPage.IndexOf("else if (state.Blocked)", StringComparison.Ordinal);
         Assert.InRange(blocked, 0,
             importPage.IndexOf("else if (state.Result is { } result)", StringComparison.Ordinal));
+        // The import word editor's Find Duplicates opens the Vocabulary page's focused panel.
+        Assert.Contains("FindDuplicatesElsewhere = OpenDuplicatesOnVocabularyPage",
+            Source("App/ApplicationController.Import.cs"));
         // An import's write makes the Library list stale even if marking it for sync failed.
         Assert.Contains("_resources?.NoteResourcesWritten();\n        ReadResourcesIfStale();",
             Source("App/ApplicationController.Import.cs"));

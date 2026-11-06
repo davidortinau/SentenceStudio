@@ -243,7 +243,11 @@ internal sealed partial class ApplicationController
                 provider.GetRequiredService<INativeResourceStore>(), scope,
                 provider.GetRequiredService<IPreferencesService>(),
                 provider.GetRequiredService<INativeQuizMedia>(),
-                provider.GetRequiredService<ILogger<VocabularyBrowser>>(), Text);
+                provider.GetRequiredService<ILogger<VocabularyBrowser>>(), Text)
+            {
+                // Source: Find Duplicates navigates to the Vocabulary page's manager.
+                FindDuplicatesElsewhere = OpenDuplicatesOnVocabularyPage
+            };
             _importWords.Changed += Publish;
         }
         _ = OpenImportedWordAsync(_importWords, owner, wordId);
