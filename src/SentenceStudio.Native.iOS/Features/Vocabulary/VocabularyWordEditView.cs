@@ -118,7 +118,7 @@ internal static class VocabularyWordEditView
         var cancel = style.OutlineButton(Views.Text(text("Common_Cancel")),
                 actions.Cancel)
             .WithAccessibilityIdentifier("native.vocabulary.edit.cancel");
-        cancel.IsEnabled = !state.Saving;
+        cancel.IsEnabled = !state.Saving && !state.HandingOff;
         var save = SaveButton(style, text, actions)
             .WithAccessibilityIdentifier("native.vocabulary.edit.save");
         var buttons = Views.HStack(cancel, save)

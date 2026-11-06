@@ -1433,6 +1433,100 @@ public class ContentImportServiceTests : IDisposable
     };
 
     [Fact]
+    public async Task CommitImportAsync_SourceSentence_KeptForConjugatedKoreanVerbs()
+    {
+        // Review: an unedited row's sentence must contain its word, and a verb whose stem merges
+        // with its ending (만났어요, 봤어요, 해요) or changes (들어요, 몰라요) still contains it.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var rows = new (string Term, string Native, string Sentence)[]
+        {
+            ("만나다", "to meet", "어제 친구를 만났어요."),
+            ("보다", "to see", "영화를 봤어요."),
+            ("가다", "to go", "학교에 갔어요."),
+            ("오다", "to come", "동생이 와요."),
+            ("마시다", "to drink", "물을 마셔요."),
+            ("공부하다", "to study", "매일 공부해요."),
+            ("듣다", "to listen", "음악을 들어요."),
+            ("덥다", "to be hot", "날씨가 더워요."),
+            ("모르다", "to not know", "저는 잘 몰라요."),
+            ("쓰다", "to write", "편지를 써요.")
+        };
+
+        await service.CommitImportAsync(new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = rows.Select((row, index) => new ImportRow
+                {
+                    RowNumber = index + 1, TargetLanguageTerm = row.Term, ParsedTargetLanguageTerm = row.Term,
+                    NativeLanguageTerm = row.Native, SourceSentence = row.Sentence,
+                    Status = RowStatus.Ok, IsSelected = true
+                }).ToList(),
+                SourceText = string.Join(" ", rows.Select(row => row.Sentence))
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Conjugated verbs",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip,
+            ReviewedByLearner = true
+        });
+
+        var kept = await (
+            from example in dbContext.ExampleSentences
+            join word in dbContext.VocabularyWords on example.VocabularyWordId equals word.Id
+            select word.TargetLanguageTerm).ToListAsync();
+        kept.Should().BeEquivalentTo(rows.Select(row => row.Term));
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_SourceSentence_KeptForALanguageWithoutAStemRule()
+    {
+        // Review: the word check cannot find comer in comí, so for a target language other than
+        // Korean it is not required; the other checks still drop a list line.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        const string pasted = "manzana - apple\nAyer comí arroz con mi hermana.";
+
+        await service.CommitImportAsync(new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new() { RowNumber = 1, TargetLanguageTerm = "manzana", ParsedTargetLanguageTerm = "manzana",
+                        NativeLanguageTerm = "apple", SourceSentence = "manzana - apple",
+                        Status = RowStatus.Ok, IsSelected = true },
+                    new() { RowNumber = 2, TargetLanguageTerm = "comer", ParsedTargetLanguageTerm = "comer",
+                        NativeLanguageTerm = "to eat", SourceSentence = "Ayer comí arroz con mi hermana.",
+                        SourceSentenceTranslation = "Yesterday I ate rice with my sister.",
+                        Status = RowStatus.Ok, IsSelected = true }
+                },
+                SourceText = pasted
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Spanish",
+                TargetLanguage = "Spanish",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip
+        });
+
+        var example = await dbContext.ExampleSentences.SingleAsync();
+        var comer = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "comer");
+        example.VocabularyWordId.Should().Be(comer.Id);
+        example.TargetSentence.Should().Be("Ayer comí arroz con mi hermana.");
+    }
+
+    [Fact]
     public async Task CommitImportAsync_SourceSentence_WordListAndMixedLanguageLinesAreNotKept()
     {
         // Learning Value Gate (B72 review): a kept example is a TargetToNative quiz hint, so a

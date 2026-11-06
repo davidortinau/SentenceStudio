@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 using System.Text.RegularExpressions;
 
@@ -625,11 +626,12 @@ public class ExampleSentenceRepository
 
     private static bool SentenceContainsWordTerm(VocabularyWord word, string sentence)
     {
-        // A word with no lemma (an imported word) is its own lemma, as a transcript word is
-        // (ExtractedVocabularyItem.ToVocabularyWord): 먹다 is found in 먹었어요.
+        // A conjugated Korean verb or adjective is found from its dictionary form (먹다 in
+        // 먹었어요, 가다 in 갔어요, 모르다 in 몰라요; KoreanPredicateMatcher). A word with no lemma
+        // (an imported word) is its own lemma, as a transcript word is.
         return ContainsTerm(sentence, word.TargetLanguageTerm) ||
             ContainsTerm(sentence, word.Lemma) ||
-            ContainsKoreanDictionaryStem(sentence,
+            KoreanPredicateMatcher.Contains(sentence,
                 string.IsNullOrWhiteSpace(word.Lemma) ? word.TargetLanguageTerm : word.Lemma);
     }
 
@@ -637,18 +639,6 @@ public class ExampleSentenceRepository
     {
         return !string.IsNullOrWhiteSpace(term) &&
             sentence.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool ContainsKoreanDictionaryStem(string sentence, string? lemma)
-    {
-        if (string.IsNullOrWhiteSpace(lemma))
-            return false;
-
-        var trimmed = lemma.Trim();
-        if (!trimmed.EndsWith('다') || trimmed.Length <= 1)
-            return false;
-
-        return sentence.Contains(trimmed[..^1], StringComparison.OrdinalIgnoreCase);
     }
 
     private static int? MapCefrToDifficulty(string? targetCefrLevel)

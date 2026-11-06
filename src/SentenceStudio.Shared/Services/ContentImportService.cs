@@ -1959,9 +1959,10 @@ public class ContentImportService : IContentImportService
                     // as an example sentence on the vocab entry should occur."). Only a real
                     // target-language sentence from the pasted text is kept: an example is a quiz
                     // hint, and a line such as "사과 - apple" would show the answer
-                    // (ImportExampleSentencePolicy). The sentence must contain the word, except on
-                    // a row whose term the learner edited in a reviewed preview; an unattended
-                    // import (share sheet, shared link) never skips that check.
+                    // (ImportExampleSentencePolicy). In Korean the sentence must contain the word,
+                    // conjugated or not, except on a row whose term the learner edited in a
+                    // reviewed preview; an unattended import (share sheet, shared link) never skips
+                    // that check.
                     var sourceText = commit.Preview.SourceText;
                     var examples = new List<ExampleSentenceRepository.ReadingExample>();
                     foreach (var (word, row) in pendingExampleRows)
@@ -1972,7 +1973,9 @@ public class ContentImportService : IContentImportService
                                 [row.NativeLanguageTerm, word.NativeLanguageTerm]))
                             continue;
                         examples.Add(new(word, row.SourceSentence!, row.SourceSentenceTranslation,
-                            RequireTermInSentence: !(commit.ReviewedByLearner && ImportExampleSentencePolicy.TermEdited(row))));
+                            RequireTermInSentence: ImportExampleSentencePolicy.RequiresTerm(
+                                word.Language ?? effectiveTargetLanguage,
+                                commit.ReviewedByLearner && ImportExampleSentencePolicy.TermEdited(row))));
                     }
                     var keptExamples = await exampleSentenceRepository.CreateFromReadingIfNewAsync(
                         examples, targetResource.Id, existingExamplesByWordId,

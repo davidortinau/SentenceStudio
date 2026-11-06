@@ -48,6 +48,34 @@ public class ImportExampleSentencePolicyTests
     }
 
     [Fact]
+    public void ATranslationWithAParticleOrAnInflection_IsStillTheTranslation()
+    {
+        // Review: whole-word equality let a translation through with a particle or an ending.
+        const string both = "I like apples (사과를 좋아해요)";
+        Keeps(both, null, "사과", "apple", source: both).Should().BeFalse();       // apples
+        Keeps(both, null, "apple", "사과", source: both).Should().BeFalse();       // 사과를
+        const string spanish = "Ella estudia mucho (she studies a lot)";
+        Keeps(spanish, null, "estudiar", "to study", source: spanish).Should().BeFalse(); // studies
+        const string verb = "I eat rice - 밥을 먹어요";
+        Keeps(verb, null, "eat", "먹다", source: verb).Should().BeFalse();          // 먹어요
+        // A Korean sentence still carries no English word, and "to" does not begin "todo".
+        Keeps("오늘 밥을 먹었어요.", "I ate rice today.", "밥", "rice").Should().BeTrue();
+        Keeps("Todo está bien hoy.", null, "estar", "to be", source: "Todo está bien hoy.")
+            .Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("Korean", false, true)]
+    [InlineData("ko-KR", false, true)]
+    [InlineData("Korean", true, false)]
+    [InlineData("Spanish", false, false)]
+    [InlineData(null, false, false)]
+    public void RequiresTerm_OnlyWhereConjugatedFormsCanBeFound(string? language, bool edited, bool expected)
+    {
+        ImportExampleSentencePolicy.RequiresTerm(language, edited).Should().Be(expected);
+    }
+
+    [Fact]
     public void ANativeLanguageOrMixedLine_IsNotKept()
     {
         Keeps("I ate 김치 today.", "I ate kimchi today.", "김치", "kimchi").Should().BeFalse();

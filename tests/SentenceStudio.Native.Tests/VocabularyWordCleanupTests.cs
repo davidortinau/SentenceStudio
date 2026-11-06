@@ -268,6 +268,54 @@ public sealed class VocabularyWordCleanupTests
     }
 
     [Fact]
+    public async Task FindDuplicates_WhileTheHandoffRuns_TheEditorCannotSaveDeleteOrClose()
+    {
+        // Review: the import editor stays on screen while the Vocabulary page opens. A Save or
+        // Delete started then would be cut short when the host releases the editor, so they
+        // wait; a handoff that fails gives the editor back.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        var wordId = fixture.WordId(UserA, 0);
+        using var importEditor = new VocabularyBrowser(
+            fixture.Provider.GetRequiredService<INativeResourceStore>(),
+            fixture.UserScope, fixture.Preferences, new ScratchQuizMedia(),
+            NullLogger<VocabularyBrowser>.Instance, key => key)
+        {
+            FindDuplicatesElsewhere = (_, _) => true
+        };
+        Assert.True(await importEditor.OpenAsync(UserA));
+        await importEditor.OpenWordAsync(wordId);
+        importEditor.ChangeDraft(nameof(NativeVocabularyEditDraft.NativeTerm), "a changed meaning");
+
+        await importEditor.FindDuplicatesAsync();
+
+        Assert.True(importEditor.IsNavigationBlocked);
+        Assert.False(importEditor.EditState.CanDelete);
+        Assert.False(importEditor.EditState.CanFindDuplicates);
+        await importEditor.SaveAsync();
+        importEditor.RequestDelete();
+        importEditor.CloseWord();
+        Assert.True(importEditor.IsFormOpen);
+        Assert.False(importEditor.IsDeleteConfirmationPresented);
+        Assert.NotEqual("a changed meaning", await NativeTermAsync(fixture, wordId));
+
+        // The host reports that the Vocabulary page did not open: the editor works again.
+        importEditor.ShowEditError(VocabularyBrowser.FindDuplicatesFailedKey);
+        Assert.False(importEditor.IsNavigationBlocked);
+        await importEditor.SaveAsync();
+        Assert.Equal("a changed meaning", await NativeTermAsync(fixture, wordId));
+    }
+
+    private static async Task<string?> NativeTermAsync(NativeSliceFixture fixture, string wordId)
+    {
+        using var scope = fixture.Scope();
+        return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyWords
+            .AsNoTracking().Where(word => word.Id == wordId)
+            .Select(word => word.NativeLanguageTerm).SingleAsync();
+    }
+
+    [Fact]
     public async Task FindDuplicates_BlockedGroupExplainsAndMergesNothing()
     {
         using var fixture = new NativeSliceFixture();

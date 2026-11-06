@@ -508,11 +508,19 @@ public class VideoImportPipelineService : IVideoImportPipeline
                 .GroupBy(example => example.VocabularyWordId)
                 .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
 
-            // A transcript sentence is kept only when it contains its word (the default).
+            // The same rule as Import Content (ImportExampleSentencePolicy, with the transcript as
+            // the source text): a kept example is a quiz hint, so it must be a target-language
+            // sentence from the transcript that does not carry the word's meaning.
             var examples = mappedItems
-                .Where(mapped => !string.IsNullOrWhiteSpace(mapped.Item.ExampleSentence))
+                .Where(mapped => ImportExampleSentencePolicy.KeepsSentence(
+                    mapped.Item.ExampleSentence, mapped.Item.ExampleSentenceTranslation,
+                    import.CleanedTranscript,
+                    [mapped.Item.TargetLanguageTerm, mapped.Word.TargetLanguageTerm, mapped.Word.Lemma],
+                    [mapped.Item.NativeLanguageTerm, mapped.Word.NativeLanguageTerm]))
                 .Select(mapped => new ExampleSentenceRepository.ReadingExample(
-                    mapped.Word, mapped.Item.ExampleSentence!, mapped.Item.ExampleSentenceTranslation))
+                    mapped.Word, mapped.Item.ExampleSentence!, mapped.Item.ExampleSentenceTranslation,
+                    RequireTermInSentence: ImportExampleSentencePolicy.RequiresTerm(
+                        mapped.Word.Language ?? import.Language, termEditedInReview: false)))
                 .ToList();
             await exampleSentenceRepository.CreateFromReadingIfNewAsync(
                 examples, resource.Id, existingExamplesLookup,

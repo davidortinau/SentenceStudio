@@ -17,14 +17,17 @@ namespace SentenceStudio.Services;
 /// <list type="bullet">
 /// <item>it appears in the pasted text (ignoring spacing, punctuation and case), so it is not invented;</item>
 /// <item>it is more than the term itself (a Phrase row that is the whole line restates itself);</item>
-/// <item>no word of the term's translation (the row's, or the existing word's) is one of its words;</item>
+/// <item>none of its words is, or begins with, a word of the term's translation (the row's, or the
+/// existing word's): a particle or an inflection does not hide it (사과를, apples);</item>
 /// <item>it does not contain its own translation, and at most half its words appear in that
 /// translation (a native-language or mixed line shares most of its words with it).</item>
 /// </list>
 /// <para>
 /// The word itself must also appear in the sentence (checked by
-/// <see cref="SentenceStudio.Data.ExampleSentenceRepository"/>), except on a row whose term the
-/// learner edited in a reviewed preview (<see cref="TermEdited"/>).
+/// <see cref="SentenceStudio.Data.ExampleSentenceRepository"/>, conjugated Korean through
+/// <see cref="KoreanPredicateMatcher"/>) when the target language is Korean
+/// (<see cref="RequiresTerm"/>), except on a row whose term the learner edited in a reviewed
+/// preview (<see cref="TermEdited"/>).
 /// </para>
 /// </remarks>
 public static class ImportExampleSentencePolicy
@@ -51,10 +54,13 @@ public static class ImportExampleSentencePolicy
         var sentenceWords = Words(sentence);
         foreach (var nativeTerm in nativeTerms)
         {
+            // A Korean translation in dictionary form is found conjugated (먹다 in 먹어요).
+            if (KoreanPredicateMatcher.Contains(sentence, nativeTerm))
+                return false;
             var nativeWords = Words(nativeTerm);
             // A one-letter word of a longer translation ("a lot") says too little to reject on.
             if (nativeWords.Any(word => (word.Length > 1 || nativeWords.Count == 1)
-                    && sentenceWords.Contains(word)))
+                    && sentenceWords.Any(sentenceWord => Carries(sentenceWord, word))))
                 return false;
         }
 
@@ -70,6 +76,42 @@ public static class ImportExampleSentencePolicy
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Whether a kept sentence must contain its word. Only for a target language whose
+    /// conjugated forms the check can find from the dictionary form (Korean, through
+    /// <see cref="KoreanPredicateMatcher"/>); for another language (comer in comí) it would drop
+    /// real sentences, so the other checks decide. Never for a term the learner edited in a
+    /// reviewed preview (<see cref="TermEdited"/>).
+    /// </summary>
+    public static bool RequiresTerm(string? language, bool termEditedInReview) =>
+        !termEditedInReview && HasStemRule(language);
+
+    private static bool HasStemRule(string? language) =>
+        language?.Trim() is { Length: > 0 } name
+        && (name.Equals("Korean", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("ko", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("ko-", StringComparison.OrdinalIgnoreCase)
+            || name == "한국어");
+
+    /// <summary>
+    /// A sentence word carries a translation word when it is that word, or begins with it or its
+    /// stem: a particle (사과를) or an inflection (apples, eating, studies). A Latin word needs at
+    /// least three letters to count as a beginning (to and today are different words).
+    /// </summary>
+    private static bool Carries(string sentenceWord, string nativeWord)
+    {
+        if (sentenceWord == nativeWord)
+            return true;
+        var latin = nativeWord.All(c => c <= '\u024F');
+        if (latin && nativeWord.Length < 3)
+            return false;
+        if (sentenceWord.StartsWith(nativeWord, StringComparison.Ordinal))
+            return true;
+        // study/studies, make/making.
+        return latin && nativeWord.Length >= 4 && nativeWord[^1] is 'e' or 'y'
+            && sentenceWord.StartsWith(nativeWord[..^1], StringComparison.Ordinal);
     }
 
     /// <summary>
