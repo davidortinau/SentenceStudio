@@ -86,6 +86,23 @@ public sealed class NativeLaunchAndQuickAddContractTests
         // The import word editor's Find Duplicates opens the Vocabulary page's focused panel.
         Assert.Contains("FindDuplicatesElsewhere = OpenDuplicatesOnVocabularyPage",
             Source("App/ApplicationController.Import.cs"));
+        // The editor stays until the Vocabulary page opened: the handoff is posted after the
+        // editor's operation (no Task.Yield ordering), opens Vocabulary first, and only then
+        // releases the import page; a refusal or a failed open shows on the editor.
+        var vocabularyHost = Source("App/ApplicationController.Vocabulary.cs");
+        var handoff = vocabularyHost[vocabularyHost.IndexOf(
+            "private bool OpenDuplicatesOnVocabularyPage", StringComparison.Ordinal)..];
+        handoff = handoff[..handoff.IndexOf("private string? LibraryOwner(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("Task.Yield", handoff);
+        Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(", handoff);
+        Assert.InRange(handoff.IndexOf("await vocabulary.OpenAsync(owner)", StringComparison.Ordinal),
+            0, handoff.IndexOf("ResetLibraryToList(keepVocabulary: true);", StringComparison.Ordinal));
+        Assert.Contains("ShowEditError(VocabularyBrowser.FindDuplicatesFailedKey)", handoff);
+        // One owner check for the Library's import pages and Vocabulary, so they cannot drift.
+        var importHost = Source("App/ApplicationController.Import.cs");
+        Assert.Contains("LibraryOwner(\"Import Content\") is not { } owner", importHost);
+        Assert.Contains("LibraryOwner(\"Imported word\") is not { } owner", importHost);
+        Assert.DoesNotContain("TryGetUserProfileId", importHost);
         // An import's write makes the Library list stale even if marking it for sync failed.
         Assert.Contains("_resources?.NoteResourcesWritten();\n        ReadResourcesIfStale();",
             Source("App/ApplicationController.Import.cs"));

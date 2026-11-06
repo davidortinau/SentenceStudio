@@ -191,8 +191,9 @@ public sealed class VocabularyWordCleanupTests
     [Fact]
     public async Task FindDuplicates_FromAnEditorElsewhere_HandsOverToTheVocabularyPagesFocusedPanel()
     {
-        // An editor hosted outside the Vocabulary page (Import Content results) leaves its word
-        // and hands the term and word over; the Vocabulary page opens the same focused panel.
+        // An editor hosted outside the Vocabulary page (Import Content results) hands the term
+        // and word over and stays open (its host releases it once the Vocabulary page opened);
+        // the Vocabulary page opens the same focused panel.
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
         await fixture.SeedAsync(UserB);
@@ -204,14 +205,19 @@ public sealed class VocabularyWordCleanupTests
             fixture.UserScope, fixture.Preferences, new ScratchQuizMedia(),
             NullLogger<VocabularyBrowser>.Instance, key => key)
         {
-            FindDuplicatesElsewhere = (term, wordId) => handedOver.Add((term, wordId))
+            FindDuplicatesElsewhere = (term, wordId) =>
+            {
+                handedOver.Add((term, wordId));
+                return true;
+            }
         };
         Assert.True(await importEditor.OpenAsync(UserA));
         await importEditor.OpenWordAsync("dup-a-1");
 
         await importEditor.FindDuplicatesAsync();
 
-        Assert.False(importEditor.IsFormOpen);
+        Assert.True(importEditor.IsFormOpen);
+        Assert.Null(importEditor.EditState.ErrorKey);
         Assert.Null(importEditor.ListState.Duplicates);
         Assert.Equal([("사과", "dup-a-1")], handedOver);
 
@@ -228,6 +234,37 @@ public sealed class VocabularyWordCleanupTests
         Assert.False(await other.OpenAsync(UserA));
         await other.OpenDuplicatesAsync("사과", "dup-a-1");
         Assert.Null(other.ListState.Duplicates);
+    }
+
+    [Fact]
+    public async Task FindDuplicates_AHandoffThatCannotStart_KeepsTheEditorAndSaysSo()
+    {
+        // The host refused (another action running, an untrusted owner): nothing moves, the
+        // editor keeps its draft and shows that the Vocabulary page could not open.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        fixture.Activate(UserA);
+        using var importEditor = new VocabularyBrowser(
+            fixture.Provider.GetRequiredService<INativeResourceStore>(),
+            fixture.UserScope, fixture.Preferences, new ScratchQuizMedia(),
+            NullLogger<VocabularyBrowser>.Instance, key => key)
+        {
+            FindDuplicatesElsewhere = (_, _) => false
+        };
+        Assert.True(await importEditor.OpenAsync(UserA));
+        await importEditor.OpenWordAsync("dup-a-1");
+
+        await importEditor.FindDuplicatesAsync();
+
+        Assert.True(importEditor.IsFormOpen);
+        Assert.Equal("dup-a-1", importEditor.EditState.Draft?.Id);
+        Assert.Equal(VocabularyBrowser.FindDuplicatesFailedKey, importEditor.EditState.ErrorKey);
+        Assert.Null(importEditor.ListState.Duplicates);
+
+        // A failure the host reports later (the Vocabulary page did not open) shows the same way.
+        importEditor.ShowEditError("VocabWordEdit_NotFound");
+        Assert.Equal("VocabWordEdit_NotFound", importEditor.EditState.ErrorKey);
     }
 
     [Fact]

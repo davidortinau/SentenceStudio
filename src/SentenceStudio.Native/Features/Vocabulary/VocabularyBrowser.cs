@@ -472,13 +472,34 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>
     /// Where Find Duplicates goes when this editor is hosted outside the Vocabulary page (Import
     /// Content results): it receives the term and word and opens that page's duplicate manager.
-    /// Null on the Vocabulary page itself, which opens its own.
+    /// True when the host took the handoff: this editor stays open until the Vocabulary page has
+    /// opened, and the host then releases it (or reports a failure with <see cref="ShowEditError"/>).
+    /// False when it cannot start now: the editor stays open and says so. Null on the Vocabulary
+    /// page itself, which opens its own.
     /// </summary>
-    internal Action<string, string>? FindDuplicatesElsewhere { get; init; }
+    internal Func<string, string, bool>? FindDuplicatesElsewhere { get; init; }
 
     /// <summary>Source OpenDuplicateManager (see <see cref="VocabularyWordCleanup"/>).</summary>
     internal Task FindDuplicatesAsync() =>
-        Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere));
+        Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere is { } elsewhere
+            ? (term, wordId) =>
+            {
+                if (!elsewhere(term, wordId))
+                    ShowEditError(FindDuplicatesFailedKey);
+            }
+            : null));
+
+    /// <summary>A handoff to the Vocabulary page that did not happen.</summary>
+    internal const string FindDuplicatesFailedKey = "NativeVocabulary_LoadFailed";
+
+    /// <summary>The open editor shows <paramref name="key"/> (a host's failure on the editor's behalf).</summary>
+    internal void ShowEditError(string key)
+    {
+        if (_disposed || !IsFormOpen)
+            return;
+        _editErrorKey = key;
+        Notify(VocabularyChanges.Form);
+    }
 
     /// <summary>The duplicate manager focused on a term and word handed over from an editor elsewhere.</summary>
     internal Task OpenDuplicatesAsync(string term, string? wordId) =>

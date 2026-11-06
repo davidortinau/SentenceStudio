@@ -211,13 +211,15 @@ internal sealed partial class ApplicationController
     /// <summary>
     /// Closes the browse pages above the Library list (none of them holds unsaved work) so
     /// a Study entry can open the Resources page from the list. The caller has closed any
-    /// resource detail and sets the Resources page itself.
+    /// resource detail and sets the Resources page itself. <paramref name="keepVocabulary"/>
+    /// keeps a Vocabulary page the caller has just opened (the scene pushes it once the path is
+    /// empty).
     /// </summary>
-    private void ResetLibraryToList()
+    private void ResetLibraryToList(bool keepVocabulary = false)
     {
         if (IsRecentLookupsOpen)
             _recentLookups?.Close();
-        if (IsVocabularyOpen)
+        if (IsVocabularyOpen && !keepVocabulary)
             OnVocabularyListPopped();
         if (IsSkillsOpen)
             _skills!.Close();
