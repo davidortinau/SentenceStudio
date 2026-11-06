@@ -48,6 +48,13 @@ internal sealed record NativeThemeColors(
 /// </summary>
 internal static class NativeThemeColorTable
 {
+    /// <summary>
+    /// <c>--bs-success</c> and <c>--bs-warning</c> (<c>app.css</c> <c>:root</c>, the same in every
+    /// theme and mode): the heads' Success and Warning roles and the encoding badge tints.
+    /// </summary>
+    internal const string SuccessHex = "#12B886";
+    internal const string WarningHex = "#FFC233";
+
     /// <summary>The colours for <paramref name="themeId"/>; throws for an id not in the catalogue.</summary>
     internal static NativeThemeColors For(string themeId, bool dark)
     {

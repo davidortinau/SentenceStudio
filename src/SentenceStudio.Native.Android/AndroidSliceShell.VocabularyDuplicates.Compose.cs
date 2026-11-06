@@ -215,8 +215,10 @@ internal sealed partial class AndroidSliceShell
         AddBadge(badges, string.Format(CultureInfo.CurrentCulture,
                 Localize("Vocabulary_DuplicatesCopies"), group.Words.Count),
             palette.Elevated, palette.Text, $"{id}.copies");
-        if (!group.CanMergeAutomatically)
-            AddBadge(badges, Localize("NativeVocabulary_DuplicatesEditBeforeMerge"),
+        var blocked = group.CanMergeAutomatically ? null
+            : VocabularyDuplicateFinder.Blocked(group, Localize);
+        if (blocked is not null)
+            AddBadge(badges, blocked.Badge,
                 palette.Warning, Color.FromHex("#212529"), $"{id}.blocked");
         if (panel.IsFocused(group))
             AddBadge(badges, Localize("Vocabulary_DuplicatesFocusedBadge"),
@@ -228,7 +230,7 @@ internal sealed partial class AndroidSliceShell
         };
         foreach (var word in group.Words)
             column.Add(VocabularyDuplicateWordRow(vocabulary, panel, group, word, palette));
-        if (!group.CanMergeAutomatically)
+        if (blocked is not null)
         {
             var warning = new Surface
             {
@@ -237,17 +239,18 @@ internal sealed partial class AndroidSliceShell
                 Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
                 Color = palette.Elevated,
             };
-            var header = Body(Localize("NativeVocabulary_DuplicatesMergeUnavailable"), palette);
+            var header = Body(blocked.Title, palette);
             header.Color = palette.WarningText;
             header.FontWeight = FontWeight.SemiBold;
-            warning.Add(new Column(Arrangement.SpacedBy(4))
+            var lines = new Column(Arrangement.SpacedBy(4))
             {
                 Modifier.FillMaxWidth().Padding(12),
                 header,
-                Caption(VocabularyDuplicateFinder.BlockedReason(group, Localize), palette,
-                    $"{id}.reason"),
-                Caption(Localize("NativeVocabulary_DuplicatesMergeUnavailableHelp"), palette),
-            });
+                Caption(blocked.Reason, palette, $"{id}.reason"),
+            };
+            if (blocked.Help is { } help)
+                lines.Add(Caption(help, palette, $"{id}.help"));
+            warning.Add(lines);
             column.Add(warning);
         }
         else

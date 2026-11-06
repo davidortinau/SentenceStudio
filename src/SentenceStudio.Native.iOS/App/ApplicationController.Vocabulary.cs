@@ -48,7 +48,7 @@ internal sealed partial class ApplicationController
             provider.GetRequiredService<DeviceUserScopeProvider>(),
             provider.GetRequiredService<IPreferencesService>(),
             provider.GetRequiredService<INativeQuizMedia>(),
-            provider.GetRequiredService<ILogger<VocabularyCoordinator>>(),
+            provider.GetRequiredService<ILogger<VocabularyBrowser>>(),
             Text)
         {
             OpenLookups = OpenRecentLookups

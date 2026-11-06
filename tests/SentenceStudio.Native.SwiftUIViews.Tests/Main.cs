@@ -235,6 +235,48 @@ var cases = new (string Name, Action Test)[]
             ?? throw new Exception("The reason is missing.");
         Assert(reason.Text == "NativeVocabulary_DuplicatesAnotherOwner");
         Assert(Find(panel, "native.vocabulary.duplicates.word.w-good.edit") is not null);
+        // Review 2026-11-05 (third pass): editing cannot unblock it, so no "Edit before merge"
+        // badge and no "Edit record" help.
+        Assert(Find(panel, "native.vocabulary.duplicates.group.0.blocked")?.Text
+            == "NativeVocabulary_DuplicatesCannotMerge");
+        Assert(Find(panel, "native.vocabulary.duplicates.group.0.help") is null);
+
+        // Blocked for both reasons: both show. Blocked by the source only: its advice stays.
+        var both = blocked with
+        {
+            Groups = [blocked.Groups[0] with { MergeBlockedReason = "Language differs" }]
+        };
+        using var bothPanel = VocabularyDuplicatesView.Panel(both, style, key => key,
+            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(bothPanel, "native.vocabulary.duplicates.group.0.reason")?.Text
+            == "NativeVocabulary_DuplicatesAnotherOwner\nLanguage differs");
+        var sourceOnly = both with
+        {
+            Groups = [both.Groups[0] with { HasAnotherOwnersCopy = false }]
+        };
+        using var sourcePanel = VocabularyDuplicatesView.Panel(sourceOnly, style, key => key,
+            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.blocked")?.Text
+            == "NativeVocabulary_DuplicatesEditBeforeMerge");
+        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.help")?.Text
+            == "NativeVocabulary_DuplicatesMergeUnavailableHelp");
+    }),
+    // Review 2026-11-05 (third pass): Delete is not offered for a word the server would keep,
+    // and the editor says why; an editable word with nothing blocking shows no note.
+    ("Word editor: a word the server would keep has Delete disabled and a note saying why", () =>
+    {
+        var open = WordState(history: false);
+        using var free = VocabularyWordEditView.Page(open, style, key => key, WordActions());
+        Assert(Find(free, "native.vocabulary.edit.delete.menu")?.IsEnabled == true);
+        Assert(Find(free, "native.vocabulary.edit.delete.blocked") is null);
+
+        var answered = open with { Detail = open.Detail! with {
+            DeleteBlock = NativeVocabularyDeleteBlock.UsedByAnswers } };
+        using var blockedPage = VocabularyWordEditView.Page(answered, style, key => key, WordActions());
+        Assert(Find(blockedPage, "native.vocabulary.edit.delete.menu")?.IsEnabled == false);
+        Assert(Find(blockedPage, "native.vocabulary.edit.delete.blocked")?.Text
+            == "NativeVocabulary_DeleteUsedByAnswers");
+        Assert(Find(blockedPage, "native.vocabulary.edit.readonly") is null);
     }),
 };
 
@@ -270,7 +312,7 @@ static VocabularyBrowserEdit WordState(bool history)
     var detail = new NativeVocabularyDetail(entry, draft, [resource],
         new NativeVocabularyProgress(LearningStatus.Learning, false, 0.4f, 1.5f, 1, created.AddDays(3), 4),
         history ? [new NativeVocabularyHistory("h-1", "VocabularyQuiz", created, true, false, "Story")] : [],
-        [], [], false, false);
+        [], [], false, false, NativeVocabularyDeleteBlock.None);
     return new VocabularyBrowserEdit(false, false, detail, draft, null, false, null);
 }
 

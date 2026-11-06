@@ -76,7 +76,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     private readonly DeviceUserScopeProvider _userScope;
     private readonly IPreferencesService _preferences;
     private readonly INativeQuizMedia _media;
-    private readonly ILogger _logger;
+    private readonly ILogger<VocabularyBrowser> _logger;
     private readonly Func<string, string> _text;
     private readonly CancellationTokenSource _lifetime = new();
     // Read once: CancellationTokenSource.Token throws after Dispose, and work cut short by
@@ -115,7 +115,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         DeviceUserScopeProvider userScope,
         IPreferencesService preferences,
         INativeQuizMedia media,
-        ILogger logger,
+        ILogger<VocabularyBrowser> logger,
         Func<string, string> text)
     {
         _store = store;
@@ -152,6 +152,9 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
 
     protected bool IsDisposed => _disposed;
+
+    /// <summary>The screen's localized text for <paramref name="key"/> (a head passes it to its views).</summary>
+    protected string Text(string key) => _text(key);
 
     /// <summary>Whether Save can run now (the rule of every Save button).</summary>
     protected bool CanSaveOpenWord => _formOpen
@@ -509,8 +512,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.Form);
         try
         {
-            if (await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
-                    owner, draft.Id, _lifetimeToken)) is null)
+            if (!await OffUiAsync(() => _store.OwnsVocabularyAsync(
+                    owner, draft.Id, _lifetimeToken)))
             {
                 _editErrorKey = "VocabWordEdit_NotFound";
                 return;
@@ -541,8 +544,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     {
         try
         {
-            if (await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
-                    owner, wordId, _lifetimeToken)) is null)
+            if (!await OffUiAsync(() => _store.OwnsVocabularyAsync(
+                    owner, wordId, _lifetimeToken)))
                 return;
             var photo = await _media.LoadPhotoAsync(uri, _lifetimeToken);
             if (_formOpen && _draft is { } draft

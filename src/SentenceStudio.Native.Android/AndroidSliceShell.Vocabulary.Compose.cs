@@ -633,6 +633,10 @@ internal sealed partial class AndroidSliceShell
             new Box { Modifier.Weight(1f), Action(Localize("Common_Save"),
                 "native.vocabulary.edit.save", () => RunMoreOnUi(vocabulary.SaveAsync), state.CanSave) },
         });
+        // The More menu's Delete is disabled for a word the server would keep; this says why.
+        if (VocabularyWordCommands.DeleteBlockedReason(detail, Localize) is { } deleteBlocked)
+            Add("delete.blocked", () => Caption(deleteBlocked, palette,
+                "native.vocabulary.edit.delete.blocked"));
         var page = VocabularyWordColumn(header, rows);
         if (vocabulary.IsDeleteConfirmationPresented)
             page.Add(VocabularyDeleteDialog(vocabulary, state, detail, palette));

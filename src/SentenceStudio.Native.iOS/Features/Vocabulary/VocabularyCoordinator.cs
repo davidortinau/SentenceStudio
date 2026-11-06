@@ -19,7 +19,6 @@ namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 /// </summary>
 internal sealed class VocabularyCoordinator : VocabularyBrowser
 {
-    private readonly Func<string, string> _text;
     private readonly List<SwiftView> _saveButtons = [];
     private readonly List<SwiftView> _menuSaveButtons = [];
     private SwiftView? _resourceCount;
@@ -30,17 +29,16 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
         DeviceUserScopeProvider userScope,
         IPreferencesService preferences,
         INativeQuizMedia media,
-        ILogger<VocabularyCoordinator> logger,
+        ILogger<VocabularyBrowser> logger,
         Func<string, string> text)
         : base(store, userScope, preferences, media, logger, text)
     {
-        _text = text;
     }
 
     /// <summary>Opens Recent lookups from the list toolbar (decision 4 B); none hides the button.</summary>
     internal Action? OpenLookups { get; init; }
 
-    internal string WordFormTitle => _text("VocabWordEdit_EditTitle");
+    internal string WordFormTitle => Text("VocabWordEdit_EditTitle");
 
     internal void OnListAppeared() => Run(ReloadAsync);
 
@@ -54,7 +52,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     internal void ConfirmDelete() => Run(ConfirmDeleteAsync);
 
     internal SwiftView RenderList(SourceUiStyle style) =>
-        VocabularyListView.Page(ListState, style, _text,
+        VocabularyListView.Page(ListState, style, Text,
             new VocabularyListActions(
                 Search: Search,
                 OpenFilters: OpenPhoneFilters,
@@ -72,7 +70,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     EditRecord: id => Run(() => OpenWordAsync(id)))));
 
     internal SwiftView RenderFilterSheet(SourceUiStyle style) =>
-        VocabularyListView.PhoneFilterSheet(ListState, style, _text,
+        VocabularyListView.PhoneFilterSheet(ListState, style, Text,
             new VocabularyFilterActions(
                 Change: (type, value) => ChangeFilter(type, value, live: false),
                 Apply: ApplyPhoneFilters, Cancel: CancelPhoneFilters,
@@ -84,7 +82,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
         _menuSaveButtons.Clear();
         _resourceCount = null;
         _saveAppearance = style.Appearance;
-        var form = VocabularyWordEditView.Page(EditState, style, _text,
+        var form = VocabularyWordEditView.Page(EditState, style, Text,
             new VocabularyEditActions(
                 Change: ChangeDraft,
                 ToggleResource: ToggleResource,
@@ -113,7 +111,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
             UpdateSaveButtons();
         if ((changes & VocabularyChanges.ResourceToggle) != 0 && _resourceCount is not null)
             _resourceCount.Text = string.Format(CultureInfo.CurrentCulture,
-                _text("VocabWordEdit_SelectedCount"), DraftResourceCount);
+                Text("VocabWordEdit_SelectedCount"), DraftResourceCount);
         var list = (changes & VocabularyChanges.List) != 0;
         var form = (changes & VocabularyChanges.Form) != 0;
         var sheet = (changes & VocabularyChanges.Sheet) != 0;

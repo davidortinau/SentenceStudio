@@ -89,8 +89,10 @@ internal static class VocabularyDuplicatesView
                 style.Appearance.BootstrapSecondary, style.Appearance.OnBootstrapSecondary,
                 $"{id}.copies")
         };
-        if (!group.CanMergeAutomatically)
-            badges.Add(Badge(style, text("NativeVocabulary_DuplicatesEditBeforeMerge"),
+        var blocked = group.CanMergeAutomatically ? null
+            : VocabularyDuplicateFinder.Blocked(group, text);
+        if (blocked is not null)
+            badges.Add(Badge(style, blocked.Badge,
                 style.Appearance.Warning, new("#212529", "#212529"), $"{id}.blocked"));
         if (panel.IsFocused(group))
             badges.Add(Badge(style, text("Vocabulary_DuplicatesFocusedBadge"),
@@ -102,16 +104,19 @@ internal static class VocabularyDuplicatesView
         var rows = new List<SwiftView> { heading };
         foreach (var word in group.Words)
             rows.Add(WordRow(group, word, panel.FocusedWordId, style, text, actions));
-        if (!group.CanMergeAutomatically)
-            rows.Add(WarningAlert(style, Views.VStack(
-                    style.Text(Views.Text(text("NativeVocabulary_DuplicatesMergeUnavailable")),
-                        SourceTextRole.Body2Strong),
-                    style.Text(Views.Text(VocabularyDuplicateFinder.BlockedReason(group, text)),
-                            SourceTextRole.Small)
-                        .WithAccessibilityIdentifier($"{id}.reason"),
-                    style.Text(Views.Text(text("NativeVocabulary_DuplicatesMergeUnavailableHelp")),
-                        SourceTextRole.Small)))
+        if (blocked is not null)
+        {
+            var warning = new List<SwiftView> {
+                style.Text(Views.Text(blocked.Title), SourceTextRole.Body2Strong),
+                style.Text(Views.Text(blocked.Reason), SourceTextRole.Small)
+                    .WithAccessibilityIdentifier($"{id}.reason")
+            };
+            if (blocked.Help is { } help)
+                warning.Add(style.Text(Views.Text(help), SourceTextRole.Small)
+                    .WithAccessibilityIdentifier($"{id}.help"));
+            rows.Add(WarningAlert(style, Views.VStack(warning.ToArray()))
                 .WithAccessibilityIdentifier($"{id}.unavailable"));
+        }
         else
             rows.Add(style.OutlineButton(
                     Views.Text(text("NativeVocabulary_DuplicatesMergeKeepRecommended")),

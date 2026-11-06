@@ -2,7 +2,6 @@ using AndroidX.Compose;
 using AndroidX.Compose.Material3;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native.Features.Settings;
-using SentenceStudio.Native.Features.Vocabulary;
 using ComposeMaterialTheme = AndroidX.Compose.MaterialTheme;
 
 namespace SentenceStudio.Native.Android;
@@ -35,7 +34,7 @@ internal sealed record AndroidVisualPalette(
     internal Color Warning { get; init; }
 
     /// <summary>The web app's colours for this theme and mode, as hex (shared with iOS).</summary>
-    internal NativeThemeColors Theme { get; init; } = null!;
+    internal required NativeThemeColors Theme { get; init; }
 }
 
 internal static class AndroidVisualTheme
@@ -61,7 +60,7 @@ internal static class AndroidVisualTheme
             Color.FromHex(tokens.Card),
             Color.FromHex(tokens.Elevated),
             Color.FromHex(tokens.Border),
-            Color.FromHex("#12B886"),
+            Color.FromHex(NativeThemeColorTable.SuccessHex),
             Color.FromHex("#E13B30"),
             Color.FromHex(tokens.DangerSurface),
             Color.FromHex(AndroidSamCards.DangerContainerHex),
@@ -73,7 +72,7 @@ internal static class AndroidVisualTheme
             TertiaryText = Color.FromHex(tokens.TertiaryText),
             SecondarySurface = Color.FromHex(tokens.SecondarySurface),
             Secondary = Color.FromHex(tokens.Secondary),
-            Warning = Color.FromHex(VocabularyEncodingBadge.WarningHex),
+            Warning = Color.FromHex(NativeThemeColorTable.WarningHex),
             Theme = NativeThemeColorTable.For(themeId, dark),
         };
     }

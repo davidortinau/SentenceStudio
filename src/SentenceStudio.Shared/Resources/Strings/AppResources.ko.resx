@@ -8701,7 +8701,16 @@
     <value>이 복사본에는 기억 보조 자료가 없습니다.</value>
   </data>
   <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
-    <value>이 그룹에는 내 것으로 기록되지 않은 복사본(다른 학습자의 단어 또는 예전에 공유된 단어)이 있어 여기서 병합할 수 없습니다. 각 복사본을 열어 편집하세요.</value>
+    <value>이 그룹에는 내 것으로 기록되지 않은 복사본(다른 학습자의 단어 또는 예전에 공유된 단어)이 있어 여기서 병합할 수 없습니다. 각 복사본을 열 수 있지만, 편집은 내 것으로 기록된 복사본만 가능합니다.</value>
+  </data>
+  <data name="NativeVocabulary_DuplicatesCannotMerge" xml:space="preserve">
+    <value>여기서 병합할 수 없음</value>
+  </data>
+  <data name="NativeVocabulary_DeleteUsedByOthers" xml:space="preserve">
+    <value>이 단어는 삭제할 수 없습니다. 다른 학습자의 최소 대립쌍이나 구문, 또는 내 것으로 기록되지 않은 항목이 아직 이 단어를 사용합니다. 단어는 계속 편집할 수 있습니다.</value>
+  </data>
+  <data name="NativeVocabulary_DeleteUsedByAnswers" xml:space="preserve">
+    <value>이 단어는 삭제할 수 없습니다. 최소 대립쌍 답변이 아직 이 단어를 사용합니다. 단어는 계속 편집할 수 있습니다.</value>
   </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>{0}개 표시 중.</value>

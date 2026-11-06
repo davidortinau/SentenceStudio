@@ -11965,7 +11965,25 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged here. Open each copy to edit it..
+        ///   Looks up a localized string similar to This word can&apos;t be deleted: Minimal Pairs answers still use it. You can still edit it..
+        /// </summary>
+        internal static string NativeVocabulary_DeleteUsedByAnswers {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DeleteUsedByAnswers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word can&apos;t be deleted: another learner&apos;s minimal pairs or phrases, or ones not recorded to you, still use it. You can still edit it..
+        /// </summary>
+        internal static string NativeVocabulary_DeleteUsedByOthers {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DeleteUsedByOthers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged here. You can open each copy, but only copies recorded to you can be edited..
         /// </summary>
         internal static string NativeVocabulary_DuplicatesAnotherOwner {
             get {
@@ -11988,6 +12006,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeVocabulary_DuplicatesBlockedFallback {
             get {
                 return ResourceManager.GetString("NativeVocabulary_DuplicatesBlockedFallback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Can&apos;t merge here.
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesCannotMerge {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesCannotMerge", resourceCulture);
             }
         }
 

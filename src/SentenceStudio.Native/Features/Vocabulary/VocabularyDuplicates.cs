@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Contracts.Theme;
@@ -23,6 +24,10 @@ internal sealed record VocabularyDuplicatePanel(
         !string.IsNullOrWhiteSpace(FocusNormalizedTerm)
         && group.NormalizedTerm == FocusNormalizedTerm;
 }
+
+/// <summary>A group that cannot merge: its badge, warning title, reasons and optional help.</summary>
+internal sealed record VocabularyDuplicateBlock(
+    string Badge, string Title, string Reason, string? Help);
 
 /// <summary>What a merge did, for the list feedback (source toasts).</summary>
 internal sealed record VocabularyDuplicateMergeOutcome(
@@ -508,14 +513,31 @@ internal sealed class VocabularyDuplicateFinder
     }
 
     /// <summary>
-    /// Why a group cannot merge: a copy not recorded to the learner first (the device refuses
-    /// it, see <see cref="NativeVocabularyDuplicateGroup.HasAnotherOwnersCopy"/>), then the
-    /// source's reason.
+    /// Why a group cannot merge, one reason per line: a copy not recorded to the learner (the
+    /// device refuses it, see <see cref="NativeVocabularyDuplicateGroup.HasAnotherOwnersCopy"/>),
+    /// then the source's reason when it has one too, or the source's reason alone.
     /// </summary>
     internal static string BlockedReason(NativeVocabularyDuplicateGroup group,
         Func<string, string> text) =>
-        group.HasAnotherOwnersCopy ? text("NativeVocabulary_DuplicatesAnotherOwner")
+        group.HasAnotherOwnersCopy
+            ? group.MergeBlockedReason is { Length: > 0 } alsoBlocked
+                ? $"{text("NativeVocabulary_DuplicatesAnotherOwner")}\n{alsoBlocked}"
+                : text("NativeVocabulary_DuplicatesAnotherOwner")
             : group.MergeBlockedReason ?? text("NativeVocabulary_DuplicatesBlockedFallback");
+
+    /// <summary>
+    /// The blocked group's badge, warning title and help. Editing cannot unblock a group with a
+    /// copy that is not the learner's, so it says the group cannot merge here and gives no
+    /// "Edit record" advice; the reason says which copies can be edited.
+    /// </summary>
+    internal static VocabularyDuplicateBlock Blocked(NativeVocabularyDuplicateGroup group,
+        Func<string, string> text) =>
+        group.HasAnotherOwnersCopy
+            ? new(text("NativeVocabulary_DuplicatesCannotMerge"),
+                text("NativeVocabulary_DuplicatesCannotMerge"), BlockedReason(group, text), null)
+            : new(text("NativeVocabulary_DuplicatesEditBeforeMerge"),
+                text("NativeVocabulary_DuplicatesMergeUnavailable"), BlockedReason(group, text),
+                text("NativeVocabulary_DuplicatesMergeUnavailableHelp"));
 
     /// <summary>Source focus note (the resource carries the web's &lt;strong&gt; markup).</summary>
     internal static string FocusNote(string label, Func<string, string> text) =>
@@ -552,25 +574,33 @@ internal enum VocabularyEncodingTone
 /// </summary>
 internal static class VocabularyEncodingBadge
 {
-    /// <summary><c>--bs-success</c> and <c>--bs-warning</c> (app.css), the heads' Success and Warning roles.</summary>
-    internal const string SuccessHex = "#12B886";
-    internal const string WarningHex = "#FFC233";
     internal const double MinimumContrast = 4.5;
+
+    // The colours depend only on these inputs (a few per theme and mode), and each row of the
+    // duplicate manager asks again on every redraw.
+    private static readonly ConcurrentDictionary<BadgeKey, (string Fill, string Text)> Cache = new();
 
     /// <summary>Fill and text, as hex, for a badge on <paramref name="surfaceHex"/>.</summary>
     internal static (string Fill, string Text) Colors(VocabularyEncodingTone tone,
-        NativeThemeColors theme, string surfaceHex)
+        NativeThemeColors theme, string surfaceHex) =>
+        Cache.GetOrAdd(new(tone, theme.Secondary, theme.SecondaryText, theme.Text, surfaceHex),
+            static key => Compute(key));
+
+    private static (string Fill, string Text) Compute(BadgeKey key)
     {
-        var toneHex = tone switch
+        var toneHex = key.Tone switch
         {
-            VocabularyEncodingTone.Strong => SuccessHex,
-            VocabularyEncodingTone.Good => WarningHex,
-            _ => theme.Secondary
+            VocabularyEncodingTone.Strong => NativeThemeColorTable.SuccessHex,
+            VocabularyEncodingTone.Good => NativeThemeColorTable.WarningHex,
+            _ => key.Secondary
         };
-        var fill = NativeThemeColorTable.Blend(toneHex, surfaceHex, 0.25);
-        var preferred = tone == VocabularyEncodingTone.Basic ? theme.SecondaryText : toneHex;
-        return (fill, Readable(preferred, theme.Text, fill));
+        var fill = NativeThemeColorTable.Blend(toneHex, key.Surface, 0.25);
+        var preferred = key.Tone == VocabularyEncodingTone.Basic ? key.SecondaryText : toneHex;
+        return (fill, Readable(preferred, key.BodyText, fill));
     }
+
+    private readonly record struct BadgeKey(VocabularyEncodingTone Tone, string Secondary,
+        string SecondaryText, string BodyText, string Surface);
 
     /// <summary>
     /// <paramref name="preferred"/> mixed toward <paramref name="bodyText"/> in tenths until it
@@ -605,11 +635,23 @@ internal static class VocabularyWordCommands
         !busy && draft is not null;
 
     /// <summary>
-    /// Source Delete is disabled while saving. A word shared with another owner cannot be
-    /// deleted here (the server would keep it, and its links belong to someone else).
+    /// Source Delete is disabled while saving. A word the server would keep cannot be deleted
+    /// here (<see cref="NativeVocabularyDetail.DeleteBlock"/>), so Delete is not offered.
     /// </summary>
     internal static bool CanDelete(bool busy, NativeVocabularyDetail? detail) =>
-        !busy && detail is { IsSharedWithAnotherOwner: false };
+        !busy && detail is { DeleteBlock: NativeVocabularyDeleteBlock.None };
+
+    /// <summary>
+    /// Why Delete is unavailable for a word the learner can still edit; null when Delete is
+    /// offered, or when the word is read-only (its own notice says so).
+    /// </summary>
+    internal static string? DeleteBlockedReason(NativeVocabularyDetail? detail,
+        Func<string, string> text) => detail?.DeleteBlock switch
+    {
+        NativeVocabularyDeleteBlock.UsedByOthers => text("NativeVocabulary_DeleteUsedByOthers"),
+        NativeVocabularyDeleteBlock.UsedByAnswers => text("NativeVocabulary_DeleteUsedByAnswers"),
+        _ => null
+    };
 
     /// <summary>Source deleteConfirmMessage, with the saved term.</summary>
     internal static string DeleteMessage(NativeVocabularyDetail detail, Func<string, string> text) =>
@@ -621,6 +663,8 @@ internal static class VocabularyWordCommands
         NativeVocabularyDetail detail, Func<string, string> text) => status switch
     {
         NativeVocabularyDeleteStatus.SharedReadOnly => text("NativeVocabulary_SharedReadOnly"),
+        NativeVocabularyDeleteStatus.UsedByOthers => text("NativeVocabulary_DeleteUsedByOthers"),
+        NativeVocabularyDeleteStatus.UsedByAnswers => text("NativeVocabulary_DeleteUsedByAnswers"),
         NativeVocabularyDeleteStatus.NotFoundOrForbidden => text("VocabWordEdit_NotFound"),
         _ => string.Format(CultureInfo.CurrentCulture, text("Common_DeleteFailed"),
             detail.Word.TargetTerm)

@@ -190,6 +190,11 @@ public interface INativeResourceStore
         string owner, string wordId, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary detail is not available from this store.");
 
+    /// <summary>Whether the word is still one of the owner's, without loading its detail.</summary>
+    async Task<bool> OwnsVocabularyAsync(
+        string owner, string wordId, CancellationToken cancellationToken) =>
+        await GetOwnedVocabularyAsync(owner, wordId, cancellationToken) is not null;
+
     Task<NativeVocabularySaveStatus> SaveOwnedVocabularyAsync(
         string owner, NativeVocabularyEditDraft draft,
         CancellationToken cancellationToken) =>

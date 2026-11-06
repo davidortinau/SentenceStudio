@@ -144,6 +144,7 @@ public sealed class VocabularyBrowserTests
         var draft = new NativeVocabularyEditDraft("w", now, "target", "native", null,
             "Korean", null, null, null, type, resources);
         return (new NativeVocabularyDetail(entry, draft, [], null, [], [], [],
-            IsSharedWithAnotherOwner: false, HasConstituentLinks: links), draft);
+            IsSharedWithAnotherOwner: false, HasConstituentLinks: links,
+            DeleteBlock: NativeVocabularyDeleteBlock.None), draft);
     }
 }

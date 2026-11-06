@@ -49,7 +49,26 @@ public sealed record NativeVocabularyDetail(
     IReadOnlyList<NativeVocabularyExample> Examples,
     IReadOnlyList<NativeVocabularyConstituent> Constituents,
     bool IsSharedWithAnotherOwner,
-    bool HasConstituentLinks);
+    bool HasConstituentLinks,
+    NativeVocabularyDeleteBlock DeleteBlock);
+
+/// <summary>
+/// Why the word cannot be deleted, by the rules the server applies to a synced word delete,
+/// or <see cref="None"/>.
+/// </summary>
+public enum NativeVocabularyDeleteBlock
+{
+    None,
+    /// <summary>The word cannot be edited either (<see cref="NativeVocabularyDetail.IsSharedWithAnotherOwner"/>).</summary>
+    SharedReadOnly,
+    /// <summary>
+    /// Another learner's minimal pair or phrase, or one not recorded to anyone, uses the word:
+    /// the delete would remove or change that row, so the server keeps the word.
+    /// </summary>
+    UsedByOthers,
+    /// <summary>A Minimal Pairs answer references the word, which the database refuses to delete (B2).</summary>
+    UsedByAnswers
+}
 
 public enum NativeVocabularySaveStatus
 {
@@ -57,10 +76,14 @@ public enum NativeVocabularySaveStatus
     Invalid, Duplicate, Conflict
 }
 
-/// <summary>Source VocabularyWordEdit ConfirmDelete, refused for a word another owner uses.</summary>
+/// <summary>
+/// Source VocabularyWordEdit ConfirmDelete, refused for a word the server would keep
+/// (<see cref="NativeVocabularyDeleteBlock"/>).
+/// </summary>
 public enum NativeVocabularyDeleteStatus
 {
-    Deleted, DeletedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly, Failed
+    Deleted, DeletedSyncUnconfirmed, NotFoundOrForbidden, SharedReadOnly,
+    UsedByOthers, UsedByAnswers, Failed
 }
 
 /// <summary>

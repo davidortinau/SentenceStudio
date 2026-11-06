@@ -411,49 +411,16 @@ internal sealed class NativeOwnerSyncProvider(
                 .Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
             if (table.Key == "VocabularyWord" && owned.Count > 0)
             {
-                owned.ExceptWith(await WordsOthersDependOnAsync(db, owned.ToArray(), owner, ct));
-                owned.ExceptWith(await WordsAnswersStillUseAsync(db, owned.ToArray(), deletedIds, ct));
+                owned.ExceptWith(await VocabularyWordDependents.OthersDependOnAsync(
+                    db, owned.ToArray(), owner, ct));
+                owned.ExceptWith(await VocabularyWordDependents.AnswersStillUseAsync(
+                    db, owned.ToArray(), deletedIds, ct));
             }
             deletedIds[table.Key] = owned;
             accepted.AddRange(table.Where(item => owned.Contains(Value(item, "Id")!)));
         }
         return accepted;
     }
-
-    /// <summary>
-    /// Words among <paramref name="ids"/> that a minimal pair answer still references and that
-    /// this upload does not remove first (the answer, its pair or its session). An answer
-    /// references its prompt and chosen words with ON DELETE RESTRICT, the only restricting
-    /// references among synced tables (PostgreSQL catalog, 2026-11-04), so deleting such a word
-    /// would fail. The answer may be another learner's or the owner's own.
-    /// </summary>
-    private static async Task<HashSet<string>> WordsAnswersStillUseAsync(
-        ApplicationDbContext db, string[] ids, IReadOnlyDictionary<string, HashSet<string>> deleted,
-        CancellationToken ct)
-    {
-        var answers = await db.MinimalPairAttempts.AsNoTracking()
-            .Where(answer => ids.Contains(answer.PromptWordId) || ids.Contains(answer.SelectedWordId))
-            .Select(answer => new { answer.Id, answer.PairId, answer.SessionId,
-                answer.PromptWordId, answer.SelectedWordId })
-            .ToListAsync(ct);
-        bool Removed(string table, string id) =>
-            deleted.TryGetValue(table, out var removed) && removed.Contains(id);
-        return answers
-            .Where(answer => !Removed("MinimalPairAttempt", answer.Id)
-                && !Removed("MinimalPair", answer.PairId)
-                && !Removed("MinimalPairSession", answer.SessionId))
-            .SelectMany(answer => new[] { answer.PromptWordId, answer.SelectedWordId })
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    /// <summary>
-    /// Words among <paramref name="ids"/> that a row of another learner, or a row nobody owns,
-    /// still uses: deleting the word would cascade into, or clear a link of, that row. The rule
-    /// lives in Shared so the native word editor offers delete and edit on the same terms.
-    /// </summary>
-    private static Task<HashSet<string>> WordsOthersDependOnAsync(
-        ApplicationDbContext db, string[] ids, string owner, CancellationToken ct) =>
-        VocabularyWordDependents.OthersDependOnAsync(db, ids, owner, ct);
 
     /// <summary>
     /// The written rows the server cannot place for <paramref name="owner"/> given the other rows

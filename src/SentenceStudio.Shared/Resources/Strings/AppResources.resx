@@ -9346,8 +9346,20 @@ For example: {0} ...</value>
     <value>No memory aids on this copy.</value>
   </data>
   <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
-    <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged here. Open each copy to edit it.</value>
+    <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged here. You can open each copy, but only copies recorded to you can be edited.</value>
     <comment>Duplicate manager: why a group holding another learner's copy cannot merge on the device</comment>
+  </data>
+  <data name="NativeVocabulary_DuplicatesCannotMerge" xml:space="preserve">
+    <value>Can't merge here</value>
+    <comment>Duplicate manager: badge and warning title for a group holding a copy not recorded to the learner (editing cannot unblock it)</comment>
+  </data>
+  <data name="NativeVocabulary_DeleteUsedByOthers" xml:space="preserve">
+    <value>This word can't be deleted: another learner's minimal pairs or phrases, or ones not recorded to you, still use it. You can still edit it.</value>
+    <comment>Word editor: why Delete is unavailable when others' minimal pairs or phrases use the word (the server would keep it)</comment>
+  </data>
+  <data name="NativeVocabulary_DeleteUsedByAnswers" xml:space="preserve">
+    <value>This word can't be deleted: Minimal Pairs answers still use it. You can still edit it.</value>
+    <comment>Word editor: why Delete is unavailable when a Minimal Pairs answer references the word (the database refuses the delete, B2)</comment>
   </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>Showing {0}.</value>

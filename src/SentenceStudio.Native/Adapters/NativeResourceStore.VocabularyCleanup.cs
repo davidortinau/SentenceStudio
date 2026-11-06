@@ -17,9 +17,9 @@ public sealed partial class NativeResourceStore
     /// <summary>
     /// Source ConfirmDelete (<see cref="LearningResourceRepository.DeleteVocabularyWordAsync"/>):
     /// removes the word, its resource links and, by cascade, its progress, history, example
-    /// sentences and pairs. Only a word the owner may edit can go: one another learner's data
-    /// still uses stays, by the rule the server applies to the delete
-    /// (<see cref="VocabularyWordDependents"/>).
+    /// sentences and pairs. Only a word the owner may edit, and that the server would delete
+    /// too, can go (<see cref="DeleteBlockAsync"/>): one that another learner's data or a
+    /// Minimal Pairs answer still uses stays, and the status says which.
     /// </summary>
     public async Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken)
@@ -30,16 +30,17 @@ public sealed partial class NativeResourceStore
         var stamp = userScope.CaptureStamp();
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var word = await db.VocabularyWords.AsNoTracking()
-            .Where(candidate => candidate.Id == wordId
-                && OwnedVocabularyIds(db, owner).Contains(candidate.Id))
-            .Select(candidate => new { candidate.Id, candidate.UserProfileId })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (word is null)
+        if (!await OwnedVocabularyIds(db, owner).AnyAsync(id => id == wordId, cancellationToken))
             return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
-        if (word.UserProfileId != owner
-            || !await IsEditableByOwnerAsync(db, owner, wordId, cancellationToken))
-            return NativeVocabularyDeleteStatus.SharedReadOnly;
+        var block = await DeleteBlockAsync(db, owner, wordId,
+            await IsEditableByOwnerAsync(db, owner, wordId, cancellationToken), cancellationToken);
+        if (block != NativeVocabularyDeleteBlock.None)
+            return block switch
+            {
+                NativeVocabularyDeleteBlock.UsedByOthers => NativeVocabularyDeleteStatus.UsedByOthers,
+                NativeVocabularyDeleteBlock.UsedByAnswers => NativeVocabularyDeleteStatus.UsedByAnswers,
+                _ => NativeVocabularyDeleteStatus.SharedReadOnly
+            };
 
         cancellationToken.ThrowIfCancellationRequested();
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))

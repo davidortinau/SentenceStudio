@@ -126,6 +126,11 @@ internal static class VocabularyWordEditView
             .WithAccessibilityIdentifier("native.vocabulary.edit.actions");
         buttons.Spacing = SourceUiLayout.ItemGap;
         fields.Add(buttons);
+        // The More menu's Delete is disabled for a word the server would keep; this says why.
+        if (VocabularyWordCommands.DeleteBlockedReason(detail, text) is { } deleteBlocked)
+            fields.Add(style.Text(Views.Text(deleteBlocked), SourceTextRole.Small,
+                    SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.delete.blocked"));
         // Source PageHeader: the primary Save shows only from the md breakpoint (768 pt); the
         // More menu (SecondaryActions: Save, Find Duplicates, Delete) shows at every width. The
         // filled primary button in a phone's navigation bar was squeezed to "S..." beside the

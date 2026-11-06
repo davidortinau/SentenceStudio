@@ -327,14 +327,16 @@ public sealed class NativeVocabularyStoreTests
                 LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
                 Activity = "VocabularyQuiz", WasCorrect = true
             });
+            // Each sentence is recorded to its resource's owner, as the phase 3 migration
+            // backfills and every save stamps; only a recorded sentence is the learner's.
             db.ExampleSentences.AddRange(
                 new ExampleSentence {
-                    VocabularyWordId = id,
+                    VocabularyWordId = id, UserProfileId = NativeSliceFixture.UserA,
                     LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
                     TargetSentence = "owned example"
                 },
                 new ExampleSentence {
-                    VocabularyWordId = id,
+                    VocabularyWordId = id, UserProfileId = NativeSliceFixture.UserB,
                     LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
                     TargetSentence = "foreign example"
                 });
@@ -368,14 +370,16 @@ public sealed class NativeVocabularyStoreTests
                 ResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
                 VocabularyWordId = sharedId
             });
+            // Recorded as the phase 3 migration backfills from the resource; the third names
+            // nobody and so is no one's.
             db.ExampleSentences.AddRange(
                 new ExampleSentence {
-                    VocabularyWordId = sharedId,
+                    VocabularyWordId = sharedId, UserProfileId = NativeSliceFixture.UserA,
                     LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
                     TargetSentence = "example attributed to A"
                 },
                 new ExampleSentence {
-                    VocabularyWordId = sharedId,
+                    VocabularyWordId = sharedId, UserProfileId = NativeSliceFixture.UserB,
                     LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
                     TargetSentence = "example attributed to B"
                 },
