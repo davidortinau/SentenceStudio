@@ -793,7 +793,11 @@ public sealed class NativeResourceSourceWorkflowTests
         Assert.False(await checkDb.LearningResources.AnyAsync(row => row.Id == owned));
         Assert.Equal(0, await checkDb.ResourceVocabularyMappings.CountAsync(
             mapping => mapping.ResourceId == owned));
-        Assert.Equal(0, await checkDb.VocabularyProgresses.CountAsync(row =>
+        // The resource's words stay in the learner's vocabulary, so their progress stays
+        // (review of bf701c42, finding 3: the delete-time orphan sweep is retired).
+        Assert.Equal(4, await checkDb.VocabularyWords.CountAsync(row =>
+            row.UserProfileId == NativeSliceFixture.UserA));
+        Assert.Equal(4, await checkDb.VocabularyProgresses.CountAsync(row =>
             row.UserId == NativeSliceFixture.UserA));
         Assert.Equal(4, await checkDb.ResourceVocabularyMappings.CountAsync(
             mapping => mapping.ResourceId == foreign));

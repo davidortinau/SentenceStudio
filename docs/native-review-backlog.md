@@ -56,6 +56,13 @@ Resolved by B81-B84 (owner-only words, 2026-11-06): the Coach remove-word orphan
 - `tests/SentenceStudio.UnitTests/AppOperations/ApplicationOperationConcurrencyTests.ConcurrentConfirmationUse_ConsumesExactlyOnce` failed once in a full run and passed three times alone (timing flake, unrelated).
 - `SyncRowOwners.GetStoredWordOwnersAsync` is a named pass-through to `DirectOwnersAsync` (review finding 14); kept as the one name for "a word's recorded owner".
 
+### Seen fixing the review of `bf701c42` (B85, 2026-11-06)
+
+- `src/SentenceStudio.Native/Adapters/NativeResourceStore.VocabularyBrowser.cs` (`HasConstituentLinks`, the save's type-change check): any part link counts, a hidden part's included, so the native editor refuses a type change ("This word has constituent links") on a word whose parts it shows none of. Safe (nothing is deleted), but the message is confusing there.
+- Plans and the quiz pools disagree on unlinked words: `GetDueVocabularyAsync` and `GetDueVocabCountAsync` take only words one of the learner's resources links (the Brot guard B85 now relies on), while the all-words quiz and the Vocabulary page show every word of theirs. A due word the learner unlinked from every resource is never in Today's Plan. Decide whether the plan should follow the owner-only rule too.
+- `ContentImportService.CommitImportAsync` and `VideoImportPipelineService.CreateLearningResourceAsync` reuse only the learner's words that one of their resources links, so importing a term the learner already has outside every resource creates a duplicate word.
+- Sam's write receipts are English except the new kept-word reply of remove-word (`Coach_VocabularyRemoval_*`, by the learner's `DisplayLanguage`); the rest (and the removal preview, which still says "Remove ... from your vocabulary" before the delete decides) are English only, as before.
+
 ## Import Content example sentences and retries (review of be58487f..548b9a61, 2026-11-06)
 
 - `src/SentenceStudio.Shared/Services/ImportExampleSentencePolicy.cs`: a comma list of target-language words (`사과, 바나나, 포도`) can still be kept as an example; it shows no meaning, but it is not a sentence. The prompts ask for no example there.
