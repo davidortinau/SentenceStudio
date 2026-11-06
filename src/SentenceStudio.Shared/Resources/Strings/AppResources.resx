@@ -9276,9 +9276,6 @@ For example: {0} ...</value>
   <data name="NativeVocabQuiz_Details_RecognitionDemonstrations" xml:space="preserve">
     <value>Recognition demonstrations</value>
   </data>
-  <data name="NativeVocabQuiz_SyncPending" xml:space="preserve">
-    <value>Your progress is saved on this device and will finish syncing when you return.</value>
-  </data>
   <data name="NativeResources_SyncPending" xml:space="preserve">
     <value>Sync is pending. Check your connection and refresh.</value>
   </data>

@@ -24,4 +24,5 @@ internal sealed record QuizActions(
     Action<string> SentenceChanged,
     Action SubmitSentence,
     Action CancelSentence,
-    Action ContinueAfterSentence);
+    Action ContinueAfterSentence,
+    Action<string> PromptAppeared);

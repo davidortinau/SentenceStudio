@@ -37,6 +37,24 @@ internal sealed partial class AndroidSliceShell
             return Task.CompletedTask;
         });
 
+        // Prompt autoplay starts once the turn is composed on screen (after a requested photo
+        // was drawn and reported), never while loading or in the sentence shortcut.
+        (string Owner, string Turn)? autoPlay = null;
+        if (Destination == NativeDestination.VocabularyQuiz
+            && QuizPhotoOwner() is { } autoPlayOwner
+            && Quiz is { AutoPlayPending: true, Sentence: null,
+                Overlay: NativeQuizOverlay.None,
+                Phase: NativePhase.Ready or NativePhase.Feedback,
+                TurnId: { } autoPlayTurn }
+            && !AndroidQuizPhotoPolicy.NeedsRenderReport(Quiz, autoPlayOwner))
+            autoPlay = (autoPlayOwner, autoPlayTurn);
+        composer.LaunchedEffect(autoPlay, _ =>
+        {
+            if (autoPlay is { } play)
+                StartQuizAutoPlay(play.Owner, play.Turn);
+            return Task.CompletedTask;
+        });
+
         // The one response slot becomes "Type correct" after a wrong answer; it
         // takes focus once it is enabled so the keyboard (and IME) stay with it.
         var correctionTurn = Destination == NativeDestination.VocabularyQuiz

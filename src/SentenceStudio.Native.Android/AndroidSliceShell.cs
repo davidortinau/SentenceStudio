@@ -384,6 +384,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void AnswerQuiz(string response) => Execute(async cancellationToken =>
     {
+        CancelQuizAutoPlay();
         if (Quiz is { Phase: NativePhase.Ready, Mode: "MultipleChoice" })
             Publish(() => Quiz = Quiz with { SelectedAnswer = response });
         var previous = Quiz.TurnId;
@@ -533,8 +534,11 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     }
 
     public void PlayPrompt() => Execute(async cancellationToken =>
+    {
+        CancelQuizAutoPlay();
         await ApplyQuizStateAsync(
-            await RequiredQuiz().PlayPromptAsync(cancellationToken), cancellationToken));
+            await RequiredQuiz().PlayPromptAsync(cancellationToken), cancellationToken);
+    });
 
     public void SetPhotoVisible(bool visible) => Execute(async cancellationToken =>
     {

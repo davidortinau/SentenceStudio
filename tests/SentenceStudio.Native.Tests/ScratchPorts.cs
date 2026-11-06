@@ -90,11 +90,33 @@ internal sealed class ScratchQuizMedia : INativeQuizMedia
     public bool FinishPlayback(bool completed) =>
         PendingPlayback?.TrySetResult(completed) ?? false;
 
+    private readonly TaskCompletionSource<bool> _availabilityStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource<bool>? _pendingAvailability;
+
+    /// <summary>Holds the next audio availability checks until FinishAvailabilityCheck.</summary>
+    public bool HoldAvailabilityCheck { get; set; }
+    public Task AvailabilityCheckStarted => _availabilityStarted.Task;
+    public bool FinishAvailabilityCheck() =>
+        Volatile.Read(ref _pendingAvailability)?.TrySetResult(true) ?? false;
+
     public Task<bool> CanPlayPromptAsync(
         string text, string language, CancellationToken cancellationToken) =>
         AudioAvailabilityOffline
             ? Task.FromException<bool>(new HttpRequestException("Scratch audio offline."))
-            : Task.FromResult(AudioAvailable);
+            : HoldAvailabilityCheck
+                ? HeldAvailabilityAsync(cancellationToken)
+                : Task.FromResult(AudioAvailable);
+
+    private async Task<bool> HeldAvailabilityAsync(CancellationToken cancellationToken)
+    {
+        var pending = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        Volatile.Write(ref _pendingAvailability, pending);
+        _availabilityStarted.TrySetResult(true);
+        await pending.Task.WaitAsync(cancellationToken);
+        return AudioAvailable;
+    }
 
     public Task<bool> PlayPromptAsync(
         string text, string language, CancellationToken cancellationToken)

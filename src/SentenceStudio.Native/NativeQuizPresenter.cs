@@ -81,6 +81,8 @@ public sealed partial class NativeQuizPresenter(
     private bool _allMasteredAtLaunch;
     private bool _audioHeard;
     private bool _audioAvailable;
+    // The turn whose prompt still autoplays once the head shows it (PlayAutoPromptAsync).
+    private string? _autoPlayTurnId;
     private CancellationTokenSource? _activeAudio;
     private bool _photoLoaded;
     private bool _photoVisible;
@@ -464,11 +466,15 @@ public sealed partial class NativeQuizPresenter(
                     graded: false, cancellationToken);
                 if (sentenceQuestion.Phase == NativePhase.Blocked)
                     return SetState(sentenceQuestion);
+                // A sentence turn never autoplays the prompt: in NativeToTarget it would
+                // speak the translation of the word the learner writes with.
+                _autoPlayTurnId = null;
                 var sentenceState = sentenceQuestion with
                 {
                     Phase = _sentenceResults.Length > 0 && receipt is null
                         ? NativePhase.Error : NativePhase.Ready,
                     Mode = "Sentence",
+                    AutoPlayPending = false,
                     Sentence = NativeQuizModality.RenderSentence(
                         _round[_turnIndex].Word, _profile!.TargetLanguage),
                     SentenceResults = _sentenceCreditApplied ? _sentenceResults : [],
@@ -663,6 +669,7 @@ public sealed partial class NativeQuizPresenter(
         _choices = [];
         _photoAsset = null;
         _photoDesired = false;
+        _autoPlayTurnId = null;
         ResetSentenceSubmission();
         _sentenceHints = new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(
             StringComparer.Ordinal);
@@ -730,6 +737,7 @@ public sealed partial class NativeQuizPresenter(
         _reachableWords.Clear();
         _photoAsset = null;
         _photoDesired = false;
+        _autoPlayTurnId = null;
         ResetSentenceSubmission();
         _sentenceHints = new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(
             StringComparer.Ordinal);

@@ -307,10 +307,14 @@ public sealed record NativeQuizPhotoAsset(byte[] Bytes, string ContentType);
 
 public sealed record NativeQuizSentenceHint(string ExampleSentenceId, string TargetSentence);
 
+/// <summary>
+/// "Use in a sentence": the learner produces a target-language sentence from the target word
+/// alone. It carries no native-language translation, so no head can show or announce it
+/// (Captain, 2026-11-06: the source header also showed the translation; native leaves it out).
+/// </summary>
 public sealed record NativeQuizSentencePrompt(
     string WordId,
     string TargetLanguageTerm,
-    string NativeLanguageGloss,
     string TargetLanguage,
     string InstructionKey = "VocabQuiz_WriteOneSentence",
     string AccessibilityId = NativeAccess.QuizAnswer);
@@ -357,6 +361,11 @@ public sealed record NativeQuizState(
     public bool CanShowSentenceHints { get; init; }
     public bool SentenceHintsExpanded { get; init; }
     public bool CanPlayAnswerAudio { get; init; }
+    /// <summary>
+    /// This turn's prompt autoplays (AutoPlayVocabAudio) once the head has it on screen: the
+    /// head calls <c>PlayAutoPromptAsync</c> for this TurnId after rendering the prompt.
+    /// </summary>
+    public bool AutoPlayPending { get; init; }
     public ImmutableArray<int> HeardAnswerChoiceIndices { get; init; } = [];
     public DateTimeOffset? FeedbackStartedAt { get; init; }
     public int AutoAdvanceDurationMs { get; init; }
