@@ -164,7 +164,8 @@ internal sealed partial class ApplicationController : IDisposable
     internal bool NavigationBlocked => _busy
         || _resources?.IsNavigationBlocked == true
         || _skills?.IsPending == true
-        || _vocabulary?.IsNavigationBlocked == true;
+        || _vocabulary?.IsNavigationBlocked == true
+        || IsImportNavigationBlocked;
 
     internal async void Start()
     {
@@ -977,6 +978,7 @@ internal sealed partial class ApplicationController : IDisposable
         _resources = null;
         ReleaseVocabulary();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _libraryResourcesOpen = false;
         _libraryErrorKey = null;
         _profileSummary = null;
@@ -1128,6 +1130,7 @@ internal sealed partial class ApplicationController : IDisposable
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _skills?.Dispose();
         _profile?.Dispose();
         _activityLog?.Dispose();

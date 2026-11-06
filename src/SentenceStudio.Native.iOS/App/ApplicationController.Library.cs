@@ -79,14 +79,15 @@ internal sealed partial class ApplicationController
 
     /// <summary>A page is open above the Library list.</summary>
     internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
-        || IsSkillsOpen || _libraryPairs is not null;
+        || IsSkillsOpen || _libraryPairs is not null || IsImportContentOpen;
 
     /// <summary>
     /// An editor is open in the Library: Save or Cancel decides how it closes, so nothing
     /// from another tab replaces it. A smart resource being read is not an editor.
     /// </summary>
     internal bool HasLibraryEditor => (IsResourcesFormOpen && !IsResourceFormReadOnly)
-        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
+        || IsVocabularyWordOpen || IsSkillFormOpen || LibraryPairsHasChildPage
+        || IsImportWordOpen;
 
     /// <summary>Bumped when a Study entry closes the Library's pages; the scene pops to the list.</summary>
     internal long LibraryResetVersion => _libraryResetVersion;
@@ -193,6 +194,7 @@ internal sealed partial class ApplicationController
         if (IsSkillsOpen)
             _skills!.Close();
         ReleaseLibraryPairs();
+        ReleaseImportContent();
         _libraryResetVersion++;
     }
 

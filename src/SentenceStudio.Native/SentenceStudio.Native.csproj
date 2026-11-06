@@ -63,5 +63,20 @@
                       LogicalName="SentenceStudio.Native.Prompts.GradeDiaryEntry.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeMyDescription.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GradeMyDescription.scriban-txt" />
+    <!-- Import Content: the shared ContentImportService's prompt templates (NativeImportPrompts). -->
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ClassifyImportContent.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ClassifyImportContent.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromPhrases.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ExtractVocabularyFromPhrases.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromSentences.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ExtractVocabularyFromSentences.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromTranscript.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ExtractVocabularyFromTranscript.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/FreeTextToVocab.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.FreeTextToVocab.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ShareTextToVocab.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ShareTextToVocab.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/TranslateMissingNativeTerms.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.TranslateMissingNativeTerms.scriban-txt" />
   </ItemGroup>
 </Project>
