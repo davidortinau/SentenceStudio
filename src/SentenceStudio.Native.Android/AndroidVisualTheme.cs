@@ -1,6 +1,8 @@
 using AndroidX.Compose;
 using AndroidX.Compose.Material3;
 using SentenceStudio.Contracts.Theme;
+using SentenceStudio.Native.Features.Settings;
+using SentenceStudio.Native.Features.Vocabulary;
 using ComposeMaterialTheme = AndroidX.Compose.MaterialTheme;
 
 namespace SentenceStudio.Native.Android;
@@ -28,6 +30,12 @@ internal sealed record AndroidVisualPalette(
     internal Color TertiaryText { get; init; }
     internal Color SecondarySurface { get; init; }
     internal Color Secondary { get; init; }
+
+    /// <summary><c>--bs-warning</c>, the iOS head's Warning role.</summary>
+    internal Color Warning { get; init; }
+
+    /// <summary>The web app's colours for this theme and mode, as hex (shared with iOS).</summary>
+    internal NativeThemeColors Theme { get; init; } = null!;
 }
 
 internal static class AndroidVisualTheme
@@ -65,6 +73,8 @@ internal static class AndroidVisualTheme
             TertiaryText = Color.FromHex(tokens.TertiaryText),
             SecondarySurface = Color.FromHex(tokens.SecondarySurface),
             Secondary = Color.FromHex(tokens.Secondary),
+            Warning = Color.FromHex(VocabularyEncodingBadge.WarningHex),
+            Theme = NativeThemeColorTable.For(themeId, dark),
         };
     }
 

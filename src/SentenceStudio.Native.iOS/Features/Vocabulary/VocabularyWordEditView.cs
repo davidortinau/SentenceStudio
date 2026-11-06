@@ -20,7 +20,7 @@ internal sealed record VocabularyEditActions(
 internal static class VocabularyWordEditView
 {
     internal static SwiftView Page(
-        VocabularyEditPresentation state, SourceUiStyle style,
+        VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions)
     {
         var fields = new List<SwiftView>();
@@ -195,7 +195,7 @@ internal static class VocabularyWordEditView
     }
 
     private static SwiftView TargetField(
-        VocabularyEditPresentation state, SourceUiStyle style,
+        VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions, bool readOnly)
     {
         var draft = state.Draft!;
@@ -224,7 +224,7 @@ internal static class VocabularyWordEditView
 
     private static SwiftView TextField(
         string titleKey, string placeholderKey, string id, string value,
-        string property, VocabularyEditPresentation state, SourceUiStyle style,
+        string property, VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions, bool readOnly)
     {
         var field = readOnly
@@ -242,7 +242,7 @@ internal static class VocabularyWordEditView
     }
 
     private static SwiftView EncodingCard(
-        NativeVocabularyDetail detail, VocabularyEditPresentation state,
+        NativeVocabularyDetail detail, VocabularyBrowserEdit state,
         SourceUiStyle style, Func<string, string> text,
         VocabularyEditActions actions, bool readOnly)
     {
@@ -417,7 +417,7 @@ internal static class VocabularyWordEditView
     }
 
     private static SwiftView ResourceCard(
-        NativeVocabularyDetail detail, VocabularyEditPresentation state,
+        NativeVocabularyDetail detail, VocabularyBrowserEdit state,
         SourceUiStyle style, Func<string, string> text,
         VocabularyEditActions actions, bool readOnly)
     {

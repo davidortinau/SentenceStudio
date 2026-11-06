@@ -196,28 +196,45 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(withHistory, "native.vocabulary.edit.section.VocabWordEdit_HistoryTitle.header") is null);
         Assert(Find(withHistory, "native.vocabulary.edit.history.count") is not null);
     }),
-    ("Duplicate manager: encoding badges take the source tones (success, warning, secondary)", () =>
+    ("Duplicate manager: encoding badges use the shared rule on the page surface, light and dark", () =>
     {
         var appearance = style.Appearance;
+        var light = NativeThemeColorTable.For(appearance.Selection.ThemeId, dark: false);
+        var dark = NativeThemeColorTable.For(appearance.Selection.ThemeId, dark: true);
+        foreach (var (label, tone) in new[] {
+                     ("Strong", VocabularyEncodingTone.Strong), ("Good", VocabularyEncodingTone.Good),
+                     ("Basic", VocabularyEncodingTone.Basic), ("Unknown", VocabularyEncodingTone.Basic) })
+        {
+            var shown = VocabularyDuplicatesView.EncodingColors(appearance, label);
+            var l = VocabularyEncodingBadge.Colors(tone, light, light.Body);
+            var d = VocabularyEncodingBadge.Colors(tone, dark, dark.Body);
+            Assert(shown.Fill == new SourceColorPair(l.Fill, d.Fill));
+            Assert(shown.Text == new SourceColorPair(l.Text, d.Text));
+        }
         var strong = VocabularyDuplicatesView.EncodingColors(appearance, "Strong");
         var good = VocabularyDuplicatesView.EncodingColors(appearance, "Good");
         var basic = VocabularyDuplicatesView.EncodingColors(appearance, "Basic");
         // Seoul Pop sets --bs-secondary to its success green, so on the web Strong and Basic
         // share a fill there and differ by text colour (text-success, text-secondary-ss).
         Assert(strong.Fill != good.Fill && good.Fill != basic.Fill && strong.Text != basic.Text);
-        var surface = appearance.ListRowSurface;
-        Assert(strong.Fill.Light == NativeThemeColorTable.Blend(appearance.Success.Light, surface.Light, 0.25));
-        Assert(good.Fill.Dark == NativeThemeColorTable.Blend(appearance.Warning.Dark, surface.Dark, 0.25));
-        Assert(basic.Fill.Light == NativeThemeColorTable.Blend(
-            appearance.ThemeSecondary.Light, surface.Light, 0.25));
-        Assert(basic.Fill.Dark == NativeThemeColorTable.Blend(
-            appearance.ThemeSecondary.Dark, surface.Dark, 0.25));
-        Assert(strong.Text == appearance.SuccessAlertText && basic.Text == appearance.SecondaryText);
-        Assert(VocabularyDuplicatesView.EncodingColors(appearance, "Unknown") == basic);
         using var panel = VocabularyDuplicatesView.Panel(DuplicatePanel(), style, key => key,
             new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
         foreach (var id in new[] { "w-strong", "w-good", "w-basic" })
             Assert(Find(panel, $"native.vocabulary.duplicates.word.{id}.encoding") is not null);
+    }),
+    ("Duplicate manager: a group with another learner's copy shows why it cannot merge", () =>
+    {
+        var blocked = DuplicatePanel() with
+        {
+            Groups = [DuplicatePanel().Groups[0] with { CanMergeAutomatically = false, HasAnotherOwnersCopy = true }]
+        };
+        using var panel = VocabularyDuplicatesView.Panel(blocked, style, key => key,
+            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(panel, "native.vocabulary.duplicates.group.0.merge") is null);
+        var reason = Find(panel, "native.vocabulary.duplicates.group.0.reason")
+            ?? throw new Exception("The reason is missing.");
+        Assert(reason.Text == "NativeVocabulary_DuplicatesAnotherOwner");
+        Assert(Find(panel, "native.vocabulary.duplicates.word.w-good.edit") is not null);
     }),
 };
 
@@ -242,7 +259,7 @@ static RecentLookupRow Row(string id, IReadOnlyList<VocabularyLookupDestination>
     new(id, RecentLookupsAccess.Key(id), "바다", "sea", VocabularyLookupActivity.Reading, "Story",
         new DateTime(2026, 11, 4, 15, 30, 0, DateTimeKind.Utc), destinations);
 
-static VocabularyEditPresentation WordState(bool history)
+static VocabularyBrowserEdit WordState(bool history)
 {
     var created = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
     var resource = new NativeVocabularyResource("res-a", "Story", "Korean", false);
@@ -254,7 +271,7 @@ static VocabularyEditPresentation WordState(bool history)
         new NativeVocabularyProgress(LearningStatus.Learning, false, 0.4f, 1.5f, 1, created.AddDays(3), 4),
         history ? [new NativeVocabularyHistory("h-1", "VocabularyQuiz", created, true, false, "Story")] : [],
         [], [], false, false);
-    return new VocabularyEditPresentation(false, false, detail, draft, null, false, null);
+    return new VocabularyBrowserEdit(false, false, detail, draft, null, false, null);
 }
 
 static VocabularyEditActions WordActions() => new(

@@ -1,6 +1,7 @@
 using SentenceStudio.Abstractions;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native.Features.Settings;
+using SentenceStudio.Native.Features.Vocabulary;
 
 namespace SentenceStudio.Native.iOS.Styling;
 
@@ -189,11 +190,15 @@ internal sealed class SourceUiAppearance
     internal SourceColorPair DangerButtonText => new("#FFFFFF", "#FFFFFF");
     internal SourceColorPair Warning => new("#FFC233", "#FFC233");
     /// <summary>
-    /// The theme's <c>--bs-secondary</c> (app.css; the custom themes set their own), which
-    /// <c>bg-secondary</c> utilities use. <see cref="BootstrapSecondary"/> is the compiled
-    /// button colour.
+    /// The duplicate manager's encoding badge on a list row (the page surface), the same rule
+    /// as Android's (<see cref="VocabularyEncodingBadge"/>).
     /// </summary>
-    internal SourceColorPair ThemeSecondary => new(LightColors.Secondary, DarkColors.Secondary);
+    internal (SourceColorPair Fill, SourceColorPair Text) EncodingBadge(VocabularyEncodingTone tone)
+    {
+        var light = VocabularyEncodingBadge.Colors(tone, LightColors, LightColors.Body);
+        var dark = VocabularyEncodingBadge.Colors(tone, DarkColors, DarkColors.Body);
+        return (new(light.Fill, dark.Fill), new(light.Text, dark.Text));
+    }
     internal SourceColorPair SuccessAlertFill =>
         new(LightColors.SuccessAlert.Fill, DarkColors.SuccessAlert.Fill);
     internal SourceColorPair SuccessAlertText =>

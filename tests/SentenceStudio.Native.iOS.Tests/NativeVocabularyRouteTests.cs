@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using SentenceStudio.Native.iOS.App;
 
 namespace SentenceStudio.Native.iOS.Tests;
@@ -29,18 +30,20 @@ public sealed class NativeVocabularyRouteTests
     [Fact]
     public void DelayedCatalogCompletion_ReprojectsMountedPhoneChoicesWithoutResettingDraft()
     {
-        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
-        var reload = coordinator[coordinator.IndexOf("private async Task ReloadAsync()",
+        // The shared browser reloads; the iOS coordinator turns Sheet into the sheet version.
+        var browser = Flat(SharedSource("Features/Vocabulary/VocabularyBrowser.cs"));
+        var reload = browser[browser.IndexOf("internal async Task ReloadAsync()",
                 StringComparison.Ordinal)
-            ..coordinator.IndexOf("private async Task OpenWordAsync(",
+            ..browser.IndexOf("internal async Task OpenWordAsync(",
                 StringComparison.Ordinal)];
         Assert.Contains("_catalog = catalog;", reload);
         var completion = reload[reload.IndexOf("finally", StringComparison.Ordinal)..];
-        Assert.Contains("Publish(listChanged: true,", completion);
-        Assert.Contains("sheetChanged: _filters?.PhoneSheetOpen == true);",
-            completion);
+        Assert.Contains("VocabularyChanges.List | (_filters?.PhoneSheetOpen == true", completion);
+        Assert.Contains("? VocabularyChanges.Sheet", completion);
         Assert.DoesNotContain("OpenPhoneSheet()", completion);
         Assert.DoesNotContain("ApplyPhoneSheet()", completion);
+        Assert.Contains("var sheet = (changes & VocabularyChanges.Sheet) != 0;",
+            Flat(Source("Features/Vocabulary/VocabularyCoordinator.cs")));
 
         var scene = Source("App/ApplicationScene.Vocabulary.cs");
         Assert.Contains("_renderedVocabularySheetVersion != _app.VocabularySheetVersion",
@@ -132,32 +135,40 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("return style.Page(Views.Scroll(content)", editor);
     }
 
-    // Review 2026-11-05: one copy of Find Duplicates, the duplicate manager and Delete, shared
-    // with Android; the iOS coordinator keeps the SwiftUI bindings and runs the store work off
-    // the main thread.
+    // Review 2026-11-05: one Vocabulary browser for both heads. The iOS coordinator derives
+    // from it and keeps the SwiftUI bindings; every store call in it goes off the main thread.
+    // Checked with whitespace collapsed, so formatting does not matter.
     [Fact]
-    public void WordCleanup_IsTheSharedWorkflowWithStoreWorkOffTheMainThread()
+    public void Coordinator_IsTheSharedBrowserWithStoreWorkOffTheMainThread()
     {
-        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
-        Assert.Contains("_cleanup = new VocabularyWordCleanup(store, logger, text, this);", coordinator);
-        foreach (var duplicated in new[] { "DeleteOwnedVocabularyAsync", "MergeOwnedVocabularyDuplicatesAsync",
-                     "FindOwnedVocabularyDuplicatesAsync", "new VocabularyDuplicateFinder(", "_confirmingDelete" })
-            Assert.DoesNotContain(duplicated, coordinator);
-        Assert.Contains("result = await Task.Run(work).ConfigureAwait(false);", coordinator);
+        var coordinator = Flat(Source("Features/Vocabulary/VocabularyCoordinator.cs"));
+        Assert.Contains("class VocabularyCoordinator : VocabularyBrowser", coordinator);
+        foreach (var store in new[] { "_store.", "IVocabularyCleanupHost", "VocabularyWordCleanup(",
+                     "VocabularyDuplicateFinder(", "TryOwner(" })
+            Assert.DoesNotContain(store, coordinator);
+        Assert.Contains("protected override async Task<T> OffUiAsync<T>(Func<Task<T>> work)", coordinator);
+        Assert.Contains("await Task.Run(work).ConfigureAwait(false);", coordinator);
         Assert.Contains("await new MainQueue();", coordinator);
-        // The save rescans after it lets go of the editor.
-        var save = coordinator[coordinator.IndexOf("private async Task SaveAsync()", StringComparison.Ordinal)..];
-        save = save[..save.IndexOf("internal void CancelDelete()", StringComparison.Ordinal)];
-        Assert.True(save.IndexOf("_saving = false;", StringComparison.Ordinal)
-            < save.IndexOf("await _cleanup.RescanDuplicatesAsync();", StringComparison.Ordinal));
-        var editor = Source("Features/Vocabulary/VocabularyWordEditView.cs");
-        Assert.Contains("CardWithHeaderAction(style, \"VocabWordEdit_VocabularyTerms\"", editor);
+
+        var browser = Flat(SharedSource("Features/Vocabulary/VocabularyBrowser.cs"));
+        var storeCalls = Regex.Matches(browser, @"_store\.").Count;
+        Assert.True(storeCalls > 0);
+        Assert.Equal(storeCalls, Regex.Matches(browser, @"OffUiAsync\(\(\) => _store\.").Count);
+
         // One Card overload, rows only: a SwiftView? header parameter would capture a card's
-        // first row (the harness in SentenceStudio.Native.SwiftUIViews.Tests builds the cards).
-        Assert.Equal(2, editor.Split("private static SwiftView Card(", StringSplitOptions.None).Length);
-        Assert.Contains("private static SwiftView Card(\n        SourceUiStyle style, string titleKey, "
-            + "Func<string, string> text,\n        params SwiftView[] content)", editor);
+        // first row (the SwiftUIViews harness builds the cards to prove it).
+        var editor = Flat(Source("Features/Vocabulary/VocabularyWordEditView.cs"));
+        Assert.Single(Regex.Matches(editor, @"static SwiftView Card\("));
+        Assert.Contains("private static SwiftView Card( SourceUiStyle style, string titleKey, "
+            + "Func<string, string> text, params SwiftView[] content)", editor);
+        Assert.Contains("CardWithHeaderAction(style, \"VocabWordEdit_VocabularyTerms\"", editor);
     }
+
+    private static string Flat(string source) => Regex.Replace(source, @"\s+", " ");
+
+    private static string SharedSource(string relativePath) => File.ReadAllText(
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native", relativePath)));
 
     private static string Source(string relativePath) => File.ReadAllText(
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,

@@ -26,7 +26,7 @@ internal sealed record VocabularyFilterActions(
 internal static class VocabularyListView
 {
     internal static SwiftView Page(
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions)
     {
         var children = new List<SwiftView>();
@@ -142,7 +142,7 @@ internal static class VocabularyListView
     }
 
     internal static SwiftView PhoneFilterSheet(
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyFilterActions actions)
     {
         var fields = FilterFields(state, style, text, actions.Change,
@@ -181,7 +181,7 @@ internal static class VocabularyListView
     }
 
     private static SwiftView WideControls(
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions)
     {
         var total = state.FilteredWords.Count;
@@ -240,7 +240,7 @@ internal static class VocabularyListView
 
     private static SwiftView SortButton(
         string sort, string labelKey,
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, Action<string> changed,
         SourceButtonGroupPosition position) =>
         state.SortField == sort
@@ -253,7 +253,7 @@ internal static class VocabularyListView
                 .WithAccessibilityIdentifier($"native.vocabulary.sort.{sort}");
 
     private static SwiftView WideFilters(
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, Action<string, string?> changed)
     {
         var fields = FilterFields(state, style, text, changed, useDraft: false);
@@ -265,7 +265,7 @@ internal static class VocabularyListView
     }
 
     private static List<SwiftView> FilterFields(
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, Action<string, string?> changed, bool useDraft)
     {
         var words = state.Catalog.Words;
@@ -346,7 +346,7 @@ internal static class VocabularyListView
     private static SwiftView Filter(
         string type, string labelKey, string allKey,
         IReadOnlyList<string> values,
-        VocabularyListPresentation state, SourceUiStyle style,
+        VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, Action<string, string?> changed,
         bool useDraft, Func<string, string>? valueLabel = null)
     {

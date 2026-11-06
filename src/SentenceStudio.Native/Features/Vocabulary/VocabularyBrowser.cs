@@ -44,21 +44,44 @@ internal sealed record VocabularyBrowserEdit(
         && !string.IsNullOrWhiteSpace(current.NativeTerm);
 }
 
+/// <summary>What changed, for the head to redraw. A head decides how much each one redraws.</summary>
+[Flags]
+internal enum VocabularyChanges
+{
+    None = 0,
+    List = 1,
+    Form = 2,
+    /// <summary>The phone filter sheet.</summary>
+    Sheet = 4,
+    /// <summary>The delete confirmation alone (shown, pending or gone).</summary>
+    DeleteDialog = 8,
+    /// <summary>A typed draft field: the open editor already shows the text.</summary>
+    DraftText = 16,
+    /// <summary>A resource switch: the open editor already shows it; its count changed.</summary>
+    ResourceToggle = 32,
+    /// <summary>A phone filter sheet choice not applied yet.</summary>
+    FilterDraft = 64
+}
+
 /// <summary>
 /// Platform-neutral owner-scoped Vocabulary browser and word editor (source
-/// Vocabulary.razor and VocabularyWordEdit.razor), the shared core of the iOS
-/// VocabularyCoordinator without its SwiftUI bindings. <see cref="Changed"/> is
-/// raised on the calling thread; the head marshals it to its UI thread.
+/// Vocabulary.razor and VocabularyWordEdit.razor). Android uses it as is; the iOS
+/// VocabularyCoordinator derives from it and adds only its SwiftUI bindings, through
+/// <see cref="OffUiAsync{T}"/> and <see cref="OnChanged"/>. <see cref="Changed"/> is raised on
+/// the calling thread; the head marshals it to its UI thread.
 /// </summary>
-internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
+internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 {
     private readonly INativeResourceStore _store;
     private readonly DeviceUserScopeProvider _userScope;
     private readonly IPreferencesService _preferences;
     private readonly INativeQuizMedia _media;
-    private readonly ILogger<VocabularyBrowser> _logger;
+    private readonly ILogger _logger;
     private readonly Func<string, string> _text;
     private readonly CancellationTokenSource _lifetime = new();
+    // Read once: CancellationTokenSource.Token throws after Dispose, and work cut short by
+    // disposal still reads the token.
+    private readonly CancellationToken _lifetimeToken;
     private NativeVocabularyCatalog _catalog = new(false, [], []);
     private VocabularyFilterState? _filters;
     private NativeVocabularyDetail? _detail;
@@ -85,13 +108,14 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     private long _formGeneration;
     private long _listVersion;
     private long _formVersion;
+    private long _sheetVersion;
 
     internal VocabularyBrowser(
         INativeResourceStore store,
         DeviceUserScopeProvider userScope,
         IPreferencesService preferences,
         INativeQuizMedia media,
-        ILogger<VocabularyBrowser> logger,
+        ILogger logger,
         Func<string, string> text)
     {
         _store = store;
@@ -100,10 +124,11 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _media = media;
         _logger = logger;
         _text = text;
+        _lifetimeToken = _lifetime.Token;
         _cleanup = new VocabularyWordCleanup(store, logger, text, this);
     }
 
-    /// <summary>Find Duplicates, the duplicate manager and Delete, shared with iOS.</summary>
+    /// <summary>Find Duplicates, the duplicate manager and Delete.</summary>
     private readonly VocabularyWordCleanup _cleanup;
 
     internal event Action? Changed;
@@ -112,10 +137,27 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal bool IsPhoneFilterPresented =>
         _listOpen && _filters?.PhoneSheetOpen == true;
     internal bool IsNavigationBlocked => _saving || _cleanup.Deleting;
-    internal bool IsDeleteConfirmationPresented =>
-        _listOpen && _cleanup.IsDeleteConfirmationPresented;
+
+    /// <summary>Source showDeleteConfirm.</summary>
+    internal bool IsDeleteConfirmationPresented => _cleanup.IsDeleteConfirmationPresented;
+    internal bool IsDeletePending => IsFormOpen && _cleanup.Deleting;
+
+    /// <summary>Source deleteConfirmMessage for the loaded word; null until it loads.</summary>
+    internal string? DeleteMessage => _cleanup.DeleteMessage;
     internal long ListVersion => Interlocked.Read(ref _listVersion);
     internal long FormVersion => Interlocked.Read(ref _formVersion);
+    internal long SheetVersion => Interlocked.Read(ref _sheetVersion);
+    internal bool ListMode => _listMode;
+    internal string SearchText => TryOwner(out _)
+        ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
+
+    protected bool IsDisposed => _disposed;
+
+    /// <summary>Whether Save can run now (the rule of every Save button).</summary>
+    protected bool CanSaveOpenWord => _formOpen
+        && VocabularyBrowserEdit.CanSaveWord(_saving || _cleanup.Deleting, _detail, _draft);
+
+    protected int DraftResourceCount => _draft?.ResourceIds.Count ?? 0;
 
     internal VocabularyBrowserList ListState
     {
@@ -161,7 +203,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _loading = true;
         _feedback = null;
         _feedbackWarning = false;
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List);
         await ReloadAsync();
         return TryOwner(out _);
     }
@@ -184,7 +226,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _media.StopPlayback();
         Interlocked.Increment(ref _loadGeneration);
         Interlocked.Increment(ref _formGeneration);
-        Publish(listChanged: true, formChanged: true);
+        Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
     }
 
     /// <summary>Back or Cancel from the word editor discards the draft.</summary>
@@ -193,15 +235,8 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!_formOpen || _saving || _cleanup.Deleting)
             return;
         _cleanup.ResetDelete();
-        _formOpen = false;
-        _detail = null;
-        _draft = null;
-        _photo = null;
-        _selectedWordId = null;
-        _editErrorKey = null;
-        _media.StopPlayback();
-        Interlocked.Increment(ref _formGeneration);
-        Publish(formChanged: true);
+        LeaveWord();
+        Notify(VocabularyChanges.Form);
     }
 
     internal async Task ReloadAsync()
@@ -211,12 +246,12 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         var generation = Interlocked.Increment(ref _loadGeneration);
         _loading = true;
         _listErrorKey = null;
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List);
         try
         {
             // Off the UI thread: the catalog query reads every owned word.
-            var catalog = await Task.Run(() => _store.ListOwnedVocabularyAsync(
-                owner, _lifetime.Token), _lifetime.Token);
+            var catalog = await OffUiAsync(() => _store.ListOwnedVocabularyAsync(
+                owner, _lifetimeToken));
             if (generation != Volatile.Read(ref _loadGeneration))
                 return;
             if (!TryOwner(out _))
@@ -242,7 +277,8 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             if (generation == Volatile.Read(ref _loadGeneration) && !_disposed)
             {
                 _loading = false;
-                Publish(listChanged: true);
+                Notify(VocabularyChanges.List | (_filters?.PhoneSheetOpen == true
+                    ? VocabularyChanges.Sheet : VocabularyChanges.None));
             }
         }
     }
@@ -261,11 +297,11 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _editErrorKey = null;
         _photo = null;
         _cleanup.ResetDelete();
-        Publish(formChanged: true);
+        Notify(VocabularyChanges.Form);
         try
         {
-            var detail = await Task.Run(() => _store.GetOwnedVocabularyAsync(
-                owner, id, _lifetime.Token), _lifetime.Token);
+            var detail = await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
+                owner, id, _lifetimeToken));
             if (generation != Volatile.Read(ref _formGeneration)
                 || !_formOpen || _selectedWordId != id)
                 return;
@@ -296,7 +332,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             if (generation == Volatile.Read(ref _formGeneration) && !_disposed)
             {
                 _formLoading = false;
-                Publish(formChanged: true);
+                Notify(VocabularyChanges.Form);
             }
         }
     }
@@ -323,7 +359,9 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             _ => draft
         };
         _editErrorKey = null;
-        Publish(formChanged: true);
+        // The type changes which sections the editor shows; typed text is already on screen.
+        Notify(field == nameof(draft.LexicalUnitType)
+            ? VocabularyChanges.Form : VocabularyChanges.DraftText);
     }
 
     internal void ToggleResource(string id, bool selected)
@@ -339,8 +377,9 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         else
             resourceIds.Remove(id);
         _draft = draft with { ResourceIds = resourceIds.ToArray() };
+        var hadError = _editErrorKey is not null;
         _editErrorKey = null;
-        Publish(formChanged: true);
+        Notify(hadError ? VocabularyChanges.Form : VocabularyChanges.ResourceToggle);
     }
 
     internal async Task SaveAsync()
@@ -353,17 +392,17 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             || string.IsNullOrWhiteSpace(draft.NativeTerm))
         {
             _editErrorKey = "VocabWordEdit_BothRequired";
-            Publish(formChanged: true);
+            Notify(VocabularyChanges.Form);
             return;
         }
         _saving = true;
         _editErrorKey = null;
-        Publish(formChanged: true);
+        Notify(VocabularyChanges.Form);
         var saved = false;
         try
         {
-            var result = await Task.Run(() => _store.SaveOwnedVocabularyAsync(
-                owner, draft, _lifetime.Token), _lifetime.Token);
+            var result = await OffUiAsync(() => _store.SaveOwnedVocabularyAsync(
+                owner, draft, _lifetimeToken));
             if (result is NativeVocabularySaveStatus.Saved
                 or NativeVocabularySaveStatus.SavedSyncUnconfirmed)
             {
@@ -402,12 +441,12 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         finally
         {
             _saving = false;
-            Publish(listChanged: true, formChanged: true);
+            Notify(VocabularyChanges.List | VocabularyChanges.Form);
         }
         // Source: back on the list the manager scans again, once the save no longer holds
-        // the editor.
+        // the editor. Leaving the list cancels it quietly.
         if (saved)
-            await _cleanup.RescanDuplicatesAsync();
+            await Guard(_cleanup.RescanDuplicatesAsync);
     }
 
     /// <summary>The source and iOS message for each refused save.</summary>
@@ -443,7 +482,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Source RequestDelete: shows the confirmation.</summary>
     internal void RequestDelete() => _cleanup.RequestDelete();
 
-    /// <summary>Source CancelDelete; ignored while the delete runs.</summary>
+    /// <summary>Source CancelDelete (Cancel, Close or the backdrop); ignored while deleting.</summary>
     internal void CancelDelete() => _cleanup.CancelDelete();
 
     /// <summary>Source ConfirmDelete (see <see cref="VocabularyWordCleanup"/>).</summary>
@@ -461,59 +500,17 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         }
     }
 
-    bool IVocabularyCleanupHost.TryOpenOwner(out string owner)
-    {
-        // A closed list is not an owner change: nothing to block or report.
-        owner = string.Empty;
-        return !_disposed && _listOpen && TryOwner(out owner);
-    }
-
-    bool IVocabularyCleanupHost.IsListOpen => !_disposed && _listOpen;
-    bool IVocabularyCleanupHost.IsFormOpen => IsFormOpen;
-    bool IVocabularyCleanupHost.IsSaving => _saving;
-    NativeVocabularyDetail? IVocabularyCleanupHost.OpenDetail => _detail;
-    NativeVocabularyEditDraft? IVocabularyCleanupHost.OpenDraft => _draft;
-    CancellationToken IVocabularyCleanupHost.Lifetime => _lifetime.Token;
-
-    void IVocabularyCleanupHost.LeaveWord()
-    {
-        _formOpen = false;
-        _detail = null;
-        _draft = null;
-        _photo = null;
-        _selectedWordId = null;
-        _editErrorKey = null;
-        _media.StopPlayback();
-        Interlocked.Increment(ref _formGeneration);
-    }
-
-    void IVocabularyCleanupHost.ShowListFeedback(string message, bool warning)
-    {
-        _feedback = message;
-        _feedbackWarning = warning;
-    }
-
-    Task IVocabularyCleanupHost.ReloadListAsync() => ReloadAsync();
-
-    // The Compose editor draws the delete confirmation, so it changes with the form.
-    void IVocabularyCleanupHost.PublishChanges(bool list, bool form, bool deleteDialog) =>
-        Publish(listChanged: list, formChanged: form || deleteDialog);
-
-    // On Android the awaiting UI-thread caller resumes through the looper's context.
-    Task<T> IVocabularyCleanupHost.OffUiAsync<T>(Func<Task<T>> work) =>
-        Task.Run(work, _lifetime.Token);
-
     internal async Task PlayAudioAsync()
     {
         if (!_formOpen || _saving || _playingAudio || _draft is not { } draft
             || !TryOwner(out var owner))
             return;
         _playingAudio = true;
-        Publish(formChanged: true);
+        Notify(VocabularyChanges.Form);
         try
         {
-            if (await Task.Run(() => _store.GetOwnedVocabularyAsync(
-                    owner, draft.Id, _lifetime.Token), _lifetime.Token) is null)
+            if (await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
+                    owner, draft.Id, _lifetimeToken)) is null)
             {
                 _editErrorKey = "VocabWordEdit_NotFound";
                 return;
@@ -521,7 +518,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             var language = string.IsNullOrWhiteSpace(draft.Language)
                 ? "Korean" : draft.Language;
             if (!await _media.PlayPromptAsync(
-                draft.TargetTerm, language, _lifetime.Token))
+                draft.TargetTerm, language, _lifetimeToken))
                 _editErrorKey = "NativeVocabulary_AudioUnavailable";
         }
         catch (OperationCanceledException) when (_disposed)
@@ -536,7 +533,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         finally
         {
             _playingAudio = false;
-            Publish(formChanged: true);
+            Notify(VocabularyChanges.Form);
         }
     }
 
@@ -544,16 +541,16 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     {
         try
         {
-            if (await Task.Run(() => _store.GetOwnedVocabularyAsync(
-                    owner, wordId, _lifetime.Token), _lifetime.Token) is null)
+            if (await OffUiAsync(() => _store.GetOwnedVocabularyAsync(
+                    owner, wordId, _lifetimeToken)) is null)
                 return;
-            var photo = await _media.LoadPhotoAsync(uri, _lifetime.Token);
+            var photo = await _media.LoadPhotoAsync(uri, _lifetimeToken);
             if (_formOpen && _draft is { } draft
                 && draft.Id == wordId && draft.MnemonicImageUri == uri
                 && _selectedWordId == wordId && TryOwner(out _))
             {
                 _photo = photo;
-                Publish(formChanged: true);
+                Notify(VocabularyChanges.Form);
             }
         }
         catch (OperationCanceledException) when (_disposed)
@@ -570,7 +567,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.Search(value);
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List);
     }
 
     internal void OpenPhoneFilters()
@@ -578,7 +575,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.OpenPhoneSheet();
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.Sheet);
     }
 
     /// <summary><paramref name="live"/> applies at once (wide layout); otherwise it edits the sheet draft.</summary>
@@ -587,21 +584,24 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.ChangeFilter(type, value, live);
-        Publish(listChanged: true);
+        Notify(live ? VocabularyChanges.List : VocabularyChanges.FilterDraft);
     }
+
+    internal void ChangeWideFilter(string type, string? value) =>
+        ChangeFilter(type, value, live: true);
 
     internal void ApplyPhoneFilters()
     {
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.ApplyPhoneSheet();
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List | VocabularyChanges.Sheet);
     }
 
     internal void CancelPhoneFilters()
     {
         _filters?.CancelPhoneSheet();
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.Sheet);
     }
 
     internal void ClearFilters()
@@ -609,7 +609,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.ClearAll();
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List | VocabularyChanges.Sheet);
     }
 
     internal void SetSort(string field)
@@ -625,7 +625,7 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         }
         _preferences.Set($"vocabulary_sort_{owner}",
             $"{_sortField}:{(_sortDescending ? "desc" : "asc")}");
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List);
     }
 
     internal void SetListMode(bool list)
@@ -634,7 +634,23 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         _listMode = list;
         _preferences.Set($"vocabulary_view_{owner}", list ? "list" : "grid");
-        Publish(listChanged: true);
+        Notify(VocabularyChanges.List);
+    }
+
+    /// <summary>
+    /// An action the head started and did not await failed unexpectedly: logged, and shown as
+    /// the editor's save error or the list's load error.
+    /// </summary>
+    protected void ReportActionFailure(Exception ex)
+    {
+        _logger.LogError(ex, "Native Vocabulary action failed.");
+        if (_disposed)
+            return;
+        if (_formOpen)
+            _editErrorKey = "VocabWordEdit_SaveFailed";
+        else
+            _listErrorKey = "NativeVocabulary_LoadFailed";
+        Notify(VocabularyChanges.List | VocabularyChanges.Form);
     }
 
     private bool TrustedOwner(string owner) =>
@@ -674,21 +690,96 @@ internal sealed class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _cleanup.Reset();
         _listErrorKey = "Vocabulary_NoActiveProfile";
         _media.StopPlayback();
-        Publish(listChanged: true, formChanged: true);
+        Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
+    }
+
+    /// <summary>Leaves the editor and discards its draft. No publish.</summary>
+    private void LeaveWord()
+    {
+        _formOpen = false;
+        _detail = null;
+        _draft = null;
+        _photo = null;
+        _selectedWordId = null;
+        _editErrorKey = null;
+        _media.StopPlayback();
+        Interlocked.Increment(ref _formGeneration);
     }
 
     private static string QueryKey(string owner) => $"vocabulary_query_{owner}";
 
-    private void Publish(bool listChanged = false, bool formChanged = false)
+    private void Notify(VocabularyChanges changes)
+    {
+        if (!_disposed)
+            OnChanged(changes);
+    }
+
+    /// <summary>
+    /// Redraws for <paramref name="changes"/>. Android redraws its single Compose tree: the
+    /// sheet and its draft redraw the list, and the editor's in-place changes redraw the form.
+    /// </summary>
+    protected virtual void OnChanged(VocabularyChanges changes)
+    {
+        const VocabularyChanges list = VocabularyChanges.List | VocabularyChanges.Sheet
+            | VocabularyChanges.FilterDraft;
+        const VocabularyChanges form = VocabularyChanges.Form | VocabularyChanges.DeleteDialog
+            | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle;
+        Publish((changes & list) != 0, (changes & form) != 0, sheet: false);
+    }
+
+    /// <summary>Moves the given versions on and raises <see cref="Changed"/>.</summary>
+    protected void Publish(bool list, bool form, bool sheet)
     {
         if (_disposed)
             return;
-        if (listChanged)
+        if (list)
             Interlocked.Increment(ref _listVersion);
-        if (formChanged)
+        if (form)
             Interlocked.Increment(ref _formVersion);
-        Changed?.Invoke();
+        if (sheet)
+            Interlocked.Increment(ref _sheetVersion);
+        RaiseChanged();
     }
+
+    protected virtual void RaiseChanged() => Changed?.Invoke();
+
+    /// <summary>
+    /// Runs store work off the UI thread: SQLite work is synchronous under its async API. On
+    /// Android the awaiting UI-thread caller resumes through the looper's context; the iOS head
+    /// resumes on the main queue itself.
+    /// </summary>
+    protected virtual Task<T> OffUiAsync<T>(Func<Task<T>> work) =>
+        Task.Run(work, _lifetimeToken);
+
+    bool IVocabularyCleanupHost.TryOpenOwner(out string owner)
+    {
+        // A closed list is not an owner change: nothing to block or report.
+        owner = string.Empty;
+        return !_disposed && _listOpen && TryOwner(out owner);
+    }
+
+    bool IVocabularyCleanupHost.IsFormOpen => IsFormOpen;
+    bool IVocabularyCleanupHost.IsSaving => _saving;
+    NativeVocabularyDetail? IVocabularyCleanupHost.OpenDetail => _detail;
+    NativeVocabularyEditDraft? IVocabularyCleanupHost.OpenDraft => _draft;
+    CancellationToken IVocabularyCleanupHost.Lifetime => _lifetimeToken;
+    bool IVocabularyCleanupHost.IsDisposed => _disposed;
+    void IVocabularyCleanupHost.LeaveWord() => LeaveWord();
+
+    void IVocabularyCleanupHost.ShowListFeedback(string message, bool warning)
+    {
+        _feedback = message;
+        _feedbackWarning = warning;
+    }
+
+    Task IVocabularyCleanupHost.ReloadListAsync() => ReloadAsync();
+
+    void IVocabularyCleanupHost.PublishChanges(bool list, bool form, bool deleteDialog) =>
+        Notify((list ? VocabularyChanges.List : VocabularyChanges.None)
+            | (form ? VocabularyChanges.Form : VocabularyChanges.None)
+            | (deleteDialog ? VocabularyChanges.DeleteDialog : VocabularyChanges.None));
+
+    Task<T> IVocabularyCleanupHost.OffUiAsync<T>(Func<Task<T>> work) => OffUiAsync(work);
 
     public void Dispose()
     {

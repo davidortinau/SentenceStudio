@@ -33,8 +33,6 @@
              Link="Features/SamFloatingEntry.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/GlobalUsings.SharedFeatures.cs"
              Link="GlobalUsings.SharedFeatures.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyPresentation.cs"
-             Link="Features/VocabularyPresentation.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs"
              Link="Features/VocabularyWordEditView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyDuplicatesView.cs"

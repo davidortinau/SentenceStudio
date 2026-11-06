@@ -145,8 +145,12 @@ public sealed class NativeVocabularyStoreTests
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            // Phase 3 records every sentence's owner (the migration backfills it from the
+            // resource; save paths stamp it). A sentence naming nobody counts as another
+            // learner's, as on the server: see VocabularyWordCleanupTests.
             db.ExampleSentences.Add(new ExampleSentence {
                 VocabularyWordId = id,
+                UserProfileId = NativeSliceFixture.UserA,
                 LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
                 Source = ExampleSentenceSource.UserAuthored,
                 TargetSentence = "owned resource example"

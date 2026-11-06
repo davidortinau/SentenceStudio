@@ -1,5 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Contracts.Theme;
+using SentenceStudio.Native.Features.Settings;
 using SentenceStudio.Services;
 
 namespace SentenceStudio.Native.Features.Vocabulary;
@@ -27,9 +29,9 @@ internal sealed record VocabularyDuplicateMergeOutcome(
     bool Changed, string Feedback, bool Warning);
 
 /// <summary>
-/// What the word-cleanup workflow needs from the Vocabulary browser that hosts it: the Android
-/// <see cref="VocabularyBrowser"/> and the iOS VocabularyCoordinator. The host keeps its own list
-/// and editor state and its UI binding; the workflow decides the rest.
+/// What the word-cleanup workflow needs from the <see cref="VocabularyBrowser"/> that hosts it
+/// (both heads; iOS through its VocabularyCoordinator). The browser keeps the list and editor
+/// state; the workflow decides the rest.
 /// </summary>
 internal interface IVocabularyCleanupHost
 {
@@ -39,12 +41,16 @@ internal interface IVocabularyCleanupHost
     /// </summary>
     bool TryOpenOwner(out string owner);
 
-    bool IsListOpen { get; }
     bool IsFormOpen { get; }
     bool IsSaving { get; }
     NativeVocabularyDetail? OpenDetail { get; }
     NativeVocabularyEditDraft? OpenDraft { get; }
+
+    /// <summary>Cancelled when the host is disposed; still readable after that.</summary>
     CancellationToken Lifetime { get; }
+
+    /// <summary>The host was disposed: work cut short by that ends quietly.</summary>
+    bool IsDisposed { get; }
 
     /// <summary>Leaves the editor and discards its draft (the source navigates away). No publish.</summary>
     void LeaveWord();
@@ -112,9 +118,10 @@ internal sealed class VocabularyWordCleanup
     /// </summary>
     internal async Task FindDuplicatesAsync()
     {
-        if (!_host.IsFormOpen || _host.IsSaving || _deleting
-            || _host.OpenDraft is not { } draft
-            || string.IsNullOrWhiteSpace(draft.TargetTerm)
+        var draft = _host.OpenDraft;
+        if (!_host.IsFormOpen
+            || !VocabularyWordCommands.CanFindDuplicates(_host.IsSaving || _deleting, draft)
+            || string.IsNullOrWhiteSpace(draft!.TargetTerm)
             || !_host.TryOpenOwner(out var owner))
             return;
         var term = draft.TargetTerm.Trim();
@@ -127,14 +134,14 @@ internal sealed class VocabularyWordCleanup
 
     /// <summary>Source ShowMoreDuplicates.</summary>
     internal Task ShowMoreDuplicatesAsync() =>
-        _host.IsListOpen && _host.TryOpenOwner(out var owner)
+        _host.TryOpenOwner(out var owner)
             ? _duplicates.ShowMoreAsync(owner, _host.Lifetime)
             : Task.CompletedTask;
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
     internal async Task MergeDuplicatesAsync(string normalizedTerm)
     {
-        if (!_host.IsListOpen || _host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+        if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
             return;
         var outcome = await _duplicates.MergeAsync(owner, normalizedTerm, _host.Lifetime);
         if (outcome is null || !_host.TryOpenOwner(out _))
@@ -225,7 +232,7 @@ internal sealed class VocabularyWordCleanup
             else if (_host.TryOpenOwner(out _))
                 _deleteError = VocabularyWordCommands.DeleteError(result, detail, _text);
         }
-        catch (OperationCanceledException) when (_host.Lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (_host.IsDisposed)
         {
             return;
         }
@@ -299,7 +306,6 @@ internal sealed class VocabularyDuplicateFinder
         CancellationToken cancellationToken)
     {
         var label = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
-        _rescanPending = false;
         _panel = new VocabularyDuplicatePanel(true,
             label is null ? _text("Vocabulary_DuplicatesTitle")
                 : Format("Vocabulary_DuplicatesFor", label),
@@ -353,8 +359,7 @@ internal sealed class VocabularyDuplicateFinder
                 is not { } group)
             return null;
         if (!group.CanMergeAutomatically || group.Words.Count < 2)
-            return new(false, group.MergeBlockedReason
-                ?? _text("NativeVocabulary_DuplicatesBlockedFallback"), Warning: true);
+            return new(false, BlockedReason(group, _text), Warning: true);
 
         var generation = Volatile.Read(ref _generation);
         _panel = panel with {
@@ -420,6 +425,10 @@ internal sealed class VocabularyDuplicateFinder
         CancellationToken cancellationToken)
     {
         var generation = Interlocked.Increment(ref _generation);
+        // A full scan sees everything committed before it starts; only a rescan asked for
+        // while it runs needs another.
+        if (!append)
+            _rescanPending = false;
         var label = _panel?.FocusLabel;
         var skip = append ? _panel?.Groups.Count ?? 0 : 0;
         try
@@ -470,7 +479,6 @@ internal sealed class VocabularyDuplicateFinder
         if (_rescanPending && generation == Volatile.Read(ref _generation)
             && _panel is { Running: false } done)
         {
-            _rescanPending = false;
             _panel = done with { Running = true };
             Changed();
             await LoadAsync(owner, append: false, done.Results, cancellationToken);
@@ -499,6 +507,16 @@ internal sealed class VocabularyDuplicateFinder
             : text("NativeVocabulary_DuplicatesNoMemoryAids");
     }
 
+    /// <summary>
+    /// Why a group cannot merge: a copy not recorded to the learner first (the device refuses
+    /// it, see <see cref="NativeVocabularyDuplicateGroup.HasAnotherOwnersCopy"/>), then the
+    /// source's reason.
+    /// </summary>
+    internal static string BlockedReason(NativeVocabularyDuplicateGroup group,
+        Func<string, string> text) =>
+        group.HasAnotherOwnersCopy ? text("NativeVocabulary_DuplicatesAnotherOwner")
+            : group.MergeBlockedReason ?? text("NativeVocabulary_DuplicatesBlockedFallback");
+
     /// <summary>Source focus note (the resource carries the web's &lt;strong&gt; markup).</summary>
     internal static string FocusNote(string label, Func<string, string> text) =>
         string.Format(CultureInfo.CurrentCulture,
@@ -523,6 +541,54 @@ internal sealed class VocabularyDuplicateFinder
 internal enum VocabularyEncodingTone
 {
     Basic, Good, Strong
+}
+
+/// <summary>
+/// The duplicate manager's encoding badge colours for both heads (source
+/// GetEncodingBadgeClass: "bg-{tone} bg-opacity-25 text-{tone}", with Strong success, Good
+/// warning and Basic the theme's secondary and secondary text). The tone's text colour moves
+/// toward the body text only as far as it needs to read at 4.5:1 on its tint; the label names
+/// the strength as well.
+/// </summary>
+internal static class VocabularyEncodingBadge
+{
+    /// <summary><c>--bs-success</c> and <c>--bs-warning</c> (app.css), the heads' Success and Warning roles.</summary>
+    internal const string SuccessHex = "#12B886";
+    internal const string WarningHex = "#FFC233";
+    internal const double MinimumContrast = 4.5;
+
+    /// <summary>Fill and text, as hex, for a badge on <paramref name="surfaceHex"/>.</summary>
+    internal static (string Fill, string Text) Colors(VocabularyEncodingTone tone,
+        NativeThemeColors theme, string surfaceHex)
+    {
+        var toneHex = tone switch
+        {
+            VocabularyEncodingTone.Strong => SuccessHex,
+            VocabularyEncodingTone.Good => WarningHex,
+            _ => theme.Secondary
+        };
+        var fill = NativeThemeColorTable.Blend(toneHex, surfaceHex, 0.25);
+        var preferred = tone == VocabularyEncodingTone.Basic ? theme.SecondaryText : toneHex;
+        return (fill, Readable(preferred, theme.Text, fill));
+    }
+
+    /// <summary>
+    /// <paramref name="preferred"/> mixed toward <paramref name="bodyText"/> in tenths until it
+    /// reads at <see cref="MinimumContrast"/> on <paramref name="fill"/>; black or white if
+    /// even the body text does not.
+    /// </summary>
+    internal static string Readable(string preferred, string bodyText, string fill)
+    {
+        var background = SrgbColor.Parse(fill);
+        for (var step = 0; step <= 10; step++)
+        {
+            var candidate = NativeThemeColorTable.Blend(bodyText, preferred, step / 10.0);
+            if (SrgbColor.Parse(candidate).ContrastRatio(background) >= MinimumContrast)
+                return candidate;
+        }
+        return SrgbColor.Parse("#000000").ContrastRatio(background)
+            >= SrgbColor.Parse("#FFFFFF").ContrastRatio(background) ? "#000000" : "#FFFFFF";
+    }
 }
 
 /// <summary>

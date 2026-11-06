@@ -217,7 +217,7 @@ internal sealed partial class AndroidSliceShell
             palette.Elevated, palette.Text, $"{id}.copies");
         if (!group.CanMergeAutomatically)
             AddBadge(badges, Localize("NativeVocabulary_DuplicatesEditBeforeMerge"),
-                Color.FromHex("#FFC233"), Color.FromHex("#212529"), $"{id}.blocked");
+                palette.Warning, Color.FromHex("#212529"), $"{id}.blocked");
         if (panel.IsFocused(group))
             AddBadge(badges, Localize("Vocabulary_DuplicatesFocusedBadge"),
                 palette.Primary, palette.OnPrimary, $"{id}.focused");
@@ -244,8 +244,8 @@ internal sealed partial class AndroidSliceShell
             {
                 Modifier.FillMaxWidth().Padding(12),
                 header,
-                Caption(group.MergeBlockedReason
-                    ?? Localize("NativeVocabulary_DuplicatesBlockedFallback"), palette),
+                Caption(VocabularyDuplicateFinder.BlockedReason(group, Localize), palette,
+                    $"{id}.reason"),
                 Caption(Localize("NativeVocabulary_DuplicatesMergeUnavailableHelp"), palette),
             });
             column.Add(warning);
@@ -322,21 +322,17 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>
-    /// Source GetEncodingBadgeClass: "bg-{tone} bg-opacity-25 text-{tone}" with success for
-    /// Strong, warning for Good and secondary for Basic. The label says the strength too; the
-    /// theme's success and warning text roles keep it readable on its own tint.
+    /// Source GetEncodingBadgeClass on the row's card surface, the same rule as iOS
+    /// (<see cref="VocabularyEncodingBadge"/>).
     /// </summary>
     private static (Color Fill, Color Text) EncodingColors(AndroidVisualPalette palette,
-        string encodingLabel) => VocabularyWordCommands.EncodingTone(encodingLabel) switch
+        string encodingLabel)
     {
-        VocabularyEncodingTone.Strong => (palette.Success.WithOpacity(0.25f), palette.KnownText),
-        VocabularyEncodingTone.Good => (Color.FromHex(WarningHex).WithOpacity(0.25f),
-            palette.WarningText),
-        _ => (palette.Secondary.WithOpacity(0.25f), palette.SecondaryText)
-    };
-
-    /// <summary><c>--bs-warning</c>, as the iOS head's warning.</summary>
-    private const string WarningHex = "#FFC233";
+        var (fill, text) = VocabularyEncodingBadge.Colors(
+            VocabularyWordCommands.EncodingTone(encodingLabel), palette.Theme,
+            palette.Theme.CardSurface);
+        return (Color.FromHex(fill), Color.FromHex(text));
+    }
 
     private static void AddBadge(FlowRow row, string value, Color fill, Color text, string tag)
     {

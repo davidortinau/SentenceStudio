@@ -8700,6 +8700,9 @@
   <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
     <value>이 복사본에는 기억 보조 자료가 없습니다.</value>
   </data>
+  <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
+    <value>이 그룹에는 내 것으로 기록되지 않은 복사본(다른 학습자의 단어 또는 예전에 공유된 단어)이 있어 여기서 병합할 수 없습니다. 각 복사본을 열어 편집하세요.</value>
+  </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>{0}개 표시 중.</value>
   </data>

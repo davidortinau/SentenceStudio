@@ -84,11 +84,15 @@ public sealed record NativeVocabularyDuplicateWord(
     string? MnemonicText, bool HasImageAid, bool HasAudio);
 
 /// <summary>Source VocabularyDuplicateGroup; <see cref="Words"/> is in merge-preference order.</summary>
+/// <param name="HasAnotherOwnersCopy">
+/// A copy is not recorded to the learner (another learner's, or a legacy word recorded to
+/// nobody). The group cannot merge on the device; each copy can still be opened.
+/// </param>
 public sealed record NativeVocabularyDuplicateGroup(
     string NormalizedTerm, string DisplayTerm,
     IReadOnlyList<NativeVocabularyDuplicateWord> Words,
     bool CanMergeAutomatically, string? MergeBlockedReason,
-    string RecommendedKeeperId);
+    string RecommendedKeeperId, bool HasAnotherOwnersCopy = false);
 
 /// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
 public sealed record NativeVocabularyDuplicateScan(

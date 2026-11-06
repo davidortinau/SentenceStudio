@@ -9345,6 +9345,10 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_DuplicatesNoMemoryAids" xml:space="preserve">
     <value>No memory aids on this copy.</value>
   </data>
+  <data name="NativeVocabulary_DuplicatesAnotherOwner" xml:space="preserve">
+    <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged here. Open each copy to edit it.</value>
+    <comment>Duplicate manager: why a group holding another learner's copy cannot merge on the device</comment>
+  </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>Showing {0}.</value>
     <comment>Duplicate manager status suffix: groups shown so far (source "Showing N.")</comment>

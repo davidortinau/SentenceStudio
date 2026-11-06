@@ -17,8 +17,9 @@ public sealed partial class NativeResourceStore
     /// <summary>
     /// Source ConfirmDelete (<see cref="LearningResourceRepository.DeleteVocabularyWordAsync"/>):
     /// removes the word, its resource links and, by cascade, its progress, history, example
-    /// sentences and pairs. Only a word the owner may edit can go: one another account still
-    /// uses (links, progress or sentences) stays, as the server would refuse its delete.
+    /// sentences and pairs. Only a word the owner may edit can go: one another learner's data
+    /// still uses stays, by the rule the server applies to the delete
+    /// (<see cref="VocabularyWordDependents"/>).
     /// </summary>
     public async Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken)
@@ -37,8 +38,7 @@ public sealed partial class NativeResourceStore
         if (word is null)
             return NativeVocabularyDeleteStatus.NotFoundOrForbidden;
         if (word.UserProfileId != owner
-            || !await VocabularyIdsWithExclusiveCurrentUse(db, owner)
-                .AnyAsync(id => id == wordId, cancellationToken))
+            || !await IsEditableByOwnerAsync(db, owner, wordId, cancellationToken))
             return NativeVocabularyDeleteStatus.SharedReadOnly;
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -61,10 +61,12 @@ public sealed partial class NativeResourceStore
     }
 
     /// <summary>
-    /// Source FindDuplicateVocabularyGroupsAsync for the active owner. A copy recorded to another
-    /// owner shows no memory aids or audio; its strength, its place in the merge order and the
-    /// recommended keeper are worked out from what is shown, so the order never hints at aids
-    /// the learner cannot see.
+    /// Source FindDuplicateVocabularyGroupsAsync for the active owner. A copy not recorded to the
+    /// owner (another learner's, or a legacy word recorded to nobody, which the server also
+    /// treats as not theirs) shows no memory aids or audio; its strength, its place in the order,
+    /// the recommended keeper and the group's title come from what is shown, so nothing hints
+    /// at aids the learner cannot see. Such a group cannot merge here: the merge would copy
+    /// that row's hidden aids into the keeper and delete a row the server keeps.
     /// </summary>
     public async Task<NativeVocabularyDuplicateScan> FindOwnedVocabularyDuplicatesAsync(
         string owner, string? focusTerm, int skip, int take,
@@ -84,11 +86,15 @@ public sealed partial class NativeResourceStore
             {
                 var shown = VocabularyDuplicateGroup.OrderWordsByMergePreference(
                     group.Words.Select(info => AsShownTo(info, owner)));
+                var anotherOwners = group.Words.Any(info => info.Word.UserProfileId != owner);
+                var title = shown.FirstOrDefault()?.Word.TargetLanguageTerm?.Trim();
                 return new NativeVocabularyDuplicateGroup(
-                    group.NormalizedTerm, group.DisplayTerm,
+                    group.NormalizedTerm,
+                    string.IsNullOrEmpty(title) ? group.DisplayTerm : title,
                     shown.Select(info => DuplicateWord(info)).ToArray(),
-                    group.CanMergeAutomatically, group.MergeBlockedReason,
-                    shown.FirstOrDefault()?.Word.Id ?? string.Empty);
+                    group.CanMergeAutomatically && !anotherOwners, group.MergeBlockedReason,
+                    shown.FirstOrDefault()?.Word.Id ?? string.Empty,
+                    HasAnotherOwnersCopy: anotherOwners);
             })
             .ToArray();
         return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount);
@@ -97,7 +103,8 @@ public sealed partial class NativeResourceStore
     /// <summary>
     /// Source MergeDuplicateGroup (<see cref="LearningResourceRepository.MergeVocabularyWordsWithResultAsync"/>),
     /// which keeps every copy's history and refuses words shared outside the owner. Every word
-    /// must be the owner's; otherwise nothing is merged.
+    /// must be the owner's, linked to them and recorded to them; otherwise nothing is merged
+    /// (a copy recorded to anyone else would give its hidden aids to the keeper).
     /// </summary>
     public async Task<NativeVocabularyMergeResult> MergeOwnedVocabularyDuplicatesAsync(
         string owner, string keeperWordId, IReadOnlyList<string> duplicateWordIds,
@@ -121,6 +128,7 @@ public sealed partial class NativeResourceStore
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var owned = await db.VocabularyWords.AsNoTracking()
                 .Where(word => requested.Contains(word.Id)
+                    && word.UserProfileId == owner
                     && OwnedVocabularyIds(db, owner).Contains(word.Id))
                 .CountAsync(cancellationToken);
             if (owned != expected)

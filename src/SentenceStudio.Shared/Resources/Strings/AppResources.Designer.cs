@@ -11965,6 +11965,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to A copy here is not recorded as yours (another learner&apos;s, or an older shared word), so this group can&apos;t be merged here. Open each copy to edit it..
+        /// </summary>
+        internal static string NativeVocabulary_DuplicatesAnotherOwner {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_DuplicatesAnotherOwner", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to audio.
         /// </summary>
         internal static string NativeVocabulary_DuplicatesAudio {

@@ -106,9 +106,9 @@ internal static class VocabularyDuplicatesView
             rows.Add(WarningAlert(style, Views.VStack(
                     style.Text(Views.Text(text("NativeVocabulary_DuplicatesMergeUnavailable")),
                         SourceTextRole.Body2Strong),
-                    style.Text(Views.Text(group.MergeBlockedReason
-                            ?? text("NativeVocabulary_DuplicatesBlockedFallback")),
-                        SourceTextRole.Small),
+                    style.Text(Views.Text(VocabularyDuplicateFinder.BlockedReason(group, text)),
+                            SourceTextRole.Small)
+                        .WithAccessibilityIdentifier($"{id}.reason"),
                     style.Text(Views.Text(text("NativeVocabulary_DuplicatesMergeUnavailableHelp")),
                         SourceTextRole.Small)))
                 .WithAccessibilityIdentifier($"{id}.unavailable"));
@@ -171,27 +171,10 @@ internal static class VocabularyDuplicatesView
             .WithAccessibilityIdentifier(id);
     }
 
-    /// <summary>
-    /// Source GetEncodingBadgeClass: "bg-{tone} bg-opacity-25 text-{tone}" with success for
-    /// Strong, warning for Good and secondary for Basic, over the row's surface. The label says
-    /// the strength too. The tone's emphasis text keeps it readable on its own tint (the
-    /// tone's base color on a 25% tint of itself is under 3:1).
-    /// </summary>
+    /// <summary>Source GetEncodingBadgeClass (see <see cref="VocabularyEncodingBadge"/>).</summary>
     internal static (SourceColorPair Fill, SourceColorPair Text) EncodingColors(
-        SourceUiAppearance appearance, string encodingLabel)
-    {
-        var (tone, label) = VocabularyWordCommands.EncodingTone(encodingLabel) switch
-        {
-            VocabularyEncodingTone.Strong => (appearance.Success, appearance.SuccessAlertText),
-            VocabularyEncodingTone.Good => (appearance.Warning, WarningText),
-            _ => (appearance.ThemeSecondary, appearance.SecondaryText)
-        };
-        var surface = appearance.ListRowSurface;
-        return (new SourceColorPair(
-                NativeThemeColorTable.Blend(tone.Light, surface.Light, 0.25),
-                NativeThemeColorTable.Blend(tone.Dark, surface.Dark, 0.25)),
-            label);
-    }
+        SourceUiAppearance appearance, string encodingLabel) =>
+        appearance.EncodingBadge(VocabularyWordCommands.EncodingTone(encodingLabel));
 
     /// <summary>Bootstrap 5.3 warning emphasis text, as in the warning alert.</summary>
     private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");

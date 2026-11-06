@@ -147,8 +147,8 @@ public sealed partial class NativeResourceStore
                         .Select(resource => resource.Title).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
         var ownsWord = word.UserProfileId == owner;
-        var editable = ownsWord && await VocabularyIdsWithExclusiveCurrentUse(
-            db, owner).AnyAsync(id => id == wordId, cancellationToken);
+        var editable = ownsWord
+            && await IsEditableByOwnerAsync(db, owner, wordId, cancellationToken);
         if (!await db.VocabularyWords.AsNoTracking()
                 .AnyAsync(candidate => candidate.Id == wordId
                     && OwnedVocabularyIds(db, owner).Contains(candidate.Id),
@@ -201,8 +201,7 @@ public sealed partial class NativeResourceStore
         if (word is null)
             return NativeVocabularySaveStatus.NotFoundOrForbidden;
         if (word.UserProfileId != owner
-            || !await VocabularyIdsWithExclusiveCurrentUse(db, owner)
-                .AnyAsync(id => id == draft.Id, cancellationToken))
+            || !await IsEditableByOwnerAsync(db, owner, draft.Id, cancellationToken))
             return NativeVocabularySaveStatus.SharedReadOnly;
         if (word.UpdatedAt != draft.OriginalUpdatedAt)
             return NativeVocabularySaveStatus.Conflict;
@@ -318,35 +317,23 @@ public sealed partial class NativeResourceStore
             .Union(db.VocabularyProgresses.Where(progress => progress.UserId == owner)
                 .Select(progress => progress.VocabularyWordId));
 
-    // Words no other account currently uses (mappings, progress, examples). Owners may
-    // edit only these, so a legacy word another learner still links to stays read-only.
-    // Memory-aid visibility comes from VocabularyWord.UserProfileId, not from this.
-    private static IQueryable<string> VocabularyIdsWithExclusiveCurrentUse(
-        ApplicationDbContext db, string owner) =>
-        db.ResourceVocabularyMappings.AsNoTracking()
-            .Where(mapping => db.LearningResources.Any(resource =>
-                resource.Id == mapping.ResourceId && resource.UserProfileId == owner))
-            .Select(mapping => mapping.VocabularyWordId)
-            .Distinct()
-            .Where(wordId =>
-                !db.ResourceVocabularyMappings.Any(mapping =>
-                    mapping.VocabularyWordId == wordId
-                    && !db.LearningResources.Any(resource =>
-                        resource.Id == mapping.ResourceId
-                        && resource.UserProfileId == owner))
-                && !db.VocabularyProgresses.Any(progress =>
-                    progress.VocabularyWordId == wordId
-                    && progress.UserId != owner)
-                // A sentence is the owner's when it names them (phase 3, which includes AI
-                // reference sentences with no resource), or names nobody and sits on their
-                // resource (the same rule as OwnedExamples).
-                && !db.ExampleSentences.Any(example =>
-                    example.VocabularyWordId == wordId
-                    && example.UserProfileId != owner
-                    && !(example.UserProfileId == null
-                        && db.LearningResources.Any(resource =>
-                            resource.Id == example.LearningResourceId
-                            && resource.UserProfileId == owner))));
+    /// <summary>
+    /// Whether the owner may edit or delete the word: it is linked to one of their resources
+    /// and no other learner's data uses it, by the rule the server's owner-checked sync applies
+    /// to a word delete (<see cref="VocabularyWordDependents"/>), so a device never changes a
+    /// word the server keeps. The caller also checks the word is recorded to the owner. Memory
+    /// aid visibility comes from VocabularyWord.UserProfileId, not from this.
+    /// </summary>
+    private static async Task<bool> IsEditableByOwnerAsync(
+        ApplicationDbContext db, string owner, string wordId,
+        CancellationToken cancellationToken) =>
+        await db.ResourceVocabularyMappings.AsNoTracking()
+            .AnyAsync(mapping => mapping.VocabularyWordId == wordId
+                && db.LearningResources.Any(resource =>
+                    resource.Id == mapping.ResourceId && resource.UserProfileId == owner),
+                cancellationToken)
+        && !(await VocabularyWordDependents.OthersDependOnAsync(
+            db, [wordId], owner, cancellationToken)).Contains(wordId);
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,

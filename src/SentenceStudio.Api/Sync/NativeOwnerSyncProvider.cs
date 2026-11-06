@@ -448,39 +448,12 @@ internal sealed class NativeOwnerSyncProvider(
 
     /// <summary>
     /// Words among <paramref name="ids"/> that a row of another learner, or a row nobody owns,
-    /// still uses: deleting the word would cascade into, or clear a link of, that row.
+    /// still uses: deleting the word would cascade into, or clear a link of, that row. The rule
+    /// lives in Shared so the native word editor offers delete and edit on the same terms.
     /// </summary>
-    private static async Task<HashSet<string>> WordsOthersDependOnAsync(
-        ApplicationDbContext db, string[] ids, string owner, CancellationToken ct)
-    {
-        var used = new HashSet<string>(StringComparer.Ordinal);
-        used.UnionWith(await (
-            from mapping in db.ResourceVocabularyMappings.AsNoTracking()
-            join resource in db.LearningResources.AsNoTracking()
-                on mapping.ResourceId equals resource.Id into resources
-            from resource in resources.DefaultIfEmpty()
-            where ids.Contains(mapping.VocabularyWordId)
-                && (resource == null || resource.UserProfileId != owner)
-            select mapping.VocabularyWordId).ToListAsync(ct));
-        used.UnionWith(await db.VocabularyProgresses.AsNoTracking()
-            .Where(progress => ids.Contains(progress.VocabularyWordId) && progress.UserId != owner)
-            .Select(progress => progress.VocabularyWordId).ToListAsync(ct));
-        used.UnionWith(await db.ExampleSentences.AsNoTracking()
-            .Where(example => ids.Contains(example.VocabularyWordId) && example.UserProfileId != owner)
-            .Select(example => example.VocabularyWordId).ToListAsync(ct));
-        var pairs = await db.MinimalPairs.AsNoTracking()
-            .Where(pair => (ids.Contains(pair.VocabularyWordAId) || ids.Contains(pair.VocabularyWordBId))
-                && pair.UserId != owner)
-            .Select(pair => new { pair.VocabularyWordAId, pair.VocabularyWordBId }).ToListAsync(ct);
-        used.UnionWith(pairs.SelectMany(pair => new[] { pair.VocabularyWordAId, pair.VocabularyWordBId }));
-        used.UnionWith(await (
-            from phrase in db.PhraseConstituents.AsNoTracking()
-            join word in db.VocabularyWords.AsNoTracking() on phrase.PhraseWordId equals word.Id
-            where phrase.ConstituentWordId != null && ids.Contains(phrase.ConstituentWordId)
-                && word.UserProfileId != owner
-            select phrase.ConstituentWordId!).ToListAsync(ct));
-        return used;
-    }
+    private static Task<HashSet<string>> WordsOthersDependOnAsync(
+        ApplicationDbContext db, string[] ids, string owner, CancellationToken ct) =>
+        VocabularyWordDependents.OthersDependOnAsync(db, ids, owner, ct);
 
     /// <summary>
     /// The written rows the server cannot place for <paramref name="owner"/> given the other rows
