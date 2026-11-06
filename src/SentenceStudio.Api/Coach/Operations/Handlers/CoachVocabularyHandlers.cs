@@ -163,13 +163,27 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
             // handler exists to avoid. Removing it leaves the learner's data as it was. The
             // compensation is best effort by necessity — the caller is already being refused, and
             // a failure here must not replace that refusal — but it is not allowed to be silent,
-            // because a word left orphaned is a row nobody will ever find again.
-            if (await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, cancellationToken)
-                    .ConfigureAwait(false) != VocabularyWordDeleteResult.Deleted)
+            // because a word left orphaned is a row nobody will ever find again. It runs to the end
+            // even if the request is cancelled meanwhile (review 4): a cancelled cleanup would
+            // skip both the delete and this log.
+            VocabularyWordDeleteResult cleanup;
+            try
             {
-                _logger.LogError(
+                cleanup = await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
                     "[Coach] A vocabulary entry created for a link that failed could not be removed. Entity {EntityId}.",
                     word.Id);
+                throw DataAccessFailure(new InvalidOperationException("The vocabulary entry could not be linked."));
+            }
+            if (cleanup != VocabularyWordDeleteResult.Deleted)
+            {
+                _logger.LogError(
+                    "[Coach] A vocabulary entry created for a link that failed could not be removed ({Result}). Entity {EntityId}.",
+                    cleanup, word.Id);
             }
 
             throw DataAccessFailure(new InvalidOperationException("The vocabulary entry could not be linked."));
@@ -212,11 +226,22 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
                 .ConfigureAwait(false);
             // A word another learner's data or a Minimal Pairs answer still uses stays (B66):
             // the link this operation made is gone, which is the undo. Only a failure is one.
-            if (remaining == 0
-                && await _resources.DeleteVocabularyWordAsync(prior.WordId, userProfileId, cancellationToken)
-                    .ConfigureAwait(false) == VocabularyWordDeleteResult.Failed)
+            // The word was created by this operation, so it is recorded to the learner and the
+            // delete needs no link to find its owner. The unlink is committed, so the delete
+            // runs to the end even if the request is cancelled meanwhile (review 4).
+            if (remaining == 0)
             {
-                throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not removed."));
+                var result = await _resources.DeleteVocabularyWordAsync(prior.WordId, userProfileId, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (result == VocabularyWordDeleteResult.Failed)
+                {
+                    _logger.LogError("[Coach] Undo could not remove the vocabulary entry it created. Entity {EntityId}.",
+                        prior.WordId);
+                    throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not removed."));
+                }
+                if (result != VocabularyWordDeleteResult.Deleted)
+                    _logger.LogInformation("[Coach] Undo kept a vocabulary entry others still use ({Result}). Entity {EntityId}.",
+                        result, prior.WordId);
             }
         }
 
@@ -524,11 +549,16 @@ public sealed class CoachVocabularyRemovalHandler : CoachWriteHandlerBase<CoachV
 {
     private readonly CoachWriteOwnership _ownership;
     private readonly LearningResourceRepository _resources;
+    private readonly ILogger _logger;
 
-    public CoachVocabularyRemovalHandler(CoachWriteOwnership ownership, LearningResourceRepository resources)
+    public CoachVocabularyRemovalHandler(
+        CoachWriteOwnership ownership,
+        LearningResourceRepository resources,
+        ILogger<CoachVocabularyRemovalHandler>? logger = null)
     {
         _ownership = ownership;
         _resources = resources;
+        _logger = logger ?? (ILogger)NullLogger.Instance;
     }
 
     public override string ToolName => CoachToolNames.ProposeVocabularyRemoval;
@@ -567,39 +597,46 @@ public sealed class CoachVocabularyRemovalHandler : CoachWriteHandlerBase<CoachV
 
         var term = Clean(word.TargetLanguageTerm, 60);
 
-        // Unlink from every resource of the learner's first. Whether the row itself goes depends
-        // on whether anybody else still points at it.
-        var owned = await _ownership.OwnedResourceIdsForWordAsync(userProfileId, word.Id, cancellationToken)
-            .ConfigureAwait(false);
-
-        foreach (var resourceId in owned)
-        {
-            // Every one of these has to succeed. A partial unlink that reports "removed from your
-            // vocabulary" leaves the word in resources the learner was told it had left.
-            if (!await _resources
-                    .RemoveVocabularyFromResourceAsync(resourceId, word.Id, userProfileId)
-                    .ConfigureAwait(false))
-            {
-                throw DataAccessFailure(
-                    new InvalidOperationException("The vocabulary entry was not fully unlinked."));
-            }
-        }
-
-        var remaining = await _ownership.CountAllLinksAsync(word.Id, cancellationToken).ConfigureAwait(false);
+        // Deleting a row another learner still maps would be a cross-tenant write, so the row
+        // only goes when every link to it is the learner's. Then the owner-scoped delete runs
+        // first, on the word as it stands (a word saved before words had owners is the learner's
+        // through these very links), and removes their links and the word in one transaction or
+        // refuses and changes nothing (others' data or a Minimal Pairs answer still uses it;
+        // B66). Unlinking first would leave such a word with no links and no owner, a row no
+        // one can find (review 4). It runs to completion once started.
         var deleted = false;
-        if (remaining == 0)
+        var ownedLinks = await _ownership.CountOwnedLinksAsync(userProfileId, word.Id, cancellationToken)
+            .ConfigureAwait(false);
+        var allLinks = await _ownership.CountAllLinksAsync(word.Id, cancellationToken).ConfigureAwait(false);
+        if (allLinks == ownedLinks)
         {
-            // Deleting a row another learner still maps would be a cross-tenant write, so the
-            // row only goes when nothing points at it any more. The shared delete also keeps a
-            // word other learners' data or a Minimal Pairs answer uses (B66); the learner's
-            // resources no longer hold it either way.
-            var result = await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, cancellationToken)
+            var result = await _resources.DeleteVocabularyWordAsync(word.Id, userProfileId, CancellationToken.None)
                 .ConfigureAwait(false);
             if (result == VocabularyWordDeleteResult.Failed)
             {
+                _logger.LogError("[Coach] Removing a vocabulary entry failed. Entity {EntityId}.", word.Id);
                 throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not deleted."));
             }
             deleted = result == VocabularyWordDeleteResult.Deleted;
+        }
+
+        if (!deleted)
+        {
+            // Unlink from every resource of the learner's; the row stays for whoever else uses it.
+            var owned = await _ownership.OwnedResourceIdsForWordAsync(userProfileId, word.Id, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var resourceId in owned)
+            {
+                // Every one of these has to succeed. A partial unlink that reports "removed from
+                // your vocabulary" leaves the word in resources the learner was told it had left.
+                if (!await _resources
+                        .RemoveVocabularyFromResourceAsync(resourceId, word.Id, userProfileId)
+                        .ConfigureAwait(false))
+                {
+                    throw DataAccessFailure(
+                        new InvalidOperationException("The vocabulary entry was not fully unlinked."));
+                }
+            }
         }
 
         return new CoachWriteExecution(

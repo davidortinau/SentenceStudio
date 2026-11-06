@@ -19506,6 +19506,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} word(s) were kept: they aren&apos;t yours, or another learner&apos;s data or a Minimal Pairs answer still uses them..
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteKept {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteKept", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Deleted {0} word(s).
         /// </summary>
         internal static string Vocabulary_BulkDeleteSuccess {

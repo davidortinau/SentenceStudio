@@ -14,6 +14,73 @@ public static class VocabularyWordOwnership
 {
     private const int UpdateBatchSize = 500;
 
+    /// <summary>
+    /// The one rule for "this word is the learner's", used by every client (web, MAUI, native)
+    /// for delete, merge, edit and memory-aid visibility: the word's stored owner is the
+    /// learner. That is its recorded owner, or, for a word saved before words had owners, the
+    /// single learner its resource links and progress name
+    /// (<see cref="SentenceStudio.Services.SyncRowOwners.GetStoredWordOwnersAsync"/>, the rule the
+    /// server's owner-checked sync applies). A word nobody can be shown to own is no one's.
+    /// Returns the learner's words among <paramref name="ids"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="owner"/> is null or blank (fail closed).</exception>
+    public static async Task<HashSet<string>> OwnedByAsync(
+        ApplicationDbContext db, IReadOnlyCollection<string> ids, string owner,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            throw new ArgumentException("An owner is required to decide whose words these are.",
+                nameof(owner));
+        if (ids.Count == 0)
+            return new HashSet<string>(StringComparer.Ordinal);
+        var stored = await SentenceStudio.Services.SyncRowOwners.GetStoredWordOwnersAsync(
+            db, ids.Distinct(StringComparer.Ordinal).ToArray(), cancellationToken);
+        return stored.Where(row => row.Value == owner).Select(row => row.Key)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Whose each example sentence of <paramref name="wordIds"/> is: its recorded owner, else
+    /// its resource's owner, else its word's stored owner (<see cref="OwnedByAsync"/>'s rule).
+    /// That is SyncOwnersPhase3's backfill rule (and <see cref="StampExampleSentencesAsync"/>'s),
+    /// so a sentence a device shows as the learner's counts as theirs everywhere. Null when none
+    /// of them is known: such a sentence is no one's.
+    /// </summary>
+    public static async Task<IReadOnlyList<SentenceOwner>> SentenceOwnersAsync(
+        ApplicationDbContext db, IReadOnlyCollection<string> wordIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (wordIds.Count == 0)
+            return [];
+        var ids = wordIds.Distinct(StringComparer.Ordinal).ToArray();
+        var sentences = await (
+            from sentence in db.ExampleSentences.AsNoTracking()
+            join resource in db.LearningResources.AsNoTracking()
+                on sentence.LearningResourceId equals resource.Id into resources
+            from resource in resources.DefaultIfEmpty()
+            where ids.Contains(sentence.VocabularyWordId)
+            select new
+            {
+                sentence.Id, sentence.VocabularyWordId, sentence.UserProfileId,
+                ResourceOwner = resource == null ? null : resource.UserProfileId
+            }).ToListAsync(cancellationToken);
+        var needWordOwner = sentences
+            .Where(row => string.IsNullOrEmpty(row.UserProfileId) && string.IsNullOrEmpty(row.ResourceOwner))
+            .Select(row => row.VocabularyWordId).Distinct(StringComparer.Ordinal).ToArray();
+        var wordOwners = needWordOwner.Length == 0
+            ? new Dictionary<string, string?>(StringComparer.Ordinal)
+            : await SentenceStudio.Services.SyncRowOwners.GetStoredWordOwnersAsync(
+                db, needWordOwner, cancellationToken);
+        return sentences.Select(row => new SentenceOwner(row.Id, row.VocabularyWordId,
+                !string.IsNullOrEmpty(row.UserProfileId) ? row.UserProfileId
+                : !string.IsNullOrEmpty(row.ResourceOwner) ? row.ResourceOwner
+                : wordOwners.GetValueOrDefault(row.VocabularyWordId)))
+            .ToList();
+    }
+
+    /// <summary>An example sentence, its word, and whose it is (null: no one's).</summary>
+    public sealed record SentenceOwner(string SentenceId, string WordId, string? Owner);
+
     /// <summary>Outcome of one stamping pass.</summary>
     /// <param name="Stamped">Word id to the owner it was given.</param>
     /// <param name="Shared">Ownerless words linked to more than one account.</param>

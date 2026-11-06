@@ -9369,6 +9369,10 @@ For example: {0} ...</value>
     <value>A copy here is not recorded as yours (another learner's, or an older shared word), so this group can't be merged.</value>
     <comment>Duplicate manager (web/MAUI): why a group holding a copy not recorded to the learner cannot merge (B69)</comment>
   </data>
+  <data name="Vocabulary_BulkDeleteKept" xml:space="preserve">
+    <value>{0} word(s) were kept: they aren't yours, or another learner's data or a Minimal Pairs answer still uses them.</value>
+    <comment>Vocabulary bulk delete (web/MAUI): words the owner-scoped delete refused (B66 review 4)</comment>
+  </data>
   <data name="NativeVocabulary_DuplicatesShowing" xml:space="preserve">
     <value>Showing {0}.</value>
     <comment>Duplicate manager status suffix: groups shown so far (source "Showing N.")</comment>
