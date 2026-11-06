@@ -8,8 +8,10 @@ public sealed class NativeVocabularyRouteTests
     [Fact]
     public void WordEditorPopsOnlyAfterSaveOrCancelOnItsVocabularyStack()
     {
-        // The Vocabulary list is the Library page; the word editor is pushed above it.
-        string[] mounted = [ApplicationFormRoutes.VocabularyWordForm];
+        string[] mounted = [
+            ApplicationFormRoutes.Vocabulary,
+            ApplicationFormRoutes.VocabularyWordForm
+        ];
         Assert.False(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
             formOpen: true, formMounted: true, canNavigateBack: true,
             path: mounted));
@@ -21,10 +23,7 @@ public sealed class NativeVocabularyRouteTests
             path: mounted));
         Assert.False(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
             formOpen: false, formMounted: true, canNavigateBack: true,
-            path: [ApplicationFormRoutes.SkillForm]));
-        Assert.False(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
-            formOpen: false, formMounted: true, canNavigateBack: true,
-            path: [ApplicationFormRoutes.ResourceForm, ApplicationFormRoutes.VocabularyWordForm]));
+            path: [ApplicationFormRoutes.Skills, ApplicationFormRoutes.SkillForm]));
     }
 
     [Fact]

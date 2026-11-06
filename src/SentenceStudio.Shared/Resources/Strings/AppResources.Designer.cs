@@ -9265,29 +9265,11 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Pairs.
-        /// </summary>
-        internal static string Library_Pairs {
-            get {
-                return ResourceManager.GetString("Library_Pairs", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Resources.
         /// </summary>
         internal static string Library_Resources {
             get {
                 return ResourceManager.GetString("Library_Resources", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Library section.
-        /// </summary>
-        internal static string Library_Sections {
-            get {
-                return ResourceManager.GetString("Library_Sections", resourceCulture);
             }
         }
 

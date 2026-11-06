@@ -20,7 +20,8 @@ public sealed class NativeSwiftUIResourceContractTests
         // iOS tab shell trial: Resources is the Library's first page.
         Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
         Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
-        Assert.Contains("(LibrarySection.Resources, \"Library_Resources\", \"native.library.segment.resources\")",
+        Assert.Contains("\"native.library.row.resources\"", Source("App/ApplicationScene.Library.cs"));
+        Assert.Contains("_libraryStack.Push(ApplicationFormRoutes.LibraryResources,",
             Source("App/ApplicationScene.Library.cs"));
 
         using var fixture = new NativeSliceFixture();

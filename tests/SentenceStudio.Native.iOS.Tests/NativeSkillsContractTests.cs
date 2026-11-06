@@ -250,19 +250,18 @@ public sealed class NativeSkillsContractTests
     }
 
     [Fact]
-    public async Task SkillsInTheLibraryNeverClaimTheResourceFormRoute()
+    public async Task SkillsOpenFromResourcesNeverClaimsTheResourceFormRoute()
     {
-        // The Skills list is a Library page (no route); only its form is pushed.
         Assert.True(ApplicationFormRoutes.ShouldPopResourceForm(
             true, [ApplicationFormRoutes.ResourceForm]));
         Assert.False(ApplicationFormRoutes.ShouldPopResourceForm(
             false, [ApplicationFormRoutes.ResourceForm]));
         Assert.False(ApplicationFormRoutes.ShouldPopResourceForm(
-            true, [ApplicationFormRoutes.SkillForm]));
+            true, [ApplicationFormRoutes.Skills]));
         Assert.False(ApplicationFormRoutes.ShouldPopResourceForm(
-            true, []));
+            true, [ApplicationFormRoutes.Skills, ApplicationFormRoutes.SkillForm]));
         Assert.False(ApplicationFormRoutes.ShouldPopResourceForm(
-            true, [ApplicationFormRoutes.ResourceForm, ApplicationFormRoutes.SkillForm]));
+            true, [ApplicationFormRoutes.ResourceForm, ApplicationFormRoutes.Skills]));
 
         using var fixture = await OwnersAsync();
         using var coordinator = Create(fixture);
@@ -275,15 +274,17 @@ public sealed class NativeSkillsContractTests
                 resourcesPath.ToArray(),
                 ApplicationFormRoutes.ShouldPopResourceForm(
                     formMounted: false, resourcesPath)));
+            if (coordinator.IsOpen && resourcesPath.Count == 0)
+                resourcesPath.Add(ApplicationFormRoutes.Skills);
         };
 
         Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
         Assert.Contains(callbacks, update =>
             update.Phase == SkillsListPhase.Loading
-            && update.Path.Length == 0
+            && update.Path.SequenceEqual([ApplicationFormRoutes.Skills])
             && !update.Pop);
         Assert.All(callbacks, update => Assert.False(update.Pop));
-        Assert.Empty(resourcesPath);
+        Assert.Equal([ApplicationFormRoutes.Skills], resourcesPath);
     }
 
     [Theory]
@@ -323,9 +324,10 @@ public sealed class NativeSkillsContractTests
         {
             Assert.False(ApplicationFormRoutes.ShouldPopResourceForm(
                 formMounted: false, resourcesPath));
-            // The Skills list is the Library page; its form is pushed one level above it.
+            if (coordinator.IsOpen && resourcesPath.Count == 0)
+                resourcesPath.Add(ApplicationFormRoutes.Skills);
             if (coordinator.IsFormOpen && !formMounted
-                && resourcesPath.Count == 0)
+                && resourcesPath.Count == 1)
             {
                 resourcesPath.Add(ApplicationFormRoutes.SkillForm);
                 formMounted = true;
@@ -365,7 +367,8 @@ public sealed class NativeSkillsContractTests
             coordinator.SetDescription("No duplicate writes");
         }
         Assert.True(formMounted);
-        Assert.Equal([ApplicationFormRoutes.SkillForm], resourcesPath);
+        Assert.Equal([ApplicationFormRoutes.Skills,
+            ApplicationFormRoutes.SkillForm], resourcesPath);
 
         var mutationStart = updates.Count;
         var beforeFinalFormVersion = coordinator.FormVersion;
@@ -376,13 +379,14 @@ public sealed class NativeSkillsContractTests
         Assert.Contains(mutationUpdates, update =>
             update.Pending && !update.FormOpen && !update.Pop
             && update.ListPhase == SkillsListPhase.Loading
-            && update.Path.SequenceEqual([ApplicationFormRoutes.SkillForm]));
+            && update.Path.SequenceEqual(
+                [ApplicationFormRoutes.Skills, ApplicationFormRoutes.SkillForm]));
         Assert.Equal(1, popCount);
         Assert.True(cancelRefusedWhilePending);
         Assert.False(coordinator.IsPending);
         Assert.False(coordinator.IsFormOpen);
         Assert.False(formMounted);
-        Assert.Empty(resourcesPath);
+        Assert.Equal([ApplicationFormRoutes.Skills], resourcesPath);
         Assert.Equal(mutationUpdates[^1].FormVersion, coordinator.FormVersion);
         Assert.True(coordinator.FormVersion > beforeFinalFormVersion);
         Assert.False(mutationUpdates[^1].Pending);
@@ -481,24 +485,24 @@ public sealed class NativeSkillsContractTests
     {
         var scene = Read("App/ApplicationScene.cs");
         var controller = Read("App/ApplicationController.cs");
-        var dashboard = Read("Features/Dashboard/DashboardView.cs");
         var resources = Read("Features/LearningResources/LearningResourcesView.cs");
         var list = Read("Features/Skills/SkillsView.cs");
         var form = Read("Features/Skills/SkillProfileFormView.cs");
 
-        // The Skills list is the Library's Skills page; its form is pushed above it.
-        Assert.Contains("MountLibraryPage(_skillsSlot);", scene);
+        Assert.Contains("stack.Push(\"skills\", WithSamToolbar(stack, \"skills\", _skillsSlot))", scene);
         Assert.Contains("stack.Push(\"skill-form\",", scene);
         Assert.Contains("ApplicationFormRoutes.ShouldPopResourceForm(", scene);
         Assert.Contains("ApplicationFormRoutes.ShouldPopSkillForm(", scene);
-        Assert.Contains("OnSkillsPopped();", Read("App/ApplicationController.Library.cs"));
+        Assert.Contains("_app.OnSkillsPopped()", scene);
         Assert.Contains("_app.OnSkillFormPopped()", scene);
         Assert.Contains("Views.ResourceDeleteConfirmation(", scene);
         Assert.Equal(2, scene.Split(".WithTransparentDeleteBackdrop()").Length - 1);
         Assert.Contains("\"SkillEdit_DeleteMessage\"", scene);
         Assert.Contains("ReloadChooseOwnAfterSkills()", controller);
-        Assert.Contains("(LibrarySection.Skills, \"Nav_Skills\", \"native.library.segment.skills\")",
+        // The Library list's Skills row pushes the Skills page (tab shell trial).
+        Assert.Contains("LibraryRow(LibrarySection.Skills, \"target\", \"Nav_Skills\",",
             Read("App/ApplicationScene.Library.cs"));
+        Assert.Contains("\"native.library.row.skills\"", Read("App/ApplicationScene.Library.cs"));
         Assert.Contains("text(\"Nav_Skills\"), openSkills", resources);
         Assert.Contains("Views.LazyVGrid(", list);
         Assert.Contains("Views.TextField(", form);

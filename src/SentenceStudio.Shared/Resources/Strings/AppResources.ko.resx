@@ -9232,14 +9232,6 @@
   </data>
   <data name="Library_Resources" xml:space="preserve">
     <value>자료</value>
-    <comment>Library switcher segment: learning resources</comment>
-  </data>
-  <data name="Library_Pairs" xml:space="preserve">
-    <value>대립쌍</value>
-    <comment>Library switcher segment: minimal pair sets</comment>
-  </data>
-  <data name="Library_Sections" xml:space="preserve">
-    <value>자료실 구역</value>
-    <comment>Accessible name of the Library switcher</comment>
+    <comment>Library list row: learning resources</comment>
   </data>
 </root>

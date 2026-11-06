@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.SwiftUI;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -5,17 +6,17 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.App;
 
 /// <summary>
-/// The Library tab: a switcher (Resources, Vocabulary, Skills, Pairs) over one page at a
-/// time, all on one NavigationStack. Each page's editor or second page is pushed one level
-/// above the Library root, so system Back returns to the switcher.
+/// The Library tab (the Apple Music Library pattern, Captain 2026-11-05): a short native
+/// list (Resources, Vocabulary, Skills, Minimal Pairs). Each row pushes its page on the
+/// Library stack with its own title and toolbar; the page's editor is pushed above it.
+/// The tab bar stays on the list and the pages, and hides in the editors.
 /// </summary>
 internal sealed partial class ApplicationScene
 {
     private SwiftView? _libraryStack;
     private SwiftView? _libraryRoot;
-    private SwiftView? _librarySwitcherSlot;
-    private SwiftView? _libraryPageSlot;
-    private LibrarySection? _renderedLibrarySection;
+    private SwiftView? _libraryListSlot;
+    private string? _renderedLibraryList;
     private SwiftView? _pairsSlot;
     private SwiftView? _pairsToastLayer;
     private SwiftView? _pairsChildSlot;
@@ -26,154 +27,130 @@ internal sealed partial class ApplicationScene
     private long _renderedPairsToastId;
     private SourceUiStyle? _renderedPairsToastStyle;
 
-    internal static readonly (LibrarySection Section, string TitleKey, string Id)[] LibrarySections =
-    [
-        (LibrarySection.Resources, "Library_Resources", "native.library.segment.resources"),
-        (LibrarySection.Vocabulary, "Nav_Vocabulary", "native.library.segment.vocabulary"),
-        (LibrarySection.Skills, "Nav_Skills", "native.library.segment.skills"),
-        (LibrarySection.Pairs, "Library_Pairs", "native.library.segment.pairs"),
-    ];
-
     private SwiftView BuildLibraryStack()
     {
-        _librarySwitcherSlot = Views.VStack(LibrarySwitcher(_app.SelectedLibrarySection));
-        _librarySwitcherSlot.Spacing = 0;
-        _libraryPageSlot = Views.VStack(LibraryLoading()).WithFlexibleWidth();
-        _libraryPageSlot.Spacing = 0;
-        _renderedLibrarySection = null;
-        _libraryRoot = _style.Page(Views.VStack(_librarySwitcherSlot, _libraryPageSlot)
-                .WithFlexibleWidth())
+        _libraryListSlot = Views.VStack(LibraryList()).WithFlexibleWidth();
+        _libraryListSlot.Spacing = 0;
+        _renderedLibraryList = LibraryListKey();
+        _libraryRoot = _libraryListSlot
             .WithNavigationTitle(_app.Localize("Nav_Library"))
-            .WithInlineNavigationTitle()
-            .WithAccessibilityIdentifier("native.library.root");
-        _libraryRoot.Spacing = 0;
-        _libraryStack = Views.NavigationStack(_libraryRoot,
-            routes => OnLibraryRoutesChanged(routes.Count));
+            .WithInlineNavigationTitle();
+        _libraryStack = Views.NavigationStack(_libraryRoot, OnLibraryRoutesChanged);
         return _libraryStack;
     }
 
-    /// <summary>The switcher row, styled like Study's Today / Choose My Own switch.</summary>
-    private SwiftView LibrarySwitcher(LibrarySection selected)
-    {
-        var buttons = new SwiftView[LibrarySections.Length];
-        for (var index = 0; index < buttons.Length; index++)
-        {
-            var (section, key, id) = LibrarySections[index];
-            var position = index == 0 ? SourceButtonGroupPosition.First
-                : index == buttons.Length - 1 ? SourceButtonGroupPosition.Last
-                : SourceButtonGroupPosition.Middle;
-            var label = _app.Localize(key);
-            buttons[index] = _style.SegmentButton(label, section == selected,
-                    () => _app.SelectLibrarySection(section), position)
-                .WithAccessibilityLabel(label)
-                .WithAccessibilitySelected(section == selected)
-                .WithAccessibilityIdentifier(id);
-        }
-        var group = Views.ButtonGroup(buttons, selectedIndex: (int)selected)
-            .WithButtonGroupLayout(_style.Appearance.BootstrapBaseButtonBorderWidth,
-                fillAvailableWidth: true)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.library.switcher");
-        var gutter = SourceUiLayout.PageGutter(_style.ViewportWidth);
-        return Views.VStack(group).WithFlexibleWidth().WithPadding(8, gutter, 8, gutter);
-    }
+    /// <summary>What the list shows: the counts that are already loaded, and the style.</summary>
+    private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
+        $"{_app.LibraryResourceCount}|{_app.LibraryVocabularyCount}|{_style.GetHashCode()}");
 
-    private SwiftView LibraryLoading() =>
-        Views.VStack(Views.IndeterminateProgress(_app.Localize("Common_Loading"))
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithPadding(24))
+    /// <summary>
+    /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
+    /// bi-soundwave) and are about equally wide, so the titles and separators line up.
+    /// </summary>
+    private SwiftView LibraryList() =>
+        _style.GroupedForm(Views.Form(
+                LibraryRow(LibrarySection.Resources, "book.closed", "Library_Resources",
+                    _app.LibraryResourceCount, "native.library.row.resources"),
+                LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
+                    _app.LibraryVocabularyCount, "native.library.row.vocabulary"),
+                LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
+                    null, "native.library.row.skills"),
+                LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",
+                    null, "native.library.row.minimal-pairs")))
+            .WithAccessibilityIdentifier("native.library.list");
+
+    /// <summary>A list row: symbol, title, the count when it is already loaded, and a chevron.</summary>
+    private SwiftView LibraryRow(LibrarySection page, string symbol, string titleKey,
+        int? count, string id)
+    {
+        var appearance = _style.Appearance;
+        var title = _app.Localize(titleKey);
+        var items = new List<SwiftView>
+        {
+            Views.Image(symbol)
+                .WithFixedSymbolSize(20)
+                .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark),
+            _style.Text(Views.Text(title), SourceTextRole.Body1).WithFlexibleWidth(),
+        };
+        if (count is { } total)
+            items.Add(_style.Text(Views.Text(total.ToString(CultureInfo.CurrentCulture)),
+                SourceTextRole.Body1, SourceTextTone.Secondary));
+        items.Add(Views.Image("chevron.right")
+            .WithFixedSymbolSize(13)
+            .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark));
+        // The list row itself keeps the 44-point minimum; no extra height, as in Settings.
+        var row = Views.HStack(items.ToArray()).WithFlexibleWidth();
+        row.Spacing = 12;
+        return Views.Button(row, () => _app.OpenLibraryPage(page))
+            .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.library.loading");
+            .WithAccessibilityLabel(count is { } shown
+                ? string.Create(CultureInfo.CurrentCulture, $"{title}, {shown}") : title)
+            .WithAccessibilityIdentifier(id);
+    }
 
     private void UpdateLibrary(bool appearanceChanged)
     {
-        if (_libraryPageSlot is null || _librarySwitcherSlot is null)
+        if (_libraryListSlot is null || _libraryStack is null)
             return;
-        var section = _app.SelectedLibrarySection;
-        if (_renderedLibrarySection != section || appearanceChanged)
-            Replace(_librarySwitcherSlot, LibrarySwitcher(section));
-        if (_renderedLibrarySection != section)
+        var key = LibraryListKey();
+        if (appearanceChanged || !string.Equals(key, _renderedLibraryList, StringComparison.Ordinal))
         {
-            // The controller closed the previous page; its nodes leave with the slot.
-            DropLibraryPageReferences();
-            if (section == LibrarySection.Resources)
-            {
-                _resourcesSlot = Views.VStack(_app.RenderResources(_style)).WithFlexibleWidth();
-                _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
-                Replace(_libraryPageSlot, _resourcesSlot);
-            }
-            else
-                Replace(_libraryPageSlot, LibraryLoading());
-            _renderedLibrarySection = section;
+            Replace(_libraryListSlot, LibraryList());
+            _renderedLibraryList = key;
         }
-        else if (section == LibrarySection.Resources && _resourcesSlot is not null
-            && (_app.SelectedTab == NativeTabs.Library || appearanceChanged))
-            UpdateResources(appearanceChanged);
+        UpdateLibraryResources(appearanceChanged);
         UpdateLibraryPairs(appearanceChanged);
     }
 
-    /// <summary>A Library page's main view, mounted once its coordinator is open.</summary>
-    private void MountLibraryPage(SwiftView page)
+    /// <summary>The Resources page, pushed by its list row.</summary>
+    private void UpdateLibraryResources(bool appearanceChanged)
     {
-        if (_libraryPageSlot is not null)
-            Replace(_libraryPageSlot, page);
-    }
-
-    private void DropLibraryPageReferences()
-    {
-        _resourcesSlot = null;
-        _resourcesSearch = null;
-        DropVocabularyReferences();
-        DropSkillsReferences();
-        DropPairsReferences();
-    }
-
-    /// <summary>
-    /// Pops the page above the Library root once its own Save, Cancel or Delete closed it.
-    /// A pop refused while navigation is blocked keeps the references, so the next update
-    /// tries again.
-    /// </summary>
-    /// <remarks>
-    /// Known issue (iOS 26.5 simulator, 2026-11-05): after this programmatic pop to the
-    /// root, the Liquid Glass bar can keep a Back chevron that does nothing (it is not in
-    /// the accessibility tree) until the next push and Back. A system Back does not show it,
-    /// and a plain SwiftUI probe with the same stack does not reproduce it.
-    /// </remarks>
-    private void PopLibraryPage(Action dropReferences)
-    {
-        var stack = _libraryStack;
-        if (stack is null || stack.NavigationPath.Count == 0 || !stack.CanNavigateBack)
+        if (_libraryStack is null || !_app.IsLibraryResourcesOpen)
             return;
-        // Clear first: the route callback must not report this pop as a person's Back.
-        dropReferences();
-        stack.Pop();
+        if (_resourcesSlot is null)
+        {
+            if (_libraryStack.NavigationPath.Count != 0)
+                return;
+            _resourcesSlot = Views.VStack(_app.RenderResources(_style))
+                .WithNavigationTitle(_app.Localize("Resources_Title"))
+                .WithInlineNavigationTitle();
+            _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
+            _libraryStack.Push(ApplicationFormRoutes.LibraryResources,
+                WithSamToolbar(_libraryStack, ApplicationFormRoutes.LibraryResources, _resourcesSlot));
+        }
+        else if (_app.SelectedTab == NativeTabs.Library || appearanceChanged)
+            UpdateResources(appearanceChanged);
     }
 
-    /// <summary>Only one page is ever pushed over the Library root.</summary>
-    private void OnLibraryRoutesChanged(int count)
+    /// <summary>System Back (or a swipe) changed the Library path: drop what left it.</summary>
+    private void OnLibraryRoutesChanged(IReadOnlyList<string> routes)
     {
-        if (count != 0)
-            return;
-        if (_formSlot is not null || _app.IsResourcesFormOpen)
+        if (_formSlot is not null && !routes.Contains(ApplicationFormRoutes.ResourceForm))
         {
             if (_app.IsResourcesFormOpen)
                 _app.OnResourcesFormPopped();
             DropFormReferences();
             if (_app.IsResourcesFormOpen)
                 UpdateResourceForm();
-            return;
         }
-        if (_vocabularyWordSlot is not null || _lookupsSlot is not null)
+        if (_resourcesSlot is not null && !routes.Contains(ApplicationFormRoutes.LibraryResources))
         {
-            OnVocabularyRoutesChanged(count);
-            return;
+            _resourcesSlot = null;
+            _resourcesSearch = null;
+            _app.OnLibraryResourcesPopped();
         }
-        if (_skillFormSlot is not null)
+        if (_vocabularySlot is not null || _lookupsSlot is not null)
+            OnVocabularyRoutesChanged(routes.Count);
+        if (_skillsSlot is not null)
+            OnSkillsRoutesChanged(routes.Count);
+        if (_pairsSlot is not null && !routes.Contains(ApplicationFormRoutes.MinimalPairs))
         {
-            OnSkillsRoutesChanged(count);
-            return;
+            DropPairsReferences();
+            _app.OnLibraryPairsPopped();
         }
-        if (_pairsChildSlot is not null)
+        else if (_pairsChildSlot is not null
+            && !routes.Contains(ApplicationFormRoutes.MinimalPairsChild))
         {
             _pairsChildSlot = null;
             ForgetPairsChildToastLayer();
@@ -185,29 +162,43 @@ internal sealed partial class ApplicationScene
 
     private void UpdateLibraryPairs(bool appearanceChanged)
     {
-        if (_libraryStack is null || _libraryPageSlot is null)
+        var stack = _libraryStack;
+        if (stack is null)
             return;
-        if (!_app.IsLibraryPairsOpen || _app.SelectedLibrarySection != LibrarySection.Pairs)
+        if (!_app.IsLibraryPairsOpen)
         {
+            // Released without a Back (the list's Go Back): leave the page too.
             if (_pairsSlot is not null)
+            {
                 DropPairsReferences();
+                while (stack.CanNavigateBack && stack.NavigationPath.Count > 0
+                    && (stack.NavigationPath[^1] == ApplicationFormRoutes.MinimalPairsChild
+                        || stack.NavigationPath[^1] == ApplicationFormRoutes.MinimalPairs))
+                    stack.Pop();
+            }
             return;
         }
         if (_pairsSlot is null)
         {
+            if (stack.NavigationPath.Count != 0)
+                return;
             _pairsSlot = Views.VStack(_app.RenderLibraryPairs(_style)).WithFlexibleWidth();
             _pairsToastLayer = Views.VStack().WithFlexibleWidth();
             _renderedPairsToastLayer = null;
-            var page = Views.Overlay(_pairsSlot, _pairsToastLayer, SwiftOverlayEdge.Top);
+            var page = Views.Overlay(_pairsSlot, _pairsToastLayer, SwiftOverlayEdge.Top)
+                .WithNavigationTitle(_app.LibraryPairsTitle)
+                .WithInlineNavigationTitle();
             // A browse page: the list keeps the tab bar (its alert is wrapped around it once).
-            MountLibraryPage(_app.PresentLibraryPairsOver(page).WithTabBarHidden(false));
+            stack.Push(ApplicationFormRoutes.MinimalPairs, WithSamToolbar(stack,
+                ApplicationFormRoutes.MinimalPairs,
+                _app.PresentLibraryPairsOver(page).WithTabBarHidden(false)));
         }
         else
             Replace(_pairsSlot, _app.RenderLibraryPairs(_style));
 
         if (_app.LibraryPairsHasChildPage)
         {
-            if (_pairsChildSlot is null && _libraryStack.NavigationPath.Count == 0)
+            if (_pairsChildSlot is null && stack.NavigationPath.Count == 1)
             {
                 // The create page and the listening session: Save/Cancel or the session decide how you leave.
                 _pairsChildSlot = Views.VStack(_app.RenderLibraryPairsChild(_style))
@@ -216,7 +207,8 @@ internal sealed partial class ApplicationScene
                     .WithTabBarHidden();
                 RecordPairsChild();
                 _pairsChildToastLayer = Views.VStack().WithFlexibleWidth();
-                _libraryStack.Push("pairs-child", WithSamToolbar(_libraryStack, "pairs-child",
+                stack.Push(ApplicationFormRoutes.MinimalPairsChild, WithSamToolbar(stack,
+                    ApplicationFormRoutes.MinimalPairsChild,
                     Views.Overlay(_pairsChildSlot, _pairsChildToastLayer, SwiftOverlayEdge.Top)));
             }
             else if (_pairsChildSlot is not null)
@@ -231,11 +223,13 @@ internal sealed partial class ApplicationScene
             }
         }
         else if (_pairsChildSlot is not null)
-            PopLibraryPage(() =>
-            {
-                _pairsChildSlot = null;
-                ForgetPairsChildToastLayer();
-            });
+        {
+            // Clear first: the route callback must not report this pop as a person's Back.
+            _pairsChildSlot = null;
+            ForgetPairsChildToastLayer();
+            if (stack.CanNavigateBack && stack.NavigationPath.Count > 1)
+                stack.Pop();
+        }
         UpdatePairsToast();
     }
 

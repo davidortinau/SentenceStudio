@@ -297,7 +297,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithInlineNavigationTitle()", scene);
         // The Library root carries the inline title; Resources is its first page.
         var library = Source("App/ApplicationScene.Library.cs");
-        var libraryTitle = library[library.IndexOf("_libraryRoot = _style.Page(",
+        var libraryTitle = library[library.IndexOf("_libraryRoot = _libraryListSlot",
             StringComparison.Ordinal)
             ..library.IndexOf("_libraryStack = Views.NavigationStack(",
                 StringComparison.Ordinal)];

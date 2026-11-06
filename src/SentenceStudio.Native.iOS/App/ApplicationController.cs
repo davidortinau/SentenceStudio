@@ -847,7 +847,6 @@ internal sealed partial class ApplicationController : IDisposable
         if (HasLibraryRoute)
             return;
         EnsureResources();
-        ShowLibraryResources();
         _selectedTab = NativeTabs.Library;
         _resources?.OnBrowserAppeared();
         _resources?.OpenCreate();
@@ -947,6 +946,7 @@ internal sealed partial class ApplicationController : IDisposable
         _resources = null;
         ReleaseVocabulary();
         ReleaseLibraryPairs();
+        _libraryResourcesOpen = false;
         _profileSummary = null;
         IsSamUnavailableNoticePresented = false;
         _skills?.Dispose();

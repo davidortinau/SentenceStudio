@@ -23,7 +23,7 @@ internal static class NativeTabs
     internal const int Sam = 3;
 }
 
-/// <summary>The Library switcher pages, in switcher order.</summary>
+/// <summary>The Library list rows, in list order; each row pushes its page.</summary>
 internal enum LibrarySection
 {
     Resources,
@@ -33,39 +33,14 @@ internal enum LibrarySection
 }
 
 /// <summary>
-/// Tab selection, the Library switcher (remembered on this device), the Settings tab,
-/// Sam's tab slot, and the Minimal Pairs list hosted in the Library.
+/// Tab selection, the Library list (each row pushes a page on the Library stack, the
+/// Apple Music Library pattern), the Settings tab, Sam's tab slot, and the Minimal Pairs
+/// list hosted in the Library.
 /// </summary>
 internal sealed partial class ApplicationController
 {
-    private const string LibrarySectionKey = "native.library.section";
-    private LibrarySection? _librarySection;
     private (string Name, string NativeLanguage, string TargetLanguage)? _profileSummary;
-
-    /// <summary>The Library page last used on this device (read once the services exist).</summary>
-    internal LibrarySection SelectedLibrarySection
-    {
-        get
-        {
-            if (_librarySection is { } section)
-                return section;
-            if (_services is null)
-                return LibrarySection.Resources;
-            var stored = LoadLibrarySection();
-            _librarySection = stored;
-            return stored;
-        }
-    }
-
-    private LibrarySection LoadLibrarySection()
-    {
-        if (_services is null)
-            return LibrarySection.Resources;
-        var stored = _services.Provider.GetRequiredService<IPreferencesService>()
-            .Get(LibrarySectionKey, nameof(LibrarySection.Resources));
-        return Enum.TryParse<LibrarySection>(stored, out var section)
-            && Enum.IsDefined(section) ? section : LibrarySection.Resources;
-    }
+    private bool _libraryResourcesOpen;
 
     internal void SelectTab(int index)
     {
@@ -81,7 +56,11 @@ internal sealed partial class ApplicationController
         _selectedTab = index is NativeTabs.Library or NativeTabs.Settings
             ? index : NativeTabs.Study;
         if (_selectedTab == NativeTabs.Library)
-            OpenLibrarySection();
+        {
+            // Loads the owner's resources once, which also gives the Resources row its count.
+            EnsureResources();
+            _resources?.OnBrowserAppeared();
+        }
         else if (_selectedTab == NativeTabs.Settings)
             OpenSettings();
         Publish();
@@ -89,76 +68,69 @@ internal sealed partial class ApplicationController
             ReloadChooseOwnAfterSkills();
     }
 
-    /// <summary>The switcher: closes the page on screen and opens the chosen one.</summary>
-    internal void SelectLibrarySection(LibrarySection section)
-    {
-        if (_destination != NativeDestination.Dashboard || _selectedTab != NativeTabs.Library
-            || NavigationBlocked || !Enum.IsDefined(section) || section == SelectedLibrarySection
-            || HasLibraryRoute)
-            return;
-        CloseLibrarySection();
-        _librarySection = section;
-        _services?.Provider.GetRequiredService<IPreferencesService>()
-            .Set(LibrarySectionKey, section.ToString());
-        OpenLibrarySection();
-        Publish();
-    }
+    /// <summary>The Resources page is pushed above the Library list.</summary>
+    internal bool IsLibraryResourcesOpen => _libraryResourcesOpen;
 
-    /// <summary>Study's Add Resource lands on the Library's Resources page, where the new resource is listed.</summary>
-    private void ShowLibraryResources()
-    {
-        if (SelectedLibrarySection == LibrarySection.Resources)
-            return;
-        CloseLibrarySection();
-        _librarySection = LibrarySection.Resources;
-        _services?.Provider.GetRequiredService<IPreferencesService>()
-            .Set(LibrarySectionKey, nameof(LibrarySection.Resources));
-    }
+    /// <summary>A page is open above the Library list.</summary>
+    internal bool IsLibraryPageOpen => _libraryResourcesOpen || IsVocabularyOpen
+        || IsSkillsOpen || _libraryPairs is not null;
 
-    /// <summary>A page is pushed over the Library root (the switcher is not on screen).</summary>
+    /// <summary>An editor or second page is open in the Library (its root is not on screen).</summary>
     internal bool HasLibraryRoute => IsResourcesFormOpen || IsVocabularyWordOpen
         || IsRecentLookupsOpen || IsSkillFormOpen || LibraryPairsHasChildPage;
 
-    private void OpenLibrarySection()
+    /// <summary>A Library list row: opens its page, which the scene pushes above the list.</summary>
+    internal void OpenLibraryPage(LibrarySection page)
     {
-        switch (SelectedLibrarySection)
+        if (_destination != NativeDestination.Dashboard || _selectedTab != NativeTabs.Library
+            || NavigationBlocked || IsLibraryPageOpen || IsResourcesFormOpen
+            || !Enum.IsDefined(page))
+            return;
+        switch (page)
         {
             case LibrarySection.Resources:
                 EnsureResources();
-                _resources?.OnBrowserAppeared();
+                if (_resources is null)
+                    return;
+                _libraryResourcesOpen = true;
+                _resources.OnBrowserAppeared();
+                Publish();
                 break;
             case LibrarySection.Vocabulary:
-                if (!IsVocabularyOpen)
-                    OpenVocabulary();
+                OpenVocabulary();
                 break;
             case LibrarySection.Skills:
-                if (!IsSkillsOpen)
-                    OpenSkills();
+                OpenSkills();
                 break;
             case LibrarySection.Pairs:
-                if (_libraryPairs is null)
-                    OpenLibraryPairs();
+                OpenLibraryPairs();
                 break;
         }
     }
 
-    private void CloseLibrarySection()
+    /// <summary>Back from the Resources page to the Library list.</summary>
+    internal void OnLibraryResourcesPopped()
     {
-        switch (SelectedLibrarySection)
-        {
-            case LibrarySection.Vocabulary:
-                if (IsRecentLookupsOpen)
-                    OnRecentLookupsPopped();
-                _vocabulary?.OnListPopped();
-                break;
-            case LibrarySection.Skills:
-                OnSkillsPopped();
-                break;
-            case LibrarySection.Pairs:
-                ReleaseLibraryPairs();
-                break;
-        }
+        if (!_libraryResourcesOpen)
+            return;
+        _libraryResourcesOpen = false;
+        Publish();
     }
+
+    /// <summary>
+    /// The Resources row's count: the owner's resources once the browser has loaded them
+    /// with no search or filter (no extra query). Null hides the count.
+    /// </summary>
+    internal int? LibraryResourceCount => _resources?.ListState is
+        { Phase: NativeResourceListPhase.Populated or NativeResourceListPhase.Empty,
+          SearchText.Length: 0, MediaType: null, Language: null } state
+            && !state.Items.IsDefault
+        ? state.Items.Length : null;
+
+    /// <summary>The Vocabulary row's count: the word total Study already shows. Null hides it.</summary>
+    internal int? LibraryVocabularyCount => _dashboardState.VocabSummary is { } summary
+        ? summary.New + summary.Learning + summary.Familiar + summary.Review + summary.Known
+        : null;
 
     // ---- Settings tab ----
 
@@ -287,6 +259,8 @@ internal sealed partial class ApplicationController
 
     internal bool LibraryPairsHasChildPage => _libraryPairs?.HasChildPage == true;
 
+    internal string LibraryPairsTitle => Text(NativeMinimalPairsText.Title);
+
     internal string LibraryPairsChildTitle => _libraryPairs?.ChildTitle ?? string.Empty;
 
     internal long LibraryPairsChildVersion => _libraryPairs?.ChildVersion ?? 0;
@@ -350,8 +324,7 @@ internal sealed partial class ApplicationController
             var launch = await _services.Provider
                 .GetRequiredService<NativeActivityLaunchService>()
                 .FromChooseOwnAsync(selection, NativeActivityCatalog.MinimalPairs, _lifetime.Token);
-            if (launch is null || _libraryPairs is not null
-                || SelectedLibrarySection != LibrarySection.Pairs)
+            if (launch is null || _libraryPairs is not null)
             {
                 if (launch is null)
                     _logger?.LogWarning("Minimal Pairs launch was refused.");
@@ -395,11 +368,22 @@ internal sealed partial class ApplicationController
             Publish();
     }
 
-    /// <summary>The list's Go Back (shown with an error) returns the Library to Resources.</summary>
+    /// <summary>The list's Go Back (shown with an error) returns to the Library list.</summary>
     private void LeaveLibraryPairs()
     {
-        if (SelectedLibrarySection == LibrarySection.Pairs)
-            SelectLibrarySection(LibrarySection.Resources);
+        if (_libraryPairs is null)
+            return;
+        ReleaseLibraryPairs();
+        Publish();
+    }
+
+    /// <summary>Back from the Minimal Pairs page to the Library list.</summary>
+    internal void OnLibraryPairsPopped()
+    {
+        if (_libraryPairs is null)
+            return;
+        ReleaseLibraryPairs();
+        Publish();
     }
 
     private void ReleaseLibraryPairs()

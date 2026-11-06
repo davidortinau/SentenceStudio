@@ -294,7 +294,12 @@ internal sealed partial class ApplicationScene : IDisposable
 
     private void OnSkillsRoutesChanged(int count)
     {
-        if (count == 0 && _skillFormSlot is not null)
+        if (count == 0 && _skillsSlot is not null)
+        {
+            DropSkillsReferences();
+            _app.OnSkillsPopped();
+        }
+        else if (count == 1 && _skillFormSlot is not null)
         {
             DropSkillFormReferences();
             _app.OnSkillFormPopped();
@@ -303,16 +308,20 @@ internal sealed partial class ApplicationScene : IDisposable
 
     private void UpdateSkills(bool appearanceChanged)
     {
-        if (!_app.IsSkillsOpen || _app.SelectedLibrarySection != LibrarySection.Skills)
+        if (!_app.IsSkillsOpen)
             return;
+        // The Library list's Skills row pushes the list; the form sits above it.
         var stack = _libraryStack;
         if (stack is null)
             return;
-        if (_skillsSlot is null)
+        if (_skillsSlot is null && stack.NavigationPath.Count == 0)
         {
-            _skillsSlot = Views.VStack(_app.RenderSkillsList(_style)).WithFlexibleWidth();
+            // A browse page: the tab bar stays.
+            _skillsSlot = Views.VStack(_app.RenderSkillsList(_style))
+                .WithNavigationTitle(_app.Localize("Skills_Title"))
+                .WithInlineNavigationTitle();
             _renderedSkillsListVersion = _app.SkillsListVersion;
-            MountLibraryPage(_skillsSlot);
+            stack.Push("skills", WithSamToolbar(stack, "skills", _skillsSlot));
         }
         if (_skillsSlot is null)
             return;
@@ -324,7 +333,7 @@ internal sealed partial class ApplicationScene : IDisposable
         }
 
         if (_app.IsSkillFormOpen && _skillFormSlot is null
-            && stack.NavigationPath.Count == 0)
+            && stack.NavigationPath.Count == 1)
         {
             _skillFormSlot = Views.VStack(_app.RenderSkillForm(_style))
                 .WithNavigationTitle(_app.SkillFormTitle)
@@ -347,7 +356,10 @@ internal sealed partial class ApplicationScene : IDisposable
         else if (ApplicationFormRoutes.ShouldPopSkillForm(
             _app.IsSkillFormOpen, _skillFormSlot is not null,
             stack.CanNavigateBack, stack.NavigationPath))
-            PopLibraryPage(DropSkillFormReferences);
+        {
+            stack.Pop();
+            DropSkillFormReferences();
+        }
         else if (_app.IsSkillFormOpen && _skillFormSlot is not null
             && (appearanceChanged
                 || _renderedSkillFormVersion != _app.SkillFormVersion))
@@ -756,7 +768,8 @@ internal sealed partial class ApplicationScene : IDisposable
             return;
         if (_app.IsResourcesFormOpen)
         {
-            if (_libraryStack.NavigationPath.Count == 0)
+            if (_formSlot is null
+                && !_libraryStack.NavigationPath.Contains(ApplicationFormRoutes.ResourceForm))
             {
                 _formSlot = Views.VStack(ResourceFormContent())
                     .WithNavigationTitle(_app.ResourceFormTitle)
@@ -959,9 +972,6 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             if (_app.IsVocabularyFilterPresented)
                 _app.CancelVocabularyFilters();
-            // The switcher's gutter follows the page gutter.
-            if (_librarySwitcherSlot is not null)
-                Replace(_librarySwitcherSlot, LibrarySwitcher(_app.SelectedLibrarySection));
             if (_dashboardSlot is not null)
                 Replace(_dashboardSlot, _app.RenderDashboardContent(_style));
             if (_resourcesSlot is not null)
@@ -1085,9 +1095,8 @@ internal sealed partial class ApplicationScene : IDisposable
             _resourcesSearch = null;
             _libraryStack = null;
             _libraryRoot = null;
-            _librarySwitcherSlot = null;
-            _libraryPageSlot = null;
-            _renderedLibrarySection = null;
+            _libraryListSlot = null;
+            _renderedLibraryList = null;
             DropPairsReferences();
             _settingsStack = null;
             _samTab = null;

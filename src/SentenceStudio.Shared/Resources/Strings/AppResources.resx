@@ -9877,14 +9877,6 @@ For example: {0} ...</value>
   </data>
   <data name="Library_Resources" xml:space="preserve">
     <value>Resources</value>
-    <comment>Library switcher segment: learning resources</comment>
-  </data>
-  <data name="Library_Pairs" xml:space="preserve">
-    <value>Pairs</value>
-    <comment>Library switcher segment: minimal pair sets</comment>
-  </data>
-  <data name="Library_Sections" xml:space="preserve">
-    <value>Library section</value>
-    <comment>Accessible name of the Library switcher</comment>
+    <comment>Library list row: learning resources</comment>
   </data>
 </root>
