@@ -704,6 +704,8 @@ else
     // The current prompt or choice playback (load and start). Cancelled when the prompt context
     // changes (Use in a sentence, the next turn, Back), so its clip never plays out of context.
     private CancellationTokenSource? _promptPlayback;
+    // Above zero while LoadCurrentItem moves to the next turn or the summary: Play is refused.
+    private int _promptContextChanges;
     private UiSpeechClipCache? _clipCache;
     private UiSpeechClipCache ClipCache =>
         _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
@@ -1878,6 +1880,36 @@ else
 
     private async Task LoadCurrentItem(bool preservePromptState = false)
     {
+        // Play is refused until the next turn (or the round summary) is in place: a tap handled
+        // while the previous clip is being stopped would start that clip again, after the stop,
+        // and take the new turn's autoplay.
+        _promptContextChanges++;
+        bool turnShown;
+        try
+        {
+            turnShown = await ShowCurrentItemAsync(preservePromptState);
+        }
+        finally
+        {
+            _promptContextChanges--;
+        }
+
+        if (turnShown && QuizPrefs.AutoPlayVocabAudio && audioPromptAvailable)
+        {
+            // Autoplay is not an event handler, so nothing redraws the page when it ends: draw
+            // it then, or the Play buttons stay disabled.
+            _ = InvokeAsync(async () =>
+            {
+                await PlayWordAudio();
+                if (!_audioDisposed)
+                    await InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    /// <summary>Shows the current turn, or the round summary when the round is complete (false).</summary>
+    private async Task<bool> ShowCurrentItemAsync(bool preservePromptState)
+    {
         // A clip the previous turn requested or started never plays on this one or the summary.
         await EndPromptAudioAsync();
         await CloseImageFullscreenAsync(restoreFocus: true);
@@ -1891,7 +1923,7 @@ else
 
             sessionItems = vocabItems.ToList();
             showSessionSummary = true;
-            return;
+            return false;
         }
 
         currentItem = roundWordOrder[currentTurnInRound];
@@ -1927,18 +1959,7 @@ else
         ApplyPromptPreferences();
 
         responseTimer.Restart();
-
-        if (QuizPrefs.AutoPlayVocabAudio && audioPromptAvailable)
-        {
-            // Autoplay is not an event handler, so nothing redraws the page when it ends: draw
-            // it then, or the Play buttons stay disabled.
-            _ = InvokeAsync(async () =>
-            {
-                await PlayWordAudio();
-                if (!_audioDisposed)
-                    await InvokeAsync(StateHasChanged);
-            });
-        }
+        return true;
     }
 
     private void ResetSentenceShortcutState()
@@ -2395,14 +2416,15 @@ else
             // If that was the last word in the round, trigger round summary
             if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count)
             {
-                // Its clip never plays over the summary.
-                await EndPromptAudioAsync();
                 roundsCompleted++;
                 sessionItems = vocabItems.ToList();
                 showSessionSummary = true;
                 requireCorrectTyping = false;
                 showMnemonicImage = false;
                 showInfoPanel = false;
+                // Its clip never plays over the summary. The summary is set first, so a Play
+                // tap handled while the clip is being stopped is refused.
+                await EndPromptAudioAsync();
                 await PersistSnapshotAsync();
                 return;
             }
@@ -2780,8 +2802,10 @@ else
 
     private async Task PlayAudioTextAsync(string text, string language)
     {
-        // An autoplay queued before "Use in a sentence" opened must not start there (B70).
-        if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || string.IsNullOrWhiteSpace(text)) return;
+        // An autoplay queued before "Use in a sentence" opened must not start there (B70), and
+        // no prompt plays while the turn is changing or on the round summary.
+        if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || _promptContextChanges > 0
+            || showSessionSummary || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
         var playback = CancellationTokenSource.CreateLinkedTokenSource(_audioLifetime.Token);
         _promptPlayback = playback;
@@ -2829,6 +2853,12 @@ else
         {
             // A deliberate stop, not a failure: the playback was cancelled, or the browser's
             // load/start was interrupted by the stop that followed. The turn keeps its audio prompt.
+        }
+        catch (Exception ex) when (_audioDisposed || playback.IsCancellationRequested)
+        {
+            // A request the prompt context has already left failed. It owns nothing the current
+            // turn uses: that turn's clip, audio prompt and answer mode stay as they are.
+            Logger.LogWarning("A superseded quiz audio request failed: {Failure}.", ex.GetType().Name);
         }
         catch (Exception ex)
         {

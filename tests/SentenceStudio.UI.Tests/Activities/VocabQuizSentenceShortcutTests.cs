@@ -154,6 +154,137 @@ public sealed class VocabQuizSentenceShortcutTests
             harness.Js.Played.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Synthesis outlives its playback, so Play after Cancel while the first clip is still being
+    /// made must wait for that clip: a second request would pay for a second synthesis and store
+    /// a second row and file for the same phrase and voice.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PlayAfterCancelWhileTheFirstClipIsStillMade_SharesItsSynthesis(bool canPlayLocally)
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally);
+        harness.Speech.Hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = harness.DispatchAsync("PlayWordAudio");
+        await harness.Speech.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await harness.DispatchAsync("OpenSentenceShortcut");
+        await harness.DispatchAsync("CancelSentenceShortcut");
+        var second = harness.DispatchAsync("PlayWordAudio");
+        // A second request, if one is made, reaches the API at once.
+        await WaitForAsync(() => harness.Speech.RequestsStarted >= 2, TimeSpan.FromSeconds(1));
+
+        harness.Speech.RequestsStarted.Should().Be(1, "the second Play waits for the clip the first is making");
+        harness.Speech.Hold.SetResult();
+        await first.WaitAsync(TimeSpan.FromSeconds(10));
+        await second.WaitAsync(TimeSpan.FromSeconds(10));
+
+        harness.Speech.SynthesisCount.Should().Be(1);
+        (await harness.WithDbAsync(db => db.StreamHistories.CountAsync())).Should().Be(1);
+        Directory.GetFiles(harness.AudioCacheDirectory).Should().ContainSingle();
+        if (canPlayLocally)
+            harness.Audio.Players.Should().ContainSingle().Which.Events.Should().Equal("play@1");
+        else
+            harness.Js.Played.Should().ContainSingle();
+        harness.Logs.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+    }
+
+    /// <summary>
+    /// The turn change awaits the browser's stop before it moves on. A Play tap handled in that
+    /// wait is refused: it would start the old turn's clip after the stop and take the new
+    /// turn's autoplay.
+    /// </summary>
+    [Fact]
+    public async Task APlayTapWhileTheTurnChangeStopsTheBrowserClip_IsRefused()
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally: false, autoPlay: true);
+        await harness.WaitUntilAsync(() => harness.Js.Played.Count == 1 && !harness.Get<bool>("isPlayingAudio"));
+        byte[] nextTurnClip = [0x49, 0x44, 0x33, 0x04, 0x02];
+        harness.Speech.Audio = nextTurnClip;
+        harness.Js.Hold = "audioInterop.stop";
+
+        harness.Set("currentTurnInRound", 1);
+        var change = harness.DispatchAsync("LoadCurrentItem", false);
+        await harness.Js.HoldReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var stopAt = LastCall(harness, "audioInterop.stop");
+        await harness.DispatchAsync("PlayWordAudio");
+        harness.Js.Release();
+        await change.WaitAsync(TimeSpan.FromSeconds(10));
+        await harness.WaitUntilAsync(() => harness.Js.Played.Count >= 2 && !harness.Get<bool>("isPlayingAudio"));
+
+        harness.Js.Calls.Skip(stopAt + 1).Where(call => call.Identifier == "audioInterop.loadFromBase64")
+            .Select(call => (string)call.Args[0]!).Should().Equal([Convert.ToBase64String(nextTurnClip)],
+                "only the new turn's autoplay loads a clip after the stop");
+    }
+
+    [Fact]
+    public async Task APlayTapWhileTheSummaryStopsTheBrowserClip_IsRefused()
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally: false);
+        MakeTheLastWordRotateOut(harness);
+        await harness.DispatchAsync("PlayWordAudio");
+        harness.Js.Played.Should().ContainSingle();
+        harness.Js.Hold = "audioInterop.stop";
+
+        var next = harness.DispatchAsync("NextItem");
+        await harness.Js.HoldReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var stopAt = LastCall(harness, "audioInterop.stop");
+        await harness.DispatchAsync("PlayWordAudio");
+        harness.Js.Release();
+        await next.WaitAsync(TimeSpan.FromSeconds(10));
+
+        harness.Get<bool>("showSessionSummary").Should().BeTrue();
+        harness.Js.Calls.Skip(stopAt + 1).Should().NotContain(call => call.Identifier == "audioInterop.loadFromBase64"
+            || call.Identifier == "audioInterop.startPlayback", "nothing plays over the summary");
+        harness.Js.Played.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// A request the context has left can still fail with something other than a stop (here the
+    /// store's owner check cannot read the profile table). That failure is not the current
+    /// turn's: its clip keeps playing, it keeps its audio prompt, and nothing is logged as an error.
+    /// </summary>
+    [Fact]
+    public async Task ASupersededRequestThatFails_LeavesTheCurrentTurnAlone()
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally: true);
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Speech.Hold = held;
+        var stale = harness.DispatchAsync("PlayWordAudio");
+        await harness.Speech.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var staleWord = harness.Get<VocabularyQuizItem>("currentItem").Word;
+        harness.Speech.Hold = null;
+        harness.Set("currentTurnInRound", 1);
+        await harness.DispatchAsync("LoadCurrentItem", false);
+        await harness.DispatchAsync("PlayWordAudio");
+        harness.Audio.Players.Should().ContainSingle().Which.Events.Should().Equal("play@1");
+        var answerAudio = harness.Get<bool>("audioAnswerModeAvailable");
+
+        await harness.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"UserProfile\" RENAME TO \"UserProfile_unavailable\""));
+        try
+        {
+            held.SetResult();
+            await stale.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await harness.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"UserProfile_unavailable\" RENAME TO \"UserProfile\""));
+        }
+
+        harness.Audio.Players.Should().ContainSingle().Which.Events.Should().Equal(["play@1"],
+            "the current turn's clip plays on");
+        harness.Get<bool>("audioPromptAvailable").Should().BeTrue("the current turn keeps its audio prompt");
+        harness.Get<bool>("audioAnswerModeAvailable").Should().Be(answerAudio);
+        var pageEntries = harness.Logs.Entries.Where(entry => entry.Message.Contains("quiz audio", StringComparison.OrdinalIgnoreCase)).ToList();
+        pageEntries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+        pageEntries.Should().ContainSingle(entry => entry.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain("Exception").And.NotContain(staleWord.NativeLanguageTerm)
+            .And.NotContain(staleWord.TargetLanguageTerm);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -344,6 +475,17 @@ public sealed class VocabQuizSentenceShortcutTests
         item.ReadyToRotateOut.Should().BeTrue();
         harness.Set("roundWordOrder", new List<VocabularyQuizItem> { item });
         harness.Set("currentTurnInRound", 0);
+    }
+
+    private static int LastCall(ActivityPageHarness harness, string identifier) =>
+        harness.Js.Calls.FindLastIndex(call => call.Identifier == identifier);
+
+    /// <summary>Waits until the condition holds or the time is up, whichever comes first.</summary>
+    private static async Task WaitForAsync(Func<bool> condition, TimeSpan limit)
+    {
+        var deadline = DateTime.UtcNow + limit;
+        while (!condition() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
     }
 
     private static async Task WaitForHtmlAsync(ActivityPageHarness harness, Func<string, bool> condition)

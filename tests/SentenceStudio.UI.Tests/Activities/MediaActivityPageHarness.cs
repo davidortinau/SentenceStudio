@@ -441,6 +441,9 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         /// <summary>Completes when the first request arrives.</summary>
         public TaskCompletionSource RequestStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _requestsStarted;
+        /// <summary>Requests that arrived, including those still held.</summary>
+        public int RequestsStarted => Volatile.Read(ref _requestsStarted);
 
         public HttpClient CreateClient() =>
             new(this, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
@@ -448,6 +451,7 @@ public sealed class ActivityPageHarness : IAsyncDisposable
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _requestsStarted);
             RequestStarted.TrySetResult();
             if (Hold is { } hold)
                 await hold.Task.WaitAsync(cancellationToken);

@@ -267,6 +267,121 @@ public sealed class UiSpeechClipCacheTests
             .Should().BeFalse("the entry's own voice was not used");
     }
 
+    // ---- A clip being made is shared (review of b4c0da41: synthesis outlives the quiz's playback)
+
+    [Fact]
+    public async Task ARequestWhileTheSameClipIsBeingMade_WaitsForIt_AndNothingIsStoredTwice()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        var cache = Cache(harness);
+        var synth = new GatedSynthesizer(Clip);
+
+        var first = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        await synth.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        synth.Release();
+
+        var made = await first;
+        made.Should().Match<UiSpeechClip>(c => c.Status == UiSpeechClipStatus.Ready && c.Synthesized);
+        (await second).Should().BeSameAs(made);
+        synth.Calls.Should().ContainSingle("one paid synthesis");
+        (await Rows(harness)).Should().ContainSingle();
+        Directory.GetFiles(harness.AudioCacheDirectory).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ACancelledRequest_IsNotHandedToTheRequestThatJoinedIt()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        var cache = Cache(harness);
+        var synth = new GatedSynthesizer(Clip);
+        using var firstCaller = new CancellationTokenSource();
+
+        var first = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, firstCaller.Token);
+        await synth.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        firstCaller.Cancel();
+        await FluentActions.Awaiting(() => first).Should().ThrowAsync<OperationCanceledException>();
+        synth.Release();
+
+        var clip = await second;
+        clip.Should().Match<UiSpeechClip>(c => c.Status == UiSpeechClipStatus.Ready && c.Synthesized,
+            "the joined request makes the clip itself");
+        synth.Calls.Should().HaveCount(2);
+        (await Rows(harness)).Should().ContainSingle();
+        (await cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default))
+            .Synthesized.Should().BeFalse("a later request plays the stored clip");
+    }
+
+    [Fact]
+    public async Task AFailedRequest_IsNotHandedToALaterOne()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        var cache = Cache(harness);
+        var synth = new GatedSynthesizer(Clip);
+
+        var first = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        await synth.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        // The store's owner check fails once the clip is made.
+        await harness.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"UserProfile\" RENAME TO \"UserProfile_unavailable\""));
+        try
+        {
+            synth.Release();
+            await FluentActions.Awaiting(() => first).Should().ThrowAsync<System.Data.Common.DbException>();
+        }
+        finally
+        {
+            await harness.WithDbAsync(db => db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"UserProfile_unavailable\" RENAME TO \"UserProfile\""));
+        }
+
+        var later = await cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+
+        later.Should().Match<UiSpeechClip>(c => c.Status == UiSpeechClipStatus.Ready && c.Synthesized);
+        synth.Calls.Should().HaveCount(2);
+        (await Rows(harness)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task WithNoActiveLearner_RequestsAreNotShared()
+    {
+        await using var harness = await ActivityPageHarness.CreateAsync();
+        harness.Preferences.Remove(UserProfileRepository.ActiveProfileIdKey);
+        var cache = Cache(harness);
+        var synth = new GatedSynthesizer(Clip);
+
+        var first = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        await synth.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        var second = cache.GetOrCreateAsync("안녕하세요", "voice-1", true, "word", synth.Run, default);
+        synth.Release();
+
+        (await first).Status.Should().Be(UiSpeechClipStatus.Ready);
+        (await second).Status.Should().Be(UiSpeechClipStatus.Ready);
+        synth.Calls.Should().HaveCount(2, "with no learner nothing is shared");
+        (await Rows(harness)).Should().BeEmpty();
+    }
+
+    /// <summary>Synthesizes once released; a cancelled caller stops waiting.</summary>
+    private sealed class GatedSynthesizer(byte[] audio)
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> Calls { get; } = new();
+        public Task Started => _started.Task;
+
+        public void Release() => _gate.TrySetResult();
+
+        public async Task<Stream> Run(string voice, CancellationToken cancellationToken)
+        {
+            lock (Calls)
+                Calls.Add(voice);
+            _started.TrySetResult();
+            await _gate.Task.WaitAsync(cancellationToken);
+            return new MemoryStream(audio);
+        }
+    }
+
     private sealed class CountingSynthesizer(byte[] audio)
     {
         public List<string> Calls { get; } = new();
