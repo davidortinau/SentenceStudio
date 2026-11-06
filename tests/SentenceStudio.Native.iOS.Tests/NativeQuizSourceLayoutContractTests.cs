@@ -341,13 +341,13 @@ public sealed class NativeQuizSourceLayoutContractTests
             "_quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);",
             StringComparison.Ordinal);
         var publish = start.IndexOf("Publish();", StringComparison.Ordinal);
-        var open = start.IndexOf("await _quiz.OpenAsync(launch, opening.Token)",
+        var open = start.IndexOf("() => quiz.OpenAsync(launch, opening.Token), opening.Token)",
             StringComparison.Ordinal);
         Assert.True(loading >= 0 && publish > loading && open > publish);
         Assert.Contains("_quizAudioCancellation is not null || _quizOpening", app);
 
         // Backing out while it loads cancels the open, so nothing is created for that run.
-        Assert.Contains("_quizState = await _quiz.OpenAsync(launch, opening.Token);", start);
+        Assert.Contains("_quizState = await Task.Run(", start);
         Assert.Contains("if (_quizOpening)\n            CancelQuizOpen();", app);
         Assert.Contains("_quizState is { Phase: NativePhase.Loading, Sentence: null }", app);
 

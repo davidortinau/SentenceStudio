@@ -624,7 +624,10 @@ internal sealed partial class ApplicationController
         Publish();
         try
         {
-            _quizState = await _quiz.OpenAsync(launch, opening.Token);
+            // The run's database work stays off the main thread even when awaits resume there.
+            var quiz = _quiz;
+            _quizState = await Task.Run(
+                () => quiz.OpenAsync(launch, opening.Token), opening.Token);
         }
         catch (OperationCanceledException) when (
             opening.IsCancellationRequested && !_disposed)
