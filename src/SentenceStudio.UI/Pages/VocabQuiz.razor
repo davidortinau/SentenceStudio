@@ -158,7 +158,7 @@ else if (currentItem != null)
                     }
                 </div>
 
-                <p class="ss-body1 mb-2">
+                <p id="vocabquiz-sentence-instruction" class="ss-body1 mb-2">
                     @GetSentenceShortcutInstruction()
                 </p>
                 <p class="ss-body2 text-secondary-ss mb-3">
@@ -166,12 +166,13 @@ else if (currentItem != null)
                 </p>
 
                 <form @onsubmit="SubmitSentenceShortcut" @onsubmit:preventDefault>
-                    <textarea class="form-control form-control-ss mb-2"
+                    <textarea id="vocabquiz-sentence-editor"
+                              class="form-control form-control-ss mb-2"
                               rows="5"
                               @bind="sentenceShortcutInput"
                               @bind:event="oninput"
                               disabled="@isSentenceShortcutSubmitting"
-                              aria-label="@GetSentenceShortcutInstruction()"
+                              aria-labelledby="vocabquiz-sentence-instruction"
                               placeholder="@GetSentenceShortcutPlaceholder()"></textarea>
 
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -700,6 +701,9 @@ else
     private bool activityTimerStartInFlight;
     private readonly UiAudioPlayerSession _nativeAudio = new();
     private readonly CancellationTokenSource _audioLifetime = new();
+    // The current prompt or choice playback (load and start). Cancelled when the prompt context
+    // changes (Use in a sentence, the next turn, Back), so its clip never plays out of context.
+    private CancellationTokenSource? _promptPlayback;
     private UiSpeechClipCache? _clipCache;
     private UiSpeechClipCache ClipCache =>
         _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
@@ -1871,6 +1875,8 @@ else
 
     private async Task LoadCurrentItem(bool preservePromptState = false)
     {
+        // A clip the previous turn requested never plays on this one.
+        CancelPromptPlayback();
         await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
 
@@ -1949,9 +1955,10 @@ else
         sentenceShortcutResults.Clear();
 
         // B70: no prompt audio while the learner writes; in NativeToTarget a prompt clip still
-        // playing (autoplay) would speak the translation. PlayAudioTextAsync also refuses to
-        // start one that was still loading.
-        _nativeAudio.Stop();
+        // loading, starting or playing (autoplay) would speak the translation. The request is
+        // cancelled first, so the stop that aborts it is not reported as an audio failure.
+        CancelPromptPlayback();
+        StopNativeAudioSafely();
         await StopBrowserAudioAsync();
     }
 
@@ -2532,6 +2539,7 @@ else
     private async Task GoBack()
     {
         _audioDisposed = true;
+        CancelPromptPlayback();
         _audioLifetime.Cancel();
         StopNativeAudioSafely();
         await StopBrowserAudioAsync();
@@ -2764,8 +2772,11 @@ else
 
     private async Task PlayAudioTextAsync(string text, string language)
     {
+        // An autoplay queued before "Use in a sentence" opened must not start there (B70).
         if (_audioDisposed || isPlayingAudio || isSentenceShortcutMode || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
+        var playback = CancellationTokenSource.CreateLinkedTokenSource(_audioLifetime.Token);
+        _promptPlayback = playback;
 
         try
         {
@@ -2775,8 +2786,9 @@ else
             // synthesized once and cached, pointing the existing row at it (B35).
             var clip = await ClipCache.GetOrCreateAsync(text, voiceId, Connectivity.IsInternetAvailable, "word",
                 (voice, token) => SpeechService.TextToSpeechAsync(text, voice, 0.5f, 0.75f, 0.85f, cancellationToken: token),
-                _audioLifetime.Token);
-            if (_audioDisposed)
+                playback.Token);
+            // The prompt context changed while the clip loaded: nothing to play or report here.
+            if (_audioDisposed || playback.IsCancellationRequested)
                 return;
             switch (clip.Status)
             {
@@ -2790,10 +2802,6 @@ else
                     return;
             }
 
-            // B70: "Use in a sentence" opened while the clip loaded; it must not play there.
-            if (isSentenceShortcutMode)
-                return;
-
             if (AudioPlayerFactory.CanPlayLocally)
             {
                 _nativeAudio.CreatePlayer(AudioPlayerFactory, new MemoryStream(clip.Audio!)).Play();
@@ -2802,24 +2810,49 @@ else
             {
                 _nativeAudio.Stop();
                 _browserAudioAttempted = true;
-                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, _audioLifetime.Token, Logger);
+                await BrowserAudioPlayback.PlayAsync(JS, clip.Audio!, playback.Token, Logger);
             }
         }
-        catch (OperationCanceledException) when (_audioDisposed)
+        catch (Exception) when (_audioDisposed || playback.IsCancellationRequested)
         {
+            // A deliberate stop, not a failure: the playback was cancelled, or the browser's
+            // load/start was aborted by the stop that followed. The turn keeps its audio prompt.
         }
         catch (Exception ex)
         {
             StopNativeAudioSafely();
-            if (!_audioDisposed)
-            {
-                await EnableTextFallbackAsync();
-                Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
-            }
+            await EnableTextFallbackAsync();
+            Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
         }
         finally
         {
-            isPlayingAudio = false;
+            if (ReferenceEquals(_promptPlayback, playback))
+            {
+                _promptPlayback = null;
+                isPlayingAudio = false;
+            }
+            playback.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Ends the current prompt or choice playback request because the prompt context changed;
+    /// a clip still loading or starting then never plays. The next request may start at once.
+    /// </summary>
+    private void CancelPromptPlayback()
+    {
+        var playback = _promptPlayback;
+        if (playback is null)
+            return;
+        _promptPlayback = null;
+        isPlayingAudio = false;
+        try
+        {
+            playback.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // It already finished.
         }
     }
 
