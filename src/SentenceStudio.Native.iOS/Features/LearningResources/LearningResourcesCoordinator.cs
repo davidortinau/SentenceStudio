@@ -52,7 +52,12 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private bool _formOpen;
     private bool _creating;
     private bool _loadingList;
-    private long? _listReadAt;
+    private bool _rereadRequested;
+    /// <summary>The sync generation the last successful read started at (null: none yet).</summary>
+    private long? _readSyncGeneration;
+    /// <summary>The sync generation the running read started at.</summary>
+    private long? _loadingSyncGeneration;
+    private readonly Func<long> _syncGeneration;
     private bool _generating;
     private bool _importing;
     private bool _quickAdding;
@@ -62,14 +67,20 @@ internal sealed class LearningResourcesCoordinator : IDisposable
     private bool _controlledStarterLoading;
 #endif
 
+    /// <param name="syncGeneration">
+    /// The device's sync generation (<see cref="INativeSyncReadiness.SyncGeneration"/>): a
+    /// read that started before the latest sync is stale.
+    /// </param>
     internal LearningResourcesCoordinator(
         NativeResourcePresenter presenter,
         ILogger<LearningResourcesCoordinator> logger,
-        Func<string, string> text)
+        Func<string, string> text,
+        Func<long>? syncGeneration = null)
     {
         _presenter = presenter;
         _logger = logger;
         _text = text;
+        _syncGeneration = syncGeneration ?? (static () => 0);
     }
 
     internal event Action? Changed;
@@ -316,19 +327,34 @@ internal sealed class LearningResourcesCoordinator : IDisposable
         Publish(formChanged: false);
     }
 
-    internal void OnBrowserAppeared() => Run(LoadListAsync);
-
-    /// <summary>A list read is running.</summary>
-    internal bool IsListLoading => _loadingList;
+    /// <summary>
+    /// Reads the owner's resources now (after a change made on this device). A read already
+    /// running is followed by one more, so the change is never missed.
+    /// </summary>
+    internal void ReloadList() => Run(LoadListAsync);
 
     /// <summary>
-    /// How long ago the list was last read successfully; null when it never was, or when
-    /// something that changes the owner's resources (a sync) marked it stale.
+    /// The list shows the owner's resources as of the latest sync: its last read succeeded
+    /// and started after the latest sync (or the running read did and nothing asked for
+    /// another).
     /// </summary>
-    internal TimeSpan? ListAge => _listReadAt is { } readAt
-        ? TimeSpan.FromMilliseconds(Environment.TickCount64 - readAt) : null;
+    internal bool IsListFresh
+    {
+        get
+        {
+            var current = _syncGeneration();
+            return _loadingList
+                ? _loadingSyncGeneration == current && !_rereadRequested
+                : _readSyncGeneration == current;
+        }
+    }
 
-    internal void MarkListStale() => _listReadAt = null;
+    /// <summary>The one freshness path: reads the list unless it is fresh.</summary>
+    internal void ReadListIfStale()
+    {
+        if (!IsListFresh)
+            Run(LoadListAsync);
+    }
 
     /// <summary>Opens an owned resource detail from outside the browser (Dashboard insight links).</summary>
     internal void Open(string id)
@@ -387,24 +413,43 @@ internal sealed class LearningResourcesCoordinator : IDisposable
         Publish();
     }
 
+    /// <summary>
+    /// Reads the list in place (rows already shown stay until the new ones arrive). The sync
+    /// generation is captured before the read, so a read that started before a sync is never
+    /// stamped fresh; only a read without an error counts.
+    /// </summary>
     private async Task LoadListAsync()
     {
-        if (_loadingList || _disposed)
+        if (_disposed)
             return;
+        if (_loadingList)
+        {
+            _rereadRequested = true;
+            return;
+        }
         _loadingList = true;
         try
         {
-            var load = _presenter.LoadListAsync(_lifetime.Token);
-            Publish(formChanged: false);
-            await load;
-            _listReadAt = _presenter.List.Phase is NativeResourceListPhase.Populated
-                or NativeResourceListPhase.Empty or NativeResourceListPhase.NoMatches
-                ? Environment.TickCount64 : null;
-            Publish(formChanged: false);
+            do
+            {
+                _rereadRequested = false;
+                var generation = _syncGeneration();
+                _loadingSyncGeneration = generation;
+                var load = _presenter.LoadListAsync(_lifetime.Token, refreshInPlace: true);
+                Publish(formChanged: false);
+                var list = await load;
+                _readSyncGeneration = list is {
+                    Phase: NativeResourceListPhase.Populated or NativeResourceListPhase.Empty
+                        or NativeResourceListPhase.NoMatches,
+                    ErrorKey: null } ? generation : null;
+                Publish(formChanged: false);
+            }
+            while (_rereadRequested && !_disposed);
         }
         finally
         {
             _loadingList = false;
+            _loadingSyncGeneration = null;
         }
     }
 

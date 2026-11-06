@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
@@ -45,9 +46,18 @@ internal sealed partial class ApplicationScene
         return _libraryStack;
     }
 
-    /// <summary>What the list shows: the count that is already loaded, a row's error, and the style.</summary>
+    /// <summary>
+    /// What the list shows: the count that is already loaded, a row's error, the style, and the
+    /// quick-add buttons with their column count.
+    /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{string.Join(',', _app.LibraryQuickAddItems.Select(item => item.Id))}");
+
+    private const double QuickAddTileHeight = 84;
+
+    /// <summary>Two columns on iPhone; on a wider page one per button, up to four.</summary>
+    private int QuickAddColumns(int count) =>
+        NativeDeviceIdiom.IsPhone || _style.ViewportWidth < 600 ? 2 : Math.Clamp(count, 2, 4);
 
     /// <summary>
     /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
@@ -70,8 +80,48 @@ internal sealed partial class ApplicationScene
         if (_app.LibraryErrorText is { } error)
             rows.Add(_style.Text(Views.Text(error), SourceTextRole.Body2, SourceTextTone.Danger)
                 .WithAccessibilityIdentifier("native.library.error"));
+        if (QuickAddGrid() is { } quickAdd)
+            rows.Add(quickAdd);
         return _style.GroupedForm(Views.Form(rows.ToArray()))
             .WithAccessibilityIdentifier("native.library.list");
+    }
+
+    /// <summary>
+    /// The quick-add grid below the rows (Captain 2026-11-06): one icon-and-label button per
+    /// create flow (<see cref="ApplicationController.LibraryQuickAddItems"/>).
+    /// </summary>
+    private SwiftView? QuickAddGrid()
+    {
+        var items = _app.LibraryQuickAddItems;
+        if (items.Count == 0)
+            return null;
+        var appearance = _style.Appearance;
+        var buttons = items.Select(item =>
+        {
+            var title = _app.Localize(item.TitleKey);
+            var content = Views.VStack(
+                    Views.Image(item.Symbol)
+                        .WithFixedSymbolSize(22)
+                        .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+                        .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center),
+                    _style.Text(Views.Text(title), SourceTextRole.Caption1)
+                        .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                .WithPadding(10)
+                // One tile height whatever the symbol, so the grid rows line up.
+                .WithMinimumHeight(QuickAddTileHeight);
+            content.Spacing = 6;
+            // Plain: each button in the shared list row takes only its own taps.
+            var button = Views.Button(content, item.Open)
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithAccessibilityLabel(title)
+                .WithAccessibilityIdentifier($"native.library.quickadd.{item.Id}");
+            return _style.BorderedCard(button, radius: appearance.BootstrapRadius);
+        }).ToArray();
+        var grid = Views.LazyVGrid(QuickAddColumns(items.Count), buttons)
+            .WithAccessibilityIdentifier("native.library.quickadd");
+        grid.Spacing = SourceUiLayout.ItemGap;
+        return Views.Section(_app.Localize("Library_QuickAdd"), grid);
     }
 
     /// <summary>A list row: symbol, title, the count when it is already loaded, and a chevron.</summary>
@@ -149,8 +199,7 @@ internal sealed partial class ApplicationScene
                 .WithNavigationTitle(_app.Localize("Resources_Title"))
                 .WithInlineNavigationTitle();
             _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
-            _libraryStack.Push(ApplicationFormRoutes.LibraryResources,
-                WithSamToolbar(_libraryStack, ApplicationFormRoutes.LibraryResources, _resourcesSlot));
+            _libraryStack.Push(ApplicationFormRoutes.LibraryResources, _resourcesSlot);
         }
         else if (_app.SelectedTab == NativeTabs.Library || appearanceChanged)
             UpdateResources(appearanceChanged);
@@ -228,9 +277,8 @@ internal sealed partial class ApplicationScene
                 .WithNavigationTitle(_app.LibraryPairsTitle)
                 .WithInlineNavigationTitle();
             // A browse page: the list keeps the tab bar (its alert is wrapped around it once).
-            stack.Push(ApplicationFormRoutes.MinimalPairs, WithSamToolbar(stack,
-                ApplicationFormRoutes.MinimalPairs,
-                _app.PresentLibraryPairsOver(page).WithTabBarHidden(false)));
+            stack.Push(ApplicationFormRoutes.MinimalPairs,
+                _app.PresentLibraryPairsOver(page).WithTabBarHidden(false));
         }
         else
         {

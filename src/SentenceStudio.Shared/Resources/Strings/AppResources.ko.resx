@@ -9310,6 +9310,10 @@
     <value>자료</value>
     <comment>Library list row: learning resources</comment>
   </data>
+  <data name="Library_QuickAdd" xml:space="preserve">
+    <value>빠른 추가</value>
+    <comment>Library list: heading of the grid of create buttons (new resource, skill profile, minimal pair). Draft translation, needs review.</comment>
+  </data>
   <data name="NativeSam_SlotChecking" xml:space="preserve">
     <value>{0} 사용 가능 여부를 확인하는 중...</value>
     <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>

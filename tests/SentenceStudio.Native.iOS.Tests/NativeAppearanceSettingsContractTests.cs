@@ -64,7 +64,8 @@ public sealed class NativeAppearanceSettingsContractTests
         var appearanceUpdate = scene[scene.IndexOf(
             "var previousAppearance = _style.Appearance.Selection;",
             StringComparison.Ordinal)..scene.IndexOf(
-            "var target = _app.Destination switch", StringComparison.Ordinal)];
+            "var target = _app.IsLaunching ? RootKind.Launch : _app.Destination switch",
+            StringComparison.Ordinal)];
 
         Assert.Contains("new SourceUiStyle(_app.Appearance, _style.ViewportWidth)",
             appearanceUpdate);

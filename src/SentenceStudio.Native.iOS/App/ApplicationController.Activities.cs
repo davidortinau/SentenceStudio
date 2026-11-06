@@ -209,6 +209,9 @@ internal sealed partial class ApplicationController
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS activity open failed.");
+            // Instead of an endless spinner: the screen's error with its Go Back.
+            if (ReferenceEquals(_activity, screen) && !_disposed)
+                screen.OnOpenFailed();
         }
         if (ReferenceEquals(_activity, screen) && !_disposed)
             Publish();

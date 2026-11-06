@@ -8,6 +8,7 @@ using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Quiz;
 using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Features.Skills;
+using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
@@ -22,6 +23,8 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _onboardingSlot;
     private SwiftView? _tabs;
     private SwiftView? _starterOverlay;
+    private SwiftView? _overlayCancel;
+    private bool _renderedOverlayCancellable;
     private SwiftView? _dashboardSlot;
     private SwiftView? _dashboardStack;
     private SwiftView? _selectorSlot;
@@ -132,7 +135,7 @@ internal sealed partial class ApplicationScene : IDisposable
                     _root, _app.Appearance, _style.ViewportWidth);
         }
 
-        var target = _app.Destination switch
+        var target = _app.IsLaunching ? RootKind.Launch : _app.Destination switch
         {
             NativeDestination.Onboarding => RootKind.Onboarding,
             NativeDestination.Dashboard or NativeDestination.VocabularyQuiz
@@ -140,6 +143,12 @@ internal sealed partial class ApplicationScene : IDisposable
                 or NativeDestination.Activity => RootKind.Tabs,
             _ => RootKind.SignIn,
         };
+        if (target == RootKind.Launch)
+        {
+            if (_kind != target)
+                Install(LaunchSurface(), RootKind.Launch);
+            return;
+        }
         if (_kind != target)
         {
             _kind = target;
@@ -183,6 +192,11 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             _starterOverlay.Text = _app.BlockingOverlayTitle;
             _starterOverlay.IsPresented = _app.IsBlockingOverlayPresented;
+        }
+        if (_overlayCancel is not null && _renderedOverlayCancellable != _app.IsBlockingOverlayCancellable)
+        {
+            _renderedOverlayCancellable = _app.IsBlockingOverlayCancellable;
+            _overlayCancel.WithHidden(!_renderedOverlayCancellable);
         }
         if (_dashboardStack is not null)
             _dashboardStack.CanNavigateBack =
@@ -279,6 +293,10 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
             .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
+        // iOS 26 on iPhone: the tab bar shrinks while a page scrolls down (Sam's slot with
+        // it) and returns on scroll up or a tap.
+        if (NativeDeviceIdiom.IsPhone)
+            _tabs.WithTabBarMinimizeBehavior(SwiftTabBarMinimizeBehavior.OnScrollDown);
         // The slot's answer when it cannot open Sam: not offered, offline or not reachable
         // (its title). It presents once, with the answer; checking is the busy overlay.
         _samUnavailableNotice = Views.Alert(WrapWithSam(_tabs),
@@ -286,8 +304,13 @@ internal sealed partial class ApplicationScene : IDisposable
                 Views.Button(localize("Common_Close"), _app.DismissSamUnavailableNotice)
                     .WithAccessibilityIdentifier("native.tab.sam.unavailable.close"))
             .WithAccessibilityIdentifier("native.tab.sam.unavailable");
+        // Cancel shows only for Sam's check (starter creation cannot be cancelled).
+        _renderedOverlayCancellable = _app.IsBlockingOverlayCancellable;
+        _overlayCancel = Views.Button(localize("Common_Cancel"), _app.CancelSamSlotCheck)
+            .WithAccessibilityIdentifier("native.tab.sam.checking.cancel")
+            .WithHidden(!_renderedOverlayCancellable);
         _starterOverlay = Views.StarterBlockingOverlay(
-                _samUnavailableNotice, _app.BlockingOverlayTitle)
+                _samUnavailableNotice, _app.BlockingOverlayTitle, _overlayCancel)
             .WithAccessibilityIdentifier("native.starter.blocking-overlay");
         _starterOverlay.IsPresented = _app.IsBlockingOverlayPresented;
         Install(_starterOverlay, RootKind.Tabs);
@@ -322,7 +345,7 @@ internal sealed partial class ApplicationScene : IDisposable
                 .WithNavigationTitle(_app.Localize("Skills_Title"))
                 .WithInlineNavigationTitle();
             _renderedSkillsListVersion = _app.SkillsListVersion;
-            stack.Push("skills", WithSamToolbar(stack, "skills", _skillsSlot));
+            stack.Push("skills", _skillsSlot);
         }
         if (_skillsSlot is null)
             return;
@@ -805,7 +828,9 @@ internal sealed partial class ApplicationScene : IDisposable
                         .WithAccessibilityIdentifier(
                             "native.resources.edit.conflict.keep"));
                 _libraryStack.Push("resource-form", WithSamToolbar(_libraryStack, "resource-form",
-                    _conflictAlert.WithTabBarHidden()));
+                    _conflictAlert.WithTabBarHidden(),
+                    // A smart resource read in the Library keeps the tab bar and Sam's slot.
+                    tabBarShown: () => !_renderedResourceFormHidesTabBar));
             }
             else if (_formSlot is not null
                 && (_renderedFormVersion != _app.ResourceFormProjectionVersion
@@ -1090,6 +1115,7 @@ internal sealed partial class ApplicationScene : IDisposable
             DropSamReferences();
             _tabs = null;
             _starterOverlay = null;
+            _overlayCancel = null;
             _dashboardSlot = null;
             _dashboardStack = null;
             _resourcesSlot = null;
@@ -1142,5 +1168,18 @@ internal sealed partial class ApplicationScene : IDisposable
         _root.Dispose();
     }
 
-    private enum RootKind { None, SignIn, Onboarding, Tabs }
+    private enum RootKind { None, Launch, SignIn, Onboarding, Tabs }
+
+    /// <summary>
+    /// The launch look (Info.plist UILaunchScreen: LaunchBackground and LaunchLogo) while a
+    /// remembered session is restored, so the launch screen hands over without a Sign In
+    /// frame. Laid out under the safe areas so the logo stays where the launch screen drew it.
+    /// </summary>
+    private static SwiftView LaunchSurface() =>
+        Views.VStack(Views.AssetImage("LaunchLogo"))
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithFlexibleHeight()
+            .WithBackgroundColor("#0C0B10")
+            .WithIgnoresSafeArea()
+            .WithAccessibilityIdentifier("native.launch");
 }

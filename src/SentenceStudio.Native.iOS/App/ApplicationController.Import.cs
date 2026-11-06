@@ -109,15 +109,6 @@ internal sealed partial class ApplicationController
         Publish();
     }
 
-    /// <summary>
-    /// Library quick-add "YouTube import" (source /media-import). Not ported yet: the entry
-    /// is offered behind the quick-add flag only once this opens the page.
-    /// </summary>
-    internal void OpenYouTubeImport()
-    {
-        _logger?.LogInformation("YouTube import is not available in the native head yet.");
-    }
-
     private async Task OpenImportContentAsync(ImportContentCoordinator coordinator, string owner)
     {
         try

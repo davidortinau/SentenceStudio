@@ -35,14 +35,16 @@ internal sealed partial class ApplicationScene
     private NativeSamPanelSize? _renderedSamSize;
     private double _samDetent;
 
-    private readonly List<(SwiftView Stack, string Route, SwiftView Slot)> _samToolbars = [];
+    private readonly List<(SwiftView Stack, string Route, SwiftView Slot, Func<bool>? TabBarShown)> _samToolbars = [];
 
     /// <summary>
-    /// Source MainLayout mounts Sam on every signed-in page. The tab roots reach him
-    /// through his tab slot; every pushed screen (activities, the quiz, Profile, the
-    /// word, skill and resource editors, Recent lookups, History) gets the entry in its
-    /// navigation bar, because those that hide the tab bar have no slot and a floating
-    /// button would cover their bottom answer and send bars.
+    /// Source MainLayout mounts Sam on every signed-in page. Wherever the tab bar shows, Sam
+    /// is reached through his tab slot only (tab roots and the browse pages: History,
+    /// Profile, Resources, Vocabulary, Recent lookups, Skills, Minimal Pairs). A screen that
+    /// hides the tab bar (activities, the quiz, the word, skill and resource editors, the
+    /// Minimal Pairs create page and session) gets the entry in its navigation bar instead,
+    /// because it has no slot and a floating button would cover its answer and send bars.
+    /// <paramref name="tabBarShown"/> drops the entry while such a screen shows the tab bar.
     /// </summary>
     /// <remarks>
     /// A facade toolbar's actions are fixed once it is built, so the entry lives in
@@ -52,13 +54,14 @@ internal sealed partial class ApplicationScene
     /// Sam becomes available for the owner and removes it when Sam is not, so a screen
     /// pushed before Sam's availability loads still gets the entry.
     /// </remarks>
-    private SwiftView WithSamToolbar(SwiftView stack, string route, SwiftView page)
+    private SwiftView WithSamToolbar(SwiftView stack, string route, SwiftView page,
+        Func<bool>? tabBarShown = null)
     {
         _samToolbars.RemoveAll(entry => ReferenceEquals(entry.Stack, stack)
             && string.Equals(entry.Route, route, StringComparison.Ordinal));
         var slot = Views.VStack();
         slot.Spacing = 0;
-        _samToolbars.Add((stack, route, slot));
+        _samToolbars.Add((stack, route, slot, tabBarShown));
         return Views.Overlay(page, slot, SwiftOverlayEdge.Top);
     }
 
@@ -75,7 +78,7 @@ internal sealed partial class ApplicationScene
         foreach (var entry in _samToolbars)
         {
             var slot = entry.Slot;
-            if (!available)
+            if (!available || entry.TabBarShown?.Invoke() == true)
             {
                 if (slot.Children.Count > 0)
                     slot.RemoveAt(0);

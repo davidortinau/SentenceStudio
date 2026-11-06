@@ -230,7 +230,6 @@ internal sealed partial class ApplicationController
         finally
         {
             _dashboardRefreshing = false;
-            _resources?.MarkListStale();
             Publish();
         }
     }
@@ -283,11 +282,14 @@ internal sealed partial class ApplicationController
         if (!IsResourceFormFromStudy || !IsResourceFormReadOnly)
             return;
         _resources!.OnFormPopped();
-        _resourceFormFromDashboard = false;
+        // OnFormPopped refuses while the detail is busy: then it stays Study's.
+        if (!IsResourcesFormOpen)
+            _resourceFormFromDashboard = false;
     }
 
     // The floating Sam button on the Dashboard and Resources roots is replaced by Sam's
-    // tab slot (iOS tab shell trial, 2026-11-05); pushed screens keep the toolbar entry.
+    // tab slot (iOS tab shell trial, 2026-11-05); screens that hide the tab bar (activities,
+    // editors) keep the toolbar entry.
 
     internal SwiftView RenderSamStream(SourceUiStyle style) =>
         SamView.Stream(style, SamState, Text, SamActions);

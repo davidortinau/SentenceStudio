@@ -88,7 +88,7 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("Views.Menu(menuLabel, choices)", browser);
         Assert.Contains("choice == 0 ? null : values[choice]", browser);
         Assert.Contains("_presenter.SaveAsync(_lifetime.Token)", resources);
-        Assert.Contains("_presenter.LoadListAsync(_lifetime.Token)", resources);
+        Assert.Contains("_presenter.LoadListAsync(_lifetime.Token, refreshInPlace: true)", resources);
         Assert.Contains("_presenter.OpenAsync(id, _lifetime.Token)", resources);
         Assert.Contains("Views.TextField(", fields);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot", scene);

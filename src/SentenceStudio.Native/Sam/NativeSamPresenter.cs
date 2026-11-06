@@ -72,8 +72,10 @@ public sealed partial class NativeSamPresenter(
     /// Reads availability for the current owner. Only <c>IsSamOverlayAvailable</c>
     /// shows the entry (source CoachSurfaceGate). A failed read hides Sam, except
     /// that an owner already known to have Sam keeps the entry while offline so
-    /// the panel can say so honestly. Returns what this read established
-    /// (<see cref="NativeSamAvailability.Unknown"/> when it established nothing).
+    /// the panel can say so honestly. Returns <see cref="NativeSamState.Availability"/> as this
+    /// read left it (<see cref="NativeSamAvailability.Unknown"/> when the owner changed
+    /// meanwhile). Once the server has answered, the answer is published even if the
+    /// caller's token is cancelled afterwards.
     /// </summary>
     public async Task<NativeSamAvailability> RefreshAvailabilityAsync(
         CancellationToken cancellationToken = default)
@@ -81,15 +83,16 @@ public sealed partial class NativeSamPresenter(
         if (!TryOwner(out var owner) || !client.IsConfigured)
         {
             Reset(null);
-            return NativeSamAvailability.Unknown;
+            return _state.Availability;
         }
         if (!connectivity.IsInternetAvailable)
         {
+            // An owner already known to have Sam keeps the entry (and its answer) offline.
             if (_availability is null)
                 Publish(_state with { IsVisible = false, Availability = NativeSamAvailability.Offline });
             else if (_state.IsOpen)
                 Publish(_state with { Status = NativeSamStatus.Offline });
-            return NativeSamAvailability.Offline;
+            return _state.Availability;
         }
 
         try
@@ -99,7 +102,9 @@ public sealed partial class NativeSamPresenter(
             if (!IsCurrent(owner))
                 return NativeSamAvailability.Unknown;
             _availability = availability;
-            var persona = await ResolvePersonaCultureAsync(owner, cancellationToken);
+            // The server answered: publish it even if the caller gives up now (a short
+            // local read; a cancelled caller must not leave the answer unpublished).
+            var persona = await ResolvePersonaCultureAsync(owner, CancellationToken.None);
             if (!IsCurrent(owner))
                 return NativeSamAvailability.Unknown;
             var visible = availability.IsSamOverlayAvailable;

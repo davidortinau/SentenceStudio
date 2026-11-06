@@ -35,6 +35,17 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("notice.Text = _app.SamSlotNoticeText;", samScene);
         Assert.DoesNotContain("DispatchAfter", samScene);
         Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
+        // iPhone: the tab bar (Sam's slot with it) minimizes while a page scrolls down.
+        Assert.Contains("if (NativeDeviceIdiom.IsPhone)\n"
+            + "            _tabs.WithTabBarMinimizeBehavior(SwiftTabBarMinimizeBehavior.OnScrollDown);", scene);
+        // Sam's check can be cancelled; while it shows it blocks navigation like any busy overlay.
+        Assert.Contains("Views.StarterBlockingOverlay(\n"
+            + "                _samUnavailableNotice, _app.BlockingOverlayTitle, _overlayCancel)", scene);
+        Assert.Contains("\"native.tab.sam.checking.cancel\"", scene);
+        Assert.Contains("_overlayCancel.WithHidden(!_renderedOverlayCancellable);", scene);
+        Assert.Contains("|| IsSamSlotCheckingShown;", Source("App/ApplicationController.cs"));
+        Assert.Contains("internal void CancelSamSlotCheck()", libraryController);
+        Assert.Contains("if (_disposed || check != _samSlotCheck)", libraryController);
         foreach (var id in new[] { "native.tab.study", "native.tab.library", "native.tab.settings", "native.tab.sam" })
             Assert.Contains($"\"{id}\"", scene);
         Assert.Contains("Views.TabView(_app.SelectedTab, _app.SelectTab,", scene);
