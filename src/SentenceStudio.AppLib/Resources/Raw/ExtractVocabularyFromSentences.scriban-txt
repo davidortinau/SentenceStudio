@@ -176,7 +176,9 @@ Should produce just one entry:
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "topikLevel": 3,
       "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
-      "relatedTerms": ["constituent1", "constituent2"]
+      "relatedTerms": ["constituent1", "constituent2"],
+      "exampleSentence": "The input sentence this entry was taken from, copied exactly (empty for Sentence entries)",
+      "exampleSentenceTranslation": "{{ native_language }} translation of exampleSentence"
     }
   ]
 }
@@ -189,6 +191,7 @@ Should produce just one entry:
 - Phrase and Word entries use dictionary form as usual.
 - Phrase entries MUST have relatedTerms populated with constituent words.
 - Word entries should have relatedTerms as an empty array.
+- For every Word, Phrase or Idiom entry, set exampleSentence to the one input sentence it was taken from, copied exactly as written (only that sentence when a line holds several), and exampleSentenceTranslation to its {{ native_language }} translation (the given translation when the input has one). The learner keeps that sentence as the word's example.
 - Be permissive: extract generously, flag uncertainty via confidence rather than dropping items.
 - Never invent terms that don't appear (directly or as conjugations) in the source text.
 - Do NOT include proper nouns (person names, place names) unless they are culturally significant vocabulary.

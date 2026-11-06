@@ -75,7 +75,9 @@ If the source text is Korean paste like "오늘 학교에서 친구들이랑 밥
       "notes": "Optional notes about uncertainty or extraction context",
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
-      "relatedTerms": ["constituent1", "constituent2"]
+      "relatedTerms": ["constituent1", "constituent2"],
+      "exampleSentence": "The input sentence this entry was taken from, copied exactly (empty for Sentence entries)",
+      "exampleSentenceTranslation": "{{ native_language }} translation of exampleSentence"
     }
   ]
 }
@@ -85,4 +87,5 @@ If the source text is Korean paste like "오늘 학교에서 친구들이랑 밥
 - The "targetLanguageTerm" MUST be in dictionary form, even if the source text has it conjugated/inflected.
 - If you cannot extract any {{ target_language }} vocabulary from the text (e.g., it's all English), return an empty vocabulary array: {"vocabulary": []}.
 - Never invent terms that don't appear in the source text.
+- For every Word, Phrase or Idiom entry, set exampleSentence to the one input sentence it was taken from, copied exactly as written (only that sentence when a line holds several), and exampleSentenceTranslation to its {{ native_language }} translation (the given translation when the input has one). The learner keeps that sentence as the word's example.
 - Be permissive with messy input — mixed languages, partial sentences, typos should all yield best-effort results.

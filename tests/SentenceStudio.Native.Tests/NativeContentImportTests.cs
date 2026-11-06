@@ -581,6 +581,51 @@ public sealed class NativeContentImportTests
     }
 
     [Fact]
+    public async Task SourceSentences_PassThroughThePreview_AndBecomeEachOwnersOwnExamples()
+    {
+        // B72 (Captain, 2026-11-06): a term that came from a sentence keeps that sentence as its
+        // example, also after the learner edits the term in the preview.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        await fixture.SeedProfileAsync(B);
+        var ai = new ScratchImportAi();
+        ai.Json["FreeTextVocabularyExtractionResponse"] =
+            """{"vocabulary":[{"targetLanguageTerm":"밥","nativeLanguageTerm":"rice","confidence":"high","exampleSentence":"밥을 먹었어요.","exampleSentenceTranslation":"I ate rice."}]}""";
+
+        async Task<string> Import(string owner, string title, string? editedTerm = null)
+        {
+            fixture.Activate(owner);
+            using var screen = Coordinator(fixture, Adapter(fixture, ai));
+            Assert.True(await screen.OpenAsync(owner));
+            screen.SetRawText("밥을 먹었어요");
+            await screen.PreviewAsync();
+            Assert.Equal(["밥"], screen.State.Rows.Select(row => row.Target));
+            if (editedTerm is not null)
+                screen.SetRowTarget(0, editedTerm);
+            screen.SetNewResourceTitle(title);
+            await screen.CommitAsync();
+            return screen.State.Result!.ResourceId;
+        }
+
+        var aResource = await Import(A, "A sentences", editedTerm: "식사");
+        var bResource = await Import(B, "B sentences");
+
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var examples = await db.ExampleSentences.AsNoTracking().ToListAsync();
+        Assert.Equal(2, examples.Count);
+        var aExample = Assert.Single(examples, example => example.UserProfileId == A);
+        var aWord = await db.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == aExample.VocabularyWordId);
+        Assert.Equal(("식사", A), (aWord.TargetLanguageTerm, aWord.UserProfileId));
+        Assert.Equal((aResource, "밥을 먹었어요.", "I ate rice."),
+            (aExample.LearningResourceId, aExample.TargetSentence, aExample.NativeSentence));
+        var bExample = Assert.Single(examples, example => example.UserProfileId == B);
+        var bWord = await db.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == bExample.VocabularyWordId);
+        Assert.Equal(("밥", B), (bWord.TargetLanguageTerm, bWord.UserProfileId));
+        Assert.Equal(bResource, bExample.LearningResourceId);
+    }
+
+    [Fact]
     public async Task Commit_ShowsTheResultBeforeListenersRun_AndOffersTheNewResourceToTheNextImport()
     {
         using var fixture = new NativeSliceFixture();

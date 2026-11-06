@@ -1348,6 +1348,123 @@ public class ContentImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitImportAsync_SourceSentence_StaysWhenTheLearnerEditedTheTerm()
+    {
+        // B72 (Captain, 2026-11-06): the sentence a term came from stays its example even when
+        // the learner changed the term in the preview so the sentence no longer contains it.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var result = await service.CommitImportAsync(new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "식사", // edited from 밥
+                        NativeLanguageTerm = "meal",
+                        SourceSentence = "밥을 먹었어요.",
+                        SourceSentenceTranslation = "I ate rice.",
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Edited term keeps its sentence",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip
+        });
+
+        var word = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "식사");
+        var example = await dbContext.ExampleSentences.SingleAsync();
+        example.VocabularyWordId.Should().Be(word.Id);
+        example.TargetSentence.Should().Be("밥을 먹었어요.");
+        example.NativeSentence.Should().Be("I ate rice.");
+        example.UserProfileId.Should().Be(_testUserId);
+        example.LearningResourceId.Should().Be(result.ResourceId);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_SourceSentence_NotDuplicated_AndOnlyForKeptRows()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // The learner's word already has this sentence.
+        var existing = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "밥",
+            NativeLanguageTerm = "rice",
+            Language = "Korean",
+            UserProfileId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(existing);
+        dbContext.ExampleSentences.Add(new ExampleSentence
+        {
+            UserProfileId = _testUserId,
+            VocabularyWordId = existing.Id,
+            TargetSentence = "밥을 먹었어요.",
+            Source = ExampleSentenceSource.FromReading,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(dbContext);
+
+        var result = await service.CommitImportAsync(new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    // The same sentence (other spacing) on the existing word: not added again.
+                    new() { RowNumber = 1, TargetLanguageTerm = "밥", NativeLanguageTerm = "rice",
+                        SourceSentence = "  밥을   먹었어요.  ", Status = RowStatus.Ok, IsSelected = true },
+                    // A new word twice in the batch with one sentence: one example.
+                    new() { RowNumber = 2, TargetLanguageTerm = "물", NativeLanguageTerm = "water",
+                        SourceSentence = "물을 마셨어요.", Status = RowStatus.Ok, IsSelected = true },
+                    new() { RowNumber = 3, TargetLanguageTerm = "물", NativeLanguageTerm = "water",
+                        SourceSentence = "물을 마셨어요.", Status = RowStatus.Ok, IsSelected = true },
+                    // A row the learner did not keep: no word and no example.
+                    new() { RowNumber = 4, TargetLanguageTerm = "빵", NativeLanguageTerm = "bread",
+                        SourceSentence = "빵을 샀어요.", Status = RowStatus.Ok, IsSelected = false }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Sentences once",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip
+        });
+
+        (await dbContext.ExampleSentences.CountAsync(e => e.VocabularyWordId == existing.Id)).Should().Be(1);
+        var water = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "물");
+        var waterExample = await dbContext.ExampleSentences.SingleAsync(e => e.VocabularyWordId == water.Id);
+        waterExample.TargetSentence.Should().Be("물을 마셨어요.");
+        waterExample.UserProfileId.Should().Be(_testUserId);
+        waterExample.LearningResourceId.Should().Be(result.ResourceId);
+        (await dbContext.VocabularyWords.AnyAsync(w => w.TargetLanguageTerm == "빵")).Should().BeFalse();
+        (await dbContext.ExampleSentences.AnyAsync(e => e.TargetSentence == "빵을 샀어요.")).Should().BeFalse();
+        (await dbContext.ExampleSentences.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
     public async Task CommitImportAsync_DedupSkip_DeduplicatesIntraBatchDuplicates()
     {
         // Regression test: two rows with the same trimmed TargetLanguageTerm in a single

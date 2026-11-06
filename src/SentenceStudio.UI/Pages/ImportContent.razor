@@ -837,7 +837,10 @@
                 IsAiTranslated = r.IsAiTranslated,
                 LexicalUnitType = r.LexicalUnitType,
                 IsDuplicate = r.IsDuplicate,
-                DuplicateReason = r.DuplicateReason
+                DuplicateReason = r.DuplicateReason,
+                // The sentence a term came from becomes its example sentence on commit (B72).
+                SourceSentence = r.SourceSentence,
+                SourceSentenceTranslation = r.SourceSentenceTranslation
             }).ToList();
 
             currentStep = ImportStep.Preview;

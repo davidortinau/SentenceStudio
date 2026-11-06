@@ -356,13 +356,16 @@ public class ExampleSentenceRepository
         ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
         SpeechRegister register = SpeechRegister.Unspecified,
         int capPerWordPerResource = 2,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool requireTermInSentence = true)
     {
         if (word == null || string.IsNullOrWhiteSpace(word.Id) || string.IsNullOrWhiteSpace(targetSentence))
             return null;
 
         var trimmedTargetSentence = targetSentence.Trim();
-        if (!SentenceContainsWordTerm(word, trimmedTargetSentence))
+        // A harvested sentence must contain the word; an import's row carries the sentence its
+        // term came from, which stays the word's example even after the learner edits the term.
+        if (requireTermInSentence && !SentenceContainsWordTerm(word, trimmedTargetSentence))
             return null;
 
         // ExampleSentence.TargetSentence is [MaxLength(500)] — enforced as varchar(500) on the
