@@ -1,14 +1,19 @@
+using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.JSInterop;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
+using SentenceStudio.Services.LanguageSegmentation;
+using SentenceStudio.Services.Progress;
+using SentenceStudio.Services.Timer;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.WebUI.Pages;
-using SentenceStudio.WebUI.Services;
 
 namespace SentenceStudio.UI.Tests.Activities;
 
@@ -16,61 +21,64 @@ namespace SentenceStudio.UI.Tests.Activities;
 /// Backport B70 (Captain, 2026-11-06: "I shouldn't see the translation"). "Use in a sentence"
 /// shows the target word only while the learner writes with it: no native-language term on the
 /// card, in its labels or placeholder, and no prompt audio, which in NativeToTarget speaks the
-/// translation. The native heads match (departure 29 retired).
+/// translation. Opening it ends the prompt's playback as a deliberate stop: the turn keeps its
+/// audio prompt and audio-answer mode, and a clip a previous turn requested never plays on the
+/// next one. Runs the real page on a NativeToTarget turn.
 /// </summary>
 public sealed class VocabQuizSentenceShortcutTests
 {
-    private const string Target = "과일";
-    private const string Native = "fruit";
+    private static readonly (string Target, string Native)[] Words =
+        [("과일", "fruit"), ("사과", "apple"), ("학교", "school"), ("우유", "milk")];
 
     [Fact]
-    public void TheCard_NamesTheTargetWordOnly()
+    public async Task TheCard_ShowsNoTranslation_BeforeOrAfterGrading()
     {
-        var card = SentenceCardMarkup();
+        await using var harness = await OpenQuizAsync();
+        var word = harness.Get<VocabularyQuizItem>("currentItem").Word;
+        harness.Html().Should().Contain(word.NativeLanguageTerm, "the NativeToTarget prompt is the native term");
 
-        card.Should().Contain("@currentItem.Word.TargetLanguageTerm");
-        card.Should().NotContain("NativeLanguageTerm", "the translation is not shown while writing");
-        card.Should().NotContain("PlayWordAudio").And.NotContain("PlayChoiceAudio")
-            .And.NotContain("bi-volume", "the card offers no prompt audio");
-        card.Should().Contain("@GetSentenceShortcutInstruction()");
-        card.Should().Contain("aria-label=\"@GetSentenceShortcutInstruction()\"",
-            "the editor is labelled with the instruction, which names the target word only");
-        card.Should().Contain("placeholder=\"@GetSentenceShortcutPlaceholder()\"");
-    }
+        await harness.DispatchAsync("OpenSentenceShortcut");
 
-    [Fact]
-    public void TheInstructionAndPlaceholder_NameTheTargetWordOnly()
-    {
-        var quiz = Quiz();
-        Set(quiz, "Localize", new BlazorLocalizationService());
+        var card = harness.Html();
+        AssertTargetOnly(card, word);
+        var instruction = Regex.Match(card,
+            @"<p id=""vocabquiz-sentence-instruction""[^>]*>\s*(?<text>[^<]*?)\s*</p>");
+        instruction.Success.Should().BeTrue();
+        instruction.Groups["text"].Value.Should().Be($"Write one or more sentences using {word.TargetLanguageTerm}.");
+        var editor = Regex.Match(card, @"<textarea[^>]*>").Value;
+        editor.Should().Contain("id=\"vocabquiz-sentence-editor\"")
+            .And.Contain("aria-labelledby=\"vocabquiz-sentence-instruction\"")
+            .And.Contain(word.TargetLanguageTerm, "the placeholder names the target word");
 
-        foreach (var method in new[] { "GetSentenceShortcutInstruction", "GetSentenceShortcutPlaceholder" })
-        {
-            var text = (string)Method(method).Invoke(quiz, null)!;
-            text.Should().Contain(Target, method);
-            text.Should().NotContain(Native, method);
-        }
+        await ShowGradedResultAsync(harness, word.TargetLanguageTerm);
+
+        var graded = harness.Html();
+        AssertTargetOnly(graded, word);
+        graded.Should().Contain($"Graded: {word.TargetLanguageTerm}");
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task OpeningTheShortcut_StopsAPromptClipThatIsPlaying(bool canPlayLocally)
+    [InlineData("audioInterop.loadFromBase64")]
+    [InlineData("audioInterop.startPlayback")]
+    public async Task OpeningTheShortcutWhileTheBrowserLoadsOrStartsTheClip_IsAStopNotAFailure(string held)
     {
-        await using var harness = await ActivityPageHarness.CreateAsync();
-        harness.Audio.CanPlayLocally = canPlayLocally;
-        var quiz = Quiz(harness);
-        // NativeToTarget: the prompt clip speaks the translation.
-        await (Task)Method("PlayWordAudio").Invoke(quiz, null)!;
-        harness.Speech.SynthesisCount.Should().Be(1);
+        await using var harness = await OpenQuizAsync(canPlayLocally: false);
+        var promptAudio = harness.Get<bool>("audioPromptAvailable");
+        var answerAudio = harness.Get<bool>("audioAnswerModeAvailable");
+        promptAudio.Should().BeTrue();
+        harness.Js.HoldUntilStop = held;
 
-        await (Task)Method("OpenSentenceShortcut").Invoke(quiz, null)!;
+        var play = harness.DispatchAsync("PlayWordAudio");
+        await harness.Js.HoldReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await harness.DispatchAsync("OpenSentenceShortcut");
+        await play.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Get<bool>(quiz, "isSentenceShortcutMode").Should().BeTrue();
-        if (canPlayLocally)
-            harness.Audio.Players.Should().ContainSingle().Which.Events.Should().Equal("play@1", "stop");
-        else
-            harness.Js.Calls.Select(call => call.Identifier).Should().EndWith("audioInterop.stop");
+        harness.Js.Calls.Select(call => call.Identifier).Should().Contain("audioInterop.stop");
+        harness.Get<bool>("audioPromptAvailable").Should().Be(promptAudio, "the turn keeps its audio prompt");
+        harness.Get<bool>("audioAnswerModeAvailable").Should().Be(answerAudio);
+        harness.Get<bool>("isPlayingAudio").Should().BeFalse();
+        harness.Logs.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+        harness.Toasts.Should().BeEmpty();
     }
 
     [Theory]
@@ -78,105 +86,197 @@ public sealed class VocabQuizSentenceShortcutTests
     [InlineData(false)]
     public async Task AClipStillLoadingWhenTheShortcutOpens_NeverPlays(bool canPlayLocally)
     {
-        await using var harness = await ActivityPageHarness.CreateAsync();
-        harness.Audio.CanPlayLocally = canPlayLocally;
+        await using var harness = await OpenQuizAsync(canPlayLocally);
         harness.Speech.Hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var quiz = Quiz(harness);
-        var play = (Task)Method("PlayWordAudio").Invoke(quiz, null)!;
-        await harness.Speech.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await (Task)Method("OpenSentenceShortcut").Invoke(quiz, null)!;
+        var play = harness.DispatchAsync("PlayWordAudio");
+        await harness.Speech.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await harness.DispatchAsync("OpenSentenceShortcut");
         harness.Speech.Hold.SetResult();
         await play.WaitAsync(TimeSpan.FromSeconds(10));
 
-        harness.Audio.Players.Should().BeEmpty();
-        harness.Js.Calls.Should().NotContain(call => call.Identifier == "audioInterop.loadFromBase64"
-            || call.Identifier == "audioInterop.startPlayback");
-        Get<bool>(quiz, "isPlayingAudio").Should().BeFalse("Cancel can play the prompt again");
+        AssertNothingPlayed(harness);
+        harness.Get<bool>("audioPromptAvailable").Should().BeTrue();
+        harness.Logs.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+        harness.Toasts.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AClipStillLoadingWhenTheTurnChanges_DoesNotPlayOnTheNextTurn(bool canPlayLocally)
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally);
+        var first = harness.Get<VocabularyQuizItem>("currentItem").Word.Id;
+        harness.Speech.Hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var play = harness.DispatchAsync("PlayWordAudio");
+        await harness.Speech.RequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        harness.Set("currentTurnInRound", 1);
+        await harness.DispatchAsync("LoadCurrentItem", false);
+        harness.Get<VocabularyQuizItem>("currentItem").Word.Id.Should().NotBe(first);
+        harness.Speech.Hold.SetResult();
+        await play.WaitAsync(TimeSpan.FromSeconds(10));
+
+        AssertNothingPlayed(harness);
+        harness.Get<bool>("audioPromptAvailable").Should().BeTrue("the new turn keeps its audio prompt");
+        harness.Get<bool>("isPlayingAudio").Should().BeFalse("the new turn can play its own prompt");
+        harness.Logs.Entries.Should().NotContain(entry => entry.Level >= LogLevel.Error);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task OpeningTheShortcut_StopsAPromptClipThatIsPlaying(bool canPlayLocally)
+    {
+        await using var harness = await OpenQuizAsync(canPlayLocally);
+        await harness.DispatchAsync("PlayWordAudio");
+        harness.Speech.SynthesisCount.Should().Be(1);
+
+        await harness.DispatchAsync("OpenSentenceShortcut");
+
+        if (canPlayLocally)
+            harness.Audio.Players.Should().ContainSingle().Which.Events.Should().Equal("play@1", "stop");
+        else
+            harness.Js.Calls.Select(call => call.Identifier).Should().EndWith("audioInterop.stop");
     }
 
     [Fact]
     public async Task NoPromptAudioStartsInTheShortcut()
     {
-        await using var harness = await ActivityPageHarness.CreateAsync();
-        var quiz = Quiz(harness);
-        Set(quiz, "isSentenceShortcutMode", true);
+        await using var harness = await OpenQuizAsync();
+        await harness.DispatchAsync("OpenSentenceShortcut");
 
-        await (Task)Method("PlayWordAudio").Invoke(quiz, null)!;
+        // An autoplay queued before the shortcut opened.
+        await harness.DispatchAsync("PlayWordAudio");
 
         harness.Speech.Requests.Should().BeEmpty();
         harness.Audio.Players.Should().BeEmpty();
-        harness.Js.Calls.Should().BeEmpty();
     }
 
-    /// <summary>The quiz on a NativeToTarget turn, with only what audio and the shortcut read.</summary>
-    private static VocabQuiz Quiz(ActivityPageHarness? harness = null)
+    private static void AssertTargetOnly(string html, VocabularyWord word)
     {
-        var quiz = new VocabQuiz();
-        Set(quiz, "currentItem", new VocabularyQuizItem
+        html.Should().Contain(word.TargetLanguageTerm);
+        foreach (var (_, native) in Words)
+            Regex.IsMatch(html, $@"\b{Regex.Escape(native)}\b", RegexOptions.IgnoreCase)
+                .Should().BeFalse($"no translation (\"{native}\") is on the page while the learner writes");
+    }
+
+    private static void AssertNothingPlayed(ActivityPageHarness harness)
+    {
+        harness.Audio.Players.Should().BeEmpty();
+        harness.Js.Calls.Should().NotContain(call => call.Identifier == "audioInterop.loadFromBase64"
+            || call.Identifier == "audioInterop.startPlayback");
+    }
+
+    /// <summary>A graded sentence, as SubmitSentenceShortcut leaves it, then the page drawn again.</summary>
+    private static async Task ShowGradedResultAsync(ActivityPageHarness harness, string target)
+    {
+        var resultType = typeof(VocabQuiz).GetNestedType("SentenceShortcutResult", BindingFlags.NonPublic)!;
+        var result = Activator.CreateInstance(resultType,
+            $"Graded: {target}", true, $"{target} is used correctly.", 90.0, 85.0, "", "", "", "")!;
+        harness.Get<IList>("sentenceShortcutResults").Add(result);
+        harness.Set("sentenceShortcutSuccessCount", 1);
+        await harness.DispatchAsync("OnCultureChanged");
+    }
+
+    /// <summary>The quiz on the learner's own words, NativeToTarget, autoplay off.</summary>
+    private static async Task<ActivityPageHarness> OpenQuizAsync(bool canPlayLocally = true)
+    {
+        var harness = await ActivityPageHarness.CreateAsync(AddQuizServices);
+        harness.Audio.CanPlayLocally = canPlayLocally;
+        var preferences = harness.Services.GetRequiredService<VocabularyQuizPreferences>();
+        preferences.DisplayDirection = "NativeToTarget";
+        preferences.AutoPlayVocabAudio = false;
+        await harness.WithDbAsync(async db =>
         {
-            Word = new VocabularyWord
+            var resource = new LearningResource
             {
                 Id = Guid.NewGuid().ToString(),
-                TargetLanguageTerm = Target,
-                NativeLanguageTerm = Native,
+                Title = "Owner words",
                 Language = "Korean",
+                UserProfileId = ActivityPageHarness.OwnerA,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            db.LearningResources.Add(resource);
+            foreach (var (target, native) in Words)
+            {
+                var word = new VocabularyWord
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    TargetLanguageTerm = target,
+                    NativeLanguageTerm = native,
+                    Language = "Korean",
+                    LexicalUnitType = LexicalUnitType.Word,
+                    UserProfileId = ActivityPageHarness.OwnerA,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                db.VocabularyWords.Add(word);
+                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                {
+                    Id = Guid.NewGuid().ToString(), ResourceId = resource.Id, VocabularyWordId = word.Id
+                });
             }
+            return await db.SaveChangesAsync();
         });
-        Set(quiz, "promptUsesNativeLanguage", true);
-        if (harness is null)
-            return quiz;
-
-        var services = harness.Services;
-        Set(quiz, "StreamHistoryRepo", services.GetRequiredService<StreamHistoryRepository>());
-        Set(quiz, "FileSystemService", services.GetRequiredService<IFileSystemService>());
-        Set(quiz, "Connectivity", services.GetRequiredService<IConnectivityService>());
-        Set(quiz, "SpeechService", services.GetRequiredService<ElevenLabsSpeechService>());
-        Set(quiz, "VoicePrefs", services.GetRequiredService<SpeechVoicePreferences>());
-        Set(quiz, "AudioPlayerFactory", services.GetRequiredService<IAudioPlayerFactory>());
-        Set(quiz, "JS", services.GetRequiredService<IJSRuntime>());
-        Set(quiz, "Localize", new BlazorLocalizationService());
-        Set(quiz, "Toast", services.GetRequiredService<ToastService>());
-        Set(quiz, "Logger", NullLogger<VocabQuiz>.Instance);
-        return quiz;
+        await harness.RenderAsync<VocabQuiz>();
+        await harness.WaitUntilAsync(() => harness.Get<VocabularyQuizItem?>("currentItem") is not null);
+        return harness;
     }
 
-    /// <summary>The sentence card: from the shortcut branch to the end of its editor form.</summary>
-    private static string SentenceCardMarkup()
+    /// <summary>The quiz's services beyond the harness's shared set; grading AI is never called.</summary>
+    private static void AddQuizServices(IServiceCollection services)
     {
-        var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "SentenceStudio.UI", "Pages", "VocabQuiz.razor"));
-        var start = source.IndexOf("@if (isSentenceShortcutMode)", StringComparison.Ordinal);
-        var end = source.IndexOf("</form>", start, StringComparison.Ordinal);
-        start.Should().BeGreaterThanOrEqualTo(0);
-        end.Should().BeGreaterThan(start);
-        // Razor comments are not rendered.
-        return Regex.Replace(source[start..end], @"@\*.*?\*@", "", RegexOptions.Singleline);
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Settings:OpenAIKey"] = "fixture-only" })
+            .Build());
+        services.AddHttpClient();
+        services.AddSingleton<IChatClient>(ThrowingStub<IChatClient>.Create());
+        services.AddSingleton<AiService>();
+        services.AddSingleton<TeacherService>();
+        services.AddSingleton<LearningResourceRepository>();
+        services.AddSingleton<SkillProfileRepository>();
+        services.AddSingleton<VocabQuizLaunchValidator>();
+        services.AddSingleton<VocabularyProgressRepository>();
+        services.AddSingleton<VocabularyLearningContextRepository>();
+        services.AddSingleton<VocabularyProgressService>();
+        services.AddSingleton<ProgressCacheService>();
+        services.AddSingleton<IProgressService>(ThrowingStub<IProgressService>.Create());
+        services.AddSingleton<IActivitySessionService, ActivitySessionService>();
+        services.AddSingleton<VocabularyQuizPreferences>();
+        services.AddSingleton(new PhotoViewerCoordinator(
+            ThrowingStub<IPhotoViewerService>.Create(), NullLogger<PhotoViewerCoordinator>.Instance));
+        services.AddScoped<ExampleSentenceRepository>();
+        services.AddSingleton<LanguageSegmenterFactory>();
+        services.AddSingleton<IActivityTimerService>(new LeasingTimer());
     }
 
-    private static MethodInfo Method(string name) =>
-        typeof(VocabQuiz).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException(nameof(VocabQuiz), name);
-
-    private static T Get<T>(object page, string name) =>
-        (T)typeof(VocabQuiz).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
-
-    private static void Set(object page, string name, object? value)
+    /// <summary>Grants the quiz its timer lease; the timer itself is not under test.</summary>
+    private sealed class LeasingTimer : IActivityTimerService
     {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-        var type = page.GetType();
-        if (type.GetProperty(name, flags) is { } property)
-            property.SetValue(page, value);
-        else if (type.GetField(name, flags) is { } field)
-            field.SetValue(page, value);
-        else
-            throw new MissingMemberException(type.Name, name);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src")))
-            dir = dir.Parent;
-        return dir?.FullName ?? throw new InvalidOperationException("repository root not found");
+        public bool IsActive => false;
+        public bool IsRunning => false;
+        public TimeSpan ElapsedTime => TimeSpan.Zero;
+        public string? CurrentActivityType => null;
+        public string? CurrentActivityId => null;
+        public event EventHandler? TimerStateChanged { add { } remove { } }
+        public event EventHandler<TimeSpan>? TimerTick { add { } remove { } }
+        public ActivityTimerLease StartSession(
+            string activityType, string? activityId = null, string? resourceId = null, string? skillId = null)
+            => new(Guid.NewGuid(), 1, ActivityPageHarness.OwnerA, activityType, activityId);
+        public Task<ActivityTimerLease?> StartValidatedSessionAsync(
+            ActivityTimerStartRequest request, CancellationToken ct = default)
+            => Task.FromResult<ActivityTimerLease?>(
+                new(Guid.NewGuid(), 1, request.UserId, request.ActivityType.ToString(), null));
+        public void Pause() { }
+        public bool Pause(ActivityTimerLease lease) => true;
+        public void Resume() { }
+        public bool Resume(ActivityTimerLease lease) => true;
+        public TimeSpan StopSession() => TimeSpan.Zero;
+        public TimeSpan StopSession(ActivityTimerLease lease) => TimeSpan.Zero;
+        public void CancelSession() { }
+        public bool CancelSession(ActivityTimerLease lease) => true;
     }
 }

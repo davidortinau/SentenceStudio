@@ -292,6 +292,15 @@ public sealed class ActivityPageHarness : IAsyncDisposable
     {
         public const double Duration = 30.0;
         public List<(string Identifier, object?[] Args)> Calls { get; } = new();
+        /// <summary>
+        /// The next call with this identifier (for example <c>audioInterop.startPlayback</c>) waits
+        /// until <c>audioInterop.stop</c> aborts it, as the browser rejects an interrupted
+        /// load or play. It does not observe its cancellation token.
+        /// </summary>
+        public string? HoldUntilStop { get; set; }
+        /// <summary>Completes when the held call arrives.</summary>
+        public TaskCompletionSource HoldReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource? _held;
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
             InvokeAsync<TValue>(identifier, CancellationToken.None, args);
@@ -300,6 +309,8 @@ public sealed class ActivityPageHarness : IAsyncDisposable
             string identifier, CancellationToken cancellationToken, object?[]? args)
         {
             Calls.Add((identifier, args ?? []));
+            if (identifier == "audioInterop.stop" && Interlocked.Exchange(ref _held, null) is { } held)
+                held.TrySetException(new JSException("The play() request was interrupted by a call to pause()."));
             object? result = identifier switch
             {
                 "audioInterop.loadFromBase64" or "audioInterop.getDuration" => Duration,
@@ -307,7 +318,20 @@ public sealed class ActivityPageHarness : IAsyncDisposable
                 "import" => new NoOpModule(),
                 _ => null,
             };
-            return ValueTask.FromResult(result is TValue typed ? typed : default(TValue)!);
+            var value = result is TValue typed ? typed : default(TValue)!;
+            if (identifier != HoldUntilStop)
+                return ValueTask.FromResult(value);
+            HoldUntilStop = null;
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _held = gate;
+            HoldReached.TrySetResult();
+            return new ValueTask<TValue>(HeldAsync(gate.Task, value));
+        }
+
+        private static async Task<TValue> HeldAsync<TValue>(Task gate, TValue value)
+        {
+            await gate;
+            return value;
         }
 
         private sealed class NoOpModule : IJSObjectReference
