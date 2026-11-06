@@ -204,6 +204,8 @@ internal static class YouTubeImportView
             .WithLabelsHidden()
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier($"{id}.active");
+        // The switch waits while its change is saved.
+        monitor.IsEnabled = !channel.IsSaving;
         var row = Views.HStack(open, monitor).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap + 4;
         return style.Card(row.WithPadding(SourceUiLayout.CardInset))

@@ -8,10 +8,13 @@ namespace SentenceStudio.Native.Features.Import;
 /// <summary>Source MediaImport.razor Tab (the button group); the page opens on My Channels.</summary>
 public enum YouTubeImportTab { Channels, SingleVideo, History }
 
-/// <summary>A My Channels card (source: the channel's name or handle, handle, language, last check, switch).</summary>
+/// <summary>
+/// A My Channels card (source: the channel's name or handle, handle, language, last check, switch).
+/// <see cref="IsSaving"/>: the switch's change is being saved, so the switch waits.
+/// </summary>
 public sealed record YouTubeChannelRow(
     string Id, string? ChannelName, string? ChannelHandle, string? Language,
-    DateTime? LastCheckedAt, bool IsActive);
+    DateTime? LastCheckedAt, bool IsActive, bool IsSaving = false);
 
 /// <summary>
 /// An Import History row (source: badge, title, channel, date, Retry). <see cref="IsManual"/>
@@ -105,6 +108,8 @@ public sealed class YouTubeImportCoordinator : IDisposable
     private bool _blocked;
     private bool _disposed;
     private long _operation;
+    private long _polishRun;
+    private long _downloadRun;
     private bool _polling;
     private Task? _pollLoop;
 
@@ -129,6 +134,10 @@ public sealed class YouTubeImportCoordinator : IDisposable
     private int _importsDisplayCount = ImportsPageSize;
     private string? _retryingImportId;
     private ImmutableArray<NativeMessage> _messages = [];
+    private readonly HashSet<string> _savingChannels = new(StringComparer.Ordinal);
+    // When this page last retried an import: its stored CreatedAt is still the first run's, so
+    // "stuck" counts from the retry (the server would accept a second retry at once).
+    private readonly Dictionary<string, DateTime> _retriedAt = new(StringComparer.Ordinal);
 
     public YouTubeImportCoordinator(INativeYouTubeImport import, DeviceUserScopeProvider userScope,
         ILogger<YouTubeImportCoordinator> logger, Func<DateTime>? utcNow = null,
@@ -174,7 +183,7 @@ public sealed class YouTubeImportCoordinator : IDisposable
                 .ToImmutableArray();
             var channels = _channels.Select(channel => new YouTubeChannelRow(channel.Id,
                 channel.ChannelName, channel.ChannelHandle, channel.Language, channel.LastCheckedAt,
-                channel.IsActive)).ToImmutableArray();
+                channel.IsActive, _savingChannels.Contains(channel.Id))).ToImmutableArray();
             return new(_open, _blocked, _tab, _videoUrl, _isLoadingTranscripts, _isLoadingTranscript,
                 _isPolishing, _isSaving, tracks,
                 _selectedTrack is null ? -1 : _tracks.IndexOf(_selectedTrack),
@@ -362,6 +371,7 @@ public sealed class YouTubeImportCoordinator : IDisposable
     {
         if (_selectedTrack is not { } track)
             return;
+        var run = ++_downloadRun;
         _isLoadingTranscript = true;
         Notify();
         try
@@ -386,8 +396,14 @@ public sealed class YouTubeImportCoordinator : IDisposable
         }
         finally
         {
-            if (IsCurrent(operation))
+            // The download is over even when a newer action replaced its result (source: the
+            // flag always clears); only a newer download keeps it.
+            if (!_disposed && run == _downloadRun)
+            {
                 _isLoadingTranscript = false;
+                if (!IsCurrent(operation))
+                    Notify();
+            }
         }
     }
 
@@ -399,6 +415,7 @@ public sealed class YouTubeImportCoordinator : IDisposable
         if (!CanPolish || !TryOwner(out var owner))
             return;
         var operation = ++_operation;
+        var run = ++_polishRun;
         var text = _transcriptText;
         var language = _selectedTrack?.LanguageCode;
         var token = _lifetime.Token;
@@ -428,7 +445,9 @@ public sealed class YouTubeImportCoordinator : IDisposable
         }
         finally
         {
-            if (IsCurrent(operation))
+            // Source: the button comes back when the polish ends, also when Fetch, another track
+            // or Save replaced its result meanwhile; only a newer polish keeps it busy.
+            if (!_disposed && run == _polishRun)
             {
                 _isPolishing = false;
                 Notify();
@@ -566,15 +585,24 @@ public sealed class YouTubeImportCoordinator : IDisposable
         }
     }
 
-    /// <summary>Source ToggleChannelActive: the switch saves at once; a failure puts it back.</summary>
+    /// <summary>
+    /// Source ToggleChannelActive: the switch saves at once; a failure puts it back. The switch
+    /// waits while its change is saved, the request carries its own copy of the channel (a reload
+    /// can replace the shown row meanwhile), and a failure restores the value before the tap.
+    /// </summary>
     public async Task ToggleChannelActiveAsync(string channelId)
     {
-        if (!_open || _blocked || _disposed || !TryOwner(out var owner))
+        if (!_open || _blocked || _disposed || _savingChannels.Contains(channelId)
+            || !TryOwner(out var owner))
             return;
         var channel = _channels.FirstOrDefault(row => row.Id == channelId);
         if (channel is null)
             return;
-        channel.IsActive = !channel.IsActive;
+        var before = channel.IsActive;
+        var sent = Snapshot(channel);
+        sent.IsActive = !before;
+        channel.IsActive = !before;
+        _savingChannels.Add(channelId);
         _messages = [];
         Notify();
         try
@@ -582,12 +610,12 @@ public sealed class YouTubeImportCoordinator : IDisposable
             var token = _lifetime.Token;
             await OffUiAsync(async () =>
             {
-                await _import.UpdateChannelAsync(owner, channel, token);
+                await _import.UpdateChannelAsync(owner, sent, token);
                 return true;
             });
             if (_disposed || !TryOwner(out _))
                 return;
-            _messages = _messages.Add(NativeMessage.Success(channel.IsActive
+            _messages = _messages.Add(NativeMessage.Success(sent.IsActive
                 ? "Import_ChannelResumed" : "Import_ChannelPaused"));
         }
         catch (OperationCanceledException) when (_disposed)
@@ -595,21 +623,39 @@ public sealed class YouTubeImportCoordinator : IDisposable
         }
         catch (UnauthorizedAccessException ex)
         {
-            channel.IsActive = !channel.IsActive;
+            channel.IsActive = before;
             OnOwnerRefused(ex, _operation);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle channel active state");
-            channel.IsActive = !channel.IsActive; // Revert
+            channel.IsActive = before; // Revert
             if (!_disposed)
                 _messages = _messages.Add(NativeMessage.Error("YouTubeImport_UpdateChannelFailed"));
         }
         finally
         {
+            _savingChannels.Remove(channelId);
             Notify();
         }
     }
+
+    /// <summary>The channel's fields as they are now, for one request.</summary>
+    private static MonitoredChannel Snapshot(MonitoredChannel channel) => new()
+    {
+        Id = channel.Id,
+        UserProfileId = channel.UserProfileId,
+        ChannelUrl = channel.ChannelUrl,
+        ChannelName = channel.ChannelName,
+        ChannelHandle = channel.ChannelHandle,
+        YouTubeChannelId = channel.YouTubeChannelId,
+        LastCheckedAt = channel.LastCheckedAt,
+        IsActive = channel.IsActive,
+        CheckIntervalHours = channel.CheckIntervalHours,
+        Language = channel.Language,
+        CreatedAt = channel.CreatedAt,
+        UpdatedAt = channel.UpdatedAt
+    };
 
     // ---- Import History (source MediaImport.razor:436-588) ----
 
@@ -729,6 +775,8 @@ public sealed class YouTubeImportCoordinator : IDisposable
                     Status = VideoImportStatus.Pending,
                     ErrorMessage = null
                 };
+            // Retry hides until the row fails or is stuck again counting from now.
+            _retriedAt[importId] = _utcNow();
             _messages = _messages.Add(NativeMessage.Info("YouTubeImport_Retrying",
                 import.VideoTitle ?? string.Empty));
             StartPolling();
@@ -885,9 +933,13 @@ public sealed class YouTubeImportCoordinator : IDisposable
         var channel = manual ? null : _channels.FirstOrDefault(row => row.Id == import.MonitoredChannelId);
         // An import without its creation time (an API before B79) is never taken as stuck. The
         // time is compared as an instant: one sent with an offset parses as device-local time.
+        // A row this page retried counts from the retry: its CreatedAt is still the first run's.
+        var since = import.CreatedAt?.ToUniversalTime();
+        if (_retriedAt.TryGetValue(import.Id, out var retried) && (since is null || retried > since))
+            since = retried;
         var stuck = import.Status != VideoImportStatus.Failed
             && import.Status != VideoImportStatus.Completed
-            && import.CreatedAt is { } created && created.ToUniversalTime() < now - StuckAfter;
+            && since is { } from && from < now - StuckAfter;
         return new(import.Id, import.VideoTitle, manual, channel?.ChannelName ?? channel?.ChannelHandle,
             import.Status, import.ErrorMessage, import.CreatedAt, import.LearningResourceId, stuck);
     }

@@ -197,6 +197,129 @@ public sealed class NativeYouTubeChannelsTests
     }
 
     [Fact]
+    public async Task History_AJustRetriedRow_HidesRetry_UntilItFailsOrIsStuckAgain()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var import = new ScratchImport();
+        import.Imports.Add(Record("stuck", VideoImportStatus.FetchingTranscript, Now.AddMinutes(-30)));
+        var now = Now;
+        using var page = new YouTubeImportCoordinator(import, fixture.UserScope,
+            NullLogger<YouTubeImportCoordinator>.Instance, () => now, TimeSpan.FromHours(1));
+        Assert.True(await page.OpenAsync(A));
+        Assert.True(page.State.DisplayedImports.Single().CanRetry);
+
+        await page.RetryImportAsync("stuck");
+        // Pending again, but its stored CreatedAt is still 30 minutes old: no second Retry.
+        var row = page.State.DisplayedImports.Single();
+        Assert.Equal(VideoImportStatus.Pending, row.Status);
+        Assert.False(row.CanRetry);
+        await page.RetryImportAsync("stuck");
+        Assert.Equal(["stuck"], import.Retried);
+        // The poll shows it running again: still no Retry.
+        import.Imports[0] = import.Imports[0] with { Status = VideoImportStatus.FetchingTranscript };
+        await page.PollOnceAsync(default);
+        Assert.False(page.State.DisplayedImports.Single().CanRetry);
+
+        // Eleven minutes after the retry without finishing: stuck again.
+        now = Now.AddMinutes(11);
+        Assert.True(page.State.DisplayedImports.Single().CanRetry);
+        await page.RetryImportAsync("stuck");
+        Assert.Equal(["stuck", "stuck"], import.Retried);
+        Assert.False(page.State.DisplayedImports.Single().CanRetry);
+        // Failed by fresh data: Retry at once.
+        import.Imports[0] = import.Imports[0] with { Status = VideoImportStatus.Failed, ErrorMessage = "No captions." };
+        await page.PollOnceAsync(default);
+        Assert.True(page.State.DisplayedImports.Single().CanRetry);
+    }
+
+    [Fact]
+    public async Task Polish_And_Download_EndTheirBusyState_WhenAnotherActionStartedMeanwhile()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var import = new ScratchImport();
+        import.Tracks.AddRange(
+        [
+            new TranscriptTrack { LanguageCode = "ko", LanguageName = "Korean" },
+            new TranscriptTrack { LanguageCode = "en", LanguageName = "English" },
+        ]);
+        using var page = new YouTubeImportCoordinator(import, fixture.UserScope,
+            NullLogger<YouTubeImportCoordinator>.Instance, () => Now, TimeSpan.FromHours(1));
+        Assert.True(await page.OpenAsync(A));
+        page.SwitchTab(YouTubeImportTab.SingleVideo);
+        page.SetVideoUrl("https://www.youtube.com/watch?v=v1");
+        await page.FetchTranscriptsAsync();
+        Assert.Equal("captions ko", page.State.TranscriptText);
+
+        // Save while Polish runs (source: Save stays enabled): Polish's button comes back.
+        import.PolishGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var polishing = page.PolishAsync();
+        await import.PolishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(page.State.IsPolishing);
+        await page.SaveAsResourceAsync();
+        import.PolishGate.SetResult("polished");
+        await polishing;
+        Assert.False(page.State.IsPolishing);
+        Assert.True(page.CanPolish);
+
+        // Fetch while Polish runs: the same.
+        import.ResetPolishStarted();
+        import.PolishGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        polishing = page.PolishAsync();
+        await import.PolishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await page.FetchTranscriptsAsync();
+        import.PolishGate.SetResult("polished");
+        await polishing;
+        Assert.False(page.State.IsPolishing);
+
+        // Polish while another track downloads: the download's spinner ends too.
+        import.PolishGate = null;
+        import.DownloadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selecting = page.SelectTrackAsync(1);
+        Assert.True(page.State.IsLoadingTranscript);
+        await page.PolishAsync();
+        import.DownloadGate.SetResult("captions en");
+        await selecting;
+        Assert.False(page.State.IsLoadingTranscript);
+    }
+
+    [Fact]
+    public async Task Channels_TheSwitchWaitsWhileSaving_SendsACopy_AndAFailureRestoresTheValueBeforeTheTap()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var import = new ScratchImport { UpdateGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        import.Channels.Add(new MonitoredChannel { Id = "c1", ChannelName = "One", UserProfileId = A, IsActive = true });
+        using var page = new YouTubeImportCoordinator(import, fixture.UserScope,
+            NullLogger<YouTubeImportCoordinator>.Instance, () => Now, TimeSpan.FromHours(1));
+        Assert.True(await page.OpenAsync(A));
+
+        var saving = page.ToggleChannelActiveAsync("c1");
+        await import.UpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var row = Assert.Single(page.State.Channels);
+        Assert.False(row.IsActive);
+        Assert.True(row.IsSaving);
+        // A second tap while the first is saved does nothing.
+        await page.ToggleChannelActiveAsync("c1");
+        var sent = Assert.Single(import.Sent);
+        Assert.False(sent.IsActive);
+        // The request has its own copy: the shown row is not the object being sent.
+        Assert.NotSame(import.Channels[0], sent);
+
+        import.UpdateFailure = new HttpRequestException("down");
+        import.UpdateGate!.SetResult();
+        await saving;
+        row = Assert.Single(page.State.Channels);
+        Assert.True(row.IsActive); // the value before the tap
+        Assert.False(row.IsSaving);
+        Assert.Contains(page.State.Messages, message => message.Key == "YouTubeImport_UpdateChannelFailed");
+    }
+
+    [Fact]
     public async Task History_ShowMore_AndChannels_ToggleMonitoring()
     {
         using var fixture = new NativeSliceFixture();
@@ -441,6 +564,18 @@ public sealed class NativeYouTubeChannelsTests
         public bool AddResolved { get; set; } = true;
         public string? ResolveTo { get; set; }
         public Exception? UpdateFailure { get; set; }
+        public List<TranscriptTrack> Tracks { get; } = [];
+        public TaskCompletionSource<string>? DownloadGate { get; set; }
+        public TaskCompletionSource<string>? PolishGate { get; set; }
+        public TaskCompletionSource PolishStarted { get; private set; } = NewSignal();
+        public TaskCompletionSource? UpdateGate { get; set; }
+        public TaskCompletionSource UpdateStarted { get; } = NewSignal();
+        /// <summary>The channel objects the page sent, as sent (not copies).</summary>
+        public List<MonitoredChannel> Sent { get; } = [];
+
+        private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void ResetPolishStarted() => PolishStarted = NewSignal();
 
         private Task<T> As<T>(string owner, T value)
         {
@@ -451,17 +586,32 @@ public sealed class NativeYouTubeChannelsTests
         public Task<string?> GetTargetLanguageAsync(string owner, CancellationToken token) => As(owner, TargetLanguage);
         public Task<string?> GetVideoTitleAsync(string owner, string videoUrl, CancellationToken token) => As<string?>(owner, null);
         public Task<IReadOnlyList<TranscriptTrack>> GetTracksAsync(string owner, string videoUrl, CancellationToken token) =>
-            As<IReadOnlyList<TranscriptTrack>>(owner, []);
-        public Task<string> DownloadTranscriptAsync(string owner, TranscriptTrack track, CancellationToken token) => As(owner, string.Empty);
-        public Task<string> PolishAsync(string owner, string transcript, string? languageCode, CancellationToken token) => As(owner, transcript);
+            As<IReadOnlyList<TranscriptTrack>>(owner, Tracks.ToList());
+
+        public Task<string> DownloadTranscriptAsync(string owner, TranscriptTrack track, CancellationToken token)
+        {
+            Owners.Add(owner);
+            return DownloadGate?.Task ?? Task.FromResult("captions " + track.LanguageCode);
+        }
+
+        public Task<string> PolishAsync(string owner, string transcript, string? languageCode, CancellationToken token)
+        {
+            Owners.Add(owner);
+            PolishStarted.TrySetResult();
+            return PolishGate?.Task ?? Task.FromResult(transcript);
+        }
         public Task<NativeYouTubeSaved> SaveResourceAsync(string owner, NativeYouTubeResourceDraft draft, CancellationToken token) =>
             As(owner, new NativeYouTubeSaved("r"));
         public Task<IReadOnlyList<MonitoredChannel>> ListChannelsAsync(string owner, CancellationToken token) =>
             As<IReadOnlyList<MonitoredChannel>>(owner, Channels.Where(row => row.UserProfileId == owner).ToList());
 
-        public Task UpdateChannelAsync(string owner, MonitoredChannel channel, CancellationToken token)
+        public async Task UpdateChannelAsync(string owner, MonitoredChannel channel, CancellationToken token)
         {
             Owners.Add(owner);
+            Sent.Add(channel);
+            UpdateStarted.TrySetResult();
+            if (UpdateGate is { } gate)
+                await gate.Task;
             if (UpdateFailure is not null)
                 throw UpdateFailure;
             Updated.Add(new MonitoredChannel
@@ -469,7 +619,6 @@ public sealed class NativeYouTubeChannelsTests
                 Id = channel.Id, IsActive = channel.IsActive, YouTubeChannelId = channel.YouTubeChannelId,
                 ChannelUrl = channel.ChannelUrl
             });
-            return Task.CompletedTask;
         }
 
         public Task<IReadOnlyList<NativeYouTubeImportRecord>> ListImportsAsync(string owner, CancellationToken token) =>
