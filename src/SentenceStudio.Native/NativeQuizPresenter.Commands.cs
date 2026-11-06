@@ -35,7 +35,10 @@ public sealed partial class NativeQuizPresenter
             if (await media.PlayPromptAsync(text, language, playback.Token))
                 return AudioOutcome.Heard;
             cancellationToken.ThrowIfCancellationRequested();
-            return playback.IsCancellationRequested ? AudioOutcome.Stopped : AudioOutcome.Failed;
+            if (playback.IsCancellationRequested)
+                return AudioOutcome.Stopped;
+            logger.LogWarning("Quiz audio did not play.");
+            return AudioOutcome.Failed;
         }
         catch (OperationCanceledException) when (
             !cancellationToken.IsCancellationRequested && playback.IsCancellationRequested)
