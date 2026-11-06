@@ -1314,7 +1314,8 @@ public class ContentImportServiceTests : IDisposable
                     Status = RowStatus.Ok,
                     IsSelected = true
                 }
-            }
+            },
+            SourceText = "안녕하세요, 저는 제인입니다. 만나서 반가워요."
         };
 
         var commitRequest = new ContentImportCommit
@@ -1356,33 +1357,8 @@ public class ContentImportServiceTests : IDisposable
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var result = await service.CommitImportAsync(new ContentImportCommit
-        {
-            Preview = new ContentImportPreview
-            {
-                Rows = new List<ImportRow>
-                {
-                    new()
-                    {
-                        RowNumber = 1,
-                        TargetLanguageTerm = "식사", // edited from 밥
-                        NativeLanguageTerm = "meal",
-                        SourceSentence = "밥을 먹었어요.",
-                        SourceSentenceTranslation = "I ate rice.",
-                        Status = RowStatus.Ok,
-                        IsSelected = true
-                    }
-                }
-            },
-            Target = new ImportTarget
-            {
-                Mode = ImportTargetMode.New,
-                NewResourceTitle = "Edited term keeps its sentence",
-                TargetLanguage = "Korean",
-                NativeLanguage = "English"
-            },
-            DedupMode = DedupMode.Skip
-        });
+        var result = await service.CommitImportAsync(EditedTermCommit(reviewedByLearner: true,
+            sourceText: "오늘 밥을 먹었어요. 맛있었어요!"));
 
         var word = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "식사");
         var example = await dbContext.ExampleSentences.SingleAsync();
@@ -1391,6 +1367,135 @@ public class ContentImportServiceTests : IDisposable
         example.NativeSentence.Should().Be("I ate rice.");
         example.UserProfileId.Should().Be(_testUserId);
         example.LearningResourceId.Should().Be(result.ResourceId);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_EditedTerm_UnattendedImportNeverSkipsTheTermCheck()
+    {
+        // The share sheet and shared links commit without a reviewed preview: a kept sentence
+        // must contain its word there, whatever the row's parsed term says.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        await service.CommitImportAsync(EditedTermCommit(reviewedByLearner: false,
+            sourceText: "오늘 밥을 먹었어요. 맛있었어요!"));
+
+        (await dbContext.VocabularyWords.AnyAsync(w => w.TargetLanguageTerm == "식사")).Should().BeTrue();
+        (await dbContext.ExampleSentences.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_EditedTerm_StillNeedsTheSentenceInThePastedText()
+    {
+        // An edited term skips only the word check: a sentence the AI did not copy from the
+        // pasted text (or a commit that carries no text) is not kept.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        await service.CommitImportAsync(EditedTermCommit(reviewedByLearner: true,
+            sourceText: "오늘 학교에 갔어요."));
+        await service.CommitImportAsync(EditedTermCommit(reviewedByLearner: true, sourceText: null));
+
+        (await dbContext.ExampleSentences.AnyAsync()).Should().BeFalse();
+    }
+
+    private static ContentImportCommit EditedTermCommit(bool reviewedByLearner, string? sourceText) => new()
+    {
+        Preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new()
+                {
+                    RowNumber = 1,
+                    ParsedTargetLanguageTerm = "밥",
+                    TargetLanguageTerm = "식사", // edited from 밥
+                    NativeLanguageTerm = "meal",
+                    SourceSentence = "밥을 먹었어요.",
+                    SourceSentenceTranslation = "I ate rice.",
+                    Status = RowStatus.Ok,
+                    IsSelected = true
+                }
+            },
+            SourceText = sourceText
+        },
+        Target = new ImportTarget
+        {
+            Mode = ImportTargetMode.New,
+            NewResourceTitle = "Edited term keeps its sentence",
+            TargetLanguage = "Korean",
+            NativeLanguage = "English"
+        },
+        DedupMode = DedupMode.Skip,
+        ReviewedByLearner = reviewedByLearner
+    };
+
+    [Fact]
+    public async Task CommitImportAsync_SourceSentence_WordListAndMixedLanguageLinesAreNotKept()
+    {
+        // Learning Value Gate (B72 review): a kept example is a TargetToNative quiz hint, so a
+        // line that carries the meaning must not become one. Only the real Korean sentence from
+        // the pasted text is kept.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        const string pasted = "사과 - apple\n바나나, banana\nI ate 김치 today.\n시간이 없어요\n물을 마셨어요. 밥을 먹었어요.";
+
+        await service.CommitImportAsync(new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    // A word-list line that pairs the term with its translation.
+                    new() { RowNumber = 1, TargetLanguageTerm = "사과", NativeLanguageTerm = "apple",
+                        SourceSentence = "사과 - apple", SourceSentenceTranslation = "apple",
+                        Status = RowStatus.Ok, IsSelected = true },
+                    new() { RowNumber = 2, TargetLanguageTerm = "바나나", NativeLanguageTerm = "banana",
+                        SourceSentence = "바나나, banana", Status = RowStatus.Ok, IsSelected = true },
+                    // An English line with one Korean word.
+                    new() { RowNumber = 3, TargetLanguageTerm = "김치", NativeLanguageTerm = "kimchi",
+                        SourceSentence = "I ate 김치 today.", SourceSentenceTranslation = "I ate kimchi today.",
+                        Status = RowStatus.Ok, IsSelected = true },
+                    // A full-line phrase restating itself.
+                    new() { RowNumber = 4, TargetLanguageTerm = "시간이 없어요", NativeLanguageTerm = "I have no time",
+                        LexicalUnitType = LexicalUnitType.Phrase,
+                        SourceSentence = "시간이 없어요.", Status = RowStatus.Ok, IsSelected = true },
+                    // A sentence the AI invented (not in the pasted text).
+                    new() { RowNumber = 5, TargetLanguageTerm = "빵", NativeLanguageTerm = "bread",
+                        SourceSentence = "빵을 샀어요.", Status = RowStatus.Ok, IsSelected = true },
+                    // The real sentences (spacing and punctuation may differ; a verb is found by
+                    // its stem, 먹다 in 먹었어요).
+                    new() { RowNumber = 6, TargetLanguageTerm = "물", NativeLanguageTerm = "water",
+                        SourceSentence = "물을  마셨어요", SourceSentenceTranslation = "I drank water.",
+                        Status = RowStatus.Ok, IsSelected = true },
+                    new() { RowNumber = 7, TargetLanguageTerm = "먹다", NativeLanguageTerm = "to eat",
+                        SourceSentence = "밥을 먹었어요", SourceSentenceTranslation = "I ate rice.",
+                        Status = RowStatus.Ok, IsSelected = true }
+                },
+                SourceText = pasted
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Mixed paste",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip,
+            ReviewedByLearner = true
+        });
+
+        var examples = await dbContext.ExampleSentences.ToListAsync();
+        var water = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "물");
+        var eat = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "먹다");
+        examples.Select(e => (e.VocabularyWordId, e.TargetSentence)).Should().BeEquivalentTo(new[]
+        {
+            (water.Id, "물을  마셨어요"),
+            (eat.Id, "밥을 먹었어요")
+        });
     }
 
     [Fact]
@@ -1441,7 +1546,8 @@ public class ContentImportServiceTests : IDisposable
                     // A row the learner did not keep: no word and no example.
                     new() { RowNumber = 4, TargetLanguageTerm = "빵", NativeLanguageTerm = "bread",
                         SourceSentence = "빵을 샀어요.", Status = RowStatus.Ok, IsSelected = false }
-                }
+                },
+                SourceText = "밥을 먹었어요. 물을 마셨어요. 빵을 샀어요."
             },
             Target = new ImportTarget
             {

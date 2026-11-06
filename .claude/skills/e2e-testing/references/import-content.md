@@ -441,6 +441,30 @@
 
 ---
 
+## Test Scenario 16: Source Sentences Become Examples Only When They Teach (B72)
+
+**Goal**: A kept example is a TargetToNative quiz hint (`VocabQuizSentenceHintPolicy`), so only a
+real target-language sentence from the pasted text is saved; a line that carries the meaning is not.
+Requires AI. Use a test account (e2e@test.local or testsailor@test.local), never a real one.
+
+### Steps:
+1. Paste a mixed word list plus a real paragraph, for example:
+   `사과 - apple`, `바나나, banana`, `I ate 김치 today.`, then
+   `오늘 학교에서 친구랑 밥을 먹었어요. 정말 맛있었어요!`
+2. Content type Vocabulary (free text), Preview, then Import to a new resource.
+3. Read the account's `ExampleSentence` rows for that resource (read-only query).
+   - Saved: only sentences that appear in the paste, contain their word and none of its translation
+     (for example 밥 or 친구 with `오늘 학교에서 친구랑 밥을 먹었어요.`).
+   - Not saved: `사과 - apple`, `바나나, banana`, `I ate 김치 today.`, a word's own term, a full-line
+     Phrase restating itself, or a sentence the AI invented.
+4. Edit one row's term in the preview before importing: its sentence is still saved (it is in the
+   paste); the same edit through the share sheet (unattended) saves no sentence without the word.
+5. Start a Vocabulary Quiz on the resource, TargetToNative: the hint button lists only the saved
+   sentences, and none shows the answer. NativeToTarget shows no hint button.
+6. Only the test account's rows changed (count other owners' rows before and after).
+
+---
+
 ## Post-Test Cleanup
 
 After all scenarios:

@@ -32,10 +32,10 @@ public class ExtractedVocabularyItemWithConfidence
     [Description("Optional notes about uncertainty or extraction context")]
     public string? Notes { get; set; }
 
-    [Description("Actual source sentence containing this item, when available from the extraction prompt")]
+    [Description("The target-language sentence from the input that this Word, Phrase or Idiom was taken from, copied exactly as written (one sentence). Empty when the entry did not come from a target-language sentence: a word-list line, a term paired with its translation, a native-language or mixed-language line, or an entry that is the whole sentence or line itself")]
     public string? ExampleSentence { get; set; }
 
-    [Description("Native-language translation of ExampleSentence, when available")]
+    [Description("Native-language translation of ExampleSentence (the given translation when the input has one); empty when ExampleSentence is empty")]
     public string? ExampleSentenceTranslation { get; set; }
 
     [Description("noun, verb, adjective, adverb, expression, counter, or particle")]
