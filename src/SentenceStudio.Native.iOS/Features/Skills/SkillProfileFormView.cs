@@ -108,8 +108,10 @@ internal static class SkillProfileFormView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.skills.form.scroll.content");
         content.Spacing = SourceUiLayout.FormGap;
+        // A drag into the keyboard puts it away: the description's Return adds a line.
         var page = style.Page(Views.Scroll(content)
-                .WithAccessibilityIdentifier("native.skills.form.scroll"))
+                .WithAccessibilityIdentifier("native.skills.form.scroll")
+                .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively))
             .WithAccessibilityIdentifier(state.Creating
                 ? "native.skills.add.screen" : "native.skills.edit.screen");
         if (!editable)

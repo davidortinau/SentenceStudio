@@ -164,8 +164,10 @@ internal static class VocabularyWordEditView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.vocabulary.edit.scroll.content");
         content.Spacing = SourceUiLayout.PageGap;
+        // A drag into the keyboard puts it away: the mnemonic's Return adds a line.
         return style.Page(Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.scroll"));
+            .WithAccessibilityIdentifier("native.vocabulary.edit.scroll")
+            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively));
     }
 
     private static SwiftView Card(

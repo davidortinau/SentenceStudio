@@ -68,11 +68,12 @@ internal static class ImportContentView
                 .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                 .WithPadding(48)
                 .WithAccessibilityIdentifier("native.import.content.committing"));
-        else if (state.Result is { } result)
-            items.AddRange(Results(import, state, result, style, text, actions));
+        // Blocked first: a result set before the device owner changed is never shown.
         else if (state.Blocked)
             items.Add(style.Alert(Views.Text(text("Import_ProfileNotFound")), success: false)
                 .WithAccessibilityIdentifier("native.import.content.blocked"));
+        else if (state.Result is { } result)
+            items.AddRange(Results(import, state, result, style, text, actions));
         else
             items.AddRange(Wizard(import, state, style, text, drawn, reusableRows));
         // Rows taken from the last draw but not shown in this one (the page moved on) end here.
@@ -85,7 +86,9 @@ internal static class ImportContentView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier(ContentId);
         content.Spacing = SourceUiLayout.FormGap;
-        var page = style.Page(Views.Scroll(content).WithAccessibilityIdentifier(ScrollId));
+        // A drag into the keyboard puts it away: the paste editor's Return adds a line.
+        var page = style.Page(Views.Scroll(content).WithAccessibilityIdentifier(ScrollId)
+            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively));
         if (!state.CanCommit)
             return page;
 

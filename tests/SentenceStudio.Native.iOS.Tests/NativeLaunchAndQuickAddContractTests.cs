@@ -78,6 +78,14 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.DoesNotContain("HasImportContentWork", editor[..editor.IndexOf(';')]);
         Assert.Contains("if (HasLibraryEditor || HasImportContentWork)",
             Source("App/ApplicationController.cs"));
+        // A blocked page never shows a result set before the owner changed (fail closed).
+        var importPage = Source("Features/Import/ImportContentView.cs");
+        var blocked = importPage.IndexOf("else if (state.Blocked)", StringComparison.Ordinal);
+        Assert.InRange(blocked, 0,
+            importPage.IndexOf("else if (state.Result is { } result)", StringComparison.Ordinal));
+        // An import's write makes the Library list stale even if marking it for sync failed.
+        Assert.Contains("_resources?.NoteResourcesWritten();\n        ReadResourcesIfStale();",
+            Source("App/ApplicationController.Import.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
             "MinimalPairs_CreatePair" })

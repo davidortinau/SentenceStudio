@@ -260,8 +260,10 @@ internal static class LearningResourceView
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.resources.form.scroll.content");
         content.Spacing = SourceUiLayout.FormGap;
+        // A drag into the keyboard puts it away: the multiline fields' Return adds a line.
         return style.Page(Views.Scroll(content)
-                .WithAccessibilityIdentifier("native.resources.form.scroll"))
+                .WithAccessibilityIdentifier("native.resources.form.scroll")
+                .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively))
             .WithAccessibilityIdentifier(creating
                 ? "native.resources.add.screen" : "native.resources.edit.screen");
     }

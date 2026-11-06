@@ -533,7 +533,7 @@ public sealed class NativeContentImportTests
         await Preview(new() { RawText = phrases, ContentType = ContentType.Transcript, HarvestTranscript = true });
 
         // The commit's result reasons: empty target, empty native, existing word, repeat in the batch.
-        var result = await Adapter(fixture, new ScratchImportAi()).CommitAsync(A, new ContentImportCommit
+        var result = (await Adapter(fixture, new ScratchImportAi()).CommitAsync(A, new ContentImportCommit
         {
             Preview = new ContentImportPreview
             {
@@ -547,24 +547,20 @@ public sealed class NativeContentImportTests
                 ]
             },
             Target = new ImportTarget { Mode = ImportTargetMode.Existing, ExistingResourceId = fixture.ResourceId(A) }
-        }, default);
+        }, default)).Result!;
         foreach (var reason in result.Items.Select(item => item.Reason).OfType<string>())
             shown.Add((reason, ImportServiceText.Message(reason, Text)));
-        // Not reachable from this page's inputs here: the unknown format (the service throws
-        // first) and a phrase-linked word in Update mode.
-        shown.Add(("Unknown", ImportServiceText.DetectedFormat("Unknown", Text)));
-        shown.Add(("Phrase-linked entries require manual edit",
-            ImportServiceText.Message("Phrase-linked entries require manual edit", Text)));
 
+        // Everything the service produced above maps, and every path above ran: each key was
+        // produced at least once by the service itself.
         Assert.All(shown, text => Assert.True(text.Mapped.StartsWith("<Import_", StringComparison.Ordinal),
             $"The page would show the service's English as is: \"{text.Raw}\""));
-        // Every path above ran: each mapped key was produced at least once.
         var keys = shown.Select(text => text.Mapped).ToHashSet(StringComparer.Ordinal);
-        string[] expected =
+        string[] produced =
         [
             "Import_Format_Csv", "Import_Format_Tsv", "Import_Format_Pipe", "Import_Format_Json",
             "Import_Format_FreeText", "Import_Format_Phrases", "Import_Format_Sentences",
-            "Import_ContentType_Transcript", "Import_Format_Unknown",
+            "Import_ContentType_Transcript",
             "Import_Warn_TranscriptOnly", "Import_Warn_TranscriptNoVocab", "Import_Warn_AiWordExtractionFailed",
             "Import_Warn_AiTranslationFailed", "Import_Warn_TooLargePhrases", "Import_Warn_TooLargeFreeText",
             "Import_Warn_AiExtractionFailed",
@@ -572,9 +568,16 @@ public sealed class NativeContentImportTests
             "Import_RowError_TooLargePhrases", "Import_RowError_TooLargeFreeText", "Import_RowError_NoVocabulary",
             "Import_RowError_AiExtractionFailed", "Import_RowNote_Confidence",
             "Import_Reason_AlreadyExists", "Import_PreviewDuplicate_DuplicateWithinBatch",
-            "Import_Reason_PhraseLinked", "Import_Reason_TargetEmpty", "Import_Reason_NativeEmpty",
+            "Import_Reason_TargetEmpty", "Import_Reason_NativeEmpty",
         ];
-        Assert.All(expected, key => Assert.Contains($"<{key}>", keys));
+        Assert.All(produced, key => Assert.Contains($"<{key}>", keys));
+
+        // Not produced here (the service's own text, copied): the unknown format (the service
+        // throws before it) and a phrase-linked word in Update mode (needs another learner's
+        // phrase graph). They are mapped too, but this test does not run their paths.
+        Assert.Equal("<Import_Format_Unknown>", ImportServiceText.DetectedFormat("Unknown", Text));
+        Assert.Equal("<Import_Reason_PhraseLinked>",
+            ImportServiceText.Message("Phrase-linked entries require manual edit", Text));
     }
 
     [Fact]
@@ -623,17 +626,23 @@ public sealed class NativeContentImportTests
         Assert.Equal(1, screen.State.Result.CreatedCount);
     }
 
-    [Fact]
-    public async Task OwnerChangeInsideTheAdapterCommit_ReturnsTheCommittedResult_ForTheOwnerItRanFor()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnerChangeInsideTheAdapterCommit_KeepsTheRowsForTheOwner_AndReturnsNothingToShow(
+        bool pointerOnly)
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedProfileAsync(A);
         await fixture.SeedProfileAsync(B);
         fixture.Activate(A);
         var adapter = Adapter(fixture, new ScratchImportAi());
-        // The shared service triggers sync after its transaction: the device owner changes there.
-        fixture.AmbientSync.OnTrigger = () => fixture.Activate(B);
-        var result = await adapter.CommitAsync(A, new ContentImportCommit
+        // The shared service triggers sync after its transaction: the device owner (or only the
+        // active-profile pointer) changes there.
+        fixture.AmbientSync.OnTrigger = pointerOnly
+            ? () => fixture.Preferences.Set(UserProfileRepository.ActiveProfileIdKey, B)
+            : () => fixture.Activate(B);
+        var committed = await adapter.CommitAsync(A, new ContentImportCommit
         {
             Preview = new ContentImportPreview
             {
@@ -643,16 +652,62 @@ public sealed class NativeContentImportTests
         }, default);
         fixture.AmbientSync.OnTrigger = null;
 
-        // Not reported as refused: the rows are committed (and marked for sync) for A only.
-        Assert.Equal(1, result.CreatedCount);
+        // Committed, not refused, but nothing for whoever owns the device now (fail closed).
+        Assert.Null(committed.Result);
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var resource = await db.LearningResources.AsNoTracking().SingleAsync(row => row.Title == "Flipped");
         Assert.Equal(A, resource.UserProfileId);
-        Assert.Equal(result.ResourceId, resource.Id);
         Assert.False(await db.VocabularyWords.AnyAsync(word => word.UserProfileId == B));
         Assert.True(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(A));
         Assert.False(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(B));
+    }
+
+    [Fact]
+    public async Task OwnerChangeAfterTheResultIsShown_BlocksAndEndsTheListRead()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        await fixture.SeedProfileAsync(B);
+        fixture.Activate(A);
+        using var screen = Coordinator(fixture, Adapter(fixture, new ScratchImportAi()));
+        // A listener switches the device owner before the list is read again.
+        screen.ResourcesWritten += () => fixture.Activate(B);
+        Assert.True(await screen.OpenAsync(A));
+        screen.SetRawText("하나,one");
+        await screen.PreviewAsync();
+        screen.SetNewResourceTitle("Shown then switched");
+        await screen.CommitAsync();
+
+        var state = screen.State;
+        Assert.True(state.Blocked);
+        Assert.False(state.ResourcesLoading);
+        Assert.False(state.CanCommit);
+    }
+
+    [Fact]
+    public async Task AnOlderListRead_CannotReplaceANewerOne()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(A);
+        fixture.Activate(A);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var import = new SwitchingImport(Adapter(fixture, new ScratchImportAi())) { HoldFirstList = gate };
+        using var screen = Coordinator(fixture, import);
+        // The opening read takes its rows (none yet) and is held; the learner imports meanwhile.
+        var opening = screen.OpenAsync(A);
+        Assert.True(screen.State.ResourcesLoading);
+        screen.SetRawText("하나,one");
+        await screen.PreviewAsync();
+        screen.SetNewResourceTitle("Newer read");
+        await screen.CommitAsync();
+        var created = screen.State.Result!.ResourceId;
+        Assert.Equal([created], screen.State.Resources.Select(resource => resource.Id));
+
+        gate.SetResult();
+        Assert.True(await opening);
+        Assert.Equal([created], screen.State.Resources.Select(resource => resource.Id));
+        Assert.False(screen.State.ResourcesLoading);
     }
 
     private static NativeContentImport Adapter(NativeSliceFixture fixture, ScratchImportAi ai) =>
@@ -669,6 +724,9 @@ public sealed class NativeContentImportTests
     {
         public bool FailListOnce { get; set; }
 
+        /// <summary>The first list read takes its rows, then waits for this before returning them.</summary>
+        public TaskCompletionSource? HoldFirstList { get; set; }
+
         public Task<ContentClassificationResult> ClassifyAsync(
             string owner, string content, CancellationToken cancellationToken) =>
             inner.ClassifyAsync(owner, content, cancellationToken);
@@ -677,22 +735,30 @@ public sealed class NativeContentImportTests
             string owner, ContentImportRequest request, CancellationToken cancellationToken) =>
             inner.PreviewAsync(owner, request, cancellationToken);
 
-        public async Task<ContentImportResult> CommitAsync(
+        public async Task<NativeImportCommitted> CommitAsync(
             string owner, ContentImportCommit commit, CancellationToken cancellationToken)
         {
             // The rows commit for the owner; the device owner changes before the screen applies them.
-            var result = await inner.CommitAsync(owner, commit, cancellationToken);
+            var committed = await inner.CommitAsync(owner, commit, cancellationToken);
             afterCommit?.Invoke();
-            return result;
+            return committed;
         }
 
-        public Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(
+        public async Task<IReadOnlyList<NativeImportTargetResource>> ListTargetResourcesAsync(
             string owner, CancellationToken cancellationToken)
         {
-            if (!FailListOnce)
-                return inner.ListTargetResourcesAsync(owner, cancellationToken);
-            FailListOnce = false;
-            throw new InvalidOperationException("Simulated resource list failure.");
+            if (FailListOnce)
+            {
+                FailListOnce = false;
+                throw new InvalidOperationException("Simulated resource list failure.");
+            }
+            var rows = await inner.ListTargetResourcesAsync(owner, cancellationToken);
+            if (HoldFirstList is { } hold)
+            {
+                HoldFirstList = null;
+                await hold.Task;
+            }
+            return rows;
         }
     }
 
