@@ -66,18 +66,23 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.DoesNotContain("#pragma warning disable CS0162", controller);
         Assert.DoesNotContain("_libraryPairsCreateRequested", controller);
         Assert.Contains("_ = OpenLibraryPairsOutsideBusyAsync(screen, launch, create);", controller);
-        // Import content opens its native page; YouTube import joins when its flow exists.
+        // Import content and YouTube import open their native pages.
         Assert.Contains("new(\"import-content\", \"square.and.arrow.down\", \"Nav_ImportContent\",", controller);
         Assert.Contains("() => OpenLibraryQuickAdd(OpenImportContent)", controller);
-        Assert.DoesNotContain("youtube-import", controller);
+        Assert.Contains("new(\"youtube-import\", \"play.rectangle\", \"Import_YouTubeImport\",", controller);
+        Assert.Contains("() => OpenLibraryQuickAdd(OpenYouTubeImport)", controller);
+        Assert.Contains("internal void OpenYouTubeImport()",
+            Source("App/ApplicationController.YouTube.cs"));
+        Assert.Contains("|| IsYouTubeImportOpen;", controller);
         Assert.Contains("internal void OpenImportContent()",
             Source("App/ApplicationController.Import.cs"));
         // An import draft is not an editor: it does not block Sam's review quiz or a Study
         // insight link; only Study's Add resource (which closes the page) shows it instead.
         var editor = controller[controller.IndexOf("internal bool HasLibraryEditor =>", StringComparison.Ordinal)..];
         Assert.DoesNotContain("HasImportContentWork", editor[..editor.IndexOf(';')]);
-        Assert.Contains("if (HasLibraryEditor || HasImportContentWork)",
+        Assert.Contains("if (HasLibraryEditor || HasImportContentWork || HasYouTubeImportWork)",
             Source("App/ApplicationController.cs"));
+        Assert.DoesNotContain("HasYouTubeImportWork", editor[..editor.IndexOf(';')]);
         // A blocked page never shows a result set before the owner changed (fail closed).
         var importPage = Source("Features/Import/ImportContentView.cs");
         var blocked = importPage.IndexOf("else if (state.Blocked)", StringComparison.Ordinal);
@@ -91,7 +96,7 @@ public sealed class NativeLaunchAndQuickAddContractTests
             Source("App/ApplicationController.Import.cs"));
 
         foreach (var key in new[] { "Library_QuickAdd", "Resources_AddResource", "Skills_AddSkillProfile",
-            "MinimalPairs_CreatePair" })
+            "MinimalPairs_CreatePair", "Import_YouTubeImport" })
             foreach (var culture in new[] { "", ".ko" })
                 Assert.True(HasValue(culture, key), $"{key} is missing from AppResources{culture}.resx.");
     }

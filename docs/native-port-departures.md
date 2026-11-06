@@ -70,6 +70,21 @@ shared `ContentImportService`; these are the presentation differences.
 | 34 | A result row opens the word editor above the results, and Back returns to them. That editor's Find Duplicates goes where the source goes: the Library returns to its list and opens Vocabulary with the duplicate panel focused on the word. Back from there returns to the Library list, not to the import results (the import page closed when the Library returned to its list) | `/vocabulary/edit/{id}`; Find Duplicates navigates to the Vocabulary page, and browser Back returns to the import page | Captain 2026-11-06 ("ok"): route Find Duplicates to the Vocabulary page; Back to the Library list is the simpler correct return |
 | 35 | When the owner's resources cannot be read for "Add to existing resource", the page says so with Retry. Typed or previewed content is kept while the page is open: Study's Add resource (which would return the Library to its list) shows the page instead; other entries (Sam's review quiz, a Study insight link) are not blocked and leave the page as it is under them. After a commit the resource list is read again, so Import more then Add to existing offers the new resource | The select is silently empty; leaving the page drops the draft | |
 
+## YouTube Import (iOS, 2026-11-06)
+
+Source: `src/SentenceStudio.UI/Pages/MediaImport.razor` (`/media-import`, `/import`). The video's
+metadata and captions, the transcript cleanup and Polish with AI run on the phone through the same
+shared services (`YouTubeImportService`, `TranscriptFormattingService`, whose AI goes through the
+API gateway); Save as Resource writes through `LearningResourceRepository` as the source does.
+Errors and toasts follow row 31.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 36 | Hard-coded English (the fetch, download and save errors, the toasts, "Language:", "(auto)", "(auto-generated)", "Unnamed Channel", "Channel", "Untitled", the stuck hint) uses resources; the new keys have English and draft Korean (B78) | English only | |
+| 37 | The three tabs share the page width equally and their labels wrap, as the web page's flex buttons do on a phone; a one-line label's button is shorter than a wrapped one, and neighbouring borders meet instead of overlapping (the SwiftUI bridge has no equal-height or negative-spacing layout) | Bootstrap `btn-group w-100`: equal-height buttons, overlapping borders | |
+| 38 | Each caption track is its own choice, so of two tracks with the same language code (for example English and English auto-generated) the second can be chosen | The select's values are language codes, so choosing the second same-code track loads the first (B77) | |
+| 39 | Save as Resource locks the page until it finishes (Polish, the link and the transcript wait; Back waits) | Only the Save button is disabled while saving | |
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

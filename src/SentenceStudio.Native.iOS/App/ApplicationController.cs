@@ -166,6 +166,7 @@ internal sealed partial class ApplicationController : IDisposable
         || _skills?.IsPending == true
         || _vocabulary?.IsNavigationBlocked == true
         || IsImportNavigationBlocked
+        || IsYouTubeImportNavigationBlocked
         || IsSamSlotCheckingShown;
 
     private bool _launching = true;
@@ -902,7 +903,7 @@ internal sealed partial class ApplicationController : IDisposable
             return;
         // An import draft would be closed by this entry (the Library returns to its list): it is
         // shown instead, like an editor. Other entries keep it (they do not close the page).
-        if (HasLibraryEditor || HasImportContentWork)
+        if (HasLibraryEditor || HasImportContentWork || HasYouTubeImportWork)
         {
             ShowLibraryEditor();
             return;
@@ -1018,6 +1019,7 @@ internal sealed partial class ApplicationController : IDisposable
         ReleaseVocabulary();
         ReleaseLibraryPairs();
         ReleaseImportContent();
+        ReleaseYouTubeImport();
         _libraryResourcesOpen = false;
         _libraryErrorKey = null;
         _profileSummary = null;
@@ -1172,10 +1174,12 @@ internal sealed partial class ApplicationController : IDisposable
         _activityToasts?.Dispose();
         _libraryPairsToasts?.Dispose();
         _importContentToasts?.Dispose();
+        _youTubeImportToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
         ReleaseLibraryPairs();
         ReleaseImportContent();
+        ReleaseYouTubeImport();
         _skills?.Dispose();
         _profile?.Dispose();
         _activityLog?.Dispose();
