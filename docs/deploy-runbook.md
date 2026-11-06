@@ -45,6 +45,13 @@ UAMI `mi-rsn72awybem6s` holds the **Cognitive Services OpenAI User** role on tha
 This one account carries chat (`gpt-5-mini` fast / `gpt-5` reasoning) plus realtime +
 transcribe model availability. See memory `ai-foundry-model-tiers`.
 
+The native Conversation voice mode (2026-11-06) needs the **`gpt-realtime`** and
+**`gpt-4o-transcribe`** deployments on that account (names overridable with
+`AI__OpenAI__Models__Realtime` / `AI__OpenAI__Models__Transcribe`). The API's
+`POST /api/v1/realtime/client-secret` mints a 120-second secret for the signed-in learner
+(10 per learner per 5 minutes, per replica) with the same UAMI; the phone then opens the
+realtime session with it. Verified locally against `daortin-sstudio-eus2` on 2026-11-06.
+
 Production deploys must **not** require an `openaikey` / `AI__OpenAI__ApiKey` parameter
 for server hosts. That legacy key is only for local direct-client fallback paths; if
 `azd deploy` asks for `openaikey`, stop and fix AppHost/deploy wiring instead of copying
@@ -832,6 +839,16 @@ az containerapp logs show --name api --resource-group rg-sstudio-prod-biz --tail
   | grep -iE "daortin-sstudio-eus2|chat/completions|401|unauthor"
 # Good: POST https://daortin-sstudio-eus2.openai.azure.com/openai/deployments/gpt-5-mini/...
 # Bad:  401 / Unauthorized (UAMI missing the Cognitive Services OpenAI User role)
+```
+
+**Voice mode secrets (after a deploy that includes the realtime endpoint):** start voice in
+the native Conversation on DX24, then:
+```bash
+az containerapp logs show --name api --resource-group rg-sstudio-prod-biz --tail 100 \
+  | grep -iE "realtime client secret|realtime"
+# Good: "Issued realtime client secret for user ..., model gpt-realtime"
+# Bad:  503 "Realtime voice is not configured" (no endpoint) or a 401/404 from Foundry
+#       (UAMI role, or no gpt-realtime deployment)
 ```
 
 ---

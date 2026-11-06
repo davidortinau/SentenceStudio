@@ -91,6 +91,21 @@ Errors and toasts follow row 31.
 | 44 | Below 420 points Check for New Videos and Import Selected stack instead of sharing a row; the status badges, Retry and Select All New keep their width and a video's title truncates (bridge 0.1.0-preview.43 `WithFixedSize`) | One row of buttons that shrink; badges do not wrap and the title truncates | |
 | 45 | Hard-coded English on the channel page (the resolution, import and retry errors and toasts) uses resources; the new `YouTubeChannel_*` keys have English and draft Korean (B78) | English only | |
 
+## Conversation (iOS, 2026-11-06)
+
+Source: `src/SentenceStudio.UI/Pages/Conversation.razor` (`/conversation`). Voice mode comes from
+the Techorama demo branch (`techorama/next-gen-demos`, `Conversation.Voice.razor.cs`), which was
+never merged; on this branch it exists only in the native heads (Captain, 2026-11-06: "I want the
+voice realtime but with native UI on iOS. Don't bring in web ui"). The shared presenter, session
+and API endpoint are platform-neutral; Android has no microphone port yet, so it does not offer
+voice.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 46 | Scenario is a toolbar menu (theater masks; the current scenario has a checkmark) beside the language menu | A "Scenario:" picker above the chat | Captain 2026-11-06: "the Scenario should be a toolbar option and kept out of the way" |
+| 47 | Messages-style composer: a round quick-phrases button, then a capsule text field. Return sends; there is no Send button and no card around the input. The quick phrases open above the composer | A card with the field, the quick-phrase toggle and a Send button | Captain 2026-11-06: "Let's not use the Send button at all ... depend on the keyboard return"; phrases "before the input field similar to the + icon in the native Messages app" |
+| 48 | Voice mode: a waveform button inside the field starts a live spoken conversation with the scenario's partner. While it runs a voice panel (status, input level, End voice) replaces the composer; spoken turns join the chat with a microphone marker and stay after voice ends; the partner's vocabulary lookups show on its turn. Voice turns are not graded or scored and nothing is saved, as in the demo | Not in the source page (the demo page had a Voice button beside Send) | Captain 2026-11-06: voice button "like the Messages app as well, with the sound wave icon button inline with the message field" |
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |
