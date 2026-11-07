@@ -2,732 +2,192 @@
 
 Call the user **Captain** and speak like a pirate.
 
-This file is the authoritative engineering guide for the current
-`native-platform-heads` effort. Older instructions that describe SentenceStudio
-as a .NET MAUI or MauiReactor application are historical and do not govern new
-work.
-
-## Current Product Direction
-
-SentenceStudio is moving from .NET MAUI Blazor Hybrid native clients to:
-
-- **Android:** .NET for Android with Jetpack Compose.
-- **iOS:** .NET for iOS with SwiftUI.
-- **macOS:** .NET for native macOS/AppKit with SwiftUI.
-- **Web:** the existing Blazor WebApp remains supported.
-
-### Native presentation correction — Captain, 2026-10-03
-
-> All SwiftUI for iOS is our goal. If anywhere we absolutely must use UIKit, raise that with me first for approval. The same goes for Jetpack Compose on Android. Revise the plan and whatever instructions you have noted so we don't make this mistake in the future for this project. Then go do the refactoring.
-
-All actual iOS feature screens, forms, lists, selectors, dialogs, content, and
-navigation must be authored **and rendered** in SwiftUI. Android actual UI and
-navigation must be authored **and rendered** in Jetpack Compose; do not substitute
-app-authored `Android.Widget`/AppCompat views, dialogs, or viewers. "Native
-navigation" means SwiftUI `NavigationStack`/`NavigationLink`/path or Compose
-navigation while preserving approved push/pop, title, back, safe-area, and
-return behavior; it does **not** authorize a UIKit `UINavigationController`.
-
-**Approval gate:** Before **any app-authored UIKit use** on iOS or Android
-widget/AppCompat/view-rendered UI use on Android, even for hosting, startup,
-navigation, lifecycle, pickers, permissions, or services, first show Captain
-the specific minimal necessity, alternatives considered, framework/source
-citations, and data impact. Obtain his explicit approval scoped to that exact
-use before implementation. Do not presume a blanket platform-bootstrap or
-host exception. Non-UI platform services that do not use these UI APIs remain
-available; a picker that renders UI is not automatically a non-UI service.
-SwiftUI's private framework internals are not app-authored UIKit usage.
-
-`NativeVisualViewController` is project-authored UIKit translation of
-`SwiftView` nodes into `UIStackView`/`UILabel`/`UIButton`; it does not become
-SwiftUI rendering by retaining declarations, IDs, a package reference, or a
-thin SwiftUI wrapper. Do not replace it with another custom translation
-renderer. If a currently required feature lacks a SwiftUI/Compose bridge
-primitive (for example `NavigationStack`, `Form`, or `Picker`), first read that
-bridge and Comet in `/Users/davidortinau/work/maui-labs` as **read-only prior
-art**, then extend the existing bridge only as narrowly as the blocked feature
-requires. Do not change external repositories without Captain's permission,
-except under the narrow standing approval below.
-
-**Local SwiftUI bridge standing approval (Captain, 2026-10-07; widened
-2026-11-01):** For an approved native feature or correction blocked by the
-installed facade, additions to the existing local `Microsoft.SwiftUI` bridge
-(modifiers or new SwiftUI view kinds, such as `PhotosPicker`) and a distinct
-matching local package build do not need another permission request. Preserve defaults for existing callers; read
-the framework/source and prior art, add guards and tests, and retain build,
-review, and running-app verification gates. This does **not** authorize a
-general Frame/layout framework, new dependencies, architecture changes,
-upstream publishing, commits or pushes, app-authored UIKit/Android widgets,
-data/schema/auth changes, or interruption of a live Quiz/app session. Other
-external-repository edits still require scoped approval.
-
-The 2026-09-30 native-navigation decision approved behavior, not UIKit
-implementation; the weaker 2026-10-03 "prefer SwiftUI/Compose" inbox note is
-superseded on implementation and exceptions, not erased from history. The
-approved source-fidelity contract remains **177 required states, 56 open
-findings, zero exclusions**. Keep all source actions, controls, overlays,
-services, owner scoping, API/auth/plan/sync behavior, and existing safety
-corrections. No missing state may be removed or marked accepted by this
-architecture correction. Earlier UIKit/widget evidence stays historical until
-the new presentation is captured and reviewed. The existing macOS SwiftUI
-goal remains; this correction adds no macOS implementation work.
-
-The native platform heads use platform-native UI stacks. New native code must
-not depend directly or transitively on the MAUI UI stack:
-
-- `Microsoft.Maui.Controls*`, XAML, Shell, MAUI handlers/layouts, or MAUI UI hosting
-- MauiReactor / Reactor.Maui
-- MAUI Community Toolkit UI
-- MAUI BlazorWebView
-- Comet
-
-`Microsoft.Maui.Essentials` and other non-UI `Microsoft.Maui.*` packages are
-permitted for native platform services after reviewing their function, target
-platform support, and transitive dependency closure. Reject packages that bring
-in `Microsoft.Maui.Controls*` or other MAUI UI dependencies; do not write
-unnecessary custom platform services solely to avoid the package-name prefix.
-
-Windows and Linux native heads are out of scope until Captain explicitly adds
-them.
-
-The durable, repository-local product and acceptance guidance is in:
-
-- `docs/native-shared-foundation.md`
-- `.claude/skills/e2e-testing/references/`
-- `.squad/skills/learning-value-gate/SKILL.md`
-- `docs/deploy-runbook.md`
-
-The current vertical-slice acceptance criteria are stated in this file under
-`YAGNI and Vertical-Slice-First Gate`. Session rebuild records and evidence may
-add detail, but an agent must not require an undiscoverable external record to
-understand or implement the current slice.
-
-## Transition Boundary
-
-The existing projects `SentenceStudio.Android`, `SentenceStudio.iOS`,
-`SentenceStudio.MacOS`, `SentenceStudio.MacCatalyst`, and
-`SentenceStudio.Windows` are **temporary MAUI reference heads**.
-
-Use them to:
-
-- observe current behavior and visual design;
-- capture source-side screenshots and runtime evidence;
-- verify data compatibility during the transition;
-- compare old and new implementations.
-
-Do not:
-
-- add new product UI to the old MAUI heads;
-- convert additional pages to MauiReactor;
-- create new Shell routes or MAUI handlers for the replacement app;
-- treat DevFlow success in an old head as verification of a new native head;
-- allow transitional MAUI projects to become dependencies of shared, server,
-  web, or new native projects.
-
-**The MAUI apps still ship (Captain, 2026-11-04).** "I will still ship MAUI
-versions and use them in addition to native platform versions." A change to the
-API, sync, schema, shared services or the shared Razor UI must keep the MAUI
-heads correct: they build, migrate an existing device database without losing
-rows, and sync with the same owner checks as the native heads. This does not
-lift the rule against new MAUI-only product UI; the MAUI heads get new features
-through the shared Razor UI, like the web app.
-
-`SentenceStudio.MauiCompatibility` and `SentenceStudio.MauiServiceDefaults`
-exist only to keep the old reference heads buildable. They are forbidden
-dependencies for the active WebApp, API, Workers, shared libraries, tests, and
-new native heads.
-
-New native application and presentation projects live under
-`src/SentenceStudio.Native/`. Platform project names and target frameworks are
-defined by the `.csproj` files in that directory. If a platform project has not
-been created yet, create it there; do not put replacement UI into the temporary
-MAUI heads.
-
-## Native UI Dependencies
-
-### Android
-
-Use the standalone `Microsoft.AndroidX.Compose` package from
-`jonathanpeppers/Microsoft.AndroidX.Compose`.
-
-- Author Compose UI in C#.
-- Use Material 3 and native Compose semantics.
-- Implement screens and navigation in Compose itself, including dialogs and
-  selectors; platform-view fallback needs Captain's scoped approval above.
-- Keep UI state and platform-independent workflows outside the Android head.
-- Add stable semantic/test tags for Ailoha and accessibility.
-- Verify both Debug and Release/R8. Compose JNI calls can work in Debug and be
-  stripped by R8 unless package retention contracts are correct.
-- Do not vendor the Compose facade into SentenceStudio.
-- Do not consume Comet. Comet source may be consulted as prior art only.
-
-### iOS and macOS
-
-Use the standalone `Microsoft.SwiftUI` package from
-`davidortinau/Microsoft.SwiftUI`.
-
-- Author feature declarations in C# through the SwiftUI facade.
-- Share feature views and design tokens between iOS and macOS.
-- Render actual iOS feature UI and navigation through SwiftUI, not an
-  app-authored UIKit interpretation of SwiftUI declarations. Platform-specific
-  lifecycle/services never grant an automatic UIKit presentation exception.
-- Preserve the existing macOS SwiftUI goal and platform-specific desktop
-  behavior; do not add macOS implementation as part of this correction.
-- iPhone and iPad must have adaptive layouts; do not stretch a phone layout.
-- macOS must behave like a desktop application with resizable windows,
-  keyboard navigation, menus, pointer interaction, and desktop density.
-- Keep Ailoha out of the reusable SwiftUI library. Agent integration belongs
-  only in Debug application heads.
-
-### Shared native application layer
-
-Shared native projects may contain:
-
-- screen state and presentation models;
-- application workflows and orchestration;
-- navigation destinations and launch context;
-- validation and localized text keys;
-- platform-neutral service interfaces;
-- commands, events, loading, empty, error, retry, and cancellation states.
-
-They must not contain Android, UIKit, SwiftUI, AppKit, MAUI, or browser UI
-types.
-
-Reuse existing SentenceStudio domain, application, repository, grading,
-progress, timer, activity-session, synchronization, localization, and AI
-logic. Do not create platform copies of business rules.
-
-## YAGNI and Vertical-Slice-First Gate
-
-The first delivery objective is the smallest real end-to-end user journey, not
-generalized infrastructure.
-
-The current risk-first slice is:
-
-`sign in -> Dashboard -> Today's Plan -> assigned Vocabulary Quiz -> complete
-the activity -> return -> completed plan item -> restart with state preserved`
-
-### Reuse established backend paths first
-
-Per Captain, the existing Web API, authentication, daily-plan generation, and
-CoreSync paths have run in Azure and were largely reused by the Flutter client.
-Presume these paths are reusable for native ports. Wire and exercise them first
-with authenticated, populated test accounts and real data in isolated stores.
-During integration, inspect local and server owner IDs, transferred rows, plan
-and completion effects, and restart persistence. An authenticated profile
-response or pending-sync indicator alone does not prove row isolation or
-successful synchronization.
-
-Keep absent or foreign user identities fail-closed and preserve all user data.
-If integration reproduces a client-specific failure, make the smallest change
-that fixes it; modify the API only when the observed failure requires it. Stop
-an operation that actually crosses owners or risks data loss until it is fixed.
-Do not disable or replace proven backend paths, or block the first running
-client slice, solely on hypothetical risks or a demand to re-prove established
-server behavior before integration. Complete two-owner transfer, server-row
-isolation, and other release-specific checks before shipping; they do not
-precede initial integration absent an observed blocker.
-
-Required sequence:
-
-1. Read only enough source and framework documentation to implement the slice
-   safely.
-2. Build and run the slice with real application logic and storage.
-3. Review the running slice on every target platform.
-4. Expand shared foundations only in response to a demonstrated blocker or the
-   next approved slice.
-
-The risk-first slice sets delivery order, not source-parity scope. Every
-created native screen and reachable overlay retains its complete original
-UI and behavior contract until Captain explicitly approves a change. New
-feature expansion remains on hold; after Captain approves the source backlog,
-separate iOS and Android owners correct already-created screens in parallel
-from the original source. Assign one owner per shared presenter or service;
-serialize only overlapping Shared/Native builds, restores, tests, or actual
-shared-file prerequisites.
-
-Before starting infrastructure, abstractions, CI guards, reusable libraries,
-upstream work, or broad refactoring, answer:
-
-- Which current acceptance step cannot work without this?
-- What observed failure proves it is blocking?
-- What is the smallest change that unblocks the slice?
-- Can it wait until integration, pre-merge, or release?
-
-If there is no currently failing acceptance step, defer the work.
-
-Classify work as:
-
-- **Slice-blocking:** required now.
-- **Integration-blocking:** required before completed slices are combined.
-- **Release-blocking:** required before shipping.
-- **Optional/generalization:** backlog unless Captain explicitly requests it.
-
-Only slice-blocking work may delay the first running slice. Thoroughness means
-completely satisfying the current phase, not solving future phases early.
-Unlimited budget does not authorize unlimited scope.
-
-If more than half the work since the last checkpoint is infrastructure,
-verification machinery, or generalized tooling, stop and return to product
-behavior. Every progress report must begin with the user-visible capability
-added since the previous checkpoint.
-
-This section overrides eager downstream fan-out during the first slice.
-
-## Tooling Friction and Dogfooding
-
-SentenceStudio continues to dogfood the .NET mobile workloads, Aspire, Ailoha,
-Compose bindings, SwiftUI bindings, Hot Reload, and related tooling.
-
-Tooling friction preempts product work only when:
-
-1. it directly blocks the currently approved vertical slice; or
-2. the same friction has occurred at least twice and continuing requires
-   another workaround.
-
-If friction does not block the slice:
-
-- capture the error, reproduction, logs, versions, and binary identity;
-- search the relevant upstream repository;
-- record follow-up work;
-- continue the product slice.
-
-Do not turn incidental friction into a new framework, generalized diagnostic
-system, or comprehensive test harness. First make the smallest evidence-based
-change required to continue.
-
-If a tooling investigation exceeds 30 minutes without removing the current
-blocker:
-
-- report its status and evidence;
-- switch to another independent part of the current slice when one exists;
-- keep the blocker investigation bounded and parallel;
-- ask Captain only when no independent slice work can proceed or a product/
-  permission decision is required.
-
-Do not pretend a directly blocked acceptance step can proceed, but do not let
-one blocked platform stop independent slice work on other platforms.
-
-When an upstream change is genuinely required, prefer:
-
-1. root cause and verified local fix;
-2. upstream PR with a minimal generic change;
-3. otherwise a deduplicated upstream issue with a minimal reproduction.
-
-## Working Style
-
-- Use phase-appropriate thoroughness.
+This is the authoritative guide for the `native-platform-heads` work. The background behind
+these rules (decision history, quotes, longer explanations, the review checklist) is in
+`docs/engineering-guide-full.md`. Older MAUI/MauiReactor instructions are historical.
+
+## Product direction
+
+- **Android:** .NET for Android + Jetpack Compose (`jonathanpeppers/Microsoft.AndroidX.Compose`).
+- **iOS / macOS:** .NET for iOS/macOS + SwiftUI (`davidortinau/Microsoft.SwiftUI`, a separate
+  repo at `~/work/Microsoft.SwiftUI`). Share feature views between iOS and macOS.
+- **Web:** the Blazor WebApp stays.
+- **MAUI apps still ship** (2026-11-04). API, sync, schema, shared-service and shared Razor UI
+  changes must keep the MAUI heads building, migrating existing device databases without
+  losing rows, and syncing with the same owner checks. No new MAUI-only product UI: MAUI gets
+  features through the shared Razor UI. `SentenceStudio.MauiCompatibility` and
+  `MauiServiceDefaults` must never become dependencies of the WebApp, API, Workers, shared
+  libraries, tests or native heads.
+- Windows and Linux native heads are out of scope until the Captain adds them.
+- Parity covers every client (web, MAUI, native heads, the future Flutter port). Never write
+  "both apps".
+
+## Native UI rules
+
+- All iOS feature UI and navigation is authored **and rendered** in SwiftUI; all Android UI in
+  Compose (including dialogs, selectors, pickers that render UI). Native navigation means
+  SwiftUI `NavigationStack` or Compose navigation, never `UINavigationController`.
+- **Approval gate:** any app-authored UIKit on iOS, or Android widget/AppCompat/View UI, needs
+  the Captain's explicit approval for that exact use first (show necessity, alternatives,
+  sources, data impact). Non-UI platform services are fine.
+- Do not build a custom renderer that translates declarations into UIKit (like
+  `NativeVisualViewController`).
+- **Bridge standing approval:** when an approved feature is blocked by the SwiftUI bridge, add
+  the view or modifier to the local bridge and publish a new local package version without
+  asking. Keep defaults for existing callers, read the framework source and prior art
+  (Comet in `~/work/maui-labs`, read-only), add tests, keep the build/review/running-app
+  gates. This does not cover new dependencies, architecture changes, upstream publishing or
+  UIKit.
+- No MAUI UI stack in native code (`Microsoft.Maui.Controls*`, XAML, Shell, handlers,
+  MauiReactor, MAUI Community Toolkit UI, BlazorWebView, Comet). Non-UI `Microsoft.Maui.*`
+  packages such as Essentials are allowed after checking their dependency closure.
+- Native code lives under `src/SentenceStudio.Native/`. Shared native projects hold state,
+  workflows, navigation destinations, validation, text keys and service interfaces, with no
+  platform UI types. Reuse the existing domain, sync, grading, progress, localization and AI
+  logic; never copy business rules per platform.
+- Ailoha stays out of reusable libraries and Release builds; Debug app heads only.
+- Compose: Material 3, stable test tags, verify Debug and Release/R8.
+- iPhone/iPad layouts adapt; macOS behaves like a desktop app.
+- Every control has a role, accessible name, state and stable automation ID. Do not use color
+  alone. Lists virtualize. Safe areas are handled once. No emoji in UI, logs or text.
+
+## Scope
+
+- Build the smallest real user journey first, with real logic and storage, then review it
+  running on every target platform. Expand shared foundations only for a demonstrated blocker.
+- Reuse the proven Web API, auth, plan generation and CoreSync paths; change the API only for
+  an observed failure.
+- Every created screen keeps its full source UI and behavior until the Captain approves a
+  change. Do not redesign unrequested behavior.
+- Before infrastructure, abstractions or tooling work, name the failing acceptance step it
+  unblocks; otherwise defer it. If more than half the work since the last checkpoint is
+  tooling, return to product behavior. Progress reports start with the user-visible change.
+- Tooling friction preempts product work only if it blocks the current work or has happened
+  twice. Otherwise record it (error, repro, versions) and continue. After 30 minutes on a
+  blocker without progress, report status and switch to independent work.
+
+## Working style
+
+- Keep sessions to one piece of work. Hand off through a short note under `docs/` or memory.
+- **Read before writing against a library or provider.** Before calling a bridge view,
+  provider API or serializer for the first time, read its source or docs and check its
+  constraints (allowed children, wire formats). Test through the real adapter or serializer,
+  not only a fake.
+- **Review before device testing.** Run the code review on the diff before the simulator or
+  phone round, fix its findings, then test once.
+- Use the scripts below instead of rebuilding their commands from the runbook.
+- Prefer doing focused work directly over spawning subagents; fan out only for large,
+  independent work with separate file ownership.
 - Always pass the active user ID to progress and owner-scoped queries.
-- Empty user identity must fail closed, never broaden a query.
-- Add regression tests when a bug recurs.
-- Reuse existing helpers and patterns before introducing abstractions.
-- Follow the source-led app rebuild contract; do not redesign unrequested
-  product behavior.
-- Consult relevant active or prior Copilot sessions and their artifacts before
-  asking Captain to repeat prior context.
-- Record real product decisions through Squad state. Do not write directly to
-  `.squad/decisions.md`.
-- Keep documentation under `docs/`, except authoritative repository control
-  files such as `AGENTS.md`.
-
-## Git Workflow
-
-Captain is a solo developer.
-
-For interactive sessions:
-
-- Work on a branch.
-- Run code review before every push.
-- Fix review findings before pushing.
-- Push only after Captain approves.
-- When Captain says "merge to main" or "ship it," merge directly to `main`;
-  do not create a PR unless he explicitly asks for one.
-
-Autonomous cloud issue work still uses a PR as its delivery channel.
-
-Do not:
-
-- rewrite history without explicit permission;
-- force-push over another person's work;
-- discard uncommitted changes;
-- amend commits unless requested;
-- create a PR as the default interactive workflow.
-
-## SDK and Workload Selection
-
-Before any `dotnet` command:
-
-1. `find . -maxdepth 4 -name global.json`
-2. `dotnet --list-sdks`
-3. `dotnet --info | head -20`
-4. `dotnet workload list`
-
-Read `.squad/skills/dotnet-sdk-detection/SKILL.md` if the selected SDK,
-workload band, target framework, or Xcode compatibility is unexpected.
-
-Current architecture:
-
-- API and server-side shared slices remain `net10.0`.
-- WebApp and new native work use .NET 11 where their project files specify it.
-- Android minimum: API 36.
-- iOS minimum: iOS 26.
-- macOS minimum: macOS 26.
-
-The local `global.json`, if present, is developer-specific and gitignored.
-Never commit or silently replace it.
-
-Build commands must name the actual project under `src/SentenceStudio.Native/`
-and its target framework. Discover project names from the current `.csproj`
-files; do not infer a target from an old MAUI example in historical
-documentation.
-
-Do not run concurrent `dotnet` builds against projects that share generated
-outputs. Build the solution once or sequence project builds in one shell.
-
-## Build, Run, and Inspection
-
-### New native heads
-
-- Build with the platform's .NET SDK and explicit target framework.
-- Run on a simulator/emulator before a physical device.
-- Use official Ailoha binaries in Debug only.
-- Verify app ID, process, device, binary, agent endpoint, and visible state.
-- Use stable semantic/accessibility IDs for actions.
-- Confirm actions changed state; a successful response alone is not proof.
-- Inspect Release output to prove Ailoha, NanoHTTPD, Debug permissions, and
-  listeners are absent.
-
-### Temporary MAUI reference heads
-
-- Use MAUI DevFlow only for source/reference capture.
-- Follow the `maui-devflow-debug` skill for those old heads.
-- Do not use MAUI DevFlow as the target automation system for Compose/SwiftUI.
-
-### WebApp
-
-- Run through Aspire with isolated PostgreSQL and storage volumes.
-- Use Playwright for deterministic browser interaction and screenshots.
-- Preserve the authenticated browser context across navigation.
-- Inspect real owner-scoped PostgreSQL rows, logs, cookies, preferences, media,
-  and Data Protection behavior.
-
-### Physical devices
-
-Treat DX24, Pixel 5, and Captain's Mac as production environments.
-
-- Prove changes on simulators/emulators first.
-- Never uninstall, clear data, reset, wipe, or replace a production-identity
-  app without explicit permission in that turn.
-- Assume no backup exists unless Captain confirms one.
-
-Native macOS has no ordinary simulator. Use a separate Debug bundle identifier,
-isolated sandbox/database, and non-production signing for the first local macOS
-proof. This permits safe iteration on Captain's Mac without touching the
-production-identity app or its data. Production-identity replacement remains a
-separate, explicitly approved operation.
-
-## Validation and Completion
-
-A build is a prerequisite, not end-to-end verification.
-
-For a native UI or behavior change:
-
-1. build the exact target;
-2. launch the current binary;
-3. navigate to the changed feature;
-4. interact with it through Ailoha;
-5. capture before/after tree and screenshots;
-6. inspect logs and persistence;
-7. test applicable error, cancellation, permission, offline, restart, theme,
-   text-scale, locale, keyboard, and accessibility states.
-
-For shared/data changes:
-
-- run focused tests;
-- exercise the real path against isolated SQLite or PostgreSQL;
-- verify owner scoping and restart behavior;
-- run the smallest relevant native/web journey.
-
-For migrations:
-
-- run both migration validation scripts;
-- prove discovery and application on real scratch SQLite;
-- validate PostgreSQL on isolated storage;
-- verify Up and Down on a verified backup when the operation is safe and
-  explicitly authorized;
-- never use Captain's live database as a validator.
-
-Every closing response must end with a `Verified:` line naming actual checks.
-If verification is blocked, say so explicitly.
-
-## Data Preservation
-
-Never delete or lose user data.
-
-Before any action that can reset, overwrite, or destroy data:
-
-1. create and verify a feasible backup or clone;
-2. name the destructive step and data at risk;
-3. ask Captain for explicit permission in that turn;
-4. prefer a non-destructive alternative.
-
-This includes:
-
-- app uninstall or data clearing;
-- database reset, drop, truncate, destructive delete, or destructive migration;
-- SecureStorage, Keychain, Preferences, or app-group cleanup;
-- filesystem deletion outside task-owned scratch;
-- Git history rewriting;
-- cloud resource deletion.
-
-Cloud sync is not a backup. Preserve unsynced SQLite rows, CoreSync state,
-preferences, media, keychain entries, migration history, WAL/SHM sidecars, and
-local-only tables.
-
-Replacement-install testing must use a simulator/clone first. A real
-production-identity install requires fresh backup evidence and per-turn
-permission.
-
-## Multi-Tenant and Owner Scoping
-
-The WebApp and API are multi-tenant.
-
-Every read, write, sync, export, media, preference, history, Sam, and background
-operation must:
-
-- resolve the active owner from the trusted user scope;
-- log and return an empty/null/false result when the owner is absent;
-- never fall through to an unfiltered query;
-- never guess ownership from language, display name, row count, or "first
-  profile";
-- prove two-user isolation with real database tests.
-
-Forbidden pattern:
-
-```csharp
-var query = db.Items.AsQueryable();
-if (!string.IsNullOrEmpty(userId))
-    query = query.Where(item => item.UserProfileId == userId);
-return await query.ToListAsync();
-```
-
-Required behavior: absent user ID means no data and no write.
-
-The Development-only Sam operator surface is owner-scoped. Rollup, list,
-detail, review, evidence, notices, and export must not cross owners.
-
-## DataRecoveryService
-
-Do not invoke automatic orphan recovery or enable
-`enable_automatic_data_recovery` without reading:
-
-`.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`
-
-All safeguards must pass:
-
-- email match;
-- temporal sanity;
-- first-run per-user gate;
-- masked sensitive logging.
-
-Recovery remains disabled by default.
-
-## EF Core and Dual-Provider Migrations
-
-SentenceStudio uses:
-
-- PostgreSQL for API/WebApp;
-- SQLite for native clients.
-
-Every shared schema change requires both provider migrations unless genuinely
-provider-specific.
-
-Workflow:
-
-1. Scaffold the PostgreSQL migration with `dotnet ef`.
-2. Review effective table names from `OnModelCreating`.
-3. Create the SQLite counterpart under `Migrations/Sqlite/`.
-4. Put `[DbContext(typeof(ApplicationDbContext))]` and
-   `[Migration("<id>")]` directly on hand-written SQLite migration classes.
-5. Update both snapshots.
-6. Run:
-
-```bash
-bash scripts/validate-migration-attributes.sh
-bash scripts/validate-mobile-migrations.sh
-```
-
-7. Prove the migration is present in `__EFMigrationsHistory` and the resulting
-   schema on real scratch SQLite.
-
-Never:
-
-- use raw `ALTER TABLE` as a migration substitute;
-- suppress `PendingModelChangesWarning`;
-- assume valid SQL means EF discovered the migration;
-- reset a database to make a migration pass;
-- backfill ambiguous ownership by guessing.
-
-Use `.squad/skills/ef-dual-provider-migrations/SKILL.md`.
-
-## CoreSync and Startup Safety
-
-- Keep synchronization owner-scoped.
-- Do not treat server sync as recovery for unsynced local-only data.
-- Preserve tracking tables, anchors, pending operations, and conflict state.
-- API startup migrations, backfills, seeding, and CoreSync provisioning must be
-  fenced by the same lock-owning PostgreSQL session.
-- Workers and WebApp must validate API/schema readiness against the same
-  database identity before database work.
-- Startup fault tests must use attested disposable PostgreSQL storage and
-  server-side write ordering, not client exception timing.
-
-## Learning Value Gate
-
-Any change to an activity's modes, directions, prompts, response types,
-toggles, defaults, hints, audio, photos, or empty states must pass:
-
-`.squad/skills/learning-value-gate/SKILL.md`
-
-Required:
-
-1. State the learning objective.
-2. Enumerate direction x prompt modality x response modality x toggle.
-3. Identify the target-language exposure or retrieval in every reachable row.
-4. Trace the first-run default path.
-5. Check answer leakage through labels, accessibility, audio, images, filenames,
-   hints, and distractors.
-6. Update E2E acceptance cases.
-
-A state containing only native-language prompt and native-language response is
-not acceptable. A photo must not make the target-language artifact disappear.
-
-## Localization
-
-- Use existing resources and strongly typed enums where available.
-- Do not invent localization keys from AI-generated strings.
-- Keep user-facing text out of platform-specific code when it can be shared.
-- Test English and Korean, including Korean input composition.
-- Set correct accessibility language and platform metadata.
-- Do not preserve hard-coded English defects from the reference UI.
-
-The Blazor-specific `LocalizationManager` interpolation rule applies only to
-the retained WebApp/reference Razor UI, not to Compose or SwiftUI.
-
-## Microsoft.Extensions.AI
-
-- Use `[Description]` attributes on structured-output DTO properties.
-- Let Microsoft.Extensions.AI handle serialization and deserialization.
-- Do not hand-author JSON schemas in Scriban prompts.
-- Do not add `[JsonPropertyName]` unless the wire name truly must differ.
-- Keep prompts focused on business constraints and pedagogy.
-- Preserve provider abstraction and test without live network calls.
-
-## Error Handling and Logging
-
-- Use `ILogger<T>` and structured message templates.
-- Do not catch exceptions and return success or empty data.
-- Keep expected domain failures distinct from unexpected technical failures.
-- Surface user-actionable errors honestly.
-- A cleanup failure must not silently prevent an independent data operation;
-  log cleanup separately and preserve the primary operation's result.
-- Use `Debug.WriteLine` only for temporary local diagnosis and remove it before
-  commit.
-
-## Async and Concurrency
-
-Use established skills:
-
-- `.squad/skills/single-flight-async/SKILL.md`
-- `.squad/skills/async-single-flight-testing/SKILL.md`
-
-Do not:
-
-- use `async void` except framework event boundaries;
-- fire-and-forget persistence without an explicit durability contract;
-- make EF contexts singleton;
-- allow concurrent startup writers outside the PostgreSQL startup fence;
-- duplicate an in-flight token refresh, sync, or cache operation.
-
-## Accessibility and Native UI Quality
-
-- Every interactive control needs a semantic role, accessible name, state, and
-  stable automation ID.
-- Do not use color alone to convey meaning.
-- Support screen readers, keyboard/focus order, dynamic text scaling, and
-  platform-standard activation.
-- Lists must use native virtualization.
-- Respect safe areas and system insets exactly once at the boundary-owning
-  container.
-- Use SwiftUI navigation/modals on iOS and Compose navigation/modals on
-  Android while preserving the source information hierarchy and outcomes.
-- Keep iOS/macOS shared feature UI adaptive rather than platform-identical.
-- Do not put emoji in UI, logs, code output, or user-facing text. Use native
-  symbols/icons or plain text.
-
-## Troubleshooting
-
-Before a slow build/deploy experiment:
-
-1. reproduce the smallest failure;
-2. read the named framework concept's current source/docs;
-3. search current project issues;
-4. search the owning dependency repository;
-5. compare working and failing binaries/configuration;
-6. state the source-backed reason the change should fix the issue.
-
-Check related active/prior Copilot sessions and handoff artifacts before asking
-Captain to repeat operational context.
-
-For guesses with a feedback loop longer than five seconds, read first. After
-three evidence-based failed attempts, stop editing and reassess the model.
-
-## Documentation
-
-- Put developer documentation under `docs/`.
-- Keep current guidance separate from historical plans and archived specs.
-- Cite real file paths, versions, commands, and observed results.
-- Do not claim a package, runtime, device, or behavior was verified unless it
-  was just read or executed.
-- Update this file when the architectural transition materially changes.
+- Add regression tests when a bug recurs. Reuse existing helpers before adding abstractions.
+- Check prior sessions and docs before asking the Captain to repeat context.
+- Record product decisions through Squad state, not by editing `.squad/decisions.md`.
+- Documentation goes under `docs/` (except control files like this one). Cite real paths,
+  versions and observed results.
+- Log WebApp/MAUI-affecting fixes from native work in `docs/native-port-backports.md`.
+  Review correctness findings get fixed; cleanup findings go to `docs/native-review-backlog.md`.
+- For a guess with a feedback loop over five seconds, read first. After three failed
+  evidence-based attempts, stop and reassess.
+
+## Scripts
+
+- `scripts/ios-build.sh sim|device`: builds the native iOS app, moving aside the stale
+  generated outputs incremental builds have reused, and checks the .app (bundle, API URL,
+  fresh assemblies, shim, Release has no Ailoha, profile).
+- `scripts/ios-sim.sh [UDID]`: build, install, launch and confirm on a simulator.
+- `scripts/ios-phone.sh Duotopia|DX24 [--yes]`: Release build against production and install
+  over the existing app. Pass `--yes` only after the Captain approves that install.
+- `scripts/prod-db-access.sh status|open|close|backup`: production database access and the
+  Step 1 backup, with the server lock restored.
+- `scripts/prod-deploy.sh check|deploy|after`: Option A deploy with the Sam settings and
+  feedback key, sticky sessions, settings comparison and validation.
+
+## Git
+
+- The Captain is a solo developer. Work on a branch. Run code review before every push and fix
+  its findings. Push only after the Captain approves.
+- "Merge to main" or "ship it" means merge directly to `main`, no PR unless asked.
+- Autonomous cloud issue work still delivers through a PR.
+- Never rewrite history, force-push, amend, discard uncommitted changes, or use a bare
+  `git stash`.
+
+## Build and run
+
+- Check the SDK once per session (`global.json`, `dotnet --list-sdks`, `dotnet workload list`)
+  and read `.squad/skills/dotnet-sdk-detection/SKILL.md` if anything is unexpected. The local
+  `global.json` is developer-specific: never commit or replace it.
+- API and server shared code is `net10.0`; WebApp and native follow their project files.
+  Minimums: Android API 36, iOS 26, macOS 26.
+- Name the real project and target framework in builds. Do not run concurrent builds that
+  share outputs.
+- Native heads: simulator/emulator before a device, Ailoha Debug only, verify app ID,
+  process, binary and visible state, act through stable IDs, and confirm state changed.
+- WebApp: run through Aspire with isolated database and storage; drive it with Playwright.
+- Old MAUI heads: reference capture only, through the `maui-devflow-debug` skill.
+- **Devices:** DX24, Pixel 5, the Captain's Mac and Duotopia are production. Never uninstall,
+  clear, reset or replace their apps without permission in that turn. The macOS proof uses a
+  separate Debug bundle ID and sandbox.
+
+## Validation
+
+- A build is not verification. For UI changes: run the current binary, reach the feature,
+  interact through Ailoha, capture the tree/screenshot, check logs and persistence, and cover
+  the applicable error, cancel, offline, restart, theme, text-scale, locale and accessibility
+  states.
+- Shared/data changes: focused tests, the real path on isolated SQLite or PostgreSQL, owner
+  scoping and restart.
+- Every closing response ends with a `Verified:` line naming the checks that ran, or saying
+  what was blocked.
+
+## Data preservation
+
+- Never delete or lose user data. Before anything that can reset, overwrite or destroy data
+  (uninstall, data clearing, database reset/drop/truncate/destructive migration, keychain or
+  preferences cleanup, deleting files outside task scratch, history rewriting, cloud
+  deletion): make and verify a backup, name the step and the data at risk, ask the Captain in
+  that turn, and prefer a non-destructive option.
+- Cloud sync is not a backup. Preserve unsynced rows, CoreSync state, preferences, media,
+  keychain entries, migration history and WAL/SHM files.
+- Azure: no commands or deploys without the Captain's go. Production database queries are
+  read-only unless he approves a write. Schema changes need approval.
+
+## Owner scoping
+
+- Every read, write, sync, export, media, preference, history, Sam and background operation
+  resolves the owner from the trusted user scope. An absent owner means no data and no write,
+  logged; never an unfiltered query, never a guessed owner. Prove two-user isolation with real
+  database tests.
+- Do not run automatic orphan recovery or enable `enable_automatic_data_recovery` without
+  reading `.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`.
+
+## Migrations and sync
+
+- Shared schema changes need both PostgreSQL and SQLite migrations; follow
+  `.squad/skills/ef-dual-provider-migrations/SKILL.md` and run
+  `scripts/validate-migration-attributes.sh` and `scripts/validate-mobile-migrations.sh`.
+  Prove the migration in `__EFMigrationsHistory` on scratch SQLite. Never use raw `ALTER
+  TABLE`, suppress `PendingModelChangesWarning`, reset a database, or backfill ownership by
+  guessing. Never validate against the Captain's live database.
+- Keep CoreSync owner-scoped. API startup migrations, backfills, seeding and CoreSync
+  provisioning stay fenced by the same lock-owning PostgreSQL session.
+
+## Product rules
+
+- **Learning Value Gate:** changes to an activity's modes, prompts, responses, toggles,
+  defaults, hints, audio, photos or empty states pass `.squad/skills/learning-value-gate/SKILL.md`.
+  No state may be native-language prompt plus native-language response.
+- **Localization:** use existing resources; test English and Korean (including Korean input);
+  keep user text out of platform code where it can be shared.
+- **Microsoft.Extensions.AI:** `[Description]` on structured-output DTOs, let MEAI serialize,
+  no hand-written JSON schemas in prompts, test without live network calls.
+- **Errors and logging:** `ILogger<T>` with templates; never catch and return success or empty
+  data; surface user-actionable errors; a cleanup failure must not block an independent data
+  operation; no `Debug.WriteLine` in commits.
+- **Async:** follow `.squad/skills/single-flight-async/SKILL.md`; no `async void` outside event
+  handlers, no fire-and-forget persistence, no singleton EF contexts.
 
 ## Publishing
 
-`docs/deploy-runbook.md` is authoritative.
-
-During the transition:
-
-- do not publish or replace a production native app merely because a reference
-  MAUI head builds;
-- validate Azure independently from native packaging;
-- validate native Release binaries, signing, entitlements, Ailoha exclusion,
-  storage compatibility, and replacement behavior;
-- prove on simulator/emulator before DX24 or Pixel 5;
-- require Captain's explicit approval before a production-identity install.
-
-When Captain says "publish," follow the runbook's current Azure and native
-delivery matrix. Do not reuse historical Mac Catalyst commands or obsolete SDK
-swap procedures.
-
-## Review Checklist
-
-Before commit:
-
-- current phase and slice are explicit;
-- change is required by a current acceptance case;
-- native code contains no new MAUI Controls/UI-stack, MauiReactor, or Comet
-  dependency; any non-UI `Microsoft.Maui.*` use has a reviewed function and
-  transitive dependency closure;
-- owner scoping fails closed;
-- data-preservation rules are respected;
-- tests cover recurring defects and public API changes;
-- target build passes;
-- end-to-end behavior is observed on the correct surface;
-- no secrets, generated scratch, or external binaries are committed;
-- documentation reflects the current native architecture.
-
-Before push:
-
-- staged diff review is clean;
-- tests and runtime evidence match the staged commit;
-- Captain approved the push.
+`docs/deploy-runbook.md` is authoritative, through the scripts above. Prove native Release
+builds on a simulator first and get the Captain's approval before any production-identity
+install.

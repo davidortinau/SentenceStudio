@@ -1,5 +1,17 @@
 # Deploy Runbook
 
+> **Scripts (2026-11-07).** The routine steps below run as scripts; this runbook stays the
+> reference for what they do and why. Each needs the same approval as the step it runs.
+>
+> - Step 1 backup and any temporary database access: `scripts/prod-db-access.sh backup`
+>   (or `open` / `close` / `status`).
+> - Pre-checks, Option A deploy, sticky sessions, Sam settings comparison and Step 5:
+>   `scripts/prod-deploy.sh check`, then `scripts/prod-deploy.sh deploy`
+>   (`after` reruns the post-deploy checks).
+> - Native iOS on a phone: `scripts/ios-phone.sh Duotopia|DX24` builds and checks the
+>   Release app, then stops; rerun with `--yes --no-build` after the Captain approves the
+>   install. The MAUI DX24 steps in "Step 2" below are unchanged.
+
 > **Architecture: Azure PostgreSQL Flexible Server (managed)**
 >
 > As of 2025-07-26, production uses **Azure Database for PostgreSQL — Flexible Server**,
