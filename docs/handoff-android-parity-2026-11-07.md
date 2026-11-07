@@ -153,3 +153,37 @@ needs the Captain's go).
 Next: the tab shell (approved, not yet ordered); the smaller checks (Sam entry, editor keyboard
 dismissal, icon and splash).
 
+## Plan for the next session: the tab shell on Android (Captain: "Follow iOS trial")
+
+Source of truth: iOS commits `7a09daaf` (Study, Library, Settings, Sam slot; More menu gone),
+`566817d9` (Sam slot always shown; alert when Sam is not offered), `0a8e1b16` (Library opens on a
+list of its four pages), `25fef602` (launch look, single Sam entry, Library quick add), `bb821fae`
+(floating Sam hides on scroll). Read `src/SentenceStudio.Native.iOS/App/ApplicationController.Library.cs`
+and `ApplicationScene.Library.cs` first.
+
+Android today: `AndroidRoutePolicy.TopLevelDestinations` = Dashboard, Resources; a two-item
+`NavigationBar` (`AndroidSliceShell.Resources.Compose.cs` `NavigationTabs`); the Dashboard More menu
+(`AndroidSliceShell.Visual.cs` `DashboardAppBar`) opens Profile, Settings, Skills, Vocabulary, Import
+Content, Media Import and Activity Log as `MoreScreen`s (`AndroidSliceShell.More.cs`).
+
+Suggested steps:
+
+1. Tabs: Study (the Dashboard content; header: History opens Activity Log, Regenerate, Refresh),
+   Library, Settings, Sam. Keep `NavigationBar` (Material 3); hide it in activities, the quiz and
+   editors as iOS does.
+2. Library root: a list of Resources (count once loaded), Vocabulary, Skills, Minimal Pairs, then the
+   quick-add grid (new resource, skill profile, minimal pair, Import content, YouTube import). Reuse
+   the `MoreScreen` pages as Library pages (they already open, close and release cleanly); the
+   Resources tab content becomes the Library's Resources page.
+3. Minimal Pairs: iOS hosts the list outside the activity (no timer or plan item); check whether the
+   shared Minimal Pairs presenter can open its list without the activity before building anything.
+4. Settings tab: the profile row (opens Profile), the existing Settings and Sam settings, Sign out.
+5. Sam: the tab slot opens Sam; when Sam is not offered, an alert with `Coach_SettingsUnavailable`.
+   The floating button leaves the tab roots; pushed screens keep the header entry
+   (`docs/sam-entry.md`).
+6. Remove the More menu once every destination is reachable; keep the automation ids where pages
+   are reused.
+
+Unpushed commits on `native-platform-heads` (waiting for the Captain's OK): `098ce438` Import
+Content, `b52926de` YouTube import, `8c2eeeb3` voice.
+
