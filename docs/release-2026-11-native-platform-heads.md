@@ -316,12 +316,16 @@ At the Captain's go ("Push to azure so we can test this"), following the runbook
     log lines) and 2 skips (auth smoke tests) as 2026-11-05.
   - After the deploy (read-only): 5090|2776|24, 241 ownerless words, 32 migrations.
   - Voice: the new endpoint answers 401 without a token; `gpt-realtime` and `gpt-4o-transcribe`
-    are deployed (Succeeded) on `daortin-sstudio-eus2`. A real secret has not been issued in
-    production yet (needs the Captain's sign-in on a phone).
+    are deployed (Succeeded) on `daortin-sstudio-eus2`.
   - Database access closed: lock restored, only `AllowAllAzureIps` left.
+- **Duotopia** (the Captain chose Duotopia only; DX24 keeps its earlier native build): installed
+  the Release build of `a5c5ecc6` (`com.simplyprofound.sentencestudio.native.preview`, MaxProWildDev
+  profile, production API, no Ailoha) over the existing app, data kept, and launched it. The API
+  log then showed his profile load, a sync (upload and download, all 200), a chat reply, and at
+  01:59:07 "Issued realtime client secret for user ..., model gpt-realtime" (200, 406 ms): the
+  first production voice start.
 - **Still to do:**
-  - steps 5 to 7: the native build with the `NativeLocalOnlyMappingExportProvider` fix goes on the
-    Captain's phones (each install with his go), every device syncs against the new server, then
-    `send-withheld-vocabulary-rows.sql` (dry run, then apply, with his go), then the devices sync
-    again;
-  - check the API log for "Issued realtime client secret" when he starts voice on a phone.
+  - steps 5 to 7 wait for DX24: the native build with the `NativeLocalOnlyMappingExportProvider`
+    fix must be on every native device first (Duotopia has it). Then every device syncs against the
+    new server, `send-withheld-vocabulary-rows.sql` runs (dry run, then apply, with his go), and the
+    devices sync again.
