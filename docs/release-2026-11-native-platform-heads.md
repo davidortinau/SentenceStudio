@@ -281,3 +281,47 @@ Writes made after the deploy are lost in a rollback, which is another reason for
     clip;
   - the new MAUI builds for DX24, the Pixel 5 and the Mac (G), each with his go. Until then the
     installed MAUI apps get 403 on sync and keep their data offline.
+
+## Deployed 2026-11-06 (owner-only words, import work, native Conversation voice)
+
+At the Captain's go ("Push to azure so we can test this"), following the runbook's
+"Ownerless shared words and withheld rows" order. Times are UTC (the deploy ran 2026-11-07 01:51).
+
+- **What shipped:** `a5c5ecc6` on `native-platform-heads`, 114 commits after the 2026-11-05 deploy
+  (`07f3db00`): owner-only words and sync (B81-B85), Import Content and YouTube import work
+  (B72-B80), and the realtime voice endpoint `POST /api/v1/realtime/client-secret` for the native
+  Conversation. No new migration and no startup contract change (`api-exclusive-application-startup-v3`,
+  `20261104162953_AddSyncDeletionLog`).
+- **Git:** pushed `native-platform-heads` (`9bdff57e..a5c5ecc6`). `main` was not changed; it holds
+  a README edit (`7c80a56e`) after `07f3db00`.
+- **Pre-checks (read-only):** server Ready (16, B1ms); `do-not-delete-postgres` lock present; api,
+  webapp and workers in single revision mode with 1 replica and no custom scale rule. The live API
+  revision api--0000032 ran the 2026-11-05 image (api--0000030 to 0000032 were setting changes).
+- **Step 1, backup:** `~/sstudio-prod-backup-20261106-1909/sentencestudio.dump` (10.7 MB), 70 of 70
+  tables, counts VocabularyWord|VocabularyProgress|UserProfile = 5090|2776|24.
+- **Step 2, `record-shared-vocabulary-words.sql`:** dry run 52 test, 41 non-profile, 3 both, 0
+  sentences (96 words), equal to the 2026-11-05 backup. Applied with those counts: committed,
+  96 words recorded and tracked for sync, ownerless words 337 to 241. A second dry run recorded
+  nothing.
+- **Step 3:** the Captain confirmed his devices synced.
+- **Step 4, `azd deploy`** (Option A; 11 of 11 Coach settings exported, feedback key from Key
+  Vault) succeeded: api--0000033, webapp--0000029, workers--0000029, marketing--0000035, each
+  Healthy and Running with 100% traffic; the old revisions were retired.
+  - API startup: listening after about 3 s; "Vocabulary word owners: 0 stamped, 0 shared, 213
+    unlinked, 28 left ownerless (only owner is not a profile)" (the 96 were no longer shared) and
+    "Example sentence owners: 0 stamped with their words, 0 stamped after".
+  - Coach settings: the same 11 names and values as before the deploy.
+  - Sticky sessions (5a) re-applied (`sticky`).
+  - Validation script (Step 5): 17 pass, 0 fail; the same 2 warnings (workers status, migration
+    log lines) and 2 skips (auth smoke tests) as 2026-11-05.
+  - After the deploy (read-only): 5090|2776|24, 241 ownerless words, 32 migrations.
+  - Voice: the new endpoint answers 401 without a token; `gpt-realtime` and `gpt-4o-transcribe`
+    are deployed (Succeeded) on `daortin-sstudio-eus2`. A real secret has not been issued in
+    production yet (needs the Captain's sign-in on a phone).
+  - Database access closed: lock restored, only `AllowAllAzureIps` left.
+- **Still to do:**
+  - steps 5 to 7: the native build with the `NativeLocalOnlyMappingExportProvider` fix goes on the
+    Captain's phones (each install with his go), every device syncs against the new server, then
+    `send-withheld-vocabulary-rows.sql` (dry run, then apply, with his go), then the devices sync
+    again;
+  - check the API log for "Issued realtime client secret" when he starts voice on a phone.
