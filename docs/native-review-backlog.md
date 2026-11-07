@@ -100,3 +100,16 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - **Scenario fallback on iOS.** `ConversationScreen.ScenarioMenu` uses `ActiveScenarioId ?? Scenarios[0].Id`,
   so an id that is no longer in the list shows no check and an empty name. Android now falls back to
   the first scenario, as the source picker did.
+
+## Import Content (Android, review 2026-11-07)
+
+- **Every keystroke rebuilds the preview rows.** `AndroidSliceShell.ImportContent.Compose.cs` reads
+  `ImportContentCoordinator.State` on each draw, which copies every preview row, and rebuilds the
+  lazy list's items; iOS keeps its drawn rows until `RowsVersion` changes. A Compose equivalent
+  needs per-row text state (a cached row with an old `Target` would reset the field), so it waits
+  until a long preview shows typing lag.
+- **Two dropdown helpers.** `ImportChoice` repeats `MoreDropdown` (`AndroidSliceShell.Settings.Compose.cs`)
+  with its own `_importMenu`, without `MoreDropdown`'s one-line ellipsis for long option labels.
+- **Shell logging.** The Android shell logs with `Android.Util.Log` (the More screens, Import
+  Content), not `ILogger<T>` templates, so these lines do not reach structured logs.
+

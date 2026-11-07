@@ -46,11 +46,19 @@ internal sealed partial class AndroidSliceShell
         }
     }
 
-    /// <summary>The activity page with its toast host layered over the top edge, clear of input bars.</summary>
-    private ComposableNode WithActivityToast(IComposer composer, ComposableNode screen)
+    /// <summary>The activity page with its toast host.</summary>
+    private ComposableNode WithActivityToast(IComposer composer, ComposableNode screen) =>
+        WithToast(composer, screen, ActivityToasts, ActivityToastCandidate());
+
+    /// <summary>A More screen with its toast host (Import Content's success messages).</summary>
+    private ComposableNode WithMoreToast(IComposer composer, ComposableNode screen) =>
+        WithToast(composer, screen, ImportToasts, ImportToastCandidate());
+
+    /// <summary>The screen with a toast host layered over the top edge, clear of input bars.</summary>
+    private ComposableNode WithToast(IComposer composer, ComposableNode screen,
+        NativeToastScheduler toasts, NativeMessage? candidate)
     {
-        var toasts = ActivityToasts;
-        toasts.Offer(ActivityToastCandidate());
+        toasts.Offer(candidate);
         var host = composer.Remember(() => new SnackbarHostState());
         var toast = toasts.Current;
         var text = toast?.Format(Localize);

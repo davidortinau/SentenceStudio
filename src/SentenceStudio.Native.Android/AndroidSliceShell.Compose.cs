@@ -100,7 +100,7 @@ internal sealed partial class AndroidSliceShell
         var screen = Destination switch
         {
             NativeDestination.Dashboard or NativeDestination.TodaysPlan
-                when IsMoreScreenOpen => RenderMoreScreen(palette),
+                when IsMoreScreenOpen => WithMoreToast(composer, RenderMoreScreen(palette)),
             NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
             NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),

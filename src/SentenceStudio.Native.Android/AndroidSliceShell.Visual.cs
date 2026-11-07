@@ -199,13 +199,14 @@ internal sealed partial class AndroidSliceShell
                 Modifier = Modifier.TestTag("native.dashboard.menu.regenerate"),
             });
         // Source NavMenu and the iOS More menu: Profile, Settings, Skills,
-        // Vocabulary and Activity Log, each a pushed screen over this tab.
+        // Vocabulary, Import Content and Activity Log, each a pushed screen over this tab.
         foreach (var (key, tag, open) in new (string, string, Action)[]
         {
             ("Nav_Profile", "native.dashboard.menu.profile", OpenProfile),
             ("Settings_Title", "native.dashboard.menu.settings", OpenSettings),
             ("Nav_Skills", "native.dashboard.menu.skills", OpenSkills),
             ("Nav_Vocabulary", "native.dashboard.menu.vocabulary", OpenVocabulary),
+            ("Nav_ImportContent", "native.dashboard.menu.import-content", OpenImportContent),
             ("Nav_Activity", "native.dashboard.menu.activity-log", OpenActivityLog),
         })
             menu.Add(new DropdownMenuItem(text: new Text(Localize(key)), onClick: open)

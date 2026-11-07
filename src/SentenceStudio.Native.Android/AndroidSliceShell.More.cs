@@ -22,7 +22,7 @@ namespace SentenceStudio.Native.Android;
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    private enum MoreScreen { None, Settings, Profile, Skills, Vocabulary, ActivityLog }
+    private enum MoreScreen { None, Settings, Profile, Skills, Vocabulary, ActivityLog, ImportContent }
 
     private MoreScreen _more;
     private string? _moreMenu;
@@ -45,6 +45,7 @@ internal sealed partial class AndroidSliceShell
         MoreScreen.Skills => RenderSkills(palette),
         MoreScreen.Vocabulary => RenderVocabulary(palette),
         MoreScreen.ActivityLog => RenderActivityLog(palette),
+        MoreScreen.ImportContent => RenderImportContent(palette),
         _ => RenderDashboard(palette),
     };
 
@@ -132,6 +133,9 @@ internal sealed partial class AndroidSliceShell
                 _activityLog = log;
                 RunMore(() => log.OpenAsync(owner, _lifetime.Token));
                 break;
+            case MoreScreen.ImportContent:
+                OpenImportContentCoordinator(provider, scope, owner);
+                break;
         }
     });
 
@@ -185,6 +189,8 @@ internal sealed partial class AndroidSliceShell
                     return true;
                 }
                 break;
+            case MoreScreen.ImportContent when HandleImportContentBack():
+                return true;
         }
         Publish(CloseMoreScreen);
         return true;
@@ -192,7 +198,8 @@ internal sealed partial class AndroidSliceShell
 
     private void CloseMoreScreen()
     {
-        if (_skills?.IsPending == true || _vocabulary?.IsNavigationBlocked == true)
+        if (_skills?.IsPending == true || _vocabulary?.IsNavigationBlocked == true
+            || _importContent?.IsNavigationBlocked == true || _importWords?.IsNavigationBlocked == true)
             return;
         _more = MoreScreen.None;
         _moreMenu = null;
@@ -244,6 +251,7 @@ internal sealed partial class AndroidSliceShell
             log.Changed -= OnMoreChanged;
             log.Dispose();
         }
+        ReleaseImportContent();
         _settings = null;
         _profile = null;
         _skills = null;

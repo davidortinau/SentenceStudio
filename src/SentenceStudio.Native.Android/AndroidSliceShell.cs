@@ -821,6 +821,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         ClosePhotoDialogWithoutRestore();
         ReleaseActivity();
         _activityToasts?.Dispose();
+        _importToasts?.Dispose();
         ResetResources();
         ResetMoreScreens();
         DetachSam();

@@ -70,6 +70,12 @@ shared `ContentImportService`; these are the presentation differences.
 | 34 | A result row opens the word editor above the results, and Back returns to them. That editor's Find Duplicates goes where the source goes: the Library returns to its list and opens Vocabulary with the duplicate panel focused on the word. Back from there returns to the Library list, not to the import results (the import page closed when the Library returned to its list). The editor and results stay until the Vocabulary page has opened; when it cannot open (another Library action running, an untrusted owner, a failed open) the editor stays and says so (review fix 2026-11-06). While the Vocabulary page opens, the editor's Save, Delete and Close wait, so the release cannot cut them short | `/vocabulary/edit/{id}`; Find Duplicates navigates to the Vocabulary page, and browser Back returns to the import page | Captain 2026-11-06 ("ok"): route Find Duplicates to the Vocabulary page; Back to the Library list is the simpler correct return |
 | 35 | When the owner's resources cannot be read for "Add to existing resource", the page says so with Retry. Typed or previewed content is kept while the page is open: Study's Add resource (which would return the Library to its list) shows the page instead; other entries (Sam's review quiz, a Study insight link) are not blocked and leave the page as it is under them. After a commit the resource list is read again, so Import more then Add to existing offers the new resource | The select is silently empty; leaving the page drops the draft | |
 
+Android (2026-11-07) runs the same coordinator and follows 30-35, with these differences until it
+gets the tab shell: the page opens from the Dashboard More menu ("Import Content", as in the source
+NavMenu), not a Library quick-add button; the page is one column at every width (a lazy list);
+View resource opens the Resources tab's editor and closing it returns to the results; and after
+Find Duplicates, Back from the Vocabulary screen returns to the Dashboard (iOS: the Library list).
+
 ## YouTube Import (iOS, 2026-11-06)
 
 Source: `src/SentenceStudio.UI/Pages/MediaImport.razor` (`/media-import`, `/import`). The video's

@@ -11,6 +11,8 @@ internal sealed partial class AndroidSliceShell
     private AndroidResourcesCoordinator? _resources;
     private string? _resourcesOwner;
     private bool _resourceFormFromDashboard;
+    /// <summary>Where closing a resource opened from the Dashboard tab returns (either Dashboard mode).</summary>
+    private NativeDestination _resourceFormReturn = NativeDestination.Dashboard;
     private bool _dashboardStarterBusy;
     private string? _dashboardStarterErrorKey;
 
@@ -50,6 +52,7 @@ internal sealed partial class AndroidSliceShell
         _resources = null;
         _resourcesOwner = null;
         _resourceFormFromDashboard = false;
+        _resourceFormReturn = NativeDestination.Dashboard;
         _resourceMenu = ResourceMenu.None;
         _dashboardStarterBusy = false;
         _dashboardStarterErrorKey = null;
@@ -79,7 +82,8 @@ internal sealed partial class AndroidSliceShell
         if (open || !_resourceFormFromDashboard)
             return;
         _resourceFormFromDashboard = false;
-        Destination = NativeDestination.Dashboard;
+        Destination = _resourceFormReturn;
+        _resourceFormReturn = NativeDestination.Dashboard;
         // The resource may have been renamed or deleted; refresh the insight links.
         ReloadDashboardAfterResources();
     }

@@ -89,3 +89,28 @@ Not verified, or blocked for a while:
 - Ailoha screenshots do not include popup windows (menus); use `adb exec-out screencap`.
 
 Next: Import Content (paste-anything import, Library quick add), then the tab shell.
+
+## Progress (2026-11-07, session 1, continued)
+
+Import Content landed on Android (`AndroidSliceShell.ImportContent.cs`, `.ImportContent.Compose.cs`):
+the shared `ImportContentCoordinator` behind a Dashboard More menu entry (until the tab shell gives
+it the Library quick-add home), the full wizard, Import in the header, results with filter, the
+result word editor with the Find Duplicates handoff, View resource returning to the results, and
+the success snackbar (the activity snackbar helper is now shared, `WithToast`).
+
+Verified on `emulator-5556` (squad-kaylee, local API): paste and Preview (CSV detected), row
+uncheck and selected count, the missing-title error banner, commit into a new resource (3
+created), re-import (3 skipped with reasons), commit into an existing resource (1 created), result
+filter, word editor and Back, Find Duplicates opening the Vocabulary duplicate panel, View resource
+and back to the results, and the resources and their four words after an app restart.
+
+Not verified: Korean input (adb types ASCII only, Ailoha `fill` fails on Compose fields, and the
+emulator does not share the Mac clipboard), the auto-detect confidence gate (needs Auto plus an AI
+classification), light theme and text scale.
+
+Test-tooling notes: Ailoha taps by element id, so look it up with `ailoha ui query --automationId` first; popup menus need
+`adb exec-out screencap` and coordinate taps; `adb shell input keyevent 111` (Escape) acts as Back
+when no keyboard is up.
+
+Next: YouTube import, then voice; the tab shell is approved but not yet ordered.
+
