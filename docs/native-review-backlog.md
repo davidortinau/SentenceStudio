@@ -83,10 +83,20 @@ Resolved by B81-B84 (owner-only words, 2026-11-06): the Coach remove-word orphan
 - **The API fetches a token and builds a realtime client for every secret.** `src/SentenceStudio.Api/RealtimeEndpoints.cs` (`RealtimeClientSecretIssuer.MintAsync`) calls `DefaultAzureCredential.GetTokenAsync` and constructs a new `OpenAI.Realtime.RealtimeClient` per request, outside the resilient `openai` HttpClient that the chat clients use. In Azure the managed identity caches its token; locally `AzureCliCredential` runs `az` each time (about 1-2 s per voice start), and a transient Foundry 5xx is not retried (the learner gets "Voice could not start" and can tap again; the failed attempt no longer counts against the 10-per-5-minutes budget).
 - **Starting the audio holds the presenter lock.** `NativeConversationPresenter.StartVoiceAsync` awaits `INativeVoiceAudio.StartAsync` inside the gate, so Back waits for the audio session to activate (a few hundred ms). Moving it outside needs one more generation check.
 - **Keyboard after Return.** The SwiftUI bridge has no focus control or `submitLabel`, so the keyboard closes after each sent message (Messages keeps it open) and Return shows the plain return key, not "send". Both need small `Microsoft.SwiftUI` additions (`.focused`, `.submitLabel(.send)`).
-- **Android has no voice yet.** The shared presenter offers voice only when the head registers `INativeVoiceAudio`; Android has none (AudioRecord/AudioTrack with the echo canceller) and keeps its source composer with Send.
+- **Android has no voice yet.** The shared presenter offers voice only when the head registers `INativeVoiceAudio`; Android has none yet (AudioRecord/AudioTrack with the echo canceller; the Captain approved it on 2026-11-07). Its composer follows iOS since 2026-11-07 (no Send button).
 
 Review of the voice pace and read-aloud change (2026-11-06; correctness findings fixed in the same commit):
 
 - **The pace log reads the whole session.** `ConversationVoiceSession.LogPace` writes the `session.updated` model to JSON and parses it to read speed and silence. It runs once per pace change and never logs content, but the typed `RealtimeServerUpdateSessionUpdated.Session` properties would avoid the copy (it includes the instructions with the learner's recent turns).
 - **Three copies of the checked menu row.** `ConversationScreen` builds a menu row with a checkmark, the selected state and an id in `ScenarioMenu`, `LanguageMenu` and `PaceMenu`; one `CheckedMenuItem(label, active, id, action)` helper would keep them alike.
 - **A pace change racing End.** `SetPaceAsync` is skipped once the session is disposing, but a send already on the socket when End runs can fail and log a warning. Harmless; noted only.
+
+## Conversation composer (Android, 2026-11-07)
+
+- **iOS has no composer automation ID.** Android tags the Messages-style composer row
+  `native.conversation.composer` (`NativeConversationAccess.Composer`); the iOS `ConversationScreen`
+  composer has no identifier. Add `.WithAccessibilityIdentifier(NativeConversationAccess.Composer)`
+  there so both heads expose the same IDs. The unused `native.conversation.send` ID was removed.
+- **Scenario fallback on iOS.** `ConversationScreen.ScenarioMenu` uses `ActiveScenarioId ?? Scenarios[0].Id`,
+  so an id that is no longer in the list shows no check and an empty name. Android now falls back to
+  the first scenario, as the source picker did.

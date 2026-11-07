@@ -100,6 +100,12 @@ voice realtime but with native UI on iOS. Don't bring in web ui"). The shared pr
 and API endpoint are platform-neutral; Android has no microphone port yet, so it does not offer
 voice.
 
+Android follows 46 and 47 since 2026-11-07: the scenario is a header icon menu (Material
+"theater_comedy" vector drawable; check on the current one) beside the language menu, and the
+composer is a round quick-phrases button (Material "format_quote") before a capsule
+`OutlinedTextField` whose keyboard Send action sends. Material's core icon set in the Compose
+binding has neither icon, so both ship as vector drawables in `Resources/drawable`.
+
 | # | Departure | Original behavior | Decision |
 |---|---|---|---|
 | 46 | Scenario is a toolbar menu (theater masks; the current scenario has a checkmark) beside the language menu | A "Scenario:" picker above the chat | Captain 2026-11-06: "the Scenario should be a toolbar option and kept out of the way" |

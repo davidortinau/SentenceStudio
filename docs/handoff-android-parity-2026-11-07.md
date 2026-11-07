@@ -52,3 +52,40 @@ Vocabulary or Activity Log screens; that is stale (they landed in `62dad833`, 20
 - The Pixel 5 is production: no install without the Captain's go.
 - There is no Android equivalent of `scripts/ios-build.sh` yet; add one only if the same
   friction repeats.
+
+## Progress (2026-11-07, session 1)
+
+Captain's answers: order is composer/scenario, then Import Content, then YouTube import, then
+voice; **Android follows the iOS tab shell trial** (Study, Library, Settings, Sam); the
+AudioRecord/AudioTrack voice service is approved.
+
+Done (uncommitted at the end of the session):
+
+- Conversation follows departures 46-47 on Android
+  (`AndroidSliceShell.Conversation.Compose.cs`): scenario is a header icon menu (Material
+  "theater_comedy" vector drawable, check on the current one, falls back to the first scenario);
+  Messages-style composer with a round quick-phrases toggle (`OutlinedIconToggleButton`,
+  "format_quote" drawable) before a capsule field; keyboard Send sends, no Send button; after a
+  keyboard send the field takes focus back once the reply is in (`RememberConversationEffects`).
+  Listen follows the shared `CanListen`. Drawables live in `Resources/drawable` (the binding's
+  core icon set has neither icon).
+- Check marks in the Conversation scenario and language menus were invisible (no tint); both now
+  use `palette.Primary`, like Activity Log. The scenario's spoken label drops the source colon.
+- Shared: `NativeConversationAccess.Composer` added, unused `Send` ID removed.
+
+Verified on `emulator-5556` (Debug, squad-kaylee, local AppHost 5081): scenario menu opens with
+the check, quick-phrases toggle (checkbox role) shows phrases and inserts one, keyboard Send adds
+the bubble and clears the field, the toggle dims while waiting, the field is focused with the
+keyboard shown after the reply ends. Debug and Release/R8 builds pass.
+
+Not verified, or blocked for a while:
+
+- (Resolved the same day.) For a while the API could not connect to
+  `daortin-sstudio-eus2.openai.azure.com:443` (TCP timeout from the Mac too), so starts failed
+  after about 100 s. It recovered without changes; the models (`gpt-5-mini`, `gpt-5`,
+  `AppHost.cs`) were fine. The opening line then came back in 3.5 s, and a keyboard-sent reply got
+  its answer with Listen and comprehension, with the field focused and the keyboard up after.
+- Korean input: `ailoha ui fill` fails on Compose text fields and adb cannot type Korean.
+- Ailoha screenshots do not include popup windows (menus); use `adb exec-out screencap`.
+
+Next: Import Content (paste-anything import, Library quick add), then the tab shell.

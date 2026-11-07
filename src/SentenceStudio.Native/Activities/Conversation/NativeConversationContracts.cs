@@ -27,10 +27,11 @@ public static class NativeConversationAccess
     public const string Audio = "native.conversation.audio";
     public const string AudioStop = "native.conversation.audio.stop";
     public const string Input = "native.conversation.input";
+    /// <summary>The Messages-style composer row (quick phrases button and message field).</summary>
+    public const string Composer = "native.conversation.composer";
     public const string QuickPhrasesToggle = "native.conversation.quick-phrases";
     /// <summary>Quick phrase buttons are "native.conversation.quick-phrase.{index}".</summary>
     public const string QuickPhrase = "native.conversation.quick-phrase";
-    public const string Send = "native.conversation.send";
     public const string Back = "native.conversation.back";
     /// <summary>The waveform button in the message field that starts voice mode.</summary>
     public const string VoiceStart = "native.conversation.voice.start";

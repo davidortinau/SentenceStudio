@@ -39,6 +39,7 @@ internal sealed partial class AndroidSliceShell
                 await _detailsScroll.ScrollToAsync(0, cancellationToken);
         });
         RememberQuizEffects(composer);
+        RememberConversationEffects(composer);
         _photoFocus = composer.Remember(() => new FocusRequester());
         var restoreVersion = _photoFocusRestoreVersion;
         composer.Effect(restoreVersion, _ =>

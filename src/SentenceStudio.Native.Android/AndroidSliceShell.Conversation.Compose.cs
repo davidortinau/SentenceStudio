@@ -8,10 +8,12 @@ using SentenceStudio.Native;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// Compose Conversation (source Conversation.razor): header language menu,
-/// scenario dropdown, persona and learner bubbles (grammar corrections,
-/// comprehension, Listen), reply indicator, Playing audio / Stop bar, and the
-/// input card with quick phrases pinned below the scrolling chat. The field
+/// Compose Conversation (source Conversation.razor): header scenario and
+/// language menus, persona and learner bubbles (grammar corrections,
+/// comprehension, Listen), reply indicator, Playing audio / Stop bar, and a
+/// Messages-style composer pinned below the scrolling chat (departures 46-47,
+/// matching iOS): a round quick-phrases button before a capsule field, and
+/// the keyboard's Send action sends (no Send button). The field
 /// binds a Compose TextFieldValue state, so typing (including Korean IME
 /// composition) never goes through a presenter publish; only presenter-made
 /// draft changes (quick phrase, sent) are pushed back into it.
@@ -22,6 +24,13 @@ internal sealed partial class AndroidSliceShell
     private bool _conversationLanguageMenuOpen;
     private bool _conversationScenarioMenuOpen;
     private int _conversationDraftVersion = -1;
+    private FocusRequester? _conversationFocus;
+    /// <summary>
+    /// Set when the keyboard's Send action sends. The field is disabled while the reply is pending,
+    /// which drops focus and closes the keyboard; with no Send button the field takes focus back
+    /// once it is editable again.
+    /// </summary>
+    private bool _conversationRefocus;
 
     internal NativeConversationState Conversation { get; private set; } =
         new(NativePhase.Loading, IsStarting: true);
@@ -63,8 +72,28 @@ internal sealed partial class AndroidSliceShell
         _conversation = null;
         _conversationLanguageMenuOpen = false;
         _conversationScenarioMenuOpen = false;
+        _conversationRefocus = false;
         _conversationDraftVersion = -1;
         ConversationDraft.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
+    }
+
+    /// <summary>After a keyboard send, the field takes focus back once the reply is in and it is editable.</summary>
+    private void RememberConversationEffects(IComposer composer)
+    {
+        _conversationFocus = composer.Remember(() => new FocusRequester());
+        var state = Conversation;
+        var refocus = _conversation is not null && _conversationRefocus && state.CanEdit
+            ? AndroidEffectKey.Of(state.Messages.IsDefault ? 0 : state.Messages.Length, state.DraftVersion)
+            : null;
+        composer.Effect(refocus, _ =>
+        {
+            if (refocus is not null && _conversationRefocus && Conversation.CanEdit)
+            {
+                _conversationRefocus = false;
+                RequestFocusQuietly(_conversationFocus);
+            }
+            return Task.CompletedTask;
+        });
     }
 
     private void OnConversationChanged(NativeConversationState state) =>
@@ -73,6 +102,9 @@ internal sealed partial class AndroidSliceShell
     private void ApplyConversation(NativeConversationState state)
     {
         Conversation = state;
+        // The scenario menu is only in the header while Ready; do not let it reopen by itself.
+        if (state.Phase != NativePhase.Ready)
+            _conversationScenarioMenuOpen = false;
         if (state.DraftVersion != _conversationDraftVersion)
         {
             _conversationDraftVersion = state.DraftVersion;
@@ -135,7 +167,13 @@ internal sealed partial class AndroidSliceShell
             });
             return page;
         }
-        header.Actions = ConversationLanguageMenu(state, palette);
+        header.Actions = state.Phase == NativePhase.Ready && !state.Scenarios.IsDefaultOrEmpty
+            ? new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+            {
+                ConversationScenarioMenu(state, palette),
+                ConversationLanguageMenu(state, palette),
+            }
+            : ConversationLanguageMenu(state, palette);
         page.Add(header);
         if (state.Phase is NativePhase.Loading or NativePhase.Idle)
         {
@@ -151,17 +189,13 @@ internal sealed partial class AndroidSliceShell
             return page;
         }
 
-        var top = new Column(Arrangement.SpacedBy(8))
-        {
-            Modifier = Modifier.FillMaxWidth()
-                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8),
-        };
-        if (!state.Notices.IsDefaultOrEmpty)
-            if (ConversationNotices(state, palette) is { } notices)
-                top.Add(notices);
-        if (!state.Scenarios.IsDefaultOrEmpty)
-            top.Add(ConversationScenario(state, palette));
-        page.Add(top);
+        if (!state.Notices.IsDefaultOrEmpty && ConversationNotices(state, palette) is { } notices)
+            page.Add(new Column(Arrangement.SpacedBy(8))
+            {
+                Modifier.FillMaxWidth()
+                    .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8),
+                notices,
+            });
 
         var chat = new Column(Arrangement.SpacedBy(8))
         {
@@ -182,7 +216,7 @@ internal sealed partial class AndroidSliceShell
 
         if (state.IsPlayingAudio)
             page.Add(ConversationAudioBar(palette));
-        page.Add(ConversationInputCard(state, palette));
+        page.Add(ConversationComposer(state, palette));
         return page;
     }
 
@@ -192,25 +226,31 @@ internal sealed partial class AndroidSliceShell
             () => ConversationCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
             NativeConversationAccess.DismissNotices, Localize(NativeConversationText.Dismiss));
 
-    /// <summary>Source scenario select: label plus a dropdown of the scenarios.</summary>
-    private ComposableNode ConversationScenario(NativeConversationState state, AndroidVisualPalette palette)
+    /// <summary>
+    /// Scenario: a header menu (theater masks; the current scenario has a check) instead of the
+    /// source picker above the chat (departure 46, Captain 2026-11-06).
+    /// </summary>
+    private ComposableNode ConversationScenarioMenu(NativeConversationState state, AndroidVisualPalette palette)
     {
         var active = state.Scenarios.FirstOrDefault(item => item.Id == state.ActiveScenarioId)
             ?? state.Scenarios[0];
-        var label = Localize(NativeConversationText.Scenario);
-        var button = new TextButton(() => Publish(() => _conversationScenarioMenuOpen = true))
+        var selected = active.Id;
+        var name = active.DisplayName;
+        // The source label ends with a colon ("Scenario:", "시나리오:"); the spoken name drops it.
+        var label = $"{Localize(NativeConversationText.Scenario).TrimEnd(':', ' ')}, {name}";
+        var button = new IconButton(() => Publish(() => _conversationScenarioMenuOpen = true), enabled: true)
         {
             Modifier = Modifier.TestTag(NativeConversationAccess.Scenario)
-                .Semantics(semantics => semantics.ContentDescription($"{label} {active.DisplayName}")),
+                .Semantics(semantics => semantics.ContentDescription(label)),
         };
-        button.Add(new Text(active.DisplayName));
-        button.Add(new Icon(Icons.Default.ArrowDropDown, null) { Modifier = Modifier.Size(20) });
+        button.Add(new Icon(Resource.Drawable.ic_theater_comedy, null) { Modifier = Modifier.Size(24) });
         var menu = PopupMenu(expanded: _conversationScenarioMenuOpen,
             onDismissRequest: () => Publish(() => _conversationScenarioMenuOpen = false));
         foreach (var scenario in state.Scenarios)
         {
             var id = scenario.Id;
-            menu.Add(new DropdownMenuItem(
+            var isActive = id == selected;
+            var item = new DropdownMenuItem(
                 text: new Text(scenario.DisplayName),
                 onClick: () =>
                 {
@@ -219,15 +259,14 @@ internal sealed partial class AndroidSliceShell
                 })
             {
                 Modifier = Modifier.TestTag(
-                    $"{NativeConversationAccess.Scenario}.{id.ToString(CultureInfo.InvariantCulture)}"),
-            });
+                        $"{NativeConversationAccess.Scenario}.{id.ToString(CultureInfo.InvariantCulture)}")
+                    .Semantics(semantics => semantics.Selected(isActive)),
+            };
+            if (isActive)
+                item.LeadingIcon = new Icon(Icons.Default.Check, null) { Modifier = Modifier.Size(18), Tint = palette.Primary };
+            menu.Add(item);
         }
-        return new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
-        {
-            Modifier.FillMaxWidth(),
-            Body(label, palette, secondary: true),
-            new Box { button, menu },
-        };
+        return new Box { button, menu };
     }
 
     /// <summary>Source toolbar language dropdown (Constants.Languages; page-local).</summary>
@@ -258,7 +297,7 @@ internal sealed partial class AndroidSliceShell
                     .Semantics(semantics => semantics.Selected(value == state.TargetLanguage)),
             };
             if (value == state.TargetLanguage)
-                item.LeadingIcon = new Icon(Icons.Default.Check, null) { Modifier = Modifier.Size(18) };
+                item.LeadingIcon = new Icon(Icons.Default.Check, null) { Modifier = Modifier.Size(18), Tint = palette.Primary };
             menu.Add(item);
         }
         return new Box { button, menu };
@@ -309,7 +348,7 @@ internal sealed partial class AndroidSliceShell
                 Color = palette.SecondaryText,
                 FontSize = new Sp(13),
             });
-        if (!message.IsUser)
+        if (message.CanListen)
         {
             var listenLabel = Localize(NativeConversationText.Listen);
             var index2 = message.Index;
@@ -359,15 +398,18 @@ internal sealed partial class AndroidSliceShell
         };
     }
 
-    private ComposableNode ConversationInputCard(NativeConversationState state, AndroidVisualPalette palette)
+    /// <summary>
+    /// Messages-style composer (departure 47): quick phrases above when open; a round
+    /// quick-phrases button, then the capsule field. The keyboard's Send action sends.
+    /// </summary>
+    private ComposableNode ConversationComposer(NativeConversationState state, AndroidVisualPalette palette)
     {
         var editable = state.CanEdit;
-        var hasText = !string.IsNullOrWhiteSpace(ConversationDraft.Value.Text);
-        var card = new Column(Arrangement.SpacedBy(8))
+        var composer = new Column(Arrangement.SpacedBy(8))
         {
             Modifier = Modifier.FillMaxWidth()
                 .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8)
-                .TestTag("native.conversation.input-card"),
+                .TestTag(NativeConversationAccess.Composer),
         };
         if (state.ShowQuickPhrases)
         {
@@ -387,61 +429,49 @@ internal sealed partial class AndroidSliceShell
                 button.Add(new Text(phrase));
                 phrases.Add(button);
             }
-            card.Add(phrases);
+            composer.Add(phrases);
         }
+        // Source: chat-quote toggle (its title reuses the placeholder text; native names it).
+        var phrasesLabel = Localize(NativeConversationText.QuickPhrases);
+        var toggle = new OutlinedIconToggleButton(state.ShowQuickPhrases,
+            _ => ConversationCommand((presenter, token) => presenter.ToggleQuickPhrasesAsync(token)),
+            enabled: editable)
+        {
+            Modifier = Modifier.TestTag(NativeConversationAccess.QuickPhrasesToggle)
+                .Semantics(semantics => semantics.ContentDescription(phrasesLabel)),
+            Shape = Shape.Circle(),
+        };
+        toggle.Add(new Icon(Resource.Drawable.ic_format_quote, null) { Modifier = Modifier.Size(20) });
         var placeholder = Localize(NativeConversationText.TypeMessage);
         var keyboard = KeyboardOptionsCompanion.Default;
+        var fieldModifier = Modifier.Weight(1f);
+        if (_conversationFocus is not null)
+            fieldModifier = fieldModifier.FocusRequester(_conversationFocus);
         var field = new OutlinedTextField(ConversationDraft, enabled: editable, singleLine: true)
         {
-            Modifier = Modifier.Weight(1f).TestTag(NativeConversationAccess.Input)
+            Modifier = fieldModifier.TestTag(NativeConversationAccess.Input)
                 .Semantics(semantics => semantics.ContentDescription(placeholder)),
-            Label = new Text(placeholder),
+            Placeholder = new Text(placeholder),
+            Shape = Shape.RoundedPercent(50),
             KeyboardOptions = keyboard.Copy(
                 keyboard.Capitalization, keyboard.AutoCorrectEnabled,
                 AndroidX.Compose.KeyboardType.Text,
                 AndroidX.Compose.ImeAction.Send,
                 keyboard.PlatformImeOptions, keyboard.ShowKeyboardOnFocus,
                 keyboard.HintLocales),
+            // The presenter ignores an empty draft or a send while a reply is pending.
             KeyboardActions = KeyboardActionsHelper.Create(onSend: () =>
             {
-                if (!string.IsNullOrWhiteSpace(ConversationDraft.Value.Text))
-                    ConversationCommand((presenter, token) => presenter.SendAsync(token));
+                _conversationRefocus = true;
+                ConversationCommand((presenter, token) => presenter.SendAsync(token));
             }),
         };
-        var phrasesLabel = Localize(NativeConversationText.QuickPhrases);
-        var toggle = new IconButton(
-            () => ConversationCommand((presenter, token) => presenter.ToggleQuickPhrasesAsync(token)),
-            enabled: editable)
-        {
-            Modifier = Modifier.TestTag(NativeConversationAccess.QuickPhrasesToggle)
-                .Semantics(semantics =>
-                {
-                    semantics.ContentDescription(phrasesLabel);
-                    semantics.Selected(state.ShowQuickPhrases);
-                }),
-        };
-        toggle.Add(new Icon(Icons.AutoMirrored.Default.List, phrasesLabel)
-        {
-            Modifier = Modifier.Size(24),
-            Tint = palette.Text,
-        });
-        var sendLabel = Localize(NativeConversationText.Send);
-        var send = new AndroidX.Compose.Button(
-            onClick: () => ConversationCommand((presenter, token) => presenter.SendAsync(token)),
-            enabled: editable && hasText)
-        {
-            Modifier = Modifier.TestTag(NativeConversationAccess.Send)
-                .Semantics(semantics => semantics.ContentDescription(sendLabel)),
-            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-        };
-        send.Add(new Text(sendLabel));
-        card.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+        composer.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
         {
             Modifier.FillMaxWidth(),
-            field,
             toggle,
-            send,
+            field,
         });
-        return card;
+        return composer;
     }
 }
