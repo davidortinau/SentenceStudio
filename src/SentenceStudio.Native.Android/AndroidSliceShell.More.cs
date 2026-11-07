@@ -22,7 +22,7 @@ namespace SentenceStudio.Native.Android;
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    private enum MoreScreen { None, Settings, Profile, Skills, Vocabulary, ActivityLog, ImportContent }
+    private enum MoreScreen { None, Settings, Profile, Skills, Vocabulary, ActivityLog, ImportContent, YouTubeImport }
 
     private MoreScreen _more;
     private string? _moreMenu;
@@ -46,6 +46,7 @@ internal sealed partial class AndroidSliceShell
         MoreScreen.Vocabulary => RenderVocabulary(palette),
         MoreScreen.ActivityLog => RenderActivityLog(palette),
         MoreScreen.ImportContent => RenderImportContent(palette),
+        MoreScreen.YouTubeImport => RenderYouTubeImport(palette),
         _ => RenderDashboard(palette),
     };
 
@@ -136,6 +137,9 @@ internal sealed partial class AndroidSliceShell
             case MoreScreen.ImportContent:
                 OpenImportContentCoordinator(provider, scope, owner);
                 break;
+            case MoreScreen.YouTubeImport:
+                OpenYouTubeImportCoordinator(provider, scope, owner);
+                break;
         }
     });
 
@@ -191,6 +195,8 @@ internal sealed partial class AndroidSliceShell
                 break;
             case MoreScreen.ImportContent when HandleImportContentBack():
                 return true;
+            case MoreScreen.YouTubeImport when HandleYouTubeBack():
+                return true;
         }
         Publish(CloseMoreScreen);
         return true;
@@ -199,7 +205,8 @@ internal sealed partial class AndroidSliceShell
     private void CloseMoreScreen()
     {
         if (_skills?.IsPending == true || _vocabulary?.IsNavigationBlocked == true
-            || _importContent?.IsNavigationBlocked == true || _importWords?.IsNavigationBlocked == true)
+            || _importContent?.IsNavigationBlocked == true || _importWords?.IsNavigationBlocked == true
+            || IsYouTubeNavigationBlocked)
             return;
         _more = MoreScreen.None;
         _moreMenu = null;
@@ -252,6 +259,7 @@ internal sealed partial class AndroidSliceShell
             log.Dispose();
         }
         ReleaseImportContent();
+        ReleaseYouTubeImport();
         _settings = null;
         _profile = null;
         _skills = null;

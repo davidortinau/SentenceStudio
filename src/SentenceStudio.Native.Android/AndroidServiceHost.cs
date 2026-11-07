@@ -98,6 +98,7 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddOwnerBoundNativeSyncResend(apiUri);
             // Shadowing audio: the owner-bound /api/v1/speech/synthesize path.
             services.AddOwnerBoundNativeQuizSpeech(apiUri);
+            services.AddOwnerBoundNativeYouTubeApi(apiUri);
         }
 
         services.AddTransient<IPlanDateContext>(_ =>

@@ -256,11 +256,17 @@ internal sealed partial class AndroidSliceShell
         await vocabulary.OpenDuplicatesAsync(term, wordId);
     }
 
-    /// <summary>The newest success message, shown once as a snackbar (source toasts).</summary>
-    private NativeMessage? ImportToastCandidate() =>
-        _more == MoreScreen.ImportContent && _importContent is { IsOpen: true } import && !IsImportWordOpen
-            ? NativeMessages.LatestToast(import.Messages)
-            : null;
+    /// <summary>The import pages' newest success or info message, shown once as a snackbar (source toasts).</summary>
+    private NativeMessage? ImportToastCandidate() => _more switch
+    {
+        MoreScreen.ImportContent when _importContent is { IsOpen: true } import && !IsImportWordOpen =>
+            NativeMessages.LatestToast(import.Messages),
+        MoreScreen.YouTubeImport when _youTubeChannel is { IsOpen: true } channel =>
+            NativeMessages.LatestToast(channel.Messages),
+        MoreScreen.YouTubeImport when _youTubeChannel is null && _youTubeImport is { IsOpen: true } youTube =>
+            NativeMessages.LatestToast(youTube.Messages),
+        _ => null,
+    };
 
     private NativeToastScheduler ImportToasts
     {

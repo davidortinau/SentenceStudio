@@ -52,7 +52,7 @@ internal sealed partial class AndroidSliceShell
 
     /// <summary>A More screen with its toast host (Import Content's success messages).</summary>
     private ComposableNode WithMoreToast(IComposer composer, ComposableNode screen) =>
-        WithToast(composer, screen, ImportToasts, ImportToastCandidate());
+        WithToast(composer, screen, MoreToasts, ImportToastCandidate());
 
     /// <summary>The screen with a toast host layered over the top edge, clear of input bars.</summary>
     private ComposableNode WithToast(IComposer composer, ComposableNode screen,

@@ -97,6 +97,13 @@ Errors and toasts follow row 31.
 | 44 | Below 420 points Check for New Videos and Import Selected stack instead of sharing a row; the status badges, Retry and Select All New keep their width and a video's title truncates (bridge 0.1.0-preview.43 `WithFixedSize`) | One row of buttons that shrink; badges do not wrap and the title truncates | |
 | 45 | Hard-coded English on the channel page (the resolution, import and retry errors and toasts) uses resources; the new `YouTubeChannel_*` keys have English and draft Korean (B78) | English only | |
 
+Android (2026-11-07) runs the same coordinators and follows 36-45, with these differences until it
+gets the tab shell: the page opens from the Dashboard More menu ("Media Import", as in the source
+NavMenu); Add Channel and Refresh are in the header's overflow menu at every width; the three tabs
+are equal buttons whose labels wrap; a video's selection is a checkbox (as in the source), and the
+channel column of the history shows at every width; View resource opens the Resources tab's editor
+and closing it returns to the page.
+
 ## Conversation (iOS, 2026-11-06)
 
 Source: `src/SentenceStudio.UI/Pages/Conversation.razor` (`/conversation`). Voice mode comes from

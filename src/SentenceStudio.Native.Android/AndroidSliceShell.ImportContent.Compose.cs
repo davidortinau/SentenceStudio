@@ -92,14 +92,7 @@ internal sealed partial class AndroidSliceShell
         else
             ImportWizard(items, import, state, palette);
 
-        page.Add(new LazyColumn<ImportItem>(items, item => item.Content())
-        {
-            Key = item => item.Key,
-            Modifier = Modifier.FillMaxWidth().Weight(1f)
-                .Padding(horizontal: AndroidVisualTheme.PagePadding)
-                .TestTag("native.import.content.scroll"),
-            VerticalArrangement = Arrangement.SpacedBy(12),
-        });
+        page.Add(ImportLazyList(items, "native.import.content.scroll"));
         return page;
     }
 

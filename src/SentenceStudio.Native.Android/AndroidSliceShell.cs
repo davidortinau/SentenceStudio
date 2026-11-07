@@ -822,6 +822,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         ReleaseActivity();
         _activityToasts?.Dispose();
         _importToasts?.Dispose();
+        _channelToasts?.Dispose();
         ResetResources();
         ResetMoreScreens();
         DetachSam();

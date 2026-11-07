@@ -113,3 +113,14 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - **Shell logging.** The Android shell logs with `Android.Util.Log` (the More screens, Import
   Content), not `ILogger<T>` templates, so these lines do not reach structured logs.
 
+## YouTube import (Android, review 2026-11-07)
+
+- **Taps draw twice.** `YouTubeEdit` and `ChannelEdit` call `RenderMoreNow` after coordinator calls
+  that already raise `Changed`; only the bound text inputs (link, channel URL, transcript) need it.
+- **Two button factories.** `YouTubeBusyAction` repeats `Action` (`AndroidSliceShell.Visual.cs`) plus a
+  spinner; an optional `busy` on `Action` would cover both.
+- **Badge colors.** The info badge `#0DCAF0` and the black and white badge text are literals in the
+  Import Content and YouTube badges; palette tokens (Info, OnWarning) would keep them in one place.
+- **Channel form language list.** Rebuilt from `Constants.Languages` on each draw (each URL keystroke).
+- The refused-open and failure logs use `Android.Util.Log` (see the Import Content note above).
+

@@ -112,5 +112,21 @@ Test-tooling notes: Ailoha taps by element id, so look it up with `ailoha ui que
 `adb exec-out screencap` and coordinate taps; `adb shell input keyevent 111` (Escape) acts as Back
 when no keyboard is up.
 
-Next: YouTube import, then voice; the tab shell is approved but not yet ordered.
+Next (done below): YouTube import.
+
+YouTube import landed on Android (`AndroidSliceShell.YouTubeImport.cs`, `.YouTubeImport.Compose.cs`):
+the shared `YouTubeImportCoordinator` and `YouTubeChannelCoordinator` behind a More menu "Media
+Import" entry, and Android now registers `AddOwnerBoundNativeYouTubeApi` (channels and history
+through the API; it was missing).
+
+Verified on `emulator-5556` (squad-kaylee, local API): My Channels empty state, Single Video fetch
+(tracks and transcript from YouTube on the device), Save as Resource and View resource, Add Channel
+(resolved by the server, "Channel added" toast on the page), the channel page's Check for New Videos
+(20 found), Select None, importing one video (the server failed it with "No Korean transcript
+available for this video", shown as Failed with Retry), Import History linked to the channel, and
+the monitor switch saved through the API.
+
+Not verified: Polish with AI, a successful channel video import, Retry, Retry Resolve.
+
+Next: voice (AudioRecord/AudioTrack, approved), then the tab shell (approved, not yet ordered).
 
