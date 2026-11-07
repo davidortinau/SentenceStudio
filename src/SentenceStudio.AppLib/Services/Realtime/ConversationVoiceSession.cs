@@ -2,11 +2,30 @@
 #pragma warning disable MEAI001 // IRealtimeClient is experimental in Microsoft.Extensions.AI.
 #pragma warning disable OPENAI002 // OpenAI.Realtime types are experimental in the OpenAI SDK.
 
+using System.ClientModel.Primitives;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services.Realtime;
+
+/// <summary>
+/// How fast the partner speaks, and how long the learner may pause before the partner answers
+/// (the silence that ends the learner's turn).
+/// </summary>
+public sealed record ConversationVoicePace(float Speed, TimeSpan PauseBeforeReply)
+{
+    /// <summary>The provider's defaults: normal speed, half a second of silence.</summary>
+    public static ConversationVoicePace Default { get; } = new(1f, TimeSpan.FromMilliseconds(500));
+
+    /// <summary>The provider accepts 0.25 to 1.5.</summary>
+    internal float ProviderSpeed => float.IsFinite(Speed) ? Math.Clamp(Speed, 0.25f, 1.5f) : 1f;
+
+    internal TimeSpan ProviderPause => PauseBeforeReply < TimeSpan.FromMilliseconds(200)
+        ? TimeSpan.FromMilliseconds(200)
+        : PauseBeforeReply > TimeSpan.FromSeconds(5) ? TimeSpan.FromSeconds(5) : PauseBeforeReply;
+}
 
 /// <summary>
 /// A live voice conversation: microphone audio in, partner audio and transcripts out.
@@ -43,11 +62,19 @@ public interface IConversationVoiceSession : IAsyncDisposable
     /// <summary>The session is gone (the connection failed or the provider closed it) before it was disposed.</summary>
     event Action? Ended;
 
-    /// <summary>Starts receiving events and asks the partner to speak first.</summary>
-    Task BeginAsync();
+    /// <summary>
+    /// Starts receiving events. With <paramref name="readAloud"/>, the partner first says that line
+    /// (its own last message) word for word; that turn's audio plays but its transcript is not
+    /// raised, since the page already shows the line. Without it, the partner speaks first in its
+    /// own words.
+    /// </summary>
+    Task BeginAsync(string? readAloud = null);
 
     /// <summary>Appends one chunk of microphone audio (PCM16 mono). Callers send one chunk at a time.</summary>
     Task AppendAudioAsync(byte[] pcm16);
+
+    /// <summary>Changes the partner's speaking speed and the pause before it answers; applies from its next turn.</summary>
+    Task SetPaceAsync(ConversationVoicePace pace);
 }
 
 /// <summary>
@@ -65,13 +92,23 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
 
     private const string ToolName = "lookup_my_vocabulary";
 
+    /// <summary>Room for a long message read aloud (audio counts toward the output tokens).</summary>
+    private const int ReadAloudMaxOutputTokens = 2000;
+
+    /// <summary>Response metadata that marks the read-aloud turn; the provider echoes it on response.created.</summary>
+    public const string PurposeKey = "sentencestudio_purpose";
+    public const string ReadAloudPurpose = "read_aloud";
+
     private readonly IRealtimeClientSession _session;
+    private readonly Func<ConversationVoicePace, bool, RealtimeSessionOptions> _options;
+    private readonly string _targetLanguage;
     private readonly IRealtimeClient? _ownedClient;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts;
     private readonly object _lifecycle = new();
     private Task? _receiveLoop;
     private int _disposed;
+    private string? _readAloudResponse;
 
     /// <summary>A chunk of assistant audio, base64 PCM16 at <see cref="SampleRate"/>.</summary>
     public event Action<string>? AudioDelta;
@@ -100,10 +137,13 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
     /// <inheritdoc />
     public event Action? Ended;
 
-    private ConversationVoiceSession(IRealtimeClientSession session, IRealtimeClient? ownedClient,
-        ILogger logger, CancellationTokenSource cts)
+    private ConversationVoiceSession(IRealtimeClientSession session,
+        Func<ConversationVoicePace, bool, RealtimeSessionOptions> options, string targetLanguage,
+        IRealtimeClient? ownedClient, ILogger logger, CancellationTokenSource cts)
     {
         _session = session;
+        _options = options;
+        _targetLanguage = targetLanguage;
         _ownedClient = ownedClient;
         _logger = logger;
         _cts = cts;
@@ -122,7 +162,8 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
         IReadOnlyList<VocabularyWord> vocabulary,
         ILogger logger,
         CancellationToken cancellationToken = default,
-        bool disposeClient = false)
+        bool disposeClient = false,
+        ConversationVoicePace? pace = null)
     {
         ArgumentNullException.ThrowIfNull(client);
 
@@ -135,10 +176,12 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
             "Look up a word or phrase in the learner's own saved vocabulary list. "
             + "Returns the saved meaning when the learner is studying it, or says it is not in their list.");
 
-        var options = new RealtimeSessionOptions
+        // The voice is set only when the session opens: the provider refuses a voice change once the
+        // partner has spoken, so a later update leaves it out.
+        RealtimeSessionOptions Options(ConversationVoicePace voicePace, bool opening) => new()
         {
             Instructions = instructions,
-            Voice = "marin",
+            Voice = opening ? "marin" : null,
             InputAudioFormat = new RealtimeAudioFormat("audio/pcm", SampleRate),
             OutputAudioFormat = new RealtimeAudioFormat("audio/pcm", SampleRate),
             TranscriptionOptions = new TranscriptionOptions
@@ -149,12 +192,16 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
             VoiceActivityDetection = new VoiceActivityDetectionOptions { Enabled = true, AllowInterruption = true },
             MaxOutputTokens = 400,
             Tools = [lookup],
+            // Speed and the silence length have no Microsoft.Extensions.AI option; the OpenAI
+            // adapter starts from these provider options and adds the ones above.
+            RawRepresentationFactory = () => PaceOptions(voicePace),
         };
 
         IRealtimeClientSession session;
         try
         {
-            session = await client.CreateSessionAsync(options, cts.Token).ConfigureAwait(false);
+            session = await client.CreateSessionAsync(Options(pace ?? ConversationVoicePace.Default, true), cts.Token)
+                .ConfigureAwait(false);
         }
         catch
         {
@@ -166,12 +213,40 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
             throw;
         }
 
-        voice = new ConversationVoiceSession(session, disposeClient ? client : null, logger, cts);
+        voice = new ConversationVoiceSession(session, Options, targetLanguage,
+            disposeClient ? client : null, logger, cts);
         return voice;
     }
 
-    /// <summary>Starts receiving events and asks the partner to speak first.</summary>
-    public async Task BeginAsync()
+    /// <summary>Server voice activity detection that ends the learner's turn after the pace's pause, and the pace's speed.</summary>
+    private static OpenAI.Realtime.RealtimeConversationSessionOptions PaceOptions(ConversationVoicePace pace) => new()
+    {
+        AudioOptions = new OpenAI.Realtime.RealtimeConversationSessionAudioOptions
+        {
+            InputAudioOptions = new OpenAI.Realtime.RealtimeConversationSessionInputAudioOptions
+            {
+                TurnDetection = new OpenAI.Realtime.RealtimeServerVadTurnDetection
+                {
+                    SilenceDuration = pace.ProviderPause,
+                    CreateResponseEnabled = true,
+                    InterruptResponseEnabled = true,
+                },
+            },
+            OutputAudioOptions = new OpenAI.Realtime.RealtimeConversationSessionOutputAudioOptions
+            {
+                Speed = pace.ProviderSpeed,
+            },
+        },
+    };
+
+    /// <summary>The one-response instructions that make the partner say its own last message as written.</summary>
+    public static string ReadAloudInstructions(string targetLanguage, string text) =>
+        $"Read your last message aloud to the learner in {targetLanguage}. Say exactly the text below, "
+        + "word for word, adding, leaving out or changing nothing. Then stop and wait for the learner.\n\n"
+        + text.Trim();
+
+    /// <inheritdoc />
+    public async Task BeginAsync(string? readAloud = null)
     {
         CancellationToken token;
         lock (_lifecycle)
@@ -186,7 +261,36 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
             _receiveLoop = Task.Run(ReceiveLoopAsync);
         }
 
-        await _session.SendAsync(new CreateResponseRealtimeClientMessage(), token).ConfigureAwait(false);
+        var first = string.IsNullOrWhiteSpace(readAloud)
+            ? new CreateResponseRealtimeClientMessage()
+            : new CreateResponseRealtimeClientMessage
+            {
+                Instructions = ReadAloudInstructions(_targetLanguage, readAloud),
+                ToolMode = ChatToolMode.None,
+                MaxOutputTokens = ReadAloudMaxOutputTokens,
+                // The OpenAI adapter sends each value as raw JSON, so the string goes JSON-quoted.
+                AdditionalProperties = new() { [PurposeKey] = JsonSerializer.Serialize(ReadAloudPurpose) },
+            };
+        await _session.SendAsync(first, token).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task SetPaceAsync(ConversationVoicePace pace)
+    {
+        ArgumentNullException.ThrowIfNull(pace);
+        CancellationToken token;
+        lock (_lifecycle)
+        {
+            // Ending: the token source may already be gone, and a closing socket needs no update.
+            if (_disposed != 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            token = _cts.Token;
+        }
+
+        return _session.SendAsync(new SessionUpdateRealtimeClientMessage(_options(pace, false)), token);
     }
 
     /// <summary>Appends one chunk of microphone audio (PCM16 mono, <see cref="SampleRate"/>).</summary>
@@ -241,6 +345,19 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
                 }
                 break;
 
+            case ResponseCreatedRealtimeServerMessage created
+                when created.Type == RealtimeServerMessageType.ResponseCreated && IsReadAloud(created):
+                _readAloudResponse = created.ResponseId;
+                _logger.LogInformation("Realtime voice is reading the partner's last message aloud");
+                break;
+
+            // The read-aloud turn's words are already on the page.
+            case OutputTextAudioRealtimeServerMessage text
+                when text.ResponseId is not null && text.ResponseId == _readAloudResponse
+                    && (text.Type == RealtimeServerMessageType.OutputAudioTranscriptionDelta
+                        || text.Type == RealtimeServerMessageType.OutputAudioTranscriptionDone):
+                break;
+
             case OutputTextAudioRealtimeServerMessage text when text.Type == RealtimeServerMessageType.OutputAudioTranscriptionDelta:
                 AssistantTranscriptDelta?.Invoke(text.ItemId ?? "", text.Text ?? "");
                 break;
@@ -273,6 +390,47 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
                 when type == RealtimeServerMessageType.RawContentOnly:
                 SpeechStarted?.Invoke();
                 break;
+
+            case { RawRepresentation: OpenAI.Realtime.RealtimeServerUpdateSessionUpdated updated }:
+                LogPace(updated);
+                break;
+        }
+    }
+
+    private static bool IsReadAloud(ResponseCreatedRealtimeServerMessage created) =>
+        created.ResponseId is not null
+        && created.AdditionalProperties is { } metadata
+        && metadata.TryGetValue(PurposeKey, out var purpose)
+        // Echoed as the raw JSON value (BinaryData), so quoted.
+        && string.Equals(purpose?.ToString()?.Trim('"'), ReadAloudPurpose, StringComparison.Ordinal);
+
+    /// <summary>Logs the speed and pause the provider confirmed (no content).</summary>
+    private void LogPace(OpenAI.Realtime.RealtimeServerUpdateSessionUpdated updated)
+    {
+        try
+        {
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                ((IJsonModel<OpenAI.Realtime.RealtimeServerUpdateSessionUpdated>)updated).Write(writer, ModelReaderWriterOptions.Json);
+            }
+            using var json = JsonDocument.Parse(buffer.ToArray());
+            if (!json.RootElement.TryGetProperty("session", out var session)
+                || !session.TryGetProperty("audio", out var audio))
+            {
+                return;
+            }
+            double? speed = audio.TryGetProperty("output", out var output)
+                && output.TryGetProperty("speed", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetDouble() : null;
+            int? pause = audio.TryGetProperty("input", out var input)
+                && input.TryGetProperty("turn_detection", out var turn) && turn.ValueKind == JsonValueKind.Object
+                && turn.TryGetProperty("silence_duration_ms", out var ms) && ms.ValueKind == JsonValueKind.Number
+                    ? ms.GetInt32() : null;
+            _logger.LogInformation("Realtime voice pace: speed {Speed}, pause {PauseMs} ms", speed, pause);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            _logger.LogDebug(ex, "Realtime voice could not read the session update");
         }
     }
 

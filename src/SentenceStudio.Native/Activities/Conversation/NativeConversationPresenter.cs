@@ -39,10 +39,12 @@ public sealed partial class NativeConversationPresenter(
     NativePendingWrites pendingWrites,
     ILogger<NativeConversationPresenter> logger,
     INativeConversationVoice? voice = null,
-    INativeVoiceAudio? voiceAudio = null) : IDisposable
+    INativeVoiceAudio? voiceAudio = null,
+    SentenceStudio.Abstractions.IPreferencesService? preferences = null) : IDisposable
 {
     private readonly INativeConversationVoice? _voiceService = voice;
     private readonly INativeVoiceAudio? _voiceAudio = voiceAudio;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences = preferences;
     public const string ScoringActivity = "Conversation";
     public const float DifficultyWeight = 1.2f;
     public const float PenaltyOverride = 0.8f;
@@ -582,6 +584,7 @@ public sealed partial class NativeConversationPresenter(
                 .GetByIdAsync(userId);
             _language = string.IsNullOrWhiteSpace(profile?.TargetLanguage) ? "Korean" : profile.TargetLanguage;
         }
+        LoadVoicePace(userId);
         cancellationToken.ThrowIfCancellationRequested();
         _scenarios = [.. await scenarioStore.GetAllAsync(userId, cancellationToken)];
         // Source: ?scenarioId when present (no native launch carries one), else the first scenario.
@@ -700,7 +703,9 @@ public sealed partial class NativeConversationPresenter(
         Voice: _voice,
         IsVoiceAvailable: VoiceAvailable,
         MicLevel: _micLevel,
-        PartnerName: PartnerName);
+        PartnerName: PartnerName,
+        VoiceSpeedPercent: _voiceSpeed,
+        VoicePauseMilliseconds: _voicePause);
 
     /// <summary>Source: the spinner page shows while starting with no messages; otherwise the chat.</summary>
     private NativeConversationState PublishCurrent() =>

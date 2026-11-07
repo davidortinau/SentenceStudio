@@ -23,7 +23,18 @@ Text mode is unchanged by this work except that Return replaces the Send button.
 | Voice | target transcript of the partner's speech | target, live | spoken, transcribed as the target language | yes: live target speech and its transcript | spoken production of the target language | ship |
 | Voice, learner speaks the native language | target transcript | target, live | spoken native | yes: the partner answers in the target language ("If you did not understand the learner, say so kindly in {{ target_language }}") | none for that turn | ship: the partner side keeps every turn in the target language; no native-only state |
 
-Voice has no toggles. Quick phrases, typing and Listen are unavailable while voice runs (the voice
+Voice pace (2026-11-06, departure 50) changes how the partner's target-language speech is
+delivered, not its language or content: speaking speed 100% to 70% and the pause before the
+partner answers (0.5 s to 2.5 s). Every speed and pause keeps each row above as it is: the partner
+still speaks only the target language and the learner still answers aloud. Slower speech and a
+longer pause give the learner more time to parse the partner and to plan a target-language answer.
+
+Voice start (2026-11-06, departure 49): the partner reads its last message aloud word for word
+(the opening line on a fresh chat), so the learner hears the target-language line they can already
+see, then answers it aloud. No new partner text appears. After a learner turn, the partner answers
+in its own words.
+
+Voice has no other toggles. Quick phrases, typing and Listen are unavailable while voice runs (the voice
 panel replaces the composer; Listen is refused). The target language comes from the profile or the
 toolbar language menu; changing it ends voice and restarts the chat.
 
@@ -44,7 +55,8 @@ The partner is instructed to speak only the target language (`Conversation.voice
 ## 4. Empty-state and default review
 
 A first-time learner lands in text mode, as before: the persona's target-language opening line,
-Listen, and the composer. Voice is off until the learner taps the waveform. On first use the system
+Listen, and the composer. Voice is off until the learner taps the waveform; it then reads that
+opening line aloud at the default pace (100%, 0.5 s), a ship row. On first use the system
 asks for the microphone; if the learner refuses, a notice says voice needs the microphone and the
 text chat stays as it was. Without an API origin, or on a head with no microphone port (Android
 today), the waveform is not shown. Every default path lands in a ship row.
@@ -57,6 +69,8 @@ today), the waveform is not shown. Every default path lands in a ship row.
   when the learner asks or uses the word; it is a gloss, not a quiz answer.
 - [x] Accessibility labels name the controls (Talk with voice, End voice, the status), not content.
 - [x] Audio is streamed, not cached; no file names carry learner text.
+- [x] The pace menu shows only percentages and seconds; its accessibility label names the pace,
+  not content. The read-aloud adds no text and no translation.
 
 ## 6. Acceptance cases
 

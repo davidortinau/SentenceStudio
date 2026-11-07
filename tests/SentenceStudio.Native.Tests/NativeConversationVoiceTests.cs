@@ -59,6 +59,10 @@ public sealed class NativeConversationVoiceTests
         var session = voice.Session!;
         Assert.True(session.Began);
         Assert.True(audio.Started);
+        Assert.Equal(new ConversationVoicePace(1f, TimeSpan.FromMilliseconds(500)), request.Request.Pace);
+
+        // The partner first reads its opening line aloud (the session leaves that turn's transcript out).
+        Assert.Equal("opening 1", session.ReadAloud);
 
         // Partner speaks: audio plays, the transcript builds one bubble with the vocabulary lookup.
         session.ToolInvoked?.Invoke("커피", ["커피 = coffee"]);
@@ -70,6 +74,8 @@ public sealed class NativeConversationVoiceTests
         var speaking = conversation.State;
         Assert.Equal(NativeConversationVoice.PartnerSpeaking, speaking.Voice);
         Assert.Equal([1, 2, 3, 4], Assert.Single(audio.Played));
+        Assert.Equal("opening 1", speaking.Messages[0].Text);
+        Assert.False(speaking.Messages[0].IsVoice);
         var partner = speaking.Messages[1];
         Assert.True(partner.IsVoice);
         Assert.False(partner.IsUser);
@@ -128,6 +134,123 @@ public sealed class NativeConversationVoiceTests
         Assert.Equal(["opening 1", "커피 드릴까요?", "아이스 아메리카노 주세요", "감사합니다"],
             ai.Continues.Single().History.Select(turn => turn.Item2));
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task AfterAFailedReply_ThePartnerAnswersInsteadOfReadingAloud()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        var ai = new FakeConversationAi { FailReplies = true };
+        var voice = new FakeVoice();
+        using var conversation = Presenter(fixture, ai, voice, new FakeAudio());
+        await conversation.OpenAsync(Launch(fixture));
+        await conversation.Opening;
+        conversation.SetDraft("안녕하세요");
+        var failed = await conversation.SendAsync();
+        Assert.True(failed.Messages[^1].IsUser);
+
+        await conversation.StartVoiceAsync();
+
+        Assert.True(voice.Session!.Began);
+        Assert.Null(voice.Session.ReadAloud);
+    }
+
+    [Fact]
+    public async Task VoicePace_IsKeptPerOwnerAndChangesTheRunningSession()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        var voice = new FakeVoice();
+        using (var conversation = Presenter(fixture, new FakeConversationAi(), voice, new FakeAudio()))
+        {
+            await conversation.OpenAsync(Launch(fixture));
+            var ready = await conversation.Opening;
+            Assert.Equal(100, ready.VoiceSpeedPercent);
+            Assert.Equal(500, ready.VoicePauseMilliseconds);
+
+            // Only the offered choices are taken.
+            Assert.Equal(100, (await conversation.SetVoiceSpeedAsync(85)).VoiceSpeedPercent);
+            Assert.Equal(500, (await conversation.SetVoicePauseAsync(700)).VoicePauseMilliseconds);
+
+            Assert.Equal(80, (await conversation.SetVoiceSpeedAsync(80)).VoiceSpeedPercent);
+            await conversation.StartVoiceAsync();
+            Assert.Equal(new ConversationVoicePace(0.8f, TimeSpan.FromMilliseconds(500)),
+                voice.Requests.Single().Request.Pace);
+            var session = voice.Session!;
+            Assert.Empty(session.Paces);
+
+            // A change while voice runs goes to the session.
+            var paused = await conversation.SetVoicePauseAsync(1500);
+            Assert.Equal(1500, paused.VoicePauseMilliseconds);
+            Assert.Equal(new ConversationVoicePace(0.8f, TimeSpan.FromMilliseconds(1500)), Assert.Single(session.Paces));
+
+            // A session that refuses the update keeps voice running; the choice is still saved.
+            session.FailPace = true;
+            var kept = await conversation.SetVoicePauseAsync(2500);
+            Assert.Equal(NativeConversationVoice.Listening, kept.Voice);
+            Assert.Equal(2500, kept.VoicePauseMilliseconds);
+            Assert.Equal(2500, fixture.Preferences.Get(
+                NativeConversationPresenter.VoicePauseKey(NativeSliceFixture.UserA), 0));
+            await conversation.SetVoicePauseAsync(1500);
+            await conversation.ExitAsync();
+        }
+
+        Assert.Equal(80, fixture.Preferences.Get(
+            NativeConversationPresenter.VoiceSpeedKey(NativeSliceFixture.UserA), 0));
+        Assert.Equal(0, fixture.Preferences.Get(
+            NativeConversationPresenter.VoiceSpeedKey(NativeSliceFixture.UserB), 0));
+
+        // The next visit starts with the owner's saved pace.
+        using var again = Presenter(fixture, new FakeConversationAi(), voice, new FakeAudio());
+        await again.OpenAsync(Launch(fixture));
+        var reopened = await again.Opening;
+        Assert.Equal(80, reopened.VoiceSpeedPercent);
+        Assert.Equal(1500, reopened.VoicePauseMilliseconds);
+    }
+
+    [Fact]
+    public async Task VoicePace_ChangedWhileConnecting_IsSentOnceTheSessionOpens()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        var voice = new FakeVoice { Hold = new TaskCompletionSource() };
+        using var conversation = Presenter(fixture, new FakeConversationAi(), voice, new FakeAudio());
+        await conversation.OpenAsync(Launch(fixture));
+        await conversation.Opening;
+
+        var starting = conversation.StartVoiceAsync();
+        await WaitForAsync(() => voice.Requests.Count == 1);
+        Assert.Equal(NativeConversationVoice.Connecting, conversation.State.Voice);
+        await conversation.SetVoiceSpeedAsync(70);
+        voice.Hold.SetResult();
+        var started = await starting;
+
+        Assert.Equal(NativeConversationVoice.Listening, started.Voice);
+        Assert.Equal(ConversationVoicePace.Default, voice.Requests.Single().Request.Pace);
+        Assert.Equal(new ConversationVoicePace(0.7f, TimeSpan.FromMilliseconds(500)), Assert.Single(voice.Session!.Paces));
+        Assert.True(voice.Session.Began);
+    }
+
+    [Fact]
+    public async Task VoicePace_AnUnreadableSetting_FallsBackToTheDefaults()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+        using var conversation = ActivatorUtilities.CreateInstance<NativeConversationPresenter>(fixture.Provider,
+            new FakeConversationAi(), new ScratchShadowingSpeech(), new ScratchShadowingPlayer(),
+            new FakeVoice(), new FakeAudio(), new ThrowingPreferences());
+
+        await conversation.OpenAsync(Launch(fixture));
+        var ready = await conversation.Opening;
+
+        Assert.Equal(NativePhase.Ready, ready.Phase);
+        Assert.Equal(100, ready.VoiceSpeedPercent);
+        Assert.Equal(500, ready.VoicePauseMilliseconds);
     }
 
     [Fact]
@@ -279,9 +402,18 @@ public sealed class NativeConversationVoiceTests
         Assert.True(condition());
     }
 
+    private sealed class ThrowingPreferences : SentenceStudio.Abstractions.IPreferencesService
+    {
+        public T Get<T>(string key, T defaultValue) => throw new InvalidOperationException("Synthetic preferences failure.");
+        public void Set<T>(string key, T value) => throw new InvalidOperationException("Synthetic preferences failure.");
+        public void Remove(string key) { }
+        public void Clear() { }
+    }
+
     private sealed class FakeConversationAi : INativeConversationAi
     {
         public List<(List<(string?, string?)> History, string Language)> Continues { get; } = [];
+        public bool FailReplies { get; set; }
         private int _starts;
 
         public Task<string?> StartAsync(string owner, ConversationScenario? scenario,
@@ -292,7 +424,7 @@ public sealed class NativeConversationVoiceTests
             ConversationScenario? scenario, string targetLanguage, CancellationToken cancellationToken)
         {
             Continues.Add((chunks.Select(chunk => (chunk.Author, chunk.Text)).ToList(), targetLanguage));
-            return Task.FromResult<Reply?>(new Reply { Message = "reply", Comprehension = 80 });
+            return Task.FromResult<Reply?>(FailReplies ? null : new Reply { Message = "reply", Comprehension = 80 });
         }
     }
 
@@ -301,15 +433,18 @@ public sealed class NativeConversationVoiceTests
         public List<(string Owner, NativeConversationVoiceRequest Request)> Requests { get; } = [];
         public FakeSession? Session { get; private set; }
         public bool Fail { get; set; }
+        public TaskCompletionSource? Hold { get; set; }
 
-        public Task<IConversationVoiceSession> StartAsync(string owner,
+        public async Task<IConversationVoiceSession> StartAsync(string owner,
             NativeConversationVoiceRequest request, CancellationToken cancellationToken)
         {
             Requests.Add((owner, request));
+            if (Hold is not null)
+                await Hold.Task;
             if (Fail)
                 throw new HttpRequestException("Synthetic realtime offline.");
             Session = new FakeSession();
-            return Task.FromResult<IConversationVoiceSession>(Session);
+            return Session;
         }
     }
 
@@ -325,6 +460,9 @@ public sealed class NativeConversationVoiceTests
         public Action<string>? Failed;
         public Action? Ended;
         public bool Began { get; private set; }
+        public string? ReadAloud { get; private set; }
+        public List<ConversationVoicePace> Paces { get; } = [];
+        public bool FailPace { get; set; }
         public bool Disposed { get; private set; }
         public List<byte[]> Appended { get; } = [];
 
@@ -338,9 +476,18 @@ public sealed class NativeConversationVoiceTests
         event Action<string>? IConversationVoiceSession.Failed { add => Failed += value; remove => Failed -= value; }
         event Action? IConversationVoiceSession.Ended { add => Ended += value; remove => Ended -= value; }
 
-        public Task BeginAsync()
+        public Task BeginAsync(string? readAloud = null)
         {
             Began = true;
+            ReadAloud = readAloud;
+            return Task.CompletedTask;
+        }
+
+        public Task SetPaceAsync(ConversationVoicePace pace)
+        {
+            if (FailPace)
+                throw new System.Net.WebSockets.WebSocketException("Synthetic session update failure.");
+            Paces.Add(pace);
             return Task.CompletedTask;
         }
 

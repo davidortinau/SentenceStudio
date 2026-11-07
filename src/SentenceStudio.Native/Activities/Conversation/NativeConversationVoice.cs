@@ -45,7 +45,8 @@ public sealed class NativeConversationVoiceService(
             request.Vocabulary,
             loggers.CreateLogger<ConversationVoiceSession>(),
             cancellationToken,
-            disposeClient: true);
+            disposeClient: true,
+            pace: request.Pace);
     }
 
     /// <summary>Renders Conversation.voice.scriban-txt with the model the Techorama page used.</summary>

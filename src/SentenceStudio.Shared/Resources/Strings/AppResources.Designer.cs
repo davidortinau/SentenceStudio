@@ -10867,6 +10867,51 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Voice pace.
+        /// </summary>
+        internal static string NativeConversation_VoicePace {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoicePace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause before reply.
+        /// </summary>
+        internal static string NativeConversation_VoicePause {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoicePause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} s.
+        /// </summary>
+        internal static string NativeConversation_VoicePauseOption {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoicePauseOption", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Speaking speed.
+        /// </summary>
+        internal static string NativeConversation_VoiceSpeed {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoiceSpeed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}%.
+        /// </summary>
+        internal static string NativeConversation_VoiceSpeedOption {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoiceSpeedOption", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} is not in your list.
         /// </summary>
         internal static string NativeConversation_VoiceToolNotFound {

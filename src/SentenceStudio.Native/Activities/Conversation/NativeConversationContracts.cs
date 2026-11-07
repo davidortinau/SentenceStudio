@@ -39,6 +39,13 @@ public static class NativeConversationAccess
     public const string VoiceStatus = "native.conversation.voice.status";
     public const string VoiceLevel = "native.conversation.voice.level";
     public const string VoiceStop = "native.conversation.voice.stop";
+    /// <summary>
+    /// The voice pace menu in the voice panel. Its rows are "native.conversation.voice.speed.{percent}"
+    /// and "native.conversation.voice.pause.{milliseconds}".
+    /// </summary>
+    public const string VoicePace = "native.conversation.voice.pace";
+    public const string VoiceSpeed = "native.conversation.voice.speed";
+    public const string VoicePause = "native.conversation.voice.pause";
 }
 
 public static class NativeConversationText
@@ -79,6 +86,14 @@ public static class NativeConversationText
     public const string VoiceToolNotFound = "NativeConversation_VoiceToolNotFound";
     public const string VoiceUnavailable = "Conversation_VoiceUnavailable";
     public const string VoiceMicDenied = "Conversation_VoiceMicDenied";
+    // Voice pace (Captain, 2026-11-06: "slow the speech rate and increase the delay").
+    public const string VoicePace = "NativeConversation_VoicePace";
+    public const string VoiceSpeed = "NativeConversation_VoiceSpeed";
+    public const string VoicePause = "NativeConversation_VoicePause";
+    /// <summary>Format: {0} = the speed in percent of normal.</summary>
+    public const string VoiceSpeedOption = "NativeConversation_VoiceSpeedOption";
+    /// <summary>Format: {0} = the pause in seconds.</summary>
+    public const string VoicePauseOption = "NativeConversation_VoicePauseOption";
 }
 
 /// <summary>Voice mode: Off, opening the session, the learner's turn, or the partner speaking.</summary>
@@ -149,8 +164,19 @@ public sealed record NativeConversationState(
     NativeConversationVoice Voice = NativeConversationVoice.Off,
     bool IsVoiceAvailable = false,
     double MicLevel = 0,
-    string PartnerName = "")
+    string PartnerName = "",
+    int VoiceSpeedPercent = NativeConversationState.DefaultVoiceSpeedPercent,
+    int VoicePauseMilliseconds = NativeConversationState.DefaultVoicePauseMilliseconds)
 {
+    /// <summary>The partner's speaking speed, in percent of normal. Normal is the provider's default.</summary>
+    public static ImmutableArray<int> VoiceSpeeds { get; } = [100, 90, 80, 70];
+
+    /// <summary>How long the learner may pause before the partner answers. 0.5 s is the provider's default.</summary>
+    public static ImmutableArray<int> VoicePauses { get; } = [500, 1000, 1500, 2500];
+
+    public const int DefaultVoiceSpeedPercent = 100;
+    public const int DefaultVoicePauseMilliseconds = 500;
+
     /// <summary>Source toolbar dropdown: SentenceStudio.Common.Constants.Languages.</summary>
     public static ImmutableArray<string> Languages { get; } =
         [.. SentenceStudio.Common.Constants.Languages];
@@ -204,7 +230,8 @@ public sealed record NativeConversationVoiceRequest(
     ConversationScenario? Scenario,
     string TargetLanguage,
     IReadOnlyList<ConversationChunk> RecentTurns,
-    IReadOnlyList<VocabularyWord> Vocabulary);
+    IReadOnlyList<VocabularyWord> Vocabulary,
+    SentenceStudio.Services.Realtime.ConversationVoicePace? Pace = null);
 
 /// <summary>
 /// Opens a realtime voice session for the owner: the API mints a short-lived client secret for

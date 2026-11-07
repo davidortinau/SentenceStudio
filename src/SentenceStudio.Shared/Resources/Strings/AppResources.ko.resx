@@ -9600,4 +9600,24 @@
     <value>{0}: 내 단어장에 없어요</value>
     <comment>Conversation voice mode: the partner looked up a word the learner has not saved. {0} is the word. (Draft Korean.)</comment>
   </data>
+  <data name="NativeConversation_VoicePace" xml:space="preserve">
+    <value>음성 속도</value>
+    <comment>Conversation voice mode: the menu that sets how fast the partner speaks and how long it waits before answering. (Draft Korean.)</comment>
+  </data>
+  <data name="NativeConversation_VoiceSpeed" xml:space="preserve">
+    <value>말하기 속도</value>
+    <comment>Conversation voice mode: section title for the partner's speaking speed choices. (Draft Korean.)</comment>
+  </data>
+  <data name="NativeConversation_VoicePause" xml:space="preserve">
+    <value>대답 전 기다리는 시간</value>
+    <comment>Conversation voice mode: section title for how long the learner may pause before the partner answers. (Draft Korean.)</comment>
+  </data>
+  <data name="NativeConversation_VoiceSpeedOption" xml:space="preserve">
+    <value>{0}%</value>
+    <comment>Conversation voice mode: a speaking speed choice. {0} is the speed in percent of normal (100, 90, 80, 70). (Draft Korean.)</comment>
+  </data>
+  <data name="NativeConversation_VoicePauseOption" xml:space="preserve">
+    <value>{0}초</value>
+    <comment>Conversation voice mode: a pause choice. {0} is the pause in seconds (0.5, 1, 1.5, 2.5). (Draft Korean.)</comment>
+  </data>
 </root>

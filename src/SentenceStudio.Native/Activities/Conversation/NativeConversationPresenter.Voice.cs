@@ -11,6 +11,12 @@ namespace SentenceStudio.Native;
 /// partner. Spoken turns join the same thread as typed turns, so the chat can continue in text
 /// afterwards. Like the demo, voice turns are not graded or scored and nothing is saved.
 ///
+/// Voice starts by having the partner read its last message aloud (Captain, 2026-11-06: "read the
+/// initial message not add a new message"); the session leaves that turn's transcript out, so the
+/// spoken line stays the existing bubble.
+/// The pace menu sets the partner's speaking speed and the pause before it answers; both are kept
+/// per owner on the device and apply to a running session from the partner's next turn.
+///
 /// Session events go through one ordered queue (so transcript pieces never reorder) and are
 /// published at most every <see cref="VoicePublishInterval"/>. Microphone audio goes through its
 /// own queue so only one chunk is sent at a time. Every change is checked against the voice
@@ -43,6 +49,17 @@ public sealed partial class NativeConversationPresenter
     private readonly Dictionary<ConversationChunk, ImmutableArray<NativeConversationToolNote>> _toolNotes =
         new(ReferenceEqualityComparer.Instance);
     private readonly List<NativeConversationToolNote> _pendingToolNotes = [];
+    private readonly SemaphoreSlim _paceSend = new(1, 1);
+    private IConversationVoiceSession? _pacedSession;
+    private ConversationVoicePace? _sentPace;
+    private int _voiceSpeed = NativeConversationState.DefaultVoiceSpeedPercent;
+    private int _voicePause = NativeConversationState.DefaultVoicePauseMilliseconds;
+
+    internal static string VoiceSpeedKey(string owner) => $"conversation_voice_speed_percent:{owner}";
+
+    internal static string VoicePauseKey(string owner) => $"conversation_voice_pause_ms:{owner}";
+
+    private ConversationVoicePace Pace() => new(_voiceSpeed / 100f, TimeSpan.FromMilliseconds(_voicePause));
 
     private bool VoiceAvailable => _voiceService is not null && _voiceAudio is not null;
 
@@ -58,6 +75,7 @@ public sealed partial class NativeConversationPresenter
         long generation;
         string userId;
         NativeConversationVoiceRequest request;
+        string? readAloud;
         CancellationTokenSource connect;
         await _gate.WaitAsync(cancellationToken);
         try
@@ -73,7 +91,11 @@ public sealed partial class NativeConversationPresenter
             _voice = NativeConversationVoice.Connecting;
             generation = Interlocked.Increment(ref _voiceGeneration);
             userId = _launch!.UserId;
-            request = new(_active, _language, [.. _chunks], [.. _vocabulary]);
+            request = new(_active, _language, [.. _chunks], [.. _vocabulary], Pace());
+            // The partner's last message is read aloud as the session's first turn; after a
+            // learner turn (a reply that failed), the partner answers in its own words instead.
+            readAloud = _chunks.Count > 0 && _chunks[^1] is { Role: ConversationRole.Assistant } last
+                && !string.IsNullOrWhiteSpace(last.Text) ? last.Text : null;
             connect = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken, _lifetime.Token, _exitCancel.Token);
             _voiceConnect = connect;
@@ -141,6 +163,9 @@ public sealed partial class NativeConversationPresenter
             });
             _voiceEvents = events;
             _microphone = microphone;
+            // The session opened with the request's pace; a later change is sent by SendPaceAsync.
+            _pacedSession = session;
+            _sentPace = request.Pace;
             Wire(session, generation, events.Writer);
             _ = PumpVoiceEventsAsync(generation, events.Reader);
             _ = PumpMicrophoneAsync(session, microphone.Reader);
@@ -173,9 +198,11 @@ public sealed partial class NativeConversationPresenter
                 _ = DisposeVoiceSessionAsync(discard);
         }
 
+        // The pace changed while the session was opening. A failure here only keeps the old pace.
+        await SendPaceAsync(session);
         try
         {
-            await session.BeginAsync();
+            await session.BeginAsync(readAloud);
         }
         catch (Exception ex)
         {
@@ -183,6 +210,116 @@ public sealed partial class NativeConversationPresenter
             await EndVoiceAsync(generation, NativeConversationText.VoiceUnavailable);
         }
         return await _exit.StateAsync(_gate, () => State);
+    }
+
+    /// <summary>The pace menu: the partner's speaking speed, one of <see cref="NativeConversationState.VoiceSpeeds"/>.</summary>
+    public Task<NativeConversationState> SetVoiceSpeedAsync(int percent, CancellationToken cancellationToken = default) =>
+        SetVoicePaceAsync(percent, null, cancellationToken);
+
+    /// <summary>The pace menu: the pause before the partner answers, one of <see cref="NativeConversationState.VoicePauses"/>.</summary>
+    public Task<NativeConversationState> SetVoicePauseAsync(int milliseconds, CancellationToken cancellationToken = default) =>
+        SetVoicePaceAsync(null, milliseconds, cancellationToken);
+
+    private async Task<NativeConversationState> SetVoicePaceAsync(int? speed, int? pause, CancellationToken cancellationToken)
+    {
+        IConversationVoiceSession? session;
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!CanCommand(out var refused))
+                return refused;
+            if ((speed is { } s && !NativeConversationState.VoiceSpeeds.Contains(s))
+                || (pause is { } p && !NativeConversationState.VoicePauses.Contains(p)))
+                return State;
+            var nextSpeed = speed ?? _voiceSpeed;
+            var nextPause = pause ?? _voicePause;
+            if (nextSpeed == _voiceSpeed && nextPause == _voicePause)
+                return State;
+            _voiceSpeed = nextSpeed;
+            _voicePause = nextPause;
+            SaveVoicePace(_launch!.UserId);
+            // While connecting, StartVoiceAsync sends the new pace once the session is open.
+            session = _voice is NativeConversationVoice.Listening or NativeConversationVoice.PartnerSpeaking
+                ? _voiceSession : null;
+            PublishCurrent();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (session is not null)
+            await SendPaceAsync(session);
+        return State;
+    }
+
+    /// <summary>
+    /// Sends the current pace to the session unless it already has it. One send at a time, and the
+    /// pace is read inside, so the last send always carries the newest choice. A failure keeps the
+    /// session's pace (the choice is saved and used next time); voice goes on.
+    /// </summary>
+    private async Task SendPaceAsync(IConversationVoiceSession session)
+    {
+        await _paceSend.WaitAsync();
+        try
+        {
+            var pace = new ConversationVoicePace(Volatile.Read(ref _voiceSpeed) / 100f,
+                TimeSpan.FromMilliseconds(Volatile.Read(ref _voicePause)));
+            if (ReferenceEquals(_pacedSession, session) && pace == _sentPace)
+                return;
+            await session.SetPaceAsync(pace);
+            _pacedSession = session;
+            _sentPace = pace;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Conversation voice could not change the pace of the running session.");
+        }
+        finally
+        {
+            _paceSend.Release();
+        }
+    }
+
+    /// <summary>The owner's saved pace on this device; anything not offered falls back to the default. Caller holds the gate.</summary>
+    private void LoadVoicePace(string owner)
+    {
+        _voiceSpeed = NativeConversationState.DefaultVoiceSpeedPercent;
+        _voicePause = NativeConversationState.DefaultVoicePauseMilliseconds;
+        if (_preferences is null || string.IsNullOrWhiteSpace(owner))
+            return;
+        try
+        {
+            var speed = _preferences.Get(VoiceSpeedKey(owner), NativeConversationState.DefaultVoiceSpeedPercent);
+            var pause = _preferences.Get(VoicePauseKey(owner), NativeConversationState.DefaultVoicePauseMilliseconds);
+            if (NativeConversationState.VoiceSpeeds.Contains(speed))
+                _voiceSpeed = speed;
+            if (NativeConversationState.VoicePauses.Contains(pause))
+                _voicePause = pause;
+        }
+        catch (Exception ex)
+        {
+            // A setting must not keep the activity from opening; the defaults apply.
+            logger.LogWarning(ex, "Conversation voice could not read the saved pace.");
+        }
+    }
+
+    private void SaveVoicePace(string owner)
+    {
+        if (_preferences is null || string.IsNullOrWhiteSpace(owner))
+            return;
+        try
+        {
+            _preferences.Set(VoiceSpeedKey(owner), _voiceSpeed);
+            _preferences.Set(VoicePauseKey(owner), _voicePause);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Conversation voice could not save the pace.");
+        }
     }
 
     /// <summary>End voice: stops the microphone and speaker and closes the session. Spoken turns stay in the chat.</summary>

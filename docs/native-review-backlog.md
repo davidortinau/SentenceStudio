@@ -84,3 +84,9 @@ Resolved by B81-B84 (owner-only words, 2026-11-06): the Coach remove-word orphan
 - **Starting the audio holds the presenter lock.** `NativeConversationPresenter.StartVoiceAsync` awaits `INativeVoiceAudio.StartAsync` inside the gate, so Back waits for the audio session to activate (a few hundred ms). Moving it outside needs one more generation check.
 - **Keyboard after Return.** The SwiftUI bridge has no focus control or `submitLabel`, so the keyboard closes after each sent message (Messages keeps it open) and Return shows the plain return key, not "send". Both need small `Microsoft.SwiftUI` additions (`.focused`, `.submitLabel(.send)`).
 - **Android has no voice yet.** The shared presenter offers voice only when the head registers `INativeVoiceAudio`; Android has none (AudioRecord/AudioTrack with the echo canceller) and keeps its source composer with Send.
+
+Review of the voice pace and read-aloud change (2026-11-06; correctness findings fixed in the same commit):
+
+- **The pace log reads the whole session.** `ConversationVoiceSession.LogPace` writes the `session.updated` model to JSON and parses it to read speed and silence. It runs once per pace change and never logs content, but the typed `RealtimeServerUpdateSessionUpdated.Session` properties would avoid the copy (it includes the instructions with the learner's recent turns).
+- **Three copies of the checked menu row.** `ConversationScreen` builds a menu row with a checkmark, the selected state and an id in `ScenarioMenu`, `LanguageMenu` and `PaceMenu`; one `CheckedMenuItem(label, active, id, action)` helper would keep them alike.
+- **A pace change racing End.** `SetPaceAsync` is skipped once the session is disposing, but a send already on the socket when End runs can fail and log a warning. Harmless; noted only.

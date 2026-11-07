@@ -14,8 +14,8 @@ namespace SentenceStudio.Native.iOS.Features.Activities;
 /// The composer follows Messages (Captain, 2026-11-06): a round quick-phrases
 /// button before a capsule text field, Return sends (no Send button), and the
 /// waveform button inside the field starts voice mode. While voice runs, a
-/// voice panel (status, input level, End) takes the composer's place and
-/// spoken turns join the chat.
+/// voice panel (status, input level, the voice pace menu, End) takes the
+/// composer's place and spoken turns join the chat.
 ///
 /// While the layout is unchanged, state updates mutate the mounted slots in
 /// place, so the mounted text field (and any Korean IME composition or
@@ -39,6 +39,8 @@ internal sealed class ConversationScreen : IActivityScreen
     private SwiftView? _voiceStart;
     private SwiftView? _voiceStatus;
     private SwiftView? _voiceLevel;
+    private SwiftView? _voicePace;
+    private (int Speed, int Pause) _paceKey;
 
     public ConversationScreen(ActivityScreenHost host)
     {
@@ -126,7 +128,8 @@ internal sealed class ConversationScreen : IActivityScreen
         if (_layoutKey is null || _layoutKey != LayoutKey(state, style) || state.Phase != NativePhase.Ready
             || _top is null || _chat is null || _audio is null)
             return false;
-        if (state.IsVoiceOn ? _voiceStatus is null || _voiceLevel is null : _phrases is null || _field is null || _toggle is null)
+        if (state.IsVoiceOn ? _voiceStatus is null || _voiceLevel is null || _voicePace is null
+                : _phrases is null || _field is null || _toggle is null)
             return false;
         var text = _host.Text;
         Fill(_top, TopRows(state, style, text));
@@ -141,6 +144,12 @@ internal sealed class ConversationScreen : IActivityScreen
         {
             Fill(_voiceStatus!, VoiceStatusRows(state, style, text));
             _voiceLevel!.Value = state.Voice == NativeConversationVoice.Listening ? state.MicLevel : 0;
+            // Rebuilt only when the pace changes: input-level updates must not close an open menu.
+            if (_paceKey != (state.VoiceSpeedPercent, state.VoicePauseMilliseconds))
+            {
+                _paceKey = (state.VoiceSpeedPercent, state.VoicePauseMilliseconds);
+                Fill(_voicePace!, [PaceMenu(state, style, text)]);
+            }
         }
         else
         {
@@ -154,7 +163,7 @@ internal sealed class ConversationScreen : IActivityScreen
     {
         var text = _host.Text;
         var state = _state;
-        _top = _chat = _audio = _phrases = _field = _toggle = _voiceStart = _voiceStatus = _voiceLevel = null;
+        _top = _chat = _audio = _phrases = _field = _toggle = _voiceStart = _voiceStatus = _voiceLevel = _voicePace = null;
         _layoutKey = LayoutKey(state, style);
         var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
         SwiftView page;
@@ -269,7 +278,7 @@ internal sealed class ConversationScreen : IActivityScreen
         return composer;
     }
 
-    /// <summary>Voice mode: what is happening (connecting, listening, partner speaking), the input level, and End.</summary>
+    /// <summary>Voice mode: what is happening (connecting, listening, partner speaking), the input level, the pace menu, and End.</summary>
     private SwiftView VoicePanel(NativeConversationState state, SourceUiStyle style, Func<string, string> text)
     {
         _voiceStatus = Views.HStack(VoiceStatusRows(state, style, text).ToArray());
@@ -284,12 +293,59 @@ internal sealed class ConversationScreen : IActivityScreen
                 () => Fire(_presenter.StopVoiceAsync), SourceButtonRole.FilledSecondary, 12)
             .WithAccessibilityLabel(text(NativeConversationText.VoiceEnd))
             .WithAccessibilityIdentifier(NativeConversationAccess.VoiceStop);
-        var row = Views.HStack(middle, end).WithFlexibleWidth();
+        _voicePace = Views.HStack(PaceMenu(state, style, text));
+        _paceKey = (state.VoiceSpeedPercent, state.VoicePauseMilliseconds);
+        var row = Views.HStack(middle, _voicePace, end).WithFlexibleWidth();
         row.Spacing = 12;
         return row.WithPadding(8, 16, 8, 8)
             .WithRoundedSurface(style.Appearance.CardSurface.Light, style.Appearance.CardSurface.Dark,
                 24, style.Appearance.Border.Light, style.Appearance.Border.Dark, 1)
             .WithAccessibilityIdentifier(NativeConversationAccess.VoicePanel);
+    }
+
+    /// <summary>
+    /// Voice pace (Captain, 2026-11-06): the partner's speaking speed and the pause before it
+    /// answers, each a titled section with the current choice checked.
+    /// </summary>
+    private SwiftView PaceMenu(NativeConversationState state, SourceUiStyle style, Func<string, string> text)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        string Speed(int percent) =>
+            string.Format(culture, text(NativeConversationText.VoiceSpeedOption), percent);
+        string Pause(int milliseconds) =>
+            string.Format(culture, text(NativeConversationText.VoicePauseOption),
+                (milliseconds / 1000.0).ToString("0.#", culture));
+        SwiftView Choice(string label, bool active, string id,
+            Func<CancellationToken, Task<NativeConversationState>> action)
+        {
+            var button = active
+                ? Views.Button(Views.HStack(Views.Text(label), Views.Image("checkmark")), () => Fire(action))
+                : Views.Button(label, () => Fire(action));
+            return button.WithAccessibilitySelected(active).WithAccessibilityIdentifier(id);
+        }
+
+        var speeds = NativeConversationState.VoiceSpeeds.Select(percent => Choice(Speed(percent),
+                percent == state.VoiceSpeedPercent, $"{NativeConversationAccess.VoiceSpeed}.{percent}",
+                token => _presenter.SetVoiceSpeedAsync(percent, token)))
+            .ToArray();
+        var pauses = NativeConversationState.VoicePauses.Select(milliseconds => Choice(Pause(milliseconds),
+                milliseconds == state.VoicePauseMilliseconds, $"{NativeConversationAccess.VoicePause}.{milliseconds}",
+                token => _presenter.SetVoicePauseAsync(milliseconds, token)))
+            .ToArray();
+        var appearance = style.Appearance;
+        var label = Views.Image("slider.horizontal.3")
+            .WithFixedSymbolSize(19 * appearance.Selection.FontScale)
+            .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+            // A 44-point target around the 19-point symbol.
+            .WithPadding(13, 12, 13, 12);
+        return Views.Menu(label,
+                Views.Section(text(NativeConversationText.VoiceSpeed), speeds),
+                Views.Section(text(NativeConversationText.VoicePause), pauses))
+            .WithAccessibilityLabel(
+                $"{text(NativeConversationText.VoicePace)}, {Speed(state.VoiceSpeedPercent)}, {Pause(state.VoicePauseMilliseconds)}")
+            .WithAccessibilityIdentifier(NativeConversationAccess.VoicePace)
+            // The menu label fills its width by default; keep it icon-sized so the status keeps the room.
+            .WithFixedSize();
     }
 
     private IEnumerable<SwiftView> VoiceStatusRows(NativeConversationState state, SourceUiStyle style,

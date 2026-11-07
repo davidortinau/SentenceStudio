@@ -10254,4 +10254,24 @@ For example: {0} ...</value>
     <value>{0} is not in your list</value>
     <comment>Conversation voice mode: the partner looked up a word the learner has not saved. {0} is the word.</comment>
   </data>
+  <data name="NativeConversation_VoicePace" xml:space="preserve">
+    <value>Voice pace</value>
+    <comment>Conversation voice mode: the menu that sets how fast the partner speaks and how long it waits before answering.</comment>
+  </data>
+  <data name="NativeConversation_VoiceSpeed" xml:space="preserve">
+    <value>Speaking speed</value>
+    <comment>Conversation voice mode: section title for the partner's speaking speed choices.</comment>
+  </data>
+  <data name="NativeConversation_VoicePause" xml:space="preserve">
+    <value>Pause before reply</value>
+    <comment>Conversation voice mode: section title for how long the learner may pause before the partner answers.</comment>
+  </data>
+  <data name="NativeConversation_VoiceSpeedOption" xml:space="preserve">
+    <value>{0}%</value>
+    <comment>Conversation voice mode: a speaking speed choice. {0} is the speed in percent of normal (100, 90, 80, 70).</comment>
+  </data>
+  <data name="NativeConversation_VoicePauseOption" xml:space="preserve">
+    <value>{0} s</value>
+    <comment>Conversation voice mode: a pause choice. {0} is the pause in seconds (0.5, 1, 1.5, 2.5).</comment>
+  </data>
 </root>
