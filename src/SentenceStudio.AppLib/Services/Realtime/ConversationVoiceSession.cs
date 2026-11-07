@@ -31,8 +31,11 @@ public interface IConversationVoiceSession : IAsyncDisposable
     /// <summary>Final partner transcript. Arguments: item id, full text.</summary>
     event Action<string, string>? AssistantTranscriptCompleted;
 
-    /// <summary>The vocabulary tool ran. Arguments: the term, a short result summary.</summary>
-    event Action<string, string>? ToolInvoked;
+    /// <summary>
+    /// The vocabulary tool ran. Arguments: the term, and the matching saved words as
+    /// "target = native" (empty when the term is not in the learner's list).
+    /// </summary>
+    event Action<string, IReadOnlyList<string>>? ToolInvoked;
 
     /// <summary>The provider reported an error, or the session ended unexpectedly. Argument: message.</summary>
     event Action<string>? Failed;
@@ -66,6 +69,7 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
     private readonly IRealtimeClient? _ownedClient;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cts;
+    private readonly object _lifecycle = new();
     private Task? _receiveLoop;
     private int _disposed;
 
@@ -88,7 +92,7 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
     public event Action<string, string>? AssistantTranscriptCompleted;
 
     /// <summary>The vocabulary tool ran. Arguments: the term, a short result summary.</summary>
-    public event Action<string, string>? ToolInvoked;
+    public event Action<string, IReadOnlyList<string>>? ToolInvoked;
 
     /// <summary>The provider reported an error. Argument: message.</summary>
     public event Action<string>? Failed;
@@ -169,8 +173,20 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
     /// <summary>Starts receiving events and asks the partner to speak first.</summary>
     public async Task BeginAsync()
     {
-        _receiveLoop = Task.Run(ReceiveLoopAsync);
-        await _session.SendAsync(new CreateResponseRealtimeClientMessage(), _cts.Token).ConfigureAwait(false);
+        CancellationToken token;
+        lock (_lifecycle)
+        {
+            // Ended before it began (End or Back while starting): nothing to start.
+            if (_disposed != 0 || _receiveLoop is not null)
+            {
+                return;
+            }
+
+            token = _cts.Token;
+            _receiveLoop = Task.Run(ReceiveLoopAsync);
+        }
+
+        await _session.SendAsync(new CreateResponseRealtimeClientMessage(), token).ConfigureAwait(false);
     }
 
     /// <summary>Appends one chunk of microphone audio (PCM16 mono, <see cref="SampleRate"/>).</summary>
@@ -280,7 +296,7 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
             : $"In the learner's saved vocabulary: {string.Join("; ", matches)}";
 
         _logger.LogInformation("Voice tool {Tool} looked up {Term}: {Count} match(es)", ToolName, needle, matches.Count);
-        ToolInvoked?.Invoke(needle, matches.Count == 0 ? "not in your list" : string.Join("; ", matches));
+        ToolInvoked?.Invoke(needle, matches);
         return result;
     }
 
@@ -307,17 +323,24 @@ public sealed class ConversationVoiceSession : IConversationVoiceSession
 
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        Task? receiveLoop;
+        lock (_lifecycle)
         {
-            return;
+            if (_disposed != 0)
+            {
+                return;
+            }
+
+            _disposed = 1;
+            receiveLoop = _receiveLoop;
         }
 
         _cts.Cancel();
         try
         {
-            if (_receiveLoop is not null)
+            if (receiveLoop is not null)
             {
-                await _receiveLoop.ConfigureAwait(false);
+                await receiveLoop.ConfigureAwait(false);
             }
         }
         catch

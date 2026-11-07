@@ -183,16 +183,23 @@ internal sealed class NativeVoiceAudio(ILogger<NativeVoiceAudio> logger) : INati
 
     public void ClearPlayback()
     {
+        AVAudioPlayerNode? player;
         lock (_lock)
         {
-            if (_player is null)
+            player = _player;
+            if (player is null)
                 return;
             _clearGeneration++;
             _scheduled = 0;
-            // Stop drops every scheduled buffer (their completions fire and are ignored).
-            _player.Stop();
-            _player.Play();
             _quietUntil = DateTime.UtcNow;
+        }
+        // Outside the lock: Stop runs the dropped buffers' completions (OnBufferPlayed takes the
+        // lock and ignores them, as their generation is old).
+        player.Stop();
+        lock (_lock)
+        {
+            if (ReferenceEquals(player, _player))
+                player.Play();
         }
     }
 

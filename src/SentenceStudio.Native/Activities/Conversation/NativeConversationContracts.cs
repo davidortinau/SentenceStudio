@@ -73,8 +73,10 @@ public static class NativeConversationText
     /// <summary>Format: {0} = the partner's name.</summary>
     public const string VoiceSpeaking = "Conversation_VoiceSpeaking";
     public const string VoiceTranscribing = "Conversation_VoiceTranscribing";
-    /// <summary>Format: {0} = "term → result".</summary>
+    /// <summary>Format: {0} = "term → matches" or <see cref="VoiceToolNotFound"/>.</summary>
     public const string VoiceToolNote = "Conversation_VoiceToolNote";
+    /// <summary>Format: {0} = the word the partner looked up.</summary>
+    public const string VoiceToolNotFound = "NativeConversation_VoiceToolNotFound";
     public const string VoiceUnavailable = "Conversation_VoiceUnavailable";
     public const string VoiceMicDenied = "Conversation_VoiceMicDenied";
 }
@@ -92,6 +94,9 @@ public sealed record NativeConversationScenarioOption(string Id, string DisplayN
 
 public sealed record NativeConversationCorrection(string? Original, string? Corrected, string? Explanation);
 
+/// <summary>A vocabulary lookup the voice partner made: the word, and the learner's matching saved words ("target = native"; empty when not saved).</summary>
+public sealed record NativeConversationToolNote(string Term, ImmutableArray<string> Matches);
+
 /// <summary>
 /// One chat bubble, oldest first. User bubbles carry the AI's corrections and comprehension of them.
 /// Spoken turns (<see cref="IsVoice"/>) show their transcript; the partner's spoken turns carry
@@ -105,7 +110,7 @@ public sealed record NativeConversationMessage(
     ImmutableArray<NativeConversationCorrection> Corrections,
     double Comprehension,
     bool IsVoice = false,
-    ImmutableArray<string> ToolNotes = default)
+    ImmutableArray<NativeConversationToolNote> ToolNotes = default)
 {
     public string AccessibilityId => $"{NativeConversationAccess.Message}.{Index}";
 

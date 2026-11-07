@@ -10867,6 +10867,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} is not in your list.
+        /// </summary>
+        internal static string NativeConversation_VoiceToolNotFound {
+            get {
+                return ResourceManager.GetString("NativeConversation_VoiceToolNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This activity is not available yet..
         /// </summary>
         internal static string NativeDashboard_ActivityNotAvailable {

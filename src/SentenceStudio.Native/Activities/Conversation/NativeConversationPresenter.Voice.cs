@@ -40,9 +40,9 @@ public sealed partial class NativeConversationPresenter
     private readonly Dictionary<string, ConversationChunk> _voiceLearnerTurns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ConversationChunk> _voicePartnerTurns = new(StringComparer.Ordinal);
     private readonly HashSet<ConversationChunk> _voiceChunks = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<ConversationChunk, ImmutableArray<string>> _toolNotes =
+    private readonly Dictionary<ConversationChunk, ImmutableArray<NativeConversationToolNote>> _toolNotes =
         new(ReferenceEqualityComparer.Instance);
-    private readonly List<string> _pendingToolNotes = [];
+    private readonly List<NativeConversationToolNote> _pendingToolNotes = [];
 
     private bool VoiceAvailable => _voiceService is not null && _voiceAudio is not null;
 
@@ -160,6 +160,9 @@ public sealed partial class NativeConversationPresenter
                 _notices = [new(NativeMessageKind.Error, NativeConversationText.VoiceUnavailable)];
                 return PublishCurrent();
             }
+            // Dispose does not take the gate; it may have released voice while the audio started.
+            if (generation != Interlocked.Read(ref _voiceGeneration) || Exited)
+                return State;
             _voice = NativeConversationVoice.Listening;
             PublishCurrent();
         }
@@ -263,11 +266,15 @@ public sealed partial class NativeConversationPresenter
             PartnerTurn(itemId).Text = text;
             return true;
         });
-        session.ToolInvoked += (term, summary) => events.TryWrite(() =>
+        session.ToolInvoked += (term, matches) =>
         {
-            _pendingToolNotes.Add($"{term} → {summary}");
-            return false;
-        });
+            var note = new NativeConversationToolNote(term, [.. matches]);
+            events.TryWrite(() =>
+            {
+                _pendingToolNotes.Add(note);
+                return false;
+            });
+        };
         // Provider errors can be recoverable (the session goes on); the demo only logged them.
         session.Failed += message => logger.LogWarning("Conversation voice session reported: {Message}", message);
         session.Ended += () => _ = EndVoiceAsync(generation, NativeConversationText.VoiceUnavailable);

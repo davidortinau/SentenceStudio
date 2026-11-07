@@ -61,7 +61,7 @@ public sealed class NativeConversationVoiceTests
         Assert.True(audio.Started);
 
         // Partner speaks: audio plays, the transcript builds one bubble with the vocabulary lookup.
-        session.ToolInvoked?.Invoke("커피", "커피 = coffee");
+        session.ToolInvoked?.Invoke("커피", ["커피 = coffee"]);
         session.AudioDelta?.Invoke(Convert.ToBase64String([1, 2, 3, 4]));
         session.AssistantTranscriptDelta?.Invoke("p1", "커피 ");
         session.AssistantTranscriptDelta?.Invoke("p1", "드릴까요?");
@@ -75,7 +75,9 @@ public sealed class NativeConversationVoiceTests
         Assert.False(partner.IsUser);
         Assert.False(partner.CanListen);
         Assert.Equal("최수진", partner.Author);
-        Assert.Equal(["커피 → 커피 = coffee"], partner.ToolNotes.AsEnumerable());
+        var note = Assert.Single(partner.ToolNotes);
+        Assert.Equal("커피", note.Term);
+        Assert.Equal(["커피 = coffee"], note.Matches.AsEnumerable());
 
         // Playback ends: the learner's turn.
         audio.PlaybackIdle!();
@@ -319,7 +321,7 @@ public sealed class NativeConversationVoiceTests
         public Action<string, string>? UserTranscriptCompleted;
         public Action<string, string>? AssistantTranscriptDelta;
         public Action<string, string>? AssistantTranscriptCompleted;
-        public Action<string, string>? ToolInvoked;
+        public Action<string, IReadOnlyList<string>>? ToolInvoked;
         public Action<string>? Failed;
         public Action? Ended;
         public bool Began { get; private set; }
@@ -332,7 +334,7 @@ public sealed class NativeConversationVoiceTests
         event Action<string, string>? IConversationVoiceSession.UserTranscriptCompleted { add => UserTranscriptCompleted += value; remove => UserTranscriptCompleted -= value; }
         event Action<string, string>? IConversationVoiceSession.AssistantTranscriptDelta { add => AssistantTranscriptDelta += value; remove => AssistantTranscriptDelta -= value; }
         event Action<string, string>? IConversationVoiceSession.AssistantTranscriptCompleted { add => AssistantTranscriptCompleted += value; remove => AssistantTranscriptCompleted -= value; }
-        event Action<string, string>? IConversationVoiceSession.ToolInvoked { add => ToolInvoked += value; remove => ToolInvoked -= value; }
+        event Action<string, IReadOnlyList<string>>? IConversationVoiceSession.ToolInvoked { add => ToolInvoked += value; remove => ToolInvoked -= value; }
         event Action<string>? IConversationVoiceSession.Failed { add => Failed += value; remove => Failed -= value; }
         event Action? IConversationVoiceSession.Ended { add => Ended += value; remove => Ended -= value; }
 

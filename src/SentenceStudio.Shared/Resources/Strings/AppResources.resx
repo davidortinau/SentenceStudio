@@ -10250,4 +10250,8 @@ For example: {0} ...</value>
     <value>Voice mode needs microphone access.</value>
     <comment>Microphone permission denied</comment>
   </data>
+  <data name="NativeConversation_VoiceToolNotFound" xml:space="preserve">
+    <value>{0} is not in your list</value>
+    <comment>Conversation voice mode: the partner looked up a word the learner has not saved. {0} is the word.</comment>
+  </data>
 </root>

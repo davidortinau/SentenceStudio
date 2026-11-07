@@ -9596,4 +9596,8 @@
     <value>음성 모드에는 마이크 권한이 필요해요.</value>
     <comment>Microphone permission denied</comment>
   </data>
+  <data name="NativeConversation_VoiceToolNotFound" xml:space="preserve">
+    <value>{0}: 내 단어장에 없어요</value>
+    <comment>Conversation voice mode: the partner looked up a word the learner has not saved. {0} is the word. (Draft Korean.)</comment>
+  </data>
 </root>

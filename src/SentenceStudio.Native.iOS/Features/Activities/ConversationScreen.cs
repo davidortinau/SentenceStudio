@@ -103,11 +103,19 @@ internal sealed class ConversationScreen : IActivityScreen
         foreach (var message in state.Messages.IsDefault ? [] : state.Messages)
         {
             hash.Add(message.Index);
+            hash.Add(message.IsUser);
+            hash.Add(message.Author);
             hash.Add(message.Text);
             hash.Add(message.IsVoice);
             hash.Add(message.Comprehension);
-            hash.Add(message.Corrections.IsDefault ? 0 : message.Corrections.Length);
-            hash.Add(message.ToolNotes.IsDefault ? 0 : message.ToolNotes.Length);
+            foreach (var correction in message.Corrections.IsDefault ? [] : message.Corrections)
+                hash.Add(correction);
+            foreach (var note in message.ToolNotes.IsDefault ? [] : message.ToolNotes)
+            {
+                hash.Add(note.Term);
+                foreach (var match in note.Matches.IsDefault ? [] : note.Matches)
+                    hash.Add(match);
+            }
         }
         return hash.ToHashCode();
     }
@@ -367,8 +375,7 @@ internal sealed class ConversationScreen : IActivityScreen
             var noteRow = Views.HStack(
                     Views.Image("book.closed")
                         .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
-                    style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
-                        text(NativeConversationText.VoiceToolNote), note)), SourceTextRole.Caption1,
+                    style.Text(Views.Text(ToolNoteText(note, text)), SourceTextRole.Caption1,
                         SourceTextTone.Secondary))
                 .WithAccessibilityIdentifier($"{id}.tool.{noteIndex++}");
             noteRow.Spacing = 4;
@@ -449,6 +456,15 @@ internal sealed class ConversationScreen : IActivityScreen
                 .WithPadding(0, 0, 0, inset)
             : Views.VStack(bubble).WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading)
                 .WithPadding(0, inset, 0, 0);
+    }
+
+    /// <summary>"Checked your vocabulary: 커피 → 커피 = coffee", or that the word is not in the list.</summary>
+    private static string ToolNoteText(NativeConversationToolNote note, Func<string, string> text)
+    {
+        var result = note.Matches.IsDefaultOrEmpty
+            ? string.Format(CultureInfo.CurrentCulture, text(NativeConversationText.VoiceToolNotFound), note.Term)
+            : $"{note.Term} → {string.Join("; ", note.Matches)}";
+        return string.Format(CultureInfo.CurrentCulture, text(NativeConversationText.VoiceToolNote), result);
     }
 
     private IEnumerable<SwiftView> AudioRows(NativeConversationState state, SourceUiStyle style,

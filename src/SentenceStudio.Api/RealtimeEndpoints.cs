@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
+using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Services.Realtime;
 using OaiRealtimeClient = OpenAI.Realtime.RealtimeClient;
@@ -43,7 +44,8 @@ public static class RealtimeEndpoints
         RealtimeClientSecretIssuer issuer,
         CancellationToken cancellationToken)
     {
-        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.Identity?.Name;
+        // The trusted profile owner, as every owner-scoped endpoint resolves it; fail closed.
+        var userId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userId))
         {
             return Results.Unauthorized();
@@ -56,12 +58,14 @@ public static class RealtimeEndpoints
             RealtimeSecretStatus.Throttled => Results.Problem(
                 "Too many voice sessions started. Try again in a minute.",
                 statusCode: StatusCodes.Status429TooManyRequests),
+            RealtimeSecretStatus.Failed => Results.Problem(
+                "Voice could not start. Try again.", statusCode: StatusCodes.Status503ServiceUnavailable),
             _ => Results.Problem("Realtime voice is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable),
         };
     }
 }
 
-internal enum RealtimeSecretStatus { Issued, Throttled, NotConfigured }
+internal enum RealtimeSecretStatus { Issued, Throttled, NotConfigured, Failed }
 
 internal sealed record RealtimeSecretResult(RealtimeSecretStatus Status, RealtimeClientSecretResponse? Response = null);
 
@@ -80,7 +84,7 @@ internal sealed class RealtimeClientSecretIssuer
     private readonly IConfiguration _configuration;
     private readonly ILogger<RealtimeClientSecretIssuer> _logger;
     private readonly TokenCredential _credential = new DefaultAzureCredential();
-    private readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> _recent = new();
+    private readonly ConcurrentDictionary<string, List<DateTimeOffset>> _recent = new();
 
     public RealtimeClientSecretIssuer(IConfiguration configuration, ILogger<RealtimeClientSecretIssuer> logger)
     {
@@ -96,12 +100,32 @@ internal sealed class RealtimeClientSecretIssuer
             return new(RealtimeSecretStatus.NotConfigured);
         }
 
-        if (!TryReserve(userId))
+        if (!TryReserve(userId, out var reservation))
         {
             _logger.LogWarning("Realtime client secret throttled for user {UserId}", userId);
             return new(RealtimeSecretStatus.Throttled);
         }
 
+        try
+        {
+            return await MintAsync(userId, endpoint, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Nothing was issued, so the attempt does not count against the learner's budget.
+            Release(userId, reservation);
+            _logger.LogError(ex, "Realtime client secret could not be minted for user {UserId}", userId);
+            return new(RealtimeSecretStatus.Failed);
+        }
+        catch
+        {
+            Release(userId, reservation);
+            throw;
+        }
+    }
+
+    private async Task<RealtimeSecretResult> MintAsync(string userId, string endpoint, CancellationToken cancellationToken)
+    {
         var model = RealtimeVoiceClients.RealtimeModel(_configuration);
         var token = await _credential.GetTokenAsync(new TokenRequestContext(Scopes), cancellationToken);
         var client = new OaiRealtimeClient(
@@ -133,24 +157,33 @@ internal sealed class RealtimeClientSecretIssuer
         return new(RealtimeSecretStatus.Issued, response);
     }
 
-    private bool TryReserve(string userId)
+    internal bool TryReserve(string userId, out DateTimeOffset reservation)
     {
         var now = DateTimeOffset.UtcNow;
-        var queue = _recent.GetOrAdd(userId, _ => new Queue<DateTimeOffset>());
-        lock (queue)
+        reservation = now;
+        var recent = _recent.GetOrAdd(userId, _ => []);
+        lock (recent)
         {
-            while (queue.Count > 0 && now - queue.Peek() > Window)
-            {
-                queue.Dequeue();
-            }
-
-            if (queue.Count >= MaxSecretsPerWindow)
+            recent.RemoveAll(issued => now - issued > Window);
+            if (recent.Count >= MaxSecretsPerWindow)
             {
                 return false;
             }
 
-            queue.Enqueue(now);
+            recent.Add(now);
             return true;
+        }
+    }
+
+    /// <summary>Gives back a reservation whose secret was never issued.</summary>
+    internal void Release(string userId, DateTimeOffset reservation)
+    {
+        if (_recent.TryGetValue(userId, out var recent))
+        {
+            lock (recent)
+            {
+                recent.Remove(reservation);
+            }
         }
     }
 }
