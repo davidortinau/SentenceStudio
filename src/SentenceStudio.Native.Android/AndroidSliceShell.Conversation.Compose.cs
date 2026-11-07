@@ -13,7 +13,10 @@ namespace SentenceStudio.Native.Android;
 /// comprehension, Listen), reply indicator, Playing audio / Stop bar, and a
 /// Messages-style composer pinned below the scrolling chat (departures 46-47,
 /// matching iOS): a round quick-phrases button before a capsule field, and
-/// the keyboard's Send action sends (no Send button). The field
+/// the keyboard's Send action sends (no Send button). The waveform button in
+/// the field starts voice mode (departures 48-50); while it runs a voice panel
+/// (status, input level, pace menu, End) takes the composer's place and spoken
+/// turns join the chat. The field
 /// binds a Compose TextFieldValue state, so typing (including Korean IME
 /// composition) never goes through a presenter publish; only presenter-made
 /// draft changes (quick phrase, sent) are pushed back into it.
@@ -23,6 +26,7 @@ internal sealed partial class AndroidSliceShell
     private NativeConversationPresenter? _conversation;
     private bool _conversationLanguageMenuOpen;
     private bool _conversationScenarioMenuOpen;
+    private bool _conversationPaceMenuOpen;
     private int _conversationDraftVersion = -1;
     private FocusRequester? _conversationFocus;
     /// <summary>
@@ -72,6 +76,7 @@ internal sealed partial class AndroidSliceShell
         _conversation = null;
         _conversationLanguageMenuOpen = false;
         _conversationScenarioMenuOpen = false;
+        _conversationPaceMenuOpen = false;
         _conversationRefocus = false;
         _conversationDraftVersion = -1;
         ConversationDraft.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
@@ -105,6 +110,8 @@ internal sealed partial class AndroidSliceShell
         // The scenario menu is only in the header while Ready; do not let it reopen by itself.
         if (state.Phase != NativePhase.Ready)
             _conversationScenarioMenuOpen = false;
+        if (!state.IsVoiceOn)
+            _conversationPaceMenuOpen = false;
         if (state.DraftVersion != _conversationDraftVersion)
         {
             _conversationDraftVersion = state.DraftVersion;
@@ -216,7 +223,7 @@ internal sealed partial class AndroidSliceShell
 
         if (state.IsPlayingAudio)
             page.Add(ConversationAudioBar(palette));
-        page.Add(ConversationComposer(state, palette));
+        page.Add(state.IsVoiceOn ? ConversationVoicePanel(state, palette) : ConversationComposer(state, palette));
         return page;
     }
 
@@ -279,7 +286,7 @@ internal sealed partial class AndroidSliceShell
                 .Semantics(semantics => semantics.ContentDescription(label)),
         };
         button.Add(new Text(state.TargetLanguage));
-        button.Add(new Icon(Icons.Default.ArrowDropDown, null) { Modifier = Modifier.Size(20) });
+        button.Add(new Icon(Icons.Default.ArrowDropDown, null) { Modifier = Modifier.Size(20), Tint = palette.Primary });
         var menu = PopupMenu(expanded: _conversationLanguageMenuOpen,
             onDismissRequest: () => Publish(() => _conversationLanguageMenuOpen = false));
         foreach (var language in NativeConversationState.Languages)
@@ -309,8 +316,39 @@ internal sealed partial class AndroidSliceShell
         var content = new Column(Arrangement.SpacedBy(4))
         {
             Modifier.Padding(horizontal: 16, vertical: 12),
-            Body(message.Text, palette, modifier: Modifier.TestTag($"{id}.text")),
         };
+        // The partner's vocabulary lookups during voice mode.
+        var noteIndex = 0;
+        foreach (var note in message.ToolNotes.IsDefault ? [] : message.ToolNotes)
+            content.Add(new Text(note.Format(Localize))
+            {
+                Modifier = Modifier.TestTag($"{id}.tool.{noteIndex++}"),
+                Color = palette.SecondaryText,
+                FontSize = new Sp(13),
+            });
+        var body = message.IsTranscribing
+            ? Body(Localize(NativeConversationText.VoiceTranscribing), palette, secondary: true)
+            : Body(message.Text, palette);
+        if (message.IsVoice)
+        {
+            // Source demo: a small microphone marks a spoken turn.
+            var voiceLabel = Localize(NativeConversationText.Voice);
+            body.Modifier = Modifier.TestTag($"{id}.text");
+            content.Add(new Row(Arrangement.SpacedBy(6), Alignment.Vertical.CenterVertically)
+            {
+                new Icon(Resource.Drawable.ic_mic, voiceLabel)
+                {
+                    Modifier = Modifier.Size(16),
+                    Tint = palette.SecondaryText,
+                },
+                body,
+            });
+        }
+        else
+        {
+            body.Modifier = Modifier.TestTag($"{id}.text");
+            content.Add(body);
+        }
         var index = 0;
         foreach (var correction in message.Corrections.IsDefault ? [] : message.Corrections)
         {
@@ -358,7 +396,7 @@ internal sealed partial class AndroidSliceShell
                 Modifier = Modifier.TestTag($"{id}.listen")
                     .Semantics(semantics => semantics.ContentDescription(listenLabel)),
             };
-            listen.Add(new Icon(Icons.Default.PlayArrow, null) { Modifier = Modifier.Size(18) });
+            listen.Add(new Icon(Icons.Default.PlayArrow, null) { Modifier = Modifier.Size(18), Tint = palette.Primary });
             listen.Add(new Text(listenLabel));
             content.Add(listen);
         }
@@ -453,6 +491,7 @@ internal sealed partial class AndroidSliceShell
                 .Semantics(semantics => semantics.ContentDescription(placeholder)),
             Placeholder = new Text(placeholder),
             Shape = Shape.RoundedPercent(50),
+            TrailingIcon = state.IsVoiceAvailable ? ConversationVoiceStart(state, palette) : null,
             KeyboardOptions = keyboard.Copy(
                 keyboard.Capitalization, keyboard.AutoCorrectEnabled,
                 AndroidX.Compose.KeyboardType.Text,
@@ -473,5 +512,159 @@ internal sealed partial class AndroidSliceShell
             field,
         });
         return composer;
+    }
+
+    /// <summary>The waveform button inside the field (like Messages) that starts voice mode.</summary>
+    private ComposableNode ConversationVoiceStart(NativeConversationState state, AndroidVisualPalette palette)
+    {
+        var label = Localize(NativeConversationText.VoiceStart);
+        var button = new IconButton(
+            () => ConversationCommand((presenter, token) => presenter.StartVoiceAsync(token)),
+            enabled: state.CanStartVoice)
+        {
+            Modifier = Modifier.TestTag(NativeConversationAccess.VoiceStart)
+                .Semantics(semantics => semantics.ContentDescription(label)),
+        };
+        button.Add(new Icon(Resource.Drawable.ic_graphic_eq, null)
+        {
+            Modifier = Modifier.Size(22),
+            Tint = state.CanStartVoice ? palette.SecondaryText : palette.Border,
+        });
+        return button;
+    }
+
+    /// <summary>
+    /// Voice mode: what is happening (connecting, listening, partner speaking), the input level,
+    /// the pace menu, and End voice.
+    /// </summary>
+    private ComposableNode ConversationVoicePanel(NativeConversationState state, AndroidVisualPalette palette)
+    {
+        var status = state.Voice switch
+        {
+            NativeConversationVoice.Connecting => Localize(NativeConversationText.VoiceConnecting),
+            NativeConversationVoice.PartnerSpeaking => string.Format(CultureInfo.CurrentCulture,
+                Localize(NativeConversationText.VoiceSpeaking), state.PartnerName),
+            _ => Localize(NativeConversationText.VoiceListening),
+        };
+        ComposableNode indicator = state.Voice == NativeConversationVoice.Connecting
+            ? new CircularProgressIndicator { Modifier = Modifier.Size(18) }
+            : new Icon(state.Voice == NativeConversationVoice.PartnerSpeaking
+                    ? Resource.Drawable.ic_volume_up : Resource.Drawable.ic_mic, null)
+            {
+                Modifier = Modifier.Size(20),
+                Tint = palette.Primary,
+            };
+        var level = state.Voice == NativeConversationVoice.Listening ? (float)state.MicLevel : 0f;
+        var middle = new Column(Arrangement.SpacedBy(6))
+        {
+            Modifier.Weight(1f),
+            new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.TestTag(NativeConversationAccess.VoiceStatus),
+                indicator,
+                Body(status, palette),
+            },
+            new LinearProgressIndicator
+            {
+                Modifier = Modifier.FillMaxWidth().Height(4).Clip(2)
+                    .TestTag(NativeConversationAccess.VoiceLevel)
+                    // The meter moves only while the learner speaks; it is named for that.
+                    .Semantics(semantics => semantics.ContentDescription(
+                        $"{Localize(NativeConversationText.VoiceListening)} {(int)(level * 100)}%")),
+                Progress = Math.Clamp(level, 0f, 1f),
+                Color = palette.Primary,
+                TrackColor = palette.Border,
+            },
+        };
+        var endLabel = Localize(NativeConversationText.VoiceEnd);
+        var end = new FilledTonalButton(
+            () => ConversationCommand((presenter, token) => presenter.StopVoiceAsync(token)), enabled: true)
+        {
+            Modifier = Modifier.TestTag(NativeConversationAccess.VoiceStop)
+                .Semantics(semantics => semantics.ContentDescription(endLabel)),
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+        };
+        end.Add(new Icon(Resource.Drawable.ic_stop, null) { Modifier = Modifier.Size(18), Tint = palette.Text });
+        end.Add(new Text(endLabel));
+        var surface = new Surface
+        {
+            Modifier = Modifier.FillMaxWidth()
+                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8)
+                .Border(1, palette.Border, 24)
+                .TestTag(NativeConversationAccess.VoicePanel),
+            Shape = Shape.RoundedCorners(24),
+            Color = palette.Card,
+        };
+        surface.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth().Padding(start: 16, top: 8, end: 8, bottom: 8),
+            middle,
+            ConversationPaceMenu(state, palette),
+            end,
+        });
+        return surface;
+    }
+
+    /// <summary>
+    /// Voice pace (departure 50): the partner's speaking speed and the pause before it answers,
+    /// each a titled section with the current choice checked.
+    /// </summary>
+    private ComposableNode ConversationPaceMenu(NativeConversationState state, AndroidVisualPalette palette)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        string Speed(int percent) =>
+            string.Format(culture, Localize(NativeConversationText.VoiceSpeedOption), percent);
+        string Pause(int milliseconds) =>
+            string.Format(culture, Localize(NativeConversationText.VoicePauseOption),
+                (milliseconds / 1000.0).ToString("0.#", culture));
+        var label = $"{Localize(NativeConversationText.VoicePace)}, {Speed(state.VoiceSpeedPercent)}, "
+            + Pause(state.VoicePauseMilliseconds);
+        var button = new IconButton(() => Publish(() => _conversationPaceMenuOpen = true), enabled: true)
+        {
+            Modifier = Modifier.TestTag(NativeConversationAccess.VoicePace)
+                .Semantics(semantics => semantics.ContentDescription(label)),
+        };
+        button.Add(new Icon(Resource.Drawable.ic_tune, null) { Modifier = Modifier.Size(22), Tint = palette.Primary });
+        var menu = PopupMenu(expanded: _conversationPaceMenuOpen,
+            onDismissRequest: () => Publish(() => _conversationPaceMenuOpen = false));
+        void Section(string title)
+        {
+            menu.Add(new DropdownMenuItem(text: new Text(title)
+            {
+                Color = palette.SecondaryText,
+                FontSize = new Sp(13),
+                FontWeight = FontWeight.SemiBold,
+            }, onClick: () => { })
+            {
+                Enabled = false,
+                Modifier = Modifier.Semantics(semantics => semantics.Heading()),
+            });
+        }
+        void Choice(string text, bool active, string tag,
+            Func<NativeConversationPresenter, CancellationToken, Task<NativeConversationState>> command)
+        {
+            var item = new DropdownMenuItem(text: new Text(text), onClick: () =>
+            {
+                Publish(() => _conversationPaceMenuOpen = false);
+                ConversationCommand(command);
+            })
+            {
+                Modifier = Modifier.TestTag(tag).Semantics(semantics => semantics.Selected(active)),
+            };
+            if (active)
+                item.LeadingIcon = new Icon(Icons.Default.Check, null) { Modifier = Modifier.Size(18), Tint = palette.Primary };
+            menu.Add(item);
+        }
+        Section(Localize(NativeConversationText.VoiceSpeed));
+        foreach (var percent in NativeConversationState.VoiceSpeeds)
+            Choice(Speed(percent), percent == state.VoiceSpeedPercent,
+                $"{NativeConversationAccess.VoiceSpeed}.{percent}",
+                (presenter, token) => presenter.SetVoiceSpeedAsync(percent, token));
+        Section(Localize(NativeConversationText.VoicePause));
+        foreach (var milliseconds in NativeConversationState.VoicePauses)
+            Choice(Pause(milliseconds), milliseconds == state.VoicePauseMilliseconds,
+                $"{NativeConversationAccess.VoicePause}.{milliseconds}",
+                (presenter, token) => presenter.SetVoicePauseAsync(milliseconds, token));
+        return new Box { button, menu };
     }
 }

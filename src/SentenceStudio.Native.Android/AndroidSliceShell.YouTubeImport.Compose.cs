@@ -103,7 +103,7 @@ internal sealed partial class AndroidSliceShell
         })
         {
             Modifier = Modifier.TestTag("native.import.youtube.menu.add-channel"),
-            LeadingIcon = new Icon(Icons.Default.Add, null) { Modifier = Modifier.Size(18) },
+            LeadingIcon = new Icon(Icons.Default.Add, null) { Modifier = Modifier.Size(18), Tint = palette.Text },
         });
         menu.Add(new DropdownMenuItem(text: new Text(Localize("Import_Refresh")), onClick: () =>
         {
@@ -112,7 +112,7 @@ internal sealed partial class AndroidSliceShell
         })
         {
             Modifier = Modifier.TestTag("native.import.youtube.menu.refresh"),
-            LeadingIcon = new Icon(Icons.Default.Refresh, null) { Modifier = Modifier.Size(18) },
+            LeadingIcon = new Icon(Icons.Default.Refresh, null) { Modifier = Modifier.Size(18), Tint = palette.Text },
         });
         return new Box { overflow, menu };
     }

@@ -118,6 +118,9 @@ internal sealed class AndroidServiceHost : IDisposable
         AndroidPlanServiceRegistrations.AddCommon(services);
         services.AddScoped<UserActivityRepository>();
         services.AddScoped<StreamHistoryRepository>();
+        // Conversation voice mode: microphone and speaker (offered only with an API origin).
+        services.AddTransient<INativeVoiceAudio>(sp => new AndroidVoiceAudio(context,
+            sp.GetRequiredService<ILogger<AndroidVoiceAudio>>()));
         services.AddTransient<INativeShadowingPlayer>(_ => new AndroidShadowingPlayer(
             Path.Combine(context.CacheDir?.AbsolutePath ?? dataRoot, "shadowing")));
         services.AddScoped<VocabularyLearningContextRepository>();

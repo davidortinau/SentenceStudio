@@ -431,7 +431,7 @@ internal sealed class ConversationScreen : IActivityScreen
             var noteRow = Views.HStack(
                     Views.Image("book.closed")
                         .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
-                    style.Text(Views.Text(ToolNoteText(note, text)), SourceTextRole.Caption1,
+                    style.Text(Views.Text(note.Format(text)), SourceTextRole.Caption1,
                         SourceTextTone.Secondary))
                 .WithAccessibilityIdentifier($"{id}.tool.{noteIndex++}");
             noteRow.Spacing = 4;
@@ -515,14 +515,6 @@ internal sealed class ConversationScreen : IActivityScreen
     }
 
     /// <summary>"Checked your vocabulary: 커피 → 커피 = coffee", or that the word is not in the list.</summary>
-    private static string ToolNoteText(NativeConversationToolNote note, Func<string, string> text)
-    {
-        var result = note.Matches.IsDefaultOrEmpty
-            ? string.Format(CultureInfo.CurrentCulture, text(NativeConversationText.VoiceToolNotFound), note.Term)
-            : $"{note.Term} → {string.Join("; ", note.Matches)}";
-        return string.Format(CultureInfo.CurrentCulture, text(NativeConversationText.VoiceToolNote), result);
-    }
-
     private IEnumerable<SwiftView> AudioRows(NativeConversationState state, SourceUiStyle style,
         Func<string, string> text)
     {

@@ -124,3 +124,19 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - **Channel form language list.** Rebuilt from `Constants.Languages` on each draw (each URL keystroke).
 - The refused-open and failure logs use `Android.Util.Log` (see the Import Content note above).
 
+## Conversation voice (Android, review 2026-11-07)
+
+- **An audio underrun ends the partner's turn early (iOS too).** Playback idle fires as soon as the
+  queued partner audio has played; on a slow network the queue can empty mid-turn, so the
+  microphone reopens after the quiet tail while the partner is still speaking. Both heads follow
+  the same rule (`AndroidVoiceAudio.Playback`, iOS `NativeVoiceAudio.OnBufferPlayed`); a short grace
+  before idle, or idle on the session's response-done event, would fix both.
+- **A dead AudioTrack is not rebuilt.** After an audio route or server change every write fails;
+  Android logs it once and the partner stays silent until voice is restarted.
+- **No live region.** The Compose binding has no live-region semantics, so TalkBack does not
+  announce the voice status changes (Connecting, speaking, Listening) on its own.
+- **Invisible untinted icons.** An `Icon` without `Tint` inside a TextButton, OutlinedButton or
+  DropdownMenuItem draws invisibly in this binding (fixed on Conversation, Import Content and
+  YouTube). Still untinted: `AndroidSliceShell.Scene.Compose.cs` (Delete, Add) and
+  `AndroidSliceShell.NumberDrill.Compose.cs` (PlayArrow).
+

@@ -110,8 +110,10 @@ Source: `src/SentenceStudio.UI/Pages/Conversation.razor` (`/conversation`). Voic
 the Techorama demo branch (`techorama/next-gen-demos`, `Conversation.Voice.razor.cs`), which was
 never merged; on this branch it exists only in the native heads (Captain, 2026-11-06: "I want the
 voice realtime but with native UI on iOS. Don't bring in web ui"). The shared presenter, session
-and API endpoint are platform-neutral; Android has no microphone port yet, so it does not offer
-voice.
+and API endpoint are platform-neutral. Android offers voice since 2026-11-07 (`AndroidVoiceAudio`:
+AudioRecord with the voice-communication source and the echo canceller when the device has one,
+AudioTrack playback, PCM16 24 kHz, half duplex as on iOS; the system microphone dialog on first
+use; departures 48-50 as on iOS).
 
 Android follows 46 and 47 since 2026-11-07: the scenario is a header icon menu (Material
 "theater_comedy" vector drawable; check on the current one) beside the language menu, and the

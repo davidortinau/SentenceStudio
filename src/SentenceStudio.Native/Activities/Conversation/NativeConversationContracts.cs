@@ -111,7 +111,19 @@ public sealed record NativeConversationScenarioOption(string Id, string DisplayN
 public sealed record NativeConversationCorrection(string? Original, string? Corrected, string? Explanation);
 
 /// <summary>A vocabulary lookup the voice partner made: the word, and the learner's matching saved words ("target = native"; empty when not saved).</summary>
-public sealed record NativeConversationToolNote(string Term, ImmutableArray<string> Matches);
+public sealed record NativeConversationToolNote(string Term, ImmutableArray<string> Matches)
+{
+    /// <summary>The note as the chat shows it: "term → match; match", or the not-found text.</summary>
+    public string Format(Func<string, string> text)
+    {
+        var result = Matches.IsDefaultOrEmpty
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                text(NativeConversationText.VoiceToolNotFound), Term)
+            : $"{Term} → {string.Join("; ", Matches)}";
+        return string.Format(System.Globalization.CultureInfo.CurrentCulture,
+            text(NativeConversationText.VoiceToolNote), result);
+    }
+}
 
 /// <summary>
 /// One chat bubble, oldest first. User bubbles carry the AI's corrections and comprehension of them.

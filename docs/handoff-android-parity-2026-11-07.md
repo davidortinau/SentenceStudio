@@ -128,5 +128,28 @@ the monitor switch saved through the API.
 
 Not verified: Polish with AI, a successful channel video import, Retry, Retry Resolve.
 
-Next: voice (AudioRecord/AudioTrack, approved), then the tab shell (approved, not yet ordered).
+Next (done below): voice.
+
+Conversation voice landed on Android: `AndroidVoiceAudio` (AudioRecord voice-communication source,
+echo canceller and noise suppressor when present, AudioTrack streaming, PCM16 24 kHz, half duplex
+with the 600 ms tail, as iOS), the microphone permission through the Activity Result API (system
+dialog), RECORD_AUDIO in both manifests, and the Compose voice UI (waveform button in the field,
+voice panel with status, level, pace menu and End, spoken-turn bubbles with the mic marker,
+Transcribing, and tool notes). The tool-note wording moved to the shared
+`NativeConversationToolNote.Format`, which iOS now uses too.
+
+Verified on `emulator-5556` (squad-kaylee, local API): the permission dialog, client secret, audio
+start (no echo canceller on the emulator), Connecting, the partner reading aloud ("최수진 is
+speaking"), Listening, the pace menu with checks and a speed change applied to the running session
+(log: speed 0.8), End voice back to the composer, Back during voice stopping the audio (no player
+left). iOS head builds (`scripts/ios-build.sh sim`; its assembly-age check flagged
+`SentenceStudio.Native.dll`, which the Android build had produced minutes before; the iOS app's copy
+contains the new code).
+
+Not verified: real speech. The emulator's virtual microphone is noisy and has no echo canceller,
+so it produced a stray learner turn ("嗯"); a physical device is needed (the Pixel 5 is production:
+needs the Captain's go).
+
+Next: the tab shell (approved, not yet ordered); the smaller checks (Sam entry, editor keyboard
+dismissal, icon and splash).
 
