@@ -119,7 +119,7 @@ public class CoachMessageMetaTests
 
         var html = await RenderAsync<CoachChatPane>(state);
 
-        html.Should().Contain("coach-chip-row");
+        html.Should().Contain("coach-starter-row");
         html.Should().NotContain("coach-timestamp");
     }
 
@@ -239,8 +239,11 @@ public class CoachMessageMetaTests
 
         var html = await RenderAsync<CoachChatPane>(state);
 
-        html.Should().Contain("coach-chip-row");
-        html.Should().Contain("Start with a quick change");
+        html.Should().Contain("coach-starter-row");
+        html.Should().Contain("Try asking");
+        html.Should().Contain("What can you help with?");
+        html.Should().NotContain("Coach_ChipMinutes");
+        html.Should().NotContain("bi-clock", "the chat starters are requests to Sam, not plan-time controls");
     }
 
     [Fact]
@@ -248,7 +251,7 @@ public class CoachMessageMetaTests
     {
         var html = await RenderAsync<CoachChatPane>(await AfterTurnAsync());
 
-        html.Should().NotContain("coach-chip-row");
+        html.Should().NotContain("coach-starter-row");
     }
 
     [Fact]
@@ -262,36 +265,18 @@ public class CoachMessageMetaTests
     }
 
     [Fact]
-    public async Task ThePlanCanvasHasNoChipsBeforeTheConversationStarts()
+    public async Task ThePlanCanvasKeepsThePlanControlsBeforeTheConversationStarts()
     {
         var client = new FakeCoachApiClient();
         var state = new CoachWorkspaceState(client);
         await state.OpenAsync(CoachPresentation.Overlay);
 
-        var html = await RenderAsync<CoachPlanCanvas>(state);
+        var chat = await RenderAsync<CoachChatPane>(state);
+        var canvas = await RenderAsync<CoachPlanCanvas>(state);
 
-        html.Should().NotContain("coach-chip-row",
-            "they are starter prompts in the chat at that point, and must not appear twice");
-    }
-
-    [Fact]
-    public async Task TheChipsAreNeverInBothPlacesAtOnce()
-    {
-        foreach (var started in new[] { false, true })
-        {
-            var state = started
-                ? await AfterTurnAsync()
-                : await NewSessionAsync();
-
-            var chat = await RenderAsync<CoachChatPane>(state);
-            var canvas = await RenderAsync<CoachPlanCanvas>(state);
-
-            (chat.Contains("coach-chip-row") && canvas.Contains("coach-chip-row"))
-                .Should().BeFalse($"duplicated controls when started={started}");
-
-            (chat.Contains("coach-chip-row") || canvas.Contains("coach-chip-row"))
-                .Should().BeTrue($"the controls must exist somewhere when started={started}");
-        }
+        canvas.Should().Contain("bi-clock", "plan controls live with the plan");
+        chat.Should().NotContain("bi-clock", "the chat starters are general requests, not plan controls");
+        chat.Should().Contain("coach-starter-row");
     }
 
     private static async Task<CoachWorkspaceState> NewSessionAsync()

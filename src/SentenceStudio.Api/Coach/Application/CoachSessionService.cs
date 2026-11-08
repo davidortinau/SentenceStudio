@@ -120,6 +120,7 @@ public sealed class CoachSessionService : ICoachSessionService
     /// the same application query as the tool path, without going through the model.
     /// </summary>
     private readonly IPracticeHistoryQueries? _practiceHistory;
+    private readonly Tools.ICoachToolRegistry? _tools;
 
     /// <summary>
     /// Every scoped read this turn made. Optional so a host or a test that wires no seam still
@@ -253,8 +254,10 @@ public sealed class CoachSessionService : ICoachSessionService
         CoachDisputeCoordinator? disputes = null,
         Persistence.History.ICoachTurnOperationStore? operations = null,
         ICoachVocabularySetGenerator? vocabularySets = null,
-        CoachVocabularySetApplicationService? vocabularySetApplications = null)
+        CoachVocabularySetApplicationService? vocabularySetApplications = null,
+        Tools.ICoachToolRegistry? tools = null)
     {
+        _tools = tools;
         _observations = observations;
         _grounding = grounding;
         _disputes = disputes;
@@ -808,6 +811,16 @@ public sealed class CoachSessionService : ICoachSessionService
                 "A coach run for this session is still in progress.");
         }
 
+        // Deterministic help route: the learner is asking what Sam can do. Answered from the
+        // enabled tool registry, after the run-in-progress check and before the model, so the list matches what this server allows.
+        if (_tools is not null
+            && request.InputKind == CoachTurnInputKind.Text
+            && CoachHelpRequestClassifier.IsHelpRequest(request.Text))
+        {
+            return await HandleHelpRequestAsync(userProfileId, session, request, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         if (!_agentFactory.IsModelAvailable)
         {
             return CoachOperationResult<CoachTurnResponse>.Problem(
@@ -1306,6 +1319,53 @@ public sealed class CoachSessionService : ICoachSessionService
             pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
             receipt: null,
             evidence: evidence,
+            clarifyingQuestion: null,
+            cancellationToken,
+            answer: answer).ConfigureAwait(false);
+
+        _idempotency.Store(userProfileId, session.Id, request.ClientTurnId, response);
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response);
+    }
+
+    /// <summary>
+    /// Answers "what can you do?" without calling the model: the actions listed come from the
+    /// enabled tool registry (see <see cref="CoachHelpCatalog"/>). No run is charged.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> HandleHelpRequestAsync(
+        string userProfileId,
+        CoachSession session,
+        CoachTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+        var langProfile = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+
+        var answer = CoachHelpCatalog.Compose(
+            new CoachHelpCatalog.HelpContext(
+                _tools!.EnabledNames,
+                MemoryEnabled: _memory is not null && _options.CurrentValue.IsMemoryEnabled,
+                VocabularyReviewAvailable: _vocabularySets is not null,
+                langProfile.DisplayLanguageTag),
+            langProfile.TargetLanguageTag);
+
+        var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+        await RecordTurnOutcomeAsync(
+            userProfileId, session, CoachSessionStatus.Active,
+            stopReason: null, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "[Coach] Session {SessionId}: deterministic help route; groups={GroupCount}.",
+            session.Id, answer.Blocks.Count - 1);
+
+        var response = await BuildTurnResponseAsync(
+            userProfileId, session, plan,
+            CoachTurnStatus.Completed, CoachStopReason.Completed,
+            CoachSessionStatus.Active,
+            messages: [CoachMessage(CoachMessageKind.PedagogicalAnswer, answer.PlainText)],
+            pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+            receipt: null,
+            evidence: [],
             clarifyingQuestion: null,
             cancellationToken,
             answer: answer).ConfigureAwait(false);

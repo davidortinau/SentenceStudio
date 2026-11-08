@@ -7481,7 +7481,7 @@
     <value>{0}자 이내로 입력해 주세요.</value>
   </data>
   <data name="Coach_ComposerPlaceholder" xml:space="preserve">
-    <value>질문하거나 계획을 바꿔 보세요</value>
+    <value>무엇이든 묻거나 도움말을 입력하세요</value>
   </data>
   <data name="Coach_ComposerLabel" xml:space="preserve">
     <value>쌤에게 메시지 보내기</value>
@@ -7688,7 +7688,7 @@
     <value>학습 코치 쌤</value>
   </data>
   <data name="Coach_SettingsDescription" xml:space="preserve">
-    <value>쌤은 요청할 때만 오늘의 계획을 변경합니다. 기록을 삭제해도 계획과 학습 기록은 변경되지 않습니다.</value>
+    <value>쌤은 질문에 답하고 앱 곳곳에서 도와 드리며, 요청할 때만 데이터나 오늘의 계획을 변경합니다. 기록을 삭제해도 계획과 학습 기록은 변경되지 않습니다.</value>
   </data>
   <data name="Coach_SettingsDelete" xml:space="preserve">
     <value>코치 기록 삭제</value>
@@ -7790,7 +7790,7 @@
     <value>오늘의 계획이 없습니다</value>
   </data>
   <data name="Coach_NoPlanExplanation" xml:space="preserve">
-    <value>언어에 대한 질문은 언제든지 할 수 있습니다.</value>
+    <value>질문하거나 앱의 다른 기능에 대한 도움은 언제든지 받을 수 있습니다.</value>
   </data>
   <data name="Coach_ConversationLabel" xml:space="preserve">
     <value>쌤과의 대화</value>
@@ -7844,7 +7844,7 @@
     <value>복사할 수 없습니다</value>
   </data>
   <data name="Coach_StarterPrompts" xml:space="preserve">
-    <value>간단한 변경으로 시작하기</value>
+    <value>이렇게 말해 보세요</value>
   </data>
   <data name="Coach_Conversations" xml:space="preserve">
     <value>대화 목록</value>
@@ -9619,5 +9619,20 @@
   <data name="NativeConversation_VoicePauseOption" xml:space="preserve">
     <value>{0}초</value>
     <comment>Conversation voice mode: a pause choice. {0} is the pause in seconds (0.5, 1, 1.5, 2.5). (Draft Korean.)</comment>
+  </data>
+  <data name="Coach_StarterLabel" xml:space="preserve">
+    <value>쌤에게 물어볼 것</value>
+  </data>
+  <data name="Coach_Starter_Help" xml:space="preserve">
+    <value>무엇을 도와줄 수 있어요?</value>
+  </data>
+  <data name="Coach_Starter_VocabularyReview" xml:space="preserve">
+    <value>어휘 복습을 시작하고 싶어요</value>
+  </data>
+  <data name="Coach_Starter_AddWord" xml:space="preserve">
+    <value>내 어휘에 단어를 추가하고 싶어요</value>
+  </data>
+  <data name="Coach_Starter_LastPractice" xml:space="preserve">
+    <value>마지막으로 공부한 게 언제예요?</value>
   </data>
 </root>

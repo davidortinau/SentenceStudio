@@ -357,17 +357,17 @@
         </div>
     }
 
-    @* Quick constraints are starter prompts for an empty conversation. Once the learner has
-       said something they are no longer prompts, they are plan controls, and they live in the
-       plan canvas where the rest of the plan editing is. Same rule at every width. *@
-    @if (ShowChips)
+    @* Starter prompts for an empty conversation: a few common requests from Sam's help list.
+       Plan controls (minutes, audio, energy) live in the plan canvas, not here. *@
+    @if (ShowStarters)
     {
         <div class="coach-starter-prompts">
             <div class="ss-caption1 text-secondary-ss mb-1">@Localize["Coach_StarterPrompts"]</div>
-            <CoachConstraintChips />
+            <CoachStarterPrompts />
         </div>
     }
-    else if (!Coach.CanEditPlan && Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted))
+
+    @if (!Coach.CanEditPlan && Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted))
     {
         @* Neutral, not an error: there is nothing wrong, there is just nothing to edit. *@
         <div class="coach-stage-row">
@@ -413,8 +413,7 @@
 
     // Quick constraints edit Today's Plan, so they are withdrawn when there is no plan to edit.
     // The conversation itself stays fully available.
-    private bool ShowChips => Coach.CanEditPlan
-        && !Coach.HasLearnerTurn
+    private bool ShowStarters => !Coach.HasLearnerTurn
         && Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted);
 
     /// <summary>True for the last artifact of its turn, which is where that turn's suggestion goes.</summary>

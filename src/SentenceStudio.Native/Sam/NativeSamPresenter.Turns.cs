@@ -29,52 +29,22 @@ public sealed partial class NativeSamPresenter
         }, learnerText: text, applying: false, cancellationToken);
     }
 
-    /// <summary>Starter chip: the same immediate-apply path as a typed change (source J14).</summary>
-    public Task ApplyChipAsync(NativeSamChip chip, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Starter prompt: sends <paramref name="text"/> (the localized prompt) as the learner's own
+    /// message, through the same durable turn path as typed text.
+    /// </summary>
+    public Task SendStarterAsync(NativeSamStarter starter, string text, CancellationToken cancellationToken = default)
     {
-        if (!_state.ShowChips)
+        if (!_state.ShowStarters || !NativeSamStarters.For(_state).Contains(starter)
+            || string.IsNullOrWhiteSpace(text))
             return Task.CompletedTask;
-        var delta = chip switch
-        {
-            NativeSamChip.Minutes5 => Minutes(5),
-            NativeSamChip.Minutes10 => Minutes(10),
-            NativeSamChip.Minutes20 => Minutes(20),
-            NativeSamChip.NoAudio => new CoachConstraintDeltaDto
-            {
-                AudioAllowed = !(_constraints?.AudioAllowed ?? true),
-                ChangedFields = [CoachConstraintField.AudioAllowed]
-            },
-            NativeSamChip.NoSpeech => new CoachConstraintDeltaDto
-            {
-                SpeechAllowed = !(_constraints?.SpeechAllowed ?? true),
-                ChangedFields = [CoachConstraintField.SpeechAllowed]
-            },
-            NativeSamChip.NoTyping => new CoachConstraintDeltaDto
-            {
-                TypingAllowed = !(_constraints?.TypingAllowed ?? true),
-                ChangedFields = [CoachConstraintField.TypingAllowed]
-            },
-            NativeSamChip.LowEnergy => new CoachConstraintDeltaDto
-            {
-                EnergyLevel = _constraints?.EnergyLevel == CoachEnergyLevel.Low
-                    ? CoachEnergyLevel.Normal : CoachEnergyLevel.Low,
-                ChangedFields = [CoachConstraintField.EnergyLevel]
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(chip))
-        };
         return RunTurnAsync(new CoachTurnRequest
         {
-            InputKind = CoachTurnInputKind.ConstraintAction,
-            ConstraintAction = delta,
+            InputKind = CoachTurnInputKind.Text,
+            Text = text,
             ExpectedPlanVersion = _planVersion,
             ClientTurnId = NewHandle()
-        }, learnerText: null, applying: true, cancellationToken);
-
-        static CoachConstraintDeltaDto Minutes(int minutes) => new()
-        {
-            AvailableMinutes = minutes,
-            ChangedFields = [CoachConstraintField.AvailableMinutes]
-        };
+        }, learnerText: text, applying: false, cancellationToken, keepDraft: true);
     }
 
     /// <summary>Re-submits the last turn with the same operation id: the server replays, never re-runs.</summary>
@@ -115,7 +85,7 @@ public sealed partial class NativeSamPresenter
     }
 
     private async Task RunTurnAsync(CoachTurnRequest request, string? learnerText, bool applying,
-        CancellationToken cancellationToken, bool retry = false)
+        CancellationToken cancellationToken, bool retry = false, bool keepDraft = false)
     {
         if (!TryOwner(out var owner) || !_state.IsOpen || _state.Busy
             || _state.ConversationId is not { } conversationId || _state.ConversationClosed)
@@ -137,7 +107,7 @@ public sealed partial class NativeSamPresenter
             CanStop = false });
         try
         {
-            await RunTurnCoreAsync(owner, conversationId, request, learnerText, cancellationToken, retry);
+            await RunTurnCoreAsync(owner, conversationId, request, learnerText, cancellationToken, retry, keepDraft);
         }
         finally
         {
@@ -148,7 +118,7 @@ public sealed partial class NativeSamPresenter
     }
 
     private async Task RunTurnCoreAsync(string owner, string conversationId, CoachTurnRequest request,
-        string? learnerText, CancellationToken cancellationToken, bool retry)
+        string? learnerText, CancellationToken cancellationToken, bool retry, bool keepDraft)
     {
         // Native preflight (policy section 10): local practice must reach the server
         // before Sam reads or edits Today's Plan, so it never acts on stale state.
@@ -212,7 +182,8 @@ public sealed partial class NativeSamPresenter
             _localEntries = _localEntries.Add(local);
             Publish(_state with
             {
-                Draft = string.Empty,
+                // A starter tap sends its own text; whatever the learner was typing stays put.
+                Draft = keepDraft ? _state.Draft : string.Empty,
                 Entries = _state.SafeEntries.Add(local),
                 HasLearnerSpoken = true
             });
@@ -768,4 +739,33 @@ public sealed partial class NativeSamPresenter
     };
 }
 
-public enum NativeSamChip { Minutes5, Minutes10, Minutes20, NoAudio, NoSpeech, NoTyping, LowEnergy }
+/// <summary>Starter prompts for an empty conversation, drawn from Sam's help list.</summary>
+public enum NativeSamStarter { Help, VocabularyReview, AddWord, LastPractice }
+
+/// <summary>Which starter prompts a state offers, with their text keys and automation IDs.</summary>
+public static class NativeSamStarters
+{
+    public static string TextKey(NativeSamStarter starter) => starter switch
+    {
+        NativeSamStarter.Help => "Coach_Starter_Help",
+        NativeSamStarter.VocabularyReview => "Coach_Starter_VocabularyReview",
+        NativeSamStarter.AddWord => "Coach_Starter_AddWord",
+        NativeSamStarter.LastPractice => "Coach_Starter_LastPractice",
+        _ => throw new ArgumentOutOfRangeException(nameof(starter))
+    };
+
+    /// <summary>Stable automation suffix: native.sam.chip.{id}.</summary>
+    public static string AutomationId(NativeSamStarter starter) => starter switch
+    {
+        NativeSamStarter.Help => "help",
+        NativeSamStarter.VocabularyReview => "review",
+        NativeSamStarter.AddWord => "addword",
+        NativeSamStarter.LastPractice => "lastpractice",
+        _ => throw new ArgumentOutOfRangeException(nameof(starter))
+    };
+
+    /// <summary>"Add a word" is offered only when Sam can propose changes here.</summary>
+    public static IReadOnlyList<NativeSamStarter> For(NativeSamState state) => state.WriteSurfaceEnabled
+        ? [NativeSamStarter.Help, NativeSamStarter.VocabularyReview, NativeSamStarter.AddWord, NativeSamStarter.LastPractice]
+        : [NativeSamStarter.Help, NativeSamStarter.VocabularyReview, NativeSamStarter.LastPractice];
+}

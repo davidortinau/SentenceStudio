@@ -1,0 +1,63 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* Starter prompts for an empty conversation: common requests drawn from Sam's help list.
+   A tap sends the prompt as the learner's own message through the normal composer path, so it
+   is recorded, answered and retried exactly like typed text. "Add a word" is offered only when
+   Sam can propose changes in this conversation. *@
+
+<div class="coach-chip-row coach-starter-row" role="group" aria-label="@Localize["Coach_StarterLabel"]">
+    @foreach (var (key, id, icon) in Prompts)
+    {
+        <button type="button"
+                class="coach-chip"
+                data-testid="coach-starter-@id"
+                disabled="@Disabled"
+                @onclick="() => SendAsync(key)">
+            <i class="bi @icon me-1" aria-hidden="true"></i>@Localize[key]
+        </button>
+    }
+</div>
+
+@code {
+    private bool Disabled => Coach.IsBusy || !CoachStateMachine.CanSubmit(Coach.State);
+
+    private IEnumerable<(string Key, string Id, string Icon)> Prompts
+    {
+        get
+        {
+            yield return ("Coach_Starter_Help", "help", "bi-question-circle");
+            yield return ("Coach_Starter_VocabularyReview", "review", "bi-card-text");
+            if (Coach.IsWriteSurfaceEnabled)
+            {
+                yield return ("Coach_Starter_AddWord", "addword", "bi-plus-circle");
+            }
+            yield return ("Coach_Starter_LastPractice", "lastpractice", "bi-calendar-check");
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    private Task SendAsync(string key)
+    {
+        if (Disabled)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Coach.SendStarterAsync(Localize[key]);
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

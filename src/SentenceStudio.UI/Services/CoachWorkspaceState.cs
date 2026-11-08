@@ -1003,7 +1003,20 @@ public sealed partial class CoachWorkspaceState : IDisposable
         // Captured before the draft is cleared: the composer must not empty until the text is
         // safely part of the conversation.
         var text = _draft;
+        await SendTextAsync(text, clearDraft: true, cancellationToken).ConfigureAwait(false);
+    }
 
+    /// <summary>
+    /// Sends a starter prompt as the learner's message. Unlike <see cref="SendDraftAsync"/> it
+    /// leaves the composer alone, so a half-typed message is never overwritten.
+    /// </summary>
+    public Task SendStarterAsync(string text, CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(text) || text.Length > CoachConstraintLimits.MaxTurnTextLength
+            ? Task.CompletedTask
+            : SendTextAsync(text, clearDraft: false, cancellationToken);
+
+    private async Task SendTextAsync(string text, bool clearDraft, CancellationToken cancellationToken)
+    {
         var request = new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
@@ -1016,7 +1029,10 @@ public sealed partial class CoachWorkspaceState : IDisposable
         // The text is captured above, so clearing the box now cannot lose it. Cleared before the
         // append so the single notification that follows renders one consistent state: empty
         // composer, question on screen.
-        _draft = string.Empty;
+        if (clearDraft)
+        {
+            _draft = string.Empty;
+        }
 
         // The turn is claimed now, in submission order, so a slow first response still lands
         // beside its own question rather than after a later one.

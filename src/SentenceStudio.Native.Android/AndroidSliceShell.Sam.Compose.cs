@@ -370,7 +370,7 @@ internal sealed partial class AndroidSliceShell
             AndroidSamRowKind.Outcome => Caption(Localize(state.NoticeKey!), palette, "native.sam.outcome"),
             AndroidSamRowKind.VocabularySet => SamVocabularySet(state, state.VocabularySet!, palette),
             AndroidSamRowKind.VocabularySetOutcome => SamVocabularySetOutcome(state, palette),
-            AndroidSamRowKind.Chips => SamChips(palette),
+            AndroidSamRowKind.Chips => SamStarters(state, palette),
             AndroidSamRowKind.Closed => SamNotice(Localize("Coach_ConversationClosedNotice"), palette,
                 "native.sam.closed"),
             _ => SamStatus(state, persona, palette),
@@ -651,34 +651,24 @@ internal sealed partial class AndroidSliceShell
         return SamCard(palette, "native.sam.receipt", SamCardStyle.Success, rows, spacing: 6);
     }
 
-    private ComposableNode SamChips(AndroidVisualPalette palette)
+    /// <summary>Source CoachStarterPrompts: common requests from Sam's help list, sent as messages.</summary>
+    private ComposableNode SamStarters(NativeSamState state, AndroidVisualPalette palette)
     {
-        ComposableNode Chip(string title, NativeSamChip chip, string id)
+        var chips = new FlowRow { Modifier.FillMaxWidth() };
+        foreach (var starter in NativeSamStarters.For(state))
         {
-            var button = new OutlinedButton(() => ApplySamChip(chip))
+            var title = Localize(NativeSamStarters.TextKey(starter));
+            var button = new OutlinedButton(onClick: () => SendSamStarter(starter, title), enabled: !state.Busy)
             {
                 Modifier = Modifier.Padding(end: 8, bottom: 8)
                     .HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.sam.chip." + id)
+                    .TestTag("native.sam.chip." + NativeSamStarters.AutomationId(starter))
                     .Semantics(semantics => semantics.ContentDescription(title)),
                 Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
             };
             button.Add(new Text(title));
-            return button;
+            chips.Add(button);
         }
-        string Minutes(int value) =>
-            string.Format(CultureInfo.CurrentCulture, Localize("Coach_ChipMinutes"), value);
-        var chips = new FlowRow
-        {
-            Modifier.FillMaxWidth(),
-            Chip(Minutes(5), NativeSamChip.Minutes5, "5"),
-            Chip(Minutes(10), NativeSamChip.Minutes10, "10"),
-            Chip(Minutes(20), NativeSamChip.Minutes20, "20"),
-            Chip(Localize("Coach_ChipNoAudio"), NativeSamChip.NoAudio, "noaudio"),
-            Chip(Localize("Coach_ChipNoSpeech"), NativeSamChip.NoSpeech, "nospeech"),
-            Chip(Localize("Coach_ChipNoTyping"), NativeSamChip.NoTyping, "notyping"),
-            Chip(Localize("Coach_ChipLowEnergy"), NativeSamChip.LowEnergy, "lowenergy"),
-        };
         return new Column(Arrangement.SpacedBy(6))
         {
             Modifier.FillMaxWidth().TestTag("native.sam.chips"),

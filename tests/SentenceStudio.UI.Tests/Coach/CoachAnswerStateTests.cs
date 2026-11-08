@@ -87,6 +87,25 @@ public class CoachAnswerStateTests
     }
 
     [Fact]
+    public async Task AStarterPromptSendsItsTextAndKeepsTheLearnersDraft()
+    {
+        var (state, client) = Create();
+        await state.OpenAsync(CoachPresentation.Overlay);
+
+        string? sent = null;
+        client.OnSubmitTurn = request =>
+        {
+            sent = request.Text;
+            return AnswerTurn(KoreanContrastAnswer());
+        };
+        state.Draft = "half-typed question";
+        await state.SendStarterAsync("What can you help with?");
+
+        sent.Should().Be("What can you help with?");
+        state.Draft.Should().Be("half-typed question", "a starter tap must not overwrite what the learner typed");
+    }
+
+    [Fact]
     public async Task APureAnswerNeverOpensThePlanCanvas()
     {
         var (state, client) = Create();

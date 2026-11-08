@@ -89,11 +89,9 @@
 
         @if (Coach.CanEditPlan)
         {
-        @* Quick constraints live here once the conversation has started. In an empty
-           conversation they act as starter prompts and the chat shows them instead; after the
-           first learner turn they are plan controls, and this is where plan editing lives. They
-           stay fully functional either way. *@
-        @if (Coach.HasLearnerTurn && Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted))
+        @* Quick plan constraints always live here, with the rest of the plan editing. The chat's
+           starter prompts are general requests to Sam, not plan controls. *@
+        @if (Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted))
         {
             <div class="mb-3">
                 <CoachHeading Level="@SectionHeadingLevel" Class="ss-title3 mb-2">

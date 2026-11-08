@@ -66,7 +66,7 @@ internal sealed partial class ApplicationController
         Accept: () => RunSam(sam => sam.AcceptSuggestionAsync(_lifetime.Token)),
         Reject: () => RunSam(sam => sam.RejectSuggestionAsync(_lifetime.Token)),
         Undo: () => RunSam(sam => sam.UndoAsync(_lifetime.Token)),
-        Chip: chip => RunSam(sam => sam.ApplyChipAsync(chip, _lifetime.Token)),
+        Starter: (starter, text) => RunSam(sam => sam.SendStarterAsync(starter, text, _lifetime.Token)),
         ToggleEvidence: id => _sam?.ToggleEvidence(id),
         ApproveSet: () => RunSam(sam => sam.ApproveVocabularySetAsync(_lifetime.Token)),
         DeclineSet: () => RunSam(sam => sam.DeclineVocabularySetAsync(_lifetime.Token)),

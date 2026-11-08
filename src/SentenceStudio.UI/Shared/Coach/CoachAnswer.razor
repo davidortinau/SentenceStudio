@@ -28,7 +28,7 @@
                 }
 
                 <div class="coach-answer-block coach-answer-block-@(block.Kind.ToString().ToLowerInvariant())">
-                    @if (BlockLabel(block.Kind) is { Length: > 0 } label)
+                    @if ((string.IsNullOrWhiteSpace(block.Label) ? BlockLabel(block.Kind) : block.Label) is { Length: > 0 } label)
                     {
                         @* Label carries an icon AND text, so the block type is never conveyed by
                            colour or position alone. *@

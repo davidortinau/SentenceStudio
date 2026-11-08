@@ -280,9 +280,9 @@ public sealed record NativeSamState(
         && Status is not (NativeSamStatus.Limited or NativeSamStatus.Unavailable
             or NativeSamStatus.Opening or NativeSamStatus.Resuming);
 
-    /// <summary>Source CoachChatPane ShowChips: empty conversation and a plan to edit.</summary>
-    public bool ShowChips =>
-        IsOpen && CanEditPlan && !HasLearnerSpoken && !ConversationClosed
+    /// <summary>Source CoachChatPane ShowStarters: an empty, usable conversation.</summary>
+    public bool ShowStarters =>
+        IsOpen && !HasLearnerSpoken && !ConversationClosed
         && ConversationId is not null && Suggestion is null
         && Status is NativeSamStatus.Ready;
 }

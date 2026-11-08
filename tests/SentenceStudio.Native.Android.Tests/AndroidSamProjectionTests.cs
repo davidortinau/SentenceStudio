@@ -53,11 +53,12 @@ public sealed class AndroidSamProjectionTests
     }
 
     [Fact]
-    public void ChipsShowOnlyForAnEmptyEditableThread()
+    public void StartersShowForAnEmptyThreadWithOrWithoutAPlan()
     {
         var empty = Open() with { CanEditPlan = true };
         Assert.Contains(AndroidSamProjection.Rows(empty), row => row.Kind == AndroidSamRowKind.Chips);
-        Assert.DoesNotContain(AndroidSamProjection.Rows(empty with { CanEditPlan = false }),
+        // Starters are general requests to Sam, so they do not depend on a plan to edit.
+        Assert.Contains(AndroidSamProjection.Rows(empty with { CanEditPlan = false }),
             row => row.Kind == AndroidSamRowKind.Chips);
         Assert.DoesNotContain(AndroidSamProjection.Rows(empty with { HasLearnerSpoken = true }),
             row => row.Kind == AndroidSamRowKind.Chips);

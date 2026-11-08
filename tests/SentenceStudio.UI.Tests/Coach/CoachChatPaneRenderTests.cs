@@ -111,7 +111,7 @@ public class CoachChatPaneRenderTests
 
         var html = await RenderAsync(state);
 
-        html.Should().Contain("coach-chip-row", "an empty conversation needs somewhere to start");
+        html.Should().Contain("coach-starter-row", "an empty conversation needs somewhere to start");
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class CoachChatPaneRenderTests
         // plan controls live in the canvas.
         var html = await RenderAsync(await AfterAnswerAsync());
 
-        html.Should().NotContain("coach-chip-row",
-            "after the first turn the chips belong to the plan pane, not the chat");
+        html.Should().NotContain("coach-starter-row",
+            "after the first turn the starters leave the chat");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class CoachChatPaneRenderTests
         var html = await RenderAsync(state);
 
         html.Should().NotContain("coach-chip-row", "there is no plan for these to change");
-        html.Should().Contain("You can still ask language questions.",
+        html.Should().Contain("You can still ask questions and get help with the rest of the app.",
             "and the learner is told plainly that the conversation still works");
     }
 

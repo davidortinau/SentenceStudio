@@ -1687,7 +1687,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Ask a question or change Today&apos;s Plan.
+        ///   Looks up a localized string similar to Ask anything, or type help.
         /// </summary>
         internal static string Coach_ComposerPlaceholder {
             get {
@@ -3604,7 +3604,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to You can still ask language questions..
+        ///   Looks up a localized string similar to You can still ask questions and get help with the rest of the app..
         /// </summary>
         internal static string Coach_NoPlanExplanation {
             get {
@@ -4243,7 +4243,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Sam changes Today&apos;s Plan only when you ask. Deleting history does not change your plan or your progress..
+        ///   Looks up a localized string similar to Sam answers questions and helps across the app, and changes your data or Today&apos;s Plan only when you ask. Deleting history does not change your plan or your progress..
         /// </summary>
         internal static string Coach_SettingsDescription {
             get {
@@ -4315,7 +4315,52 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Start with a quick change.
+        ///   Looks up a localized string similar to Add a word to my vocabulary.
+        /// </summary>
+        internal static string Coach_Starter_AddWord {
+            get {
+                return ResourceManager.GetString("Coach_Starter_AddWord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to What can you help with?.
+        /// </summary>
+        internal static string Coach_Starter_Help {
+            get {
+                return ResourceManager.GetString("Coach_Starter_Help", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to When did I last practice?.
+        /// </summary>
+        internal static string Coach_Starter_LastPractice {
+            get {
+                return ResourceManager.GetString("Coach_Starter_LastPractice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start a vocabulary review.
+        /// </summary>
+        internal static string Coach_Starter_VocabularyReview {
+            get {
+                return ResourceManager.GetString("Coach_Starter_VocabularyReview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Things to ask Sam.
+        /// </summary>
+        internal static string Coach_StarterLabel {
+            get {
+                return ResourceManager.GetString("Coach_StarterLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Try asking.
         /// </summary>
         internal static string Coach_StarterPrompts {
             get {

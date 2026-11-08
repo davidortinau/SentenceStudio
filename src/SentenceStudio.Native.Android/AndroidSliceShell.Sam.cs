@@ -195,7 +195,8 @@ internal sealed partial class AndroidSliceShell
 
     private void UndoSam() => RunSam(sam => sam.UndoAsync(_lifetime.Token));
 
-    private void ApplySamChip(NativeSamChip chip) => RunSam(sam => sam.ApplyChipAsync(chip, _lifetime.Token));
+    private void SendSamStarter(NativeSamStarter starter, string text) =>
+        RunSam(sam => sam.SendStarterAsync(starter, text, _lifetime.Token));
 
     private void ToggleSamEvidence(string entryId) => _sam?.ToggleEvidence(entryId);
 

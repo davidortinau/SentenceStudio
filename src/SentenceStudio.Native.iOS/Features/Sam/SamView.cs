@@ -24,7 +24,7 @@ internal sealed record SamActions(
     Action Accept,
     Action Reject,
     Action Undo,
-    Action<NativeSamChip> Chip,
+    Action<NativeSamStarter, string> Starter,
     Action<string> ToggleEvidence,
     Action ApproveSet,
     Action DeclineSet,
@@ -195,8 +195,8 @@ internal static class SamView
             items.Add(VocabularySet(style, state, set, text, actions));
         if (state.VocabularySetMessageKey is { } setMessage)
             items.Add(VocabularySetOutcome(style, state, text(setMessage), text, actions));
-        if (state.ShowChips)
-            items.Add(Chips(style, text, actions));
+        if (state.ShowStarters)
+            items.Add(Starters(style, state, text, actions));
         if (state.ConversationClosed)
             items.Add(Notice(style, text("Coach_ConversationClosedNotice"), "native.sam.closed"));
         if (StatusRow(style, state, persona, text, actions) is { } status)
@@ -802,21 +802,19 @@ internal static class SamView
             .WithAccessibilityIdentifier("native.sam.receipt");
     }
 
-    private static SwiftView Chips(SourceUiStyle style, Func<string, string> text, SamActions actions)
+    /// <summary>Source CoachStarterPrompts: common requests from Sam's help list, sent as messages.</summary>
+    private static SwiftView Starters(SourceUiStyle style, NativeSamState state, Func<string, string> text,
+        SamActions actions)
     {
-        SwiftView Chip(string title, NativeSamChip chip, string id) =>
-            style.OutlineButton(Views.Text(title), () => actions.Chip(chip))
-                .WithAccessibilityIdentifier("native.sam.chip." + id);
-        string Minutes(int value) => string.Format(CultureInfo.CurrentCulture, text("Coach_ChipMinutes"), value);
-        var chips = Views.ButtonGroup([
-            Chip(Minutes(5), NativeSamChip.Minutes5, "5"),
-            Chip(Minutes(10), NativeSamChip.Minutes10, "10"),
-            Chip(Minutes(20), NativeSamChip.Minutes20, "20"),
-            Chip(text("Coach_ChipNoAudio"), NativeSamChip.NoAudio, "noaudio"),
-            Chip(text("Coach_ChipNoSpeech"), NativeSamChip.NoSpeech, "nospeech"),
-            Chip(text("Coach_ChipNoTyping"), NativeSamChip.NoTyping, "notyping"),
-            Chip(text("Coach_ChipLowEnergy"), NativeSamChip.LowEnergy, "lowenergy")],
-            wraps: true);
+        var buttons = NativeSamStarters.For(state).Select(starter =>
+        {
+            var title = text(NativeSamStarters.TextKey(starter));
+            var button = style.OutlineButton(Views.Text(title), () => actions.Starter(starter, title))
+                .WithAccessibilityIdentifier("native.sam.chip." + NativeSamStarters.AutomationId(starter));
+            button.IsEnabled = !state.Busy;
+            return button;
+        }).ToArray();
+        var chips = Views.ButtonGroup(buttons, wraps: true);
         var stack = Views.VStack(
             style.Text(Views.Text(text("Coach_StarterPrompts")), SourceTextRole.Caption1, SourceTextTone.Secondary),
             chips).WithFlexibleWidth();

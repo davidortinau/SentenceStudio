@@ -32,12 +32,15 @@ public class CoachDualPurposeCopyTests
     }
 
     [Fact]
-    public void TheComposerPlaceholderStillOffersBothEverydayActions()
+    public void TheComposerPlaceholderPointsAtHelpNotAtThePlan()
     {
+        // Sam is a general coach and app assistant. The placeholder invites any question and
+        // names "help", which lists everything Sam can do; it no longer leads with Today's Plan.
         var english = Get("Coach_ComposerPlaceholder", Neutral);
 
-        english.Should().Contain("Ask", "asking is one of the two things to do here");
-        english.Should().Contain("Today's Plan", "and changing the plan is the other");
+        english.Should().Contain("Ask");
+        english.Should().Contain("help");
+        english.Should().NotContain("Plan");
     }
 
     [Theory]

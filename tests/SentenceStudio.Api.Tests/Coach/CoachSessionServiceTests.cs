@@ -612,6 +612,41 @@ public class CoachSessionServiceTests
     }
 
     [Fact]
+    public async Task Help_WhileARunIsInFlight_IsRefusedLikeAnyOtherTurn()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+
+        using var registration = harness.Runs.Register(
+            CoachApplicationHarness.OwnerUserId, sessionId, CancellationToken.None);
+
+        var result = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        {
+            InputKind = CoachTurnInputKind.Text,
+            Text = "What can you help with?"
+        });
+
+        result.Status.Should().Be(CoachOperationStatus.RunInProgress);
+    }
+
+    [Fact]
+    public async Task Help_IsAnsweredWithoutAModelRun()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+
+        var result = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        {
+            InputKind = CoachTurnInputKind.Text,
+            Text = "help"
+        });
+
+        result.IsOk.Should().BeTrue();
+        harness.Coach.RunCount.Should().Be(0);
+        result.Value!.Answer!.Blocks.Should().HaveCountGreaterThan(2);
+    }
+
+    [Fact]
     public async Task Cancel_StopsTheInFlightRun()
     {
         using var harness = new CoachApplicationHarness();

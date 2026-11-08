@@ -109,7 +109,7 @@ public class BaselineLearningCoachTests
     {
         var instructions = CoachInstructions.Instructions;
 
-        instructions.Should().Contain("language-learning teacher and partner");
+        instructions.Should().Contain("language coach and their assistant for this app");
         instructions.Should().Contain("Today's Plan is one optional capability");
         instructions.Should().Contain("default destination");
         instructions.Should().Contain("due review words");

@@ -7829,8 +7829,8 @@ For example: {0} ...</value>
     <comment>Coach: composer error when the draft is too long. 0 = maximum characters</comment>
   </data>
   <data name="Coach_ComposerPlaceholder" xml:space="preserve">
-    <value>Ask a question or change Today's Plan</value>
-    <comment>Coach: composer placeholder. Must stay short — it sits in a one-row textarea and is truncated by the input width, so the fuller dual-purpose wording lives on the entry card instead</comment>
+    <value>Ask anything, or type help</value>
+    <comment>Coach: composer placeholder. Must stay short (48 characters or fewer) - it sits in a one-row textarea. Names "help" so learners find the list of what Sam can do.</comment>
   </data>
   <data name="Coach_ComposerLabel" xml:space="preserve">
     <value>Message Sam</value>
@@ -8105,7 +8105,7 @@ For example: {0} ...</value>
     <comment>Coach: Settings section heading. Introduces the persona name alongside the role.</comment>
   </data>
   <data name="Coach_SettingsDescription" xml:space="preserve">
-    <value>Sam changes Today's Plan only when you ask. Deleting history does not change your plan or your progress.</value>
+    <value>Sam answers questions and helps across the app, and changes your data or Today's Plan only when you ask. Deleting history does not change your plan or your progress.</value>
     <comment>Coach: Settings section description</comment>
   </data>
   <data name="Coach_SettingsDelete" xml:space="preserve">
@@ -8241,7 +8241,7 @@ For example: {0} ...</value>
     <comment>Coach: heading shown in the plan area when the learner has no plan the coach can edit</comment>
   </data>
   <data name="Coach_NoPlanExplanation" xml:space="preserve">
-    <value>You can still ask language questions.</value>
+    <value>You can still ask questions and get help with the rest of the app.</value>
     <comment>Coach: shown when there is no plan to edit. Used both standalone in the conversation and as the body of the plan-canvas card, so it must read as a complete sentence on its own</comment>
   </data>
   <data name="Coach_ConversationLabel" xml:space="preserve">
@@ -8313,8 +8313,8 @@ For example: {0} ...</value>
     <comment>Coach: neutral feedback when the clipboard is unavailable. Deliberately not an error alert: nothing is broken and nothing was lost.</comment>
   </data>
   <data name="Coach_StarterPrompts" xml:space="preserve">
-    <value>Start with a quick change</value>
-    <comment>Coach: heading over the quick constraint chips when they act as starter prompts in an empty conversation.</comment>
+    <value>Try asking</value>
+    <comment>Coach: heading over the starter prompt buttons in an empty conversation. Each button sends a common request to Sam.</comment>
   </data>
   <data name="Coach_Conversations" xml:space="preserve">
     <value>Conversations</value>
@@ -10273,5 +10273,25 @@ For example: {0} ...</value>
   <data name="NativeConversation_VoicePauseOption" xml:space="preserve">
     <value>{0} s</value>
     <comment>Conversation voice mode: a pause choice. {0} is the pause in seconds (0.5, 1, 1.5, 2.5).</comment>
+  </data>
+  <data name="Coach_StarterLabel" xml:space="preserve">
+    <value>Things to ask Sam</value>
+    <comment>Coach: accessible group name for the starter prompt buttons in an empty conversation.</comment>
+  </data>
+  <data name="Coach_Starter_Help" xml:space="preserve">
+    <value>What can you help with?</value>
+    <comment>Coach: starter prompt. Tapping it sends this text as the learner message; the server answers with the list of actions Sam can take. Keep it a natural question.</comment>
+  </data>
+  <data name="Coach_Starter_VocabularyReview" xml:space="preserve">
+    <value>Start a vocabulary review</value>
+    <comment>Coach: starter prompt sent as the learner message. Sam asks for a topic and prepares a 10-word review.</comment>
+  </data>
+  <data name="Coach_Starter_AddWord" xml:space="preserve">
+    <value>Add a word to my vocabulary</value>
+    <comment>Coach: starter prompt sent as the learner message. Shown only when Sam can propose changes.</comment>
+  </data>
+  <data name="Coach_Starter_LastPractice" xml:space="preserve">
+    <value>When did I last practice?</value>
+    <comment>Coach: starter prompt sent as the learner message. Answered from practice history.</comment>
   </data>
 </root>

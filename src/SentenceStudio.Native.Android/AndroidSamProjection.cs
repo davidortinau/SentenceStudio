@@ -199,7 +199,7 @@ internal static class AndroidSamProjection
             Add(new("vocabset:" + set.ProposalId, AndroidSamRowKind.VocabularySet));
         if (state.VocabularySetMessageKey is not null)
             Add(new("vocabset.outcome", AndroidSamRowKind.VocabularySetOutcome));
-        if (state.ShowChips)
+        if (state.ShowStarters)
             Add(new("chips", AndroidSamRowKind.Chips));
         if (state.ConversationClosed)
             Add(new("closed", AndroidSamRowKind.Closed));

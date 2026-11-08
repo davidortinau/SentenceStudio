@@ -132,15 +132,15 @@ internal sealed class CoachApplicationHarness : IDisposable
         // calls, and "the engine was never called" is the defect this wiring exists to close.
         ClaimFindings = new SentenceStudio.Api.Coach.Validation.Claims.CoachClaimFindingBuffer();
 
-        var capabilityManifest = new SentenceStudio.Api.Coach.Capabilities.CoachCapabilityManifest(
-            SentenceStudio.Api.Coach.Tools.CoachToolServiceCollectionExtensions.BuildValidatedRegistry(
-                new CoachOptions
-                {
-                    DurableHistory = new CoachFeatureSwitch { Enabled = true },
-                    SamOverlay = new CoachFeatureSwitch { Enabled = true },
-                    SamReadTools = new CoachFeatureSwitch { Enabled = true },
-                    SamWriteTools = new CoachFeatureSwitch { Enabled = true }
-                }));
+        ToolRegistry = SentenceStudio.Api.Coach.Tools.CoachToolServiceCollectionExtensions.BuildValidatedRegistry(
+            new CoachOptions
+            {
+                DurableHistory = new CoachFeatureSwitch { Enabled = true },
+                SamOverlay = new CoachFeatureSwitch { Enabled = true },
+                SamReadTools = new CoachFeatureSwitch { Enabled = true },
+                SamWriteTools = new CoachFeatureSwitch { Enabled = true }
+            });
+        var capabilityManifest = new SentenceStudio.Api.Coach.Capabilities.CoachCapabilityManifest(ToolRegistry);
 
         CapabilityResolver = new SentenceStudio.Api.Coach.Capabilities.CoachCapabilityResolver(
             capabilityManifest);
@@ -197,8 +197,12 @@ internal sealed class CoachApplicationHarness : IDisposable
             grounding: Grounding,
             disputes: Disputes,
             vocabularySets: vocabularySets,
-            vocabularySetApplications: vocabularySetApplications);
+            vocabularySetApplications: vocabularySetApplications,
+            tools: ToolRegistry);
     }
+
+    /// <summary>The frozen registry the service lists help from. All Sam tools enabled.</summary>
+    public SentenceStudio.Api.Coach.Tools.ICoachToolRegistry ToolRegistry { get; }
 
     /// <summary>The shipped correction-state coordinator the service calls.</summary>
     public SentenceStudio.Api.Coach.Application.CoachDisputeCoordinator Disputes { get; }
