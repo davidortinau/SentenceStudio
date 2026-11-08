@@ -164,3 +164,18 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   interpolated strings like the rest of the Android shell, not `ILogger<T>` templates; move the
   shell's logging over in one pass. A failed profile-row read logs and shows "Profile" without
   languages (as iOS does); consider a visible note if it is ever seen.
+
+## Icon, splash and launch look (Android, review 2026-11-07)
+
+- The splash theme items are written in both `values/styles.xml` and `values-night/styles.xml`;
+  a shared parent style would keep them in one place.
+- A start that fails before the auth presenter exists (`AndroidServiceHost.InitializeAsync`, for
+  example the migration preflight) ends the launch look on Sign In, whose actions then fail with
+  "Authentication has not initialized"; it needs a retry path (unchanged behavior, now visible).
+- The launch color is in `values/colors.xml` and in `AndroidSliceShell.Launch.cs`
+  (`AndroidLaunchContractTests` keeps them equal); read the resource instead if the binding gains a
+  color resource helper.
+- A transparent monochrome glyph of the logo would give Android 13+ a themed icon (and MAUI's
+  Android icon the same fix).
+- `LaunchLogoDp` (188) was measured on one API 36 emulator; check it on a phone with another
+  density.

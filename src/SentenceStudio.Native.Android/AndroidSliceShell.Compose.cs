@@ -74,6 +74,7 @@ internal sealed partial class AndroidSliceShell
             == ThemeMode.Dark;
         var themeId = CurrentAppearance.ThemeId;
         var palette = AndroidVisualTheme.For(dark, themeId);
+        FollowThemeSystemBars(composer, AndroidVisualTheme.UsesDarkScheme(dark, themeId));
         var theme = new MaterialTheme
         {
             Dark = AndroidVisualTheme.UsesDarkScheme(dark, themeId),
@@ -83,6 +84,11 @@ internal sealed partial class AndroidSliceShell
         if (photoViewer is not null)
         {
             theme.Add(photoViewer.Render());
+            return theme;
+        }
+        if (_launching)
+        {
+            theme.Add(RenderLaunch());
             return theme;
         }
         var content = new Column

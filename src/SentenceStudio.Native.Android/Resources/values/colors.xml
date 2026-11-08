@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- MauiIcon and MauiSplashScreen Color in SentenceStudio.MauiCompatibility.csproj. -->
+  <color name="app_icon_background">#0c0b10</color>
+  <color name="launch_background">#0c0b10</color>
+</resources>

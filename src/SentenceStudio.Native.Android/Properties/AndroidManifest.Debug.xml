@@ -10,6 +10,8 @@
       <action android:name="android.intent.action.TTS_SERVICE" />
     </intent>
   </queries>
-  <application android:label="SentenceStudio Native Debug"
+  <application android:icon="@mipmap/appicon"
+               android:roundIcon="@mipmap/appicon"
+               android:label="SentenceStudio Native Debug"
                android:networkSecurityConfig="@xml/native_network_security_config" />
 </manifest>

@@ -206,5 +206,19 @@ new-learner Add a Resource path, Sign out, light theme, text scale, Korean UI. i
 failures that predate this work (`NativeHeadContractTests` expects bridge preview.43, the app pins
 preview.44; `NativeSourceStylingContractTests` counts 6 `WithButtonBorderWidth(` calls, expects 5).
 
-Still open from the handoff: the Sam entry and editor keyboard checks, Android icon and splash.
+## Progress (2026-11-07, session 2, continued): the remaining handoff checks
+
+- Sam entry: with the tab shell, screens that show the tab bar reach Sam through his slot only;
+  editors, activities and the quiz keep the header icon (seen on the Minimal Pairs create page).
+  The floating button is not used (backlog).
+- Keyboard on editors: system Back hides the keyboard and keeps the page on Import Content, the
+  new-resource form and the skill form (departure 59); no drag-to-dismiss needed.
+- Icon and splash (departure 58): the MAUI artwork as an adaptive icon and the Android 12+ splash,
+  the launch look while the session restores (splash, then Study, no Sign In frame; logo size
+  measured so the handoff does not jump), and system-bar icons that follow the app theme
+  (departure 60). Checked: cold launch frames, app drawer icon, Release APK badging, light and
+  dark app themes on a light device.
+
+All rows of the handoff table are done. Open: real-speech voice test on a phone (Pixel 5 is
+production; the Captain's call), the items in docs/native-review-backlog.md.
 

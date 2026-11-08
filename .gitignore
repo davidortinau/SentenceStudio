@@ -455,6 +455,7 @@ src/.claude/settings.local.json
 *.png
 # App artwork in asset catalogs is source, not a snapshot.
 !src/SentenceStudio.Native.iOS/Resources/Assets.xcassets/**/*.png
+!src/SentenceStudio.Native.Android/Resources/mipmap-*/*.png
 *.lscache
 
 # e2e testing scratch/rehearsal artifacts

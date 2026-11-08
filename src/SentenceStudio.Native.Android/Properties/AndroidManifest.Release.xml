@@ -10,6 +10,8 @@
       <action android:name="android.intent.action.TTS_SERVICE" />
     </intent>
   </queries>
-  <application android:label="SentenceStudio"
+  <application android:icon="@mipmap/appicon"
+               android:roundIcon="@mipmap/appicon"
+               android:label="SentenceStudio"
                android:usesCleartextTraffic="false" />
 </manifest>

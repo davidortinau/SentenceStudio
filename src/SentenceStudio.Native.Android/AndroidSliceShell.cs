@@ -94,21 +94,30 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void Start()
     {
+        ApplyLaunchSystemBars();
         ApplyAppearanceFontScale();
         Execute(InitializeNormalAsync);
     }
 
     private async Task InitializeNormalAsync(CancellationToken cancellationToken)
     {
-        _host = AndroidServiceHost.Create(activity);
-        await _host.InitializeAsync(cancellationToken);
-        _scope = _host.CreateScope();
-        _media = _scope.ServiceProvider.GetRequiredService<AndroidQuizMedia>();
-        _auth = _scope.ServiceProvider.GetRequiredService<NativeAuthPresenter>();
-        _dashboard = _scope.ServiceProvider.GetRequiredService<NativeDashboardPresenter>();
-        _auth.StateChanged += OnAuthChanged;
-        _dashboard.StateChanged += OnDashboardChanged;
-        await HandleAuthAsync(await _auth.RestoreAsync(cancellationToken), cancellationToken);
+        try
+        {
+            _host = AndroidServiceHost.Create(activity);
+            await _host.InitializeAsync(cancellationToken);
+            _scope = _host.CreateScope();
+            _media = _scope.ServiceProvider.GetRequiredService<AndroidQuizMedia>();
+            _auth = _scope.ServiceProvider.GetRequiredService<NativeAuthPresenter>();
+            _dashboard = _scope.ServiceProvider.GetRequiredService<NativeDashboardPresenter>();
+            _auth.StateChanged += OnAuthChanged;
+            _dashboard.StateChanged += OnDashboardChanged;
+            await HandleAuthAsync(await _auth.RestoreAsync(cancellationToken), cancellationToken);
+        }
+        finally
+        {
+            // A failed start shows Sign In with its error, never the launch look forever.
+            Publish(EndLaunch);
+        }
     }
 
     public bool HandleBack()
@@ -625,6 +634,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             }
             Auth = state;
             Destination = AndroidRoutePolicy.AfterAuth(state);
+            // Sign-in is resolved: Study shows at once (its plan loads in place), or Sign In.
+            EndLaunch();
             if (Destination != NativeDestination.SignIn)
             {
                 _accountEntry = AccountEntry.SignIn;

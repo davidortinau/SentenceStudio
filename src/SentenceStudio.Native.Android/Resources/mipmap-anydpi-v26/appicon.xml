@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The MAUI head's app icon (SentenceStudio.MauiCompatibility.csproj MauiIcon): studio_icon.png
+     filling the 108 dp foreground (Resizetizer ForegroundScale 1.0) on #0c0b10. MAUI also uses
+     the foreground as the monochrome layer; it is opaque edge to edge, so a themed icon would be
+     a blank shape. No monochrome layer until there is a transparent glyph. Also the round icon. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/app_icon_background" />
+    <foreground android:drawable="@mipmap/appicon_foreground" />
+</adaptive-icon>
