@@ -101,7 +101,12 @@ internal sealed partial class AndroidSliceShell
         {
             NativeDestination.Dashboard or NativeDestination.TodaysPlan
                 when IsMoreScreenOpen => WithMoreToast(composer, RenderMoreScreen(palette)),
-            NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
+            NativeDestination.Dashboard or NativeDestination.TodaysPlan => _tab switch
+            {
+                ShellTab.Library => RenderLibrary(palette),
+                ShellTab.Settings => RenderSettings(palette),
+                _ => RenderDashboard(palette),
+            },
             NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
             NativeDestination.Activity => WithActivityToast(composer, RenderActivity(palette)),
@@ -118,6 +123,8 @@ internal sealed partial class AndroidSliceShell
         }
         else
             content.Add(screen);
+        if (SamSlotDialog(palette) is { } samSlot)
+            content.Add(samSlot);
         if (!string.IsNullOrWhiteSpace(Error.Value)
             && _accountEntry == AccountEntry.SignIn
             && Destination is not (NativeDestination.Dashboard
@@ -279,7 +286,7 @@ internal sealed partial class AndroidSliceShell
         var cards = state.Cards.IsDefault ? [] : state.Cards;
         var viewport = new Column(Arrangement.SpacedBy(8))
         {
-            // The last card scrolls clear of the floating Sam button (docs/sam-entry.md).
+            // The last card scrolls clear of a floating Sam button (docs/sam-entry.md); the tab shell has none.
             Modifier = Modifier.FillMaxWidth().Weight(1f)
                 .VerticalScroll(_dashboardScroll)
                 .Padding(start: AndroidVisualTheme.PagePadding, top: 16,

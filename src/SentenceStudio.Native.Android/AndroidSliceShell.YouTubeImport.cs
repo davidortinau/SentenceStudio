@@ -112,7 +112,7 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void OpenYouTubeChannel(string? channelId)
     {
-        if (_more != MoreScreen.YouTubeImport || _youTubeImport is not { IsOpen: true }
+        if (MorePage != MoreScreen.YouTubeImport || _youTubeImport is not { IsOpen: true }
             || IsYouTubeChannelOpen || IsYouTubeNavigationBlocked || _scope is null)
             return;
         if (MoreOwner() is not { } owner)
@@ -202,7 +202,7 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void ViewYouTubeResource(string resourceId) => Publish(() =>
     {
-        if (!IsDashboardTab || Busy.Value || _more != MoreScreen.YouTubeImport || IsYouTubeChannelOpen
+        if (!IsDashboardTab || Busy.Value || MorePage != MoreScreen.YouTubeImport || IsYouTubeChannelOpen
             || string.IsNullOrWhiteSpace(resourceId)
             || EnsureResources() is not { } resources || resources.IsFormOpen)
             return;

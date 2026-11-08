@@ -124,7 +124,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Source ViewResource: the imported resource's editor; closing it returns to the results.</summary>
     private void ViewImportedResource(string resourceId) => Publish(() =>
     {
-        if (!IsDashboardTab || Busy.Value || _more != MoreScreen.ImportContent
+        if (!IsDashboardTab || Busy.Value || MorePage != MoreScreen.ImportContent
             || string.IsNullOrWhiteSpace(resourceId)
             || EnsureResources() is not { } resources || resources.IsFormOpen)
             return;
@@ -141,7 +141,7 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void OpenImportedWord(string wordId)
     {
-        if (_more != MoreScreen.ImportContent || _importContent is not { IsOpen: true }
+        if (MorePage != MoreScreen.ImportContent || _importContent is not { IsOpen: true }
             || IsImportWordOpen || _importWordOpening || string.IsNullOrWhiteSpace(wordId) || _scope is null)
             return;
         if (MoreOwner() is not { } owner)
@@ -195,7 +195,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>The import word editor is open and nothing else runs: a handoff can start.</summary>
     private bool CanHandOverDuplicates() =>
         !_disposed && !Busy.Value && IsDashboardTab
-        && _more == MoreScreen.ImportContent && IsImportWordOpen && _scope is not null;
+        && MorePage == MoreScreen.ImportContent && IsImportWordOpen && _scope is not null;
 
     /// <summary>
     /// The import word editor's Find Duplicates: opens the Vocabulary screen's duplicate manager
@@ -238,7 +238,7 @@ internal sealed partial class AndroidSliceShell
                 $"Find Duplicates could not open the Vocabulary screen: {ex}");
         }
         if (!opened || !ReferenceEquals(_importWords, editor) || editor is not { IsFormOpen: true }
-            || _more != MoreScreen.ImportContent)
+            || MorePage != MoreScreen.ImportContent)
         {
             vocabulary.Dispose();
             global::Android.Util.Log.Warn("SentenceStudio.Native",
@@ -251,13 +251,13 @@ internal sealed partial class AndroidSliceShell
         ReleaseImportContent();
         vocabulary.Changed += OnMoreChanged;
         _vocabulary = vocabulary;
-        _more = MoreScreen.Vocabulary;
+        MorePage = MoreScreen.Vocabulary;
         OnMoreChanged();
         await vocabulary.OpenDuplicatesAsync(term, wordId);
     }
 
     /// <summary>The import pages' newest success or info message, shown once as a snackbar (source toasts).</summary>
-    private NativeMessage? ImportToastCandidate() => _more switch
+    private NativeMessage? ImportToastCandidate() => MorePage switch
     {
         MoreScreen.ImportContent when _importContent is { IsOpen: true } import && !IsImportWordOpen =>
             NativeMessages.LatestToast(import.Messages),

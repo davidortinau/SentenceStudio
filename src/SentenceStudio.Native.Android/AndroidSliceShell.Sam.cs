@@ -16,8 +16,7 @@ internal sealed partial class AndroidSliceShell
     private NativeSamState SamState => _sam?.State ?? new NativeSamState();
 
     private AndroidSamEntryPlacement SamEntryPlacement =>
-        AndroidSamProjection.EntryPlacement(Destination, _preview,
-            IsMoreScreenOpen || IsResourceFormOpen, SamState) is var placement
+        AndroidSamProjection.EntryPlacement(Destination, _preview, ShowsBottomTabs, SamState) is var placement
         && placement != AndroidSamEntryPlacement.None && HasDashboardOwner(Auth.UserId)
             ? placement : AndroidSamEntryPlacement.None;
 
@@ -67,6 +66,7 @@ internal sealed partial class AndroidSliceShell
         _samCandidateEdit.Seed(null, string.Empty);
         _samMemoryEdit.Seed(null, string.Empty);
         _samConversationMenu = null;
+        ResetSamSlot();
         _sam?.ClearForAccountBoundary();
     }
 
@@ -144,12 +144,17 @@ internal sealed partial class AndroidSliceShell
         Publish(() => { });
     }
 
+    /// <summary>The header entry on a screen without the tab bar.</summary>
     private void OpenSam()
     {
         if (!IsSamEntryVisible)
             return;
-        RunSam(sam => sam.OpenAsync(AndroidSamProjection.DefaultSize(WindowWidthDp), _lifetime.Token));
+        OpenSamPanel();
     }
+
+    /// <summary>The same Sam panel for the header entry and the tab slot.</summary>
+    private void OpenSamPanel() =>
+        RunSam(sam => sam.OpenAsync(AndroidSamProjection.DefaultSize(WindowWidthDp), _lifetime.Token));
 
     private void CloseSam() => _sam?.Close();
 

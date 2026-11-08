@@ -346,8 +346,9 @@ public sealed class AndroidPackagingTests
         Assert.True(start >= 0);
         var end = resources.IndexOf("\n    }", start, StringComparison.Ordinal);
         var body = resources[start..end];
-        // A renamed or deleted resource must not leave stale Today's Insight links.
-        Assert.Contains("Destination = NativeDestination.Dashboard;", body);
+        // A renamed or deleted resource must not leave stale Today's Insight links. The form
+        // returns to where it opened from (Study, either Dashboard mode, or the Library list).
+        Assert.Contains("Destination = _resourceFormReturn;", body);
         Assert.Contains("ReloadDashboardAfterResources();", body);
     }
 

@@ -55,7 +55,7 @@ public sealed class AndroidSamContractTests
     {
         Assert.Contains("RenderSamSettings(palette)", Code("AndroidSliceShell.Appearance.cs"));
         Assert.Contains("OpenSamSettings();",
-            Between(Code("AndroidSliceShell.More.cs"), "case MoreScreen.Settings:", "break;"));
+            Between(Code("AndroidSliceShell.Tabs.cs"), "private void OpenSettingsTab()", "\n    }"));
         var open = Between(Code("AndroidSliceShell.Sam.cs"), "private void OpenSamSettings()", "\n    }");
         Assert.Contains("RefreshAvailabilityAsync", open);
         Assert.Contains("LoadMemoryAsync", open);
@@ -198,7 +198,7 @@ public sealed class AndroidSamContractTests
         Assert.Single(Regex.Matches(shell, @"WithActivityToast\("));
         Assert.Contains("NativeDestination.Activity => WithActivityToast(composer, RenderActivity(palette)),", shell);
         Assert.Equal(AndroidSamEntryPlacement.TopBar, AndroidSamProjection.EntryPlacement(
-            NativeDestination.Activity, preview: false, screenOverTab: false,
+            NativeDestination.Activity, preview: false, tabBarShown: false,
             new NativeSamState(IsVisible: true)));
     }
 

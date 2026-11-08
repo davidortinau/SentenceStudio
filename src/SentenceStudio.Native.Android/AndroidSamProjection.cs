@@ -80,21 +80,19 @@ internal static class AndroidSamProjection
             or NativeDestination.QuizSummary or NativeDestination.Activity;
 
     /// <summary>
-    /// Source MainLayout mounts Sam on every signed-in page. The two tab roots keep
-    /// the floating button; a screen opened over them (<paramref name="screenOverTab"/>:
-    /// a More screen or the resource form), the quiz and every activity get the
-    /// same entry in their top app bar, because a floating button there would
-    /// cover the screen's bottom answer and send bars.
+    /// Source MainLayout mounts Sam on every signed-in page. In the tab shell trial (as on
+    /// iOS 25fef602) a screen that shows the tab bar (<paramref name="tabBarShown"/>: the tab
+    /// roots and their browse pages) reaches Sam through his tab slot only; a screen that hides
+    /// it (an editor, the quiz, every activity) has the entry in its top app bar. The
+    /// floating button is not used while the trial runs.
     /// </summary>
     internal static AndroidSamEntryPlacement EntryPlacement(NativeDestination destination,
-        bool preview, bool screenOverTab, NativeSamState state)
+        bool preview, bool tabBarShown, NativeSamState state)
     {
-        if (!IsShellDestination(destination) || preview || !state.IsVisible || state.IsOpen)
+        if (!IsShellDestination(destination) || preview || !state.IsVisible || state.IsOpen
+            || tabBarShown)
             return AndroidSamEntryPlacement.None;
-        return (destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-                or NativeDestination.Resources) && !screenOverTab
-            ? AndroidSamEntryPlacement.Floating
-            : AndroidSamEntryPlacement.TopBar;
+        return AndroidSamEntryPlacement.TopBar;
     }
 
     /// <summary>
@@ -143,8 +141,8 @@ internal static class AndroidSamProjection
     }
 
     internal static bool IsEntryVisible(NativeDestination destination, bool preview,
-        bool screenOverTab, NativeSamState state) =>
-        EntryPlacement(destination, preview, screenOverTab, state) != AndroidSamEntryPlacement.None;
+        bool tabBarShown, NativeSamState state) =>
+        EntryPlacement(destination, preview, tabBarShown, state) != AndroidSamEntryPlacement.None;
 
     internal static bool IsPresented(NativeDestination destination, bool preview, NativeSamState state) =>
         IsShellDestination(destination) && !preview && state.IsVisible && state.IsOpen;

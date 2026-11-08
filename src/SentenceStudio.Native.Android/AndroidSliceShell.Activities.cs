@@ -65,10 +65,14 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Services for the open activity: one DI scope per launch, disposed in <see cref="ReleaseActivity"/>.</summary>
     private IServiceProvider? ActivityServices => _activityScope?.ServiceProvider;
 
+    /// <param name="openMinimalPairsCreate">Library quick add: Minimal Pairs opens its create page.</param>
     private Task StartActivityAsync(
-        NativeActivityLaunch launch, CancellationToken cancellationToken)
+        NativeActivityLaunch launch, CancellationToken cancellationToken,
+        bool openMinimalPairsCreate = false)
     {
         ReleaseActivity();
+        // Set after the release, which clears it.
+        _minimalPairsOpenCreate = openMinimalPairsCreate;
         if (_host is null)
             return Task.CompletedTask;
         // As on iOS: the activity's transient presenter and timer live in their

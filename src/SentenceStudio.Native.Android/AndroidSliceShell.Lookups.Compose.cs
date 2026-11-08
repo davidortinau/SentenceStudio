@@ -22,7 +22,7 @@ internal sealed partial class AndroidSliceShell
 
     private void OpenRecentLookups() => Publish(() =>
     {
-        if (_more != MoreScreen.Vocabulary || _vocabulary is not { IsFormOpen: false }
+        if (MorePage != MoreScreen.Vocabulary || _vocabulary is not { IsFormOpen: false }
             || _vocabulary.IsNavigationBlocked || _lookups is not null || _scope is null)
             return;
         var owner = MoreOwner();

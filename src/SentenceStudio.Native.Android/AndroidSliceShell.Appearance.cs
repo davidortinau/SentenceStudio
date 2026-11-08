@@ -6,12 +6,13 @@ using SentenceStudio.Native.Features.Settings;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// Settings page (source Settings.razor, iOS SettingsView): Appearance (theme,
-/// mode, text size), Voice and Quiz preferences, then the Learning Coach cards.
+/// The Settings tab (source Settings.razor, iOS SettingsView): the profile row, Appearance
+/// (theme, mode, text size), Voice and Quiz preferences, the Learning Coach cards, and
+/// Sign out last.
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    // Each open starts at the top, like a freshly pushed page.
+    // The scroll is kept with the owner's settings between Settings tab visits.
     private ComposableNode RenderSettings(AndroidVisualPalette palette) =>
         new Composed(composer => RenderSettings(palette,
             composer.Remember(() => new AndroidX.Compose.ScrollState(), _settings)));
@@ -26,6 +27,8 @@ internal sealed partial class AndroidSliceShell
                 .Padding(AndroidVisualTheme.PagePadding)
                 .TestTag("native.settings.screen"),
         };
+        if (!_preview)
+            viewport.Add(SettingsProfileRow(palette));
         var state = _settings?.State;
         if (state is not { OwnerBlocked: false, Quiz: { } quiz })
             viewport.Add(StatusAlert(Localize("NativeSettings_OwnerUnavailable"), palette,
@@ -44,12 +47,12 @@ internal sealed partial class AndroidSliceShell
         if (!string.IsNullOrWhiteSpace(Error.Value))
             viewport.Add(StatusAlert(Error.Value, palette, error: true,
                 automationId: "native.settings.error"));
+        viewport.Add(SettingsSignOut(palette));
 
         return new Column
         {
             Modifier.FillMaxSize(),
-            ScreenHeader(Localize("Settings_Title"), palette, back: true,
-                backAutomationId: "native.settings.back"),
+            ScreenHeader(Localize("Settings_Title"), palette),
             viewport,
         };
     }

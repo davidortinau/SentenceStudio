@@ -15,16 +15,17 @@ using SentenceStudio.Services.Theme;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// The Dashboard More menu destinations (source NavMenu: Profile, Settings, Skills,
-/// Vocabulary, Activity Log), matching the iOS More menu. Each screen covers the
-/// Dashboard tab like a pushed route (tabs hidden, Back returns) and uses the
-/// shared owner-gated coordinator iOS uses; an owner change or sign-out closes it.
+/// The pages pushed above a tab root (source NavMenu destinations), as in the iOS tab
+/// shell: History (Activity Log) above Study; Vocabulary, Skills, Import Content and
+/// YouTube import above the Library list; Profile above Settings. Each tab keeps its own
+/// page while another tab is shown (<see cref="MorePage"/>), Back returns to the tab
+/// root, and each page uses the shared owner-gated coordinator iOS uses; an owner change
+/// or sign-out closes them all. Settings itself is the Settings tab root.
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    private enum MoreScreen { None, Settings, Profile, Skills, Vocabulary, ActivityLog, ImportContent, YouTubeImport }
+    private enum MoreScreen { None, Profile, Skills, Vocabulary, ActivityLog, ImportContent, YouTubeImport }
 
-    private MoreScreen _more;
     private string? _moreMenu;
     private SettingsCoordinator? _settings;
     // The size a text-size drag shows until release applies it; null when none.
@@ -36,11 +37,10 @@ internal sealed partial class AndroidSliceShell
     private VocabularyBrowser? _vocabulary;
     private ActivityLogCoordinator? _activityLog;
 
-    private bool IsMoreScreenOpen => _more != MoreScreen.None;
+    private bool IsMoreScreenOpen => MorePage != MoreScreen.None;
 
-    private ComposableNode RenderMoreScreen(AndroidVisualPalette palette) => _more switch
+    private ComposableNode RenderMoreScreen(AndroidVisualPalette palette) => MorePage switch
     {
-        MoreScreen.Settings => RenderSettings(palette),
         MoreScreen.Profile => RenderProfile(palette),
         MoreScreen.Skills => RenderSkills(palette),
         MoreScreen.Vocabulary => RenderVocabulary(palette),
@@ -68,33 +68,28 @@ internal sealed partial class AndroidSliceShell
         return HasDashboardOwner(owner) ? owner : null;
     }
 
-    private void OpenSettings() => OpenMoreScreen(MoreScreen.Settings);
     private void OpenProfile() => OpenMoreScreen(MoreScreen.Profile);
-    private void OpenSkills() => OpenMoreScreen(MoreScreen.Skills);
+    private void OpenSkills(bool create = false) => OpenMoreScreen(MoreScreen.Skills, create);
     private void OpenVocabulary() => OpenMoreScreen(MoreScreen.Vocabulary);
     private void OpenActivityLog() => OpenMoreScreen(MoreScreen.ActivityLog);
 
-    private void OpenMoreScreen(MoreScreen screen) => Publish(() =>
+    /// <summary>Opens a page above the current tab root; <paramref name="create"/> opens Skills on its create form.</summary>
+    private void OpenMoreScreen(MoreScreen screen, bool create = false) => Publish(() =>
     {
         if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
             || Busy.Value || IsMoreScreenOpen || _scope is null)
             return;
-        _dashboardMenuOpen = false;
         _moreMenu = null;
         Error.Value = string.Empty;
         var owner = MoreOwner();
         if (owner is null)
             global::Android.Util.Log.Warn("SentenceStudio.Native",
                 "A More screen refused an absent or untrusted owner.");
-        _more = screen;
+        MorePage = screen;
         var provider = _scope.ServiceProvider;
         var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
         switch (screen)
         {
-            case MoreScreen.Settings:
-                OpenSettingsCoordinator(provider, scope, owner);
-                OpenSamSettings();
-                break;
             case MoreScreen.Profile when owner is not null:
                 var profile = new ProfileCoordinator(
                     provider.GetRequiredService<UserProfileRepository>(), scope,
@@ -111,7 +106,12 @@ internal sealed partial class AndroidSliceShell
                 skills.Changed += OnMoreChanged;
                 _skills = skills;
                 // Not thread-safe by design (iOS main thread): runs on the UI thread.
-                RunMoreOnUi(() => skills.OpenAsync(owner));
+                RunMoreOnUi(async () =>
+                {
+                    // Library quick add: the create form opens above the list once it is read.
+                    if (await skills.OpenAsync(owner) && create && ReferenceEquals(_skills, skills))
+                        skills.OpenCreate();
+                });
                 break;
             case MoreScreen.Vocabulary when owner is not null:
                 var vocabulary = new VocabularyBrowser(
@@ -153,7 +153,7 @@ internal sealed partial class AndroidSliceShell
             Publish(() => _moreMenu = null);
             return true;
         }
-        switch (_more)
+        switch (MorePage)
         {
             case MoreScreen.Profile when _profile?.State.ShowDeleteConfirmation == true:
                 _profile.CancelDelete();
@@ -202,69 +202,102 @@ internal sealed partial class AndroidSliceShell
         return true;
     }
 
+    /// <summary>Back or the page's own close: the current tab's page closes unless it is saving.</summary>
     private void CloseMoreScreen()
     {
-        if (_skills?.IsPending == true || _vocabulary?.IsNavigationBlocked == true
-            || _importContent?.IsNavigationBlocked == true || _importWords?.IsNavigationBlocked == true
-            || IsYouTubeNavigationBlocked)
+        var page = MorePage;
+        if (page == MoreScreen.None || IsMorePageBlocked(page))
             return;
-        _more = MoreScreen.None;
+        MorePage = MoreScreen.None;
         _moreMenu = null;
-        ReleaseMoreCoordinators();
+        ReleaseMorePage(page);
+        // The profile row shows a renamed learner or new languages at once.
+        if (page == MoreScreen.Profile)
+            _ = RefreshProfileSummaryAsync();
     }
 
-    /// <summary>Owner change, sign-out or disposal drops every More screen and its drafts.</summary>
+    /// <summary>A page that is saving cannot close (Back waits, the tab bar is disabled).</summary>
+    private bool IsMorePageBlocked(MoreScreen page) => page switch
+    {
+        MoreScreen.Profile => _profile?.State.IsSaving == true,
+        MoreScreen.Skills => _skills?.IsPending == true,
+        MoreScreen.Vocabulary => _vocabulary?.IsNavigationBlocked == true,
+        MoreScreen.ImportContent => _importContent?.IsNavigationBlocked == true
+            || _importWords?.IsNavigationBlocked == true,
+        MoreScreen.YouTubeImport => IsYouTubeNavigationBlocked,
+        _ => false,
+    };
+
+    /// <summary>Owner change, sign-out or disposal drops every tab's page, Settings and their drafts.</summary>
     private void ResetMoreScreens()
     {
-        _more = MoreScreen.None;
+        Array.Clear(_tabPages);
         _moreMenu = null;
         ReleaseMoreCoordinators();
+        ResetTabs();
     }
 
     private void ReleaseMoreCoordinators()
     {
-        CloseRecentLookups();
+        foreach (var page in Enum.GetValues<MoreScreen>())
+            ReleaseMorePage(page);
+        ReleaseSettings();
+    }
+
+    private void ReleaseMorePage(MoreScreen page)
+    {
+        switch (page)
+        {
+            case MoreScreen.Profile when _profile is { } profile:
+                _profile = null;
+                profile.Changed -= OnMoreChanged;
+                profile.Dispose();
+                break;
+            case MoreScreen.Skills when _skills is { } skills:
+                _skills = null;
+                skills.Changed -= OnMoreChanged;
+                skills.Close();
+                skills.Dispose();
+                break;
+            case MoreScreen.Vocabulary:
+                CloseRecentLookups();
+                if (_vocabulary is { } vocabulary)
+                {
+                    _vocabulary = null;
+                    vocabulary.Changed -= OnMoreChanged;
+                    vocabulary.Dispose();
+                }
+                break;
+            case MoreScreen.ActivityLog when _activityLog is { } log:
+                _activityLog = null;
+                log.Changed -= OnMoreChanged;
+                log.Dispose();
+                break;
+            case MoreScreen.ImportContent:
+                ReleaseImportContent();
+                break;
+            case MoreScreen.YouTubeImport:
+                ReleaseYouTubeImport();
+                break;
+        }
+    }
+
+    /// <summary>The Settings tab's coordinator: kept between visits for its owner (as on iOS).</summary>
+    private void ReleaseSettings()
+    {
         // A text-size drag still held when Settings closes was never released: not applied.
         _textSizePreview = null;
-        if (_settings is { } settings)
-        {
-            settings.Changed -= OnMoreChanged;
-            // Appearance saves already queued finish (owner-gated) before disposal.
-            var saves = _appearanceSaves;
-            if (saves.IsCompleted)
-                settings.Dispose();
-            else
-                _ = saves.ContinueWith(_ => settings.Dispose(), CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-        }
-        if (_profile is { } profile)
-        {
-            profile.Changed -= OnMoreChanged;
-            profile.Dispose();
-        }
-        if (_skills is { } skills)
-        {
-            skills.Changed -= OnMoreChanged;
-            skills.Close();
-            skills.Dispose();
-        }
-        if (_vocabulary is { } vocabulary)
-        {
-            vocabulary.Changed -= OnMoreChanged;
-            vocabulary.Dispose();
-        }
-        if (_activityLog is { } log)
-        {
-            log.Changed -= OnMoreChanged;
-            log.Dispose();
-        }
-        ReleaseImportContent();
-        ReleaseYouTubeImport();
+        if (_settings is not { } settings)
+            return;
         _settings = null;
-        _profile = null;
-        _skills = null;
-        _vocabulary = null;
-        _activityLog = null;
+        settings.Changed -= OnMoreChanged;
+        // Appearance saves already queued finish (owner-gated) before disposal.
+        var saves = _appearanceSaves;
+        if (saves.IsCompleted)
+            settings.Dispose();
+        else
+            _ = saves.ContinueWith(_ => settings.Dispose(), CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     // Coordinators raise Changed on whichever thread finished the work.

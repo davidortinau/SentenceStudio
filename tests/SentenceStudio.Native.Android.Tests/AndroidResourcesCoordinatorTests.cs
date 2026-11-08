@@ -131,9 +131,13 @@ public sealed class AndroidResourcesCoordinatorTests
             "NativeAccess.ResourceLanguage", "native.resources.view.grid",
             "native.resources.view.list", "native.resources.empty.add",
             "native.resources.empty.starter", "native.resources.add",
-            "NativeAccess.ResourcesTab", "NativeAccess.DashboardTab",
         })
             Assert.Contains(tag, browser);
+        // The Library tab hosts the Resources page; Study keeps the Dashboard tab id.
+        var tabs = Source("AndroidSliceShell.Tabs.Compose.cs");
+        Assert.Contains("NativeAccess.DashboardTab", tabs);
+        Assert.Contains("\"native.tab.library\"", tabs);
+        Assert.Contains("\"native.library.row.resources\"", tabs);
         foreach (var tag in new[]
         {
             "NativeAccess.ResourceTitle", "NativeAccess.ResourceSave",

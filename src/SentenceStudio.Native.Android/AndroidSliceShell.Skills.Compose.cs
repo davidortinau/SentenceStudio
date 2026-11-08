@@ -314,7 +314,7 @@ internal sealed partial class AndroidSliceShell
     /// <summary>The Skills coordinator is not thread-safe (iOS main thread): commands run on the UI thread.</summary>
     private void SkillsCommand(Action<SkillsCoordinator> command)
     {
-        if (_skills is { } skills && _more == MoreScreen.Skills)
+        if (_skills is { } skills && MorePage == MoreScreen.Skills)
             Post(() =>
             {
                 if (ReferenceEquals(_skills, skills))

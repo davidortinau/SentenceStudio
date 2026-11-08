@@ -5,7 +5,7 @@ using SentenceStudio.Native;
 
 namespace SentenceStudio.Native.Android;
 
-/// <summary>Resources tab wiring: owner-scoped coordinator lifetime, tab and back navigation.</summary>
+/// <summary>The Library's Resources page wiring: owner-scoped coordinator lifetime and back navigation.</summary>
 internal sealed partial class AndroidSliceShell
 {
     private AndroidResourcesCoordinator? _resources;
@@ -17,12 +17,6 @@ internal sealed partial class AndroidSliceShell
     private string? _dashboardStarterErrorKey;
 
     private bool IsResourceFormOpen => _resources?.IsFormOpen == true;
-
-    private bool ShowsBottomTabs =>
-        AndroidRoutePolicy.UsesBottomTabs && !_preview
-        && !IsMoreScreenOpen && !IsResourceFormOpen
-        && AndroidRoutePolicy.IsTopLevel(Destination)
-        && HasDashboardOwner(Auth.UserId);
 
     private AndroidResourcesCoordinator? EnsureResources()
     {
@@ -88,29 +82,6 @@ internal sealed partial class AndroidSliceShell
         ReloadDashboardAfterResources();
     }
 
-    public void SelectTopLevel(NativeDestination destination) => Publish(() =>
-    {
-        if (!AndroidRoutePolicy.IsTopLevel(destination) || Busy.Value
-            || !AndroidRoutePolicy.IsTopLevel(Destination)
-            || IsResourceFormOpen || _resources?.IsNavigationBlocked == true
-            || Destination == destination
-            || Destination == NativeDestination.TodaysPlan
-                && destination == NativeDestination.Dashboard)
-            return;
-        _dashboardMenuOpen = false;
-        _resourceMenu = ResourceMenu.None;
-        if (destination == NativeDestination.Resources)
-        {
-            if (EnsureResources() is not { } resources)
-                return;
-            Destination = NativeDestination.Resources;
-            resources.OnBrowserAppeared();
-            return;
-        }
-        Destination = NativeDestination.Dashboard;
-        ReloadDashboardAfterResources();
-    });
-
     // Resource adds and deletes change the Choose My Own catalog and the plan.
     private void ReloadDashboardAfterResources()
     {
@@ -129,7 +100,8 @@ internal sealed partial class AndroidSliceShell
     /// <summary>Source Today's Insight titles link to the resource; closing returns to the plan.</summary>
     public void OpenResourceFromDashboard(string resourceId) => Publish(() =>
     {
-        if (Destination != NativeDestination.Dashboard || Busy.Value
+        if (Destination != NativeDestination.Dashboard || _tab != ShellTab.Study || IsMoreScreenOpen
+            || Busy.Value
             || string.IsNullOrWhiteSpace(resourceId)
             || Dashboard.Phase != NativePhase.Ready
             || Dashboard.Narrative?.Resources.Any(resource =>
@@ -143,11 +115,27 @@ internal sealed partial class AndroidSliceShell
         resources.Open(resourceId);
     });
 
+    /// <summary>
+    /// New-learner "Add a Resource": the Library's Resources page with the new-resource form;
+    /// the Library tab shows, so the saved resource is in its list. A page the Library keeps
+    /// open is shown instead (never discarded).
+    /// </summary>
     public void OpenResourceAddFromDashboard() => Publish(() =>
     {
-        if (Destination != NativeDestination.Dashboard || Busy.Value
-            || EnsureResources() is not { } resources || resources.IsFormOpen)
+        if (Destination != NativeDestination.Dashboard || _tab != ShellTab.Study || IsMoreScreenOpen
+            || Busy.Value || EnsureResources() is not { } resources || resources.IsFormOpen)
             return;
+        _studyDestination = NativeDestination.Dashboard;
+        _studyReloadPending = true;
+        _tab = ShellTab.Library;
+        // A page the Library keeps (it may hold a pasted import or a search) is shown as it
+        // is, never discarded: the learner closes it and adds the resource from the list.
+        if (IsMoreScreenOpen)
+        {
+            Destination = NativeDestination.Dashboard;
+            return;
+        }
+        _libraryResourcesOpen = false;
         Destination = NativeDestination.Resources;
         resources.OnBrowserAppeared();
         resources.OpenCreate();
@@ -239,7 +227,15 @@ internal sealed partial class AndroidSliceShell
             return false;
         if (_resources?.IsNavigationBlocked == true)
             return true;
-        SelectTopLevel(NativeDestination.Dashboard);
+        // Back from the Library's Resources page: the Library list.
+        Publish(() =>
+        {
+            if (Destination != NativeDestination.Resources || IsResourceFormOpen)
+                return;
+            _resourceMenu = ResourceMenu.None;
+            _libraryResourcesOpen = false;
+            Destination = NativeDestination.Dashboard;
+        });
         return true;
     }
 }

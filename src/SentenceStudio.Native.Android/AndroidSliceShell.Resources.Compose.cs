@@ -31,46 +31,6 @@ internal sealed partial class AndroidSliceShell
         _resourceMenuWordId = null;
     });
 
-    private ComposableNode NavigationTabs(AndroidVisualPalette palette)
-    {
-        var bar = new NavigationBar
-        {
-            Modifier = Modifier.FillMaxWidth().TestTag("native.tabs"),
-        };
-        bar.Add(TabItem(NativeDestination.Dashboard, NativeAccess.DashboardTab,
-            "Dashboard_Title", Icons.Default.Home, palette));
-        bar.Add(TabItem(NativeDestination.Resources, NativeAccess.ResourcesTab,
-            "Resources_Title", Icons.Default.Menu, palette));
-        return bar;
-    }
-
-    private ComposableNode TabItem(NativeDestination destination, string tag,
-        string labelKey, AndroidX.Compose.UI.Graphics.Vector.ImageVector icon,
-        AndroidVisualPalette palette)
-    {
-        var label = Localize(labelKey);
-        var selected = destination == NativeDestination.Dashboard
-            ? Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-            : Destination == destination;
-        return new NavigationBarItem(selected: selected,
-            onClick: () => SelectTopLevel(destination),
-            enabled: !Busy.Value && _resources?.IsNavigationBlocked != true,
-            alwaysShowLabel: true)
-        {
-            Modifier = Modifier.TestTag(tag).Semantics(semantics =>
-            {
-                semantics.ContentDescription(label);
-                semantics.Selected(selected);
-            }),
-            Icon = new Icon(icon, label)
-            {
-                Modifier = Modifier.Size(24),
-                Tint = selected ? palette.Primary : palette.SecondaryText,
-            },
-            Label = new Text(label),
-        };
-    }
-
     private ComposableNode RenderResources(AndroidVisualPalette palette)
     {
         // Set again while the list or grid composes; a screen without one cannot scroll.

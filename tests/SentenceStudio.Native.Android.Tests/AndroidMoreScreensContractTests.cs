@@ -5,8 +5,8 @@ using SentenceStudio.Native;
 namespace SentenceStudio.Native.Android.Tests;
 
 /// <summary>
-/// W2: the Dashboard More menu reaches Profile, Settings, Skills, Vocabulary and
-/// Activity Log (AF-N08) on the shared coordinators iOS uses, and Settings carries
+/// W2: Profile, Settings, Skills, Vocabulary and Activity Log (AF-N08, now reached through
+/// the tab shell) use the shared coordinators iOS uses, and Settings carries
 /// every quiz preference with the approved 1-10 s auto-advance (AF-Q14, AF-Q15).
 /// </summary>
 public sealed class AndroidMoreScreensContractTests
@@ -16,26 +16,40 @@ public sealed class AndroidMoreScreensContractTests
         "AndroidSliceShell.More.cs", "AndroidSliceShell.Appearance.cs",
         "AndroidSliceShell.Settings.Compose.cs", "AndroidSliceShell.Profile.Compose.cs",
         "AndroidSliceShell.Skills.Compose.cs", "AndroidSliceShell.Vocabulary.Compose.cs",
-        "AndroidSliceShell.ActivityLog.Compose.cs",
+        "AndroidSliceShell.ActivityLog.Compose.cs", "AndroidSliceShell.Tabs.cs",
+        "AndroidSliceShell.Tabs.Compose.cs",
     ];
 
+    /// <summary>
+    /// Tab shell trial (iOS 7a09daaf, 0a8e1b16, 25fef602): every former More menu destination
+    /// stays reachable. Study's header opens History; the Library lists Resources, Vocabulary,
+    /// Skills and Minimal Pairs, then Quick add in iOS order; Settings starts with the
+    /// profile row and ends with Sign out.
+    /// </summary>
     [Fact]
-    public void MenuListsTheSourceDestinationsInIosOrderBeforeSignOut()
+    public void TabShellReachesEverySourceDestinationInIosOrder()
     {
-        var visual = Source("AndroidSliceShell.Visual.cs");
-        var tags = new[]
-        {
-            "native.dashboard.menu.regenerate", "native.dashboard.menu.profile",
-            "native.dashboard.menu.settings", "native.dashboard.menu.skills",
-            "native.dashboard.menu.vocabulary", "native.dashboard.menu.activity-log",
-            "native.dashboard.menu.signout",
-        };
-        var positions = tags.Select(tag => visual.IndexOf(tag, StringComparison.Ordinal)).ToArray();
+        var tabs = Source("AndroidSliceShell.Tabs.Compose.cs");
+        var shell = Source("AndroidSliceShell.Tabs.cs");
+        AssertInOrder(tabs, "NativeAccess.DashboardTab", "\"native.tab.library\"",
+            "\"native.tab.settings\"", "\"native.tab.sam\"");
+        AssertInOrder(tabs, "\"native.library.row.resources\"", "\"native.library.row.vocabulary\"",
+            "\"native.library.row.skills\"", "\"native.library.row.minimal-pairs\"");
+        AssertInOrder(shell, "new(\"resource\"", "new(\"skill\"", "new(\"minimal-pair\"",
+            "new(\"import-content\"", "new(\"youtube-import\"");
+        Assert.Contains("OpenActivityLog", Source("AndroidSliceShell.Visual.cs"));
+        var settings = Source("AndroidSliceShell.Appearance.cs");
+        AssertInOrder(settings, "SettingsProfileRow(palette)", "RenderAppearanceSection(palette)",
+            "RenderSamSettings(palette)", "SettingsSignOut(palette)");
+        Assert.Contains(".Clickable(OpenProfile)", tabs);
+        Assert.DoesNotContain("native.dashboard.menu.", Source("AndroidSliceShell.Visual.cs"));
+    }
+
+    private static void AssertInOrder(string source, params string[] markers)
+    {
+        var positions = markers.Select(marker => source.IndexOf(marker, StringComparison.Ordinal)).ToArray();
         Assert.All(positions, position => Assert.True(position >= 0));
         Assert.Equal(positions.Order().ToArray(), positions);
-        foreach (var key in new[] { "Nav_Profile", "Settings_Title", "Nav_Skills",
-                     "Nav_Vocabulary", "Nav_Activity" })
-            Assert.Contains($"(\"{key}\"", visual);
     }
 
     [Fact]

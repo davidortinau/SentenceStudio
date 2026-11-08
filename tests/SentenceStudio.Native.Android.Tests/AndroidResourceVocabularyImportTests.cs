@@ -188,7 +188,9 @@ public sealed class AndroidResourceVocabularyImportTests
             StringComparison.Ordinal);
         Assert.True(register >= 0);
         Assert.True(register < onCreate.IndexOf("this.SetContent(", StringComparison.Ordinal));
-        Assert.Equal(2, CountOf(activity, "RegisterForActivityResult("));
+        // The photo picker, this document picker and the voice microphone permission.
+        Assert.Equal(3, CountOf(activity, "RegisterForActivityResult("));
+        Assert.Contains("new ActivityResultContracts.RequestPermission()", activity);
         Assert.Contains("\"text/plain\", \"text/csv\"", activity);
         Assert.DoesNotContain("TakePersistableUriPermission", activity);
 

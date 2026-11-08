@@ -160,80 +160,24 @@ internal sealed partial class AndroidSliceShell
             Modifier = Modifier.Semantics(semantics => semantics.TestTagsAsResourceId(true)),
         };
 
+    /// <summary>
+    /// Study's header (iOS DashboardView.WithToolbar): History (the practice log calendar),
+    /// Regenerate while a plan is shown, and Refresh. Sign out moved to the Settings tab and
+    /// the other destinations to the Library.
+    /// </summary>
     private ComposableNode DashboardAppBar(AndroidVisualPalette palette)
     {
-        var refresh = new IconButton(RefreshPlan, enabled: !Busy.Value)
-        {
-            Modifier = Modifier.TestTag("native.dashboard.refresh")
-                .Semantics(semantics => semantics.ContentDescription(
-                    Localize("Common_Refresh"))),
-        };
-        refresh.Add(new Icon(Icons.Default.Refresh, Localize("Common_Refresh"))
-        {
-            Modifier = Modifier.Size(24),
-            Tint = palette.Text,
-        });
-        var overflow = new IconButton(
-            () => Publish(() => _dashboardMenuOpen = true), enabled: !Busy.Value)
-        {
-            Modifier = Modifier.TestTag("native.dashboard.menu")
-                .Semantics(semantics => semantics.ContentDescription(Localize("More"))),
-        };
-        overflow.Add(new Icon(Icons.Default.MoreVert, Localize("More"))
-        {
-            Modifier = Modifier.Size(24),
-            Tint = palette.Text,
-        });
-        var menu = PopupMenu(
-            expanded: _dashboardMenuOpen,
-            onDismissRequest: () => Publish(() => _dashboardMenuOpen = false));
-        if (Dashboard.Phase == NativePhase.Ready)
-            menu.Add(new DropdownMenuItem(
-                text: new Text(Localize(NativeText.Regenerate)),
-                onClick: () =>
-                {
-                    Publish(() => _dashboardMenuOpen = false);
-                    RegeneratePlan();
-                })
-            {
-                Modifier = Modifier.TestTag("native.dashboard.menu.regenerate"),
-            });
-        // Source NavMenu and the iOS More menu: Profile, Settings, Skills,
-        // Vocabulary, Import Content, Media Import and Activity Log, each a pushed screen over this tab.
-        foreach (var (key, tag, open) in new (string, string, Action)[]
-        {
-            ("Nav_Profile", "native.dashboard.menu.profile", OpenProfile),
-            ("Settings_Title", "native.dashboard.menu.settings", OpenSettings),
-            ("Nav_Skills", "native.dashboard.menu.skills", OpenSkills),
-            ("Nav_Vocabulary", "native.dashboard.menu.vocabulary", OpenVocabulary),
-            ("Nav_ImportContent", "native.dashboard.menu.import-content", OpenImportContent),
-            ("Nav_MediaImport", "native.dashboard.menu.youtube-import", OpenYouTubeImport),
-            ("Nav_Activity", "native.dashboard.menu.activity-log", OpenActivityLog),
-        })
-            menu.Add(new DropdownMenuItem(text: new Text(Localize(key)), onClick: open)
-            {
-                Modifier = Modifier.TestTag(tag),
-            });
-        var signOutLabel = Localize("Nav_Logout");
-#if DEBUG
-        if (_preview)
-            signOutLabel = "Exit Debug preview";
-#endif
-        menu.Add(new DropdownMenuItem(
-            text: new Text(signOutLabel),
-            onClick: () =>
-            {
-                Publish(() => _dashboardMenuOpen = false);
-                SignOut();
-            })
-        {
-            Modifier = Modifier.TestTag("native.dashboard.menu.signout"),
-        });
-        var actions = new Row(Arrangement.SpacedBy(4),
-            Alignment.Vertical.CenterVertically);
+        var actions = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically);
+        actions.Add(HeaderIconButton(Localize("Nav_History"), "native.study.history",
+            OpenActivityLog, new Icon(Icons.Default.DateRange, null) { Modifier = Modifier.Size(24) }, palette));
         if (!Dashboard.IsNewUser || _preview)
-            actions.Add(refresh);
-        actions.Add(new Box { overflow, menu });
+        {
+            if (Dashboard.Phase == NativePhase.Ready)
+                actions.Add(HeaderIconButton(Localize(NativeText.Regenerate), "native.dashboard.regenerate",
+                    RegeneratePlan, new Icon(Resource.Drawable.ic_auto_awesome, null) { Modifier = Modifier.Size(24) }, palette));
+            actions.Add(HeaderIconButton(Localize("Common_Refresh"), "native.dashboard.refresh",
+                RefreshPlan, new Icon(Icons.Default.Refresh, null) { Modifier = Modifier.Size(24) }, palette));
+        }
         return new TopAppBar
         {
             Modifier = Modifier.FillMaxWidth().TestTag("native.dashboard.appbar"),
@@ -242,6 +186,19 @@ internal sealed partial class AndroidSliceShell
                 Modifier.Semantics(semantics => semantics.Heading())),
             Actions = actions,
         };
+    }
+
+    private ComposableNode HeaderIconButton(string label, string tag, Action command, Icon icon,
+        AndroidVisualPalette palette)
+    {
+        var button = new IconButton(command, enabled: !Busy.Value)
+        {
+            Modifier = Modifier.TestTag(tag)
+                .Semantics(semantics => semantics.ContentDescription(label)),
+        };
+        icon.Tint = palette.Text;
+        button.Add(icon);
+        return button;
     }
 
     private static ComposableNode ProgressBar(float progress,

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
 using SentenceStudio.Contracts.Theme;
+using SentenceStudio.Native.Features.Settings;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
 using SentenceStudio.Native.iOS.Styling;
@@ -44,7 +45,7 @@ internal static class SettingsView
         var profileTitle = text("Nav_Profile");
         var name = summary is { Name.Length: > 0 } known ? known.Name : profileTitle;
         var languages = summary is { } profile
-            ? LanguagePair(profile.NativeLanguage, profile.TargetLanguage, text) : null;
+            ? NativeProfileSummaryText.LanguagePair(profile.NativeLanguage, profile.TargetLanguage, text) : null;
         var labels = languages is null
             ? Views.VStack(style.Text(Views.Text(name), SourceTextRole.Title3))
             : Views.VStack(
@@ -72,24 +73,6 @@ internal static class SettingsView
             .WithFlexibleWidth()
             .WithAccessibilityLabel(string.Join(", ", spoken))
             .WithAccessibilityIdentifier("native.settings.profile");
-    }
-
-    /// <summary>
-    /// "Native → Target" with each language named in the UI language (the native heads'
-    /// five supported names; any other is shown as stored). One language alone is shown
-    /// alone; none gives null.
-    /// </summary>
-    internal static string? LanguagePair(string native, string target, Func<string, string> text)
-    {
-        string? Name(string language) => string.IsNullOrWhiteSpace(language) ? null
-            : NativeHowDoYouSayText.LanguageKey(language) is { } key ? text(key) : language;
-        return (Name(native), Name(target)) switch
-        {
-            ({ } from, { } to) => $"{from} → {to}",
-            ({ } only, null) => only,
-            (null, { } only) => only,
-            _ => null
-        };
     }
 
     /// <summary>The last row of the Settings tab (the Dashboard More menu's Sign out).</summary>

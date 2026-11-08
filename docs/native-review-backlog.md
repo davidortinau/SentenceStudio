@@ -140,3 +140,27 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   YouTube). Still untinted: `AndroidSliceShell.Scene.Compose.cs` (Delete, Add) and
   `AndroidSliceShell.NumberDrill.Compose.cs` (PlayArrow).
 
+
+## Tab shell trial (Android, 2026-11-07)
+
+- The floating Sam button code (`AndroidSliceShell.Sam.Entry.cs`, `RenderSamFab`, the floating
+  room helpers and `AndroidSamProjection.FloatingScreen`) is unreachable while the trial runs
+  (`EntryPlacement` never returns `Floating`), as iOS kept `SamFloatingEntry.cs`. Delete it if the
+  Captain keeps the tab shell; the scroll observer still runs on every screen until then.
+- `AndroidRoutePolicy.TopLevelDestinations` still lists Dashboard and Resources (the destinations
+  that can show the tab bar); the tabs themselves are `ShellTab`. Rename or fold it in when the
+  trial ends.
+- The Library re-reads the resource list on every visit (`EnterLibrary`). iOS reads only when
+  stale (sync generation); bring the same freshness check to `AndroidResourcesCoordinator` if the
+  read shows up in a profile.
+- `NativeAccess.ResourcesTab` is no longer used by Android (Study keeps `DashboardTab`); remove it
+  once no client uses it.
+- Process: two Android contract tests (`AndroidPackagingTests.ClosingAResourceOpenedFromTheDashboardReloadsTheDashboard`,
+  `AndroidResourceVocabularyImportTests.DocumentPickerIsTheOnlyNewActivityResultAndAcceptsTextAndCsvOnly`)
+  and one assertion in `AndroidAppearanceModeTests` were failing since `098ce438` and `8c2eeeb3`
+  because the Android test project was not run before those commits; fixed with this change. Run
+  `tests/SentenceStudio.Native.Android.Tests` before every Android commit.
+- Review (2026-11-07): the tab, profile-row and Sam-slot code logs with `Android.Util.Log` and
+  interpolated strings like the rest of the Android shell, not `ILogger<T>` templates; move the
+  shell's logging over in one pass. A failed profile-row read logs and shows "Profile" without
+  languages (as iOS does); consider a visible note if it is ever seen.

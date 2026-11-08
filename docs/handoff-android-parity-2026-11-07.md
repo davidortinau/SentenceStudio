@@ -184,6 +184,27 @@ Suggested steps:
 6. Remove the More menu once every destination is reachable; keep the automation ids where pages
    are reused.
 
-Unpushed commits on `native-platform-heads` (waiting for the Captain's OK): `098ce438` Import
-Content, `b52926de` YouTube import, `8c2eeeb3` voice.
+## Progress (2026-11-07, session 2): the tab shell landed on Android
+
+Done (`AndroidSliceShell.Tabs.cs`, `AndroidSliceShell.Tabs.Compose.cs`): Study (History, Regenerate,
+Refresh in the header), Library (Resources with count, Vocabulary, Skills, Minimal Pairs, then Quick
+add: Add Resource, Add Skill Profile, Create Pair, Import Content, YouTube Import), Settings (profile
+row, settings, Sam settings, Sign out), Sam's slot (opens Sam; a dialog when he is not offered). Each
+tab keeps its page; the tab bar hides in editors, activities and the quiz; Sam's header entry shows
+only where the tab bar is hidden. The More menu is gone. Differences from iOS: departures 51-57.
+
+Verified on `emulator-5556` (Debug, squad-kaylee, local API): Study header and four tabs; the Library
+list (Resources count 12) and quick-add grid; Vocabulary kept across a switch to Study, re-tapping
+Library returns to the list; the Resources row and Back; Create Pair opens the create page, Back twice
+returns to the Library list; Settings profile row ("Kaylee", "English → Korean"), Profile and Back;
+system Back from Settings to Study; History; Sam's slot opens his panel; Import Content and YouTube
+Import from quick add with the tab bar; restart opens on Study. Android tests 357/357; Debug and
+Release/R8 builds; iOS app builds with the shared `NativeProfileSummaryText`.
+
+Not verified: Sam's "not available" and "checking" dialogs (Sam is offered on the local API), the
+new-learner Add a Resource path, Sign out, light theme, text scale, Korean UI. iOS tests have two
+failures that predate this work (`NativeHeadContractTests` expects bridge preview.43, the app pins
+preview.44; `NativeSourceStylingContractTests` counts 6 `WithButtonBorderWidth(` calls, expects 5).
+
+Still open from the handoff: the Sam entry and editor keyboard checks, Android icon and splash.
 

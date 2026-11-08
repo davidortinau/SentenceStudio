@@ -26,7 +26,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private ComposeScrollState _quizScroll = null!;
     private ComposeScrollState _detailsScroll = null!;
     private bool _insightExpanded;
-    private bool _dashboardMenuOpen;
     private AccountEntry _accountEntry;
     private bool _registrationComplete;
     private bool _resetSent;
@@ -127,6 +126,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         }
         if (HandleResourcesBack())
             return true;
+        if (HandleTabRootBack())
+            return true;
         if (Destination == NativeDestination.Onboarding
             && _onboardingStep > 0)
         {
@@ -219,7 +220,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Password.Value = string.Empty;
             ConfirmPassword.Value = string.Empty;
             _insightExpanded = false;
-            _dashboardMenuOpen = false;
             ResetMoreScreens();
             _chooseSelector.Value = (int)ChooseSelector.None;
             ResetResources();
@@ -285,7 +285,6 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _preview = true;
         UseAppearanceStore(preview: true);
         _insightExpanded = false;
-        _dashboardMenuOpen = false;
         Publish(() => Destination = NativeDestination.Dashboard);
         await _dashboard.LoadAsync(cancellationToken);
     });
@@ -780,6 +779,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             && Destination != NativeDestination.VocabularyQuiz)
             ClosePhotoDialogWithoutRestore();
         activity.UpdateBackHandling(IsMoreScreenOpen
+            || HandlesTabRootBack
             || AndroidRoutePolicy.HandlesBack(Destination)
             || Destination == NativeDestination.Activity
             || _photoDialog is not null

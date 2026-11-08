@@ -13,10 +13,17 @@ public sealed class AndroidDashboardContractTests
         var shell = Source("AndroidSliceShell.cs");
 
         Assert.Contains("new TopAppBar", visual);
-        Assert.Contains("var menu = PopupMenu(", visual);
-        Assert.Contains("new DropdownMenuItem(", visual);
-        Assert.Contains("RegeneratePlan();", visual);
-        Assert.Contains("SignOut();", visual);
+        // Tab shell trial: Study's header has History, Regenerate and Refresh (no More menu);
+        // Sign out is the Settings tab's last row.
+        var start = visual.IndexOf("private ComposableNode DashboardAppBar(", StringComparison.Ordinal);
+        var header = visual[start..visual.IndexOf("\n    }\n", start, StringComparison.Ordinal)];
+        Assert.DoesNotContain("PopupMenu(", header);
+        Assert.True(header.IndexOf("\"native.study.history\"", StringComparison.Ordinal)
+            < header.IndexOf("\"native.dashboard.regenerate\"", StringComparison.Ordinal));
+        Assert.True(header.IndexOf("\"native.dashboard.regenerate\"", StringComparison.Ordinal)
+            < header.IndexOf("\"native.dashboard.refresh\"", StringComparison.Ordinal));
+        Assert.Contains("RegeneratePlan,", header);
+        Assert.Contains("new OutlinedButton(SignOut,", Source("AndroidSliceShell.Tabs.Compose.cs"));
         Assert.Contains("_dashboard.RegenerateAsync(cancellationToken)", shell);
         Assert.Contains("await _dashboard.GenerateAsync(cancellationToken);", shell);
         Assert.Contains("_auth.SignOutAsync(cancellationToken)", shell);

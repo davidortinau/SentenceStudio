@@ -70,11 +70,10 @@ shared `ContentImportService`; these are the presentation differences.
 | 34 | A result row opens the word editor above the results, and Back returns to them. That editor's Find Duplicates goes where the source goes: the Library returns to its list and opens Vocabulary with the duplicate panel focused on the word. Back from there returns to the Library list, not to the import results (the import page closed when the Library returned to its list). The editor and results stay until the Vocabulary page has opened; when it cannot open (another Library action running, an untrusted owner, a failed open) the editor stays and says so (review fix 2026-11-06). While the Vocabulary page opens, the editor's Save, Delete and Close wait, so the release cannot cut them short | `/vocabulary/edit/{id}`; Find Duplicates navigates to the Vocabulary page, and browser Back returns to the import page | Captain 2026-11-06 ("ok"): route Find Duplicates to the Vocabulary page; Back to the Library list is the simpler correct return |
 | 35 | When the owner's resources cannot be read for "Add to existing resource", the page says so with Retry. Typed or previewed content is kept while the page is open: Study's Add resource (which would return the Library to its list) shows the page instead; other entries (Sam's review quiz, a Study insight link) are not blocked and leave the page as it is under them. After a commit the resource list is read again, so Import more then Add to existing offers the new resource | The select is silently empty; leaving the page drops the draft | |
 
-Android (2026-11-07) runs the same coordinator and follows 30-35, with these differences until it
-gets the tab shell: the page opens from the Dashboard More menu ("Import Content", as in the source
-NavMenu), not a Library quick-add button; the page is one column at every width (a lazy list);
-View resource opens the Resources tab's editor and closing it returns to the results; and after
-Find Duplicates, Back from the Vocabulary screen returns to the Dashboard (iOS: the Library list).
+Android (2026-11-07) runs the same coordinator and follows 30-35. Since the Android tab shell (below)
+the page opens from the Library's quick-add grid, as on iOS, and after Find Duplicates, Back from the
+Vocabulary screen returns to the Library list. The page is one column at every width (a lazy list),
+and View resource opens the resource editor; closing it returns to the results.
 
 ## YouTube Import (iOS, 2026-11-06)
 
@@ -97,9 +96,9 @@ Errors and toasts follow row 31.
 | 44 | Below 420 points Check for New Videos and Import Selected stack instead of sharing a row; the status badges, Retry and Select All New keep their width and a video's title truncates (bridge 0.1.0-preview.43 `WithFixedSize`) | One row of buttons that shrink; badges do not wrap and the title truncates | |
 | 45 | Hard-coded English on the channel page (the resolution, import and retry errors and toasts) uses resources; the new `YouTubeChannel_*` keys have English and draft Korean (B78) | English only | |
 
-Android (2026-11-07) runs the same coordinators and follows 36-45, with these differences until it
-gets the tab shell: the page opens from the Dashboard More menu ("Media Import", as in the source
-NavMenu); Add Channel and Refresh are in the header's overflow menu at every width; the three tabs
+Android (2026-11-07) runs the same coordinators and follows 36-45; since the Android tab shell the page
+opens from the Library's quick-add grid ("YouTube Import"), as on iOS. Other differences: Add Channel
+and Refresh are in the header's overflow menu at every width; the three tabs
 are equal buttons whose labels wrap; a video's selection is a checkbox (as in the source), and the
 channel column of the history shows at every width; View resource opens the Resources tab's editor
 and closing it returns to the page.
@@ -128,6 +127,34 @@ binding has neither icon, so both ship as vector drawables in `Resources/drawabl
 | 48 | Voice mode: a waveform button inside the field starts a live spoken conversation with the scenario's partner. While it runs a voice panel (status, input level, End voice) replaces the composer; spoken turns join the chat with a microphone marker and stay after voice ends; the partner's vocabulary lookups show on its turn. Voice turns are not graded or scored and nothing is saved, as in the demo | Not in the source page (the demo page had a Voice button beside Send) | Captain 2026-11-06: voice button "like the Messages app as well, with the sound wave icon button inline with the message field" |
 | 49 | Voice starts by having the partner read its last message aloud, word for word; that message keeps its bubble and no new one is added. After a learner turn (a reply that failed), the partner answers in its own words | The demo's partner spoke first with a new greeting | Captain 2026-11-06: "when I enable speech I want ai to read the initial message not add a new message right away" |
 | 50 | A voice pace menu (sliders icon) in the voice panel: speaking speed 100%, 90%, 80% or 70%, and the pause before the partner answers, 0.5 s, 1 s, 1.5 s or 2.5 s (the silence that ends the learner's turn). Kept per learner on the device; a change applies to the running session from the partner's next turn. Defaults are the provider's (100%, 0.5 s) | No pace setting | Captain 2026-11-06: "Is there an option to slow the speech rate and increase the delay between me speaking and when ai speaks?" (bridge 0.1.0-preview.44: menu sections) |
+
+## Tab shell trial (Android, 2026-11-07)
+
+The Captain's navigation trial (iOS 2026-11-05: `7a09daaf`, `566817d9`, `0a8e1b16`, `25fef602`) on
+Android (Captain 2026-11-07: "Follow iOS trial"). The Dashboard More menu is gone; every destination
+it held stays reachable: Study (the Dashboard; its header has History, Regenerate while a plan is
+shown, and Refresh), Library (a list of Resources with its count, Vocabulary, Skills and Minimal
+Pairs, then Quick add: a new resource, skill profile or minimal pair, Import Content, YouTube
+Import), Settings (the profile row with name and languages first, the settings and Sam's settings,
+Sign out last) and Sam's slot. Sam's slot shows for every signed-in owner; when Sam is not offered
+it reads availability again and says why in a dialog (not offered, offline, not reachable). On
+screens with the tab bar Sam is reached through his slot only; screens without it (editors,
+activities, the quiz) keep the header entry, and the floating button is not used. Each tab keeps its
+open page while another tab is shown, and the tab bar hides in editors (the resource, word, skill
+and channel forms, the import word editor), activities and the quiz. Code:
+`AndroidSliceShell.Tabs.cs`, `AndroidSliceShell.Tabs.Compose.cs`.
+
+Differences from iOS:
+
+| # | Android | iOS | Why |
+|---|---|---|---|
+| 51 | Material 3 navigation bar with four items; Sam's slot is the fourth, shown with his face icon and name, never selected | A tab bar with Sam as the trailing search-role slot (iOS 26) | Material navigation; Compose has no search-role tab |
+| 52 | System Back on the Library or Settings root shows Study; Back on Study's root leaves the app | iOS has no system Back; each tab stays where it is | Material navigation guidance for bottom bars |
+| 53 | Re-tapping the shown tab returns it to its root, on every tab | Re-tapping the Library tab pops to its list | One rule for all tabs |
+| 54 | The Minimal Pairs list opens as the Minimal Pairs activity screen (no timer or plan item), so the tab bar hides on it; Back returns to the Library list | The list is a Library page that keeps the tab bar | Android hosts the presenter as an activity; no second host was added |
+| 55 | Sam's "checking" state is a dialog with Cancel; the answer is a dialog with Close | A busy overlay with Cancel, then an alert | Compose dialog; same texts, same 300 ms delay and 10 s limit |
+| 56 | The Library reads the device's resource list again on every visit (the Resources row's count) | Read when never read, after a failed read, or when a sync came after the last read | The Android coordinator has no freshness check; the read is local |
+| 57 | New-learner "Add a Resource" on Study opens the Library tab on Resources with the new-resource form; when the Library is keeping a page open (it may hold a pasted import), that page shows instead and nothing is discarded | Opens the resource form from Study | The Resources page belongs to the Library tab on Android |
 
 ## Kept exactly like the original (also your call)
 

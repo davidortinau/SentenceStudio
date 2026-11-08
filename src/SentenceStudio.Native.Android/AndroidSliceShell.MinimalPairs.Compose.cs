@@ -10,7 +10,7 @@ namespace SentenceStudio.Native.Android;
 /// <summary>
 /// Compose Minimal Pairs (source MinimalPairs.razor, MinimalPairCreate.razor,
 /// MinimalPairSession.razor). One activity destination with three in-activity
-/// pages: the pair list (Back leaves to the Dashboard, delete asks in a Compose
+/// pages: the pair list (Back leaves to the tab it opened from, delete asks in a Compose
 /// AlertDialog), the create page and the listening session (Back, the header
 /// arrow or system Back, returns to the list). Search and contrast fields bind
 /// Compose TextFieldValue state, so typing (including Korean IME composition)
@@ -21,6 +21,8 @@ internal sealed partial class AndroidSliceShell
 {
     private NativeMinimalPairsPresenter? _minimalPairs;
     private bool _minimalPairsCreateLoaded;
+    /// <summary>Library quick add: the create page opens above the list once the list is read.</summary>
+    private bool _minimalPairsOpenCreate;
 
     internal NativeMinimalPairsState MinimalPairs { get; private set; } = new(NativePhase.Loading);
 
@@ -42,7 +44,15 @@ internal sealed partial class AndroidSliceShell
         _minimalPairs = presenter;
         Publish(() => MinimalPairs = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => ApplyMinimalPairs(state));
+        Publish(() =>
+        {
+            ApplyMinimalPairs(state);
+            if (!_minimalPairsOpenCreate || !ReferenceEquals(_minimalPairs, presenter))
+                return;
+            _minimalPairsOpenCreate = false;
+            if (state is { Phase: NativePhase.Ready, Page: NativeMinimalPairsPage.List })
+                MinimalPairsCommand((pairs, token) => pairs.OpenCreateAsync(token));
+        });
     }
 
     private async Task ExitMinimalPairsAsync(CancellationToken cancellationToken)
@@ -60,6 +70,7 @@ internal sealed partial class AndroidSliceShell
         }
         _minimalPairs = null;
         _minimalPairsCreateLoaded = false;
+        _minimalPairsOpenCreate = false;
     }
 
     /// <summary>Create/session Back returns to the list; on the list, Back leaves the activity.</summary>

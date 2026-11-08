@@ -95,13 +95,13 @@ public sealed class AndroidSamProjectionTests
     }
 
     [Theory]
-    // Tab roots: the floating button.
-    [InlineData(NativeDestination.Dashboard, false, false, true, false, "Floating")]
-    [InlineData(NativeDestination.TodaysPlan, false, false, true, false, "Floating")]
-    [InlineData(NativeDestination.Resources, false, false, true, false, "Floating")]
-    // Screens over a tab, the quiz and activities: the top app bar (their bottom bars stay clear).
-    [InlineData(NativeDestination.Dashboard, false, true, true, false, "TopBar")]
-    [InlineData(NativeDestination.Resources, false, true, true, false, "TopBar")]
+    // Tab shell trial: a screen with the tab bar reaches Sam through his tab slot only.
+    [InlineData(NativeDestination.Dashboard, false, true, true, false, "None")]
+    [InlineData(NativeDestination.TodaysPlan, false, true, true, false, "None")]
+    [InlineData(NativeDestination.Resources, false, true, true, false, "None")]
+    // Screens without the tab bar (editors, the quiz, activities): the top app bar.
+    [InlineData(NativeDestination.Dashboard, false, false, true, false, "TopBar")]
+    [InlineData(NativeDestination.Resources, false, false, true, false, "TopBar")]
     [InlineData(NativeDestination.VocabularyQuiz, false, false, true, false, "TopBar")]
     [InlineData(NativeDestination.QuizSummary, false, false, true, false, "TopBar")]
     [InlineData(NativeDestination.Activity, false, false, true, false, "TopBar")]
@@ -111,14 +111,14 @@ public sealed class AndroidSamProjectionTests
     [InlineData(NativeDestination.Dashboard, true, false, true, false, "None")]
     [InlineData(NativeDestination.Dashboard, false, false, false, false, "None")]
     [InlineData(NativeDestination.Activity, false, false, true, true, "None")]
-    public void EntryAppearsOnEverySignedInScreen(NativeDestination destination, bool preview,
-        bool screenOverTab, bool visible, bool open, string expectedPlacement)
+    public void EntryIsTheTabSlotOrTheTopBar(NativeDestination destination, bool preview,
+        bool tabBarShown, bool visible, bool open, string expectedPlacement)
     {
         var state = new NativeSamState(IsVisible: visible, IsOpen: open);
         var expected = Enum.Parse<AndroidSamEntryPlacement>(expectedPlacement);
-        Assert.Equal(expected, AndroidSamProjection.EntryPlacement(destination, preview, screenOverTab, state));
+        Assert.Equal(expected, AndroidSamProjection.EntryPlacement(destination, preview, tabBarShown, state));
         Assert.Equal(expected != AndroidSamEntryPlacement.None,
-            AndroidSamProjection.IsEntryVisible(destination, preview, screenOverTab, state));
+            AndroidSamProjection.IsEntryVisible(destination, preview, tabBarShown, state));
     }
 
     [Theory]

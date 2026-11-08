@@ -16,7 +16,7 @@ public sealed class AndroidAppearanceModeTests
         var shell = Source("AndroidSliceShell.cs");
         var compose = Source("AndroidSliceShell.Compose.cs");
 
-        Assert.Contains("native.dashboard.menu.settings", visual);
+        Assert.Contains("\"native.tab.settings\"", Source("AndroidSliceShell.Tabs.Compose.cs"));
         Assert.Contains("ThemeCatalog.All", settings);
         Assert.Contains("native.settings.theme.{theme.Id}", settings);
         Assert.Contains("semantics.Selected(chosen)", settings);
@@ -33,8 +33,9 @@ public sealed class AndroidAppearanceModeTests
         Assert.Contains("AndroidFontScale.Apply(activity, selection.FontScale)", more);
         Assert.Contains("new AndroidPreferences(activity, preview)", shell);
         Assert.Contains("if (HandleMoreBack())", shell);
-        Assert.Contains("IsMoreScreenOpen\n            || AndroidRoutePolicy.HandlesBack(Destination)", shell);
-        Assert.Contains("when IsMoreScreenOpen => RenderMoreScreen(palette)", compose);
+        Assert.Contains("IsMoreScreenOpen\n            || HandlesTabRootBack\n            || AndroidRoutePolicy.HandlesBack(Destination)", shell);
+        Assert.Contains("when IsMoreScreenOpen => WithMoreToast(composer, RenderMoreScreen(palette))", compose);
+        Assert.Contains("ShellTab.Settings => RenderSettings(palette)", compose);
         Assert.DoesNotContain("Android.Widget", settings);
     }
 
@@ -84,7 +85,7 @@ public sealed class AndroidAppearanceModeTests
             more);
         // Closing Settings drops an unreleased preview and lets queued saves finish
         // before the coordinator is disposed.
-        var release = Method(more, "private void ReleaseMoreCoordinators()");
+        var release = Method(more, "private void ReleaseSettings()");
         Assert.Contains("_textSizePreview = null;", release);
         Assert.True(release.IndexOf("var saves = _appearanceSaves;", StringComparison.Ordinal)
             < release.IndexOf("settings.Dispose()", StringComparison.Ordinal));
