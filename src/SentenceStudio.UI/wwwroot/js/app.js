@@ -572,3 +572,38 @@ export function restoreScrollAnchor(elementId) {
     // both look like a jump and fight prefers-reduced-motion.
     anchor.scrollIntoView({ behavior: 'instant', block: 'start' });
 }
+
+/**
+ * What the page is showing, for a feedback report filed through Sam.
+ *
+ * Automation ids only (data-testid and element ids), never labels or text, and nothing inside
+ * Sam's own panel. The server drops any value that is not identifier-shaped before it is
+ * published.
+ */
+export function coachScreenSnapshot() {
+    const root = document.querySelector('main') || document.body;
+    const ids = [];
+    const seen = new Set();
+    const nodes = root.querySelectorAll('[data-testid], button[id], input[id], select[id], textarea[id], a[id], [role="button"][id], [role="tab"][id]');
+    for (const node of nodes) {
+        if (node.closest('[class*="coach-"], [class*="sam-"]')) continue;
+        if (node.offsetParent === null && getComputedStyle(node).position !== 'fixed') continue;
+        const id = node.getAttribute('data-testid') || node.id;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+        if (ids.length >= 60) break;
+    }
+
+    const explicit = document.documentElement.getAttribute('data-theme')
+        || document.documentElement.getAttribute('data-bs-theme');
+    const theme = explicit === 'dark' || explicit === 'light'
+        ? explicit
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    const ua = navigator.userAgent || '';
+    const match = ua.match(/(Edg|Chrome|Firefox|Version)\/(\d+)/);
+    const browser = match ? `${match[1] === 'Version' ? 'Safari' : match[1] === 'Edg' ? 'Edge' : match[1]} ${match[2]}` : null;
+
+    return { controlIds: ids, theme, browser, viewport: `${window.innerWidth}x${window.innerHeight}` };
+}

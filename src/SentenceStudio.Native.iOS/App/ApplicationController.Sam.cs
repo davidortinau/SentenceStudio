@@ -174,10 +174,69 @@ internal sealed partial class ApplicationController
         if (_sam is not null || _services is null)
             return _sam;
         _sam = _services.Provider.GetRequiredService<NativeSamPresenter>();
+        _sam.ScreenContext = SamScreenContext;
         _sam.Changed += Publish;
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
         return _sam;
+    }
+
+    /// <summary>
+    /// What the shell is showing, for a bug report filed through Sam: the most specific open
+    /// screen, shared screen names with Android, and the shell state behind it (private).
+    /// </summary>
+    private SentenceStudio.Contracts.Coach.CoachClientScreenContext SamScreenContext()
+    {
+        var screen =
+            IsVocabularyWordOpen ? "vocabulary.word-form"
+            : IsVocabularyOpen ? "vocabulary.list"
+            : IsSkillFormOpen ? "skills.form"
+            : IsSkillsOpen ? "skills.list"
+            : IsResourcesFormOpen ? "resources.form"
+            : IsLibraryResourcesOpen ? "resources.list"
+            : IsLibraryPairsOpen ? "library.minimal-pairs"
+            : IsYouTubeChannelOpen ? "youtube.channel"
+            : IsYouTubeImportOpen ? "youtube.import"
+            : IsImportWordOpen ? "import.word-form"
+            : IsImportContentOpen ? "import.content"
+            : IsProfileOpen ? "profile"
+            : IsActivityLogOpen ? "activity-log"
+            : IsRecentLookupsOpen ? "recent-lookups"
+            : NativeSamScreenContext.ForDestination(_destination, _selectedTab switch
+            {
+                NativeTabs.Library => NativeSamScreenContext.LibraryTab,
+                NativeTabs.Settings => NativeSamScreenContext.SettingsTab,
+                _ => NativeSamScreenContext.StudyTab
+            });
+
+        // The app's own choice first; the system style only when the app follows it, and only on the
+        // main thread, where UIKit may be read.
+        var theme = Appearance.Selection.Mode switch
+        {
+            SentenceStudio.Contracts.Theme.ThemeMode.Light => "light",
+            SentenceStudio.Contracts.Theme.ThemeMode.Dark => "dark",
+            _ when Foundation.NSThread.IsMain => UIKit.UITraitCollection.CurrentTraitCollection.UserInterfaceStyle
+                == UIKit.UIUserInterfaceStyle.Dark ? "dark" : "light",
+            _ => "system"
+        };
+        return NativeSamScreenContext.Build(
+            "ios",
+            screen,
+            typeof(ApplicationController).Assembly,
+            "iOS " + UIKit.UIDevice.CurrentDevice.SystemVersion,
+            UIKit.UIDevice.CurrentDevice.Model,
+            theme,
+#if DEBUG
+            debugBuild: true,
+#else
+            debugBuild: false,
+#endif
+            [
+                ("destination", _destination.ToString()),
+                ("tab", _selectedTab.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("activity", _activity?.GetType().Name),
+                ("samPanel", SamState.Size.ToString()),
+            ]);
     }
 
     private void RefreshSamAvailability()

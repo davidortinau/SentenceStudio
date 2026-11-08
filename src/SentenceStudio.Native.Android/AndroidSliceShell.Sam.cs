@@ -39,10 +39,56 @@ internal sealed partial class AndroidSliceShell
         if (_sam is not null || _scope is null || _preview || _disposed)
             return _sam;
         _sam = _scope.ServiceProvider.GetRequiredService<NativeSamPresenter>();
+        _sam.ScreenContext = SamScreenContext;
         _sam.Changed += OnSamChanged;
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
         return _sam;
+    }
+
+    /// <summary>
+    /// What the shell is showing, for a bug report filed through Sam: the most specific open
+    /// screen, shared screen names with iOS, and the shell state behind it (private).
+    /// </summary>
+    private SentenceStudio.Contracts.Coach.CoachClientScreenContext SamScreenContext()
+    {
+        var screen = MorePage switch
+        {
+            MoreScreen.Vocabulary => _vocabulary?.IsFormOpen == true ? "vocabulary.word-form" : "vocabulary.list",
+            MoreScreen.Skills => _skills?.IsFormOpen == true ? "skills.form" : "skills.list",
+            MoreScreen.Profile => "profile",
+            MoreScreen.ActivityLog => "activity-log",
+            MoreScreen.ImportContent => IsImportWordOpen ? "import.word-form" : "import.content",
+            MoreScreen.YouTubeImport => IsYouTubeChannelOpen ? "youtube.channel" : "youtube.import",
+            _ when IsResourceFormOpen => "resources.form",
+            _ => NativeSamScreenContext.ForDestination(Destination, _tab switch
+            {
+                ShellTab.Library => NativeSamScreenContext.LibraryTab,
+                ShellTab.Settings => NativeSamScreenContext.SettingsTab,
+                _ => NativeSamScreenContext.StudyTab
+            })
+        };
+
+        var night = activity.Resources?.Configuration?.UiMode & global::Android.Content.Res.UiMode.NightMask;
+        return NativeSamScreenContext.Build(
+            "android",
+            screen,
+            typeof(AndroidSliceShell).Assembly,
+            "Android " + global::Android.OS.Build.VERSION.Release,
+            global::Android.OS.Build.Model,
+            night == global::Android.Content.Res.UiMode.NightYes ? "dark" : "light",
+#if DEBUG
+            debugBuild: true,
+#else
+            debugBuild: false,
+#endif
+            [
+                ("destination", Destination.ToString()),
+                ("tab", _tab.ToString()),
+                ("morePage", MorePage.ToString()),
+                ("activityRoute", _activityRoute),
+                ("samPanel", _sam?.State.Size.ToString()),
+            ]);
     }
 
     private void RefreshSamAvailability()

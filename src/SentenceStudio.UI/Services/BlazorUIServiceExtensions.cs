@@ -21,6 +21,7 @@ public static class BlazorUIServiceExtensions
         // One shared coach workspace per circuit. Scoped (not singleton) so two learners on the
         // server never share a coach session, and so the wide overlay and the /coach route are
         // compositions over the same instance.
+        services.AddScoped<CoachScreenContextCollector>();
         services.AddScoped<CoachWorkspaceState>();
         // The conversation shelf the workspace takes a thread from. Scoped for the same reason:
         // one learner's list of conversations is never another's.

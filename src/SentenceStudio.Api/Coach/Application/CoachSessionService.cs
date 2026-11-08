@@ -765,6 +765,10 @@ public sealed class CoachSessionService : ICoachSessionService
         // model or the request body supplied. A tool that runs outside this window finds the scope
         // unset and refuses.
         _writeTurn?.Enter(sessionId, TrimTurnId(request.ClientTurnId));
+        if (_writeTurn is not null)
+        {
+            _writeTurn.ClientScreen = request.ClientScreen;
+        }
 
         var validation = ValidateTurnInput(request);
         if (validation is not null)
@@ -1935,13 +1939,25 @@ public sealed class CoachSessionService : ICoachSessionService
                 userProfileId, session, StatusWithPending(session),
                 CoachStopReason.ValidationFailed, cancellationToken).ConfigureAwait(false);
 
-            return CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
+            // The model's reply is refused, but a proposal a tool already recorded this turn is
+            // server-built and safe to show: hiding it left a card the learner asked for invisible
+            // until a reload. Its copy says the reply failed and nothing happens until they approve.
+            var proposedThisTurn = await HasProposalThisTurnAsync(session, cancellationToken)
+                .ConfigureAwait(false);
+
+            var refused = CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                 userProfileId, session, plan,
                 CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
                 StatusWithPending(session),
-                messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
+                messages: [CoachMessage(CoachMessageKind.Notice, proposedThisTurn
+                    ? CoachDeterministicCopy.ValidationFailedWithProposal
+                    : CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
                 pendingSuggestion: stillPending, receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
+
+            return proposedThisTurn
+                ? await AttachWriteOperationAsync(session, refused, cancellationToken).ConfigureAwait(false)
+                : refused;
         }
 
         CoachOperationResult<CoachTurnResponse> reduced;
@@ -2120,6 +2136,28 @@ public sealed class CoachSessionService : ICoachSessionService
                 session.Id,
                 Telemetry.CoachExceptionSanitizer.Describe(ex));
             return reduced;
+        }
+    }
+
+    /// <summary>True when this turn recorded a proposal that is still waiting for the learner.</summary>
+    private async Task<bool> HasProposalThisTurnAsync(CoachSession session, CancellationToken cancellationToken)
+    {
+        if (_writeLedger is null || _writeTurn?.TurnId is not { Length: > 0 } turnId)
+        {
+            return false;
+        }
+
+        try
+        {
+            // Only a proposal still waiting for a decision; a failed, rejected or expired one has
+            // nothing to approve, so the neutral notice is the honest reply.
+            return await _writeLedger.GetLatestForTurnAsync(session.Id, turnId, cancellationToken)
+                .ConfigureAwait(false) is { Status: CoachWriteStatus.Proposed };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "[Coach] Session {SessionId}: could not check for a proposal on a refused turn.", session.Id);
+            return false;
         }
     }
 

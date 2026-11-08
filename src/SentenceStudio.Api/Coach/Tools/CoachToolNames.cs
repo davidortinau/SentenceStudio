@@ -42,6 +42,7 @@ public static class CoachToolNames
     public const string ProposeResourceRemoval = "propose_resource_removal";
     public const string ProposePreferenceChange = "propose_preference_change";
     public const string ProposeYouTubeImport = "propose_youtube_import";
+    public const string ProposeFeedback = "propose_feedback";
 
     /// <summary>The prefix every write-intent tool name carries.</summary>
     /// <remarks>
@@ -132,7 +133,8 @@ public static class CoachToolNames
         ProposeResourceEdit,
         ProposeResourceRemoval,
         ProposePreferenceChange,
-        ProposeYouTubeImport
+        ProposeYouTubeImport,
+        ProposeFeedback
     ];
 
     /// <summary>Every write-intent tool name, in registration order.</summary>
@@ -149,6 +151,7 @@ public static class CoachToolNames
         ProposeResourceEdit,
         ProposeResourceRemoval,
         ProposePreferenceChange,
-        ProposeYouTubeImport
+        ProposeYouTubeImport,
+        ProposeFeedback
     ];
 }

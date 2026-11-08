@@ -17,13 +17,7 @@ public static class FeedbackEndpoints
 {
     private static readonly TimeSpan AiTimeout = TimeSpan.FromSeconds(15);
 
-    private const string GitHubRepo = "davidortinau/SentenceStudio";
     private const int MaxDescriptionLength = 5000;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 
     public static WebApplication MapFeedbackEndpoints(this WebApplication app)
     {
@@ -173,12 +167,9 @@ public static class FeedbackEndpoints
         [FromBody] FeedbackSubmitRequest request,
         ClaimsPrincipal user,
         HttpContext http,
-        [FromServices] IConfiguration configuration,
-        [FromServices] IHttpClientFactory httpClientFactory,
         [FromServices] ILoggerFactory loggerFactory,
         [FromServices] IFeedbackHmacKeyProvider keyProvider,
-        [FromServices] IFeedbackRateLimiter rateLimiter,
-        [FromServices] IFeedbackSubmissionLedger ledger,
+        [FromServices] IFeedbackIssueFiler filer,
         [FromServices] TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -208,341 +199,63 @@ public static class FeedbackEndpoints
             return RejectToken(logger, FeedbackTokenRejection.Invalid, alreadyLogged: true);
         }
 
-        var digest = FeedbackPreviewToken.ContentDigest(
-            payload.Title, payload.Body, payload.Labels, payload.FeedbackType);
-
-        // (2) Already answered? A replay creates nothing and is never rate limited.
-        var existing = await ledger.LookupAsync(payload.Jti, userProfileId, cancellationToken)
+        // Steps (2) to (5) — lookup, limit, claim, GitHub, settle — live in the filer, which Sam's
+        // feedback handler shares, so there is one place in the app that calls GitHub.
+        var outcome = await filer.FileAsync(payload, userProfileId, cancellationToken)
             .ConfigureAwait(false);
 
-        if (existing.Outcome != FeedbackClaimOutcome.Won)
-        {
-            // Not necessarily settled: a sibling request may have claimed a moment ago and still be
-            // in flight, which is precisely what a double-click looks like. Wait for it rather than
-            // refusing, or the learner is told their report failed while it is being filed.
-            return await AnswerFromLedgerAsync(
-                    ledger, logger, existing, payload.Jti, userProfileId, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        // (3a) Cheap refusal before a claim row exists, so an over-limit caller does not burn its
-        // token. Advisory only — another replica may take the last slot before the consume below.
-        var peek = await rateLimiter
-            .PeekAsync(userProfileId, FeedbackRateKind.Submit, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (!peek.Allowed)
-        {
-            return RateLimited(http, logger, FeedbackRateKind.Submit, peek);
-        }
-
-        // (3b) The claim. Exactly one concurrent caller leaves here with Won.
-        var claim = await ledger.TryClaimAsync(
-                new FeedbackClaimRequest(
-                    payload.Jti,
-                    userProfileId,
-                    digest,
-                    payload.RouteCategory,
-                    payload.Platform,
-                    payload.AppVersion,
-                    DateTimeOffset.FromUnixTimeSeconds(payload.Exp)),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        if (claim.Outcome != FeedbackClaimOutcome.Won)
-        {
-            // Lost the race, or arrived after it. Wait briefly for the winner so the honest answer
-            // is its receipt rather than a refusal for a submission that is succeeding right now.
-            return await AnswerFromLedgerAsync(
-                    ledger, logger, claim, payload.Jti, userProfileId, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        var claimed = claim.Row!;
-
-        // (3c) The winner pays.
-        var allowance = await rateLimiter
-            .TryConsumeAsync(userProfileId, FeedbackRateKind.Submit, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (!allowance.Allowed)
-        {
-            // Closed as Failed, not deleted and not left open: nothing external has happened, so
-            // "no issue was created" is known rather than assumed, and a terminal row keeps another
-            // replica from retrying the same token in the same second.
-            await ledger.MarkFailedAsync(
-                    payload.Jti, userProfileId, claimed.Version,
-                    FeedbackFailureCodes.RateLimited, cancellationToken)
-                .ConfigureAwait(false);
-
-            return RateLimited(http, logger, FeedbackRateKind.Submit, allowance);
-        }
-
-        var githubPat = configuration["GitHub:Pat"];
-        if (string.IsNullOrWhiteSpace(githubPat))
-        {
-            logger.LogError(
-                "Feedback submission is unavailable. Code={FailureCode}",
-                FeedbackFailureCodes.GitHubUnconfigured);
-
-            await ledger.MarkFailedAsync(
-                    payload.Jti, userProfileId, claimed.Version,
-                    FeedbackFailureCodes.GitHubUnconfigured, cancellationToken)
-                .ConfigureAwait(false);
-
-            return Results.Problem("Feedback submission is not available.", statusCode: 503);
-        }
-
-        return await CreateIssueAsync(
-                payload, claimed, userProfileId, githubPat,
-                httpClientFactory, ledger, logger, cancellationToken)
-            .ConfigureAwait(false);
+        return ToResult(http, logger, outcome);
     }
 
-    /// <summary>
-    /// The only place in the feedback lane that calls GitHub. Reached only while holding the claim.
-    /// </summary>
-    private static async Task<IResult> CreateIssueAsync(
-        FeedbackPreviewPayload payload,
-        FeedbackSubmission claimed,
-        string userProfileId,
-        string githubPat,
-        IHttpClientFactory httpClientFactory,
-        IFeedbackSubmissionLedger ledger,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        HttpResponseMessage response;
-
-        try
+    /// <summary>Maps a filing outcome onto this endpoint's established responses.</summary>
+    private static IResult ToResult(HttpContext http, ILogger logger, FeedbackFileOutcome outcome) =>
+        outcome.Kind switch
         {
-            var client = httpClientFactory.CreateClient("GitHub");
-            client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", githubPat);
-
-            // The signed payload, verbatim. Nothing between the preview the learner approved and
-            // this request body re-derives, re-formats, or re-labels anything: the title, body, and
-            // labels here are the exact values the signature covers, which is what makes the
-            // preview a promise rather than an illustration.
-            var issueBody = new
-            {
-                title = payload.Title,
-                body = payload.Body,
-                labels = payload.Labels
-            };
-
-            var json = JsonSerializer.Serialize(issueBody, JsonOptions);
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            response = await client
-                .PostAsync($"/repos/{GitHubRepo}/issues", content, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
-        {
-            // The request may have reached GitHub and created an issue before the connection
-            // failed. Nothing here can distinguish that from a request that never arrived, so the
-            // row stays Claimed — in doubt, and refused by every later submission. Closing it as
-            // Failed would assert something unknown, and the cost of being wrong is a duplicate
-            // public issue.
-            logger.LogError(
-                "Feedback submission could not reach GitHub. Code={FailureCode} Exception={ExceptionType}",
-                FeedbackFailureCodes.GitHubUnreachable,
-                ex.GetType().Name);
-
-            return Results.Problem(
-                "We could not confirm whether your report reached GitHub. Please check the "
-                + "repository before submitting again — we will not re-send it automatically.",
-                statusCode: 502);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                // GitHub's issue creation is atomic per request: a non-success status means no
-                // issue exists, which is the one external failure that can be closed as Failed.
-                var code = ClassifyGitHubFailure(response.StatusCode);
-
-                // The response body is NOT logged. GitHub echoes the submitted title and body back
-                // in validation errors, so logging it would copy learner text into operator logs on
-                // exactly the path where something already went wrong.
-                logger.LogError(
-                    "GitHub refused the feedback issue. Status={StatusCode} Code={FailureCode}",
-                    (int)response.StatusCode,
-                    code);
-
-                await ledger.MarkFailedAsync(
-                        payload.Jti, userProfileId, claimed.Version, code, cancellationToken)
-                    .ConfigureAwait(false);
-
-                return response.StatusCode switch
-                {
-                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-                        => Results.Problem("GitHub authentication failed.", statusCode: 502),
-                    HttpStatusCode.UnprocessableEntity
-                        => Results.Problem("GitHub rejected the issue. Labels may not exist.", statusCode: 422),
-                    HttpStatusCode.TooManyRequests
-                        => Results.Problem("GitHub rate limit exceeded. Try again later.", statusCode: 429),
-                    _ => Results.Problem("Failed to create GitHub issue.", statusCode: 502)
-                };
-            }
-
-            // Past this line an issue exists. Everything below is bookkeeping about an event that
-            // has already happened in public and cannot be taken back.
-            int issueNumber;
-            string issueUrl;
-            string issueTitle;
-
-            try
-            {
-                using var doc = await JsonDocument
-                    .ParseAsync(
-                        await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false),
-                        cancellationToken: cancellationToken)
-                    .ConfigureAwait(false);
-
-                var root = doc.RootElement;
-                issueUrl = root.TryGetProperty("html_url", out var urlElement)
-                    ? urlElement.GetString() ?? string.Empty
-                    : string.Empty;
-                issueNumber = root.TryGetProperty("number", out var numberElement)
-                    ? numberElement.GetInt32()
-                    : 0;
-                issueTitle = root.TryGetProperty("title", out var titleElement)
-                    ? titleElement.GetString() ?? payload.Title
-                    : payload.Title;
-            }
-            catch (Exception ex)
-            {
-                await ledger.MarkCommittedAsync(
-                        payload.Jti, userProfileId, claimed.Version,
-                        FeedbackFailureCodes.SettlementFailed, cancellationToken)
-                    .ConfigureAwait(false);
-
-                logger.LogError(
-                    "The feedback issue was created but its identity could not be read. "
-                    + "Code={FailureCode} Exception={ExceptionType}",
-                    FeedbackFailureCodes.SettlementFailed,
-                    ex.GetType().Name);
-
-                return Results.Problem(
-                    "Your report was filed, but we could not record the link to it. It will not be "
-                    + "sent again.",
-                    statusCode: 502);
-            }
-
-            bool settled;
-            try
-            {
-                settled = await ledger.SettleSubmittedAsync(
-                        payload.Jti, userProfileId, claimed.Version,
-                        issueNumber, issueUrl, Truncate(issueTitle, FeedbackPreviewToken.MaxTitleLength),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(
-                    "The feedback issue was created but its receipt could not be stored. "
-                    + "Code={FailureCode} Exception={ExceptionType}",
-                    FeedbackFailureCodes.SettlementFailed,
-                    ex.GetType().Name);
-                settled = false;
-            }
-
-            if (!settled)
-            {
-                // Best effort: record that an issue definitely exists even though we cannot say
-                // which. If this write fails too the row stays Claimed, which also refuses every
-                // retry — there is no failure ordering that produces a re-postable row.
-                await ledger.MarkCommittedAsync(
-                        payload.Jti, userProfileId, claimed.Version,
-                        FeedbackFailureCodes.SettlementFailed, cancellationToken)
-                    .ConfigureAwait(false);
-
-                logger.LogError(
-                    "Feedback receipt was not recorded for issue #{IssueNumber}. Code={FailureCode}",
-                    issueNumber,
-                    FeedbackFailureCodes.SettlementFailed);
-            }
-
-            logger.LogInformation(
-                "Created feedback issue #{IssueNumber} Route={RouteCategory} Platform={Platform} "
-                + "Settled={Settled}",
-                issueNumber,
-                payload.RouteCategory,
-                payload.Platform,
-                settled);
-
-            return Results.Ok(new FeedbackSubmitResponse
-            {
-                IssueUrl = issueUrl,
-                IssueNumber = issueNumber,
-                Title = issueTitle,
-                Outcome = FeedbackSubmitOutcome.Created
-            });
-        }
-    }
-
-    // ------------------------------------------------------------------------------ answers
-
-    /// <summary>
-    /// Answers a caller that did not win the claim, waiting out an in-flight winner first.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The single place a non-winner is answered, deliberately. There are two of them — the caller
-    /// that found a row before claiming, and the caller whose insert lost — and when they were
-    /// handled separately only one of them waited. That asymmetry is invisible in a serial test and
-    /// produces, under a real double-click, a 409 for a report that was filed successfully one
-    /// hundred milliseconds later.
-    /// </para>
-    /// <para>
-    /// The wait is bounded and only applies to the in-doubt case. A row that is already settled or
-    /// already closed has nothing to wait for.
-    /// </para>
-    /// </remarks>
-    private static async Task<IResult> AnswerFromLedgerAsync(
-        IFeedbackSubmissionLedger ledger,
-        ILogger logger,
-        FeedbackClaimResult result,
-        string jti,
-        string userProfileId,
-        CancellationToken cancellationToken)
-    {
-        var resolved = result.Outcome == FeedbackClaimOutcome.InDoubt
-            ? await ledger.WaitForSettlementAsync(jti, userProfileId, cancellationToken)
-                .ConfigureAwait(false)
-            : result;
-
-        return AnswerFromLedger(logger, resolved);
-    }
-
-    private static IResult AnswerFromLedger(ILogger logger, FeedbackClaimResult result) =>
-        result.Outcome switch
-        {
-            FeedbackClaimOutcome.AlreadySettled when result.Row is { } row => Results.Ok(
+            FeedbackFileOutcomeKind.Created or FeedbackFileOutcomeKind.Replayed => Results.Ok(
                 new FeedbackSubmitResponse
                 {
-                    IssueUrl = row.IssueUrl ?? string.Empty,
-                    IssueNumber = row.IssueNumber ?? 0,
-                    Title = row.IssueTitle ?? string.Empty,
-                    Outcome = FeedbackSubmitOutcome.Replayed
+                    IssueUrl = outcome.IssueUrl,
+                    IssueNumber = outcome.IssueNumber,
+                    Title = outcome.IssueTitle,
+                    Outcome = outcome.Kind == FeedbackFileOutcomeKind.Created
+                        ? FeedbackSubmitOutcome.Created
+                        : FeedbackSubmitOutcome.Replayed
                 }),
 
-            FeedbackClaimOutcome.ClosedWithoutIssue => Closed(logger),
+            FeedbackFileOutcomeKind.RateLimited =>
+                RateLimited(http, logger, FeedbackRateKind.Submit, outcome.Rate!.Value),
 
-            // Won is impossible here — this method is only reached when the caller did not win —
-            // and every remaining case is in doubt, which fails closed.
-            _ => InDoubt(logger)
+            FeedbackFileOutcomeKind.Closed => Closed(),
+
+            FeedbackFileOutcomeKind.Unconfigured =>
+                Results.Problem("Feedback submission is not available.", statusCode: 503),
+
+            FeedbackFileOutcomeKind.GitHubUnreachable => Results.Problem(
+                "We could not confirm whether your report reached GitHub. Please check the "
+                + "repository before submitting again — we will not re-send it automatically.",
+                statusCode: 502),
+
+            FeedbackFileOutcomeKind.GitHubRefused => outcome.GitHubStatus switch
+            {
+                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                    => Results.Problem("GitHub authentication failed.", statusCode: 502),
+                HttpStatusCode.UnprocessableEntity
+                    => Results.Problem("GitHub rejected the issue. Labels may not exist.", statusCode: 422),
+                HttpStatusCode.TooManyRequests
+                    => Results.Problem("GitHub rate limit exceeded. Try again later.", statusCode: 429),
+                _ => Results.Problem("Failed to create GitHub issue.", statusCode: 502)
+            },
+
+            FeedbackFileOutcomeKind.SettlementFailed => Results.Problem(
+                "Your report was filed, but we could not record the link to it. It will not be "
+                + "sent again.",
+                statusCode: 502),
+
+            _ => InDoubt()
         };
 
-    private static IResult Closed(ILogger logger)
+    private static IResult Closed()
     {
-        logger.LogInformation(
-            "A feedback submission was retried after it had already closed. Code={FailureCode}",
-            FeedbackFailureCodes.SubmissionClosed);
 
         // Same status as the in-doubt refusal, different code — and the difference is the whole
         // point. This row proves no issue was created, so the honest message is "it was not filed,
@@ -556,11 +269,8 @@ public static class FeedbackEndpoints
             FeedbackFailureCodes.SubmissionClosed);
     }
 
-    private static IResult InDoubt(ILogger logger)
+    private static IResult InDoubt()
     {
-        logger.LogWarning(
-            "A feedback submission was retried while its outcome is unknown. Code={FailureCode}",
-            FeedbackFailureCodes.SubmissionInDoubt);
 
         return Problem(
             "A submission for this report is already in progress or its result is unknown. We will "
@@ -628,13 +338,6 @@ public static class FeedbackEndpoints
             StatusCodes.Status429TooManyRequests,
             FeedbackFailureCodes.RateLimited);
     }
-
-    private static string ClassifyGitHubFailure(HttpStatusCode status) => status switch
-    {
-        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => FeedbackFailureCodes.GitHubUnauthorized,
-        HttpStatusCode.TooManyRequests => FeedbackFailureCodes.GitHubRateLimited,
-        _ => FeedbackFailureCodes.GitHubRejected
-    };
 
     #region AI Enrichment
 

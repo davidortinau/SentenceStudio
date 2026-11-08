@@ -43,3 +43,17 @@ public sealed class NativeSamStarterTests
         Assert.Equal(id, NativeSamStarters.AutomationId(starter));
     }
 }
+
+/// <summary>Both heads name a shell screen the same way.</summary>
+public sealed class NativeSamScreenNameTests
+{
+    [Theory]
+    [InlineData(NativeDestination.Dashboard, "study", "study")]
+    [InlineData(NativeDestination.TodaysPlan, "study", "study")]
+    [InlineData(NativeDestination.TodaysPlan, "library", "library")]
+    [InlineData(NativeDestination.Activity, "study", "activity")]
+    [InlineData(NativeDestination.VocabularyQuiz, "study", "vocabulary-quiz")]
+    [InlineData(NativeDestination.ResourceEdit, "library", "resources.form")]
+    public void ShellDestinationsHaveOneName(NativeDestination destination, string tab, string expected)
+        => Assert.Equal(expected, NativeSamScreenContext.ForDestination(destination, tab));
+}

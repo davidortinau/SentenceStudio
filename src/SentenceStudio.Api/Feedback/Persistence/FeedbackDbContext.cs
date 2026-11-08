@@ -54,6 +54,9 @@ public sealed class FeedbackDbContext : DbContext
     /// <summary>One row per (owner, limit); the durable rate windows.</summary>
     public DbSet<FeedbackRateWindow> FeedbackRateWindows => Set<FeedbackRateWindow>();
 
+    /// <summary>Private screen state attached to reports filed through Sam.</summary>
+    public DbSet<FeedbackScreenSnapshot> FeedbackScreenSnapshots => Set<FeedbackScreenSnapshot>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -115,6 +118,24 @@ public sealed class FeedbackDbContext : DbContext
                   .HasDatabaseName("IX_FeedbackRateWindow_UpdatedAtUtc");
         });
 
+        modelBuilder.Entity<FeedbackScreenSnapshot>(entity =>
+        {
+            entity.ToTable("FeedbackScreenSnapshot");
+            entity.HasKey(e => e.Reference);
+            entity.Property(e => e.Reference).ValueGeneratedNever().HasMaxLength(32);
+            entity.Property(e => e.UserProfileId).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Jti).IsRequired().HasMaxLength(FeedbackPreviewToken.MaxJtiLength);
+            entity.Property(e => e.ContextJson).IsRequired().HasMaxLength(FeedbackScreenSnapshotLimits.MaxContextJsonLength);
+
+            entity.HasIndex(e => e.UserProfileId)
+                  .HasDatabaseName("IX_FeedbackScreenSnapshot_UserProfileId");
+            entity.HasIndex(e => e.CreatedAtUtc)
+                  .HasDatabaseName("IX_FeedbackScreenSnapshot_CreatedAtUtc");
+            // One snapshot per submission; a re-run of the same approval finds the existing row.
+            entity.HasIndex(e => e.Jti).IsUnique()
+                  .HasDatabaseName("IX_FeedbackScreenSnapshot_Jti");
+        });
+
         PinTimestampsToUtc(modelBuilder);
     }
 
@@ -169,4 +190,10 @@ public sealed class FeedbackDbContext : DbContext
         value => value.Kind == DateTimeKind.Unspecified
             ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
             : value.ToUniversalTime());
+}
+
+/// <summary>Size bounds for <see cref="FeedbackScreenSnapshot"/>.</summary>
+public static class FeedbackScreenSnapshotLimits
+{
+    public const int MaxContextJsonLength = 16 * 1024;
 }

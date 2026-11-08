@@ -365,6 +365,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
             CoachToolNames.ProposeResourceRemoval => CreateWrite<CoachResourceRemovalArgs>(reg),
             CoachToolNames.ProposePreferenceChange => CreateWrite<CoachPreferenceChangeArgs>(reg),
             CoachToolNames.ProposeYouTubeImport => CreateWrite<CoachYouTubeImportArgs>(reg),
+            CoachToolNames.ProposeFeedback => CreateWrite<CoachFeedbackArgs>(reg),
             _ => null
         };
     }

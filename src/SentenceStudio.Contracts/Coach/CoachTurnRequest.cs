@@ -60,4 +60,10 @@ public sealed class CoachTurnRequest
     /// </para>
     /// </remarks>
     public CoachClientCapabilityHandshake? ClientCapabilities { get; init; }
+
+    /// <summary>
+    /// What the client was showing when this turn was sent. Optional; used only when the learner
+    /// files feedback through Sam. See <see cref="CoachClientScreenContext"/>.
+    /// </summary>
+    public CoachClientScreenContext? ClientScreen { get; init; }
 }

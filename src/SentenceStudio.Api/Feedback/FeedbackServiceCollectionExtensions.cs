@@ -62,6 +62,7 @@ public static class FeedbackServiceCollectionExtensions
         });
 
         services.TryAddScoped<IFeedbackSubmissionLedger, FeedbackSubmissionLedger>();
+        services.TryAddScoped<IFeedbackIssueFiler, FeedbackIssueFiler>();
         services.TryAddScoped<IFeedbackRateLimiter, FeedbackRateLimiter>();
         services.TryAddScoped<IFeedbackDataDeletionService, FeedbackDataDeletionService>();
         services.TryAddScoped<FeedbackRetentionSweep>();

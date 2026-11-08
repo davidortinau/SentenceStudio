@@ -17,7 +17,7 @@ namespace SentenceStudio.Api.Feedback.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -48,6 +48,45 @@ namespace SentenceStudio.Api.Feedback.Persistence.Migrations
                         .HasDatabaseName("IX_FeedbackRateWindow_UpdatedAtUtc");
 
                     b.ToTable("FeedbackRateWindow", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Api.Feedback.Persistence.FeedbackScreenSnapshot", b =>
+                {
+                    b.Property<string>("Reference")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ContextJson")
+                        .IsRequired()
+                        .HasMaxLength(16384)
+                        .HasColumnType("character varying(16384)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Jti")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Reference");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_FeedbackScreenSnapshot_CreatedAtUtc");
+
+                    b.HasIndex("Jti")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FeedbackScreenSnapshot_Jti");
+
+                    b.HasIndex("UserProfileId")
+                        .HasDatabaseName("IX_FeedbackScreenSnapshot_UserProfileId");
+
+                    b.ToTable("FeedbackScreenSnapshot", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Api.Feedback.Persistence.FeedbackSubmission", b =>

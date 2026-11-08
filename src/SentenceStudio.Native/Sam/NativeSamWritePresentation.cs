@@ -81,6 +81,7 @@ public static class NativeSamWritePresentation
         CoachWriteChangeKind.ResourceRemove => "Coach_WriteKindResourceRemove",
         CoachWriteChangeKind.SettingChange => "Coach_WriteKindSettingChange",
         CoachWriteChangeKind.VideoImport => "Coach_WriteKindVideoImport",
+        CoachWriteChangeKind.FeedbackReport => "Coach_WriteKindFeedbackReport",
         _ => "Coach_WriteKindUnknown",
     };
 

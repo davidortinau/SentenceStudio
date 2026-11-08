@@ -9635,4 +9635,7 @@
   <data name="Coach_Starter_LastPractice" xml:space="preserve">
     <value>마지막으로 공부한 게 언제예요?</value>
   </data>
+  <data name="Coach_WriteKindFeedbackReport" xml:space="preserve">
+    <value>GitHub에 피드백 올리기</value>
+  </data>
 </root>

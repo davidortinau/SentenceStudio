@@ -4801,6 +4801,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to File feedback on GitHub.
+        /// </summary>
+        internal static string Coach_WriteKindFeedbackReport {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindFeedbackReport", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Add a resource.
         /// </summary>
         internal static string Coach_WriteKindResourceAdd {

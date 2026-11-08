@@ -205,5 +205,8 @@ public enum CoachWriteEntityKind
     UserProfile = 5,
 
     /// <summary>Today's plan for the learner.</summary>
-    DailyPlan = 6
+    DailyPlan = 6,
+
+    /// <summary>A feedback report filed as a GitHub issue.</summary>
+    FeedbackReport = 7
 }

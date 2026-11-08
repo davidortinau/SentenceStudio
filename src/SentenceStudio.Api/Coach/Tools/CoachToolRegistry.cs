@@ -542,5 +542,20 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
             Description = "Proposes importing a YouTube video's captions as a learning resource. Accepts YouTube video addresses only. Nothing is fetched or saved until the learner confirms the proposal."
         });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposeFeedback,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteHard,
+            EffectClass = CoachCapabilityEffectClass.ExternalEffect,
+            Reversal = CoachCapabilityReversal.None,
+            Confirmation = CoachCapabilityConfirmation.Confirm,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.External,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes filing the learner's bug report or feature request about this app as a public GitHub issue, with the screen they were on attached by the app. Use it when the learner asks to log, report, or file a bug, problem, or request. Nothing is sent until the learner confirms."
+        });
     }
 }

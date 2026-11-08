@@ -37,7 +37,7 @@ public sealed class CoachTurnIntent
     [Description("A short message for the learner. Use simple words. The largest length is 400 characters. Do not add a target-language word that is due for review.")]
     public string CoachMessage { get; set; } = string.Empty;
 
-    [Description("The facts you used for this answer. Leave the list empty if you used no facts.")]
+    [Description("Facts a read tool returned in this turn that your answer relies on. Leave the list empty if you called no read tool. What the learner said, what the app attached about the screen, and proposals you prepared are not facts to cite.")]
     public List<CoachEvidenceReferenceIntent> EvidenceReferences { get; set; } = new();
 
     /// <summary>

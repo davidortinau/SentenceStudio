@@ -86,6 +86,7 @@ public static class CoachToolServiceCollectionExtensions
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachResourceRemovalHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachPreferenceChangeHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachYouTubeImportHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachFeedbackHandler>();
 
         services.TryAddScoped<Application.ICoachWriteApprovalService, Application.CoachWriteApprovalService>();
 

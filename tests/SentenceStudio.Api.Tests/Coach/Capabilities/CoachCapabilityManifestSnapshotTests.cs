@@ -171,7 +171,8 @@ public class CoachCapabilityManifestSnapshotTests
 
         reads.Should().HaveCount(15);
         learnerData.Should().HaveCount(11, "eleven propose_* tools write learner data");
-        external.Should().HaveCount(1, "the YouTube import is the only external effect");
+        external.Should().HaveCount(2, "the YouTube import and filing feedback on GitHub are the external effects");
+        external.Select(c => c.Name).Should().BeEquivalentTo([CoachToolNames.ProposeYouTubeImport, CoachToolNames.ProposeFeedback]);
         presentation.Should().HaveCount(1, "the declared theme capability");
 
         (reads.Count + learnerData.Count + external.Count + presentation.Count)

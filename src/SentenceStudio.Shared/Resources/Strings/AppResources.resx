@@ -10294,4 +10294,8 @@ For example: {0} ...</value>
     <value>When did I last practice?</value>
     <comment>Coach: starter prompt sent as the learner message. Answered from practice history.</comment>
   </data>
+  <data name="Coach_WriteKindFeedbackReport" xml:space="preserve">
+    <value>File feedback on GitHub</value>
+    <comment>Sam write: heading for a proposal that files a bug report or feature request as a public GitHub issue</comment>
+  </data>
 </root>

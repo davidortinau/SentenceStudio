@@ -86,6 +86,17 @@ public class CoachAnswerStateTests
         state.AlertKey.Should().BeNull("an answer is not an error");
     }
 
+    [Theory]
+    [InlineData("skills/edit/123", "skills/edit/{Id}")]
+    [InlineData("media-import/channel/9f3a2b1c7d6e", "media-import/channel/{Id}")]
+    [InlineData("media-import/channel", "media-import/channel")]
+    [InlineData("vocabulary/lookups", "vocabulary/lookups")]
+    [InlineData("search/myexboyfriendsname", "unknown")]
+    [InlineData("vocab-quiz/사과", "unknown")]
+    [InlineData("", "")]
+    public void TheWebScreenIdNeverCarriesIdsOrLearnerText(string path, string expected)
+        => CoachScreenContextCollector.Template(path).Should().Be(expected);
+
     [Fact]
     public async Task AStarterPromptSendsItsTextAndKeepsTheLearnersDraft()
     {

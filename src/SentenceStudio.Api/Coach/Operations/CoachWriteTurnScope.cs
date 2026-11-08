@@ -67,6 +67,12 @@ public sealed class CoachWriteTurnScope
     public bool IsActive => !string.IsNullOrWhiteSpace(ConversationId);
 
     /// <summary>
+    /// What the client said it was showing for this turn, or null. Advisory; read only by the
+    /// feedback handler so a report can say where it happened. Never an authorization source.
+    /// </summary>
+    public SentenceStudio.Contracts.Coach.CoachClientScreenContext? ClientScreen { get; set; }
+
+    /// <summary>
     /// Records the conversation and turn for this request.
     /// </summary>
     /// <remarks>
@@ -98,6 +104,7 @@ public sealed class CoachWriteTurnScope
     /// </remarks>
     public void Enter(string? conversationId, string? turnId = null)
     {
+        ClientScreen = null;
         ConversationId = string.IsNullOrWhiteSpace(conversationId) ? null : conversationId;
 
         if (ConversationId is null)

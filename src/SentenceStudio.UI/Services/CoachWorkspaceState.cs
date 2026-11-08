@@ -75,12 +75,17 @@ public sealed partial class CoachWorkspaceState : IDisposable
     public CoachWorkspaceState(
         ICoachApiClient client,
         CoachConversationDirectory? directory,
-        CoachFeatureFlags? flags = null)
+        CoachFeatureFlags? flags = null,
+        CoachScreenContextCollector? screenContext = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _directory = directory;
         _flags = flags;
+        _screenContext = screenContext;
     }
+
+    /// <summary>Builds the screen context sent with typed messages. Null in tests and previews.</summary>
+    private readonly CoachScreenContextCollector? _screenContext;
 
     /// <summary>Raised whenever any observable property changes. Components call StateHasChanged.</summary>
     public event Action? Changed;
@@ -1017,14 +1022,9 @@ public sealed partial class CoachWorkspaceState : IDisposable
 
     private async Task SendTextAsync(string text, bool clearDraft, CancellationToken cancellationToken)
     {
-        var request = new CoachTurnRequest
-        {
-            InputKind = CoachTurnInputKind.Text,
-            Text = text,
-            PendingSuggestionId = PendingSuggestion?.SuggestionId,
-            ExpectedPlanVersion = PlanState?.PlanVersion,
-            ClientTurnId = Guid.NewGuid().ToString("N")
-        };
+        var clientTurnId = Guid.NewGuid().ToString("N");
+        var pendingSuggestionId = PendingSuggestion?.SuggestionId;
+        var planVersion = PlanState?.PlanVersion;
 
         // The text is captured above, so clearing the box now cannot lose it. Cleared before the
         // append so the single notification that follows renders one consistent state: empty
@@ -1036,11 +1036,28 @@ public sealed partial class CoachWorkspaceState : IDisposable
 
         // The turn is claimed now, in submission order, so a slow first response still lands
         // beside its own question rather than after a later one.
-        var turn = AppendLearnerMessage(text, request.ClientTurnId);
+        var turn = AppendLearnerMessage(text, clientTurnId);
 
         await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // Captured inside the gate, after the question is on screen: a slow snapshot never
+            // delays the echo and never lets a later message overtake this one. It is what the
+            // learner was looking at; Sam's own panel is excluded.
+            var screen = _screenContext is null
+                ? null
+                : await _screenContext.CaptureAsync(cancellationToken).ConfigureAwait(false);
+
+            var request = new CoachTurnRequest
+            {
+                InputKind = CoachTurnInputKind.Text,
+                Text = text,
+                PendingSuggestionId = pendingSuggestionId,
+                ExpectedPlanVersion = planVersion,
+                ClientTurnId = clientTurnId,
+                ClientScreen = screen
+            };
+
             await RunTurnAsync(request, CoachInitiator.Composer, cancellationToken, turn: turn)
                 .ConfigureAwait(false);
         }

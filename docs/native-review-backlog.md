@@ -179,3 +179,14 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   Android icon the same fix).
 - `LaunchLogoDp` (188) was measured on one API 36 emulator; check it on a phone with another
   density.
+
+## Sam feedback filing (2026-11-07 review, deferred)
+
+- `CoachFeedbackHandler` maps every non-`web` screen platform to `FeedbackPlatform.Native`, so
+  MAUI reports (`maui-ios`, `maui-android`) are counted with the native heads. Matches the
+  existing Feedback page (`BlazorHostKind.IsWebViewHost` maps MAUI to Native); a `Maui` value
+  needs a contract change across clients.
+- The feedback card, receipt and refusal text in `CoachFeedbackHandler` is English only, like the
+  other Sam write handlers. Localize write-card text as one change (Korean included).
+- Web/MAUI capture a screen snapshot (JS interop, 250 ms budget) for every typed Sam message,
+  though only feedback uses it. Consider capturing without blocking the request.

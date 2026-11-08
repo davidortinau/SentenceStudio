@@ -108,35 +108,36 @@ public static class CoachHelpCatalog
             items.Add(new HelpItem(new Copy("Learning resources", "학습 자료").For(ko), body.For(ko)));
         }
 
-        // 4. Skills.
-        if (Any(CoachToolNames.GetSkillList, CoachToolNames.GetSkillDetail, CoachToolNames.ProposeSkillEntry,
-                CoachToolNames.ProposeSkillEdit, CoachToolNames.ProposeSkillArchive))
+        // 4. Skills and practice history.
+        var skillsRead = Any(CoachToolNames.GetSkillList, CoachToolNames.GetSkillDetail);
+        var skillsWrite = Any(CoachToolNames.ProposeSkillEntry, CoachToolNames.ProposeSkillEdit,
+            CoachToolNames.ProposeSkillArchive);
+        var progress = Any(CoachToolNames.GetPracticeHistorySummary, CoachToolNames.GetPracticeBalance,
+            CoachToolNames.GetLearnerProfileSummary);
+        if (skillsRead || skillsWrite || progress)
         {
-            var canWrite = Any(CoachToolNames.ProposeSkillEntry, CoachToolNames.ProposeSkillEdit,
-                CoachToolNames.ProposeSkillArchive);
-            items.Add(new HelpItem(
-                new Copy("Skills", "기술").For(ko),
-                canWrite
-                    ? new Copy(
-                        "Show the skills you are working on, and add, edit or archive one once you approve.",
-                        "연습 중인 기술을 보여 드리고, 승인하시면 기술을 추가, 수정, 보관해 드려요.").For(ko)
-                    : new Copy(
-                        "Show the skills you are working on.",
-                        "연습 중인 기술을 보여 드려요.").For(ko)));
+            var parts = new List<Clause>(3);
+            if (progress)
+            {
+                parts.Add(new Clause("tell you when you last practiced and how your recent practice time was spent",
+                    "마지막으로 공부한 날과 최근 공부 시간을 알려 드리고", "마지막으로 공부한 날과 최근 공부 시간을 알려 드려요"));
+            }
+
+            if (skillsRead || skillsWrite)
+            {
+                parts.Add(new Clause("show the skills you are working on", "연습 중인 기술을 보여 드리고", "연습 중인 기술을 보여 드려요"));
+            }
+
+            if (skillsWrite)
+            {
+                parts.Add(new Clause("add, edit or archive a skill once you approve",
+                    "승인하시면 기술을 추가, 수정, 보관해 드리고", "승인하시면 기술을 추가, 수정, 보관해 드려요"));
+            }
+
+            items.Add(new HelpItem(new Copy("Progress and skills", "학습 기록과 기술").For(ko), Join(parts, ko)));
         }
 
-        // 5. Practice history and balance.
-        if (Any(CoachToolNames.GetPracticeHistorySummary, CoachToolNames.GetPracticeBalance,
-                CoachToolNames.GetLearnerProfileSummary))
-        {
-            items.Add(new HelpItem(
-                new Copy("Your progress", "학습 기록").For(ko),
-                new Copy(
-                    "Tell you when you last practiced and how your recent practice time was spent.",
-                    "마지막으로 공부한 날과 최근 공부 시간을 어떻게 썼는지 알려 드려요.").For(ko)));
-        }
-
-        // 6. Today's Plan: one capability among the others, listed after them.
+        // 5. Today's Plan: one capability among the others, listed after them.
         if (Any(CoachToolNames.PreviewPracticePlan, CoachToolNames.GetCurrentPlanSummary))
         {
             items.Add(new HelpItem(
@@ -146,7 +147,7 @@ public static class CoachHelpCatalog
                     "오늘의 계획을 보여 드리고, 요청하시면 시간, 활동, 에너지, 단어 초점을 바꿔 드려요.").For(ko)));
         }
 
-        // 7. Profile, settings and memory.
+        // 6. Profile, settings and memory.
         var settingsRead = Any(CoachToolNames.GetCurrentProfileSummary, CoachToolNames.GetLearnerSettingsSummary);
         var settingsWrite = Any(CoachToolNames.ProposePreferenceChange);
         if (settingsRead || settingsWrite || context.MemoryEnabled)
@@ -170,6 +171,16 @@ public static class CoachHelpCatalog
             items.Add(new HelpItem(
                 new Copy("Settings and memory", "설정과 기억").For(ko),
                 Join(parts, ko)));
+        }
+
+        // 7. Feedback: bug reports and requests filed on GitHub with the current screen.
+        if (Any(CoachToolNames.ProposeFeedback))
+        {
+            items.Add(new HelpItem(
+                new Copy("Feedback", "피드백").For(ko),
+                new Copy(
+                    "Log a bug or a request about the app, with the screen you are on, as a GitHub issue once you approve.",
+                    "앱의 버그나 요청을 지금 화면 정보와 함께 기록하고, 승인하시면 GitHub 이슈로 올려 드려요.").For(ko)));
         }
 
         return items;

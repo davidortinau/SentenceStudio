@@ -38,6 +38,7 @@ public static class CoachWriteProjection
         CoachToolNames.ProposeResourceRemoval => CoachWriteChangeKind.ResourceRemove,
         CoachToolNames.ProposePreferenceChange => CoachWriteChangeKind.SettingChange,
         CoachToolNames.ProposeYouTubeImport => CoachWriteChangeKind.VideoImport,
+        CoachToolNames.ProposeFeedback => CoachWriteChangeKind.FeedbackReport,
         _ => CoachWriteChangeKind.Unknown
     };
 
@@ -71,6 +72,7 @@ public static class CoachWriteProjection
         CoachWriteEntityKind.ResourceVocabularyLink => CoachWriteTargetKind.VocabularyLink,
         CoachWriteEntityKind.UserProfile => CoachWriteTargetKind.LearnerSetting,
         CoachWriteEntityKind.DailyPlan => CoachWriteTargetKind.DailyPlan,
+        CoachWriteEntityKind.FeedbackReport => CoachWriteTargetKind.FeedbackIssue,
         _ => CoachWriteTargetKind.None
     };
 }

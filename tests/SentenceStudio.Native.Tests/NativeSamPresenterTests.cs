@@ -169,6 +169,53 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task TypedTurnsCarryTheHeadsScreenContext()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        CoachTurnRequest? sent = null;
+        api.TurnResult = (request, _) => { sent = request; return Turn(); };
+        var sam = Create(fixture, api);
+        sam.ScreenContext = () => NativeSamScreenContext.Build("ios", "vocabulary.word-form",
+            typeof(NativeSamPresenter).Assembly, "iOS 26.1", "iPhone", "dark", debugBuild: true,
+            [("destination", "Dashboard")]);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        sam.SetDraft("log a bug: the Save button should not be in the toolbar");
+        await sam.SendAsync();
+
+        Assert.NotNull(sent?.ClientScreen);
+        Assert.Equal("native.vocabulary.word-form", sent!.ClientScreen!.ScreenId);
+        Assert.Equal("ios", sent.ClientScreen.Platform);
+        Assert.EndsWith("(Debug)", sent.ClientScreen.AppVersion);
+        Assert.Contains(sent.ClientScreen.State!, entry => entry.Key == "destination" && entry.Value == "Dashboard");
+    }
+
+    [Fact]
+    public async Task AFailingScreenContextNeverStopsTheMessage()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        CoachTurnRequest? sent = null;
+        api.TurnResult = (request, _) => { sent = request; return Turn(); };
+        var sam = Create(fixture, api);
+        sam.ScreenContext = () => throw new InvalidOperationException("no screen");
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        sam.SetDraft("help");
+        await sam.SendAsync();
+
+        Assert.NotNull(sent);
+        Assert.Null(sent!.ClientScreen);
+    }
+
+    [Fact]
     public async Task OfflineSendQueuesNothingAndKeepsTheDraft()
     {
         using var fixture = new NativeSliceFixture();

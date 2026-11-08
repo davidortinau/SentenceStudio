@@ -125,7 +125,10 @@ public enum CoachWriteChangeKind
     SettingChange,
 
     /// <summary>Import a video transcript as a learning resource.</summary>
-    VideoImport
+    VideoImport,
+
+    /// <summary>File a bug report or feature request as a GitHub issue.</summary>
+    FeedbackReport
 }
 
 /// <summary>
@@ -157,7 +160,10 @@ public enum CoachWriteTargetKind
     LearnerSetting,
 
     /// <summary>Today's plan.</summary>
-    DailyPlan
+    DailyPlan,
+
+    /// <summary>A GitHub issue filed from a feedback report. The id is the issue number.</summary>
+    FeedbackIssue
 }
 
 /// <summary>

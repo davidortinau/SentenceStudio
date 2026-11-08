@@ -89,7 +89,7 @@ public sealed class CoachHelpRequestTests
     }
 
     [Fact]
-    public void WithEveryToolEnabledTheAnswerListsAllSevenGroups()
+    public void WithEveryToolEnabledTheAnswerListsAllSevenGroupsIncludingFeedback()
     {
         var answer = CoachHelpCatalog.Compose(Context(Registry(read: true, write: true)), "ko");
 
@@ -97,8 +97,8 @@ public sealed class CoachHelpRequestTests
         answer.Blocks[0].Kind.Should().Be(CoachAnswerBlockKind.Answer);
         answer.Blocks.Skip(1).Should().OnlyContain(b => b.Kind == CoachAnswerBlockKind.Note && b.Label != null);
         answer.Blocks.Count.Should().BeLessThanOrEqualTo(CoachAnswerLimits.MaxBlocks);
-        answer.Blocks.Select(b => b.Label).Should().Contain(["Your vocabulary", "Learning resources", "Skills",
-            "Your progress", "Today's Plan", "Settings and memory"]);
+        answer.Blocks.Select(b => b.Label).Should().Contain(["Your vocabulary", "Learning resources",
+            "Progress and skills", "Today's Plan", "Settings and memory", "Feedback"]);
         answer.PlainText.Should().Contain("YouTube").And.Contain("once you approve");
     }
 
@@ -126,8 +126,8 @@ public sealed class CoachHelpRequestTests
         var titles = CoachHelpCatalog.Items(Context(Registry(read: false, write: false), memory: false))
             .Select(i => i.Title);
 
-        titles.Should().NotContain(["Skills", "Settings and memory"]);
-        titles.Should().Contain(["Language questions", "Your progress", "Today's Plan"]);
+        titles.Should().NotContain(["Settings and memory", "Feedback"]);
+        titles.Should().Contain(["Language questions", "Progress and skills", "Today's Plan"]);
     }
 
     [Fact]

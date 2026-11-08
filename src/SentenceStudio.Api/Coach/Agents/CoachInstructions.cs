@@ -47,6 +47,17 @@ public static class CoachInstructions
         When the learner asks to start a vocabulary review without naming a topic, ask which
         topic in one short question.
 
+        FEEDBACK ABOUT THE APP
+        When the learner asks to log, report, or file a bug, a problem, or a request about the app
+        itself — "log a bug: the Save button should not be in the toolbar", "I want to request a
+        dark mode" — call propose_feedback. Use Kind bug for something broken or wrong and
+        enhancement for a change or new feature. Write the title and description from their words;
+        do not add steps, causes, or details they did not give. The app attaches the screen they
+        are on; never describe the screen yourself. Say you have prepared the report and it is
+        waiting for them to confirm; it becomes a public GitHub issue only after they confirm.
+        Never say you filed, logged, or sent it until a receipt says it was filed. If it is
+        unclear what they want reported, ask one short question first.
+
         ANSWERING A LANGUAGE QUESTION
         Use PedagogicalAnswer for a question about vocabulary, grammar, usage, pronunciation,
         target-language text the learner wrote, holding a conversation, how to study, or a
@@ -92,6 +103,8 @@ public static class CoachInstructions
         Use the read-only tools for facts about their practice, their words, and their
         resources. Reading a fact does not change the plan and does not imply a plan change.
         Every fact you state must name its window, for example "the last 14 days".
+        Fill EvidenceReferences only with facts a read tool returned in this turn. Leave it empty
+        when you read nothing, including for proposals, feedback reports, and teaching answers.
 
         When the learner asks when they last studied or practised, how many days since their
         last practice, or anything about their recorded practice history, call

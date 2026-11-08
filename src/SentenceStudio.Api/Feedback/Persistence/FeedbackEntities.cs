@@ -121,3 +121,27 @@ public sealed class FeedbackRateWindow
     /// <summary>Optimistic concurrency token; the compare-and-swap turns on it.</summary>
     public int Version { get; set; }
 }
+
+/// <summary>
+/// The private half of a screen context attached to a feedback report filed through Sam.
+/// </summary>
+/// <remarks>
+/// The public issue names <see cref="Reference"/>; this row holds what must not be published (the
+/// concrete route and screen state). Owner-scoped, erased with the account, and pruned by the
+/// same retention window as submissions.
+/// </remarks>
+public sealed class FeedbackScreenSnapshot
+{
+    /// <summary>Server-assigned reference printed in the issue, for example <c>fs-1a2b3c4d5e6f</c>.</summary>
+    public string Reference { get; set; } = string.Empty;
+
+    public string UserProfileId { get; set; } = string.Empty;
+
+    /// <summary>The submission this snapshot belongs to.</summary>
+    public string Jti { get; set; } = string.Empty;
+
+    /// <summary>The sanitised context, as JSON. Bounded by the normaliser.</summary>
+    public string ContextJson { get; set; } = string.Empty;
+
+    public DateTime CreatedAtUtc { get; set; }
+}

@@ -8,6 +8,26 @@ namespace SentenceStudio.Native;
 
 public sealed partial class NativeSamPresenter
 {
+    /// <summary>
+    /// Supplies what the head is showing, attached to typed turns so feedback filed through Sam
+    /// names the screen. Set by the head; null sends no context.
+    /// </summary>
+    public Func<CoachClientScreenContext?>? ScreenContext { get; set; }
+
+    private CoachClientScreenContext? CaptureScreen()
+    {
+        try
+        {
+            return ScreenContext?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            // Context is advisory; a failure here must never stop the learner's message.
+            logger.LogWarning(ex, "Sam screen context could not be built; sending the turn without it.");
+            return null;
+        }
+    }
+
     /// <summary>Sends the composer draft as one durable, idempotent turn (source J5).</summary>
     public Task SendAsync(CancellationToken cancellationToken = default)
     {
@@ -25,7 +45,8 @@ public sealed partial class NativeSamPresenter
             Text = text,
             PendingSuggestionId = _state.Suggestion?.SuggestionId,
             ExpectedPlanVersion = _planVersion,
-            ClientTurnId = NewHandle()
+            ClientTurnId = NewHandle(),
+            ClientScreen = CaptureScreen()
         }, learnerText: text, applying: false, cancellationToken);
     }
 
@@ -43,7 +64,8 @@ public sealed partial class NativeSamPresenter
             InputKind = CoachTurnInputKind.Text,
             Text = text,
             ExpectedPlanVersion = _planVersion,
-            ClientTurnId = NewHandle()
+            ClientTurnId = NewHandle(),
+            ClientScreen = CaptureScreen()
         }, learnerText: text, applying: false, cancellationToken, keepDraft: true);
     }
 
@@ -641,6 +663,7 @@ public sealed partial class NativeSamPresenter
         ExpectedPlanVersion = _planVersion,
         ClientTurnId = clientTurnId,
         ClientCapabilities = request.ClientCapabilities,
+        ClientScreen = request.ClientScreen,
     };
 
     private CoachTurnRequest WithPlanVersion(CoachTurnRequest request) => new()
@@ -653,6 +676,7 @@ public sealed partial class NativeSamPresenter
         ExpectedPlanVersion = _planVersion,
         ClientTurnId = request.ClientTurnId,
         ClientCapabilities = request.ClientCapabilities,
+        ClientScreen = request.ClientScreen,
     };
 
     private void MarkLocalFailed()

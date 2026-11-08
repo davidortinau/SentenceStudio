@@ -1767,7 +1767,7 @@ public sealed class CoachConversationService : ICoachConversationService
     /// <see cref="CoachTurnRequest"/> it must be added here too, so a plan write cannot silently
     /// lose the field that correlates it to its operation.
     /// </remarks>
-    private static CoachTurnRequest WithOperationId(CoachTurnRequest request, string operationId) => new()
+    internal static CoachTurnRequest WithOperationId(CoachTurnRequest request, string operationId) => new()
     {
         InputKind = request.InputKind,
         Text = request.Text,
@@ -1775,7 +1775,11 @@ public sealed class CoachConversationService : ICoachConversationService
         ConstraintAction = request.ConstraintAction,
         PendingSuggestionId = request.PendingSuggestionId,
         ExpectedPlanVersion = request.ExpectedPlanVersion,
-        ClientTurnId = operationId
+        ClientTurnId = operationId,
+        // Both advisory and turn-scoped. Dropping them here silently disabled them on the
+        // conversation path (every feedback report said "screen not reported").
+        ClientCapabilities = request.ClientCapabilities,
+        ClientScreen = request.ClientScreen
     };
 
     /// <summary>

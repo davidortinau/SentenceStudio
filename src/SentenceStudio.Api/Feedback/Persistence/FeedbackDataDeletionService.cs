@@ -75,6 +75,11 @@ public sealed class FeedbackDataDeletionService : IFeedbackDataDeletionService
                 .ExecuteDeleteAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            var snapshots = await _db.FeedbackScreenSnapshots
+                .Where(s => s.UserProfileId == userProfileId)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
             // Verify rather than assume. A delete that reported rows but left some behind is the
             // failure an erasure guarantee has to catch, and the count alone cannot see it.
             var remaining = await _db.FeedbackSubmissions
@@ -85,20 +90,25 @@ public sealed class FeedbackDataDeletionService : IFeedbackDataDeletionService
                 .CountAsync(w => w.UserProfileId == userProfileId, cancellationToken)
                 .ConfigureAwait(false);
 
+            remaining += await _db.FeedbackScreenSnapshots
+                .CountAsync(s => s.UserProfileId == userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+
             if (remaining > 0)
             {
                 _logger.LogError(
                     "[Feedback] Erasure left {RemainingCount} row(s) behind.", remaining);
-                return new FeedbackDeletionReport(false, submissions + windows, "verification_failed");
+                return new FeedbackDeletionReport(false, submissions + windows + snapshots, "verification_failed");
             }
 
             _logger.LogInformation(
-                "[Feedback] Erasure removed {SubmissionCount} submission row(s) and "
-                + "{RateWindowCount} rate window row(s).",
+                "[Feedback] Erasure removed {SubmissionCount} submission row(s), "
+                + "{RateWindowCount} rate window row(s) and {SnapshotCount} screen snapshot row(s).",
                 submissions,
-                windows);
+                windows,
+                snapshots);
 
-            return new FeedbackDeletionReport(true, submissions + windows, null);
+            return new FeedbackDeletionReport(true, submissions + windows + snapshots, null);
         }
         catch (Exception ex)
         {

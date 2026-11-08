@@ -1,7 +1,8 @@
 # Coach product policy
 
 **Policy identifier:** `CoachProductPolicy/v1`
-**Status:** Normative for the clean architecture
+**Status:** Reference for Sam behavior. The single-runtime decision in
+[`sam-single-runtime.md`](sam-single-runtime.md) supersedes the "clean architecture" framing.
 
 ## 1. Authority and scope
 
@@ -11,9 +12,7 @@ prompts, runtime policies, capability descriptors, test scenarios, and semantic
 evaluators must conform to it. When an implementation artifact disagrees with
 this policy, the implementation artifact is wrong.
 
-The legacy runtime remains governed by
-[`legacy-runtime-freeze.md`](legacy-runtime-freeze.md). This policy does not
-authorize growth in that runtime.
+There is one Sam runtime, and it grows; see [`sam-single-runtime.md`](sam-single-runtime.md).
 
 This policy defines product behavior, not model wording. Tests should assert
 trajectories, typed arguments, evidence, effects, and semantic requirements

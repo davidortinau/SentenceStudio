@@ -289,7 +289,16 @@ public static class CoachDeterministicCopy
 
     /// <summary>Neutral fallback when a learner turn cannot be validated. Does not mention any specific feature.</summary>
     internal const string ValidationFailedNeutral =
-        "I wasn\u2019t able to action that. Could you rephrase or ask something else?";
+        "I couldn\u2019t finish that reply safely, so nothing was changed. Please ask again \u2014 "
+        + "saying it a little differently often helps.";
+
+    /// <summary>
+    /// The reply was refused but a proposal was already prepared this turn. The card is shown, and
+    /// this says plainly that it is waiting and nothing has happened.
+    /// </summary>
+    internal const string ValidationFailedWithProposal =
+        "I prepared this for you to review, but couldn\u2019t finish my reply. Nothing happens "
+        + "until you approve it below.";
 
     /// <summary>Neutral fallback when the agent turn could not be completed (no intent produced).</summary>
     internal const string IncompleteNeutral =

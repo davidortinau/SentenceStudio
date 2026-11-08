@@ -30,6 +30,8 @@ namespace SentenceStudio.Api.Tests.Feedback;
 public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
 {
     private const string MigrationId = "20260822002726_InitialFeedbackSchema";
+    private const string ScreenSnapshotMigrationId = "20261108021430_AddFeedbackScreenSnapshot";
+    private static readonly string[] AllMigrations = [MigrationId, ScreenSnapshotMigrationId];
 
     private FeedbackPostgresHarness _harness = null!;
 
@@ -75,7 +77,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
 
         await MigrateToLatestAsync();
         await AssertSchemaPresentAsync();
-        (await AppliedMigrationsAsync()).Should().ContainSingle().Which.Should().Be(MigrationId);
+        (await AppliedMigrationsAsync()).Should().Equal(AllMigrations);
     }
 
     /// <summary>
@@ -169,7 +171,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
         tables.Should().NotContain("__EFMigrationsHistory");
         tables.Should().NotContain("__CoachMigrationsHistory");
 
-        (await AppliedMigrationsAsync()).Should().ContainSingle().Which.Should().Be(MigrationId);
+        (await AppliedMigrationsAsync()).Should().Equal(AllMigrations);
     }
 
     /// <summary>
@@ -186,7 +188,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
         await MigrateToLatestAsync();
         await MigrateToLatestAsync();
 
-        (await AppliedMigrationsAsync()).Should().ContainSingle();
+        (await AppliedMigrationsAsync()).Should().Equal(AllMigrations);
         await AssertSchemaPresentAsync();
     }
 
@@ -235,21 +237,26 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
     private async Task AssertSchemaPresentAsync()
     {
         var tables = await FeedbackTablesAsync();
-        tables.Should().BeEquivalentTo(["FeedbackRateWindow", "FeedbackSubmission"]);
+        tables.Should().BeEquivalentTo(["FeedbackRateWindow", "FeedbackScreenSnapshot", "FeedbackSubmission"]);
 
         var indexes = await _harness.StringsAsync(
             """
             SELECT indexname FROM pg_indexes
-            WHERE schemaname = 'public' AND tablename IN ('FeedbackSubmission', 'FeedbackRateWindow')
+            WHERE schemaname = 'public'
+              AND tablename IN ('FeedbackSubmission', 'FeedbackRateWindow', 'FeedbackScreenSnapshot')
             ORDER BY indexname
             """);
 
         indexes.Should().BeEquivalentTo([
             "IX_FeedbackRateWindow_UpdatedAtUtc",
+            "IX_FeedbackScreenSnapshot_CreatedAtUtc",
+            "IX_FeedbackScreenSnapshot_Jti",
+            "IX_FeedbackScreenSnapshot_UserProfileId",
             "IX_FeedbackSubmission_Status",
             "IX_FeedbackSubmission_TokenExpiresAtUtc",
             "IX_FeedbackSubmission_UserProfileId",
             "PK_FeedbackRateWindow",
+            "PK_FeedbackScreenSnapshot",
             "PK_FeedbackSubmission"
         ]);
 
@@ -260,7 +267,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
             """
             SELECT DISTINCT data_type FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name IN ('FeedbackSubmission', 'FeedbackRateWindow')
+              AND table_name IN ('FeedbackSubmission', 'FeedbackRateWindow', 'FeedbackScreenSnapshot')
               AND data_type LIKE 'timestamp%'
             """);
 
@@ -278,7 +285,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
             """
             SELECT indexname FROM pg_indexes
             WHERE schemaname = 'public'
-              AND tablename IN ('FeedbackSubmission', 'FeedbackRateWindow')
+              AND tablename IN ('FeedbackSubmission', 'FeedbackRateWindow', 'FeedbackScreenSnapshot')
             """);
 
         leftovers.Should().BeEmpty(
@@ -303,7 +310,7 @@ public sealed class FeedbackMigrationRoundTripPostgresTests : IAsyncLifetime
             """
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'public'
-              AND table_name IN ('FeedbackSubmission', 'FeedbackRateWindow')
+              AND table_name IN ('FeedbackSubmission', 'FeedbackRateWindow', 'FeedbackScreenSnapshot')
             ORDER BY table_name
             """);
 }

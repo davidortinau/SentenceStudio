@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace SentenceStudio.Api.Feedback.Persistence;
 
 /// <summary>What one retention pass removed.</summary>
-public readonly record struct FeedbackRetentionResult(int SubmissionsRemoved, int RateWindowsRemoved);
+public readonly record struct FeedbackRetentionResult(int SubmissionsRemoved, int RateWindowsRemoved, int ScreenSnapshotsRemoved = 0);
 
 /// <summary>
 /// Ages out feedback rows that no longer answer for anything.
@@ -74,16 +74,22 @@ public sealed class FeedbackRetentionSweep
             .ExecuteDeleteAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (submissions > 0 || windows > 0)
+        var snapshots = await _db.FeedbackScreenSnapshots
+            .Where(s => s.CreatedAtUtc < submissionCutoff)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (submissions > 0 || windows > 0 || snapshots > 0)
         {
             _logger.LogInformation(
-                "[Feedback] Retention removed {SubmissionCount} submission row(s) and "
-                + "{RateWindowCount} rate window row(s).",
+                "[Feedback] Retention removed {SubmissionCount} submission row(s), "
+                + "{RateWindowCount} rate window row(s) and {SnapshotCount} screen snapshot row(s).",
                 submissions,
-                windows);
+                windows,
+                snapshots);
         }
 
-        return new FeedbackRetentionResult(submissions, windows);
+        return new FeedbackRetentionResult(submissions, windows, snapshots);
     }
 }
 
