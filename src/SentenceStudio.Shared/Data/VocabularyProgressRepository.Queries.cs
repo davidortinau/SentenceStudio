@@ -238,6 +238,65 @@ public partial class VocabularyProgressRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<VocabularyExampleSentencePage?> GetWordExampleSentencesAsync(
+        string userProfileId,
+        string wordId,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasWordOwner(userProfileId, nameof(GetWordExampleSentencesAsync))
+            || string.IsNullOrWhiteSpace(wordId))
+        {
+            return null;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var word = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(w => w.Id == wordId)
+            .Select(w => new { w.Id, w.TargetLanguageTerm })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (word is null)
+        {
+            return null;
+        }
+
+        // The same "due" the coach's leak check uses (CoachValidationDataSource): this learner's
+        // progress row says the review is due now.
+        var isDue = await db.VocabularyProgresses
+            .AsNoTracking()
+            .AnyAsync(p => p.UserId == userProfileId
+                           && p.VocabularyWordId == wordId
+                           && p.NextReviewDate != null
+                           && p.NextReviewDate <= asOfUtc,
+                cancellationToken);
+
+        var owned = db.ExampleSentences
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(e => e.VocabularyWordId == wordId);
+
+        var total = await owned.CountAsync(cancellationToken);
+        if (isDue || total == 0 || maxResults <= 0)
+        {
+            // Not selected, so a due word's sentences cannot be returned by mistake.
+            return new VocabularyExampleSentencePage(word.Id, isDue ? null : word.TargetLanguageTerm, isDue, total, []);
+        }
+
+        var sentences = await owned
+            .OrderByDescending(e => e.IsCore)
+            .ThenBy(e => e.CreatedAt)
+            .Take(maxResults)
+            .Select(e => new VocabularyExampleSentenceFacts(e.Id, e.TargetSentence, e.NativeSentence, e.IsCore))
+            .ToListAsync(cancellationToken);
+
+        return new VocabularyExampleSentencePage(word.Id, word.TargetLanguageTerm, false, total, sentences);
+    }
+
     private bool HasWordOwner(string userProfileId, string method)
     {
         if (!string.IsNullOrWhiteSpace(userProfileId))

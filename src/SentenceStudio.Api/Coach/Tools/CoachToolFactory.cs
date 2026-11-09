@@ -329,6 +329,13 @@ public sealed class CoachToolFactory : ICoachToolFactory
                             .GetAsync(ct),
                     reg.Name, reg.Description),
 
+            CoachToolNames.GetVocabularyExampleSentences =>
+                Create(
+                    (string wordId, int? maxResults = null, CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.VocabularyExampleSentencesTool>()
+                            .GetAsync(wordId, maxResults ?? SamTools.VocabularyExampleSentencesTool.MaxResults, ct),
+                    reg.Name, reg.Description),
+
             _ => null
         };
     }
@@ -366,6 +373,9 @@ public sealed class CoachToolFactory : ICoachToolFactory
             CoachToolNames.ProposePreferenceChange => CreateWrite<CoachPreferenceChangeArgs>(reg),
             CoachToolNames.ProposeYouTubeImport => CreateWrite<CoachYouTubeImportArgs>(reg),
             CoachToolNames.ProposeFeedback => CreateWrite<CoachFeedbackArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceEntry => CreateWrite<CoachExampleSentenceEntryArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceEdit => CreateWrite<CoachExampleSentenceEditArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceRemoval => CreateWrite<CoachExampleSentenceRemovalArgs>(reg),
             _ => null
         };
     }

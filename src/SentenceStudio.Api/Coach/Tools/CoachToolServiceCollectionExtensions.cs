@@ -59,6 +59,7 @@ public static class CoachToolServiceCollectionExtensions
         services.TryAddScoped<SamTools.CurrentProfileSummaryTool>();
         services.TryAddScoped<SamTools.LearnerSettingsSummaryTool>();
         services.TryAddScoped<SamTools.CurrentPlanSummaryTool>();
+        services.TryAddScoped<SamTools.VocabularyExampleSentencesTool>();
 
         // Sam write tools. One tool class serves every propose_ function; the handlers are what
         // differ. All scoped, because the ownership guard they depend on holds a request-scoped
@@ -66,6 +67,7 @@ public static class CoachToolServiceCollectionExtensions
         services.TryAddScoped<SamTools.SamWriteProposalTool>();
         services.TryAddScoped<Operations.CoachWriteTurnScope>();
         services.TryAddScoped<Operations.CoachWriteOwnership>();
+        services.TryAddScoped<Operations.Handlers.CoachExampleSentenceStore>();
         services.TryAddScoped<Operations.CoachWriteOperationService>();
         services.TryAddScoped<Operations.ICoachWriteProposer>(
             sp => sp.GetRequiredService<Operations.CoachWriteOperationService>());
@@ -87,6 +89,9 @@ public static class CoachToolServiceCollectionExtensions
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachPreferenceChangeHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachYouTubeImportHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachFeedbackHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEntryHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEditHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceRemovalHandler>();
 
         services.TryAddScoped<Application.ICoachWriteApprovalService, Application.CoachWriteApprovalService>();
 

@@ -74,7 +74,8 @@ public static class CoachReadCapabilityMetadataValidator
             [CoachToolNames.GetVocabularyDueSummary] = VocabularyDueSummaryTool.MaxTagCount,
             [CoachToolNames.ListUserVocabularies] = VocabularySearchTool.MaxResults,
             [CoachToolNames.GetSkillList] = SkillListTool.MaxResults,
-            [CoachToolNames.GetLearningResourceList] = LearningResourceListTool.MaxResults
+            [CoachToolNames.GetLearningResourceList] = LearningResourceListTool.MaxResults,
+            [CoachToolNames.GetVocabularyExampleSentences] = VocabularyExampleSentencesTool.MaxResults
         };
 
     /// <summary>

@@ -208,5 +208,8 @@ public enum CoachWriteEntityKind
     DailyPlan = 6,
 
     /// <summary>A feedback report filed as a GitHub issue.</summary>
-    FeedbackReport = 7
+    FeedbackReport = 7,
+
+    /// <summary>A row in <c>ExampleSentence</c>.</summary>
+    ExampleSentence = 8
 }

@@ -1292,6 +1292,7 @@ public class CoachResultScopeContractTests
         // above are embargoed out of it.
         var undue = fixture.SeedWord("사과", "apple", tags: "food");
         fixture.SeedProgress(user, undue.Id, nextReviewDate: fixture.Now.AddDays(30));
+        fixture.SeedExampleSentence(undue, "사과가 맛있어요.", "The apple is tasty.", isCore: true);
 
         // Every activity type the plan generator emits, appearing in the window. Six carry logged
         // work and seven do not, so the practice balance withholds for want of evidence and every
@@ -1352,7 +1353,8 @@ public class CoachResultScopeContractTests
             (CoachToolNames.GetCurrentProfileSummary, (await fixture.CurrentProfileSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetLearnerSettingsSummary, (await fixture.LearnerSettingsSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetCurrentPlanSummary, (await fixture.CurrentPlanSummaryTool.GetAsync()).Scope),
-            (CoachToolNames.GetPracticeHistorySummary, (await fixture.HistorySummaryTool.GetAsync()).Scope)
+            (CoachToolNames.GetPracticeHistorySummary, (await fixture.HistorySummaryTool.GetAsync()).Scope),
+            (CoachToolNames.GetVocabularyExampleSentences, (await fixture.VocabularyExampleSentencesTool.GetAsync(word)).Scope)
         ];
     }
 

@@ -39,6 +39,9 @@ public static class CoachWriteProjection
         CoachToolNames.ProposePreferenceChange => CoachWriteChangeKind.SettingChange,
         CoachToolNames.ProposeYouTubeImport => CoachWriteChangeKind.VideoImport,
         CoachToolNames.ProposeFeedback => CoachWriteChangeKind.FeedbackReport,
+        CoachToolNames.ProposeExampleSentenceEntry => CoachWriteChangeKind.ExampleSentenceAdd,
+        CoachToolNames.ProposeExampleSentenceEdit => CoachWriteChangeKind.ExampleSentenceEdit,
+        CoachToolNames.ProposeExampleSentenceRemoval => CoachWriteChangeKind.ExampleSentenceRemove,
         _ => CoachWriteChangeKind.Unknown
     };
 
@@ -73,6 +76,7 @@ public static class CoachWriteProjection
         CoachWriteEntityKind.UserProfile => CoachWriteTargetKind.LearnerSetting,
         CoachWriteEntityKind.DailyPlan => CoachWriteTargetKind.DailyPlan,
         CoachWriteEntityKind.FeedbackReport => CoachWriteTargetKind.FeedbackIssue,
+        CoachWriteEntityKind.ExampleSentence => CoachWriteTargetKind.ExampleSentence,
         _ => CoachWriteTargetKind.None
     };
 }

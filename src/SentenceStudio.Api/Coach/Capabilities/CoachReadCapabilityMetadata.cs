@@ -222,6 +222,15 @@ public static class CoachReadCapabilityMetadataTable
             MaxPageSize: null,
             Source: "SamTools/CurrentPlanSummaryTool.cs scope block"),
 
+        [CoachToolNames.GetVocabularyExampleSentences] = new(
+            CoachScopeCoverage.PageOfOwnedSet,
+            [CoachScopeOrder.Unordered],
+            Owner | CoachScopeFilters.SingleIdentifier | CoachScopeFilters.ExcludeDue,
+            CoachReadDateSupport.None,
+            CoachReadRangeSupport.ResultLimit,
+            MaxPageSize: VocabularyExampleSentencesTool.MaxResults,
+            Source: "SamTools/VocabularyExampleSentencesTool.cs MaxResults; ExcludeDue applied only when the word is due"),
+
         [CoachToolNames.GetPracticeHistorySummary] = new(
             CoachScopeCoverage.DerivedProjection,
             [CoachScopeOrder.NotApplicable],

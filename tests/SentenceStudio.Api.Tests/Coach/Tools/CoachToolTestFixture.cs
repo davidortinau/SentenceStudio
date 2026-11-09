@@ -189,6 +189,28 @@ internal sealed class CoachToolTestFixture : IDisposable
     public VocabularyProgressRepository VocabularyRepository =>
         _services.GetRequiredService<VocabularyProgressRepository>();
 
+    /// <summary>Seeds an example sentence on <paramref name="word"/>, recorded to <paramref name="owner"/>.</summary>
+    public ExampleSentence SeedExampleSentence(
+        VocabularyWord word, string target, string? native = null, string? owner = null, bool isCore = false,
+        int createdDaysAgo = 10)
+    {
+        var sentence = new ExampleSentence
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserProfileId = owner ?? word.UserProfileId,
+            VocabularyWordId = word.Id,
+            TargetSentence = target,
+            NativeSentence = native,
+            IsCore = isCore,
+            Status = ExampleSentenceStatus.Curated,
+            CreatedAt = Now.AddDays(-createdDaysAgo),
+            UpdatedAt = Now.AddDays(-createdDaysAgo)
+        };
+        Db.ExampleSentences.Add(sentence);
+        Db.SaveChanges();
+        return sentence;
+    }
+
     /// <summary>Puts <paramref name="word"/> on <paramref name="resource"/>.</summary>
     public void Link(LearningResource resource, VocabularyWord word)
     {
@@ -213,6 +235,9 @@ internal sealed class CoachToolTestFixture : IDisposable
 
     public SentenceStudio.Api.Coach.Tools.SamTools.VocabularySearchTool VocabularySearchTool =>
         new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularySearchTool>.Instance);
+
+    public SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool VocabularyExampleSentencesTool =>
+        new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool>.Instance);
 
     public SentenceStudio.Api.Coach.Tools.SamTools.VocabularyWordDetailTool VocabularyWordDetailTool =>
         new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularyWordDetailTool>.Instance);

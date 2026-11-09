@@ -128,7 +128,16 @@ public enum CoachWriteChangeKind
     VideoImport,
 
     /// <summary>File a bug report or feature request as a GitHub issue.</summary>
-    FeedbackReport
+    FeedbackReport,
+
+    /// <summary>Add an example sentence to a vocabulary word.</summary>
+    ExampleSentenceAdd,
+
+    /// <summary>Change an example sentence.</summary>
+    ExampleSentenceEdit,
+
+    /// <summary>Delete an example sentence.</summary>
+    ExampleSentenceRemove
 }
 
 /// <summary>
@@ -163,7 +172,10 @@ public enum CoachWriteTargetKind
     DailyPlan,
 
     /// <summary>A GitHub issue filed from a feedback report. The id is the issue number.</summary>
-    FeedbackIssue
+    FeedbackIssue,
+
+    /// <summary>An example sentence on a vocabulary word.</summary>
+    ExampleSentence
 }
 
 /// <summary>

@@ -118,7 +118,7 @@ public class CoachCapabilityManifestSnapshotTests
 
         // No read without metadata, and no metadata without a read.
         CoachReadCapabilityMetadataTable.All.Keys.Should().BeEquivalentTo(reads);
-        CoachReadCapabilityMetadataTable.All.Should().HaveCount(reads.Count).And.HaveCount(15);
+        CoachReadCapabilityMetadataTable.All.Should().HaveCount(reads.Count).And.HaveCount(16);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class CoachCapabilityManifestSnapshotTests
         var manifest = CapabilityFixtures.ShippedManifest();
         var reads = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.Read).ToList();
 
-        reads.Should().HaveCount(15);
+        reads.Should().HaveCount(16);
         reads.Should().OnlyContain(c => c.ReadMetadata != null);
     }
 
@@ -169,8 +169,8 @@ public class CoachCapabilityManifestSnapshotTests
         var external = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.ExternalEffect).ToList();
         var presentation = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.PresentationState).ToList();
 
-        reads.Should().HaveCount(15);
-        learnerData.Should().HaveCount(11, "eleven propose_* tools write learner data");
+        reads.Should().HaveCount(16);
+        learnerData.Should().HaveCount(14, "fourteen propose_* tools write learner data");
         external.Should().HaveCount(2, "the YouTube import and filing feedback on GitHub are the external effects");
         external.Select(c => c.Name).Should().BeEquivalentTo([CoachToolNames.ProposeYouTubeImport, CoachToolNames.ProposeFeedback]);
         presentation.Should().HaveCount(1, "the declared theme capability");

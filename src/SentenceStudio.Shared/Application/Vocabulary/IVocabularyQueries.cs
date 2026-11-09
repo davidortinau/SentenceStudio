@@ -69,6 +69,31 @@ public sealed record VocabularyCountFacts(
     public int DashboardTotal => New + Learning + Familiar + Review + Known;
 }
 
+/// <summary>One example sentence on a learner's word.</summary>
+public sealed record VocabularyExampleSentenceFacts(
+    string SentenceId,
+    string TargetSentence,
+    string? NativeSentence,
+    bool IsCore);
+
+/// <summary>
+/// A learner's word and its example sentences, or only their count when the word is due.
+/// </summary>
+/// <param name="WordId">The word.</param>
+/// <param name="TargetLanguageTerm">The word's term; null when the word is due for review.</param>
+/// <param name="IsDueForReview">
+/// True when the learner's review of this word is due. The sentences are then not selected at
+/// all, only counted: a due word's example sentences are part of the answer to that review.
+/// </param>
+/// <param name="TotalCount">How many example sentences the learner has on this word.</param>
+/// <param name="Sentences">The sentences, core first; empty when the word is due.</param>
+public sealed record VocabularyExampleSentencePage(
+    string WordId,
+    string? TargetLanguageTerm,
+    bool IsDueForReview,
+    int TotalCount,
+    IReadOnlyList<VocabularyExampleSentenceFacts> Sentences);
+
 /// <summary>A page of words, with the size of the set it was drawn from.</summary>
 /// <param name="MatchedCount">
 /// How many of the learner's tracked words matched, <em>before</em> the due embargo was applied.
@@ -154,5 +179,19 @@ public interface IVocabularyQueries
     Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(
         string userProfileId,
         string wordId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the example sentences on one of the learner's own words (recorded to them, the one
+    /// ownership rule), practised or not, at most <paramref name="maxResults"/>, core first. When
+    /// the word is due for review at <paramref name="asOfUtc"/> the sentences are counted but not
+    /// returned. Returns <c>null</c> when the word is not the learner's, and for an empty
+    /// identifier.
+    /// </summary>
+    Task<VocabularyExampleSentencePage?> GetWordExampleSentencesAsync(
+        string userProfileId,
+        string wordId,
+        int maxResults,
+        DateTime asOfUtc,
         CancellationToken cancellationToken = default);
 }

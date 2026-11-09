@@ -63,22 +63,37 @@ public static class CoachHelpCatalog
                     "문법, 단어, 표현을 설명하고, 직접 쓴 문장을 고쳐 드려요.").For(ko)));
 
         // 2. Saved vocabulary.
+        // Example sentences belong to words, so they are listed with them rather than as a
+        // group of their own (the answer is held to eight parts).
         if (Any(CoachToolNames.ListUserVocabularies, CoachToolNames.GetVocabularyWordDetail,
                 CoachToolNames.GetVocabularyDueSummary, CoachToolNames.ProposeVocabularyEntry,
                 CoachToolNames.ProposeVocabularyEdit, CoachToolNames.ProposeVocabularyLink,
-                CoachToolNames.ProposeVocabularyRemoval))
+                CoachToolNames.ProposeVocabularyRemoval, CoachToolNames.GetVocabularyExampleSentences,
+                CoachToolNames.ProposeExampleSentenceEntry, CoachToolNames.ProposeExampleSentenceEdit,
+                CoachToolNames.ProposeExampleSentenceRemoval))
         {
             var canWrite = Any(CoachToolNames.ProposeVocabularyEntry, CoachToolNames.ProposeVocabularyEdit,
                 CoachToolNames.ProposeVocabularyLink, CoachToolNames.ProposeVocabularyRemoval);
-            items.Add(new HelpItem(
-                new Copy("Your vocabulary", "내 어휘").For(ko),
-                canWrite
-                    ? new Copy(
-                        "Find your saved words and what is due for review, and add, edit or remove words once you approve.",
-                        "저장한 단어와 복습할 단어를 찾아 드리고, 승인하시면 단어를 추가, 수정, 삭제해 드려요.").For(ko)
-                    : new Copy(
-                        "Find your saved words and tell you how many are due for review.",
-                        "저장한 단어를 찾아 드리고 복습할 단어가 몇 개인지 알려 드려요.").For(ko)));
+            var sentencesRead = Any(CoachToolNames.GetVocabularyExampleSentences);
+            var sentencesWrite = Any(CoachToolNames.ProposeExampleSentenceEntry,
+                CoachToolNames.ProposeExampleSentenceEdit, CoachToolNames.ProposeExampleSentenceRemoval);
+            // Never promise more than is enabled: the full wording needs both write families.
+            var body = (canWrite && sentencesWrite, canWrite, sentencesRead) switch
+            {
+                (true, _, _) => new Copy(
+                    "Count and find your saved words and their example sentences, and add, edit or remove words and example sentences once you approve.",
+                    "저장한 단어와 예문을 세고 찾아 드리고, 승인하시면 단어와 예문을 추가, 수정, 삭제해 드려요."),
+                (false, true, _) => new Copy(
+                    "Count and find your saved words and what is due for review, and add, edit or remove words once you approve.",
+                    "저장한 단어와 복습할 단어를 세고 찾아 드리고, 승인하시면 단어를 추가, 수정, 삭제해 드려요."),
+                (false, false, true) => new Copy(
+                    "Count and find your saved words and show their example sentences.",
+                    "저장한 단어를 세고 찾아 드리고 예문을 보여 드려요."),
+                _ => new Copy(
+                    "Find your saved words and tell you how many are due for review.",
+                    "저장한 단어를 찾아 드리고 복습할 단어가 몇 개인지 알려 드려요.")
+            };
+            items.Add(new HelpItem(new Copy("Your vocabulary", "내 어휘").For(ko), body.For(ko)));
         }
 
         // 3. Learning resources, including YouTube import.
