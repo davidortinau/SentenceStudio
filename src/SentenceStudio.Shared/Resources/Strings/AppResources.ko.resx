@@ -9638,4 +9638,13 @@
   <data name="Coach_WriteKindFeedbackReport" xml:space="preserve">
     <value>GitHub에 피드백 올리기</value>
   </data>
+  <data name="Coach_WriteKindExampleSentenceAdd" xml:space="preserve">
+    <value>예문 추가</value>
+  </data>
+  <data name="Coach_WriteKindExampleSentenceEdit" xml:space="preserve">
+    <value>예문 수정</value>
+  </data>
+  <data name="Coach_WriteKindExampleSentenceRemove" xml:space="preserve">
+    <value>예문 삭제</value>
+  </data>
 </root>

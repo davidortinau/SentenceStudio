@@ -19,7 +19,11 @@ learner must approve; nothing is saved before that.
 
 ## Answer: does Sam's word count match the dashboard?
 
-**No. Sam and the dashboard count different sets of words, so they will usually give different
+**Update (branch `sam-general-assistant`, 2026-11-08): fixed.** `get_current_profile_summary` now
+returns `TotalWordCount`, the dashboard's own total, plus the five tile counts and the Vocabulary
+screen total; the table below describes the behaviour before the fix.
+
+**Before: no. Sam and the dashboard count different sets of words, so they will usually give different
 numbers.** There are three counts in the app today:
 
 | Where | Number shown | What it counts | Code |
@@ -58,10 +62,10 @@ What this means in practice:
 | Delete a word | `UI/VocabularyWordEdit.razor` (RequestDelete); native edit views | Full: `propose_vocabulary_removal` (registry 412) | Falls back to unlinking when the word is shared or used by Minimal Pairs answers (`CoachVocabularyHandlers.cs:600-650`). |
 | Add an existing word to another resource | `UI/ResourceEdit.razor` (AddExistingVocabularyAsync); `iOS/LearningResources/LearningResourceVocabularyView.cs` | Full: `propose_vocabulary_link` (registry 397) | |
 | Remove a word from one resource (keep the word) | `UI/ResourceEdit.razor` (RemoveVocabularyWordAsync) | None | Removal deletes the word or unlinks it from every resource; no single-resource unlink. |
-| Find / search a word | `UI/Vocabulary.razor` search box; `src/SentenceStudio.Native/Features/Vocabulary/VocabularyFilterState.cs` | Partial: `list_user_vocabularies` (registry 225), `get_vocabulary_word_detail` (240) | Search hides due words (policy 9.3) and never-practised words (no progress row). Matches terms and lemma only, not tags. Max 25 rows. Detail needs a named word. |
-| Filter by tag, resource, status, type | `UI/Vocabulary.razor:767-769`, `:206-209`; native `VocabularyFilterState.cs` | None | No filter arguments on `list_user_vocabularies`. |
+| Find / search a word | `UI/Vocabulary.razor` search box; `src/SentenceStudio.Native/Features/Vocabulary/VocabularyFilterState.cs` | Full: `list_user_vocabularies`, `get_vocabulary_word_detail` | Closed on branch `sam-general-assistant` (gap 3): the model-facing search includes never-practised words (`includeNeverPracticed`, default true) through `SearchOwnedWordsAsync`. Due words stay hidden (policy 9.3) and are reported as a withheld count. Max 25 rows. Detail still needs a progress row. |
+| Filter by tag, resource, status, type | `UI/Vocabulary.razor:767-769`, `:206-209`; native `VocabularyFilterState.cs` | Partial: `list_user_vocabularies` `tag`, `resourceId`, `status` | Closed on `sam-general-assistant` (gap 3) for tag (whole tag, case ignored), one owned resource, and the dashboard statuses (new, learning, familiar, review, known; review returns a count only). No word-type (word/phrase/sentence) filter yet. |
 | Sort by added / updated | `UI/Vocabulary.razor:58-66` | None | Sam's list is mastery order only. |
-| Count words (total, by status) | `UI/Vocabulary.razor:52-56`; dashboard | Partial: `get_current_profile_summary`, `get_vocabulary_due_summary` (registry 303, 173) | Different population from both screens; see the answer above. |
+| Count words (total, by status) | `UI/Vocabulary.razor:52-56`; dashboard | Full: `get_current_profile_summary` | Closed on `sam-general-assistant` (gap 1): `TotalWordCount` is the dashboard total and the five tile counts come from `GetVocabSummaryCountsAsync` itself; `VocabularyScreenWordCount` is the Vocabulary screen total. Filtered counts come from the search's matched count. |
 | Bulk set status / language / add tags / delete | `UI/Vocabulary.razor:85-130`; `iOS/Vocabulary/VocabularyListView.cs:166` | None | One word per proposal; no status or language write at all. |
 | Mark a word known / familiar (set status) | `UI/VocabularyWordEdit.razor`, Vocabulary bulk status | None | |
 | Find and merge duplicates | `UI/Vocabulary.razor` (FindDuplicates, MergeDuplicateGroup); `iOS/Vocabulary/VocabularyDuplicatesView.cs`; `And/AndroidSliceShell.VocabularyDuplicates.Compose.cs` | None | |
@@ -73,10 +77,10 @@ What this means in practice:
 
 | Action | Where in app | Sam today | Notes/gap |
 |---|---|---|---|
-| View a word's example sentences | `src/SentenceStudio.UI/Components/ReferenceSentencesSection.razor`; read-only on native (`iOS/Vocabulary/VocabularyWordEditView.cs:82`, `And/AndroidSliceShell.Vocabulary.Compose.cs:585`) | None | `get_vocabulary_word_detail` "returns no example sentences" (registry 247). |
-| Add an example sentence by hand | `ReferenceSentencesSection.razor:32-51` (web/MAUI only) | None | The Captain's named example. Sam can write sentences in chat but cannot save them. |
-| Generate example sentences (AI), keep or discard | `ReferenceSentencesSection.razor:14`, `:71-75` | None | |
-| Edit or delete an example sentence | `ReferenceSentencesSection.razor:99-115` | None | |
+| View a word's example sentences | `src/SentenceStudio.UI/Components/ReferenceSentencesSection.razor`; read-only on native (`iOS/Vocabulary/VocabularyWordEditView.cs:82`, `And/AndroidSliceShell.Vocabulary.Compose.cs:585`) | Full: `get_vocabulary_example_sentences` | Closed on `sam-general-assistant` (gap 2). Owner-scoped word and sentences, practised or not, at most 20. A due word's sentences are counted and withheld, never selected. |
+| Add an example sentence by hand | `ReferenceSentencesSection.razor:32-51` (web/MAUI only) | Full: `propose_example_sentence_entry` | Closed on `sam-general-assistant` (gap 2). Approve-first; undo deletes it. Saved Curated; the first sentence on a word becomes its main one. At most 380 characters so the card never cuts it. |
+| Generate example sentences (AI), keep or discard | `ReferenceSentencesSection.razor:14`, `:71-75` | Partial: Sam writes one in chat and proposes it with `propose_example_sentence_entry` | One sentence per proposal; no batch of suggestions to keep or discard. |
+| Edit or delete an example sentence | `ReferenceSentencesSection.razor:99-115` | Full: `propose_example_sentence_edit`, `propose_example_sentence_removal` | Closed on `sam-general-assistant` (gap 2). Edit is soft with undo; delete is confirmed and irreversible. Both refuse a due word's sentence, whose card would show it. No 'make main example' tool. |
 | Harvest example sentences from resources | `UI/Settings.razor:151`, `:412` | None | |
 
 ## Lookups and "How do you say"
@@ -192,6 +196,9 @@ What this means in practice:
 | Preview / AI-polish the report before sending | `UI/Feedback.razor` (PreviewFeedback) | Partial | Sam's proposal card is the preview; no separate polish step. |
 
 ## Suggested order
+
+Items 1 to 3 are done on branch `sam-general-assistant` (2026-11-08), along with step 4 of
+`docs/coach/sam-single-runtime.md` (the general reply kind and plan-free turn context).
 
 A suggestion for the Captain to rank, by likely value against effort:
 

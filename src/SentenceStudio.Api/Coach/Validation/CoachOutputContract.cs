@@ -81,6 +81,7 @@ public static class CoachOutputContract
             [typeof(CurrentProfileSummary)] = CoachEmbargoScope.ToolResult,
             [typeof(LearnerSettingsSummary)] = CoachEmbargoScope.ToolResult,
             [typeof(CurrentPlanSummary)] = CoachEmbargoScope.ToolResult,
+            [typeof(VocabularyExampleSentencesResult)] = CoachEmbargoScope.ToolResult,
 
             // Sam write tools. Every proposal comes back in this one shape, so the review that
             // approved it covers all twelve. It carries a summary and detail lines the learner is

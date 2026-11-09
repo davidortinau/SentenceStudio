@@ -39,7 +39,8 @@ internal sealed class FixtureToolServiceProvider : IServiceProvider
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.LearningResourceDetailTool)] = () => fixture.LearningResourceDetailTool,
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentProfileSummaryTool)] = () => fixture.CurrentProfileSummaryTool,
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.LearnerSettingsSummaryTool)] = () => fixture.LearnerSettingsSummaryTool,
-            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentPlanSummaryTool)] = () => fixture.CurrentPlanSummaryTool
+            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentPlanSummaryTool)] = () => fixture.CurrentPlanSummaryTool,
+            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool)] = () => fixture.VocabularyExampleSentencesTool
         };
     }
 
@@ -1057,6 +1058,7 @@ public sealed class CoachToolObservationSeamTests : IDisposable
                 arguments["window"] = CoachPracticeWindow.SevenDays;
                 break;
             case CoachToolNames.GetVocabularyWordDetail:
+            case CoachToolNames.GetVocabularyExampleSentences:
                 arguments["wordId"] = "sweep-word";
                 break;
             case CoachToolNames.GetSkillDetail:

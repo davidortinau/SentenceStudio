@@ -71,7 +71,7 @@ public sealed record VocabularyDueSummary(
     [property: Description("The words that are due for review now.")] int DueNowCount,
     [property: Description("The words that become due in the next seven days.")] int DueThisWeekCount,
     [property: Description("The words the learner never practiced.")] int NeverPracticedCount,
-    [property: Description("All words the app tracks for the learner.")] int TrackedWordCount,
+    [property: Description("Words that have a practice record. Not the dashboard word total; get_current_profile_summary has that.")] int TrackedWordCount,
     [property: Description("The number of words in each mastery band.")] IReadOnlyList<VocabularyBandCount> Bands,
     [property: Description("The share of graded attempts that were wrong. The range is 0 to 1.")] double LapseRate,
     [property: Description("The mean mastery score of the tracked words. The range is 0 to 1.")] double AverageMasteryScore,

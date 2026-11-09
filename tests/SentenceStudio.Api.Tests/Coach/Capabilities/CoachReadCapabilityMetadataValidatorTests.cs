@@ -78,7 +78,8 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
             [CoachToolNames.GetVocabularyDueSummary] = VocabularyDueSummaryTool.MaxTagCount,
             [CoachToolNames.ListUserVocabularies] = VocabularySearchTool.MaxResults,
             [CoachToolNames.GetSkillList] = SkillListTool.MaxResults,
-            [CoachToolNames.GetLearningResourceList] = LearningResourceListTool.MaxResults
+            [CoachToolNames.GetLearningResourceList] = LearningResourceListTool.MaxResults,
+            [CoachToolNames.GetVocabularyExampleSentences] = VocabularyExampleSentencesTool.MaxResults
         };
 
         CoachReadCapabilityMetadataValidator.DeclaredCeilings
@@ -91,7 +92,7 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
             compared++;
         }
 
-        compared.Should().Be(5, "there are exactly five bounded reads; a sweep of four proves less");
+        compared.Should().Be(6, "there are exactly six bounded reads; a sweep of five proves less");
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
 
         var declarations = Regex.Matches(source, @"MaxPageSize:\s*(?<value>[^,\r\n]+)");
         declarations.Count.Should().Be(
-            15, "every row in the table states a page size, present or absent");
+            16, "every row in the table states a page size, present or absent");
 
         var cited = 0;
         var absent = 0;
@@ -124,7 +125,7 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
             cited++;
         }
 
-        cited.Should().Be(5);
+        cited.Should().Be(6);
         absent.Should().Be(10);
     }
 

@@ -57,6 +57,7 @@ public static class CoachActionIntent
         // Answering, not acting.
         CoachIntentKind.NoChange => false,
         CoachIntentKind.PedagogicalAnswer => false,
+        CoachIntentKind.GeneralAnswer => false,
         CoachIntentKind.AskClarification => false,
         CoachIntentKind.OffTopic => false,
 

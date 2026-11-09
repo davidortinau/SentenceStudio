@@ -185,6 +185,44 @@ internal sealed class CoachToolTestFixture : IDisposable
     private IVocabularyQueries Vocabulary => _services.GetRequiredService<IVocabularyQueries>();
     public IPracticeHistoryQueries History => _services.GetRequiredService<IPracticeHistoryQueries>();
 
+    /// <summary>The repository the dashboard reads its word counts from.</summary>
+    public VocabularyProgressRepository VocabularyRepository =>
+        _services.GetRequiredService<VocabularyProgressRepository>();
+
+    /// <summary>Seeds an example sentence on <paramref name="word"/>, recorded to <paramref name="owner"/>.</summary>
+    public ExampleSentence SeedExampleSentence(
+        VocabularyWord word, string target, string? native = null, string? owner = null, bool isCore = false,
+        int createdDaysAgo = 10)
+    {
+        var sentence = new ExampleSentence
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserProfileId = owner ?? word.UserProfileId,
+            VocabularyWordId = word.Id,
+            TargetSentence = target,
+            NativeSentence = native,
+            IsCore = isCore,
+            Status = ExampleSentenceStatus.Curated,
+            CreatedAt = Now.AddDays(-createdDaysAgo),
+            UpdatedAt = Now.AddDays(-createdDaysAgo)
+        };
+        Db.ExampleSentences.Add(sentence);
+        Db.SaveChanges();
+        return sentence;
+    }
+
+    /// <summary>Puts <paramref name="word"/> on <paramref name="resource"/>.</summary>
+    public void Link(LearningResource resource, VocabularyWord word)
+    {
+        Db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = resource.Id,
+            VocabularyWordId = word.Id
+        });
+        Db.SaveChanges();
+    }
+
     public LearnerProfileSummaryTool ProfileTool => new(Scope, Profiles, Dates);
     public PracticeBalanceTool BalanceTool => new(Scope, History, Dates);
     public VocabularyDueSummaryTool VocabularyTool => new(Scope, Vocabulary, Dates);
@@ -197,6 +235,9 @@ internal sealed class CoachToolTestFixture : IDisposable
 
     public SentenceStudio.Api.Coach.Tools.SamTools.VocabularySearchTool VocabularySearchTool =>
         new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularySearchTool>.Instance);
+
+    public SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool VocabularyExampleSentencesTool =>
+        new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool>.Instance);
 
     public SentenceStudio.Api.Coach.Tools.SamTools.VocabularyWordDetailTool VocabularyWordDetailTool =>
         new(Scope, Vocabulary, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.VocabularyWordDetailTool>.Instance);

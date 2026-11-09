@@ -47,7 +47,7 @@ public class CoachUndefinedIntentKindTests
 
     [Theory]
     [InlineData(-1)]
-    [InlineData(8)]
+    [InlineData(9)]
     [InlineData(99)]
     [InlineData(int.MaxValue)]
     public void EveryUndefinedKind_IsRefused(int raw)
@@ -132,6 +132,7 @@ public class CoachUndefinedIntentKindTests
     [InlineData(CoachIntentKind.AcceptPendingSuggestion, false)]
     [InlineData(CoachIntentKind.RejectPendingSuggestion, false)]
     [InlineData(CoachIntentKind.PedagogicalAnswer, false)]
+    [InlineData(CoachIntentKind.GeneralAnswer, true)]
     public void EveryDefinedKind_MapsToItsReducerBranch(CoachIntentKind kind, bool surfacesModelProse)
     {
         // One row per declared kind, so adding a kind without deciding this fails here.

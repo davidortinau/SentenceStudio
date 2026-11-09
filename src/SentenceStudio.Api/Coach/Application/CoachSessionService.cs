@@ -910,9 +910,10 @@ public sealed class CoachSessionService : ICoachSessionService
                     "[Coach] Session {SessionId}: repaired the answer shape. Kind={IntentKind} "
                     + "DroppedEmptySpans={DroppedEmptySpans} DroppedEmptyBlocks={DroppedEmptyBlocks} "
                     + "FoldedBlocks={FoldedBlocks} DroppedEmptyAnswer={DroppedEmptyAnswer} "
-                    + "AnswerFromMessage={AnswerFromMessage}",
+                    + "AnswerFromMessage={AnswerFromMessage} GeneralAnswerWithParts={GeneralAnswerWithParts}",
                     session.Id, modelIntent.Kind, repair.DroppedEmptySpans, repair.DroppedEmptyBlocks,
-                    repair.FoldedBlocks, repair.DroppedEmptyAnswer, repair.AnswerFromMessage);
+                    repair.FoldedBlocks, repair.DroppedEmptyAnswer, repair.AnswerFromMessage,
+                    repair.GeneralAnswerWithParts);
             }
 
             var effectiveIntent = NormalizeExplicitVocabularyReview(request, modelIntent);
@@ -1842,6 +1843,11 @@ public sealed class CoachSessionService : ICoachSessionService
                 LearnerText = LearnerTextFor(request),
                 MemoryBlock = memoryBlock,
                 ActiveConstraints = constraints,
+                // Plan state only when the learner's message is about the plan or a suggestion
+                // waits for an answer; see CoachAgentTurnRequest.IncludePlanContext.
+                IncludePlanContext = !string.IsNullOrWhiteSpace(session.PendingSuggestionId)
+                    || _writeAuthority.ClassifyPlanRouting(LearnerTextFor(request))
+                        != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference,
                 PendingSuggestionId = session.PendingSuggestionId,
                 PendingSuggestionDelta = pendingDelta,
                 ClarificationsRemaining =
@@ -1998,7 +2004,8 @@ public sealed class CoachSessionService : ICoachSessionService
                 CoachIntentKind.PedagogicalAnswer =>
                     await ReduceAnswerAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
-                // NoChange and OffTopic never write.
+                // NoChange, GeneralAnswer and OffTopic never write. Their CoachMessage is shown as
+                // written, after the leak scan in SurfacedModelText.
                 _ => CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                     userProfileId, session, plan,
                     CoachTurnStatus.Completed, CoachStopReason.Completed,
@@ -2411,7 +2418,7 @@ public sealed class CoachSessionService : ICoachSessionService
     /// deterministic receipts built from the validated delta, <c>ReduceSuggestionAsync</c>
     /// surfaces deterministic rationale, <c>RejectPendingCoreAsync</c> surfaces an
     /// application-owned literal, and <c>ReduceAnswerAsync</c> surfaces its validated blocks.
-    /// NoChange and OffTopic reach the default reducer branch, which shows <c>CoachMessage</c>
+    /// NoChange, GeneralAnswer and OffTopic reach the default reducer branch, which shows <c>CoachMessage</c>
     /// verbatim, and AskClarification shows <c>ClarifyingQuestion</c> verbatim.
     /// </para>
     /// </remarks>

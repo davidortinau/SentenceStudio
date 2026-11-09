@@ -60,6 +60,11 @@ public sealed class CurrentProfileSummaryTool : CoachToolBase
 
             var wordCount = await _vocabulary.CountTrackedWordsAsync(userId, ct);
 
+            // The learner reads their word total off the dashboard, so that is the number Sam
+            // must say (docs/coach/sam-capability-gap.md, gap 1). It comes from the dashboard's own
+            // query rather than a restatement of it.
+            var counts = await _vocabulary.GetVocabularyCountsAsync(userId, ct);
+
             // Archived skills are excluded here for the same reason they are excluded from every
             // list the learner practises from: a count that includes them describes a shelf the
             // learner cannot see. The model reads this number and says it out loud, so a count
@@ -80,6 +85,13 @@ public sealed class CurrentProfileSummaryTool : CoachToolBase
                     ? null : SanitizeMetadata(profile.TargetCefrLevel, 20),
                 DaysSinceStart: daysSince,
                 TrackedWordCount: wordCount,
+                TotalWordCount: counts.DashboardTotal,
+                NewWordCount: counts.New,
+                LearningWordCount: counts.Learning,
+                FamiliarWordCount: counts.Familiar,
+                ReviewWordCount: counts.Review,
+                KnownWordCount: counts.Known,
+                VocabularyScreenWordCount: counts.AllOwned,
                 SkillCount: skillCount,
                 ResourceCount: resourceCount,
                 Scope: new CoachResultScope
@@ -87,10 +99,11 @@ public sealed class CurrentProfileSummaryTool : CoachToolBase
                     Coverage = CoachScopeCoverage.SettingsSnapshot,
                     Order = CoachScopeOrder.NotApplicable,
                     OrderHonored = true,
-                    // Three populations are counted here, and the flags name every predicate that
-                    // shaped any of them: the skill count leaves out the archive, and the word
-                    // count only sees words the learner has a progress record for. A caller told
-                    // only about ownership would read three plain totals.
+                    // Several populations are counted here, and the flags name every predicate
+                    // that shaped any of them: the skill count leaves out the archive, and the
+                    // tracked word count only sees words the learner has a progress record for.
+                    // The dashboard counts need neither, and each member's description says which
+                    // screen it matches. A caller told only about ownership would read plain totals.
                     Filters = CoachScopeFilters.OwnerScoped
                         | CoachScopeFilters.ExcludeArchived
                         | CoachScopeFilters.ProgressRowExists,

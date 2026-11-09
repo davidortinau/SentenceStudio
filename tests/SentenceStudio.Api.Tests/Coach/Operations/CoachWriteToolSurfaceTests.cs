@@ -49,7 +49,10 @@ public class CoachWriteToolSurfaceTests
         { CoachToolNames.ProposeResourceEdit, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeResourceRemoval, CoachToolRiskClass.WriteHard },
         { CoachToolNames.ProposePreferenceChange, CoachToolRiskClass.WriteHard },
-        { CoachToolNames.ProposeYouTubeImport, CoachToolRiskClass.WriteHard }
+        { CoachToolNames.ProposeYouTubeImport, CoachToolRiskClass.WriteHard },
+        { CoachToolNames.ProposeExampleSentenceEntry, CoachToolRiskClass.WriteSoft },
+        { CoachToolNames.ProposeExampleSentenceEdit, CoachToolRiskClass.WriteSoft },
+        { CoachToolNames.ProposeExampleSentenceRemoval, CoachToolRiskClass.WriteHard }
     };
 
     /// <summary>
@@ -75,7 +78,10 @@ public class CoachWriteToolSurfaceTests
         { CoachToolNames.ProposeResourceEdit, CoachWriteUndoKind.RestoreFields },
         { CoachToolNames.ProposeResourceRemoval, CoachWriteUndoKind.None },
         { CoachToolNames.ProposePreferenceChange, CoachWriteUndoKind.RestoreFields },
-        { CoachToolNames.ProposeYouTubeImport, CoachWriteUndoKind.None }
+        { CoachToolNames.ProposeYouTubeImport, CoachWriteUndoKind.None },
+        { CoachToolNames.ProposeExampleSentenceEntry, CoachWriteUndoKind.DeleteCreatedEntity },
+        { CoachToolNames.ProposeExampleSentenceEdit, CoachWriteUndoKind.RestoreFields },
+        { CoachToolNames.ProposeExampleSentenceRemoval, CoachWriteUndoKind.None }
     };
 
     [Theory]
@@ -125,7 +131,8 @@ public class CoachWriteToolSurfaceTests
         var deletions = new[]
         {
             CoachToolNames.ProposeVocabularyRemoval,
-            CoachToolNames.ProposeResourceRemoval
+            CoachToolNames.ProposeResourceRemoval,
+            CoachToolNames.ProposeExampleSentenceRemoval
         };
 
         foreach (var toolName in deletions)

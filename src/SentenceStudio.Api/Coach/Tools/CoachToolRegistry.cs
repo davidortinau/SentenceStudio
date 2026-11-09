@@ -338,6 +338,19 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
                 + "caller may rely on. Counts are plan items. It returns no item text — an activity type is a "
                 + "closed category, and the plan's strategy label is bounded plan metadata."
         });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetVocabularyExampleSentences,
+            ResultType = typeof(VocabularyExampleSentencesResult),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools"],
+            Description = "Reads the example sentences on one vocabulary word the learner owns, named by the caller, "
+                + "main example first, each with its identifier for the propose_ example sentence tools. Works "
+                + "for words never practised. When the word is due for review its sentences are hidden: the "
+                + "answer says so and counts them as withheld, and you must not guess them."
+        });
     }
 
     /// <summary>
@@ -556,6 +569,51 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
             Description = "Proposes filing the learner's bug report or feature request about this app as a public GitHub issue, with the screen they were on attached by the app. Use it when the learner asks to log, report, or file a bug, problem, or request. Nothing is sent until the learner confirms."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposeExampleSentenceEntry,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteSoft,
+            EffectClass = CoachCapabilityEffectClass.LearnerData,
+            Reversal = CoachCapabilityReversal.LedgerUndo,
+            Confirmation = CoachCapabilityConfirmation.Accept,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.Semantic,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes adding an example sentence to one of the learner's vocabulary words. Use the sentence the learner gave, or one you wrote when they asked you to write one. Nothing is saved until the learner accepts the proposal."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposeExampleSentenceEdit,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteSoft,
+            EffectClass = CoachCapabilityEffectClass.LearnerData,
+            Reversal = CoachCapabilityReversal.LedgerUndo,
+            Confirmation = CoachCapabilityConfirmation.Accept,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.Semantic,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes changing one of the learner's example sentences, named by the identifier get_vocabulary_example_sentences returned. Nothing is saved until the learner accepts the proposal."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposeExampleSentenceRemoval,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteHard,
+            EffectClass = CoachCapabilityEffectClass.LearnerData,
+            Reversal = CoachCapabilityReversal.None,
+            Confirmation = CoachCapabilityConfirmation.Confirm,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.Semantic,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes deleting one of the learner's example sentences, named by the identifier get_vocabulary_example_sentences returned. It cannot be undone, so the learner must confirm. Nothing is deleted until they do."
         });
     }
 }

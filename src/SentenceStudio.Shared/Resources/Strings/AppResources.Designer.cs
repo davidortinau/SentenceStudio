@@ -4801,6 +4801,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Add an example sentence.
+        /// </summary>
+        internal static string Coach_WriteKindExampleSentenceAdd {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindExampleSentenceAdd", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit an example sentence.
+        /// </summary>
+        internal static string Coach_WriteKindExampleSentenceEdit {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindExampleSentenceEdit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete an example sentence.
+        /// </summary>
+        internal static string Coach_WriteKindExampleSentenceRemove {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindExampleSentenceRemove", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to File feedback on GitHub.
         /// </summary>
         internal static string Coach_WriteKindFeedbackReport {

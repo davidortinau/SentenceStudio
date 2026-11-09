@@ -281,6 +281,14 @@ public sealed class CoachIntentValidator
                 Require(!hasDelta, "delta_forbidden", $"{intent.Kind} must carry no constraint change.");
                 break;
 
+            case CoachIntentKind.GeneralAnswer:
+                Require(!string.IsNullOrWhiteSpace(intent.CoachMessage),
+                    "message_required", "A general answer must say something.");
+                Require(!hasDelta, "delta_forbidden", "A general answer must carry no constraint change.");
+                Require(string.IsNullOrWhiteSpace(intent.ClarifyingQuestion),
+                    "question_forbidden", "A general answer must not also ask a clarifying question.");
+                break;
+
             case CoachIntentKind.PedagogicalAnswer:
                 Require(intent.PedagogicalAnswer is not null,
                     "answer_required", "A pedagogical answer must carry an answer.");

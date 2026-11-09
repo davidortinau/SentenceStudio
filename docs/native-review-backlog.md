@@ -190,3 +190,21 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   other Sam write handlers. Localize write-card text as one change (Korean included).
 - Web/MAUI capture a screen snapshot (JS interop, 250 ms budget) for every typed Sam message,
   though only feedback uses it. Consider capturing without blocking the request.
+
+## Sam as app assistant (branch `sam-general-assistant`, 2026-11-08 review, deferred)
+
+- `IncludePlanContext` (`CoachSessionService`, turn request) is decided from the current message
+  and the open suggestion only. A plan follow-up that does not name the plan ("20 minutes" after
+  Sam asked how long) gets no plan constraints in its context. This does not change any outcome:
+  a plan write from text is already refused unless the same message names the plan
+  (`ClassifyPlanRouting`, `ReducePlanPolicyMismatchAsync`). If live testing shows Sam needs the
+  constraints for such follow-ups, carry a "last turn was about the plan" fact on the session.
+- `list_user_vocabularies` with a `status` filter classifies term-free rows in memory, because
+  `VocabularyProgress.IsKnown` has no SQL form; the dashboard's own count does the same. Every
+  other filter combination counts and pages in the database.
+- The text query in `SearchUndueWordsAsync` and `SearchOwnedWordsAsync` passes `%` and `_` in the
+  learner's words to `LIKE` unescaped (pre-existing; the new tag filter is escaped).
+- Example-sentence card text (`CoachExampleSentenceHandlers`) is English only, like the other Sam
+  write handlers; localize write-card text as one change.
+- `get_vocabulary_example_sentences` reuses scope definition `TrackedVocabularyDetail`; a code of
+  its own would need a client evidence wire change and en/ko strings.

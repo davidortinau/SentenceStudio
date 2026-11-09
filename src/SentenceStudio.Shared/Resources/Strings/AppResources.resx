@@ -10298,4 +10298,16 @@ For example: {0} ...</value>
     <value>File feedback on GitHub</value>
     <comment>Sam write: heading for a proposal that files a bug report or feature request as a public GitHub issue</comment>
   </data>
+  <data name="Coach_WriteKindExampleSentenceAdd" xml:space="preserve">
+    <value>Add an example sentence</value>
+    <comment>Sam write: heading for a proposal that adds an example sentence to a vocabulary word</comment>
+  </data>
+  <data name="Coach_WriteKindExampleSentenceEdit" xml:space="preserve">
+    <value>Edit an example sentence</value>
+    <comment>Sam write: heading for a proposal that changes an example sentence</comment>
+  </data>
+  <data name="Coach_WriteKindExampleSentenceRemove" xml:space="preserve">
+    <value>Delete an example sentence</value>
+    <comment>Sam write: heading for a proposal that deletes an example sentence</comment>
+  </data>
 </root>

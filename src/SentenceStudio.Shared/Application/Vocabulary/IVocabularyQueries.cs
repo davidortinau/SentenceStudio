@@ -20,6 +20,10 @@ public sealed record VocabularyProgressFacts(
     DateTime? NextReviewDate);
 
 /// <summary>One word the learner is tracking, as much of it as a list needs.</summary>
+/// <param name="HasProgress">
+/// False for a word the learner owns but has never practised or marked (no progress record):
+/// its mastery and last-practised values are then not facts, only defaults.
+/// </param>
 public sealed record VocabularyWordSummary(
     string WordId,
     string? TargetLanguageTerm,
@@ -29,7 +33,44 @@ public sealed record VocabularyWordSummary(
     string? Tags,
     float MasteryScore,
     DateTime? LastPracticedAt,
-    bool IsUserDeclared);
+    bool IsUserDeclared,
+    bool HasProgress = true);
+
+/// <summary>A learning status as the dashboard tiles name them.</summary>
+public enum VocabularySearchStatus
+{
+    /// <summary>Never practised: no progress record, or one with no attempts.</summary>
+    New,
+
+    /// <summary>Practised, not known, not due.</summary>
+    Learning,
+
+    /// <summary>Marked familiar by the learner and not yet confirmed by practice.</summary>
+    Familiar,
+
+    /// <summary>Due for review now. Always withheld from a list; only counted.</summary>
+    Review,
+
+    /// <summary>Known.</summary>
+    Known
+}
+
+/// <summary>What narrows a vocabulary search. Every member is optional.</summary>
+/// <param name="Query">A substring of the target term, the native term, or the lemma.</param>
+/// <param name="Tag">One tag the word carries, matched whole and ignoring case.</param>
+/// <param name="ResourceId">One of the learner's own resources the word is on.</param>
+/// <param name="Status">One learning status.</param>
+/// <param name="IncludeNeverPracticed">Also include words with no progress record.</param>
+public sealed record VocabularySearchFilter(
+    string? Query = null,
+    string? Tag = null,
+    string? ResourceId = null,
+    VocabularySearchStatus? Status = null,
+    bool IncludeNeverPracticed = false)
+{
+    /// <summary>True when only a text query (or nothing) narrows the search, the original shape.</summary>
+    public bool IsQueryOnly => Tag is null && ResourceId is null && Status is null && !IncludeNeverPracticed;
+}
 
 /// <summary>One word the learner is tracking, with the attempt history a detail view needs.</summary>
 public sealed record VocabularyWordDetailFacts(
@@ -44,6 +85,55 @@ public sealed record VocabularyWordDetailFacts(
     int TotalAttempts,
     int CorrectAttempts,
     bool IsUserDeclared);
+
+/// <summary>
+/// The learner's word counts as the app's own screens show them, with no terms attached.
+/// </summary>
+/// <param name="New">Dashboard "New": resource-linked words never practised.</param>
+/// <param name="Learning">Dashboard "Learning".</param>
+/// <param name="Familiar">Dashboard "Familiar": marked familiar, not yet verified by practice.</param>
+/// <param name="Review">Dashboard "Review": resource-linked words due for review now.</param>
+/// <param name="Known">Dashboard "Known".</param>
+/// <param name="AllOwned">
+/// Every word recorded to the learner, on a resource or not: the total on the Vocabulary screen.
+/// </param>
+public sealed record VocabularyCountFacts(
+    int New, int Learning, int Familiar, int Review, int Known, int AllOwned)
+{
+    /// <summary>No words, for a call with no owner.</summary>
+    public static VocabularyCountFacts Empty { get; } = new(0, 0, 0, 0, 0, 0);
+
+    /// <summary>
+    /// The dashboard's "Total words": the sum of its five tiles, computed the way every client
+    /// computes it (web <c>Index.razor</c>, iOS and Android dashboards).
+    /// </summary>
+    public int DashboardTotal => New + Learning + Familiar + Review + Known;
+}
+
+/// <summary>One example sentence on a learner's word.</summary>
+public sealed record VocabularyExampleSentenceFacts(
+    string SentenceId,
+    string TargetSentence,
+    string? NativeSentence,
+    bool IsCore);
+
+/// <summary>
+/// A learner's word and its example sentences, or only their count when the word is due.
+/// </summary>
+/// <param name="WordId">The word.</param>
+/// <param name="TargetLanguageTerm">The word's term; null when the word is due for review.</param>
+/// <param name="IsDueForReview">
+/// True when the learner's review of this word is due. The sentences are then not selected at
+/// all, only counted: a due word's example sentences are part of the answer to that review.
+/// </param>
+/// <param name="TotalCount">How many example sentences the learner has on this word.</param>
+/// <param name="Sentences">The sentences, core first; empty when the word is due.</param>
+public sealed record VocabularyExampleSentencePage(
+    string WordId,
+    string? TargetLanguageTerm,
+    bool IsDueForReview,
+    int TotalCount,
+    IReadOnlyList<VocabularyExampleSentenceFacts> Sentences);
 
 /// <summary>A page of words, with the size of the set it was drawn from.</summary>
 /// <param name="MatchedCount">
@@ -84,6 +174,14 @@ public interface IVocabularyQueries
     Task<int> CountTrackedWordsAsync(string userProfileId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Counts the learner's words the way the dashboard and the Vocabulary screen do, so a coach
+    /// that reports a number reports the one the learner sees. An empty identifier counts zero.
+    /// </summary>
+    Task<VocabularyCountFacts> GetVocabularyCountsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the scheduling and scoring facts for every word the learner is tracking, with no
     /// terms attached. An empty identifier returns nothing.
     /// </summary>
@@ -116,11 +214,39 @@ public interface IVocabularyQueries
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Searches the learner's own words (recorded to them, the one ownership rule) with the
+    /// narrowing in <paramref name="filter"/>, highest mastery first, never-practised words last.
+    /// Words due for review are counted in <see cref="VocabularyWordPage.MatchedCount"/> and never
+    /// returned, exactly as in <see cref="SearchUndueWordsAsync"/>. An empty identifier returns an
+    /// empty page.
+    /// </summary>
+    Task<VocabularyWordPage> SearchOwnedWordsAsync(
+        string userProfileId,
+        VocabularySearchFilter filter,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns one word the learner is tracking, or <c>null</c> when they are not tracking it. An
     /// empty identifier returns <c>null</c>.
     /// </summary>
     Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(
         string userProfileId,
         string wordId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the example sentences on one of the learner's own words (recorded to them, the one
+    /// ownership rule), practised or not, at most <paramref name="maxResults"/>, core first. When
+    /// the word is due for review at <paramref name="asOfUtc"/> the sentences are counted but not
+    /// returned. Returns <c>null</c> when the word is not the learner's, and for an empty
+    /// identifier.
+    /// </summary>
+    Task<VocabularyExampleSentencePage?> GetWordExampleSentencesAsync(
+        string userProfileId,
+        string wordId,
+        int maxResults,
+        DateTime asOfUtc,
         CancellationToken cancellationToken = default);
 }

@@ -34,11 +34,12 @@ public static class CoachAnswerShapeRepair
         int DroppedEmptyBlocks,
         int FoldedBlocks,
         bool DroppedEmptyAnswer,
-        bool AnswerFromMessage)
+        bool AnswerFromMessage,
+        bool GeneralAnswerWithParts = false)
     {
         public bool Changed =>
             DroppedEmptySpans > 0 || DroppedEmptyBlocks > 0 || FoldedBlocks > 0
-            || DroppedEmptyAnswer || AnswerFromMessage;
+            || DroppedEmptyAnswer || AnswerFromMessage || GeneralAnswerWithParts;
     }
 
     /// <summary>Repairs <paramref name="intent"/>'s answer in place and reports what changed.</summary>
@@ -51,6 +52,32 @@ public static class CoachAnswerShapeRepair
         var folded = 0;
         var droppedAnswer = false;
         var fromMessage = false;
+        var generalWithParts = false;
+
+        // A general answer that also carried structured parts (a word list, say). Both kinds are
+        // answers that write nothing, so the reply goes through the answer path, with its bounds
+        // and language tags, instead of being refused for its packaging. The answer path shows
+        // only the parts, so the message leads them as the direct answer rather than being lost.
+        // Done before the part repair below, so the extra part is folded like any other.
+        if (intent.Kind == CoachIntentKind.GeneralAnswer && intent.PedagogicalAnswer is { } general)
+        {
+            intent.Kind = CoachIntentKind.PedagogicalAnswer;
+            generalWithParts = true;
+            if (!string.IsNullOrWhiteSpace(intent.CoachMessage))
+            {
+                general.Blocks =
+                [
+                    new CoachAnswerBlockIntent
+                    {
+                        Kind = CoachAnswerBlockKind.Answer,
+                        Spans = SplitIntoSpans(intent.CoachMessage.Trim())
+                            .Select(text => new CoachAnswerSpanIntent { Text = text, Language = CoachLanguageRole.Display })
+                            .ToList()
+                    },
+                    .. general.Blocks ?? []
+                ];
+            }
+        }
 
         if (intent.PedagogicalAnswer is { } answer)
         {
@@ -115,7 +142,7 @@ public static class CoachAnswerShapeRepair
             fromMessage = true;
         }
 
-        return new Report(droppedSpans, droppedBlocks, folded, droppedAnswer, fromMessage);
+        return new Report(droppedSpans, droppedBlocks, folded, droppedAnswer, fromMessage, generalWithParts);
     }
 
     /// <summary>

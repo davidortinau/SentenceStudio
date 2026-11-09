@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Application.Vocabulary;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
@@ -38,6 +39,31 @@ public partial class VocabularyProgressRepository
         return await db.VocabularyProgresses
             .AsNoTracking()
             .CountAsync(p => p.UserId == userProfileId && db.VocabularyWords.Any(w => w.Id == p.VocabularyWordId && w.UserProfileId == userProfileId), cancellationToken);
+    }
+
+    public async Task<VocabularyCountFacts> GetVocabularyCountsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        // Checked here, not left to GetVocabSummaryCountsAsync: that method falls back to the
+        // active user when it is handed no owner, and a coach read must never guess one.
+        if (!HasWordOwner(userProfileId, nameof(GetVocabularyCountsAsync)))
+        {
+            return VocabularyCountFacts.Empty;
+        }
+
+        // The dashboard's own query, so the two numbers cannot drift apart.
+        var (newCount, learning, familiar, review, known) = await GetVocabSummaryCountsAsync(userProfileId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var allOwned = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .CountAsync(cancellationToken);
+
+        return new VocabularyCountFacts(newCount, learning, familiar, review, known, allOwned);
     }
 
     public async Task<IReadOnlyList<VocabularyProgressFacts>> GetProgressFactsAsync(
@@ -179,6 +205,177 @@ public partial class VocabularyProgressRepository
         return new VocabularyWordPage(matchedCount, totalCount, words);
     }
 
+    public async Task<VocabularyWordPage> SearchOwnedWordsAsync(
+        string userProfileId,
+        VocabularySearchFilter filter,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        if (!HasWordOwner(userProfileId, nameof(SearchOwnedWordsAsync)) || maxResults <= 0)
+        {
+            return new VocabularyWordPage(0, 0, []);
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var words = db.VocabularyWords.AsNoTracking().OwnedBy(userProfileId);
+
+        if (filter.Query is { } query)
+        {
+            words = words.Where(w =>
+                EF.Functions.Like(w.TargetLanguageTerm!, $"%{query}%") ||
+                EF.Functions.Like(w.NativeLanguageTerm!, $"%{query}%") ||
+                EF.Functions.Like(w.Lemma!, $"%{query}%"));
+        }
+
+        if (filter.Tag is { } tag)
+        {
+            // Tags are stored comma separated, sometimes with spaces. Matched whole, so "food"
+            // does not find "seafood", and without case, so "Food" finds "food". The tag is
+            // escaped, so "%" or "_" in it is a character, not a wildcard.
+            var needle = "%," + EscapeLike(tag.Replace(" ", string.Empty).ToLowerInvariant()) + ",%";
+            words = words.Where(w => w.Tags != null
+                && EF.Functions.Like("," + w.Tags.Replace(" ", "").ToLower() + ",", needle, LikeEscape));
+        }
+
+        if (filter.ResourceId is { } resourceId)
+        {
+            // Only the learner's own resource counts; another learner's identifier matches nothing.
+            words = words.Where(w => db.ResourceVocabularyMappings.Any(m =>
+                m.VocabularyWordId == w.Id
+                && m.ResourceId == resourceId
+                && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userProfileId)));
+        }
+
+        // Scheduling facts only, no terms; terms are read for the returned page alone.
+        var rows =
+            from w in words
+            join p in db.VocabularyProgresses.AsNoTracking().Where(p => p.UserId == userProfileId)
+                on w.Id equals p.VocabularyWordId into progress
+            from p in progress.DefaultIfEmpty()
+            select new
+            {
+                w.Id,
+                HasProgress = p != null,
+                MasteryScore = p != null ? p.MasteryScore : 0f,
+                ProductionInStreak = p != null ? p.ProductionInStreak : 0,
+                TotalAttempts = p != null ? p.TotalAttempts : 0,
+                IsUserDeclared = p != null && p.IsUserDeclared,
+                VerificationState = p != null ? p.VerificationState : VerificationStatus.None,
+                NextReviewDate = p != null ? p.NextReviewDate : null,
+                LastPracticedAt = p != null ? (DateTime?)p.LastPracticedAt : null,
+                w.CreatedAt
+            };
+
+        if (!filter.IncludeNeverPracticed)
+        {
+            rows = rows.Where(r => r.HasProgress);
+        }
+
+        int matched;
+        int eligibleCount;
+        List<(string Id, float Mastery, DateTime? LastPracticedAt, bool Declared, bool HasProgress)> page;
+
+        if (filter.Status is not { } status)
+        {
+            // No status rule to apply, so counting, the due embargo, ordering and paging all run
+            // in the database, like SearchUndueWordsAsync.
+            matched = await rows.CountAsync(cancellationToken);
+            var eligible = rows.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc);
+            eligibleCount = await eligible.CountAsync(cancellationToken);
+            page = (await eligible
+                    .OrderByDescending(r => r.HasProgress)
+                    .ThenByDescending(r => r.MasteryScore)
+                    .ThenBy(r => r.CreatedAt)
+                    .Take(maxResults)
+                    .Select(r => new { r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress })
+                    .ToListAsync(cancellationToken))
+                .Select(r => (r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress))
+                .ToList();
+        }
+        else
+        {
+            // "Known" is a computed rule (VocabularyProgress.IsKnown) with no SQL form, so a status
+            // search classifies term-free rows in memory, as the dashboard's own count does.
+            var loaded = await rows.ToListAsync(cancellationToken);
+            var inStatus = loaded
+                .Where(r => IsInStatus(status, r.HasProgress, r.MasteryScore, r.ProductionInStreak,
+                    r.TotalAttempts, r.IsUserDeclared, r.VerificationState, r.NextReviewDate, asOfUtc))
+                .ToList();
+            matched = inStatus.Count;
+            var eligible = inStatus.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc).ToList();
+            eligibleCount = eligible.Count;
+            page = eligible
+                .OrderByDescending(r => r.HasProgress)
+                .ThenByDescending(r => r.MasteryScore)
+                .ThenBy(r => r.CreatedAt)
+                .Take(maxResults)
+                .Select(r => (r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress))
+                .ToList();
+        }
+
+        var ids = page.Select(r => r.Id).ToList();
+        var terms = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(w => ids.Contains(w.Id))
+            .Select(w => new { w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.Lemma, w.Language, w.Tags })
+            .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+        var summaries = page
+            .Where(r => terms.ContainsKey(r.Id))
+            .Select(r =>
+            {
+                var t = terms[r.Id];
+                return new VocabularyWordSummary(
+                    t.Id, t.TargetLanguageTerm, t.NativeLanguageTerm, t.Lemma, t.Language, t.Tags,
+                    r.Mastery, r.LastPracticedAt, r.Declared, r.HasProgress);
+            })
+            .ToList();
+
+        return new VocabularyWordPage(matched, eligibleCount, summaries);
+    }
+
+    private const string LikeEscape = "\\";
+
+    private static string EscapeLike(string value) =>
+        value.Replace(LikeEscape, LikeEscape + LikeEscape)
+            .Replace("%", LikeEscape + "%")
+            .Replace("_", LikeEscape + "_");
+
+    /// <summary>
+    /// The dashboard's predicate for one tile (GetVocabSummaryCountsAsync), word for word, with
+    /// "known" taken from <see cref="VocabularyProgress.IsKnown"/> itself. Like the tiles, Known
+    /// and Familiar can both hold for one word.
+    /// </summary>
+    private static bool IsInStatus(
+        VocabularySearchStatus status, bool hasProgress, float mastery, int productionInStreak,
+        int totalAttempts, bool isUserDeclared, VerificationStatus verification, DateTime? nextReview,
+        DateTime asOfUtc)
+    {
+        var familiar = hasProgress && isUserDeclared && verification == VerificationStatus.Pending;
+        var known = hasProgress && new VocabularyProgress
+        {
+            MasteryScore = mastery,
+            ProductionInStreak = productionInStreak,
+            TotalAttempts = totalAttempts
+        }.IsKnown;
+        var due = nextReview != null && nextReview <= asOfUtc;
+
+        return status switch
+        {
+            VocabularySearchStatus.New => !hasProgress || (totalAttempts == 0 && !familiar),
+            VocabularySearchStatus.Familiar => familiar,
+            VocabularySearchStatus.Known => known,
+            VocabularySearchStatus.Learning => hasProgress && !familiar && !known && totalAttempts > 0 && !due,
+            VocabularySearchStatus.Review => hasProgress && !familiar && !known && due,
+            _ => false
+        };
+    }
+
     public async Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(
         string userProfileId,
         string wordId,
@@ -211,6 +408,65 @@ public partial class VocabularyProgressRepository
                     p.CorrectAttempts,
                     p.IsUserDeclared))
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<VocabularyExampleSentencePage?> GetWordExampleSentencesAsync(
+        string userProfileId,
+        string wordId,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasWordOwner(userProfileId, nameof(GetWordExampleSentencesAsync))
+            || string.IsNullOrWhiteSpace(wordId))
+        {
+            return null;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var word = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(w => w.Id == wordId)
+            .Select(w => new { w.Id, w.TargetLanguageTerm })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (word is null)
+        {
+            return null;
+        }
+
+        // The same "due" the coach's leak check uses (CoachValidationDataSource): this learner's
+        // progress row says the review is due now.
+        var isDue = await db.VocabularyProgresses
+            .AsNoTracking()
+            .AnyAsync(p => p.UserId == userProfileId
+                           && p.VocabularyWordId == wordId
+                           && p.NextReviewDate != null
+                           && p.NextReviewDate <= asOfUtc,
+                cancellationToken);
+
+        var owned = db.ExampleSentences
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(e => e.VocabularyWordId == wordId);
+
+        var total = await owned.CountAsync(cancellationToken);
+        if (isDue || total == 0 || maxResults <= 0)
+        {
+            // Not selected, so a due word's sentences cannot be returned by mistake.
+            return new VocabularyExampleSentencePage(word.Id, isDue ? null : word.TargetLanguageTerm, isDue, total, []);
+        }
+
+        var sentences = await owned
+            .OrderByDescending(e => e.IsCore)
+            .ThenBy(e => e.CreatedAt)
+            .Take(maxResults)
+            .Select(e => new VocabularyExampleSentenceFacts(e.Id, e.TargetSentence, e.NativeSentence, e.IsCore))
+            .ToListAsync(cancellationToken);
+
+        return new VocabularyExampleSentencePage(word.Id, word.TargetLanguageTerm, false, total, sentences);
     }
 
     private bool HasWordOwner(string userProfileId, string method)

@@ -58,6 +58,30 @@ public sealed record VocabularyWordDetail(
     [property: Description("True if the learner added this word manually.")] bool IsLearnerAdded,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
 
+/// <summary>One example sentence on the learner's word.</summary>
+public sealed record VocabularyExampleSentenceEntry(
+    [property: Description("The example sentence identifier, for the propose_ example sentence edit and removal tools.")] string SentenceId,
+    [property: Description("The sentence in the target language.")] string TargetSentence,
+    [property: Description("Its meaning in the learner's own language. Null when the learner saved none.")] string? NativeSentence,
+    [property: Description("True for the word's main example, the one shown first.")] bool IsCore);
+
+/// <summary>
+/// The example sentences on one of the learner's words, or only their count when the word is due
+/// for review.
+/// </summary>
+/// <remarks>
+/// A due word's example sentences are part of the answer to the review the learner has not taken
+/// yet, and the coach's leak check embargoes them; so for a due word the sentences are counted and
+/// reported as withheld, never returned (the query does not even select them).
+/// </remarks>
+public sealed record VocabularyExampleSentencesResult(
+    [property: Description("The word identifier.")] string WordId,
+    [property: Description("The word in the target language. Null when the word is due for review.")] string? TargetTerm,
+    [property: Description("True when the word is due for review. Its example sentences are then hidden until the review is done; say so and never guess them.")] bool IsDueForReview,
+    [property: Description("How many example sentences the learner has on this word, including hidden ones.")] int TotalCount,
+    [property: Description("The example sentences, main example first. Empty when the word is due for review.")] IReadOnlyList<VocabularyExampleSentenceEntry> Sentences,
+    [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
+
 // ──────────────────────────────────────────────────────
 // Skill list / detail
 // ──────────────────────────────────────────────────────
@@ -134,7 +158,14 @@ public sealed record CurrentProfileSummary(
     [property: Description("Preferred session minutes.")] int PreferredSessionMinutes,
     [property: Description("Target CEFR level.")] string? TargetLevel,
     [property: Description("Days since the learner started.")] int DaysSinceStart,
-    [property: Description("Total vocabulary words tracked.")] int TrackedWordCount,
+    [property: Description("Words that have a practice record. Not the learner's word total: use TotalWordCount for how many words they have.")] int TrackedWordCount,
+    [property: Description("Total words, the same number the dashboard shows: the learner's words that are on at least one of their resources, practised or not. Use this when they ask how many words they have.")] int TotalWordCount,
+    [property: Description("Dashboard New: words on a resource never practised.")] int NewWordCount,
+    [property: Description("Dashboard Learning: words being learned.")] int LearningWordCount,
+    [property: Description("Dashboard Familiar: words the learner marked familiar, not yet confirmed by practice.")] int FamiliarWordCount,
+    [property: Description("Dashboard Review: words due for review now. A count only; never name them.")] int ReviewWordCount,
+    [property: Description("Dashboard Known: words the learner knows.")] int KnownWordCount,
+    [property: Description("Every word the learner owns, on a resource or not: the total on the Vocabulary screen. Larger than TotalWordCount when some words are on no resource.")] int VocabularyScreenWordCount,
     [property: Description("Total skill profiles.")] int SkillCount,
     [property: Description("Total learning resources.")] int ResourceCount,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;

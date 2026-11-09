@@ -25,6 +25,7 @@ public static class CoachToolNames
     public const string GetCurrentProfileSummary = "get_current_profile_summary";
     public const string GetLearnerSettingsSummary = "get_learner_settings_summary";
     public const string GetCurrentPlanSummary = "get_current_plan_summary";
+    public const string GetVocabularyExampleSentences = "get_vocabulary_example_sentences";
 
     // --- Sam write tools (require SamOverlay + SamReadTools + SamWriteTools) ---
     // Every name starts with propose_, and every one of them produces a proposal the learner
@@ -43,6 +44,9 @@ public static class CoachToolNames
     public const string ProposePreferenceChange = "propose_preference_change";
     public const string ProposeYouTubeImport = "propose_youtube_import";
     public const string ProposeFeedback = "propose_feedback";
+    public const string ProposeExampleSentenceEntry = "propose_example_sentence_entry";
+    public const string ProposeExampleSentenceEdit = "propose_example_sentence_edit";
+    public const string ProposeExampleSentenceRemoval = "propose_example_sentence_removal";
 
     /// <summary>The prefix every write-intent tool name carries.</summary>
     /// <remarks>
@@ -122,6 +126,7 @@ public static class CoachToolNames
         GetCurrentProfileSummary,
         GetLearnerSettingsSummary,
         GetCurrentPlanSummary,
+        GetVocabularyExampleSentences,
         ProposeVocabularyEntry,
         ProposeVocabularyEdit,
         ProposeVocabularyLink,
@@ -134,7 +139,10 @@ public static class CoachToolNames
         ProposeResourceRemoval,
         ProposePreferenceChange,
         ProposeYouTubeImport,
-        ProposeFeedback
+        ProposeFeedback,
+        ProposeExampleSentenceEntry,
+        ProposeExampleSentenceEdit,
+        ProposeExampleSentenceRemoval
     ];
 
     /// <summary>Every write-intent tool name, in registration order.</summary>
@@ -152,6 +160,9 @@ public static class CoachToolNames
         ProposeResourceRemoval,
         ProposePreferenceChange,
         ProposeYouTubeImport,
-        ProposeFeedback
+        ProposeFeedback,
+        ProposeExampleSentenceEntry,
+        ProposeExampleSentenceEdit,
+        ProposeExampleSentenceRemoval
     ];
 }

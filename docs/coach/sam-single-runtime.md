@@ -43,5 +43,10 @@ never reorder).
 2. Finish feedback filing through Sam (`propose_feedback`).
 3. Inventory: everything the learner can do in the app vs Sam's tools, as a ranked gap table.
 4. Reshape the turn: a general answer/result reply, no plan data on every turn, shorter plan rules.
+   Done on branch `sam-general-assistant` (2026-11-08): `CoachIntentKind.GeneralAnswer` (ordinal 8,
+   appended), neutral `CoachMessage` and `Kind` schema text, Today's Plan constraints in the turn
+   context only when the message refers to the plan or a suggestion is open
+   (`CoachAgentTurnRequest.IncludePlanContext`), and a reply-kind section ahead of a shorter plan
+   section in `CoachInstructions`. Not yet qualified against the live model (step 6).
 5. Add abilities in the Captain's ranked order, with tests.
 6. Qualify with a corpus of real phrasings run against the live model.

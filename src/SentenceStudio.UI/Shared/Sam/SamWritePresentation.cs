@@ -171,6 +171,9 @@ public static class SamWritePresentation
         CoachWriteChangeKind.SettingChange => "Coach_WriteKindSettingChange",
         CoachWriteChangeKind.VideoImport => "Coach_WriteKindVideoImport",
         CoachWriteChangeKind.FeedbackReport => "Coach_WriteKindFeedbackReport",
+        CoachWriteChangeKind.ExampleSentenceAdd => "Coach_WriteKindExampleSentenceAdd",
+        CoachWriteChangeKind.ExampleSentenceEdit => "Coach_WriteKindExampleSentenceEdit",
+        CoachWriteChangeKind.ExampleSentenceRemove => "Coach_WriteKindExampleSentenceRemove",
         _ => "Coach_WriteKindUnknown"
     };
 

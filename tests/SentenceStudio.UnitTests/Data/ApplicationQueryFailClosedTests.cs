@@ -121,6 +121,7 @@ public sealed class ApplicationQueryFailClosedTests : IDisposable
         var now = new DateTime(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc);
 
         (await Vocabulary.CountTrackedWordsAsync(owner)).Should().Be(0);
+        (await Vocabulary.GetVocabularyCountsAsync(owner)).DashboardTotal.Should().Be(0);
         (await Vocabulary.GetProgressFactsAsync(owner)).Should().BeEmpty();
         (await Vocabulary.GetDueWordTagsAsync(owner, now)).Should().BeEmpty();
 

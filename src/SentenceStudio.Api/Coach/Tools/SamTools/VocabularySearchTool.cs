@@ -30,6 +30,7 @@ public sealed class VocabularySearchTool : CoachToolBase
     public const int MaxResults = 25;
     private const int MaxQueryLength = 100;
     private const int MaxTermLength = 80;
+    private const int MaxTagLength = 40;
 
     private readonly IVocabularyQueries _vocabulary;
     private readonly IPlanDateContext _dates;
@@ -49,19 +50,44 @@ public sealed class VocabularySearchTool : CoachToolBase
 
     public override string ToolName => CoachToolNames.ListUserVocabularies;
 
-    public async Task<VocabularySearchResult> SearchAsync(
+    public Task<VocabularySearchResult> SearchAsync(
         string? query = null,
         int maxResults = 10,
+        CancellationToken ct = default) =>
+        SearchAsync(query, maxResults, tag: null, resourceId: null, status: null, includeNeverPracticed: false, ct);
+
+    /// <summary>
+    /// Searches with the optional narrowing the Vocabulary screen offers: a tag, a resource, a
+    /// learning status, and words never practised.
+    /// </summary>
+    /// <remarks>
+    /// With none of those set this is exactly the original search over tracked words. With any of
+    /// them it searches the learner's own words (the one ownership rule), so a word added a moment
+    /// ago is found. Due words stay embargoed either way.
+    /// </remarks>
+    public async Task<VocabularySearchResult> SearchAsync(
+        string? query,
+        int maxResults,
+        string? tag,
+        string? resourceId,
+        string? status,
+        bool includeNeverPracticed,
         CancellationToken ct = default)
     {
         var userId = RequireUserProfileId();
         maxResults = Math.Clamp(maxResults, 1, MaxResults);
         query = string.IsNullOrWhiteSpace(query) ? null : SanitizeMetadata(query, MaxQueryLength);
+        tag = string.IsNullOrWhiteSpace(tag) ? null : SanitizeMetadata(tag, MaxTagLength);
+        resourceId = string.IsNullOrWhiteSpace(resourceId) ? null : resourceId.Trim();
+        var statusFilter = ParseStatus(status);
+        var filter = new VocabularySearchFilter(query, tag, resourceId, statusFilter, includeNeverPracticed);
         var now = _dates.UtcNow;
 
         try
         {
-            var page = await _vocabulary.SearchUndueWordsAsync(userId, query, maxResults, now, ct);
+            var page = filter.IsQueryOnly
+                ? await _vocabulary.SearchUndueWordsAsync(userId, query, maxResults, now, ct)
+                : await _vocabulary.SearchOwnedWordsAsync(userId, filter, maxResults, now, ct);
 
             var entries = page.Words.Select(r => new VocabularySearchEntry(
                 WordId: r.WordId,
@@ -70,7 +96,7 @@ public sealed class VocabularySearchTool : CoachToolBase
                 Lemma: r.Lemma is null ? null : SanitizeMetadata(r.Lemma, MaxTermLength),
                 Language: r.Language is null ? null : SanitizeMetadata(r.Language, 40),
                 Tags: SplitTags(r.Tags),
-                MasteryScore: Math.Round(r.MasteryScore, 3),
+                MasteryScore: r.HasProgress ? Math.Round(r.MasteryScore, 3) : null,
                 DaysSinceLastPractice: r.LastPracticedAt is { } lp
                     ? Math.Max(0, (int)(_dates.UtcNow.Date - lp.Date).TotalDays)
                     : null
@@ -93,9 +119,12 @@ public sealed class VocabularySearchTool : CoachToolBase
                     Order = CoachScopeOrder.MasteryDescending,
                     OrderHonored = true,
                     Filters = CoachScopeFilters.OwnerScoped
-                        | CoachScopeFilters.ProgressRowExists
+                        | (includeNeverPracticed ? CoachScopeFilters.None : CoachScopeFilters.ProgressRowExists)
                         | CoachScopeFilters.ExcludeDue
-                        | (query is null ? CoachScopeFilters.None : CoachScopeFilters.TextQuery),
+                        | (query is null ? CoachScopeFilters.None : CoachScopeFilters.TextQuery)
+                        | (tag is null && resourceId is null && statusFilter is null
+                            ? CoachScopeFilters.None
+                            : CoachScopeFilters.AttributeFilter),
                     AsOfUtc = now,
                     RequestedCount = maxResults,
                     ReturnedCount = entries.Count,
@@ -110,7 +139,9 @@ public sealed class VocabularySearchTool : CoachToolBase
                     Truncated = page.TotalCount > entries.Count,
                     DefinitionCode = CoachScopeDefinition.UndueVocabularySearch,
                     EligiblePopulationCount = page.TotalCount,
-                    MinimumEvidence = CoachScopeMinimumEvidence.ProgressRowRequired,
+                    MinimumEvidence = includeNeverPracticed
+                        ? CoachScopeMinimumEvidence.None
+                        : CoachScopeMinimumEvidence.ProgressRowRequired,
                     // Equal mastery scores have no declared order, so the page boundary between
                     // two tied words is arbitrary and the answer says so.
                     TieBreak = CoachScopeTieBreak.None,
@@ -120,6 +151,22 @@ public sealed class VocabularySearchTool : CoachToolBase
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { throw DataAccessFailure(ex); }
+    }
+
+    private VocabularySearchStatus? ParseStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        // A name match only: Enum.TryParse would also take "4" or "learning, familiar" (ORed into
+        // a different member) and quietly search the wrong status.
+        var name = Enum.GetNames<VocabularySearchStatus>()
+            .FirstOrDefault(n => string.Equals(n, status.Trim(), StringComparison.OrdinalIgnoreCase));
+        return name is not null
+            ? Enum.Parse<VocabularySearchStatus>(name)
+            : throw InvalidArgument("The status must be one of new, learning, familiar, review or known.");
     }
 
     private static List<string> SplitTags(string? tags) =>

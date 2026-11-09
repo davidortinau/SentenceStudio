@@ -19,7 +19,7 @@ namespace SentenceStudio.Contracts.Coach.Intent;
 [Description("The result of one coach turn. Return one object only.")]
 public sealed class CoachTurnIntent
 {
-    [Description("What the learner asked for. Use DirectConstraintChange only when the learner asks for the change now. Use SuggestConstraintChange when you propose the change.")]
+    [Description("What kind of reply this is. Use GeneralAnswer for most replies: answers about the learner's own words, resources, skills, settings or progress, what a tool found, a proposal you prepared, or how the app works. Use PedagogicalAnswer to teach the language. Use AskClarification to ask one question. The plan kinds (DirectConstraintChange, SuggestConstraintChange, AcceptPendingSuggestion, RejectPendingSuggestion) are only for a learner who explicitly asks to change Today's Plan or answers an open plan suggestion.")]
     public CoachIntentKind Kind { get; set; }
 
     [Description("The constraint change for this turn. Set it for DirectConstraintChange and for SuggestConstraintChange. Leave it empty for all other kinds.")]
@@ -34,7 +34,7 @@ public sealed class CoachTurnIntent
     [Description("One short question for the learner. Set it only for AskClarification. The largest length is 200 characters.")]
     public string? ClarifyingQuestion { get; set; }
 
-    [Description("A short message for the learner. Use simple words. The largest length is 400 characters. Do not add a target-language word that is due for review.")]
+    [Description("Your reply to the learner in plain words: the answer, the result, or what you prepared. The largest length is 400 characters. Do not add a target-language word that is due for review.")]
     public string CoachMessage { get; set; } = string.Empty;
 
     [Description("Facts a read tool returned in this turn that your answer relies on. Leave the list empty if you called no read tool. What the learner said, what the app attached about the screen, and proposals you prepared are not facts to cite.")]

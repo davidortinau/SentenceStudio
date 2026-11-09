@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -268,9 +269,15 @@ public sealed class CoachToolFactory : ICoachToolFactory
         {
             CoachToolNames.ListUserVocabularies =>
                 Create(
-                    (string? query = null, int? maxResults = null, CancellationToken ct = default) =>
+                    (string? query = null,
+                     int? maxResults = null,
+                     [Description("Only words with this tag, matched whole, ignoring case.")] string? tag = null,
+                     [Description("Only words on this learning resource of the learner's (an identifier from the resource tools).")] string? resourceId = null,
+                     [Description("Only words with this learning status: new, learning, familiar, review or known. Words due for review are always withheld, so review returns a count only. This searches all the learner's words, including ones on no resource, so for the dashboard's numbers use get_current_profile_summary.")] string? status = null,
+                     [Description("Also find words the learner added but never practised. Leave true to search all their words, as the Vocabulary screen does.")] bool includeNeverPracticed = true,
+                     CancellationToken ct = default) =>
                         _serviceProvider.GetRequiredService<SamTools.VocabularySearchTool>()
-                            .SearchAsync(query, maxResults ?? 10, ct),
+                            .SearchAsync(query, maxResults ?? 10, tag, resourceId, status, includeNeverPracticed, ct),
                     reg.Name, reg.Description),
 
             CoachToolNames.GetVocabularyWordDetail =>
@@ -329,6 +336,13 @@ public sealed class CoachToolFactory : ICoachToolFactory
                             .GetAsync(ct),
                     reg.Name, reg.Description),
 
+            CoachToolNames.GetVocabularyExampleSentences =>
+                Create(
+                    (string wordId, int? maxResults = null, CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.VocabularyExampleSentencesTool>()
+                            .GetAsync(wordId, maxResults ?? SamTools.VocabularyExampleSentencesTool.MaxResults, ct),
+                    reg.Name, reg.Description),
+
             _ => null
         };
     }
@@ -366,6 +380,9 @@ public sealed class CoachToolFactory : ICoachToolFactory
             CoachToolNames.ProposePreferenceChange => CreateWrite<CoachPreferenceChangeArgs>(reg),
             CoachToolNames.ProposeYouTubeImport => CreateWrite<CoachYouTubeImportArgs>(reg),
             CoachToolNames.ProposeFeedback => CreateWrite<CoachFeedbackArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceEntry => CreateWrite<CoachExampleSentenceEntryArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceEdit => CreateWrite<CoachExampleSentenceEditArgs>(reg),
+            CoachToolNames.ProposeExampleSentenceRemoval => CreateWrite<CoachExampleSentenceRemovalArgs>(reg),
             _ => null
         };
     }
