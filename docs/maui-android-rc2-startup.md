@@ -1,4 +1,4 @@
-# MAUI Android head on the rc.2 workload (2026-11-07, in progress)
+# MAUI heads on the rc.2 workload (resolved 2026-11-08)
 
 The MAUI Android head (`src/SentenceStudio.Android`) did not build on this machine. The native
 Android head builds and runs. Captain, 2026-11-07: the MAUI app should build and run too.
@@ -40,11 +40,33 @@ Android head builds and runs. Captain, 2026-11-07: the MAUI app should build and
    no exception in the system log. So the problem is not Android-only, and on iOS it is earlier than
    Blazor. `maui devflow list` hung for 2 minutes while both apps were running.
 
-## Next steps
+## Resolution (2026-11-08)
 
-- Check MAUI iOS on the rc.1 pins too (does it reach the Blazor page on `a38c5ae9`?), to learn
-  whether the rc.2 MAUI packages caused the iOS stall.
-- Compare `blazor.webview.js` in the built APK with the one the rc.2 `WebView.Maui` expects
-  (IPC protocol mismatch would explain "started, but no root component").
-- If it is the rc.1 WebView script, plan a coordinated move of the ASP.NET Components and
-  `Microsoft.Extensions.*` pins to rc.2.26504.105, validated on API, WebApp and both MAUI heads.
+Three changes, all needed:
+
+1. **Package pins** (`Directory.Packages.props`): `Microsoft.Maui.Controls/Core/Essentials/Resizetizer`
+   and `Microsoft.AspNetCore.Components.WebView.Maui` moved to 11.0.0-rc.2.26505.5, the installed
+   workload. `Microsoft.AspNetCore.Components.WebView` stays 11.0.0-rc.1.26425.128, which is what
+   WebView.Maui rc.2 depends on, so the B65 rule (WebView equal to Components.Web) still holds.
+2. **Blazor auto-start** (`src/SentenceStudio.AppLib/wwwroot/index.html`): `blazor.webview.js` now
+   has `autostart="false"`. WebView.Maui rc.2 starts Blazor itself ("Running Blazor startup
+   scripts"); with auto-start on, the page started it first, the handler's start failed with
+   "Blazor has already started" (logged under `chobitsu.js` only because DevFlow intercepts the
+   console), and the root component never attached. Disabling DevFlow's Blazor hook did not
+   change this, which ruled DevFlow out. The MacOS head has its own `index.html` on a different
+   WebView package and is unchanged.
+3. **UIScene lifecycle on iOS** (`src/SentenceStudio.iOS/Platforms/iOS/SceneDelegate.cs` and
+   `UIApplicationSceneManifest` in its `Info.plist`): on iOS 27 UIKit raises a runtime-issue trap
+   (`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`) for apps without scene
+   lifecycle. In a Debug build the CoreCLR debugger hook re-ran the trap forever (seen with
+   `sample`), so the app sat on its launch screen at full CPU.
+
+Gotcha: an incremental MAUI iOS build kept a stale `Info.plist` in the app bundle (bundle folder
+updated, plist dated the day before). Moving `obj/Debug/net11.0-ios` and `bin/Debug/net11.0-ios`
+aside and rebuilding fixed it; check the bundle with
+`plutil -extract UIApplicationSceneManifest json -o - <app>/Info.plist`.
+
+Verified: MAUI Android (emulator-5556) and MAUI iOS (simulator 5359E332, iOS 27) both sign in with
+`e2e@test.local` and reach the Dashboard; the Android vocabulary list renders rows (B65 still
+fixed). MAUI Mac Catalyst builds. The emulator needs `adb reverse tcp:5081 tcp:5081` to reach the
+local API.
