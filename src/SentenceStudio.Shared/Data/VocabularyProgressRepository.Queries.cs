@@ -40,6 +40,31 @@ public partial class VocabularyProgressRepository
             .CountAsync(p => p.UserId == userProfileId && db.VocabularyWords.Any(w => w.Id == p.VocabularyWordId && w.UserProfileId == userProfileId), cancellationToken);
     }
 
+    public async Task<VocabularyCountFacts> GetVocabularyCountsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        // Checked here, not left to GetVocabSummaryCountsAsync: that method falls back to the
+        // active user when it is handed no owner, and a coach read must never guess one.
+        if (!HasWordOwner(userProfileId, nameof(GetVocabularyCountsAsync)))
+        {
+            return VocabularyCountFacts.Empty;
+        }
+
+        // The dashboard's own query, so the two numbers cannot drift apart.
+        var (newCount, learning, familiar, review, known) = await GetVocabSummaryCountsAsync(userProfileId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var allOwned = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .CountAsync(cancellationToken);
+
+        return new VocabularyCountFacts(newCount, learning, familiar, review, known, allOwned);
+    }
+
     public async Task<IReadOnlyList<VocabularyProgressFacts>> GetProgressFactsAsync(
         string userProfileId,
         CancellationToken cancellationToken = default)

@@ -185,6 +185,22 @@ internal sealed class CoachToolTestFixture : IDisposable
     private IVocabularyQueries Vocabulary => _services.GetRequiredService<IVocabularyQueries>();
     public IPracticeHistoryQueries History => _services.GetRequiredService<IPracticeHistoryQueries>();
 
+    /// <summary>The repository the dashboard reads its word counts from.</summary>
+    public VocabularyProgressRepository VocabularyRepository =>
+        _services.GetRequiredService<VocabularyProgressRepository>();
+
+    /// <summary>Puts <paramref name="word"/> on <paramref name="resource"/>.</summary>
+    public void Link(LearningResource resource, VocabularyWord word)
+    {
+        Db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = resource.Id,
+            VocabularyWordId = word.Id
+        });
+        Db.SaveChanges();
+    }
+
     public LearnerProfileSummaryTool ProfileTool => new(Scope, Profiles, Dates);
     public PracticeBalanceTool BalanceTool => new(Scope, History, Dates);
     public VocabularyDueSummaryTool VocabularyTool => new(Scope, Vocabulary, Dates);

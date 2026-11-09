@@ -171,6 +171,20 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task Vocabulary_counts_translate_and_match_the_dashboard()
+    {
+        // One practised word on a resource and one on no resource. The dashboard query reads the
+        // real clock, so the practised word is Learning or Review depending on today's date.
+        var counts = await Vocabulary.GetVocabularyCountsAsync(Owner);
+        counts.DashboardTotal.Should().Be(1);
+        (counts.Learning + counts.Review).Should().Be(1);
+        counts.AllOwned.Should().Be(2);
+
+        (await Vocabulary.GetVocabularyCountsAsync(Stranger)).DashboardTotal.Should().Be(0);
+        (await Vocabulary.GetVocabularyCountsAsync(string.Empty)).Should().Be(VocabularyCountFacts.Empty);
+    }
+
+    [PostgresFact]
     public async Task Practice_history_queries_translate_the_grouped_last_use()
     {
         var window = await History.GetCompletionsInRangeAsync(Owner, PlanDate, PlanDate.AddDays(1));

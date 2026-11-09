@@ -45,6 +45,30 @@ public sealed record VocabularyWordDetailFacts(
     int CorrectAttempts,
     bool IsUserDeclared);
 
+/// <summary>
+/// The learner's word counts as the app's own screens show them, with no terms attached.
+/// </summary>
+/// <param name="New">Dashboard "New": resource-linked words never practised.</param>
+/// <param name="Learning">Dashboard "Learning".</param>
+/// <param name="Familiar">Dashboard "Familiar": marked familiar, not yet verified by practice.</param>
+/// <param name="Review">Dashboard "Review": resource-linked words due for review now.</param>
+/// <param name="Known">Dashboard "Known".</param>
+/// <param name="AllOwned">
+/// Every word recorded to the learner, on a resource or not: the total on the Vocabulary screen.
+/// </param>
+public sealed record VocabularyCountFacts(
+    int New, int Learning, int Familiar, int Review, int Known, int AllOwned)
+{
+    /// <summary>No words, for a call with no owner.</summary>
+    public static VocabularyCountFacts Empty { get; } = new(0, 0, 0, 0, 0, 0);
+
+    /// <summary>
+    /// The dashboard's "Total words": the sum of its five tiles, computed the way every client
+    /// computes it (web <c>Index.razor</c>, iOS and Android dashboards).
+    /// </summary>
+    public int DashboardTotal => New + Learning + Familiar + Review + Known;
+}
+
 /// <summary>A page of words, with the size of the set it was drawn from.</summary>
 /// <param name="MatchedCount">
 /// How many of the learner's tracked words matched, <em>before</em> the due embargo was applied.
@@ -82,6 +106,14 @@ public interface IVocabularyQueries
 {
     /// <summary>Counts the words the learner is tracking. An empty identifier counts zero.</summary>
     Task<int> CountTrackedWordsAsync(string userProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts the learner's words the way the dashboard and the Vocabulary screen do, so a coach
+    /// that reports a number reports the one the learner sees. An empty identifier counts zero.
+    /// </summary>
+    Task<VocabularyCountFacts> GetVocabularyCountsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the scheduling and scoring facts for every word the learner is tracking, with no
