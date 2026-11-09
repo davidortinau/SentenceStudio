@@ -165,7 +165,10 @@ public enum CoachScopeFilters
     /// <see cref="CoachScopeWithheldReason.BelowMinimumEvidence"/>.
     /// </para>
     /// </remarks>
-    MinimumEvidence = 1 << 8
+    MinimumEvidence = 1 << 8,
+
+    /// <summary>A tag, a resource, or a learning status narrowed the set.</summary>
+    AttributeFilter = 1 << 9
 }
 
 /// <summary>Why a read declined to return something it found.</summary>

@@ -185,6 +185,30 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task Owned_word_search_translates_its_filters_and_holds_the_due_embargo()
+    {
+        var byTag = await Vocabulary.SearchOwnedWordsAsync(
+            Owner, new VocabularySearchFilter(Tag: "FOOD", IncludeNeverPracticed: true), 10, Now);
+        byTag.MatchedCount.Should().Be(1, "the due word carries the tag");
+        byTag.TotalCount.Should().Be(0, "and is embargoed");
+        byTag.Words.Should().BeEmpty();
+
+        var byResource = await Vocabulary.SearchOwnedWordsAsync(
+            Owner, new VocabularySearchFilter(ResourceId: "pg-resource-a", IncludeNeverPracticed: true), 10, Now);
+        byResource.Words.Should().ContainSingle().Which.WordId.Should().Be("pg-word-undue");
+
+        var byQuery = await Vocabulary.SearchOwnedWordsAsync(
+            Owner, new VocabularySearchFilter(Query: "safe", Status: VocabularySearchStatus.Learning), 10, Now);
+        byQuery.Words.Should().ContainSingle().Which.HasProgress.Should().BeTrue();
+
+        (await Vocabulary.SearchOwnedWordsAsync(
+            Stranger, new VocabularySearchFilter(IncludeNeverPracticed: true), 10, Now)).MatchedCount.Should().Be(0);
+        (await Vocabulary.SearchOwnedWordsAsync(
+            Owner, new VocabularySearchFilter(ResourceId: "pg-resource-stranger", IncludeNeverPracticed: true), 10, Now))
+            .MatchedCount.Should().Be(0);
+    }
+
+    [PostgresFact]
     public async Task Practice_history_queries_translate_the_grouped_last_use()
     {
         var window = await History.GetCompletionsInRangeAsync(Owner, PlanDate, PlanDate.AddDays(1));

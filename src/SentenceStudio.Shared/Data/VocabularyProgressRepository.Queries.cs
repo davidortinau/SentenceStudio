@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Application.Vocabulary;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
@@ -202,6 +203,152 @@ public partial class VocabularyProgressRepository
             .ToList();
 
         return new VocabularyWordPage(matchedCount, totalCount, words);
+    }
+
+    public async Task<VocabularyWordPage> SearchOwnedWordsAsync(
+        string userProfileId,
+        VocabularySearchFilter filter,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        if (!HasWordOwner(userProfileId, nameof(SearchOwnedWordsAsync)) || maxResults <= 0)
+        {
+            return new VocabularyWordPage(0, 0, []);
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var words = db.VocabularyWords.AsNoTracking().OwnedBy(userProfileId);
+
+        if (filter.Query is { } query)
+        {
+            words = words.Where(w =>
+                EF.Functions.Like(w.TargetLanguageTerm!, $"%{query}%") ||
+                EF.Functions.Like(w.NativeLanguageTerm!, $"%{query}%") ||
+                EF.Functions.Like(w.Lemma!, $"%{query}%"));
+        }
+
+        if (filter.Tag is { } tag)
+        {
+            // Tags are stored comma separated, sometimes with spaces. Matched whole, so "food"
+            // does not find "seafood", and without case, so "Food" finds "food".
+            var needle = "%," + tag.Replace(" ", string.Empty).ToLowerInvariant() + ",%";
+            words = words.Where(w => w.Tags != null
+                && EF.Functions.Like("," + w.Tags.Replace(" ", "").ToLower() + ",", needle));
+        }
+
+        if (filter.ResourceId is { } resourceId)
+        {
+            // Only the learner's own resource counts; another learner's identifier matches nothing.
+            words = words.Where(w => db.ResourceVocabularyMappings.Any(m =>
+                m.VocabularyWordId == w.Id
+                && m.ResourceId == resourceId
+                && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userProfileId)));
+        }
+
+        // Scheduling facts only, no terms: every narrowing that needs the status rule runs on
+        // these rows, and terms are read for the returned page alone.
+        var rows = await (
+                from w in words
+                join p in db.VocabularyProgresses.AsNoTracking().Where(p => p.UserId == userProfileId)
+                    on w.Id equals p.VocabularyWordId into progress
+                from p in progress.DefaultIfEmpty()
+                select new
+                {
+                    w.Id,
+                    HasProgress = p != null,
+                    MasteryScore = p != null ? p.MasteryScore : 0f,
+                    ProductionInStreak = p != null ? p.ProductionInStreak : 0,
+                    TotalAttempts = p != null ? p.TotalAttempts : 0,
+                    IsUserDeclared = p != null && p.IsUserDeclared,
+                    VerificationState = p != null ? p.VerificationState : VerificationStatus.None,
+                    NextReviewDate = p != null ? p.NextReviewDate : null,
+                    LastPracticedAt = p != null ? (DateTime?)p.LastPracticedAt : null,
+                    w.CreatedAt
+                })
+            .ToListAsync(cancellationToken);
+
+        var classified = rows
+            .Where(r => filter.IncludeNeverPracticed || r.HasProgress)
+            .Select(r => new
+            {
+                Row = r,
+                IsDue = r.NextReviewDate != null && r.NextReviewDate <= asOfUtc,
+                Status = StatusOf(r.HasProgress, r.MasteryScore, r.ProductionInStreak, r.TotalAttempts,
+                    r.IsUserDeclared, r.VerificationState, r.NextReviewDate, asOfUtc)
+            })
+            .Where(r => filter.Status is null || r.Status == filter.Status)
+            .ToList();
+
+        var eligible = classified.Where(r => !r.IsDue).ToList();
+        var page = eligible
+            .OrderByDescending(r => r.Row.HasProgress)
+            .ThenByDescending(r => r.Row.MasteryScore)
+            .ThenBy(r => r.Row.CreatedAt)
+            .Take(maxResults)
+            .ToList();
+
+        var ids = page.Select(r => r.Row.Id).ToList();
+        var terms = await db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(w => ids.Contains(w.Id))
+            .Select(w => new { w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.Lemma, w.Language, w.Tags })
+            .ToDictionaryAsync(w => w.Id, cancellationToken);
+
+        var summaries = page
+            .Where(r => terms.ContainsKey(r.Row.Id))
+            .Select(r =>
+            {
+                var t = terms[r.Row.Id];
+                return new VocabularyWordSummary(
+                    t.Id, t.TargetLanguageTerm, t.NativeLanguageTerm, t.Lemma, t.Language, t.Tags,
+                    r.Row.MasteryScore, r.Row.LastPracticedAt, r.Row.IsUserDeclared, r.Row.HasProgress);
+            })
+            .ToList();
+
+        return new VocabularyWordPage(classified.Count, eligible.Count, summaries);
+    }
+
+    /// <summary>
+    /// The dashboard's status for one word (GetVocabSummaryCountsAsync), with "known" taken from
+    /// <see cref="VocabularyProgress.IsKnown"/> itself so the rule is not restated here.
+    /// </summary>
+    private static VocabularySearchStatus StatusOf(
+        bool hasProgress, float mastery, int productionInStreak, int totalAttempts,
+        bool isUserDeclared, VerificationStatus verification, DateTime? nextReview, DateTime asOfUtc)
+    {
+        if (!hasProgress)
+        {
+            return VocabularySearchStatus.New;
+        }
+
+        if (isUserDeclared && verification == VerificationStatus.Pending)
+        {
+            return VocabularySearchStatus.Familiar;
+        }
+
+        var isKnown = new VocabularyProgress
+        {
+            MasteryScore = mastery,
+            ProductionInStreak = productionInStreak,
+            TotalAttempts = totalAttempts
+        }.IsKnown;
+
+        if (isKnown)
+        {
+            return VocabularySearchStatus.Known;
+        }
+
+        if (nextReview != null && nextReview <= asOfUtc)
+        {
+            return VocabularySearchStatus.Review;
+        }
+
+        return totalAttempts > 0 ? VocabularySearchStatus.Learning : VocabularySearchStatus.New;
     }
 
     public async Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(

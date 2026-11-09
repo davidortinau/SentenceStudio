@@ -59,8 +59,9 @@ public static class CoachInstructions
         can do it, say so plainly and name the screen in the app where they can do it.
         - "How many words do I have" is the total words number from
           get_current_profile_summary: the same number the dashboard shows.
-        - To find a word, search with list_user_vocabularies. Words due for review are never
-          listed; say how many were withheld, never which.
+        - To find or count words, search with list_user_vocabularies. It can narrow by a tag, a
+          resource, or a learning status, and finds words never practised. Words due for review
+          are never listed; say how many were withheld, never which.
         - To read, add, change or remove a word's example sentences, find the word first, then
           use get_vocabulary_example_sentences or the propose_ example sentence tools. A word
           that is due for review keeps its example sentences hidden; say they are hidden until

@@ -144,11 +144,11 @@ public static class CoachReadCapabilityMetadataTable
             CoachScopeCoverage.PageOfOwnedSet,
             [CoachScopeOrder.MasteryDescending],
             Owner | CoachScopeFilters.ProgressRowExists | CoachScopeFilters.ExcludeDue
-                | CoachScopeFilters.TextQuery,
+                | CoachScopeFilters.TextQuery | CoachScopeFilters.AttributeFilter,
             CoachReadDateSupport.None,
             CoachReadRangeSupport.ResultLimit,
             MaxPageSize: VocabularySearchTool.MaxResults,
-            Source: "SamTools/VocabularySearchTool.cs MaxResults; TextQuery applied only when a query is given"),
+            Source: "SamTools/VocabularySearchTool.cs MaxResults; TextQuery and AttributeFilter applied only when given; ProgressRowExists dropped when never-practised words are included"),
 
         [CoachToolNames.GetVocabularyWordDetail] = new(
             CoachScopeCoverage.SingleItem,

@@ -20,6 +20,10 @@ public sealed record VocabularyProgressFacts(
     DateTime? NextReviewDate);
 
 /// <summary>One word the learner is tracking, as much of it as a list needs.</summary>
+/// <param name="HasProgress">
+/// False for a word the learner owns but has never practised or marked (no progress record):
+/// its mastery and last-practised values are then not facts, only defaults.
+/// </param>
 public sealed record VocabularyWordSummary(
     string WordId,
     string? TargetLanguageTerm,
@@ -29,7 +33,44 @@ public sealed record VocabularyWordSummary(
     string? Tags,
     float MasteryScore,
     DateTime? LastPracticedAt,
-    bool IsUserDeclared);
+    bool IsUserDeclared,
+    bool HasProgress = true);
+
+/// <summary>A learning status as the dashboard tiles name them.</summary>
+public enum VocabularySearchStatus
+{
+    /// <summary>Never practised: no progress record, or one with no attempts.</summary>
+    New,
+
+    /// <summary>Practised, not known, not due.</summary>
+    Learning,
+
+    /// <summary>Marked familiar by the learner and not yet confirmed by practice.</summary>
+    Familiar,
+
+    /// <summary>Due for review now. Always withheld from a list; only counted.</summary>
+    Review,
+
+    /// <summary>Known.</summary>
+    Known
+}
+
+/// <summary>What narrows a vocabulary search. Every member is optional.</summary>
+/// <param name="Query">A substring of the target term, the native term, or the lemma.</param>
+/// <param name="Tag">One tag the word carries, matched whole and ignoring case.</param>
+/// <param name="ResourceId">One of the learner's own resources the word is on.</param>
+/// <param name="Status">One learning status.</param>
+/// <param name="IncludeNeverPracticed">Also include words with no progress record.</param>
+public sealed record VocabularySearchFilter(
+    string? Query = null,
+    string? Tag = null,
+    string? ResourceId = null,
+    VocabularySearchStatus? Status = null,
+    bool IncludeNeverPracticed = false)
+{
+    /// <summary>True when only a text query (or nothing) narrows the search, the original shape.</summary>
+    public bool IsQueryOnly => Tag is null && ResourceId is null && Status is null && !IncludeNeverPracticed;
+}
 
 /// <summary>One word the learner is tracking, with the attempt history a detail view needs.</summary>
 public sealed record VocabularyWordDetailFacts(
@@ -168,6 +209,20 @@ public interface IVocabularyQueries
     Task<VocabularyWordPage> SearchUndueWordsAsync(
         string userProfileId,
         string? query,
+        int maxResults,
+        DateTime asOfUtc,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches the learner's own words (recorded to them, the one ownership rule) with the
+    /// narrowing in <paramref name="filter"/>, highest mastery first, never-practised words last.
+    /// Words due for review are counted in <see cref="VocabularyWordPage.MatchedCount"/> and never
+    /// returned, exactly as in <see cref="SearchUndueWordsAsync"/>. An empty identifier returns an
+    /// empty page.
+    /// </summary>
+    Task<VocabularyWordPage> SearchOwnedWordsAsync(
+        string userProfileId,
+        VocabularySearchFilter filter,
         int maxResults,
         DateTime asOfUtc,
         CancellationToken cancellationToken = default);

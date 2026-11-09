@@ -191,7 +191,8 @@ public class CoachResultScopeContractTests
         {
             ["None"] = 0, ["OwnerScoped"] = 1, ["ExcludeArchived"] = 2, ["ExcludeDue"] = 4,
             ["ProgressRowExists"] = 8, ["TextQuery"] = 16, ["DateWindow"] = 32,
-            ["SingleIdentifier"] = 64, ["CalendarDay"] = 128, ["MinimumEvidence"] = 256
+            ["SingleIdentifier"] = 64, ["CalendarDay"] = 128, ["MinimumEvidence"] = 256,
+            ["AttributeFilter"] = 512
         });
 
         Pinned<CoachScopeWithheldReason>(new()
