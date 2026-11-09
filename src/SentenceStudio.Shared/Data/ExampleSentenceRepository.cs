@@ -600,7 +600,11 @@ public class ExampleSentenceRepository
         return trimmed.Length > MaxSentenceLength ? null : trimmed;
     }
 
-    private static string NormalizeForDedup(string sentence)
+    /// <summary>
+    /// How the app decides two sentences are the same: spacing, wrapping quotes and case ignored.
+    /// Public so the coach's example-sentence handlers use the same rule.
+    /// </summary>
+    public static string NormalizeForDedup(string sentence)
     {
         if (string.IsNullOrWhiteSpace(sentence))
             return string.Empty;

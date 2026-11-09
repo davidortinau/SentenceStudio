@@ -203,9 +203,16 @@ public class CoachGeneralAnswerTests
             }
         };
 
-        CoachAnswerShapeRepair.Repair(intent);
+        var report = CoachAnswerShapeRepair.Repair(intent);
 
         intent.Kind.Should().Be(CoachIntentKind.PedagogicalAnswer);
+        report.GeneralAnswerWithParts.Should().BeTrue("the rewrite is reported");
+        report.Changed.Should().BeTrue();
+        // The answer path shows only the parts, so the message must lead them, not be dropped.
+        intent.PedagogicalAnswer!.Blocks.Should().HaveCount(2);
+        intent.PedagogicalAnswer.Blocks[0].Kind.Should().Be(CoachAnswerBlockKind.Answer);
+        string.Concat(intent.PedagogicalAnswer.Blocks[0].Spans.Select(s => s.Text))
+            .Should().Contain("Here are your food words.");
         new CoachIntentValidator().ValidateIntent(intent).IsValid.Should().BeTrue();
     }
 

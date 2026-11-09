@@ -234,10 +234,11 @@ public partial class VocabularyProgressRepository
         if (filter.Tag is { } tag)
         {
             // Tags are stored comma separated, sometimes with spaces. Matched whole, so "food"
-            // does not find "seafood", and without case, so "Food" finds "food".
-            var needle = "%," + tag.Replace(" ", string.Empty).ToLowerInvariant() + ",%";
+            // does not find "seafood", and without case, so "Food" finds "food". The tag is
+            // escaped, so "%" or "_" in it is a character, not a wildcard.
+            var needle = "%," + EscapeLike(tag.Replace(" ", string.Empty).ToLowerInvariant()) + ",%";
             words = words.Where(w => w.Tags != null
-                && EF.Functions.Like("," + w.Tags.Replace(" ", "").ToLower() + ",", needle));
+                && EF.Functions.Like("," + w.Tags.Replace(" ", "").ToLower() + ",", needle, LikeEscape));
         }
 
         if (filter.ResourceId is { } resourceId)
@@ -249,49 +250,74 @@ public partial class VocabularyProgressRepository
                 && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userProfileId)));
         }
 
-        // Scheduling facts only, no terms: every narrowing that needs the status rule runs on
-        // these rows, and terms are read for the returned page alone.
-        var rows = await (
-                from w in words
-                join p in db.VocabularyProgresses.AsNoTracking().Where(p => p.UserId == userProfileId)
-                    on w.Id equals p.VocabularyWordId into progress
-                from p in progress.DefaultIfEmpty()
-                select new
-                {
-                    w.Id,
-                    HasProgress = p != null,
-                    MasteryScore = p != null ? p.MasteryScore : 0f,
-                    ProductionInStreak = p != null ? p.ProductionInStreak : 0,
-                    TotalAttempts = p != null ? p.TotalAttempts : 0,
-                    IsUserDeclared = p != null && p.IsUserDeclared,
-                    VerificationState = p != null ? p.VerificationState : VerificationStatus.None,
-                    NextReviewDate = p != null ? p.NextReviewDate : null,
-                    LastPracticedAt = p != null ? (DateTime?)p.LastPracticedAt : null,
-                    w.CreatedAt
-                })
-            .ToListAsync(cancellationToken);
-
-        var classified = rows
-            .Where(r => filter.IncludeNeverPracticed || r.HasProgress)
-            .Select(r => new
+        // Scheduling facts only, no terms; terms are read for the returned page alone.
+        var rows =
+            from w in words
+            join p in db.VocabularyProgresses.AsNoTracking().Where(p => p.UserId == userProfileId)
+                on w.Id equals p.VocabularyWordId into progress
+            from p in progress.DefaultIfEmpty()
+            select new
             {
-                Row = r,
-                IsDue = r.NextReviewDate != null && r.NextReviewDate <= asOfUtc,
-                Status = StatusOf(r.HasProgress, r.MasteryScore, r.ProductionInStreak, r.TotalAttempts,
-                    r.IsUserDeclared, r.VerificationState, r.NextReviewDate, asOfUtc)
-            })
-            .Where(r => filter.Status is null || r.Status == filter.Status)
-            .ToList();
+                w.Id,
+                HasProgress = p != null,
+                MasteryScore = p != null ? p.MasteryScore : 0f,
+                ProductionInStreak = p != null ? p.ProductionInStreak : 0,
+                TotalAttempts = p != null ? p.TotalAttempts : 0,
+                IsUserDeclared = p != null && p.IsUserDeclared,
+                VerificationState = p != null ? p.VerificationState : VerificationStatus.None,
+                NextReviewDate = p != null ? p.NextReviewDate : null,
+                LastPracticedAt = p != null ? (DateTime?)p.LastPracticedAt : null,
+                w.CreatedAt
+            };
 
-        var eligible = classified.Where(r => !r.IsDue).ToList();
-        var page = eligible
-            .OrderByDescending(r => r.Row.HasProgress)
-            .ThenByDescending(r => r.Row.MasteryScore)
-            .ThenBy(r => r.Row.CreatedAt)
-            .Take(maxResults)
-            .ToList();
+        if (!filter.IncludeNeverPracticed)
+        {
+            rows = rows.Where(r => r.HasProgress);
+        }
 
-        var ids = page.Select(r => r.Row.Id).ToList();
+        int matched;
+        int eligibleCount;
+        List<(string Id, float Mastery, DateTime? LastPracticedAt, bool Declared, bool HasProgress)> page;
+
+        if (filter.Status is not { } status)
+        {
+            // No status rule to apply, so counting, the due embargo, ordering and paging all run
+            // in the database, like SearchUndueWordsAsync.
+            matched = await rows.CountAsync(cancellationToken);
+            var eligible = rows.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc);
+            eligibleCount = await eligible.CountAsync(cancellationToken);
+            page = (await eligible
+                    .OrderByDescending(r => r.HasProgress)
+                    .ThenByDescending(r => r.MasteryScore)
+                    .ThenBy(r => r.CreatedAt)
+                    .Take(maxResults)
+                    .Select(r => new { r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress })
+                    .ToListAsync(cancellationToken))
+                .Select(r => (r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress))
+                .ToList();
+        }
+        else
+        {
+            // "Known" is a computed rule (VocabularyProgress.IsKnown) with no SQL form, so a status
+            // search classifies term-free rows in memory, as the dashboard's own count does.
+            var loaded = await rows.ToListAsync(cancellationToken);
+            var inStatus = loaded
+                .Where(r => IsInStatus(status, r.HasProgress, r.MasteryScore, r.ProductionInStreak,
+                    r.TotalAttempts, r.IsUserDeclared, r.VerificationState, r.NextReviewDate, asOfUtc))
+                .ToList();
+            matched = inStatus.Count;
+            var eligible = inStatus.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc).ToList();
+            eligibleCount = eligible.Count;
+            page = eligible
+                .OrderByDescending(r => r.HasProgress)
+                .ThenByDescending(r => r.MasteryScore)
+                .ThenBy(r => r.CreatedAt)
+                .Take(maxResults)
+                .Select(r => (r.Id, r.MasteryScore, r.LastPracticedAt, r.IsUserDeclared, r.HasProgress))
+                .ToList();
+        }
+
+        var ids = page.Select(r => r.Id).ToList();
         var terms = await db.VocabularyWords
             .AsNoTracking()
             .OwnedBy(userProfileId)
@@ -300,55 +326,54 @@ public partial class VocabularyProgressRepository
             .ToDictionaryAsync(w => w.Id, cancellationToken);
 
         var summaries = page
-            .Where(r => terms.ContainsKey(r.Row.Id))
+            .Where(r => terms.ContainsKey(r.Id))
             .Select(r =>
             {
-                var t = terms[r.Row.Id];
+                var t = terms[r.Id];
                 return new VocabularyWordSummary(
                     t.Id, t.TargetLanguageTerm, t.NativeLanguageTerm, t.Lemma, t.Language, t.Tags,
-                    r.Row.MasteryScore, r.Row.LastPracticedAt, r.Row.IsUserDeclared, r.Row.HasProgress);
+                    r.Mastery, r.LastPracticedAt, r.Declared, r.HasProgress);
             })
             .ToList();
 
-        return new VocabularyWordPage(classified.Count, eligible.Count, summaries);
+        return new VocabularyWordPage(matched, eligibleCount, summaries);
     }
 
+    private const string LikeEscape = "\\";
+
+    private static string EscapeLike(string value) =>
+        value.Replace(LikeEscape, LikeEscape + LikeEscape)
+            .Replace("%", LikeEscape + "%")
+            .Replace("_", LikeEscape + "_");
+
     /// <summary>
-    /// The dashboard's status for one word (GetVocabSummaryCountsAsync), with "known" taken from
-    /// <see cref="VocabularyProgress.IsKnown"/> itself so the rule is not restated here.
+    /// The dashboard's predicate for one tile (GetVocabSummaryCountsAsync), word for word, with
+    /// "known" taken from <see cref="VocabularyProgress.IsKnown"/> itself. Like the tiles, Known
+    /// and Familiar can both hold for one word.
     /// </summary>
-    private static VocabularySearchStatus StatusOf(
-        bool hasProgress, float mastery, int productionInStreak, int totalAttempts,
-        bool isUserDeclared, VerificationStatus verification, DateTime? nextReview, DateTime asOfUtc)
+    private static bool IsInStatus(
+        VocabularySearchStatus status, bool hasProgress, float mastery, int productionInStreak,
+        int totalAttempts, bool isUserDeclared, VerificationStatus verification, DateTime? nextReview,
+        DateTime asOfUtc)
     {
-        if (!hasProgress)
-        {
-            return VocabularySearchStatus.New;
-        }
-
-        if (isUserDeclared && verification == VerificationStatus.Pending)
-        {
-            return VocabularySearchStatus.Familiar;
-        }
-
-        var isKnown = new VocabularyProgress
+        var familiar = hasProgress && isUserDeclared && verification == VerificationStatus.Pending;
+        var known = hasProgress && new VocabularyProgress
         {
             MasteryScore = mastery,
             ProductionInStreak = productionInStreak,
             TotalAttempts = totalAttempts
         }.IsKnown;
+        var due = nextReview != null && nextReview <= asOfUtc;
 
-        if (isKnown)
+        return status switch
         {
-            return VocabularySearchStatus.Known;
-        }
-
-        if (nextReview != null && nextReview <= asOfUtc)
-        {
-            return VocabularySearchStatus.Review;
-        }
-
-        return totalAttempts > 0 ? VocabularySearchStatus.Learning : VocabularySearchStatus.New;
+            VocabularySearchStatus.New => !hasProgress || (totalAttempts == 0 && !familiar),
+            VocabularySearchStatus.Familiar => familiar,
+            VocabularySearchStatus.Known => known,
+            VocabularySearchStatus.Learning => hasProgress && !familiar && !known && totalAttempts > 0 && !due,
+            VocabularySearchStatus.Review => hasProgress && !familiar && !known && due,
+            _ => false
+        };
     }
 
     public async Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(

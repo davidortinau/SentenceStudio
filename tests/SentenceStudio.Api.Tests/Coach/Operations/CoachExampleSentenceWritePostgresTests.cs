@@ -294,6 +294,46 @@ public sealed class CoachExampleSentenceWritePostgresTests : IAsyncLifetime
         (await after.ExampleSentences.SingleAsync()).TargetSentence.Should().Be("바나나가 좋아요.");
     }
 
+    [PostgresFact]
+    public async Task A_duplicate_is_found_the_way_the_app_compares_sentences()
+    {
+        // ExampleSentenceRepository.NormalizeForDedup: spacing, wrapping quotes and case ignored.
+        var wordId = await SeedWordAsync(Owner, "사과");
+        await SeedSentenceAsync(Owner, wordId, "나는 사과를 먹어요.");
+        await using var appDb = _harness.NewApplicationContext();
+        var ledger = NewLedger(appDb, Owner);
+
+        var nearDuplicate = () => ledger.ProposeAsync(
+            Conversation, "turn-1", CoachToolNames.ProposeExampleSentenceEntry,
+            Json(new CoachExampleSentenceEntryArgs(wordId, "\"나는  사과를   먹어요.\"")));
+
+        await nearDuplicate.Should().ThrowAsync<CoachToolException>();
+    }
+
+    [PostgresFact]
+    public async Task Undoing_an_edit_never_makes_a_duplicate()
+    {
+        var wordId = await SeedWordAsync(Owner, "사과");
+        var sentenceId = await SeedSentenceAsync(Owner, wordId, "사과 하나.");
+        await using var appDb = _harness.NewApplicationContext();
+        var ledger = NewLedger(appDb, Owner);
+
+        var edit = await ledger.ProposeAsync(
+            Conversation, "turn-1", CoachToolNames.ProposeExampleSentenceEdit,
+            Json(new CoachExampleSentenceEditArgs(sentenceId, TargetSentence: "사과 두 개.")));
+        await ledger.AcceptAsync(Conversation, edit.OperationId);
+
+        // The learner adds the old text back as a new sentence, then asks to undo the edit.
+        await SeedSentenceAsync(Owner, wordId, "사과 하나.");
+
+        var undo = () => ledger.UndoAsync(Conversation, edit.OperationId);
+        await undo.Should().ThrowAsync<Exception>();
+
+        await using var after = _harness.NewApplicationContext();
+        (await after.ExampleSentences.CountAsync(e => e.TargetSentence == "사과 하나.")).Should().Be(1);
+        (await after.ExampleSentences.SingleAsync(e => e.Id == sentenceId)).TargetSentence.Should().Be("사과 두 개.");
+    }
+
     // ------------------------------------------------------------------ remove
 
     [PostgresFact]

@@ -134,16 +134,57 @@ public class VocabularySearchFilterTests
         result.Scope.WithheldCount.Should().Be(1);
     }
 
-    [Fact]
-    public async Task An_unknown_status_is_refused()
+    [Theory]
+    [InlineData("mastered")]
+    [InlineData("learning, familiar")]
+    [InlineData("4")]
+    public async Task An_unknown_status_is_refused(string status)
     {
+        // Enum.TryParse would take "4" as Known and OR "learning, familiar" into Review.
         var (fixture, _) = await SeedAsync();
         using var __ = fixture;
 
         var act = () => fixture.VocabularySearchTool.SearchAsync(
-            null, 10, tag: null, resourceId: null, status: "mastered", includeNeverPracticed: true);
+            null, 10, tag: null, resourceId: null, status: status, includeNeverPracticed: true);
 
         await act.Should().ThrowAsync<CoachToolException>();
+    }
+
+    [Theory]
+    [InlineData("%")]
+    [InlineData("f_od")]
+    public async Task A_tag_with_wildcard_characters_is_matched_literally(string tag)
+    {
+        var (fixture, _) = await SeedAsync();
+        using var __ = fixture;
+
+        var result = await fixture.VocabularySearchTool.SearchAsync(
+            null, 10, tag: tag, resourceId: null, status: null, includeNeverPracticed: true);
+
+        result.Words.Should().BeEmpty();
+        result.Scope.MatchedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_declared_known_word_is_both_familiar_and_known_as_on_the_dashboard()
+    {
+        var (fixture, _) = await SeedAsync();
+        using var __ = fixture;
+        var me = CoachToolTestFixture.UserA;
+        var word = fixture.SeedWord("밥", "rice", owner: me);
+        var progress = fixture.SeedProgress(me, word.Id, masteryScore: 0.95f, totalAttempts: 20,
+            correctAttempts: 19, productionInStreak: 5, nextReviewDate: fixture.Now.AddDays(20));
+        progress.IsUserDeclared = true;
+        progress.VerificationState = SentenceStudio.Shared.Models.VerificationStatus.Pending;
+        fixture.Db.SaveChanges();
+
+        var familiar = await fixture.VocabularySearchTool.SearchAsync(
+            null, 10, tag: null, resourceId: null, status: "familiar", includeNeverPracticed: true);
+        var known = await fixture.VocabularySearchTool.SearchAsync(
+            null, 10, tag: null, resourceId: null, status: "known", includeNeverPracticed: true);
+
+        familiar.Words.Should().Contain(w => w.WordId == word.Id);
+        known.Words.Should().Contain(w => w.WordId == word.Id);
     }
 
     [Fact]

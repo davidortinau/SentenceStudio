@@ -160,10 +160,13 @@ public sealed class VocabularySearchTool : CoachToolBase
             return null;
         }
 
-        return Enum.TryParse<VocabularySearchStatus>(status.Trim(), ignoreCase: true, out var parsed)
-               && Enum.IsDefined(parsed)
-            ? parsed
-            : throw InvalidArgument("The status must be new, learning, familiar, review or known.");
+        // A name match only: Enum.TryParse would also take "4" or "learning, familiar" (ORed into
+        // a different member) and quietly search the wrong status.
+        var name = Enum.GetNames<VocabularySearchStatus>()
+            .FirstOrDefault(n => string.Equals(n, status.Trim(), StringComparison.OrdinalIgnoreCase));
+        return name is not null
+            ? Enum.Parse<VocabularySearchStatus>(name)
+            : throw InvalidArgument("The status must be one of new, learning, familiar, review or known.");
     }
 
     private static List<string> SplitTags(string? tags) =>

@@ -77,6 +77,9 @@ public sealed class CoachExampleSentenceStore
     /// <summary>The database context the handlers save through.</summary>
     public ApplicationDbContext Db => _db;
 
+    /// <summary>The one clock an operation uses, for its timestamps and its due decision.</summary>
+    public DateTime UtcNow => _dates.UtcNow;
+
     /// <summary>The learner's own word, or null.</summary>
     public Task<VocabularyWord?> FindWordAsync(string userProfileId, string wordId, CancellationToken ct) =>
         string.IsNullOrWhiteSpace(wordId)
@@ -109,17 +112,30 @@ public sealed class CoachExampleSentenceStore
     /// </summary>
     public Task<bool> IsDueAsync(string userProfileId, string wordId, CancellationToken ct)
     {
-        var now = _dates.UtcNow;
+        var now = UtcNow;
         return _db.VocabularyProgresses.AnyAsync(
             p => p.UserId == userProfileId && p.VocabularyWordId == wordId
                  && p.NextReviewDate != null && p.NextReviewDate <= now,
             ct);
     }
 
-    /// <summary>True when the learner already has this exact sentence on the word.</summary>
-    public Task<bool> HasSentenceAsync(string userProfileId, string wordId, string targetSentence, CancellationToken ct) =>
-        _db.ExampleSentences.OwnedBy(userProfileId)
-            .AnyAsync(e => e.VocabularyWordId == wordId && e.TargetSentence == targetSentence, ct);
+    /// <summary>
+    /// True when the learner already has this sentence on the word, compared the way the rest of
+    /// the app compares sentences (<see cref="ExampleSentenceRepository.NormalizeForDedup"/>:
+    /// spacing, wrapping quotes and case ignored). <paramref name="exceptSentenceId"/> leaves out
+    /// the sentence being changed.
+    /// </summary>
+    public async Task<bool> HasSentenceAsync(
+        string userProfileId, string wordId, string targetSentence, CancellationToken ct,
+        string? exceptSentenceId = null)
+    {
+        var wanted = ExampleSentenceRepository.NormalizeForDedup(targetSentence);
+        var existing = await _db.ExampleSentences.AsNoTracking().OwnedBy(userProfileId)
+            .Where(e => e.VocabularyWordId == wordId && e.Id != exceptSentenceId)
+            .Select(e => e.TargetSentence)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return existing.Any(s => ExampleSentenceRepository.NormalizeForDedup(s) == wanted);
+    }
 
     /// <summary>True when the learner has any sentence on the word.</summary>
     public Task<bool> HasAnySentenceAsync(string userProfileId, string wordId, CancellationToken ct) =>
@@ -150,12 +166,23 @@ internal static class CoachExampleSentenceText
     }
 
     /// <summary>A stored sentence for a card line; one saved elsewhere may be longer than Sam's bound.</summary>
-    public static string Display(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? "(empty)"
-            : value.Length <= CoachExampleSentenceStore.SentenceMaxLength
-                ? value
-                : value[..CoachExampleSentenceStore.SentenceMaxLength] + "…";
+    public static string Display(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "(empty)";
+        }
+
+        var max = CoachExampleSentenceStore.SentenceMaxLength;
+        if (value.Length <= max)
+        {
+            return value;
+        }
+
+        // Never split a surrogate pair: a lone half is not text and can fail to serialize.
+        var cut = char.IsHighSurrogate(value[max - 1]) ? max - 1 : max;
+        return value[..cut] + "…";
+    }
 
     private static string Clean(string value)
     {
@@ -195,7 +222,7 @@ public sealed class CoachExampleSentenceEntryHandler : CoachWriteHandlerBase<Coa
     {
         var (word, target, native) = await ValidateAsync(userProfileId, args, cancellationToken).ConfigureAwait(false);
 
-        var now = DateTime.UtcNow;
+        var now = _store.UtcNow;
         var sentence = new ExampleSentence
         {
             Id = Guid.NewGuid().ToString(),
@@ -337,7 +364,7 @@ public sealed class CoachExampleSentenceEditHandler : CoachWriteHandlerBase<Coac
             sentence.NativeSentence = native.Length == 0 ? null : native;
         }
 
-        sentence.UpdatedAt = DateTime.UtcNow;
+        sentence.UpdatedAt = _store.UtcNow;
         await SaveAsync(cancellationToken).ConfigureAwait(false);
 
         return new CoachWriteExecution(
@@ -358,9 +385,22 @@ public sealed class CoachExampleSentenceEditHandler : CoachWriteHandlerBase<Coac
         var found = await _store.FindSentenceAsync(userProfileId, args.SentenceId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
 
+        // The same guards as the forward edit: putting the old text back must not make a
+        // duplicate the learner added since, nor touch a sentence that is now hidden for review.
+        if (await _store.IsDueAsync(userProfileId, found.Word.Id, cancellationToken).ConfigureAwait(false))
+        {
+            throw InvalidArgument("That word is due for review, so its example sentences stay hidden until the review is done.");
+        }
+
+        if (await _store.HasSentenceAsync(userProfileId, found.Word.Id, prior.TargetSentence, cancellationToken,
+                exceptSentenceId: found.Sentence.Id).ConfigureAwait(false))
+        {
+            throw InvalidArgument("That word already has this example sentence, so the change cannot be put back.");
+        }
+
         found.Sentence.TargetSentence = prior.TargetSentence;
         found.Sentence.NativeSentence = prior.NativeSentence;
-        found.Sentence.UpdatedAt = DateTime.UtcNow;
+        found.Sentence.UpdatedAt = _store.UtcNow;
         await SaveAsync(cancellationToken).ConfigureAwait(false);
 
         return new CoachWriteExecution(
@@ -429,7 +469,8 @@ public sealed class CoachExampleSentenceEditHandler : CoachWriteHandlerBase<Coac
         }
 
         if (target is not null
-            && await _store.HasSentenceAsync(userProfileId, word.Id, target, cancellationToken).ConfigureAwait(false))
+            && await _store.HasSentenceAsync(userProfileId, word.Id, target, cancellationToken,
+                exceptSentenceId: sentence.Id).ConfigureAwait(false))
         {
             throw InvalidArgument("That word already has this example sentence.");
         }
