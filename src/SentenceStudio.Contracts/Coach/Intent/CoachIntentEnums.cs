@@ -10,7 +10,7 @@ namespace SentenceStudio.Contracts.Coach.Intent;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum CoachIntentKind
 {
-    /// <summary>The learner asked for no change. Answer only.</summary>
+    /// <summary>Nothing to change and nothing to answer, or a topical vocabulary review request.</summary>
     NoChange = 0,
 
     /// <summary>The learner asked to change a constraint now.</summary>
@@ -38,7 +38,19 @@ public enum CoachIntentKind
     /// Appended, never inserted. <c>CoachPlanRevision.IntentKind</c> is stored as an ordinal, so
     /// renumbering an existing member would silently re-label every revision already written.
     /// </remarks>
-    PedagogicalAnswer = 7
+    PedagogicalAnswer = 7,
+
+    /// <summary>
+    /// The turn answers anything else in plain words: a question about the learner's own words,
+    /// resources, skills, settings or progress, what a read tool found, what a prepared proposal
+    /// will do, or how the app works. Changes nothing about Today's Plan and writes nothing.
+    /// </summary>
+    /// <remarks>
+    /// The general reply, so a result such as "you have 342 words" or "I prepared 사과 for you to
+    /// approve" has a kind of its own instead of borrowing a plan kind or a language-teaching kind.
+    /// Appended for the same reason as <see cref="PedagogicalAnswer"/>: the ordinal is stored.
+    /// </remarks>
+    GeneralAnswer = 8
 }
 
 /// <summary>

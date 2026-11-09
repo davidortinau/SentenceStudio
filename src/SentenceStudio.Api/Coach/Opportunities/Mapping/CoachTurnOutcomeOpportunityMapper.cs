@@ -96,6 +96,7 @@ public static class CoachTurnOutcomeOpportunityMapper
         CoachIntentKind.RejectPendingSuggestion => TurnDisposition.Never,
         CoachIntentKind.AskClarification => TurnDisposition.Never,
         CoachIntentKind.PedagogicalAnswer => TurnDisposition.Never,
+        CoachIntentKind.GeneralAnswer => TurnDisposition.Never,
 
         // The one intent that names a gap: the learner asked about something the coach does not
         // cover. Counted with no conversation id, because "what did this learner ask that we

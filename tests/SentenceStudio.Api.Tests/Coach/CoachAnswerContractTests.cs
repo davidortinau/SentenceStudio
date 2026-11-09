@@ -30,6 +30,7 @@ public class CoachAnswerContractTests
     [InlineData(CoachIntentKind.AskClarification, 5)]
     [InlineData(CoachIntentKind.OffTopic, 6)]
     [InlineData(CoachIntentKind.PedagogicalAnswer, 7)]
+    [InlineData(CoachIntentKind.GeneralAnswer, 8)]
     public void EveryIntentKindKeepsItsStoredOrdinal(CoachIntentKind kind, int stored) =>
         // CoachPlanRevision.IntentKind is stored as an int, so renumbering silently re-labels
         // every revision already written.

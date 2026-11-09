@@ -41,7 +41,10 @@ public class CoachTurnIntentContractTests
             nameof(CoachIntentKind.AskClarification),
             nameof(CoachIntentKind.OffTopic),
             // The dual-purpose coach: answering a language question is a no-write turn.
-            nameof(CoachIntentKind.PedagogicalAnswer)
+            nameof(CoachIntentKind.PedagogicalAnswer),
+            // Sam as app assistant: a plain answer about the learner's data or the app, also
+            // a no-write turn (docs/coach/sam-single-runtime.md step 4).
+            nameof(CoachIntentKind.GeneralAnswer)
         ]);
     }
 

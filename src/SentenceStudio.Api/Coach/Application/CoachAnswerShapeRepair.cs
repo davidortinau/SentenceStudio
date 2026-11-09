@@ -91,6 +91,14 @@ public static class CoachAnswerShapeRepair
             }
         }
 
+        // A general answer that also carried structured parts (a word list, say). Both kinds are
+        // answers that write nothing, so the parts are shown through the answer path, with its
+        // bounds and language tags, instead of the whole reply being refused for its packaging.
+        if (intent.Kind == CoachIntentKind.GeneralAnswer && intent.PedagogicalAnswer is not null)
+        {
+            intent.Kind = CoachIntentKind.PedagogicalAnswer;
+        }
+
         // An answer turn whose reply landed in CoachMessage instead of the blocks. The message is
         // model text meant for the learner either way; carrying it as the direct answer puts it
         // through the answer bounds and grounding rather than discarding the reply.

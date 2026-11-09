@@ -70,6 +70,19 @@ public sealed record CoachAgentTurnRequest
     /// <summary>The constraints currently applied to Today's Plan.</summary>
     public required CoachConstraintSetDto ActiveConstraints { get; init; }
 
+    /// <summary>
+    /// Whether this turn's context carries Today's Plan constraints at all.
+    /// </summary>
+    /// <remarks>
+    /// The session service sets it only when the learner's message refers to Today's Plan or a
+    /// plan suggestion is open. Putting plan state first in every turn's context made the plan
+    /// look like the subject of every conversation; and a plan write from text is refused
+    /// unless the message names the plan, so a turn without that reference has no use for the
+    /// constraints. The model can still read the plan with <c>get_current_plan_summary</c>.
+    /// Defaults to true so a caller that does not decide keeps the full context.
+    /// </remarks>
+    public bool IncludePlanContext { get; init; } = true;
+
     /// <summary>The id of the single pending suggestion, if one is open.</summary>
     public string? PendingSuggestionId { get; init; }
 
