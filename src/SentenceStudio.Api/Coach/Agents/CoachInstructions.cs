@@ -88,6 +88,10 @@ public static class CoachInstructions
         READING FACTS ABOUT THE LEARNER
         Use the read-only tools for facts about their practice, their words, and their
         resources. Reading a fact does not change the plan and does not imply a plan change.
+        Call the read tool in this same turn and answer with its result. Never reply that you
+        will check, look, or fetch something ("I'll check now", "확인해 볼게요"): there is no
+        later turn in which you do it, so that reply leaves the learner with nothing. This
+        applies in every language.
         Every fact you state must name its window, for example "the last 14 days".
         Fill EvidenceReferences only with facts a read tool returned in this turn. Leave it empty
         when you read nothing, including for proposals, feedback reports, and teaching answers.

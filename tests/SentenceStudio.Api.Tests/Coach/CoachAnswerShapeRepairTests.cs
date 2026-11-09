@@ -1,5 +1,6 @@
 using SentenceStudio.Api.Coach.Agents;
 using SentenceStudio.Api.Coach.Application;
+using SentenceStudio.Api.Coach.Validation;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 
@@ -183,4 +184,52 @@ public sealed class CoachAnswerShapeRepairTests
             InputKind = CoachTurnInputKind.Text,
             Text = text
         });
+
+    [Fact]
+    public void A_general_answer_with_a_follow_up_question_keeps_the_answer_and_the_offer()
+    {
+        var intent = new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.GeneralAnswer,
+            CoachMessage = "I found 7 words tagged food.",
+            ClarifyingQuestion = "Want me to show their example sentences?"
+        };
+
+        var report = CoachAnswerShapeRepair.Repair(intent);
+
+        report.FoldedFollowUpQuestion.Should().BeTrue();
+        intent.ClarifyingQuestion.Should().BeNull("a general answer never carries a separate question");
+        intent.CoachMessage.Should().Be("I found 7 words tagged food. Want me to show their example sentences?");
+        new CoachIntentValidator().ValidateIntent(intent).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_follow_up_that_would_overflow_the_message_is_dropped_not_truncated()
+    {
+        var message = new string('a', 390);
+        var intent = new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.GeneralAnswer,
+            CoachMessage = message,
+            ClarifyingQuestion = "Want me to show more?"
+        };
+
+        CoachAnswerShapeRepair.Repair(intent);
+
+        intent.CoachMessage.Should().Be(message);
+        intent.ClarifyingQuestion.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_real_clarification_is_left_alone()
+    {
+        var intent = new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "Which topic?"
+        };
+
+        CoachAnswerShapeRepair.Repair(intent).FoldedFollowUpQuestion.Should().BeFalse();
+        intent.ClarifyingQuestion.Should().Be("Which topic?");
+    }
 }

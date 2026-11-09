@@ -910,10 +910,11 @@ public sealed class CoachSessionService : ICoachSessionService
                     "[Coach] Session {SessionId}: repaired the answer shape. Kind={IntentKind} "
                     + "DroppedEmptySpans={DroppedEmptySpans} DroppedEmptyBlocks={DroppedEmptyBlocks} "
                     + "FoldedBlocks={FoldedBlocks} DroppedEmptyAnswer={DroppedEmptyAnswer} "
-                    + "AnswerFromMessage={AnswerFromMessage} GeneralAnswerWithParts={GeneralAnswerWithParts}",
+                    + "AnswerFromMessage={AnswerFromMessage} GeneralAnswerWithParts={GeneralAnswerWithParts} "
+                    + "FoldedFollowUpQuestion={FoldedFollowUpQuestion}",
                     session.Id, modelIntent.Kind, repair.DroppedEmptySpans, repair.DroppedEmptyBlocks,
                     repair.FoldedBlocks, repair.DroppedEmptyAnswer, repair.AnswerFromMessage,
-                    repair.GeneralAnswerWithParts);
+                    repair.GeneralAnswerWithParts, repair.FoldedFollowUpQuestion);
             }
 
             var effectiveIntent = NormalizeExplicitVocabularyReview(request, modelIntent);

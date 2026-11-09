@@ -28,6 +28,9 @@ namespace SentenceStudio.Api.Coach.Application;
 /// </remarks>
 public static class CoachAnswerShapeRepair
 {
+    /// <summary>The CoachMessage limit the intent validator enforces.</summary>
+    private const int MaxFoldedMessageLength = 400;
+
     /// <summary>What the repair changed. Counts only; never content.</summary>
     public readonly record struct Report(
         int DroppedEmptySpans,
@@ -35,11 +38,12 @@ public static class CoachAnswerShapeRepair
         int FoldedBlocks,
         bool DroppedEmptyAnswer,
         bool AnswerFromMessage,
-        bool GeneralAnswerWithParts = false)
+        bool GeneralAnswerWithParts = false,
+        bool FoldedFollowUpQuestion = false)
     {
         public bool Changed =>
             DroppedEmptySpans > 0 || DroppedEmptyBlocks > 0 || FoldedBlocks > 0
-            || DroppedEmptyAnswer || AnswerFromMessage || GeneralAnswerWithParts;
+            || DroppedEmptyAnswer || AnswerFromMessage || GeneralAnswerWithParts || FoldedFollowUpQuestion;
     }
 
     /// <summary>Repairs <paramref name="intent"/>'s answer in place and reports what changed.</summary>
@@ -53,6 +57,25 @@ public static class CoachAnswerShapeRepair
         var droppedAnswer = false;
         var fromMessage = false;
         var generalWithParts = false;
+        var foldedQuestion = false;
+
+        // A general answer that ends with a follow-up offer ("Want me to show the sentences?") put
+        // in the clarifying-question field. The answer is the point, so the offer is appended to the
+        // message (or dropped if the message would exceed its limit) instead of refusing the whole
+        // reply. The combined text still goes through the leak check and every bound.
+        if (intent.Kind == CoachIntentKind.GeneralAnswer && !string.IsNullOrWhiteSpace(intent.ClarifyingQuestion))
+        {
+            var message = (intent.CoachMessage ?? string.Empty).Trim();
+            var question = intent.ClarifyingQuestion.Trim();
+            var combined = message.Length == 0 ? question : $"{message} {question}";
+            if (!message.Contains(question, StringComparison.Ordinal) && combined.Length <= MaxFoldedMessageLength)
+            {
+                intent.CoachMessage = combined;
+            }
+
+            intent.ClarifyingQuestion = null;
+            foldedQuestion = true;
+        }
 
         // A general answer that also carried structured parts (a word list, say). Both kinds are
         // answers that write nothing, so the reply goes through the answer path, with its bounds
@@ -142,7 +165,7 @@ public static class CoachAnswerShapeRepair
             fromMessage = true;
         }
 
-        return new Report(droppedSpans, droppedBlocks, folded, droppedAnswer, fromMessage, generalWithParts);
+        return new Report(droppedSpans, droppedBlocks, folded, droppedAnswer, fromMessage, generalWithParts, foldedQuestion);
     }
 
     /// <summary>
