@@ -177,7 +177,7 @@ public sealed class CoachFeedbackHandler : CoachWriteHandlerBase<CoachFeedbackSt
             // In-doubt outcomes keep it: an issue may exist and may name the reference.
             if (args.Reference is not null && outcome.Kind is FeedbackFileOutcomeKind.RateLimited
                     or FeedbackFileOutcomeKind.Unconfigured or FeedbackFileOutcomeKind.GitHubRefused
-                    or FeedbackFileOutcomeKind.Closed)
+                    or FeedbackFileOutcomeKind.GitHubUnavailable or FeedbackFileOutcomeKind.Closed)
             {
                 await DeleteSnapshotAsync(userProfileId, args.Jti, cancellationToken).ConfigureAwait(false);
             }
@@ -190,6 +190,8 @@ public sealed class CoachFeedbackHandler : CoachWriteHandlerBase<CoachFeedbackSt
                     "Feedback filing is not set up on this server. Nothing was filed."),
                 FeedbackFileOutcomeKind.GitHubRefused => InvalidArgument(
                     "GitHub did not accept the report. Nothing was filed."),
+                FeedbackFileOutcomeKind.GitHubUnavailable => InvalidArgument(
+                    "GitHub could not be reached, so nothing was filed. Ask Sam to file it again in a few minutes."),
                 FeedbackFileOutcomeKind.Closed => InvalidArgument(
                     "This report was not filed and can no longer be sent. Ask Sam to file it again."),
                 _ => InvalidArgument(

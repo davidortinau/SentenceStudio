@@ -17,6 +17,17 @@ var githubpat = builder.AddParameter("githubpat", secret: true);
 // feedbackhmackey maps predictably to the AZURE_FEEDBACKHMACKEY deployment input.
 var feedbackhmackey = builder.AddParameter("feedbackhmackey", secret: true);
 
+// GitHub App that files feedback issues (Issues: read and write on davidortinau/SentenceStudio only).
+// The client id is public. The private key is a secret: locally in user secrets as
+// Parameters:githubappprivatekey; in production from Key Vault (github-app-private-key) through
+// AZURE_GITHUBAPPPRIVATEKEY. Without a key locally, the API falls back to githubpat.
+var githubappclientid = builder.AddParameter("githubappclientid", "Iv23ctariyo54wCJKYR2", publishValueAsDefault: true);
+var githubAppKeyConfigured = !builder.ExecutionContext.IsRunMode
+    || !string.IsNullOrWhiteSpace(builder.Configuration["Parameters:githubappprivatekey"]);
+var githubappprivatekey = githubAppKeyConfigured
+    ? builder.AddParameter("githubappprivatekey", secret: true)
+    : null;
+
 // Azure AI Foundry (daortin-sstudio-eus2) — non-secret config for the server hosts, which
 // authenticate to Foundry keyless via Entra (DefaultAzureCredential / managed identity).
 // Injected as env vars so deployed containers get correct config regardless of the
@@ -188,6 +199,7 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithEnvironment("GitHub__Pat", githubpat)
+    .WithEnvironment("GitHub__AppClientId", githubappclientid)
     .WithEnvironment("Feedback__HmacKey", feedbackhmackey)
     .WithReference(postgres)
     .WaitFor(postgres)
@@ -206,6 +218,11 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     // /health is Development-only and reports database diagnostics. The existing public version
     // route is mapped in every environment, after the API's pre-Run migrations and backfills.
     .WithHttpHealthCheck("/api/version/info");
+
+if (githubappprivatekey is not null)
+{
+    api.WithEnvironment("GitHub__AppPrivateKey", githubappprivatekey);
+}
 
 if (!string.IsNullOrWhiteSpace(localAppDataRoot))
 {

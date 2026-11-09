@@ -53,6 +53,8 @@ check() {
   else fail "$names Sam settings, $secrets stored as secrets (update the runbook block first)"; fi
   [ -n "$(az keyvault secret show --vault-name "$VAULT" -n feedback-hmac-key --query value -o tsv)" ] \
     && ok "feedback key in Key Vault" || fail "feedback-hmac-key missing"
+  [ -n "$(az keyvault secret show --vault-name "$VAULT" -n github-app-private-key --query value -o tsv)" ] \
+    && ok "GitHub App key in Key Vault" || fail "github-app-private-key missing (feedback issues cannot be filed)"
 
   if [ $fails -gt 0 ]; then echo "STOP: $fails pre-check(s) failed; do not deploy"; return 1; fi
   echo "pre-checks passed"
@@ -71,10 +73,12 @@ deploy() {
     EXPORTED_NAMES=$(env | sed -n 's/^\(Coach__[^=]*\)=.*/\1/p' | sort)
     echo "Sam settings live: $(echo "$LIVE_NAMES" | grep -c .) exported: $(echo "$EXPORTED_NAMES" | grep -c .)"
     FEEDBACK_KEY="$(az keyvault secret show --vault-name "$VAULT" -n feedback-hmac-key --query value -o tsv)"
-    if [ -n "$FEEDBACK_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
-      AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" azd deploy -e sstudio-prod-biz --no-prompt
+    GITHUB_APP_KEY="$(az keyvault secret show --vault-name "$VAULT" -n github-app-private-key --query value -o tsv)"
+    if [ -n "$FEEDBACK_KEY" ] && [ -n "$GITHUB_APP_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
+      AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" AZURE_GITHUBAPPPRIVATEKEY="$GITHUB_APP_KEY" \
+        azd deploy -e sstudio-prod-biz --no-prompt
     else
-      echo "STOP: the feedback key or a Coach__ setting is missing; do not deploy"; exit 1
+      echo "STOP: the feedback key, the GitHub App key or a Coach__ setting is missing; do not deploy"; exit 1
     fi
   )
   after

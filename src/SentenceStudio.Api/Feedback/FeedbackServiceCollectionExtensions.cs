@@ -51,6 +51,9 @@ public static class FeedbackServiceCollectionExtensions
         services.TryAddSingleton<IFeedbackHmacKeyProvider>(
             FeedbackHmacKeyProvider.Create(configuration, allowGeneratedKey));
 
+        // Same rule for the GitHub App key: a configured key that cannot sign stops the host.
+        GitHubTokenProvider.ValidateConfiguration(configuration);
+
         services.AddDbContext<FeedbackDbContext>(options =>
         {
             var connectionString =
@@ -62,6 +65,7 @@ public static class FeedbackServiceCollectionExtensions
         });
 
         services.TryAddScoped<IFeedbackSubmissionLedger, FeedbackSubmissionLedger>();
+        services.TryAddSingleton<IGitHubTokenProvider, GitHubTokenProvider>();
         services.TryAddScoped<IFeedbackIssueFiler, FeedbackIssueFiler>();
         services.TryAddScoped<IFeedbackRateLimiter, FeedbackRateLimiter>();
         services.TryAddScoped<IFeedbackDataDeletionService, FeedbackDataDeletionService>();

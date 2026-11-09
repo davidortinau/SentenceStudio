@@ -888,6 +888,14 @@ feedback key never stay in your shell, and `azd deploy` runs only if both checks
   2026-11-05; if one becomes a secret, update this block (and the AppHost) before deploying.
 - **Feedback key.** `feedbackhmackey` is not in `.azure/sstudio-prod-biz/config.json`; azd
   reads it from `AZURE_FEEDBACKHMACKEY`, which the block reads from Key Vault.
+- **GitHub App key.** Feedback issues (the Feedback page and Sam) are filed by the GitHub App
+  "SentenceStudio Feedback" (client id `Iv23ctariyo54wCJKYR2`, Issues read/write on
+  `davidortinau/SentenceStudio` only), as its bot. The client id is a default in the AppHost; the
+  private key is Key Vault secret `github-app-private-key`, passed as `AZURE_GITHUBAPPPRIVATEKEY`.
+  One-time setup (Captain): `az keyvault secret set --vault-name dbkv-rsn72awybem6s
+  -n github-app-private-key --file <app>.private-key.pem`. The API mints a ten-minute app JWT,
+  finds the app's installation on the repository and exchanges it for a one-hour token
+  (`GitHubTokenProvider`). `githubpat` remains only as a local-development fallback.
 
 ```bash
 # Ensure VPN is OFF (management.azure.com times out on VPN)
@@ -903,10 +911,13 @@ cd <checkout of the commit you are shipping>   # it needs the .azure folder; see
   echo "live: $(echo "$LIVE_NAMES" | grep -c .) exported: $(echo "$EXPORTED_NAMES" | grep -c .)"
   FEEDBACK_KEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
     -n feedback-hmac-key --query value -o tsv)"
-  if [ -n "$FEEDBACK_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
-    AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" azd deploy -e sstudio-prod-biz --no-prompt
+  GITHUB_APP_KEY="$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
+    -n github-app-private-key --query value -o tsv)"
+  if [ -n "$FEEDBACK_KEY" ] && [ -n "$GITHUB_APP_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
+    AZURE_FEEDBACKHMACKEY="$FEEDBACK_KEY" AZURE_GITHUBAPPPRIVATEKEY="$GITHUB_APP_KEY" \
+      azd deploy -e sstudio-prod-biz --no-prompt
   else
-    echo "STOP: the feedback key or a Coach__ setting is missing; do not deploy"
+    echo "STOP: the feedback key, the GitHub App key or a Coach__ setting is missing; do not deploy"
   fi
 )
 ```

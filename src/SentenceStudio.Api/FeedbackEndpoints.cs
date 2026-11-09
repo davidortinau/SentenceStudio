@@ -230,6 +230,10 @@ public static class FeedbackEndpoints
             FeedbackFileOutcomeKind.Unconfigured =>
                 Results.Problem("Feedback submission is not available.", statusCode: 503),
 
+            FeedbackFileOutcomeKind.GitHubUnavailable => Results.Problem(
+                "GitHub could not be reached and nothing was sent. Please try again in a few minutes.",
+                statusCode: 503),
+
             FeedbackFileOutcomeKind.GitHubUnreachable => Results.Problem(
                 "We could not confirm whether your report reached GitHub. Please check the "
                 + "repository before submitting again — we will not re-send it automatically.",

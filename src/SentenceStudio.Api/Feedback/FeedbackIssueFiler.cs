@@ -29,6 +29,9 @@ public enum FeedbackFileOutcomeKind
     /// <summary>GitHub refused the request. No issue exists.</summary>
     GitHubRefused,
 
+    /// <summary>GitHub could not be reached before anything was sent. No issue exists; try again later.</summary>
+    GitHubUnavailable,
+
     /// <summary>GitHub could not be reached; an issue may or may not exist.</summary>
     GitHubUnreachable,
 
@@ -78,20 +81,20 @@ public sealed class FeedbackIssueFiler : IFeedbackIssueFiler
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly IConfiguration _configuration;
+    private readonly IGitHubTokenProvider _tokens;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IFeedbackRateLimiter _rateLimiter;
     private readonly IFeedbackSubmissionLedger _ledger;
     private readonly ILogger<FeedbackIssueFiler> _logger;
 
     public FeedbackIssueFiler(
-        IConfiguration configuration,
+        IGitHubTokenProvider tokens,
         IHttpClientFactory httpClientFactory,
         IFeedbackRateLimiter rateLimiter,
         IFeedbackSubmissionLedger ledger,
         ILogger<FeedbackIssueFiler> logger)
     {
-        _configuration = configuration;
+        _tokens = tokens;
         _httpClientFactory = httpClientFactory;
         _rateLimiter = rateLimiter;
         _ledger = ledger;
@@ -167,22 +170,52 @@ public sealed class FeedbackIssueFiler : IFeedbackIssueFiler
             return new FeedbackFileOutcome(FeedbackFileOutcomeKind.RateLimited, Rate: allowance);
         }
 
-        var githubPat = _configuration["GitHub:Pat"];
-        if (string.IsNullOrWhiteSpace(githubPat))
+        // The token is fetched only by the claim winner. Every failure here happens before the
+        // issue request is sent, so "no issue was created" is known and the row is closed — even
+        // when the fetch throws or the caller has gone, or the row would sit in doubt forever.
+        GitHubToken token;
+        try
+        {
+            token = await _tokens.GetTokenAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
         {
             _logger.LogError(
-                "Feedback submission is unavailable. Code={FailureCode}",
-                FeedbackFailureCodes.GitHubUnconfigured);
-
+                "A GitHub token could not be obtained; nothing was sent. Code={FailureCode} Exception={ExceptionType}",
+                FeedbackFailureCodes.GitHubUnreachable, ex.GetType().Name);
             await _ledger.MarkFailedAsync(
                     payload.Jti, userProfileId, claimed.Version,
-                    FeedbackFailureCodes.GitHubUnconfigured, cancellationToken)
+                    FeedbackFailureCodes.GitHubUnreachable, CancellationToken.None)
                 .ConfigureAwait(false);
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
 
-            return new FeedbackFileOutcome(FeedbackFileOutcomeKind.Unconfigured);
+            return new FeedbackFileOutcome(FeedbackFileOutcomeKind.GitHubUnavailable);
         }
 
-        return await CreateIssueAsync(payload, claimed, userProfileId, githubPat, cancellationToken)
+        if (token.Value is null)
+        {
+            var (code, kind) = token.Failure switch
+            {
+                GitHubTokenFailure.Unauthorized => (FeedbackFailureCodes.GitHubUnauthorized, FeedbackFileOutcomeKind.GitHubRefused),
+                GitHubTokenFailure.Unavailable => (FeedbackFailureCodes.GitHubUnreachable, FeedbackFileOutcomeKind.GitHubUnavailable),
+                _ => (FeedbackFailureCodes.GitHubUnconfigured, FeedbackFileOutcomeKind.Unconfigured)
+            };
+
+            _logger.LogError("Feedback submission is unavailable. Code={FailureCode}", code);
+
+            await _ledger.MarkFailedAsync(
+                    payload.Jti, userProfileId, claimed.Version, code, cancellationToken)
+                .ConfigureAwait(false);
+
+            return new FeedbackFileOutcome(
+                kind,
+                GitHubStatus: kind == FeedbackFileOutcomeKind.GitHubRefused ? HttpStatusCode.Unauthorized : null);
+        }
+
+        return await CreateIssueAsync(payload, claimed, userProfileId, token.Value, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -191,7 +224,7 @@ public sealed class FeedbackIssueFiler : IFeedbackIssueFiler
         FeedbackPreviewPayload payload,
         FeedbackSubmission claimed,
         string userProfileId,
-        string githubPat,
+        string githubToken,
         CancellationToken cancellationToken)
     {
         HttpResponseMessage response;
@@ -200,7 +233,7 @@ public sealed class FeedbackIssueFiler : IFeedbackIssueFiler
         {
             var client = _httpClientFactory.CreateClient("GitHub");
             client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", githubPat);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", githubToken);
 
             // The signed payload, verbatim: the title, body, and labels here are the exact values
             // the learner approved.
@@ -235,6 +268,12 @@ public sealed class FeedbackIssueFiler : IFeedbackIssueFiler
             if (!response.IsSuccessStatusCode)
             {
                 var code = ClassifyGitHubFailure(response.StatusCode);
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                {
+                    // A revoked token or a removed installation: drop it so the next report
+                    // fetches a fresh one instead of failing until the cached token expires.
+                    _tokens.Invalidate(githubToken);
+                }
 
                 // The response body is NOT logged: GitHub echoes the submitted title and body back
                 // in validation errors.
