@@ -26,8 +26,49 @@ public sealed record NativeVocabularyHistory(
     string Id, string Activity, DateTime LearnedAt,
     bool WasCorrect, bool IsPassive, string? ResourceTitle);
 
+/// <summary>
+/// One of the owner's example sentences on the word (source ReferenceSentencesSection): its
+/// text, whether it is the word's one core example, whether the learner flagged it, where it
+/// came from, its speech register and difficulty (1 to 5, or none).
+/// </summary>
 public sealed record NativeVocabularyExample(
-    string Id, string TargetSentence, string? NativeSentence);
+    string Id, string TargetSentence, string? NativeSentence,
+    bool IsCore = false, bool IsFlagged = false,
+    ExampleSentenceSource Source = ExampleSentenceSource.Unknown,
+    SpeechRegister Register = SpeechRegister.Unspecified,
+    int? DifficultyLevel = null);
+
+/// <summary>A sentence the learner typed, edited or kept from the AI suggestions.</summary>
+public sealed record NativeExampleSentenceDraft(
+    string TargetSentence, string? NativeSentence,
+    SpeechRegister Register = SpeechRegister.Unspecified,
+    int? DifficultyLevel = null)
+{
+    /// <summary>ExampleSentence.TargetSentence and NativeSentence [MaxLength(500)], trimmed.</summary>
+    public const int MaxLength = 500;
+
+    /// <summary>Both texts, trimmed, fit their columns.</summary>
+    public bool Fits => TargetSentence.Trim().Length <= MaxLength
+        && (NativeSentence?.Trim().Length ?? 0) <= MaxLength;
+}
+
+public enum NativeExampleSentenceStatus
+{
+    Saved, SavedSyncUnconfirmed, NotFoundOrForbidden, Invalid
+}
+
+/// <summary>
+/// What an example sentence write did, with the word's sentences after it (core first, then
+/// oldest first) and the word's encoding label, which counts them.
+/// </summary>
+public sealed record NativeExampleSentenceResult(
+    NativeExampleSentenceStatus Status,
+    IReadOnlyList<NativeVocabularyExample> Examples,
+    string EncodingLabel)
+{
+    public bool Saved => Status is NativeExampleSentenceStatus.Saved
+        or NativeExampleSentenceStatus.SavedSyncUnconfirmed;
+}
 
 public sealed record NativeVocabularyConstituent(
     string Id, string TargetTerm, string NativeTerm);

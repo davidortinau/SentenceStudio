@@ -22,7 +22,8 @@ internal sealed record VocabularyBrowserEdit(
     NativeVocabularyEditDraft? Draft, string? ErrorKey,
     bool PlayingAudio, NativeQuizPhotoAsset? Photo,
     bool ConfirmingDelete = false, bool Deleting = false,
-    string? DeleteError = null, bool HandingOff = false)
+    string? DeleteError = null, bool HandingOff = false,
+    VocabularyExamplesState? Examples = null)
 {
     /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving.</summary>
     internal bool CanFindDuplicates =>
@@ -62,7 +63,11 @@ internal enum VocabularyChanges
     /// <summary>A resource switch: the open editor already shows it; its count changed.</summary>
     ResourceToggle = 32,
     /// <summary>A phone filter sheet choice not applied yet.</summary>
-    FilterDraft = 64
+    FilterDraft = 64,
+    /// <summary>The editor's Reference Sentences changed (a sentence, a suggestion, the row being edited or the result shown).</summary>
+    Examples = 128,
+    /// <summary>Typed into a Reference Sentences field: the open editor already shows the text.</summary>
+    ExampleText = 256
 }
 
 /// <summary>
@@ -72,7 +77,7 @@ internal enum VocabularyChanges
 /// <see cref="OffUiAsync{T}"/> and <see cref="OnChanged"/>. <see cref="Changed"/> is raised on
 /// the calling thread; the head marshals it to its UI thread.
 /// </summary>
-internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
+internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 {
     private readonly INativeResourceStore _store;
     private readonly DeviceUserScopeProvider _userScope;
@@ -180,8 +185,6 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     protected bool CanSaveOpenWord => _formOpen && !_handingOff
         && VocabularyBrowserEdit.CanSaveWord(_saving || _cleanup.Deleting, _detail, _draft);
 
-    protected int DraftResourceCount => _draft?.ResourceIds.Count ?? 0;
-
     internal VocabularyBrowserList ListState
     {
         get
@@ -206,7 +209,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
-            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff)
+            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff,
+            ExamplesState)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -244,6 +248,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!_listOpen || _saving || _cleanup.Deleting)
             return;
         _cleanup.Reset();
+        ResetExamples();
+        _examplesChanged = false;
         _filters?.CancelPhoneSheet();
         _sheetSort = null;
         _listOpen = false;
@@ -260,14 +266,21 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
     }
 
-    /// <summary>Back or Cancel from the word editor discards the draft.</summary>
+    /// <summary>
+    /// Back or Cancel from the word editor discards the draft. Sentences saved meanwhile change
+    /// the word's strength badge, so the list reads its words again.
+    /// </summary>
     internal void CloseWord()
     {
         if (!_formOpen || _saving || _cleanup.Deleting || _handingOff)
             return;
+        var reload = _examplesChanged;
         _cleanup.ResetDelete();
         LeaveWord();
         Notify(VocabularyChanges.Form);
+        // A read that reports its own failure on the list (ReloadAsync catches it).
+        if (reload)
+            _ = ReloadAsync();
     }
 
     internal async Task ReloadAsync()
@@ -277,6 +290,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         var generation = Interlocked.Increment(ref _loadGeneration);
         _loading = true;
         _listErrorKey = null;
+        // This read counts the sentences saved so far.
+        _examplesChanged = false;
         Notify(VocabularyChanges.List);
         try
         {
@@ -323,6 +338,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         _selectedWordId = id;
         var generation = Interlocked.Increment(ref _formGeneration);
+        ResetExamples();
         _formOpen = true;
         _formLoading = true;
         _editErrorKey = null;
@@ -443,6 +459,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 _feedbackWarning =
                     result == NativeVocabularySaveStatus.SavedSyncUnconfirmed;
                 _media.StopPlayback();
+                ResetExamples();
                 _formOpen = false;
                 _draft = null;
                 _detail = null;
@@ -801,6 +818,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _loading = false;
         _feedback = null;
         _cleanup.Reset();
+        ResetExamples();
+        _examplesChanged = false;
         _listErrorKey = "Vocabulary_NoActiveProfile";
         _media.StopPlayback();
         Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
@@ -809,6 +828,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Leaves the editor and discards its draft. No publish.</summary>
     private void LeaveWord()
     {
+        ResetExamples();
         _formOpen = false;
         _detail = null;
         _draft = null;
@@ -838,7 +858,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         const VocabularyChanges list = VocabularyChanges.List | VocabularyChanges.Sheet
             | VocabularyChanges.FilterDraft;
         const VocabularyChanges form = VocabularyChanges.Form | VocabularyChanges.DeleteDialog
-            | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle;
+            | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle
+            | VocabularyChanges.Examples | VocabularyChanges.ExampleText;
         Publish((changes & list) != 0, (changes & form) != 0, sheet: false);
     }
 

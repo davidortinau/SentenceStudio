@@ -9651,4 +9651,32 @@
   <data name="Coach_WriteKindExampleSentenceRemove" xml:space="preserve">
     <value>예문 삭제</value>
   </data>
+  <data name="VocabWordEdit_AddToResource" xml:space="preserve">
+    <value>리소스에 추가</value>
+    <comment>Vocabulary word editor: menu that adds the word to one of the learner's resources</comment>
+  </data>
+  <data name="VocabWordEdit_RemoveFromResource" xml:space="preserve">
+    <value>{0}에서 제거</value>
+    <comment>Vocabulary word editor: accessible name of the button that removes the word from resource {0}</comment>
+  </data>
+  <data name="VocabWordEdit_NoResourcesSelected" xml:space="preserve">
+    <value>이 단어는 아직 어떤 리소스에도 없습니다.</value>
+    <comment>Vocabulary word editor: shown when the word belongs to no resource</comment>
+  </data>
+  <data name="RefSentences_SaveFailed" xml:space="preserve">
+    <value>문장을 저장하지 못했습니다. 다시 시도해 주세요.</value>
+    <comment>Reference sentences: a sentence add, edit, core, flag or delete was not saved</comment>
+  </data>
+  <data name="RefSentences_Level" xml:space="preserve">
+    <value>난이도 {0}</value>
+    <comment>Reference sentences: difficulty badge, {0} is 1 to 5</comment>
+  </data>
+  <data name="RefSentences_UnsetCore" xml:space="preserve">
+    <value>핵심 예문 해제</value>
+    <comment>Reference sentences: menu action on the core sentence that makes it an ordinary one</comment>
+  </data>
+  <data name="RefSentences_TooLong" xml:space="preserve">
+    <value>문장과 번역은 각각 500자까지 입력할 수 있습니다.</value>
+    <comment>Reference sentences: the sentence or translation is longer than 500 characters</comment>
+  </data>
 </root>

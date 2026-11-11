@@ -181,6 +181,27 @@ accessors that let a toolbar button change its symbol, label and selected state 
 The phone layout is otherwise unchanged. Android's Compose screen still has the earlier wide
 controls; matching it is a separate change.
 
+## Vocabulary word editor (iOS, 2026-11-10)
+
+Source: `src/SentenceStudio.UI/Pages/VocabularyWordEdit.razor` and
+`src/SentenceStudio.UI/Components/ReferenceSentencesSection.razor`. The Captain reviewed the
+editor on Duotopia (2026-11-10): "the Save button in the toolbar appears as a primary and
+secondary option", "we don't need duplicate cancel/save buttons at the bottom of the page",
+"the resource associations list is long", and "we are completely missing the sample/example
+sentences feature of this page". Code: `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs`,
+`VocabularyWordEditView.Examples.cs`, `VocabularyCoordinator.cs`; shared state in
+`src/SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.Examples.cs`; owner-scoped
+writes in `src/SentenceStudio.Native/Adapters/NativeResourceStore.VocabularyExamples.cs`.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 66 | One Save, the toolbar's last action at every width, as plain toolbar text; the More menu keeps Find Duplicates and Delete. Back leaves without saving | The page header shows a filled primary Save from 768 pt and a Save in its More menu at every width. The earlier native port also put Cancel and Save under the last card | Captain 2026-11-10 |
+| 67 | Resource Associations lists only the word's own resources, each with a Remove button, and Add to Resource (a menu) lists the learner's other resources. A smart resource is shown without Remove and is never offered. Adding and removing wait for Save, as before | Every resource of the learner as a checkbox list (scrolling at 400 px) | Captain 2026-11-10. The source add form is unchanged: native has no add-word form |
+| 68 | Reference Sentences are back, as the source has them: Generate (four AI suggestions for the stored word in its language, English translations; each can be edited, then kept or discarded), an add row (sentence, translation, register; the word's first sentence becomes its core one), and the learner's sentences, core first, with Set as core example, Edit, Flag and Delete in a menu and their Core, source, register, level and Flagged badges. Each change is saved at once, apart from the word's Save, and the strength label follows the count. Results show as a line in the card instead of a toast. The core sentence's menu reads "Remove as core example" | The source labels both states "Set as core example" (its star icon shows which). The earlier native port only listed the sentences, read-only, and only when the word had some | Captain 2026-11-10 |
+
+Android's Compose editor still lists the sentences read-only and every resource as a switch; the
+shared browser already holds the sentence actions and state for it.
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

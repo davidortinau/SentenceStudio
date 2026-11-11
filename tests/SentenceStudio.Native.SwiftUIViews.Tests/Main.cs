@@ -171,7 +171,7 @@ var cases = new (string Name, Action Test)[]
     }),
     // Review 2026-11-05: a Card overload taking a header action first bound the Progress card's
     // Status row (and the empty History text) as a header action beside the title.
-    ("Word editor: only Vocabulary Terms has a header action; Progress and History keep their rows", () =>
+    ("Word editor: Progress, History, memory aids and resources have no header action; their rows stay in the card", () =>
     {
         using var page = VocabularyWordEditView.Page(WordState(history: false), style, key => key, WordActions());
         var terms = Find(page, "native.vocabulary.edit.section.VocabWordEdit_VocabularyTerms.header")
@@ -260,6 +260,124 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(blockedPage, "native.vocabulary.edit.delete.blocked")?.Text
             == "NativeVocabulary_DeleteUsedByAnswers");
         Assert(Find(blockedPage, "native.vocabulary.edit.readonly") is null);
+    }),
+    // Captain 2026-11-10 (Duotopia): one Save, the toolbar's primary action, as plain text at
+    // every width; no Save in the More menu and no Cancel/Save under the last card.
+    ("Word editor: one plain toolbar Save at every width, More keeps Find Duplicates and Delete", () =>
+    {
+        foreach (var width in new[] { style, wideStyle })
+        {
+            using var page = VocabularyWordEditView.Page(WordState(history: false), width, key => key, WordActions());
+            Assert(page.Kind == "toolbar");
+            Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier)
+                .SequenceEqual(["native.vocabulary.edit.more", "native.vocabulary.edit.save"]));
+            var save = Find(page, "native.vocabulary.edit.save")!;
+            // A plain toolbar Button with its title, not a source-styled (filled) button.
+            Assert(save.Kind == "button" && save.Text == "Common_Save" && save.Children.Count == 0);
+            Assert(save.IsEnabled);
+            var more = Find(page, "native.vocabulary.edit.more")!;
+            Assert(more.Children.Select(item => item.AccessibilityIdentifier).SequenceEqual(
+                ["native.vocabulary.edit.duplicates.menu", "native.vocabulary.edit.delete.menu"]));
+            foreach (var gone in new[] { "native.vocabulary.edit.actions", "native.vocabulary.edit.cancel",
+                         "native.vocabulary.edit.save.menu", "native.vocabulary.edit.save.toolbar" })
+                Assert(Find(page, gone) is null);
+        }
+        var blank = WordState(history: false);
+        using var invalid = VocabularyWordEditView.Page(blank with { Draft = blank.Draft! with { NativeTerm = " " } },
+            style, key => key, WordActions());
+        Assert(Find(invalid, "native.vocabulary.edit.save")?.IsEnabled == false);
+    }),
+    // Captain 2026-11-10: the resource list was long. Only the word's resources show, each with
+    // Remove; Add to Resource lists the others. A smart resource is shown, never removed or offered.
+    ("Word editor: resources show only the word's own, each removable, and Add to Resource offers the rest", () =>
+    {
+        var open = WordState(history: false);
+        var detail = open.Detail! with { AvailableResources = [
+            new NativeVocabularyResource("res-a", "Story", "Korean", false),
+            new NativeVocabularyResource("res-b", "Daily words", "Korean", false),
+            new NativeVocabularyResource("res-s", "Struggling", "Korean", true),
+            new NativeVocabularyResource("res-t", "Phrases", "Korean", true)] };
+        var state = open with { Detail = detail, Draft = open.Draft! with { ResourceIds = ["res-a", "res-s"] } };
+        var toggled = new List<(string, bool)>();
+        using var page = VocabularyWordEditView.Page(state, style, key => key,
+            WordActions(toggleResource: (id, on) => toggled.Add((id, on))));
+        Assert(Find(page, "native.vocabulary.edit.resources.count")?.Text == "VocabWordEdit_SelectedCount");
+        Assert(Find(page, "native.vocabulary.edit.resource.res-a") is not null);
+        Assert(Find(page, "native.vocabulary.edit.resource.res-s") is not null);
+        Assert(Find(page, "native.vocabulary.edit.resource.res-b") is null);
+        Assert(Find(page, "native.vocabulary.edit.resource.res-s.remove") is null);
+        var remove = Find(page, "native.vocabulary.edit.resource.res-a.remove")!;
+        Assert(remove.AccessibilityLabel == "VocabWordEdit_RemoveFromResource");
+        remove.InvokeAction();
+        var add = Find(page, "native.vocabulary.edit.resources.add")!;
+        Assert(add.Kind == "menu");
+        Assert(add.Children.Skip(1).Select(item => item.AccessibilityIdentifier)
+            .SequenceEqual(["native.vocabulary.edit.resources.add.res-b"]));
+        Find(page, "native.vocabulary.edit.resources.add.res-b")!.InvokeAction();
+        Assert(toggled.SequenceEqual([("res-a", false), ("res-b", true)]));
+
+        using var none = VocabularyWordEditView.Page(open with { Draft = open.Draft! with { ResourceIds = [] } },
+            style, key => key, WordActions());
+        Assert(Find(none, "native.vocabulary.edit.resources.empty") is not null);
+        Assert(Find(none, "native.vocabulary.edit.resource.res-a") is null);
+        Assert(Find(none, "native.vocabulary.edit.resources.add.res-a") is not null);
+        // Everything already added: no empty menu (a Menu needs a Button).
+        using var all = VocabularyWordEditView.Page(open, style, key => key, WordActions());
+        Assert(Find(all, "native.vocabulary.edit.resources.add") is null);
+    }),
+    // Captain 2026-11-10: the source's Reference Sentences were missing from the editor.
+    ("Word editor: Reference Sentences have Generate, the add row, suggestions and sentences core first", () =>
+    {
+        var open = WordState(history: false);
+        var sentences = new[] {
+            new NativeVocabularyExample("s1", "병을 열어요.", "I open the bottle.", IsCore: true,
+                Source: ExampleSentenceSource.UserAuthored, Register: SpeechRegister.InformalPolite,
+                DifficultyLevel: 2),
+            new NativeVocabularyExample("s2", "병이 깨졌다.", null, IsFlagged: true,
+                Source: ExampleSentenceSource.AiGenerated) };
+        var examples = new VocabularyExamplesState(sentences,
+            [new VocabularyExampleSuggestion("k1", "물 한 병 주세요.", "A bottle of water, please.",
+                SpeechRegister.InformalPolite, 1)],
+            string.Empty, string.Empty, SpeechRegister.Unspecified, null, string.Empty, string.Empty,
+            SpeechRegister.Unspecified, false, false, "RefSentences_Kept", false);
+        var state = open with { Detail = open.Detail! with { Examples = sentences }, Examples = examples };
+        var sections = new Dictionary<VocabularyEditSection, SwiftView>();
+        using var page = VocabularyWordEditView.Page(state, style, key => key,
+            WordActions(registerSection: (section, view) => sections[section] = view));
+        Assert(sections.Keys.OrderBy(key => key).SequenceEqual(
+            [VocabularyEditSection.Examples, VocabularyEditSection.Resources, VocabularyEditSection.EncodingLabel]));
+        var header = Find(page, "native.vocabulary.edit.section.RefSentences_Title.header")!;
+        Assert(Find(header, "native.vocabulary.edit.examples.generate")?.IsEnabled == true);
+        // Add needs a sentence (source); the empty text is not shown beside sentences.
+        Assert(Find(page, "native.vocabulary.edit.examples.add")?.IsEnabled == false);
+        Assert(Find(page, "native.vocabulary.edit.examples.empty") is null);
+        Assert(Find(page, "native.vocabulary.edit.examples.message")?.AccessibilityAnnouncement == "RefSentences_Kept");
+        Assert(Find(page, "native.vocabulary.edit.examples.suggestion.k1.keep")?.IsEnabled == true);
+        Assert(Find(page, "native.vocabulary.edit.examples.suggestion.k1.badges.level")?.Text == "RefSentences_Level");
+        Assert(Find(page, "native.vocabulary.edit.example.s1.badges.core") is not null);
+        Assert(Find(page, "native.vocabulary.edit.example.s1.badges.source")?.Text == "RefSentences_SourceUser");
+        Assert(Find(page, "native.vocabulary.edit.example.s1.badges.register")?.Text == "Register_InformalPolite");
+        Assert(Find(page, "native.vocabulary.edit.example.s2.badges.flagged") is not null);
+        Assert(Find(page, "native.vocabulary.edit.example.s2.native") is null);
+        var menu = Find(page, "native.vocabulary.edit.example.s1.actions")!;
+        Assert(menu.Kind == "menu" && menu.AccessibilityLabel == "RefSentences_Actions");
+        Assert(Find(menu, "native.vocabulary.edit.example.s1.core")?.Text == "RefSentences_UnsetCore");
+        Assert(Find(page, "native.vocabulary.edit.example.s2.core")?.Text == "RefSentences_SetCore");
+        Assert(Find(page, "native.vocabulary.edit.example.s2.flag")?.Text == "RefSentences_Unflag");
+
+        // Editing one sentence shows its fields in place; Save needs a sentence.
+        using var editing = VocabularyWordEditView.Page(state with { Examples = examples with {
+                EditingId = "s2", EditTarget = " ", EditNative = string.Empty } },
+            style, key => key, WordActions());
+        Assert(Find(editing, "native.vocabulary.edit.example.s2.editor.save")?.IsEnabled == false);
+        Assert(Find(editing, "native.vocabulary.edit.example.s2.actions") is null);
+        Assert(Find(editing, "native.vocabulary.edit.example.s1.actions") is not null);
+
+        // The word's Save holds the sentences too; no sentences and no suggestions say so.
+        using var empty = VocabularyWordEditView.Page(open with { Saving = true }, style, key => key, WordActions());
+        Assert(Find(empty, "native.vocabulary.edit.examples.empty") is not null);
+        Assert(Find(empty, "native.vocabulary.edit.examples.generate")?.IsEnabled == false);
+        Assert(Find(empty, "native.vocabulary.edit.examples.new.target")?.IsEnabled == false);
     }),
     // Captain 2026-11-09 (Duotopia, wide): the filters sit in a fixed left column, the counts in
     // one row, the results in their own scroll; Filters and the grid/list switch are toolbar
@@ -513,10 +631,19 @@ static VocabularyBrowserEdit WordState(bool history)
     return new VocabularyBrowserEdit(false, false, detail, draft, null, false, null);
 }
 
-static VocabularyEditActions WordActions() => new(
-    Change: (_, _) => { }, ToggleResource: (_, _) => { }, Save: () => { }, Cancel: () => { },
-    Retry: () => { }, PlayAudio: () => { }, RegisterSave: _ => { }, RegisterMenuSave: _ => { },
-    RegisterResourceCount: _ => { }, FindDuplicates: () => { }, RequestDelete: () => { });
+static VocabularyEditActions WordActions(
+    Action<string, bool>? toggleResource = null,
+    Action<VocabularyEditSection, SwiftView>? registerSection = null) => new(
+    Change: (_, _) => { }, ToggleResource: toggleResource ?? ((_, _) => { }), Save: () => { },
+    Cancel: () => { }, Retry: () => { }, PlayAudio: () => { }, RegisterSave: _ => { },
+    FindDuplicates: () => { }, RequestDelete: () => { },
+    Examples: new VocabularyExampleActions(
+        ChangeNew: (_, _) => { }, SetNewRegister: _ => { }, Add: () => { }, Generate: () => { },
+        ChangeSuggestion: (_, _, _) => { }, Keep: _ => { }, Discard: _ => { },
+        StartEdit: _ => { }, ChangeEdit: (_, _) => { }, SetEditRegister: _ => { },
+        SaveEdit: () => { }, CancelEdit: () => { }, ToggleCore: _ => { }, ToggleFlag: _ => { },
+        Delete: _ => { }),
+    RegisterSection: registerSection);
 
 static VocabularyDuplicatePanel DuplicatePanel()
 {

@@ -10314,4 +10314,32 @@ For example: {0} ...</value>
     <value>Delete an example sentence</value>
     <comment>Sam write: heading for a proposal that deletes an example sentence</comment>
   </data>
+  <data name="VocabWordEdit_AddToResource" xml:space="preserve">
+    <value>Add to Resource</value>
+    <comment>Vocabulary word editor: menu that adds the word to one of the learner's resources</comment>
+  </data>
+  <data name="VocabWordEdit_RemoveFromResource" xml:space="preserve">
+    <value>Remove from {0}</value>
+    <comment>Vocabulary word editor: accessible name of the button that removes the word from resource {0}</comment>
+  </data>
+  <data name="VocabWordEdit_NoResourcesSelected" xml:space="preserve">
+    <value>This word isn't in any resource yet.</value>
+    <comment>Vocabulary word editor: shown when the word belongs to no resource</comment>
+  </data>
+  <data name="RefSentences_SaveFailed" xml:space="preserve">
+    <value>Couldn't save the sentence. Please try again.</value>
+    <comment>Reference sentences: a sentence add, edit, core, flag or delete was not saved</comment>
+  </data>
+  <data name="RefSentences_Level" xml:space="preserve">
+    <value>Lv {0}</value>
+    <comment>Reference sentences: difficulty badge, {0} is 1 to 5</comment>
+  </data>
+  <data name="RefSentences_UnsetCore" xml:space="preserve">
+    <value>Remove as core example</value>
+    <comment>Reference sentences: menu action on the core sentence that makes it an ordinary one</comment>
+  </data>
+  <data name="RefSentences_TooLong" xml:space="preserve">
+    <value>A sentence and its translation can each be up to 500 characters.</value>
+    <comment>Reference sentences: the sentence or translation is longer than 500 characters</comment>
+  </data>
 </root>

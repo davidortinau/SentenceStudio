@@ -35,6 +35,8 @@
              Link="GlobalUsings.SharedFeatures.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs"
              Link="Features/VocabularyWordEditView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.Examples.cs"
+             Link="Features/VocabularyWordEditView.Examples.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyDuplicatesView.cs"
              Link="Features/VocabularyDuplicatesView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs"

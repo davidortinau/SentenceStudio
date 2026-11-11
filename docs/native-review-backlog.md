@@ -3,6 +3,11 @@
 Review findings recorded instead of fixed during a review loop (correctness items are fixed;
 these wait for a later pass). One line each: where, then the point.
 
+## Vocabulary word editor (iOS, 2026-11-10)
+
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.Vocabulary.Compose.cs`: Android's editor still has the earlier Save placement, lists every resource as a switch and shows the sentences read-only. The shared browser already has the sentence actions (`VocabularyBrowser.Examples.cs`) and the Add/Remove resource rule is `ToggleResource`; the Compose editor needs the same sections (departures 66-68).
+- `src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourceView.cs:222` and `src/SentenceStudio.Native.iOS/Features/Skills/SkillProfileFormView.cs:120`: the resource and skill editors still show a filled Save from 768 pt and a second Save in their More menus, the pattern the Captain asked to drop on the word editor.
+
 ## Vocabulary wide layout (iOS, review of the `vocabulary-wide-layout` working tree, 2026-11-09)
 
 - `src/SentenceStudio.Native.Android/AndroidSliceShell.Vocabulary.Compose.cs:241`: Android still shows the earlier wide controls and filter grid, has no filter-column toggle, and its phone sheet has no sort. The shared browser already has the sheet sort (`SetSheetSort`) and the remembered column flag (`ToggleFilterPanel`); the Compose screen needs the same layout (departures 61-65).
