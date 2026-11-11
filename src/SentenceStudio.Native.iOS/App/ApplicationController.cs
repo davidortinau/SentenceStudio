@@ -787,7 +787,6 @@ internal sealed partial class ApplicationController : IDisposable
                 new SkillProfileFormActions(
                     coordinator.SetTitle, coordinator.SetDescription,
                     () => _ = coordinator.SaveAsync(),
-                    coordinator.CancelForm,
                     () => _ = coordinator.RetryEditAsync(),
                     coordinator.RequestDelete))
             : Views.Text(Text("Common_Loading"));

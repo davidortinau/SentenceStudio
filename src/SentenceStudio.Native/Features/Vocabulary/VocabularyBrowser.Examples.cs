@@ -56,6 +56,11 @@ internal sealed record VocabularyExamplesState(
     string? EditingId, string EditTarget, string EditNative, SpeechRegister EditRegister,
     bool Generating, bool Writing, string? Message, bool MessageIsError)
 {
+    /// <summary>No sentences, nothing typed, nothing running (a head drawing before the word loads).</summary>
+    internal static VocabularyExamplesState Empty { get; } = new([], [], string.Empty,
+        string.Empty, SpeechRegister.Unspecified, null, string.Empty, string.Empty,
+        SpeechRegister.Unspecified, false, false, null, false);
+
     /// <summary>Source: Add needs a target sentence.</summary>
     internal bool CanAdd => !Writing && !string.IsNullOrWhiteSpace(NewTarget);
 

@@ -504,7 +504,8 @@ public sealed class NativeSwiftUIResourceContractTests
             quickAdd);
         Assert.Contains("inputs.RegisterQuickSearch(input);", quickAdd);
         Assert.Contains("inputs.RegisterImport(import);", vocabulary);
-        Assert.Contains("inputs.RegisterSave(save);", form);
+        // The toolbar's plain Save is the form's only Save (Captain 2026-11-10).
+        Assert.Contains("registerSave(save);", form);
 
         Assert.Contains("inputs.RegisterVocabularySection(vocabularyCard);", form);
         Assert.Contains("section.Children[0].AccessibilityIdentifier", coordinator);

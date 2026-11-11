@@ -25,9 +25,7 @@ internal static partial class VocabularyWordEditView
         VocabularyBrowserEdit state, SourceUiStyle style, Func<string, string> text,
         VocabularyExampleActions actions)
     {
-        var examples = state.Examples ?? new VocabularyExamplesState([], [], string.Empty,
-            string.Empty, SpeechRegister.Unspecified, null, string.Empty, string.Empty,
-            SpeechRegister.Unspecified, false, false, null, false);
+        var examples = state.Examples ?? VocabularyExamplesState.Empty;
         // The word's Save, Delete or a handoff holds the whole editor.
         var locked = state.Saving || state.Deleting || state.HandingOff;
         var generateLabel = examples.Generating

@@ -281,7 +281,6 @@ internal sealed class LearningResourcesCoordinator : IDisposable
                 QuickFocusChanged: QuickAddFocusChanged,
                 QuickKeyPressed: HandleQuickAddKey,
                 RegisterImport: button => _importButtons.Add(button),
-                RegisterSave: button => _saveButtons.Add(button),
                 RegisterStagedGrid: table => _stagedGrid = table,
                 RegisterStagedCount: count => _stagedCount = count,
                 RegisterVocabularySection: section =>
@@ -1307,11 +1306,9 @@ internal sealed class LearningResourcesCoordinator : IDisposable
             && state.Phase is (NativeResourceDetailPhase.Ready
                 or NativeResourceDetailPhase.Creating
                 or NativeResourceDetailPhase.SaveError);
+        // The toolbar's plain Save (Captain 2026-11-10: no filled Save on any editor).
         foreach (var button in _saveButtons)
-            SourceUiStyle.SetCustomButtonAvailability(button,
-                _saveAppearance ?? throw new InvalidOperationException(
-                    "A registered Save button requires its source appearance."),
-                SourceButtonRole.Primary, available);
+            button.IsEnabled = available;
     }
 
     private void UpdateImportButtons()

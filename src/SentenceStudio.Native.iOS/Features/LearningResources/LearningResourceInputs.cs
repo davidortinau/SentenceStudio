@@ -26,7 +26,6 @@ internal sealed record LearningResourceInputs(
     Action<SwiftView, bool> QuickFocusChanged,
     Func<ResourceQuickAddKey, bool> QuickKeyPressed,
     Action<SwiftView> RegisterImport,
-    Action<SwiftView> RegisterSave,
     Action<SwiftView> RegisterStagedGrid,
     Action<SwiftView> RegisterStagedCount,
     Action<SwiftView> RegisterVocabularySection);

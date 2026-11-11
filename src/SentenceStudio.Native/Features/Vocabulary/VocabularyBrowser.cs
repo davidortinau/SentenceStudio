@@ -35,6 +35,24 @@ internal sealed record VocabularyBrowserEdit(
     internal bool CanSave => CanSaveWord(Saving || Deleting || HandingOff, Detail, Draft);
 
     /// <summary>
+    /// Captain 2026-11-10: the word's own resources (the draft's, in the learner's order); both
+    /// heads list only these, each removable unless it is a smart resource.
+    /// </summary>
+    internal IReadOnlyList<NativeVocabularyResource> SelectedResources =>
+        Detail is not { } detail || Draft is not { } draft ? []
+            : detail.AvailableResources.Where(resource =>
+                draft.ResourceIds.Contains(resource.Id, StringComparer.Ordinal)).ToArray();
+
+    /// <summary>
+    /// The resources Add to Resource offers: the learner's others, not smart ones (a smart
+    /// resource fills itself; ToggleResource refuses it).
+    /// </summary>
+    internal IReadOnlyList<NativeVocabularyResource> AddableResources =>
+        Detail is not { } detail || Draft is not { } draft ? []
+            : detail.AvailableResources.Where(resource => !resource.IsSmartResource
+                && !draft.ResourceIds.Contains(resource.Id, StringComparer.Ordinal)).ToArray();
+
+    /// <summary>
     /// Source VocabularyWordEdit: Save needs both terms and an editable (owned) word. The iOS
     /// VocabularyCoordinator uses the same rule.
     /// </summary>

@@ -200,14 +200,6 @@ internal static class LearningResourceView
             "native.resources.form.vocabulary.card", vocabulary);
         inputs.RegisterVocabularySection(vocabularyCard);
         fields.Add(vocabularyCard);
-        if (creating)
-        {
-            var save = style.FullWidthPrimaryButton(
-                    text("ResourceAdd_SaveResource"), actions.Save)
-                .WithAccessibilityIdentifier("native.resources.add.save.bottom");
-            inputs.RegisterSave(save);
-            fields.Add(save);
-        }
         if (state.HasDraft && (state.Phase is NativeResourceDetailPhase.Conflict
                 or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
             || state.ErrorKey is "NativeResources_ReloadError"
@@ -229,25 +221,21 @@ internal static class LearningResourceView
             && state.Phase is (NativeResourceDetailPhase.Ready
                 or NativeResourceDetailPhase.Creating
                 or NativeResourceDetailPhase.SaveError);
-        if (editable && style.ViewportWidth >= 768)
-        {
-            var save = style.PrimaryButton(text("Common_Save"), actions.Save)
-                .WithAccessibilityIdentifier(NativeAccess.ResourceSave);
-            registerSave(save);
-            toolbar.Add(save);
-        }
         if (editable)
         {
-            var more = new List<SwiftView>();
-            var menuSave = Views.Button(text("Common_Save"), actions.Save)
+            // Captain 2026-11-10 (the word editor's Save, for every editor): one Save, the
+            // toolbar's last action at every width, as plain toolbar text; More keeps Delete.
+            if (!creating)
+                toolbar.Add(Views.Menu(text("More"),
+                        Views.Button(text("Common_Delete"), actions.RequestDelete)
+                            .WithAccessibilityIdentifier("native.resources.form.delete.menu"))
+                    .WithAccessibilityIdentifier("native.resources.form.more"));
+            var save = Views.Button(text("Common_Save"), actions.Save)
                 .WithAccessibilityIdentifier(NativeAccess.ResourceSave);
-            menuSave.IsEnabled = !navigationBlocked && state.CanSave;
-            more.Add(menuSave);
-            if (!creating && !state.IsSmartResource)
-                more.Add(Views.Button(text("Common_Delete"), actions.RequestDelete)
-                    .WithAccessibilityIdentifier("native.resources.form.delete.menu"));
-            toolbar.Add(Views.Menu(text("More"), more.ToArray())
-                .WithAccessibilityIdentifier("native.resources.form.more"));
+            // The coordinator's UpdateSaveButtons sets whether it is enabled, now and as the
+            // form changes (one enable rule).
+            registerSave(save);
+            toolbar.Add(save);
         }
         return Views.Toolbar(form, toolbar.ToArray());
     }

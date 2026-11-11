@@ -429,12 +429,10 @@ internal static partial class VocabularyWordEditView
         SourceUiStyle style, Func<string, string> text,
         VocabularyEditActions actions)
     {
-        var selectedIds = state.Draft!.ResourceIds.ToHashSet(StringComparer.Ordinal);
-        var selected = detail.AvailableResources
-            .Where(resource => selectedIds.Contains(resource.Id)).ToArray();
+        var selected = state.SelectedResources;
         var fields = new List<SwiftView> {
             style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
-                        text("VocabWordEdit_SelectedCount"), selected.Length)),
+                        text("VocabWordEdit_SelectedCount"), selected.Count)),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.resources.count")
         };
@@ -442,7 +440,7 @@ internal static partial class VocabularyWordEditView
             fields.Add(style.Text(Views.Text(text("VocabWordEdit_NoResources")),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.resources.none"));
-        else if (selected.Length == 0)
+        else if (selected.Count == 0)
             fields.Add(style.Text(Views.Text(text("VocabWordEdit_NoResourcesSelected")),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.resources.empty"));
@@ -469,8 +467,7 @@ internal static partial class VocabularyWordEditView
             row.Spacing = SourceUiLayout.ItemGap;
             return row;
         }));
-        var addable = detail.AvailableResources
-            .Where(resource => !resource.IsSmartResource && !selectedIds.Contains(resource.Id))
+        var addable = state.AddableResources
             .Select(resource => Views.Button(resource.Title,
                     () => actions.ToggleResource(resource.Id, true))
                 .WithAccessibilityIdentifier(

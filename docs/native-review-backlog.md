@@ -3,10 +3,10 @@
 Review findings recorded instead of fixed during a review loop (correctness items are fixed;
 these wait for a later pass). One line each: where, then the point.
 
-## Vocabulary word editor (iOS, 2026-11-10)
+## Word editor and every editor's Save (iOS and Android, review of 2026-11-10)
 
-- `src/SentenceStudio.Native.Android/AndroidSliceShell.Vocabulary.Compose.cs`: Android's editor still has the earlier Save placement, lists every resource as a switch and shows the sentences read-only. The shared browser already has the sentence actions (`VocabularyBrowser.Examples.cs`) and the Add/Remove resource rule is `ToggleResource`; the Compose editor needs the same sections (departures 66-68).
-- `src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourceView.cs:222` and `src/SentenceStudio.Native.iOS/Features/Skills/SkillProfileFormView.cs:120`: the resource and skill editors still show a filled Save from 768 pt and a second Save in their More menus, the pattern the Captain asked to drop on the word editor.
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.VocabularyExamples.Compose.cs` (`ExampleField`) and `AndroidSliceShell.Vocabulary.Compose.cs` (`WordField`): each keystroke redraws the whole editor twice, once through `RenderMoreNow()` and once through the browser's `Changed` (`OnMoreChanged` posts a publish). The immediate redraw keeps IME composition; the posted one could be skipped for `DraftText` and `ExampleText` changes.
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.VocabularyExamples.Compose.cs` (`ExampleBadge`): repeats `ImportBadge` (`AndroidSliceShell.ImportContent.Compose.cs`) with a border and no content description; one badge helper would serve both.
 
 ## Vocabulary wide layout (iOS, review of the `vocabulary-wide-layout` working tree, 2026-11-09)
 
