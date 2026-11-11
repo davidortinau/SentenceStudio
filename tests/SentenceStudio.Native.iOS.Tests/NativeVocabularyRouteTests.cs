@@ -64,10 +64,15 @@ public sealed class NativeVocabularyRouteTests
     }
 
     [Fact]
-    public void VocabularyListRefresh_MutatesMountedScrollAndVStackButNotToolbar()
+    public void VocabularyListRefresh_MutatesMountedRegionsButNotToolbarOrSearch()
     {
         var browser = Source("Features/Vocabulary/VocabularyListView.cs");
-        Assert.Contains("return Views.Toolbar(style.Page(page), toolbar)", browser);
+        Assert.Contains("ToolbarActions(state, text, actions, wide, ready))", browser);
+        // A mounted toolbar button keeps its action, so the grid/list switch reads the mode
+        // when tapped (Captain 2026-11-09).
+        Assert.Contains("actions.ToggleListMode)", browser);
+        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.Contains("ToggleListMode: () => SetListMode(!ListMode),", coordinator);
 
         var scene = Source("App/ApplicationScene.Vocabulary.cs");
         var refresh = scene[scene.IndexOf(
@@ -75,18 +80,22 @@ public sealed class NativeVocabularyRouteTests
             ..scene.IndexOf("private void UpdateVocabularyWord(",
                 StringComparison.Ordinal)];
         Assert.Contains("var current = _vocabularySlot.Children.Single();", refresh);
-        Assert.Contains("current.Kind != \"toolbar\"", refresh);
-        Assert.Contains("|| !SameToolbarActions(current, next)", refresh);
-        Assert.Contains("current.Children[0].Kind != \"scroll\"", refresh);
-        Assert.Contains("var content = current.Children[0].Children[0];", refresh);
-        Assert.Contains("while (content.Children.Count > 1)", refresh);
+        Assert.Contains("!VocabularyListUpdate.TryUpdateInPlace(current, next)", refresh);
         Assert.DoesNotContain("current.RemoveAt(", refresh);
         Assert.DoesNotContain("current.Add(", refresh);
-        Assert.Contains(
-            "for (var actionIndex = 1; actionIndex < current.Children.Count;",
-            refresh);
-        Assert.Contains("child.Text = nextChild.Text;", refresh);
         Assert.Contains("next.Dispose();", refresh);
+
+        var update = Source("Features/Vocabulary/VocabularyListUpdate.cs");
+        Assert.Contains("if (current.Kind != \"toolbar\")", update);
+        Assert.Contains("if (mounted.Shape != fresh.Shape)", update);
+        Assert.Contains("(\"native.vocabulary.search.row\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.scroll.content\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.results.header\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.results.content\", 1),", update);
+        // Another sort or grid/list choice mounts a new page, so the results start at the top.
+        Assert.Contains("|| arrangement != _renderedVocabularyArrangement);", scene);
+        Assert.Contains("child.SystemImageName = nextChild.SystemImageName;", update);
+        Assert.Contains("button.WithAccessibilitySelected(next.AccessibilitySelected);", update);
     }
 
     [Fact]

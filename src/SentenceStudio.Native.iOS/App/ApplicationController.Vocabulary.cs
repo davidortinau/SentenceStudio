@@ -24,6 +24,12 @@ internal sealed partial class ApplicationController
     internal long VocabularyFormVersion => _vocabulary?.FormVersion ?? -1;
     internal long VocabularySheetVersion => _vocabulary?.SheetVersion ?? -1;
     internal bool VocabularyListMode => _vocabulary?.ListMode == true;
+    internal bool VocabularyFilterPanelShown => _vocabulary?.FilterPanelHidden == false;
+    internal string VocabularyArrangement => _vocabulary?.Arrangement ?? string.Empty;
+    internal double? VocabularyPageWidth => _vocabulary?.PageWidth;
+
+    /// <summary>The window changed size: the Vocabulary page is drawn for it until it reports its own width.</summary>
+    internal void ForgetVocabularyPageWidth() => _vocabulary?.ForgetPageWidth();
     internal string VocabularySearchText =>
         _vocabulary?.SearchText ?? string.Empty;
     internal string VocabularyWordTitle => _vocabulary?.WordFormTitle

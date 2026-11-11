@@ -51,28 +51,69 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// <summary>The SwiftUI confirmation's Delete.</summary>
     internal void ConfirmDelete() => Run(ConfirmDeleteAsync);
 
-    internal SwiftView RenderList(SourceUiStyle style) =>
-        VocabularyListView.Page(ListState, style, Text,
+    /// <summary>The Vocabulary page's own width, once it has reported one (an iPad sidebar takes part of the window).</summary>
+    internal double? PageWidth { get; private set; }
+
+    /// <summary>The width the page was last drawn for (its own, or the window's before it reported).</summary>
+    private double? _drawnPageWidth;
+
+    /// <summary>
+    /// The window changed size: the reported width no longer holds, so the page is drawn for the
+    /// window until it reports again (scene ViewportChanged).
+    /// </summary>
+    internal void ForgetPageWidth() => PageWidth = null;
+
+    internal SwiftView RenderList(SourceUiStyle style)
+    {
+        _drawnPageWidth = PageWidth ?? style.ViewportWidth;
+        return VocabularyListView.Page(ListState, style, Text,
             new VocabularyListActions(
                 Search: Search,
                 OpenFilters: OpenPhoneFilters,
+                ToggleFilterPanel: ToggleFilterPanel,
                 ClearFilters: ClearFilters,
                 OpenWord: id => Run(() => OpenWordAsync(id)),
                 Reload: () => Run(ReloadAsync),
                 Sort: SetSort,
-                SetListMode: SetListMode,
+                // Read at tap time: the scene keeps a mounted toolbar button.
+                ToggleListMode: () => SetListMode(!ListMode),
                 ChangeWideFilter: ChangeWideFilter,
                 OpenLookups: OpenLookups,
                 Duplicates: new VocabularyDuplicateActions(
                     Close: CloseDuplicates,
                     ShowMore: () => Run(ShowMoreDuplicatesAsync),
                     Merge: term => Run(() => MergeDuplicatesAsync(term)),
-                    EditRecord: id => Run(() => OpenWordAsync(id)))));
+                    EditRecord: id => Run(() => OpenWordAsync(id))),
+                PageWidthChanged: OnPageWidthChanged),
+            PageWidth);
+    }
+
+    /// <summary>
+    /// The page reported its width (when it appears and as it changes). The phone or wide layout,
+    /// the filter column and the card columns follow it, so the list redraws when the layout
+    /// flips or the width moved 8 points or more from the one drawn (not on every frame of a
+    /// window drag). Becoming wide closes the phone filter sheet, as crossing the window
+    /// breakpoint does.
+    /// </summary>
+    private void OnPageWidthChanged(double width)
+    {
+        if (IsDisposed || !double.IsFinite(width) || width <= 0)
+            return;
+        PageWidth = width;
+        var wide = VocabularyListView.IsWide(width);
+        if (_drawnPageWidth is { } drawn && Math.Abs(drawn - width) < 8
+            && VocabularyListView.IsWide(drawn) == wide)
+            return;
+        if (wide && IsPhoneFilterPresented)
+            CancelPhoneFilters();
+        Publish(list: true, form: false, sheet: false);
+    }
 
     internal SwiftView RenderFilterSheet(SourceUiStyle style) =>
         VocabularyListView.PhoneFilterSheet(ListState, style, Text,
             new VocabularyFilterActions(
                 Change: (type, value) => ChangeFilter(type, value, live: false),
+                Sort: SetSheetSort,
                 Apply: ApplyPhoneFilters, Cancel: CancelPhoneFilters,
                 Clear: ClearFilters));
 

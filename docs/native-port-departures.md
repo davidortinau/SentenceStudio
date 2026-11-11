@@ -159,6 +159,28 @@ Differences from iOS:
 | 59 | Editors put the keyboard away with system Back (or the keyboard's own hide key); Back with the keyboard down leaves the page as before | iOS added drag-into-the-keyboard dismissal (`a8f2a81f`) because a multi-line field's Return adds a line and iOS has no Back | Android's Back always dismisses the keyboard first; checked on Import Content, the resource form and the skill form |
 | 60 | The status-bar and navigation-bar icons follow the app's theme (Settings Light or Dark), not only the device mode; the launch look always uses light icons | The window theme followed the device mode only, so a Dark app on a light device had dark icons on a dark page | Found during the launch work, 2026-11-07 |
 
+## Vocabulary list layout (iOS, 2026-11-09)
+
+Source: `src/SentenceStudio.UI/Pages/Vocabulary.razor`. The Captain asked for these on the
+Duotopia (wide) after the source's desktop controls stacked into one tall column there
+(Captain 2026-11-09: "this looks completely wrong on my Duotopia device when viewed wide").
+Code: `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs`, the in-place
+update in `VocabularyListUpdate.cs`, and the shared sort draft and column flag in
+`src/SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.cs`. Bridge
+`Microsoft.SwiftUI` 0.1.0-preview.45 added `WithFixedWidth` for the column and preview.46 the
+accessors that let a toolbar button change its symbol, label and selected state in place.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 61 | Filters is a toolbar button at every width: a phone opens the filter sheet; from 768 pt it shows or hides the filter column (selected while shown; the choice is remembered per learner). Its icon is filled while a search or filter is on, and now updates as soon as one is | The filter button was phone-only; wide pages had the filters inline. The phone icon's fill did not change until the page was rebuilt | Captain 2026-11-09 |
+| 62 | Grid/list is one toolbar button from 768 pt, showing the layout a tap switches to ("List view" or "Grid view"). A phone has no switch (it always shows one column) | Two-button group above the filters (wide only) | Captain 2026-11-09 |
+| 63 | The total and status counts are one row of badges above the results that scrolls sideways when it does not fit (large text, a narrow window). This returns to the source for the counts; the active-filter chips also use one sideways row | The web row is one sideways-scrolling row (`flex-nowrap overflow-auto`) with the sort and view buttons at its end, and its chips wrap. The earlier native port stacked counts, sort and view buttons into one column under 940 pt or at large text | Captain 2026-11-09 |
+| 64 | Added/Updated sorting is one of the filter options: first in the wide filter column (applied at once) and first in the phone sheet, where it is applied with the filters by Apply and dropped by Cancel. A phone can sort for the first time | Sort buttons beside the counts (wide only); a phone could not sort | Captain 2026-11-09 |
+| 65 | From 768 pt (window width) the page is two columns: a fixed filter column (a third of the page, 280 to 400 pt, wider with larger text; sort, every filter, Clear All Filters while one is on) that scrolls on its own, a divider, then the results: the search field stays put above their own scroll, which holds the counts, the active-filter chips (one sideways row) and the word cards in a lazily built grid. The page measures its own width, so an iPad sidebar narrows the column and the cards rather than squeezing them. Cards are two or three across by the results' width and text size, one in list view; changing the sort or grid/list starts the results at the top | Search, counts, sort, view buttons, a two- or four-column grid of filter menus and chips stacked above the cards, all in one page scroll | Captain 2026-11-09 |
+
+The phone layout is otherwise unchanged. Android's Compose screen still has the earlier wide
+controls; matching it is a separate change.
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

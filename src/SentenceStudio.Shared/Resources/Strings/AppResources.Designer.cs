@@ -21459,6 +21459,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Sort.
+        /// </summary>
+        internal static string Vocabulary_SortLabel {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Updated.
         /// </summary>
         internal static string Vocabulary_SortUpdated {

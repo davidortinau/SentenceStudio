@@ -4707,6 +4707,10 @@ For example: {0} ...</value>
     <value>List view</value>
     <comment>View toggle title</comment>
   </data>
+  <data name="Vocabulary_SortLabel" xml:space="preserve">
+    <value>Sort</value>
+    <comment>Vocabulary list: label above the Added/Updated sort buttons among the filter options</comment>
+  </data>
   <data name="Vocabulary_SortAdded" xml:space="preserve">
     <value>Added</value>
     <comment>Vocabulary list: sort by date added toggle label</comment>

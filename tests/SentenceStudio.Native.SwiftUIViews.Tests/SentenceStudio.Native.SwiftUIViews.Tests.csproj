@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.43" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.46" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <!-- The views under test and the iOS styling they use (SwiftUI facade only, no UIKit). -->
@@ -37,5 +37,9 @@
              Link="Features/VocabularyWordEditView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyDuplicatesView.cs"
              Link="Features/VocabularyDuplicatesView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs"
+             Link="Features/VocabularyListView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListUpdate.cs"
+             Link="Features/VocabularyListUpdate.cs" />
   </ItemGroup>
 </Project>

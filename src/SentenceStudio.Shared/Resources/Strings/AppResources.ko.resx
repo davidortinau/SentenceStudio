@@ -4459,6 +4459,10 @@
     <value>목록 보기</value>
     <comment>View toggle title</comment>
   </data>
+  <data name="Vocabulary_SortLabel" xml:space="preserve">
+    <value>정렬</value>
+    <comment>Vocabulary list: label above the Added/Updated sort buttons among the filter options</comment>
+  </data>
   <data name="Vocabulary_SortAdded" xml:space="preserve">
     <value>추가일</value>
     <comment>Vocabulary list: sort by date added toggle label</comment>
