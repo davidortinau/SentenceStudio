@@ -250,9 +250,6 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("return style.Card(card);", form);
         Assert.DoesNotContain("Views.Form(", form);
         Assert.DoesNotContain("Views.Section(", form);
-        Assert.True(form.IndexOf("fields.Add(vocabularyCard);",
-                StringComparison.Ordinal)
-            < form.IndexOf("inputs.RegisterSave(save)", StringComparison.Ordinal));
         var sharedStyle = Source("Styling/SourceUiStyle.cs");
         Assert.Contains("double radius = 16)", sharedStyle);
         Assert.Contains("appearance.ElevatedSurface : appearance.CardSurface;", sharedStyle);
@@ -509,8 +506,12 @@ public sealed class NativeSourceStylingContractTests
 
         Assert.Equal(1, auth.Split("style.BootstrapLoginButton(",
             StringSplitOptions.None).Length - 1);
-        Assert.Contains("style.FullWidthPrimaryButton(",
-            Source("Features/LearningResources/LearningResourceView.cs"));
+        // Captain 2026-11-10: the resource form's Save is the toolbar's plain Save only (the
+        // full-width Save Resource under the add form is gone, as on every editor).
+        var resourceForm = Source("Features/LearningResources/LearningResourceView.cs");
+        Assert.DoesNotContain("style.FullWidthPrimaryButton(", resourceForm);
+        Assert.DoesNotContain("native.resources.add.save.bottom", resourceForm);
+        Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", resourceForm);
         Assert.Contains("if (state.RequiresCorrection)", feedback);
         Assert.DoesNotContain("style.PrimaryButton(", feedback);
         Assert.Contains("style.QuizPrimaryButton(", feedback);

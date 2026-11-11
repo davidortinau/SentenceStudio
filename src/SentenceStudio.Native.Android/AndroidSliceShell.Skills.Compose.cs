@@ -152,12 +152,14 @@ internal sealed partial class AndroidSliceShell
             or SkillFormPhase.Saving or SkillFormPhase.Deleting;
         var header = ScreenHeader(Localize(state.Creating ? "SkillAdd_Title" : "SkillEdit_Title"),
             palette, back: true, backAutomationId: "native.skills.form.back");
+        // Captain 2026-11-10 (as iOS): one Save, a plain text action at every width; the
+        // overflow menu keeps Delete; no Save or Cancel under the form (Back leaves).
         if (editable && header is TopAppBar bar)
         {
             var save = new TextButton(() => SkillsCommand(s => _ = s.SaveAsync()), enabled: !busy)
             {
                 Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.skills.form.save.primary")
+                    .TestTag("native.skills.form.save")
                     .Semantics(semantics => semantics.ContentDescription(Localize("Common_Save"))),
             };
             save.Add(new Text(Localize("Common_Save")));
@@ -256,16 +258,10 @@ internal sealed partial class AndroidSliceShell
                         AndroidResourceDates.DetailUpdatedDate(updated),
                         "native.skills.form.updated", palette)));
 
-            if (state.Creating)
-                fields.Add(Action(Localize("SkillAdd_SaveSkillProfile"),
-                    "native.skills.form.save.bottom", () => SkillsCommand(s => _ = s.SaveAsync()),
-                    !busy));
         }
         else if (state.Phase == SkillFormPhase.LoadError)
             fields.Add(Action(Localize(NativeText.Retry), "native.skills.form.retry",
                 () => SkillsCommand(s => _ = s.RetryEditAsync()), true, primary: false));
-        fields.Add(Action(Localize("Common_Cancel"), "native.skills.form.cancel",
-            () => SkillsCommand(s => s.CancelForm()), !busy, primary: false));
         if (state.ShowDeleteConfirmation)
             page.Add(SkillDeleteDialog(skills, state.Phase == SkillFormPhase.Deleting));
         return page;

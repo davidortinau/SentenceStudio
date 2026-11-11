@@ -15295,6 +15295,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Lv {0}.
+        /// </summary>
+        internal static string RefSentences_Level {
+            get {
+                return ResourceManager.GetString("RefSentences_Level", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Register.
         /// </summary>
         internal static string RefSentences_Register {
@@ -15318,6 +15327,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string RefSentences_Saved {
             get {
                 return ResourceManager.GetString("RefSentences_Saved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t save the sentence. Please try again..
+        /// </summary>
+        internal static string RefSentences_SaveFailed {
+            get {
+                return ResourceManager.GetString("RefSentences_SaveFailed", resourceCulture);
             }
         }
 
@@ -15385,11 +15403,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to A sentence and its translation can each be up to 500 characters..
+        /// </summary>
+        internal static string RefSentences_TooLong {
+            get {
+                return ResourceManager.GetString("RefSentences_TooLong", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Remove flag.
         /// </summary>
         internal static string RefSentences_Unflag {
             get {
                 return ResourceManager.GetString("RefSentences_Unflag", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove as core example.
+        /// </summary>
+        internal static string RefSentences_UnsetCore {
+            get {
+                return ResourceManager.GetString("RefSentences_UnsetCore", resourceCulture);
             }
         }
 
@@ -21459,6 +21495,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Sort.
+        /// </summary>
+        internal static string Vocabulary_SortLabel {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Updated.
         /// </summary>
         internal static string Vocabulary_SortUpdated {
@@ -21734,6 +21779,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_AddTitle {
             get {
                 return ResourceManager.GetString("VocabWordEdit_AddTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add to Resource.
+        /// </summary>
+        internal static string VocabWordEdit_AddToResource {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_AddToResource", resourceCulture);
             }
         }
 
@@ -22323,6 +22377,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to This word isn&apos;t in any resource yet..
+        /// </summary>
+        internal static string VocabWordEdit_NoResourcesSelected {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_NoResourcesSelected", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Vocabulary word not found..
         /// </summary>
         internal static string VocabWordEdit_NotFound {
@@ -22382,6 +22445,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_ProgressStartPracticing {
             get {
                 return ResourceManager.GetString("VocabWordEdit_ProgressStartPracticing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove from {0}.
+        /// </summary>
+        internal static string VocabWordEdit_RemoveFromResource {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_RemoveFromResource", resourceCulture);
             }
         }
 

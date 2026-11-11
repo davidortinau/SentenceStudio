@@ -204,6 +204,49 @@ public interface INativeResourceStore
         string owner, string wordId, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary deletion is not available from this store.");
 
+    /// <summary>
+    /// Source ReferenceSentencesSection Add and Keep: a curated sentence on the owner's word,
+    /// recorded to them. <paramref name="coreWhenFirst"/> makes it the core example when the
+    /// word has none of the owner's yet (the source's manual add).
+    /// </summary>
+    Task<NativeExampleSentenceResult> AddOwnedExampleAsync(
+        string owner, string wordId, NativeExampleSentenceDraft draft,
+        ExampleSentenceSource source, bool coreWhenFirst,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example sentences are not available from this store.");
+
+    /// <summary>Source SaveEditAsync: the sentence's text, translation and register.</summary>
+    Task<NativeExampleSentenceResult> EditOwnedExampleAsync(
+        string owner, string wordId, string exampleId, NativeExampleSentenceDraft draft,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example sentences are not available from this store.");
+
+    /// <summary>Source SetCoreAsync: one core example per word, or none.</summary>
+    Task<NativeExampleSentenceResult> SetOwnedExampleCoreAsync(
+        string owner, string wordId, string exampleId, bool isCore,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example sentences are not available from this store.");
+
+    /// <summary>Source ToggleFlagAsync: a flagged sentence feeds no quiz.</summary>
+    Task<NativeExampleSentenceResult> SetOwnedExampleFlagAsync(
+        string owner, string wordId, string exampleId, bool isFlagged,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example sentences are not available from this store.");
+
+    Task<NativeExampleSentenceResult> DeleteOwnedExampleAsync(
+        string owner, string wordId, string exampleId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example sentences are not available from this store.");
+
+    /// <summary>
+    /// Source GenerateAsync: AI suggestions for the owner's word (its stored terms), not saved.
+    /// Empty when the AI returned none; throws when it could not be asked.
+    /// </summary>
+    Task<IReadOnlyList<NativeExampleSentenceDraft>> SuggestOwnedExamplesAsync(
+        string owner, string wordId, string targetLanguage, string nativeLanguage, int count,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Example suggestions are not available from this store.");
+
     Task<NativeVocabularyDuplicateScan> FindOwnedVocabularyDuplicatesAsync(
         string owner, string? focusTerm, int skip, int take,
         CancellationToken cancellationToken) =>

@@ -577,22 +577,8 @@ internal sealed partial class AndroidSliceShell
                 editable, palette)));
         Add("encoding", () => VocabularyEncodingCard(vocabulary, state, detail, draft,
             editable, palette));
-        if (detail.Examples.Count > 0)
-            Add("examples", () =>
-            {
-                var items = new List<ComposableNode>
-                {
-                    WordSectionHeading("NativeVocabulary_ReferenceSentences", palette),
-                };
-                foreach (var example in detail.Examples)
-                {
-                    items.Add(Body(example.TargetSentence, palette,
-                        modifier: Modifier.TestTag($"native.vocabulary.edit.example.{example.Id}.target")));
-                    items.Add(Body(example.NativeSentence ?? string.Empty, palette, secondary: true,
-                        modifier: Modifier.TestTag($"native.vocabulary.edit.example.{example.Id}.native")));
-                }
-                return Card(palette, "native.vocabulary.edit.examples", items.ToArray());
-            });
+        // Source: Reference Sentences for an existing word (every word the editor opens).
+        Add("examples", () => VocabularyExamplesCard(vocabulary, state, palette));
         if (draft.LexicalUnitType is LexicalUnitType.Phrase or LexicalUnitType.Sentence
             || detail.HasConstituentLinks)
             Add("constituents", () =>
@@ -621,14 +607,6 @@ internal sealed partial class AndroidSliceShell
         }
         Add("resources", () => VocabularyResourcesCard(vocabulary, detail, draft,
             editable, palette));
-        Add("actions", () => new Row(Arrangement.SpacedBy(10))
-        {
-            Modifier.FillMaxWidth().TestTag("native.vocabulary.edit.actions"),
-            new Box { Modifier.Weight(1f), Action(Localize("Common_Cancel"),
-                "native.vocabulary.edit.cancel", vocabulary.CloseWord, !state.Saving, primary: false) },
-            new Box { Modifier.Weight(1f), Action(Localize("Common_Save"),
-                "native.vocabulary.edit.save", () => RunMoreOnUi(vocabulary.SaveAsync), state.CanSave) },
-        });
         // The More menu's Delete is disabled for a word the server would keep; this says why.
         if (VocabularyWordCommands.DeleteBlockedReason(detail, Localize) is { } deleteBlocked)
             Add("delete.blocked", () => Caption(deleteBlocked, palette,
@@ -862,26 +840,84 @@ internal sealed partial class AndroidSliceShell
             palette, secondary: item.IsPassive,
             modifier: Modifier.TestTag($"native.vocabulary.edit.history.{item.Id}"));
 
+    /// <summary>
+    /// Captain 2026-11-10 (as iOS): the word's own resources only, each with Remove, and Add to
+    /// Resource listing the others. A smart resource fills itself: shown, never removed or
+    /// offered. Changes wait for Save.
+    /// </summary>
     private ComposableNode VocabularyResourcesCard(VocabularyBrowser vocabulary, NativeVocabularyDetail detail,
         NativeVocabularyEditDraft draft, bool editable, AndroidVisualPalette palette)
     {
-        var selected = draft.ResourceIds.ToHashSet(StringComparer.Ordinal);
+        var state = vocabulary.EditState;
+        var selected = state.SelectedResources;
         var items = new List<ComposableNode>
         {
             WordSectionHeading("VocabWordEdit_ResourceAssociations", palette),
             Body(string.Format(CultureInfo.CurrentCulture, Localize("VocabWordEdit_SelectedCount"),
                 selected.Count), palette, secondary: true,
                 modifier: Modifier.TestTag("native.vocabulary.edit.resources.count")),
-            Caption(Localize("VocabWordEdit_SelectResources"), palette),
         };
         if (detail.AvailableResources.Count == 0)
-            items.Add(Body(Localize("VocabWordEdit_NoResources"), palette, secondary: true));
-        foreach (var resource in detail.AvailableResources)
+            items.Add(Body(Localize("VocabWordEdit_NoResources"), palette, secondary: true,
+                modifier: Modifier.TestTag("native.vocabulary.edit.resources.none")));
+        else if (selected.Count == 0)
+            items.Add(Body(Localize("VocabWordEdit_NoResourcesSelected"), palette, secondary: true,
+                modifier: Modifier.TestTag("native.vocabulary.edit.resources.empty")));
+        foreach (var resource in selected)
         {
             var id = resource.Id;
-            items.Add(SettingSwitch(resource.Title, $"native.vocabulary.edit.resource.{id}",
-                selected.Contains(id), value => vocabulary.ToggleResource(id, value),
-                editable && !resource.IsSmartResource, palette));
+            var row = new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag($"native.vocabulary.edit.resource.{id}"),
+                Body(resource.Title, palette, modifier: Modifier.Weight(1f)),
+            };
+            if (resource.IsSmartResource)
+                row.Add(Caption(Localize("SmartResource"), palette));
+            else
+            {
+                var label = string.Format(CultureInfo.CurrentCulture,
+                    Localize("VocabWordEdit_RemoveFromResource"), resource.Title);
+                var remove = new IconButton(() => vocabulary.ToggleResource(id, false), enabled: editable)
+                {
+                    Modifier = Modifier.TestTag($"native.vocabulary.edit.resource.{id}.remove")
+                        .Semantics(semantics => semantics.ContentDescription(label)),
+                };
+                remove.Add(new Icon(Icons.Default.Close, label)
+                {
+                    Modifier = Modifier.Size(22),
+                    Tint = palette.Text,
+                });
+                row.Add(remove);
+            }
+            items.Add(row);
+        }
+        var addable = state.AddableResources;
+        if (addable.Count > 0)
+        {
+            const string key = "vocabulary.edit.resources.add";
+            var label = Localize("VocabWordEdit_AddToResource");
+            var add = new TextButton(() => ToggleMoreMenu(key), enabled: editable)
+            {
+                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag("native.vocabulary.edit.resources.add")
+                    .Semantics(semantics => semantics.ContentDescription(label)),
+            };
+            add.Add(new Row(Arrangement.SpacedBy(6), Alignment.Vertical.CenterVertically)
+            {
+                // An icon needs its tint here (no content colour reaches it in this shell).
+                new Icon(Icons.Default.Add, null) { Modifier = Modifier.Size(20), Tint = palette.Primary },
+                new Text(label),
+            });
+            var menu = PopupMenu(expanded: _moreMenu == key, onDismissRequest: CloseMoreMenu);
+            foreach (var resource in addable)
+            {
+                var id = resource.Id;
+                menu.Add(VocabularyMenuItem(resource.Title,
+                    $"native.vocabulary.edit.resources.add.{id}", editable,
+                    () => vocabulary.ToggleResource(id, true)));
+            }
+            items.Add(new Box { add, menu });
         }
         return Card(palette, "native.vocabulary.edit.resources", items.ToArray());
     }

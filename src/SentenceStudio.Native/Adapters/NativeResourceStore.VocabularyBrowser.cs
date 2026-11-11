@@ -111,13 +111,9 @@ public sealed partial class NativeResourceStore
         var ownProgress = await db.VocabularyProgresses.AsNoTracking()
             .SingleOrDefaultAsync(progress => progress.VocabularyWordId == wordId
                 && progress.UserId == owner, cancellationToken);
-        // Only the owner's sentences (recorded to them), the rule the delete applies.
-        var examples = await OwnedExamples(db, owner)
-            .Where(example => example.VocabularyWordId == wordId)
-            .OrderBy(example => example.CreatedAt)
-            .ThenBy(example => example.Id)
-            .Select(example => new NativeVocabularyExample(
-                example.Id, example.TargetSentence, example.NativeSentence))
+        // Only the owner's sentences (recorded to them), the rule the delete applies; core
+        // first, then oldest first (source ReferenceSentencesSection OrderedSentences).
+        var examples = await OwnedExampleRows(db, owner, wordId)
             .ToListAsync(cancellationToken);
         var exampleCount = examples.Count;
 

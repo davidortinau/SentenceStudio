@@ -8,6 +8,7 @@ using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Quiz;
 using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Features.Skills;
+using SentenceStudio.Native.iOS.Features.Vocabulary;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -962,7 +963,11 @@ internal sealed partial class ApplicationScene : IDisposable
             return;
 
         var crossedDesktopBreakpoint =
-            (_style.ViewportWidth < 768) != (width < 768);
+            (_style.ViewportWidth < SourceUiLayout.DesktopWidth)
+                != (width < SourceUiLayout.DesktopWidth);
+        // The Vocabulary page's reported width belonged to the old window; it reports again.
+        if (Math.Abs(_style.ViewportWidth - width) >= 0.5)
+            _app.ForgetVocabularyPageWidth();
         _style.ViewportWidth = width;
         _dynamicType = dynamicType;
         _style.DynamicType = dynamicType;
@@ -988,10 +993,13 @@ internal sealed partial class ApplicationScene : IDisposable
         if (Find(_skillsSlot, "native.skills.grid") is { } skillsGrid)
             skillsGrid.GridColumns = SkillsView.Columns(width);
         if (Find(_vocabularySlot, "native.vocabulary.cards") is { } wordsGrid)
-            wordsGrid.GridColumns = _app.VocabularyListMode && width >= 768
-                ? 1 : SourceUiLayout.ResourceColumns(width);
-        if (Find(_vocabularySlot, "native.vocabulary.wide.filters") is { } filtersGrid)
-            filtersGrid.GridColumns = width < 1024 ? 2 : 4;
+            wordsGrid.GridColumns = VocabularyListView.CardColumns(
+                _app.VocabularyPageWidth ?? width, _style.TextScale,
+                _app.VocabularyListMode, _app.VocabularyFilterPanelShown,
+                VocabularyListView.IsWide(_app.VocabularyPageWidth ?? width));
+        if (Find(_vocabularySlot, "native.vocabulary.filters.panel") is { } filterPanel)
+            filterPanel.WithFixedWidth(VocabularyListView.FilterColumnWidth(
+                _app.VocabularyPageWidth ?? width, _style.TextScale));
         if (Find(_dashboardSlot, "native.dashboard.chooseown.grid") is { } activityGrid)
             activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width, _style.TextScale);
         if (crossedDesktopBreakpoint)

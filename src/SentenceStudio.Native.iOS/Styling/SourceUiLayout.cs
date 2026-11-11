@@ -18,8 +18,11 @@ internal static class SourceUiLayout
     // Pinned app.css:648-651 sizes .btn glyphs at 14px × the selected font scale.
     internal const double QuizPromptSymbolBaseSize = 14;
 
+    /// <summary>The source's md breakpoint: from here pages use their desktop layout.</summary>
+    internal const double DesktopWidth = 768;
+
     internal static double PageGutter(double viewportWidth) =>
-        viewportWidth < 768 ? PhoneGutter : CardInset;
+        viewportWidth < DesktopWidth ? PhoneGutter : CardInset;
 
     internal static int ResourceColumns(double viewportWidth) =>
         viewportWidth < 768 ? 1 : viewportWidth < 992 ? 2 : 3;

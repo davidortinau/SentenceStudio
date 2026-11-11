@@ -6,8 +6,7 @@ using Color = AndroidX.Compose.Color;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// The word editor's More menu (source PageHeader SecondaryActions: Save, Find Duplicates,
-/// Delete), its delete confirmation (source showDeleteConfirm modal) and the Vocabulary list's
+/// The word editor's Save and More menu (Find Duplicates, Delete), its delete confirmation (source showDeleteConfirm modal) and the Vocabulary list's
 /// duplicate manager (source Vocabulary.razor cleanup panel), in Compose on the shared
 /// VocabularyBrowser.
 /// </summary>
@@ -16,24 +15,21 @@ internal sealed partial class AndroidSliceShell
     private const string VocabularyWordMenu = "vocabulary.edit.more";
 
     /// <summary>
-    /// Source PageHeader: the primary Save shows from the md breakpoint (768 dp); the More menu
-    /// shows at every width, as on iOS (native.vocabulary.edit.more).
+    /// Captain 2026-11-10 (as iOS): one Save, a plain text action at every width, then the
+    /// overflow menu with Find Duplicates and Delete (no second Save, none under the cards).
     /// </summary>
     private ComposableNode VocabularyWordActions(VocabularyBrowser vocabulary,
         VocabularyBrowserEdit state, AndroidVisualPalette palette)
     {
         var actions = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically);
-        if (WindowWidthDp >= 768)
+        var save = new TextButton(() => RunMoreOnUi(vocabulary.SaveAsync), enabled: state.CanSave)
         {
-            var save = new TextButton(() => RunMoreOnUi(vocabulary.SaveAsync), enabled: state.CanSave)
-            {
-                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag("native.vocabulary.edit.save.toolbar")
-                    .Semantics(semantics => semantics.ContentDescription(Localize("Common_Save"))),
-            };
-            save.Add(new Text(Localize("Common_Save")));
-            actions.Add(save);
-        }
+            Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .TestTag("native.vocabulary.edit.save")
+                .Semantics(semantics => semantics.ContentDescription(Localize("Common_Save"))),
+        };
+        save.Add(new Text(Localize("Common_Save")));
+        actions.Add(save);
         var more = new IconButton(() => ToggleMoreMenu(VocabularyWordMenu),
             enabled: !state.Saving && !state.Deleting)
         {
@@ -47,8 +43,6 @@ internal sealed partial class AndroidSliceShell
         });
         var menu = PopupMenu(expanded: _moreMenu == VocabularyWordMenu,
             onDismissRequest: CloseMoreMenu);
-        menu.Add(VocabularyMenuItem(Localize("Common_Save"), "native.vocabulary.edit.save.menu",
-            state.CanSave, () => RunMoreOnUi(vocabulary.SaveAsync)));
         menu.Add(VocabularyMenuItem(Localize("VocabWordEdit_FindDuplicates"),
             "native.vocabulary.edit.duplicates.menu", state.CanFindDuplicates,
             () => RunMoreOnUi(vocabulary.FindDuplicatesAsync)));

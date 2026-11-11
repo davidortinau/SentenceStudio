@@ -13,14 +13,17 @@ internal sealed record VocabularyBrowserList(
     VocabularyFilterState Filters,
     string SortField, bool SortDescending, bool ListMode,
     string? Feedback, bool FeedbackWarning,
-    VocabularyDuplicatePanel? Duplicates = null);
+    VocabularyDuplicatePanel? Duplicates = null,
+    string SheetSortField = "added", bool SheetSortDescending = true,
+    bool FilterPanelHidden = false);
 
 internal sealed record VocabularyBrowserEdit(
     bool Loading, bool Saving, NativeVocabularyDetail? Detail,
     NativeVocabularyEditDraft? Draft, string? ErrorKey,
     bool PlayingAudio, NativeQuizPhotoAsset? Photo,
     bool ConfirmingDelete = false, bool Deleting = false,
-    string? DeleteError = null, bool HandingOff = false)
+    string? DeleteError = null, bool HandingOff = false,
+    VocabularyExamplesState? Examples = null)
 {
     /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving.</summary>
     internal bool CanFindDuplicates =>
@@ -30,6 +33,24 @@ internal sealed record VocabularyBrowserEdit(
     internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting || HandingOff, Detail);
 
     internal bool CanSave => CanSaveWord(Saving || Deleting || HandingOff, Detail, Draft);
+
+    /// <summary>
+    /// Captain 2026-11-10: the word's own resources (the draft's, in the learner's order); both
+    /// heads list only these, each removable unless it is a smart resource.
+    /// </summary>
+    internal IReadOnlyList<NativeVocabularyResource> SelectedResources =>
+        Detail is not { } detail || Draft is not { } draft ? []
+            : detail.AvailableResources.Where(resource =>
+                draft.ResourceIds.Contains(resource.Id, StringComparer.Ordinal)).ToArray();
+
+    /// <summary>
+    /// The resources Add to Resource offers: the learner's others, not smart ones (a smart
+    /// resource fills itself; ToggleResource refuses it).
+    /// </summary>
+    internal IReadOnlyList<NativeVocabularyResource> AddableResources =>
+        Detail is not { } detail || Draft is not { } draft ? []
+            : detail.AvailableResources.Where(resource => !resource.IsSmartResource
+                && !draft.ResourceIds.Contains(resource.Id, StringComparer.Ordinal)).ToArray();
 
     /// <summary>
     /// Source VocabularyWordEdit: Save needs both terms and an editable (owned) word. The iOS
@@ -60,7 +81,11 @@ internal enum VocabularyChanges
     /// <summary>A resource switch: the open editor already shows it; its count changed.</summary>
     ResourceToggle = 32,
     /// <summary>A phone filter sheet choice not applied yet.</summary>
-    FilterDraft = 64
+    FilterDraft = 64,
+    /// <summary>The editor's Reference Sentences changed (a sentence, a suggestion, the row being edited or the result shown).</summary>
+    Examples = 128,
+    /// <summary>Typed into a Reference Sentences field: the open editor already shows the text.</summary>
+    ExampleText = 256
 }
 
 /// <summary>
@@ -70,7 +95,7 @@ internal enum VocabularyChanges
 /// <see cref="OffUiAsync{T}"/> and <see cref="OnChanged"/>. <see cref="Changed"/> is raised on
 /// the calling thread; the head marshals it to its UI thread.
 /// </summary>
-internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
+internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 {
     private readonly INativeResourceStore _store;
     private readonly DeviceUserScopeProvider _userScope;
@@ -97,6 +122,10 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     private string _sortField = "added";
     private bool _sortDescending = true;
     private bool _listMode;
+    /// <summary>The phone filter sheet's sort until Apply (null while the sheet is closed).</summary>
+    private (string Field, bool Descending)? _sheetSort;
+    /// <summary>The wide layout's filter column is hidden (Captain 2026-11-09: the toolbar's Filters button shows and hides it).</summary>
+    private bool _filterPanelHidden;
     private bool _listOpen;
     private bool _formOpen;
     private bool _loading;
@@ -154,6 +183,14 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal long FormVersion => Interlocked.Read(ref _formVersion);
     internal long SheetVersion => Interlocked.Read(ref _sheetVersion);
     internal bool ListMode => _listMode;
+    internal bool FilterPanelHidden => _filterPanelHidden;
+
+    /// <summary>
+    /// The list's sort and grid/list choice: when it changes, the cards a head shows are a
+    /// different arrangement (the iOS page starts again at the top).
+    /// </summary>
+    internal string Arrangement =>
+        $"{_sortField}:{(_sortDescending ? "desc" : "asc")}:{(_listMode ? "list" : "grid")}";
     internal string SearchText => TryOwner(out _)
         ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
 
@@ -166,8 +203,6 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     protected bool CanSaveOpenWord => _formOpen && !_handingOff
         && VocabularyBrowserEdit.CanSaveWord(_saving || _cleanup.Deleting, _detail, _draft);
 
-    protected int DraftResourceCount => _draft?.ResourceIds.Count ?? 0;
-
     internal VocabularyBrowserList ListState
     {
         get
@@ -175,19 +210,25 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             if (!TryOwner(out _))
                 return new(false, true, "Vocabulary_NoActiveProfile",
                     new(false, [], []), [], new VocabularyFilterState(null, _ => { }),
-                    _sortField, _sortDescending, _listMode, null, false);
+                    _sortField, _sortDescending, _listMode, null, false,
+                    SheetSortField: _sortField, SheetSortDescending: _sortDescending,
+                    FilterPanelHidden: _filterPanelHidden);
             return new(_loading, _listErrorKey == "Vocabulary_NoActiveProfile",
                 _listErrorKey, _catalog,
                 _filters?.Filter(_catalog.Words, _sortField, _sortDescending) ?? [],
                 _filters ?? new VocabularyFilterState(null, _ => { }),
                 _sortField, _sortDescending, _listMode,
-                _feedback, _feedbackWarning, _cleanup.Duplicates);
+                _feedback, _feedbackWarning, _cleanup.Duplicates,
+                SheetSortField: _sheetSort?.Field ?? _sortField,
+                SheetSortDescending: _sheetSort?.Descending ?? _sortDescending,
+                FilterPanelHidden: _filterPanelHidden);
         }
     }
 
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
-            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff)
+            _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff,
+            ExamplesState)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -208,6 +249,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _sortField = parts[0] == "updated" ? "updated" : "added";
         _sortDescending = parts.Length < 2 || parts[1] != "asc";
         _listMode = _preferences.Get($"vocabulary_view_{owner}", "grid") == "list";
+        _filterPanelHidden = _preferences.Get(FilterPanelKey(owner), "shown") == "hidden";
+        _sheetSort = null;
         _listOpen = true;
         _loading = true;
         _feedback = null;
@@ -223,7 +266,10 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!_listOpen || _saving || _cleanup.Deleting)
             return;
         _cleanup.Reset();
+        ResetExamples();
+        _examplesChanged = false;
         _filters?.CancelPhoneSheet();
+        _sheetSort = null;
         _listOpen = false;
         _formOpen = false;
         _detail = null;
@@ -238,14 +284,21 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
     }
 
-    /// <summary>Back or Cancel from the word editor discards the draft.</summary>
+    /// <summary>
+    /// Back or Cancel from the word editor discards the draft. Sentences saved meanwhile change
+    /// the word's strength badge, so the list reads its words again.
+    /// </summary>
     internal void CloseWord()
     {
         if (!_formOpen || _saving || _cleanup.Deleting || _handingOff)
             return;
+        var reload = _examplesChanged;
         _cleanup.ResetDelete();
         LeaveWord();
         Notify(VocabularyChanges.Form);
+        // A read that reports its own failure on the list (ReloadAsync catches it).
+        if (reload)
+            _ = ReloadAsync();
     }
 
     internal async Task ReloadAsync()
@@ -255,6 +308,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         var generation = Interlocked.Increment(ref _loadGeneration);
         _loading = true;
         _listErrorKey = null;
+        // This read counts the sentences saved so far.
+        _examplesChanged = false;
         Notify(VocabularyChanges.List);
         try
         {
@@ -301,6 +356,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         _selectedWordId = id;
         var generation = Interlocked.Increment(ref _formGeneration);
+        ResetExamples();
         _formOpen = true;
         _formLoading = true;
         _editErrorKey = null;
@@ -421,6 +477,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 _feedbackWarning =
                     result == NativeVocabularySaveStatus.SavedSyncUnconfirmed;
                 _media.StopPlayback();
+                ResetExamples();
                 _formOpen = false;
                 _draft = null;
                 _detail = null;
@@ -625,6 +682,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out _) || _filters is null)
             return;
         _filters.OpenPhoneSheet();
+        _sheetSort = (_sortField, _sortDescending);
         Notify(VocabularyChanges.Sheet);
     }
 
@@ -642,16 +700,48 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal void ApplyPhoneFilters()
     {
-        if (!TryOwner(out _) || _filters is null)
+        if (!TryOwner(out var owner) || _filters is null)
             return;
         _filters.ApplyPhoneSheet();
+        if (_sheetSort is { } sort)
+        {
+            // The sheet's sort is applied with its filters (Cancel leaves the list as it was).
+            var changed = sort.Field != _sortField || sort.Descending != _sortDescending;
+            (_sortField, _sortDescending) = sort;
+            _sheetSort = null;
+            if (changed)
+                SaveSort(owner);
+        }
         Notify(VocabularyChanges.List | VocabularyChanges.Sheet);
     }
 
     internal void CancelPhoneFilters()
     {
         _filters?.CancelPhoneSheet();
+        _sheetSort = null;
         Notify(VocabularyChanges.Sheet);
+    }
+
+    /// <summary>
+    /// The phone filter sheet's Added or Updated: the same rule as <see cref="SetSort"/> on the
+    /// sheet's draft, applied with the filters.
+    /// </summary>
+    internal void SetSheetSort(string field)
+    {
+        if (!TryOwner(out _) || _filters?.PhoneSheetOpen != true || _sheetSort is not { } sort)
+            return;
+        _sheetSort = NextSort(sort.Field, sort.Descending, field);
+        Notify(VocabularyChanges.Sheet);
+    }
+
+    /// <summary>The wide layout's toolbar Filters button: shows or hides the filter column.</summary>
+    internal void ToggleFilterPanel()
+    {
+        if (!TryOwner(out var owner))
+            return;
+        _filterPanelHidden = !_filterPanelHidden;
+        _preferences.Set(FilterPanelKey(owner), _filterPanelHidden ? "hidden" : "shown");
+        Notify(VocabularyChanges.List);
     }
 
     internal void ClearFilters()
@@ -666,17 +756,24 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     {
         if (!TryOwner(out var owner))
             return;
-        if (_sortField == field)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortField = field;
-            _sortDescending = true;
-        }
+        (_sortField, _sortDescending) = NextSort(_sortField, _sortDescending, field);
+        SaveSort(owner);
+        // An open sheet's draft follows, so its Apply cannot put back the sort it opened with.
+        if (_sheetSort is not null)
+            _sheetSort = (_sortField, _sortDescending);
+        Notify(VocabularyChanges.List | (_sheetSort is null
+            ? VocabularyChanges.None : VocabularyChanges.Sheet));
+    }
+
+    /// <summary>The sort already chosen flips its direction; the other one starts newest first.</summary>
+    private static (string Field, bool Descending) NextSort(
+        string current, bool descending, string chosen) =>
+        current == chosen ? (current, !descending)
+            : (chosen == "updated" ? "updated" : "added", true);
+
+    private void SaveSort(string owner) =>
         _preferences.Set($"vocabulary_sort_{owner}",
             $"{_sortField}:{(_sortDescending ? "desc" : "asc")}");
-        Notify(VocabularyChanges.List);
-    }
 
     internal void SetListMode(bool list)
     {
@@ -733,11 +830,14 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Interlocked.Increment(ref _formGeneration);
         Interlocked.Increment(ref _loadGeneration);
         _filters?.CancelPhoneSheet();
+        _sheetSort = null;
         _formOpen = false;
         _formLoading = false;
         _loading = false;
         _feedback = null;
         _cleanup.Reset();
+        ResetExamples();
+        _examplesChanged = false;
         _listErrorKey = "Vocabulary_NoActiveProfile";
         _media.StopPlayback();
         Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
@@ -746,6 +846,7 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Leaves the editor and discards its draft. No publish.</summary>
     private void LeaveWord()
     {
+        ResetExamples();
         _formOpen = false;
         _detail = null;
         _draft = null;
@@ -757,6 +858,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     }
 
     private static string QueryKey(string owner) => $"vocabulary_query_{owner}";
+
+    private static string FilterPanelKey(string owner) => $"vocabulary_filter_panel_{owner}";
 
     private void Notify(VocabularyChanges changes)
     {
@@ -773,7 +876,8 @@ internal class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         const VocabularyChanges list = VocabularyChanges.List | VocabularyChanges.Sheet
             | VocabularyChanges.FilterDraft;
         const VocabularyChanges form = VocabularyChanges.Form | VocabularyChanges.DeleteDialog
-            | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle;
+            | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle
+            | VocabularyChanges.Examples | VocabularyChanges.ExampleText;
         Publish((changes & list) != 0, (changes & form) != 0, sheet: false);
     }
 

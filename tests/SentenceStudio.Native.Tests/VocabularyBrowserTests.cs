@@ -56,6 +56,107 @@ public sealed class VocabularyBrowserTests
     }
 
     [Fact]
+    public async Task Browser_SheetSortAppliesWithTheFiltersAndCancelKeepsTheList()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(NativeSliceFixture.UserA));
+        var sortKey = $"vocabulary_sort_{NativeSliceFixture.UserA}";
+        Assert.Equal(("added", true),
+            (browser.ListState.SortField, browser.ListState.SortDescending));
+
+        // Closed sheet: its sort does nothing.
+        browser.SetSheetSort("updated");
+        Assert.Equal("added", browser.ListState.SheetSortField);
+
+        browser.OpenPhoneFilters();
+        browser.SetSheetSort("updated");
+        Assert.Equal(("updated", true),
+            (browser.ListState.SheetSortField, browser.ListState.SheetSortDescending));
+        // The list keeps its sort until Apply; choosing the same sort again flips it.
+        Assert.Equal("added", browser.ListState.SortField);
+        browser.SetSheetSort("updated");
+        Assert.False(browser.ListState.SheetSortDescending);
+        browser.CancelPhoneFilters();
+        Assert.Equal(("added", true),
+            (browser.ListState.SortField, browser.ListState.SortDescending));
+        Assert.Equal("unset", fixture.Preferences.Get(sortKey, "unset"));
+
+        // A reopened sheet starts from the list's sort; Apply sorts the list and saves it.
+        browser.OpenPhoneFilters();
+        Assert.Equal(("added", true),
+            (browser.ListState.SheetSortField, browser.ListState.SheetSortDescending));
+        browser.SetSheetSort("updated");
+        browser.ApplyPhoneFilters();
+        var list = browser.ListState;
+        Assert.Equal(("updated", true), (list.SortField, list.SortDescending));
+        Assert.Equal("updated:desc", fixture.Preferences.Get(sortKey, string.Empty));
+        Assert.Equal(
+            list.FilteredWords.OrderByDescending(word => word.UpdatedAt)
+                .ThenBy(word => word.Id, StringComparer.Ordinal).Select(word => word.Id),
+            list.FilteredWords.Select(word => word.Id));
+
+        // The wide sort buttons apply at once, with the same flip.
+        browser.SetSort("updated");
+        Assert.Equal(("updated", false),
+            (browser.ListState.SortField, browser.ListState.SortDescending));
+        Assert.Equal("updated:asc", fixture.Preferences.Get(sortKey, string.Empty));
+
+        // A wide sort while the sheet is open moves the sheet's draft too, so Apply keeps it.
+        browser.OpenPhoneFilters();
+        browser.SetSort("added");
+        Assert.Equal(("added", true),
+            (browser.ListState.SheetSortField, browser.ListState.SheetSortDescending));
+        browser.ApplyPhoneFilters();
+        Assert.Equal(("added", true),
+            (browser.ListState.SortField, browser.ListState.SortDescending));
+        browser.SetSort("updated");
+        browser.SetSort("updated");
+
+        // The arrangement a head starts its results again for: sort and grid/list.
+        Assert.Equal("updated:asc:grid", browser.Arrangement);
+        browser.SetListMode(true);
+        Assert.Equal("updated:asc:list", browser.Arrangement);
+        browser.Search("병");
+        Assert.Equal("updated:asc:list", browser.Arrangement);
+    }
+
+    [Fact]
+    public async Task Browser_FilterPanelHiddenIsRememberedPerOwner()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        await fixture.SeedAsync(NativeSliceFixture.UserB);
+        fixture.Activate(NativeSliceFixture.UserA);
+        using (var browser = Create(fixture))
+        {
+            Assert.True(await browser.OpenAsync(NativeSliceFixture.UserA));
+            Assert.False(browser.ListState.FilterPanelHidden);
+            browser.ToggleFilterPanel();
+            Assert.True(browser.ListState.FilterPanelHidden);
+            Assert.True(browser.FilterPanelHidden);
+        }
+        Assert.Equal("hidden", fixture.Preferences.Get(
+            $"vocabulary_filter_panel_{NativeSliceFixture.UserA}", string.Empty));
+
+        using (var reopened = Create(fixture))
+        {
+            Assert.True(await reopened.OpenAsync(NativeSliceFixture.UserA));
+            Assert.True(reopened.ListState.FilterPanelHidden);
+            reopened.ToggleFilterPanel();
+            Assert.False(reopened.ListState.FilterPanelHidden);
+        }
+
+        // Another owner keeps their own (shown by default).
+        fixture.Activate(NativeSliceFixture.UserB);
+        using var other = Create(fixture);
+        Assert.True(await other.OpenAsync(NativeSliceFixture.UserB));
+        Assert.False(other.ListState.FilterPanelHidden);
+    }
+
+    [Fact]
     public async Task Browser_WordDraftNeedsBothTermsAndCloseDiscardsIt()
     {
         using var fixture = new NativeSliceFixture();

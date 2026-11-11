@@ -64,10 +64,15 @@ public sealed class NativeVocabularyRouteTests
     }
 
     [Fact]
-    public void VocabularyListRefresh_MutatesMountedScrollAndVStackButNotToolbar()
+    public void VocabularyListRefresh_MutatesMountedRegionsButNotToolbarOrSearch()
     {
         var browser = Source("Features/Vocabulary/VocabularyListView.cs");
-        Assert.Contains("return Views.Toolbar(style.Page(page), toolbar)", browser);
+        Assert.Contains("ToolbarActions(state, text, actions, wide, ready))", browser);
+        // A mounted toolbar button keeps its action, so the grid/list switch reads the mode
+        // when tapped (Captain 2026-11-09).
+        Assert.Contains("actions.ToggleListMode)", browser);
+        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.Contains("ToggleListMode: () => SetListMode(!ListMode),", coordinator);
 
         var scene = Source("App/ApplicationScene.Vocabulary.cs");
         var refresh = scene[scene.IndexOf(
@@ -75,18 +80,22 @@ public sealed class NativeVocabularyRouteTests
             ..scene.IndexOf("private void UpdateVocabularyWord(",
                 StringComparison.Ordinal)];
         Assert.Contains("var current = _vocabularySlot.Children.Single();", refresh);
-        Assert.Contains("current.Kind != \"toolbar\"", refresh);
-        Assert.Contains("|| !SameToolbarActions(current, next)", refresh);
-        Assert.Contains("current.Children[0].Kind != \"scroll\"", refresh);
-        Assert.Contains("var content = current.Children[0].Children[0];", refresh);
-        Assert.Contains("while (content.Children.Count > 1)", refresh);
+        Assert.Contains("!VocabularyListUpdate.TryUpdateInPlace(current, next)", refresh);
         Assert.DoesNotContain("current.RemoveAt(", refresh);
         Assert.DoesNotContain("current.Add(", refresh);
-        Assert.Contains(
-            "for (var actionIndex = 1; actionIndex < current.Children.Count;",
-            refresh);
-        Assert.Contains("child.Text = nextChild.Text;", refresh);
         Assert.Contains("next.Dispose();", refresh);
+
+        var update = Source("Features/Vocabulary/VocabularyListUpdate.cs");
+        Assert.Contains("if (current.Kind != \"toolbar\")", update);
+        Assert.Contains("if (mounted.Shape != fresh.Shape)", update);
+        Assert.Contains("(\"native.vocabulary.search.row\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.scroll.content\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.results.header\", 1),", update);
+        Assert.Contains("(\"native.vocabulary.results.content\", 1),", update);
+        // Another sort or grid/list choice mounts a new page, so the results start at the top.
+        Assert.Contains("|| arrangement != _renderedVocabularyArrangement);", scene);
+        Assert.Contains("child.SystemImageName = nextChild.SystemImageName;", update);
+        Assert.Contains("button.WithAccessibilitySelected(next.AccessibilitySelected);", update);
     }
 
     [Fact]
@@ -122,17 +131,27 @@ public sealed class NativeVocabularyRouteTests
 
         var editor = Source("Features/Vocabulary/VocabularyWordEditView.cs");
         Assert.Contains("return PageContent(fields, style);", editor);
-        Assert.Contains("return Views.Toolbar(PageContent(fields, style), toolbarActions)",
-            editor);
-        // Source SecondaryActions at every width: Save, Find Duplicates, Delete.
-        Assert.Contains(
-            "Views.Menu(text(\"More\"), menuSave, menuDuplicates, menuDelete)", editor);
-        // The phone More > Save follows typing like the other Save buttons (one enable rule).
-        Assert.Contains("actions.RegisterMenuSave(menuSave);", editor);
+        // Captain 2026-11-10: one plain Save as the toolbar's last (primary) action at every
+        // width; the More menu keeps Find Duplicates and Delete; nothing under the last card.
+        Assert.Contains("return Views.Toolbar(PageContent(fields, style), more, save)", editor);
+        Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", editor);
+        Assert.Contains("Views.Menu(text(\"More\"), menuDuplicates, menuDelete)", editor);
+        Assert.DoesNotContain("PrimaryButton(text(\"Common_Save\")", editor);
+        Assert.DoesNotContain("native.vocabulary.edit.actions", editor);
+        Assert.DoesNotContain("ViewportWidth >= 768", editor);
+        // The toolbar Save follows typing (one enable rule), as a plain button.
+        Assert.Contains("actions.RegisterSave(save);", editor);
         var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
-        Assert.Contains("RegisterMenuSave: view => _menuSaveButtons.Add(view),", coordinator);
-        Assert.Contains("item.IsEnabled = enabled;", coordinator);
+        Assert.Contains("RegisterSave: view => _saveButtons.Add(view),", coordinator);
+        Assert.Contains("button.IsEnabled = enabled;", coordinator);
         Assert.Contains("return style.Page(Views.Scroll(content)", editor);
+        // A resource or sentence change refills only its card, so the page keeps its scroll,
+        // on the next main-queue turn (not inside the tap of the button it replaces).
+        Assert.Contains("ScheduleRefill(VocabularyEditSection.Resources);", coordinator);
+        Assert.Contains("ScheduleRefill(VocabularyEditSection.Examples);", coordinator);
+        Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(() =>", coordinator);
+        Assert.Contains("whole |= !RefillSection(pending);", coordinator);
+        Assert.Contains("slot.RemoveAt(0);", coordinator);
     }
 
     // Review 2026-11-05: one Vocabulary browser for both heads. The iOS coordinator derives
@@ -154,6 +173,14 @@ public sealed class NativeVocabularyRouteTests
         var storeCalls = Regex.Matches(browser, @"_store\.").Count;
         Assert.True(storeCalls > 0);
         Assert.Equal(storeCalls, Regex.Matches(browser, @"OffUiAsync\(\(\) => _store\.").Count);
+        // Reference Sentences: each write is a store call the one writer runs off the UI thread.
+        var examples = Flat(SharedSource("Features/Vocabulary/VocabularyBrowser.Examples.cs"));
+        var exampleCalls = Regex.Matches(examples, @"_store\.").Count;
+        Assert.Equal(7, exampleCalls);
+        Assert.Equal(exampleCalls,
+            Regex.Matches(examples, @"\(owner, wordId\) => _store\.").Count
+            + Regex.Matches(examples, @"OffUiAsync\(\(\) => _store\.").Count);
+        Assert.Contains("result = await OffUiAsync(() => write(owner, wordId));", examples);
 
         // One Card overload, rows only: a SwiftView? header parameter would capture a card's
         // first row (the SwiftUIViews harness builds the cards to prove it).

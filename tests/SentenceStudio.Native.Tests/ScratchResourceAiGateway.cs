@@ -1,3 +1,4 @@
+using SentenceStudio.Services.DTOs;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
 using SentenceStudio.Shared.Models;
@@ -28,6 +29,8 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
     public TaskCompletionSource<bool>? ClozeGate { get; set; }
     /// <summary>A hung gateway: the cloze call waits for it and ignores cancellation.</summary>
     public TaskCompletionSource<bool>? ClozeHang { get; set; }
+    /// <summary>The reply to an example sentence prompt (source GeneratedExampleSentencesDto).</summary>
+    public GeneratedExampleSentencesDto? ExampleResponse { get; set; }
     public string? LastPrompt { get; private set; }
     public string? LastOwner { get; private set; }
 
@@ -66,7 +69,9 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
                 throw ClozeFailure;
             return (T?)(object?)ClozeResponder?.Invoke(prompt);
         }
-        throw new NotSupportedException("The isolated AI fixture supports only resource and cloze responses.");
+        if (typeof(T) == typeof(GeneratedExampleSentencesDto))
+            return (T?)(object?)ExampleResponse;
+        throw new NotSupportedException("The isolated AI fixture supports only resource, cloze and example responses.");
     }
 
     public Task<T?> SendMessagesAsync<T>(

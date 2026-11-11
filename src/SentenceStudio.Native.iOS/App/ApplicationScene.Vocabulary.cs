@@ -1,4 +1,5 @@
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Vocabulary;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
@@ -17,6 +18,9 @@ internal sealed partial class ApplicationScene
     private SwiftView? _vocabularyDeleteConfirmation;
     private string? _vocabularyDeleteMessage;
     private long _renderedVocabularyListVersion = -1;
+    // The sort and grid/list choice the mounted page shows: another one mounts a new page, so
+    // its results start at the top instead of keeping an offset into different cards.
+    private string? _renderedVocabularyArrangement;
     private long _renderedVocabularyFormVersion = -1;
     private long _renderedVocabularySheetVersion = -1;
 
@@ -88,7 +92,7 @@ internal sealed partial class ApplicationScene
             _vocabularySlot = Views.VStack(_app.RenderVocabularyList(_style))
                 .WithNavigationTitle(_app.Localize("Vocabulary_Title"))
                 .WithInlineNavigationTitle();
-            _vocabularySearch = Find(_vocabularySlot, "native.vocabulary.search");
+            _vocabularySearch = Find(_vocabularySlot, VocabularyListUpdate.SearchId);
             _vocabularyFilterSlot = Views.VStack(
                 _app.RenderVocabularyFilters(_style));
             // A browse page: the tab bar stays (the filters sheet covers it while open).
@@ -97,6 +101,7 @@ internal sealed partial class ApplicationScene
                 .WithSheetDetentFraction(0.85)
                 .WithAccessibilityIdentifier("native.vocabulary.filters.host");
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
+            _renderedVocabularyArrangement = _app.VocabularyArrangement;
             _renderedVocabularySheetVersion = _app.VocabularySheetVersion;
             stack.Push(ApplicationFormRoutes.Vocabulary,
                 _vocabularySheet);
@@ -107,8 +112,11 @@ internal sealed partial class ApplicationScene
         if (appearanceChanged
             || _renderedVocabularyListVersion != _app.VocabularyListVersion)
         {
-            UpdateVocabularyList(appearanceChanged);
+            var arrangement = _app.VocabularyArrangement;
+            UpdateVocabularyList(appearanceChanged
+                || arrangement != _renderedVocabularyArrangement);
             _renderedVocabularyListVersion = _app.VocabularyListVersion;
+            _renderedVocabularyArrangement = arrangement;
         }
         if (appearanceChanged
             || _renderedVocabularySheetVersion != _app.VocabularySheetVersion)
@@ -160,91 +168,22 @@ internal sealed partial class ApplicationScene
             return;
         var next = _app.RenderVocabularyList(_style);
         var current = _vocabularySlot.Children.Single();
-        var oldSearch = Find(current, "native.vocabulary.search");
-        if (replaceAll || current.Kind != "toolbar" || next.Kind != "toolbar"
-            || current.Children.Count == 0 || next.Children.Count == 0
-            || !SameToolbarActions(current, next)
-            || current.Children[0].Kind != "scroll"
-            || next.Children[0].Kind != "scroll"
-            || current.Children[0].Children.Count != 1
-            || next.Children[0].Children.Count != 1)
+        var oldSearch = Find(current, VocabularyListUpdate.SearchId);
+        if (replaceAll || oldSearch is null || !VocabularyListUpdate.TryUpdateInPlace(current, next))
         {
+            // Another layout (phone or wide, the filter column shown or hidden, loading or
+            // loaded): a new page, with focus handed to its search field.
             var focused = oldSearch?.FocusRequested == true;
             Replace(_vocabularySlot, next);
-            _vocabularySearch = Find(_vocabularySlot, "native.vocabulary.search");
+            _vocabularySearch = Find(_vocabularySlot, VocabularyListUpdate.SearchId);
             if (focused && _vocabularySearch?.IsEnabled == true)
                 _vocabularySearch.FocusRequested = true;
             return;
         }
-
-        var content = current.Children[0].Children[0];
-        var nextContent = next.Children[0].Children[0];
-        var searchRow = content.Children.FirstOrDefault();
-        var nextSearchRow = nextContent.Children.FirstOrDefault();
-        if (content.Kind != "vstack" || nextContent.Kind != "vstack"
-            || searchRow?.Kind != "hstack" || nextSearchRow?.Kind != "hstack"
-            || searchRow.Children.Count == 0 || nextSearchRow.Children.Count == 0
-            || searchRow.Children[0].Kind != "textField"
-            || nextSearchRow.Children[0].Kind != "textField"
-            || searchRow.Children[0].AccessibilityIdentifier
-                != "native.vocabulary.search")
-        {
-            var focused = oldSearch?.FocusRequested == true;
-            Replace(_vocabularySlot, next);
-            _vocabularySearch = Find(_vocabularySlot, "native.vocabulary.search");
-            if (focused && _vocabularySearch?.IsEnabled == true)
-                _vocabularySearch.FocusRequested = true;
-            return;
-        }
-
-        var search = searchRow.Children[0];
-        if (!string.Equals(search.Text, _app.VocabularySearchText,
+        if (!string.Equals(oldSearch.Text, _app.VocabularySearchText,
                 StringComparison.Ordinal))
-            search.Text = _app.VocabularySearchText;
-        while (searchRow.Children.Count > 1)
-        {
-            var old = searchRow.Children[1];
-            searchRow.RemoveAt(1);
-            old.Dispose();
-        }
-        while (nextSearchRow.Children.Count > 1)
-        {
-            var child = nextSearchRow.Children[1];
-            nextSearchRow.RemoveAt(1);
-            searchRow.Add(child);
-        }
-        while (content.Children.Count > 1)
-        {
-            var old = content.Children[1];
-            content.RemoveAt(1);
-            old.Dispose();
-        }
-        while (nextContent.Children.Count > 1)
-        {
-            var child = nextContent.Children[1];
-            nextContent.RemoveAt(1);
-            content.Add(child);
-        }
-        for (var actionIndex = 1; actionIndex < current.Children.Count;
-            actionIndex++)
-        {
-            var action = current.Children[actionIndex];
-            var nextAction = next.Children[actionIndex];
-            if (action.IsEnabled != nextAction.IsEnabled)
-                action.IsEnabled = nextAction.IsEnabled;
-            if (action.Text != nextAction.Text)
-                action.Text = nextAction.Text;
-            for (var index = 0; index < action.Children.Count; index++)
-            {
-                var child = action.Children[index];
-                var nextChild = nextAction.Children[index];
-                if (child.IsEnabled != nextChild.IsEnabled)
-                    child.IsEnabled = nextChild.IsEnabled;
-                if (child.Text != nextChild.Text)
-                    child.Text = nextChild.Text;
-            }
-        }
-        _vocabularySearch = search;
+            oldSearch.Text = _app.VocabularySearchText;
+        _vocabularySearch = oldSearch;
         next.Dispose();
     }
 
@@ -304,6 +243,7 @@ internal sealed partial class ApplicationScene
         _vocabularyFilterSlot = null;
         _vocabularySheet = null;
         _renderedVocabularyListVersion = -1;
+        _renderedVocabularyArrangement = null;
         _renderedVocabularySheetVersion = -1;
     }
 }

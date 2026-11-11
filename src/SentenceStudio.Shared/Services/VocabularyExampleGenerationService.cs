@@ -32,7 +32,7 @@ public class VocabularyExampleGenerationService
         int count = 3,
         SpeechRegister targetRegister = SpeechRegister.Unspecified)
     {
-        _logger.LogInformation("🤖 Generating {Count} example sentences for word: {Word}", count, word.TargetLanguageTerm);
+        _logger.LogInformation("Generating {Count} example sentences for word: {Word}", count, word.TargetLanguageTerm);
 
         var prompt = BuildPrompt(word, nativeLanguage, targetLanguage, count, targetRegister);
         
@@ -46,7 +46,7 @@ public class VocabularyExampleGenerationService
                 return new List<GeneratedSentenceDto>();
             }
 
-            _logger.LogInformation("✅ Successfully generated {Count} example sentences", result.Sentences.Count);
+            _logger.LogInformation("Successfully generated {Count} example sentences", result.Sentences.Count);
             return result.Sentences;
         }
         catch (Exception ex)
@@ -69,8 +69,20 @@ public class VocabularyExampleGenerationService
         SpeechRegister targetRegister = SpeechRegister.Unspecified)
     {
         var dtos = await GenerateExampleSentencesAsync(word, nativeLanguage, targetLanguage, count, targetRegister);
+        return ToSuggestions(word, dtos);
+    }
 
-        return dtos
+    /// <summary>
+    /// The unsaved suggestions for <paramref name="word"/> from a generation reply: blank
+    /// sentences dropped, text trimmed, Source=AiGenerated, Status=Suggested, difficulty kept
+    /// only from 1 to 5. A native head sends <see cref="BuildPrompt"/> through its owner-bound
+    /// gateway and maps the reply here, so every client keeps one prompt and one rule.
+    /// </summary>
+    public static List<ExampleSentence> ToSuggestions(
+        VocabularyWord word, IEnumerable<GeneratedSentenceDto>? dtos)
+    {
+        ArgumentNullException.ThrowIfNull(word);
+        return (dtos ?? [])
             .Where(d => !string.IsNullOrWhiteSpace(d.TargetSentence))
             .Select(d => new ExampleSentence
             {
@@ -86,7 +98,8 @@ public class VocabularyExampleGenerationService
             .ToList();
     }
 
-    private string BuildPrompt(VocabularyWord word, string nativeLanguage, string targetLanguage, int count, SpeechRegister targetRegister)
+    /// <summary>The generation prompt for <paramref name="word"/> (its stored terms, lemma and tags).</summary>
+    public static string BuildPrompt(VocabularyWord word, string nativeLanguage, string targetLanguage, int count, SpeechRegister targetRegister)
     {
         var promptParts = new List<string>
         {

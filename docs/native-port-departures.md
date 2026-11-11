@@ -159,6 +159,53 @@ Differences from iOS:
 | 59 | Editors put the keyboard away with system Back (or the keyboard's own hide key); Back with the keyboard down leaves the page as before | iOS added drag-into-the-keyboard dismissal (`a8f2a81f`) because a multi-line field's Return adds a line and iOS has no Back | Android's Back always dismisses the keyboard first; checked on Import Content, the resource form and the skill form |
 | 60 | The status-bar and navigation-bar icons follow the app's theme (Settings Light or Dark), not only the device mode; the launch look always uses light icons | The window theme followed the device mode only, so a Dark app on a light device had dark icons on a dark page | Found during the launch work, 2026-11-07 |
 
+## Vocabulary list layout (iOS, 2026-11-09)
+
+Source: `src/SentenceStudio.UI/Pages/Vocabulary.razor`. The Captain asked for these on the
+Duotopia (wide) after the source's desktop controls stacked into one tall column there
+(Captain 2026-11-09: "this looks completely wrong on my Duotopia device when viewed wide").
+Code: `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs`, the in-place
+update in `VocabularyListUpdate.cs`, and the shared sort draft and column flag in
+`src/SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.cs`. Bridge
+`Microsoft.SwiftUI` 0.1.0-preview.45 added `WithFixedWidth` for the column and preview.46 the
+accessors that let a toolbar button change its symbol, label and selected state in place.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 61 | Filters is a toolbar button at every width: a phone opens the filter sheet; from 768 pt it shows or hides the filter column (selected while shown; the choice is remembered per learner). Its icon is filled while a search or filter is on, and now updates as soon as one is | The filter button was phone-only; wide pages had the filters inline. The phone icon's fill did not change until the page was rebuilt | Captain 2026-11-09 |
+| 62 | Grid/list is one toolbar button from 768 pt, showing the layout a tap switches to ("List view" or "Grid view"). A phone has no switch (it always shows one column) | Two-button group above the filters (wide only) | Captain 2026-11-09 |
+| 63 | The total and status counts are one row of badges above the results that scrolls sideways when it does not fit (large text, a narrow window). This returns to the source for the counts; the active-filter chips also use one sideways row | The web row is one sideways-scrolling row (`flex-nowrap overflow-auto`) with the sort and view buttons at its end, and its chips wrap. The earlier native port stacked counts, sort and view buttons into one column under 940 pt or at large text | Captain 2026-11-09 |
+| 64 | Added/Updated sorting is one of the filter options: first in the wide filter column (applied at once) and first in the phone sheet, where it is applied with the filters by Apply and dropped by Cancel. A phone can sort for the first time | Sort buttons beside the counts (wide only); a phone could not sort | Captain 2026-11-09 |
+| 65 | From 768 pt (window width) the page is two columns: a fixed filter column (a third of the page, 280 to 400 pt, wider with larger text; sort, every filter, Clear All Filters while one is on) that scrolls on its own, a divider, then the results: the search field stays put above their own scroll, which holds the counts, the active-filter chips (one sideways row) and the word cards in a lazily built grid. The page measures its own width, so an iPad sidebar narrows the column and the cards rather than squeezing them. Cards are two or three across by the results' width and text size, one in list view; changing the sort or grid/list starts the results at the top | Search, counts, sort, view buttons, a two- or four-column grid of filter menus and chips stacked above the cards, all in one page scroll | Captain 2026-11-09 |
+
+The phone layout is otherwise unchanged. Android's Compose screen still has the earlier wide
+controls; matching it is a separate change.
+
+## Vocabulary word editor and every editor's Save (iOS and Android, 2026-11-10)
+
+Source: `src/SentenceStudio.UI/Pages/VocabularyWordEdit.razor` and
+`src/SentenceStudio.UI/Components/ReferenceSentencesSection.razor`. The Captain reviewed the
+editor on Duotopia (2026-11-10): "the Save button in the toolbar appears as a primary and
+secondary option", "we don't need duplicate cancel/save buttons at the bottom of the page",
+"the resource associations list is long", and "we are completely missing the sample/example
+sentences feature of this page". Code: `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs`,
+`VocabularyWordEditView.Examples.cs`, `VocabularyCoordinator.cs`; shared state in
+`src/SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.Examples.cs`; owner-scoped
+writes in `src/SentenceStudio.Native/Adapters/NativeResourceStore.VocabularyExamples.cs`.
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 66 | Every editor (the word, resource and skill forms, on iOS and Android) has one Save, a plain text toolbar action at every width (iOS: last; Android: before the overflow menu); the More menu keeps only the other actions (the word's Find Duplicates and Delete, a resource's or skill's Delete) and is not shown when it would be empty (adding a resource or skill). There is no Save or Cancel under the form; Back leaves without saving | The page header shows a filled primary Save from 768 pt and a Save in its More menu at every width; the add pages also end with a full-width "Save Resource" / "Save Skill Profile". The earlier native ports also put Cancel (word, skill) and Save (word) under the form | Captain 2026-11-10 ("other editors should also get the same Save treatment") |
+| 67 | Resource Associations lists only the word's own resources, each with a Remove button, and Add to Resource (a menu) lists the learner's other resources. A smart resource is shown without Remove and is never offered. Adding and removing wait for Save, as before | Every resource of the learner as a checkbox list (scrolling at 400 px) | Captain 2026-11-10. The source add form is unchanged: native has no add-word form |
+| 68 | Reference Sentences are back, as the source has them: Generate (four AI suggestions for the stored word in its language, English translations; each can be edited, then kept or discarded), an add row (sentence, translation, register; the word's first sentence becomes its core one), and the learner's sentences, core first, with Set as core example, Edit, Flag and Delete in a menu and their Core, source, register, level and Flagged badges. Each change is saved at once, apart from the word's Save, and the strength label follows the count. Results show as a line in the card instead of a toast. The core sentence's menu reads "Remove as core example" | The source labels both states "Set as core example" (its star icon shows which). The earlier native port only listed the sentences, read-only, and only when the word had some | Captain 2026-11-10 |
+
+Android follows rows 66-68 (Captain 2026-11-10: "Android should also get these changes") on the
+same shared browser: `src/SentenceStudio.Native.Android/AndroidSliceShell.VocabularyExamples.Compose.cs`,
+the resources card in `AndroidSliceShell.Vocabulary.Compose.cs`, and the app-bar actions in
+`AndroidSliceShell.VocabularyDuplicates.Compose.cs`, `AndroidSliceShell.Skills.Compose.cs` and
+`AndroidSliceShell.ResourceForm.Compose.cs`. Its badges wrap onto more lines (`FlowRow`) where
+iOS scrolls one row sideways.
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

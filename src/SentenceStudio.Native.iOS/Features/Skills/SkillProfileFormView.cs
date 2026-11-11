@@ -8,7 +8,7 @@ namespace SentenceStudio.Native.iOS.Features.Skills;
 
 internal sealed record SkillProfileFormActions(
     Action<string> TitleChanged, Action<string> DescriptionChanged,
-    Action Save, Action Cancel, Action Retry, Action RequestDelete);
+    Action Save, Action Retry, Action RequestDelete);
 
 internal static class SkillProfileFormView
 {
@@ -88,20 +88,10 @@ internal static class SkillProfileFormView
                 ]));
             }
 
-            if (state.Creating)
-                fields.Add(style.PrimaryButton(
-                        text("SkillAdd_SaveSkillProfile"), actions.Save,
-                        fullWidth: true)
-                    .WithAccessibilityIdentifier("native.skills.form.save.bottom"));
         }
         else if (state.Phase == SkillFormPhase.LoadError)
             fields.Add(style.SecondaryButton(text(NativeText.Retry), actions.Retry)
                 .WithAccessibilityIdentifier("native.skills.form.retry"));
-
-        var cancel = style.SecondaryButton(text("Common_Cancel"), actions.Cancel)
-            .WithAccessibilityIdentifier("native.skills.form.cancel");
-        cancel.IsEnabled = !busy;
-        fields.Add(cancel);
 
         var content = Views.VStack(fields.ToArray())
             .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
@@ -117,26 +107,21 @@ internal static class SkillProfileFormView
         if (!editable)
             return page;
 
-        var menuSave = Views.Button(text("Common_Save"), actions.Save)
-            .WithAccessibilityIdentifier("native.skills.form.save.menu");
-        menuSave.IsEnabled = !busy;
-        var menuActions = new List<SwiftView> { menuSave };
-        if (!state.Creating)
-        {
-            var delete = Views.Button(text("Common_Delete"), actions.RequestDelete)
-                .WithAccessibilityIdentifier("native.skills.edit.delete.request");
-            delete.IsEnabled = !busy;
-            menuActions.Add(delete);
-        }
-        var more = Views.Menu(text("More"), menuActions.ToArray())
+        // Captain 2026-11-10 (the word editor's Save, for every editor): one Save, the
+        // toolbar's last action at every width, as plain toolbar text; More keeps Delete, and
+        // there is no Save or Cancel under the form (Back leaves without saving).
+        var save = Views.Button(text("Common_Save"), actions.Save)
+            .WithAccessibilityIdentifier("native.skills.form.save");
+        save.IsEnabled = !busy;
+        if (state.Creating)
+            return Views.Toolbar(page, save);
+        var delete = Views.Button(text("Common_Delete"), actions.RequestDelete)
+            .WithAccessibilityIdentifier("native.skills.edit.delete.request");
+        delete.IsEnabled = !busy;
+        var more = Views.Menu(text("More"), delete)
             .WithAccessibilityIdentifier("native.skills.form.more");
         more.IsEnabled = !busy;
-        if (style.ViewportWidth < 768)
-            return Views.Toolbar(page, more);
-        var primary = style.PrimaryButton(text("Common_Save"), actions.Save)
-            .WithAccessibilityIdentifier("native.skills.form.save.primary");
-        primary.IsEnabled = !busy;
-        return Views.Toolbar(page, primary, more);
+        return Views.Toolbar(page, more, save);
     }
 
     internal static string Error(string? errorKey, Func<string, string> text)

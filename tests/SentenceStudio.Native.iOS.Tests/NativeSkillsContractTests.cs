@@ -508,7 +508,14 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("Views.LazyVGrid(", list);
         Assert.Contains("Views.TextField(", form);
         Assert.Contains("Views.TextEditor(", form);
-        Assert.Contains("native.skills.form.cancel", form);
+        // Captain 2026-11-10: one plain toolbar Save at every width; no Save in More and no
+        // Save or Cancel under the form.
+        Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", form);
+        Assert.Contains("return Views.Toolbar(page, more, save);", form);
+        Assert.DoesNotContain("native.skills.form.cancel", form);
+        Assert.DoesNotContain("native.skills.form.save.bottom", form);
+        Assert.DoesNotContain("native.skills.form.save.menu", form);
+        Assert.DoesNotContain("PrimaryButton(text(\"Common_Save\")", form);
         Assert.DoesNotContain("using UIKit;", scene);
         Assert.DoesNotContain("using UIKit;", list);
         Assert.DoesNotContain("using UIKit;", form);

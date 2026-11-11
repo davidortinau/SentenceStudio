@@ -147,10 +147,8 @@ internal sealed partial class AndroidSliceShell
         }
 
         AddResourceVocabularyRows(fields, resources, state, creating, busy, palette, quickFocus);
-        if (creating)
-            Add("save.bottom", () => Action(Localize("ResourceAdd_SaveResource"),
-                "native.resources.add.save.bottom", resources.Save,
-                !busy && state.IsEditable && state.CanSave));
+        // Captain 2026-11-10: the app bar's Save is the form's only Save (no Save Resource
+        // under the add form).
         if (state.HasDraft && (state.Phase is NativeResourceDetailPhase.Conflict
                 or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
             || state.ErrorKey is "NativeResources_ReloadError" or "NativeResources_SaveInvalid"))

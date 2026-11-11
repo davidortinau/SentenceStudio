@@ -163,6 +163,57 @@ public sealed class AndroidMoreScreensContractTests
         Assert.Contains("Add($\"history.{entry.Id}\"", vocabulary);
     }
 
+    /// <summary>
+    /// Captain 2026-11-10 (as iOS): every editor has one Save, a plain text app-bar action at
+    /// every width, with no Save in the overflow menu and no Save or Cancel under the form; the
+    /// word editor lists only the word's resources (Remove, Add to Resource) and has the
+    /// source's Reference Sentences on the shared browser.
+    /// </summary>
+    [Fact]
+    public void Editors_HaveOnePlainAppBarSave_AndTheWordEditorHasItsSourceSections()
+    {
+        var actions = Source("AndroidSliceShell.VocabularyDuplicates.Compose.cs");
+        var word = Between(actions, "private ComposableNode VocabularyWordActions(",
+            "private DropdownMenuItem VocabularyMenuItem(");
+        Assert.Contains("new TextButton(() => RunMoreOnUi(vocabulary.SaveAsync), enabled: state.CanSave)", word);
+        Assert.DoesNotContain("WindowWidthDp", word);
+        Assert.DoesNotContain("save.menu", word);
+        Assert.DoesNotContain("save.toolbar", word);
+
+        var vocabulary = Source("AndroidSliceShell.Vocabulary.Compose.cs");
+        Assert.DoesNotContain("native.vocabulary.edit.actions", vocabulary);
+        Assert.Contains("Add(\"examples\", () => VocabularyExamplesCard(vocabulary, state, palette));", vocabulary);
+        var resources = Between(vocabulary, "private ComposableNode VocabularyResourcesCard(",
+            "return Card(palette, \"native.vocabulary.edit.resources\"");
+        Assert.DoesNotContain("SettingSwitch(", resources);
+        Assert.Contains("vocabulary.ToggleResource(id, false)", resources);
+        Assert.Contains("vocabulary.ToggleResource(id, true)", resources);
+        // The rules are the shared browser's, not a copy per head.
+        Assert.Contains("state.SelectedResources", resources);
+        Assert.Contains("state.AddableResources", resources);
+
+        var examples = Source("AndroidSliceShell.VocabularyExamples.Compose.cs");
+        foreach (var call in new[] { "vocabulary.GenerateExamplesAsync", "vocabulary.AddExampleAsync",
+                     "vocabulary.KeepSuggestionAsync(key)", "vocabulary.DiscardSuggestion(key)",
+                     "vocabulary.ToggleExampleCoreAsync(sentenceId)", "vocabulary.StartEditExample(sentenceId)",
+                     "vocabulary.ToggleExampleFlagAsync(sentenceId)", "vocabulary.DeleteExampleAsync(sentenceId)",
+                     "vocabulary.SaveEditedExampleAsync", "vocabulary.CancelEditExample" })
+            Assert.Contains(call, examples);
+        // Typing keeps IME composition: the field redraws at once, through the shared draft.
+        Assert.Contains("RenderMoreNow();", examples);
+        // Labels come from the shared keys, not a copy of the switches.
+        Assert.Contains("VocabularyExampleText.RegisterKey(", examples);
+        Assert.Contains("VocabularyExampleText.SourceKey(", examples);
+
+        var skills = Source("AndroidSliceShell.Skills.Compose.cs");
+        Assert.Contains(".TestTag(\"native.skills.form.save\")", skills);
+        Assert.DoesNotContain("native.skills.form.save.bottom", skills);
+        Assert.DoesNotContain("native.skills.form.cancel", skills);
+        var resourceForm = Source("AndroidSliceShell.ResourceForm.Compose.cs");
+        Assert.DoesNotContain("native.resources.add.save.bottom", resourceForm);
+        Assert.Contains("var save = new TextButton(resources.Save, enabled: canSave)", resourceForm);
+    }
+
     private static string Between(string text, string start, string end)
     {
         var from = text.IndexOf(start, StringComparison.Ordinal);

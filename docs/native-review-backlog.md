@@ -3,6 +3,25 @@
 Review findings recorded instead of fixed during a review loop (correctness items are fixed;
 these wait for a later pass). One line each: where, then the point.
 
+## Word editor and every editor's Save (iOS and Android, review of 2026-11-10)
+
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.VocabularyExamples.Compose.cs` (`ExampleField`) and `AndroidSliceShell.Vocabulary.Compose.cs` (`WordField`): each keystroke redraws the whole editor twice, once through `RenderMoreNow()` and once through the browser's `Changed` (`OnMoreChanged` posts a publish). The immediate redraw keeps IME composition; the posted one could be skipped for `DraftText` and `ExampleText` changes.
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.VocabularyExamples.Compose.cs` (`ExampleBadge`): repeats `ImportBadge` (`AndroidSliceShell.ImportContent.Compose.cs`) with a border and no content description; one badge helper would serve both.
+
+## Vocabulary wide layout (iOS, review of the `vocabulary-wide-layout` working tree, 2026-11-09)
+
+- `src/SentenceStudio.Native.Android/AndroidSliceShell.Vocabulary.Compose.cs:241`: Android still shows the earlier wide controls and filter grid, has no filter-column toggle, and its phone sheet has no sort. The shared browser already has the sheet sort (`SetSheetSort`) and the remembered column flag (`ToggleFilterPanel`); the Compose screen needs the same layout (departures 61-65).
+- `src/SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.cs:709`: in the phone sheet, Clear All Filters commits at once (as before) while sort waits for Apply, and Clear All leaves the sort alone. Decide whether Clear All should also reset sort, or wait for Apply like the other choices.
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListUpdate.cs:1`: Vocabulary has its own in-place update (outline compare, region moves, toolbar copy) while Resources has `SameToolbarActions`/`UpdateResourceViewModeButton` in `ApplicationScene`; one keyed in-place update in the scene's `Replace` would serve every searchable page.
+- `src/SentenceStudio.Native.iOS/App/ApplicationScene.cs:1062`: `Find(root, id)` is copied in `ApplicationScene` and `ActivityLogView`; one shared helper would keep them consistent.
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs`: the active-filter chips row is rebuilt on each update, so its sideways scroll returns to the start when a chip changes (the counts row keeps its place).
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs` (`Chips`): as before (and as the web), a chip shows the raw token ("status: learning", English in Korean too) and two chips of one type ("tag:a tag:b") share the ID `native.vocabulary.chip.tag`; give each a localized label and a distinct ID.
+- `src/SentenceStudio.Native.iOS/App/ApplicationScene.Vocabulary.cs`: showing or hiding the filter column changes the page outline, so the page is mounted again and the results and column scroll return to the top; keeping the column mounted (or restoring the offset) would keep the place.
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs` (`FilterFields`): each keystroke rebuilds the filter column, re-deriving the tag, lemma and language lists from the whole catalog (the earlier wide grid and the phone sheet did the same); cache the option lists per catalog load and keep the column when only the search text changed.
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs`: iOS replaced the automation IDs `native.vocabulary.view`, `.view.grid`, `.view.list`, `native.vocabulary.wide.controls` and `.wide.filters` with `native.vocabulary.view.toggle` and `native.vocabulary.filters.panel`; Android still uses the old ones until its screen follows (first item above).
+- `src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListUpdate.cs`: the filter column's pickers are rebuilt on every list redraw (a keystroke, a sync, a page width change), so a Menu picker open at that moment closes.
+- `src/SentenceStudio.Native.iOS/Styling/SourceUiLayout.cs`: `DesktopWidth` replaces 768 in the Vocabulary page, `PageGutter` and the scene's breakpoint check; `ResourceColumns`, `VocabularyWordEditView` and `NativeAdaptiveLayout` still spell 768.
+
 ## Import Content (iOS, review of 4e1921a9..29d1fe54, 2026-11-06)
 
 - `src/SentenceStudio.Native/Features/Import/ImportContentCoordinator.cs:736`: after a commit the target-resource list is read right away (one more redraw and a database read the result page does not show); it could be read lazily when Import more returns to the wizard.
