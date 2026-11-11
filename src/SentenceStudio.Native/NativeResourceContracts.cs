@@ -161,7 +161,29 @@ public sealed record NativeResourceListState(
     string? SyncErrorKey = null,
     NativeResourceViewMode ViewMode = NativeResourceViewMode.Grid,
     bool StarterBusy = false,
-    NativeResourceCreateResult? LastStarterResult = null);
+    NativeResourceCreateResult? LastStarterResult = null,
+    string SortField = NativeResourceSort.Updated,
+    bool SortDescending = true,
+    bool FilterPanelHidden = false,
+    NativeResourceFilterDraft? Sheet = null)
+{
+    /// <summary>A type or language filter is on (the Filters button shows it filled).</summary>
+    public bool HasActiveFilters => MediaType is not null || Language is not null;
+}
+
+/// <summary>Captain 2026-11-10: the Resources list sorts as Vocabulary does, by Added or Updated.</summary>
+public static class NativeResourceSort
+{
+    public const string Added = "added";
+    public const string Updated = "updated";
+}
+
+/// <summary>
+/// The phone filter sheet's choices until Apply (Captain 2026-11-10, as the Vocabulary sheet):
+/// type, language and sort. Cancel drops them.
+/// </summary>
+public sealed record NativeResourceFilterDraft(
+    string? MediaType, string? Language, string SortField, bool SortDescending);
 
 public sealed record NativeResourceDetailState(
     NativeResourceDetailPhase Phase,
@@ -199,6 +221,19 @@ public interface INativeResourceStore
         string owner, NativeVocabularyEditDraft draft,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary editing is not available from this store.");
+
+    /// <summary>The owner's target language (source: a new word starts in it), or null.</summary>
+    Task<string?> GetOwnerTargetLanguageAsync(string owner, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// Source VocabularyWordEdit add mode: a new word recorded to the owner, linked to the
+    /// owner's chosen (not smart) resources. Refused as Duplicate when one of the owner's words
+    /// has the same terms.
+    /// </summary>
+    Task<NativeVocabularyCreateResult> CreateOwnedVocabularyAsync(
+        string owner, NativeVocabularyEditDraft draft, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Vocabulary creation is not available from this store.");
 
     Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken) =>

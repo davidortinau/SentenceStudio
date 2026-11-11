@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
 using SentenceStudio.Native;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Shared.Models;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -19,7 +20,8 @@ internal sealed record VocabularyListActions(
     Action<string, string?> ChangeWideFilter,
     Action? OpenLookups = null,
     VocabularyDuplicateActions? Duplicates = null,
-    Action<double>? PageWidthChanged = null);
+    Action<double>? PageWidthChanged = null,
+    Action? AddWord = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -27,12 +29,11 @@ internal sealed record VocabularyFilterActions(
     Action Apply, Action Cancel, Action Clear);
 
 /// <summary>
-/// The Vocabulary list. Phone: one scrolling column, filters and sort in a sheet. Wide (Captain
-/// 2026-11-09): a fixed filter column (sort and every filter) beside the results: the search
-/// field, then their own scroll with one row of counts above the lazily built grid (only the
-/// search stays put, so a short window with the keyboard up still shows results). The toolbar
-/// holds Recent lookups, the grid/list switch (wide only) and Filters (the sheet on a phone, the
-/// filter column's show/hide when wide).
+/// The Vocabulary list on the shared browse layout (<see cref="BrowserPage"/>, Captain
+/// 2026-11-09): one scrolling column on a phone with filters and sort in a sheet; wide, a fixed
+/// filter column beside the results, whose own scroll holds one row of counts above the lazily
+/// built grid. The toolbar holds Recent lookups, the grid/list switch (wide only), Filters and
+/// Add (+).
 /// </summary>
 /// <remarks>
 /// The scene updates a mounted page in place (the search field keeps focus while typing), so a
@@ -41,40 +42,16 @@ internal sealed record VocabularyFilterActions(
 /// </remarks>
 internal static class VocabularyListView
 {
-    /// <summary>From the source md breakpoint the filter column sits beside the results.</summary>
-    internal static bool IsWide(double viewportWidth) =>
-        viewportWidth >= SourceUiLayout.DesktopWidth;
+    private const string Prefix = "native.vocabulary";
 
-    /// <summary>
-    /// The wide filter column: about a third of the window (Captain 2026-11-09), at least 280
-    /// points and at most 400 so the results keep the rest. Larger text widens it in proportion
-    /// (up to half the window) so its sort buttons and menus keep their words.
-    /// </summary>
-    internal static double FilterColumnWidth(double viewportWidth, double textScale = 1)
-    {
-        var scale = double.IsFinite(textScale) && textScale > 1 ? textScale : 1;
-        return Math.Clamp(Math.Round(viewportWidth / 3 * scale), 280,
-            Math.Max(280, Math.Min(viewportWidth / 2, 400 * scale)));
-    }
+    internal static bool IsWide(double viewportWidth) => BrowserPage.IsWide(viewportWidth);
 
-    /// <summary>
-    /// Word card columns for a page <paramref name="width"/> points wide. Phone layout: the
-    /// source's one column. Wide: one in list mode; in grid mode as many as the results column
-    /// holds at this text size (one under 440 points, two under 760, then three), larger text
-    /// counting as a narrower column.
-    /// </summary>
+    internal static double FilterColumnWidth(double viewportWidth, double textScale = 1) =>
+        BrowserPage.FilterColumnWidth(viewportWidth, textScale);
+
     internal static int CardColumns(double width, double textScale,
-        bool listMode, bool filterPanelShown, bool wide)
-    {
-        if (!wide)
-            return SourceUiLayout.ResourceColumns(width);
-        if (listMode)
-            return 1;
-        var results = width - 2 * SourceUiLayout.CardInset
-            - (filterPanelShown ? FilterColumnWidth(width, textScale) + 1 : 0);
-        var effective = NativeAdaptiveLayout.EffectiveWidth(results, textScale);
-        return effective < 440 ? 1 : effective < 760 ? 2 : 3;
-    }
+        bool listMode, bool filterPanelShown, bool wide) =>
+        BrowserPage.CardColumns(width, textScale, listMode, filterPanelShown, wide);
 
     /// <param name="pageWidth">
     /// The page's own width when it has reported one (<see cref="VocabularyListActions.PageWidthChanged"/>):
@@ -85,60 +62,26 @@ internal static class VocabularyListView
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double? pageWidth = null)
     {
-        var width = pageWidth is > 0 and var measured && double.IsFinite(measured)
-            ? measured : style.ViewportWidth;
+        var width = BrowserPage.Width(pageWidth, style);
         var wide = IsWide(width);
         var ready = !state.Loading && !state.Blocked && state.ErrorKey is null;
         var page = wide && ready
             ? WideLayout(state, style, text, actions, width)
             : SingleColumn(state, style, text, actions, width);
-        var content = style.Page(page);
-        if (actions.PageWidthChanged is { } changed)
-            content.OnViewportChanged((measuredWidth, _) => changed(measuredWidth));
-        return Views.Toolbar(content, ToolbarActions(state, text, actions, wide, ready))
-            .WithAccessibilityIdentifier("native.vocabulary.page");
+        return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
+            ToolbarActions(state, text, actions, wide, ready));
     }
 
     internal static SwiftView PhoneFilterSheet(
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyFilterActions actions)
     {
-        var fields = FilterFields(state, style, text, actions.Change,
-            useDraft: true);
+        var fields = FilterFields(state, style, text, actions.Change, useDraft: true);
         // Captain 2026-11-09: sorting is one of the filter options (applied with them).
-        fields.Insert(0, SortField(state.SheetSortField, state.SheetSortDescending,
-            style, text, actions.Sort));
-        var header = Views.HStack(
-                style.Text(Views.Text(text("Vocabulary_Filters")),
-                        SourceTextRole.Title3, sourceHeading: true)
-                    .WithFlexibleWidth(),
-                Views.Button(Views.Image("xmark"), actions.Cancel)
-                    .WithAccessibilityLabel(text("Common_Close"))
-                    .WithAccessibilityIdentifier("native.vocabulary.filters.close"))
-            .WithAccessibilityIdentifier("native.vocabulary.filters.heading");
-        fields.Insert(0, header);
-        var clear = style.SecondaryButton(
-                text("Vocabulary_ClearAllFilters"), actions.Clear)
-            .WithAccessibilityIdentifier("native.vocabulary.filters.clear");
-        var cancel = style.OutlineButton(
-                Views.Text(text("Common_Cancel")), actions.Cancel)
-            .WithAccessibilityIdentifier("native.vocabulary.filters.cancel");
-        var apply = style.PrimaryButton(
-                text("Vocabulary_BulkApply"), actions.Apply)
-            .WithAccessibilityIdentifier("native.vocabulary.filters.apply");
-        var buttons = Views.HStack(cancel, apply)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.filters.actions");
-        buttons.Spacing = SourceUiLayout.ItemGap;
-        fields.Add(clear);
-        fields.Add(buttons);
-        var panel = Views.VStack(fields.ToArray())
-            .WithPadding(SourceUiLayout.CardInset)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.filters.sheet.content");
-        panel.Spacing = SourceUiLayout.FormGap;
-        return style.Page(Views.Scroll(panel))
-            .WithAccessibilityIdentifier("native.vocabulary.filters.sheet");
+        fields.Insert(0, BrowserPage.SortField(Prefix, state.SheetSortField,
+            state.SheetSortDescending, style, text, actions.Sort));
+        return BrowserPage.FilterSheet(Prefix, style, text, fields,
+            actions.Clear, actions.Cancel, actions.Apply);
     }
 
     private static SwiftView[] ToolbarActions(
@@ -152,32 +95,18 @@ internal static class VocabularyListView
                 .WithAccessibilityLabel(text("Lookups_Title"))
                 .WithAccessibilityIdentifier(
                     SentenceStudio.Native.Features.Lookups.RecentLookupsAccess.Open));
+        // A phone always shows one column, so it has no grid/list switch; no words or column to
+        // arrange while the list loads or cannot show.
         if (wide)
-        {
-            // Captain 2026-11-09: the grid/list switch is a toolbar button showing the layout a
-            // tap switches to. A phone always shows one column, so it has no switch.
-            var toggle = Views.Button(Views.Image(state.ListMode
-                            ? "square.grid.3x3" : "list.bullet"),
-                        actions.ToggleListMode)
-                .WithAccessibilityLabel(text(state.ListMode
-                    ? "Vocabulary_GridView" : "Vocabulary_ListView"))
-                .WithAccessibilityIdentifier("native.vocabulary.view.toggle");
-            // No words or column to arrange while the list loads or cannot show.
-            toggle.IsEnabled = ready;
-            shown.Add(toggle);
-        }
-        // Filters: the sheet on a phone; the filter column's show/hide when wide (selected while
-        // the column shows). Filled while a filter or search is on.
-        var filters = Views.Button(Views.Image(
-                    state.Filters.HasActiveFilters
-                        ? "line.3.horizontal.decrease.circle.fill"
-                        : "line.3.horizontal.decrease.circle"),
-                wide ? actions.ToggleFilterPanel : actions.OpenFilters)
-            .WithAccessibilityLabel(text("Vocabulary_Filters"))
-            .WithAccessibilitySelected(wide && ready && !state.FilterPanelHidden)
-            .WithAccessibilityIdentifier("native.vocabulary.filters.open");
-        filters.IsEnabled = !wide || ready;
-        shown.Add(filters);
+            shown.Add(BrowserPage.ViewToggle(Prefix, state.ListMode, actions.ToggleListMode,
+                text("Vocabulary_GridView"), text("Vocabulary_ListView"), ready));
+        shown.Add(BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
+            state.Filters.HasActiveFilters, wide, ready, !state.FilterPanelHidden,
+            actions.OpenFilters, actions.ToggleFilterPanel));
+        // Captain 2026-11-10: Add (+) on every browse page (source Vocabulary Add).
+        if (actions.AddWord is { } addWord)
+            // It waits for the list, which reads the resources a new word can join.
+            shown.Add(BrowserPage.AddButton(Prefix, text("Vocabulary_Add"), addWord, ready));
         return shown.ToArray();
     }
 
@@ -190,19 +119,12 @@ internal static class VocabularyListView
                 state.Filters.CommittedQuery, actions.Search))
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.vocabulary.search");
-        var searchRow = new List<SwiftView> { search };
-        if (state.Filters.HasActiveFilters)
-        {
-            searchRow.Add(Views.Button(Views.Image("xmark"),
-                    actions.ClearFilters)
+        var clear = state.Filters.HasActiveFilters
+            ? Views.Button(Views.Image("xmark"), actions.ClearFilters)
                 .WithAccessibilityLabel(text("Vocabulary_ClearFilters"))
-                .WithAccessibilityIdentifier("native.vocabulary.search.clear"));
-        }
-        var row = Views.HStack(searchRow.ToArray())
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.search.row");
-        row.Spacing = SourceUiLayout.ItemGap;
-        return row;
+                .WithAccessibilityIdentifier("native.vocabulary.search.clear")
+            : null;
+        return BrowserPage.SearchRow(Prefix, search, clear);
     }
 
     /// <summary>The phone page, and the wide page while it loads or cannot show words.</summary>
@@ -226,83 +148,42 @@ internal static class VocabularyListView
         }
         else
             AddResults(children, state, style, text, actions, width, wide: false);
-        var content = Views.VStack(children.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.scroll.content");
-        content.Spacing = SourceUiLayout.PageGap;
-        return Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.vocabulary.scroll");
+        return BrowserPage.SingleColumn(Prefix, style, children);
     }
 
     private static SwiftView WideLayout(
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double width)
     {
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        var columns = new List<SwiftView>();
-        if (!state.FilterPanelHidden)
-        {
-            columns.Add(FilterPanel(state, style, text, actions, width));
-            columns.Add(Views.Divider()
-                .WithAccessibilityIdentifier("native.vocabulary.filters.panel.divider"));
-        }
-        var searchRow = SearchRow(state, style, text, actions)
-            .WithPadding(gutter, gutter, 0, gutter);
         var headerRows = new List<SwiftView> { StatsRow(state, style, text) };
         if (state.Filters.CommittedFilters.Count > 0)
             headerRows.Add(Chips(state, actions));
-        var header = Views.VStack(headerRows.ToArray())
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.results.header");
-        header.Spacing = SourceUiLayout.ItemGap;
-        var results = new List<SwiftView> { header };
+        var results = new List<SwiftView>();
         AddResults(results, state, style, text, actions, width, wide: true);
-        var content = Views.VStack(results.ToArray())
-            .WithPadding(0, gutter, gutter, gutter)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.results.content");
-        content.Spacing = SourceUiLayout.PageGap;
-        // The results scroll on their own (lazily built cards); the search stays put.
-        var scroll = Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.vocabulary.results.scroll");
-        var column = Views.VStack(searchRow, scroll)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.results");
-        column.Spacing = SourceUiLayout.PageGap;
-        columns.Add(column);
-        var layout = Views.HStack(columns.ToArray())
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.wide.layout");
-        layout.Spacing = 0;
-        return layout;
+        return BrowserPage.Wide(Prefix, style,
+            state.FilterPanelHidden ? null : FilterPanel(state, style, text, actions, width),
+            SearchRow(state, style, text, actions),
+            BrowserPage.ResultsHeader(Prefix, headerRows), results);
     }
 
     /// <summary>
     /// The wide filter column: sort, every filter (applied at once) and Clear All Filters while
-    /// one is on. It scrolls on its own and keeps a fixed width beside the results.
+    /// one is on.
     /// </summary>
     private static SwiftView FilterPanel(
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double width)
     {
         var fields = new List<SwiftView> {
-            SortField(state.SortField, state.SortDescending, style, text, actions.Sort)
+            BrowserPage.SortField(Prefix, state.SortField, state.SortDescending, style, text,
+                actions.Sort)
         };
         fields.AddRange(FilterFields(state, style, text, actions.ChangeWideFilter,
             useDraft: false));
         if (state.Filters.HasActiveFilters)
-            fields.Add(style.SecondaryButton(
-                    text("Vocabulary_ClearAllFilters"), actions.ClearFilters)
-                .WithAccessibilityIdentifier("native.vocabulary.filters.panel.clear"));
-        var content = Views.VStack(fields.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.filters.panel.content");
-        content.Spacing = SourceUiLayout.FormGap;
-        return Views.Scroll(content)
-            .WithFixedWidth(FilterColumnWidth(width, style.TextScale))
-            .WithAccessibilityIdentifier("native.vocabulary.filters.panel");
+            fields.Add(BrowserPage.ClearAllButton("native.vocabulary.filters.panel.clear",
+                style, text, actions.ClearFilters));
+        return BrowserPage.FilterPanel(Prefix, style, width, fields);
     }
 
     /// <summary>
@@ -393,6 +274,11 @@ internal static class VocabularyListView
                 .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                 .WithPadding(48)
                 .WithAccessibilityIdentifier("native.vocabulary.status"));
+            // Source: an empty Vocabulary page offers Add your first word.
+            if (state.Catalog.Words.Count == 0 && actions.AddWord is { } addWord)
+                children.Add(style.PrimaryButton(text("Vocabulary_AddFirstWord"), addWord)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                    .WithAccessibilityIdentifier("native.vocabulary.empty.add"));
             return;
         }
         var list = Views.LazyVGrid(
@@ -404,38 +290,6 @@ internal static class VocabularyListView
         list.Spacing = SourceUiLayout.PageGap;
         children.Add(list);
     }
-
-    private static SwiftView SortField(
-        string field, bool descending, SourceUiStyle style,
-        Func<string, string> text, Action<string> changed)
-    {
-        var sort = Views.ButtonGroup([
-                SortButton("added", "Vocabulary_SortAdded", field, descending, style,
-                    text, changed, SourceButtonGroupPosition.First),
-                SortButton("updated", "Vocabulary_SortUpdated", field, descending, style,
-                    text, changed, SourceButtonGroupPosition.Last)
-            ], selectedIndex: field == "updated" ? 1 : 0)
-            .WithAccessibilityIdentifier("native.vocabulary.sort");
-        return Views.VStack(
-                style.Text(Views.Text(text("Vocabulary_SortLabel")),
-                    SourceTextRole.Body2, SourceTextTone.Secondary),
-                sort)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.filter.field.sort");
-    }
-
-    private static SwiftView SortButton(
-        string sort, string labelKey, string field, bool descending,
-        SourceUiStyle style, Func<string, string> text, Action<string> changed,
-        SourceButtonGroupPosition position) =>
-        field == sort
-            ? style.PrimaryButton(
-                    $"{text(labelKey)} {(descending ? "↓" : "↑")}",
-                    () => changed(sort), groupPosition: position)
-                .WithAccessibilityIdentifier($"native.vocabulary.sort.{sort}")
-            : style.OutlineButton(Views.Text(text(labelKey)),
-                    () => changed(sort), groupPosition: position)
-                .WithAccessibilityIdentifier($"native.vocabulary.sort.{sort}");
 
     private static List<SwiftView> FilterFields(
         VocabularyBrowserList state, SourceUiStyle style,
@@ -521,40 +375,10 @@ internal static class VocabularyListView
         IReadOnlyList<string> values,
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, Action<string, string?> changed,
-        bool useDraft, Func<string, string>? valueLabel = null)
-    {
-        var current = state.Filters.FilterValue(type, useDraft);
-        var knownValueCount = values.Count;
-        if (!string.IsNullOrWhiteSpace(current)
-            && !values.Any(value => value.Equals(
-                current, StringComparison.OrdinalIgnoreCase)))
-            values = [..values, current];
-        var options = new[] { text(allKey) }
-            .Concat(values.Select((value, index) =>
-                index < knownValueCount
-                    ? valueLabel?.Invoke(value) ?? value : value))
-            .ToArray();
-        var index = values
-            .Select((value, position) => (value, position))
-            .FirstOrDefault(item => item.Item1.Equals(
-                current, StringComparison.OrdinalIgnoreCase),
-                (string.Empty, -1)).Item2 + 1;
-        var picker = style.Input(Views.Picker(
-                text(labelKey), options, index,
-                selection => changed(type,
-                    selection is > 0 && selection <= values.Count
-                        ? values[selection - 1] : null))
-            .WithPickerStyle(SwiftPickerStyle.Menu)
-            .WithFlexibleWidth())
-            .WithAccessibilityLabel(text(labelKey))
-            .WithAccessibilityIdentifier($"native.vocabulary.filter.{type}");
-        return Views.VStack(
-                style.Text(Views.Text(text(labelKey)),
-                    SourceTextRole.Body2, SourceTextTone.Secondary),
-                picker)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier($"native.vocabulary.filter.field.{type}");
-    }
+        bool useDraft, Func<string, string>? valueLabel = null) =>
+        BrowserPage.FilterMenu(Prefix, type, text(labelKey), text(allKey), values,
+            state.Filters.FilterValue(type, useDraft), style,
+            value => changed(type, value), valueLabel);
 
     private static SwiftView Card(
         NativeVocabularyEntry word, SourceUiStyle style,

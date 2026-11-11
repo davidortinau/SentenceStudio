@@ -49,9 +49,16 @@ public sealed class NativeSourceStylingContractTests
 
         var browser = Source("Features/LearningResources/LearningResourcesView.cs");
         var form = Source("Features/LearningResources/LearningResourceView.cs");
-        Assert.Contains("Views.Scroll(scrollContent)", browser);
+        // Captain 2026-11-10: the Resources page is the shared browse layout; its scroll content
+        // owns the gutter (BrowserPage.SingleColumn), as on Vocabulary.
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children);", browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
-        Assert.Contains("return Views.Toolbar(style.Page(page),", browser);
+        Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
+            browser);
+        var browse = Source("Features/Browse/BrowserPage.cs");
+        Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))", browse);
+        Assert.Contains("return Views.Scroll(content).WithAccessibilityIdentifier($\"{prefix}.scroll\");",
+            browse);
         Assert.Contains("style.Page(Views.Scroll(content)", form);
         Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll.content\")",
             form);
@@ -170,13 +177,12 @@ public sealed class NativeSourceStylingContractTests
     {
         var browser = Source("Features/LearningResources/LearningResourcesView.cs");
         var row = Source("Features/LearningResources/LearningResourceRowView.cs");
-        var start = browser.IndexOf("internal static SwiftView Page(", StringComparison.Ordinal);
-        var end = browser.IndexOf("private static SwiftView Filter(", start,
-            StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start);
-        browser = browser[start..end];
-        Assert.Contains("SourceUiLayout.ResourceColumns(style.ViewportWidth)", browser);
-        Assert.Contains("items.Add(ResourceListGroup(resources, text, actions.Open, style))",
+        // Grid cards follow the page's own width and the filter column; the list keeps the
+        // source's contiguous bordered rows.
+        Assert.Contains("GridColumns(width, style.TextScale, !state.FilterPanelHidden)", browser);
+        Assert.Contains("return effective < 600 ? 1 : effective < 1000 ? 2 : 3;", browser);
+        Assert.Contains("return SourceUiLayout.ResourceColumns(width);", browser);
+        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style));",
             browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("if (rows.Count != 0)\n                rows.Add(Views.Divider());",
@@ -184,52 +190,34 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("group.Spacing = 0;", browser);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             browser);
-        Assert.Contains("Views.Scroll(scrollContent)", browser);
-        Assert.Contains("return Views.Toolbar(style.Page(page),", browser);
-        Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,",
-            row);
-        Assert.Contains("scrollContent.Spacing = SourceUiLayout.PageGap;", browser);
-        Assert.Contains("filters.Spacing = SourceUiLayout.ItemGap;", browser);
-        Assert.Contains("controls.Spacing = SourceUiLayout.PageGap;", browser);
-        var filterPair = browser[browser.IndexOf("var filters = Views.HStack(",
-                StringComparison.Ordinal)
-            ..browser.IndexOf("var modes = Views.ButtonGroup(",
-                StringComparison.Ordinal)];
-        Assert.DoesNotContain(".WithAdaptiveStack(", filterPair);
-        Assert.Contains("var controls = Views.HStack(filters, modes)", browser);
-        Assert.Contains(".WithAdaptiveStack(720)", browser);
-        Assert.Contains("if (style.ViewportWidth < 768)\n            modes.WithFlexibleWidth(",
-            browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children);", browser);
+        Assert.Contains("return BrowserPage.Wide(Prefix, style,", browser);
+        Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,", row);
         Assert.DoesNotContain("Views.List(", browser);
         Assert.DoesNotContain("style.BorderedCard(label", row);
-        Assert.Contains("style.ResourceViewModeButton(", browser);
-        Assert.Contains("Views.Toolbar(", browser);
         Assert.Contains("native.resources.search", browser);
-        Assert.DoesNotContain("Views.Picker(text(\"Resources_GridView\")", browser);
-        Assert.DoesNotContain("Views.Scroll(\n                    Views.LazyVGrid(", browser);
-        Assert.DoesNotContain("return Views.VStack(items.ToArray())", browser);
+        // The wide results scroll on their own beside the filter column; the search stays put.
+        var browse = Source("Features/Browse/BrowserPage.cs");
+        Assert.Contains("Views.Scroll(content).WithAccessibilityIdentifier($\"{prefix}.results.scroll\")",
+            browse);
+        Assert.Contains(".WithFixedWidth(FilterColumnWidth(width, style.TextScale))", browse);
     }
 
     [Fact]
-    public void ResourceBrowserFilters_AllocateHeightFromWrappingTextInsideEachMenuLabel()
+    public void ResourceBrowserFilters_UseTheVocabularyFilterMenus()
     {
+        // Captain 2026-11-10: the Resources filters are the Vocabulary page's labelled menus.
         var browser = Source("Features/LearningResources/LearningResourcesView.cs");
-        var filter = browser[browser.IndexOf("private static SwiftView Filter(",
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"type\"", browser);
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"language\"", browser);
+        Assert.DoesNotContain("Views.Menu(", browser);
+        var browse = Source("Features/Browse/BrowserPage.cs");
+        var filter = browse[browse.IndexOf("internal static SwiftView FilterMenu(",
             StringComparison.Ordinal)..];
-
-        Assert.Contains("var selectedText = Views.Text(values[selectedIndex])\n"
-            + "            .WithFlexibleWidth();", filter);
-        Assert.Contains("var menuLabel = style.Input(Views.HStack(selectedText, chevron)\n"
-            + "            .WithFlexibleWidth());", filter);
-        Assert.Contains("menuLabel.Spacing = SourceUiLayout.ItemGap;", filter);
-        Assert.Contains("var menu = Views.Menu(menuLabel, choices)", filter);
-        Assert.Contains("var optionLabel = index == selectedIndex", filter);
-        Assert.DoesNotContain(".WithOpacity(index == selectedIndex", filter);
-        Assert.DoesNotContain("style.Input(Views.Menu(", filter);
-        Assert.DoesNotContain("Views.Picker(", filter);
-        Assert.DoesNotContain(".WithLineLimit(", filter);
-        Assert.DoesNotContain(".WithMinimumHeight(", filter);
-        Assert.DoesNotContain(".WithAdaptiveStack(", filter);
+        Assert.Contains("var picker = style.Input(Views.Picker(", filter);
+        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", filter);
+        Assert.Contains("style.Text(Views.Text(label), SourceTextRole.Body2, SourceTextTone.Secondary)",
+            filter);
     }
 
     [Fact]
@@ -274,8 +262,9 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".OnViewportChanged(ViewportChanged)", scene);
         Assert.Contains("SourceUiStyle.RefreshTypography(_root, _app.Appearance, width)",
             viewport);
-        Assert.Contains("resourceGrid.GridColumns = SourceUiLayout.ResourceColumns(width)",
+        Assert.Contains("resourceGrid.GridColumns = LearningResourcesView.GridColumns(",
             viewport);
+        Assert.Contains("resourcePanel.WithFixedWidth(BrowserPage.FilterColumnWidth(", viewport);
         Assert.Contains("activityGrid.GridColumns = SourceUiLayout.ActivityColumns(width, _style.TextScale)",
             viewport);
         Assert.Contains("if (crossedDesktopBreakpoint)", viewport);
@@ -302,8 +291,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithInlineNavigationTitle()", libraryTitle);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot", scene);
         Assert.Contains("private void UpdateResources(bool replaceAll = false)", scene);
-        Assert.Contains("var search = content.Children[0];", scene);
-        Assert.Contains("content.Add(child);", scene);
+        Assert.Contains("BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", scene);
 
         var style = Source("Styling/SourceUiStyle.cs");
         Assert.Contains("WithTypography(metrics.Size, metrics.Weight, metrics.LineHeight,",
@@ -538,16 +526,18 @@ public sealed class NativeSourceStylingContractTests
     {
         var scene = Source("App/ApplicationScene.cs");
         var update = scene[scene.IndexOf("private void UpdateResources(bool replaceAll = false)",
-            StringComparison.Ordinal)..scene.IndexOf("private static bool SameToolbarActions(",
+            StringComparison.Ordinal)..scene.IndexOf("private void UpdateResourceFilters(",
             StringComparison.Ordinal)];
-        Assert.Contains("!SameToolbarActions(current, next)", update);
-        Assert.Contains("for (var actionIndex = 1; actionIndex < current.Children.Count;",
-            update);
-        Assert.Contains("child.IsEnabled = nextChild.IsEnabled;", update);
-        Assert.Contains("child.Text = nextChild.Text;", update);
+        Assert.Contains("BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", update);
         Assert.DoesNotContain("current.RemoveAt(", update);
         Assert.DoesNotContain("current.Add(", update);
-        Assert.Contains("content.Add(child);", update);
+        // A toolbar's buttons keep their nodes and take the new symbol, label and state.
+        var updater = Source("Features/Browse/BrowserPageUpdate.cs");
+        Assert.Contains("for (var index = 1; index < current.Children.Count; index++)", updater);
+        Assert.Contains("CopyButtonState(current.Children[index], next.Children[index]);", updater);
+        Assert.Contains("child.IsEnabled = nextChild.IsEnabled;", updater);
+        Assert.Contains("child.Text = nextChild.Text;", updater);
+        Assert.Contains("region.Add(child);", updater);
     }
 
     [Fact]
@@ -567,11 +557,8 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("correcting ? submitCorrection : submitText", question);
         Assert.Contains("\"chevron.right\", next", feedback);
         Assert.Contains("!string.IsNullOrWhiteSpace(value)", question);
-        Assert.Contains("SourceButtonGroupPosition.First", resources);
-        Assert.Contains("SourceButtonGroupPosition.Last", resources);
-        Assert.Contains("Views.ButtonGroup([", resources);
-        Assert.Contains("selectedIndex: state.ViewMode == NativeResourceViewMode.Grid ? 0 : 1)",
-            resources);
+        // Captain 2026-11-10: the grid/list switch is a toolbar icon, as on Vocabulary.
+        Assert.DoesNotContain("Views.ButtonGroup([", resources);
         Assert.Contains("SourceButtonGroupPosition.First", feature);
         Assert.Contains("SourceButtonGroupPosition.Last", feature);
         Assert.Contains("Views.ButtonGroup([", feature);
@@ -626,10 +613,9 @@ public sealed class NativeSourceStylingContractTests
         var dashboardSource = Source("Features/Dashboard/DashboardView.cs");
         var dashboard = dashboardSource[..dashboardSource.IndexOf(
             "internal static SwiftView WithToolbar(", StringComparison.Ordinal)];
-        var resourcesSource = Source("Features/LearningResources/LearningResourcesView.cs");
-        var resources = resourcesSource[resourcesSource.IndexOf(
-            "var modes = Views.ButtonGroup([", StringComparison.Ordinal)..
-            resourcesSource.IndexOf("items.Add(controls);", StringComparison.Ordinal)];
+        // Captain 2026-11-10: Resources has no button group (its grid/list switch is a toolbar icon).
+        Assert.DoesNotContain("Views.ButtonGroup(",
+            Source("Features/LearningResources/LearningResourcesView.cs"));
         var onboardingSource = Source("Features/Onboarding/OnboardingView.cs");
         var preferences = onboardingSource[onboardingSource.IndexOf(
             "private static SwiftView PreferenceGroup(", StringComparison.Ordinal)..
@@ -639,9 +625,6 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth,",
             dashboard);
         Assert.Contains("fillAvailableWidth: true", dashboard);
-        Assert.Contains(".WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth)",
-            resources);
-        Assert.DoesNotContain("fillAvailableWidth: true", resources);
         Assert.Contains("Views.ButtonGroup(buttons, wraps: true, selectedIndex: selectedIndex)",
             preferences);
         Assert.Contains(".WithButtonGroupLayout(appearance.BootstrapBaseButtonBorderWidth)",

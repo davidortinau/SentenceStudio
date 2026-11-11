@@ -1,30 +1,44 @@
 using Microsoft.SwiftUI;
 
-namespace SentenceStudio.Native.iOS.Features.Vocabulary;
+namespace SentenceStudio.Native.iOS.Features.Browse;
 
 /// <summary>
-/// Updates a mounted Vocabulary page from a fresh render without remounting its search field,
-/// so typing keeps focus (and Korean composition) while the results, counts and filter column
-/// change, and the wide filter column and counts row keep their scroll positions.
+/// Updates a mounted browse page (<see cref="BrowserPage"/>) from a fresh render without
+/// remounting its search field, so typing keeps focus (and Korean composition) while the
+/// results, counts and filter column change, and the wide filter column and counts row keep
+/// their scroll positions.
 /// </summary>
-internal static class VocabularyListUpdate
+internal sealed class BrowserPageUpdate
 {
-    internal const string SearchId = "native.vocabulary.search";
+    internal static readonly BrowserPageUpdate Vocabulary = new("native.vocabulary", headerKeep: 1);
+
+    /// <summary>The Resources header is its count alone, shown only while there are resources (source).</summary>
+    internal static readonly BrowserPageUpdate Resources = new("native.resources", headerKeep: 0);
 
     /// <summary>
     /// The parts rebuilt on each update, each with how many of its first children stay mounted:
     /// the search row keeps its field, the phone page keeps its search row, the wide results keep
-    /// their header and the header keeps its counts row (whose badges take the new counts in
-    /// place, so a counts row scrolled sideways stays where it is).
+    /// their header and the header keeps <c>headerKeep</c> rows (Vocabulary's counts: their
+    /// badges and texts take the new values in place, so a counts row scrolled sideways stays
+    /// where it is).
     /// </summary>
-    private static readonly (string Id, int Keep)[] Regions =
-    [
-        ("native.vocabulary.search.row", 1),
-        ("native.vocabulary.scroll.content", 1),
-        ("native.vocabulary.filters.panel.content", 0),
-        ("native.vocabulary.results.header", 1),
-        ("native.vocabulary.results.content", 1),
-    ];
+    private readonly (string Id, int Keep)[] Regions;
+
+    private BrowserPageUpdate(string prefix, int headerKeep)
+    {
+        SearchId = $"{prefix}.search";
+        Regions =
+        [
+            ($"{prefix}.search.row", 1),
+            ($"{prefix}.scroll.content", 1),
+            ($"{prefix}.filters.panel.content", 0),
+            ($"{prefix}.results.header", headerKeep),
+            ($"{prefix}.results.content", 1),
+        ];
+    }
+
+    /// <summary>The page's search field.</summary>
+    internal string SearchId { get; }
 
     /// <summary>
     /// Moves <paramref name="next"/>'s regions into <paramref name="current"/>, gives the mounted
@@ -32,7 +46,7 @@ internal static class VocabularyListUpdate
     /// when the two have different outlines: the caller mounts <paramref name="next"/> instead.
     /// The caller still owns <paramref name="next"/> and disposes it.
     /// </summary>
-    internal static bool TryUpdateInPlace(SwiftView current, SwiftView next)
+    internal bool TryUpdateInPlace(SwiftView current, SwiftView next)
     {
         if (current.Kind != "toolbar")
             return false;
@@ -58,14 +72,17 @@ internal static class VocabularyListUpdate
                 region.Add(child);
             }
         }
-        // Outside the regions, texts (the counts) take the new text and fixed widths (the filter
-        // column, after the page reports its own width) the new width, in place.
+        // Outside the regions, texts (the counts) take the new text, fixed widths (the filter
+        // column, after the page reports its own width) the new width, and controls (the search
+        // field, the page while a starter resource is made) the new availability, in place.
         foreach (var (id, node) in mounted.Nodes)
         {
             if (!fresh.Nodes.TryGetValue(id, out var nextNode))
                 continue;
             if (node.Kind == "text" && node.Text != nextNode.Text)
                 node.Text = nextNode.Text;
+            if (node.IsEnabled != nextNode.IsEnabled)
+                node.IsEnabled = nextNode.IsEnabled;
             if (nextNode.FixedWidth is { } width && node.FixedWidth != width)
                 node.WithFixedWidth(width);
         }
@@ -82,7 +99,7 @@ internal static class VocabularyListUpdate
     /// word cards). Two renders with the same outline differ only inside the regions, in the
     /// outlined texts and in the toolbar buttons.
     /// </summary>
-    internal static (string Shape, Dictionary<string, SwiftView> Nodes) Outline(SwiftView root)
+    internal (string Shape, Dictionary<string, SwiftView> Nodes) Outline(SwiftView root)
     {
         var shape = new System.Text.StringBuilder();
         var nodes = new Dictionary<string, SwiftView>(StringComparer.Ordinal);

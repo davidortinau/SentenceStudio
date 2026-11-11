@@ -206,6 +206,28 @@ the resources card in `AndroidSliceShell.Vocabulary.Compose.cs`, and the app-bar
 `AndroidSliceShell.ResourceForm.Compose.cs`. Its badges wrap onto more lines (`FlowRow`) where
 iOS scrolls one row sideways.
 
+## Library browse pages: Add (+) and the Resources layout (iOS, 2026-11-10)
+
+The Captain (2026-11-10): "resources and skills lists pages have add buttons with button styling
+in the toolbar/navbar space, and vocabulary has no add button. I want to use the toolbar/sidebar
+space we have for things like the filter icon on vocabulary list page to include an add option
+(plus icon). That should be consistent across these pages. And I want to revise the resources
+list page to use the same layout and filter/sort option UX as we have on the vocabulary list
+page." Sources: `src/SentenceStudio.UI/Pages/Resources.razor`, `Vocabulary.razor`,
+`VocabularyWordEdit.razor` (add mode, `Id == "0"`). Code: the shared layout
+`src/SentenceStudio.Native.iOS/Features/Browse/BrowserPage.cs` and its in-place updater
+`BrowserPageUpdate.cs`; `Features/Vocabulary/VocabularyListView.cs`,
+`Features/LearningResources/LearningResourcesView.cs`,
+`LearningResourcesCoordinator.ListOptions.cs`, `Features/Skills/SkillsView.cs`; shared rules in
+`src/SentenceStudio.Native/NativeResourcePresenter.ListOptions.cs` and
+`Features/Vocabulary/VocabularyBrowser.cs` (`OpenNewWordAsync`).
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 69 | Resources, Skills and Vocabulary each have Add as the same plain "+" toolbar icon, last in the toolbar, at every width (no tint, no filled button) | Each page header has a filled primary Add button and an Add item in its More menu; the earlier native ports showed a tinted "+" on a phone and a filled button from 768 pt on Resources and Skills, and nothing on Vocabulary | Captain 2026-11-10 |
+| 70 | Vocabulary's "+" (and "Add your first word" on an empty page) opens the source's add-word form: title "Add Word", one plain "Add" toolbar action, no More menu, no Find Duplicates, encoding strength, Reference Sentences, progress or history; every resource of the learner as a checkbox (smart resources shown but not choosable); a new word starts in the learner's target language (Korean when none is set) as a Word, and when the search found nothing its words start the target term (as the source). The "+" waits while the list loads (it reads the resources to choose from), and an open form follows a reload's resources. Add refuses a duplicate of the learner's own word and keeps the form | Same form; the source's header also has an Add item in its More menu, and its add form lists the resources as checkboxes | Captain 2026-11-10 (row 67's selected-only list stays the edit form's) |
+| 71 | The Resources list uses the Vocabulary layout: phone, one column with the search row, then the count, sync line and cards or list; Filters opens a sheet with Sort (Added/Updated), Type and Language, applied together by Apply and dropped by Cancel. From 768 pt, a fixed filter column (Sort, Type, Language, Clear All Filters while one is on; applied at once) beside the results, whose search stays put above their own scroll. The toolbar holds grid/list (at every width, since the phone list differs from its one-column grid), Filters (filled while a type or language filter is on) and "+". Smart resources stay first; the rest sort by Updated, newest first, by default (the source's order); the sort, the column's shown or hidden state and grid/list are remembered on the device. The search row's clear button clears the search and the filters | Search, then a row with two filter menus and the grid/list button group, all in one page scroll; no sort | Captain 2026-11-10 |
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

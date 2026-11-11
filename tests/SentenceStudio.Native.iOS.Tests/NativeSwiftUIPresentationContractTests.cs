@@ -85,8 +85,9 @@ public sealed class NativeSwiftUIPresentationContractTests
         })
             Assert.Contains($"nameof(LearningResourceViewState.{field})", views);
         Assert.Contains("Views.Picker(", fields);
-        Assert.Contains("Views.Menu(menuLabel, choices)", browser);
-        Assert.Contains("choice == 0 ? null : values[choice]", browser);
+        // Captain 2026-11-10: the list's filters are the Vocabulary page's menus.
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"type\"", browser);
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"language\"", browser);
         Assert.Contains("_presenter.SaveAsync(_lifetime.Token)", resources);
         Assert.Contains("_presenter.LoadListAsync(_lifetime.Token, refreshInPlace: true)", resources);
         Assert.Contains("_presenter.OpenAsync(id, _lifetime.Token)", resources);
@@ -190,8 +191,8 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("Views.TextField(", browser);
         Assert.Contains("state.SearchText, actions.Search", browser);
         Assert.Contains("native.resources.search", browser);
-        Assert.Contains("search = content.Children[0];", scene);
-        Assert.Contains("content.Add(child);", scene);
+        Assert.Contains("!BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", scene);
+        Assert.Contains("oldSearch.Text = _app.ResourcesSearchText;", scene);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot,", scene);
         Assert.Contains("var query = _app.ResourcesSearchText;", scene);
         Assert.Contains("if (!string.Equals(search.Text, query, StringComparison.Ordinal))",
@@ -211,8 +212,15 @@ public sealed class NativeSwiftUIPresentationContractTests
         var dashboard = Source("Features/Dashboard/DashboardView.cs");
         var scene = Source("App/ApplicationScene.cs");
 
-        Assert.Contains("WithAccessibilityIdentifier(\"native.resources.add\")", browser);
-        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.ResourceType)", browser);
+        // The shared browse parts carry the page's prefix (native.resources.add,
+        // native.resources.filter.type = NativeAccess.ResourceType).
+        Assert.Contains("private const string Prefix = \"native.resources\";", browser);
+        Assert.Contains("BrowserPage.AddButton(Prefix,", browser);
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"type\"", browser);
+        var browse = Source("Features/Browse/BrowserPage.cs");
+        Assert.Contains(".WithAccessibilityIdentifier($\"{prefix}.add\")", browse);
+        Assert.Contains(".WithAccessibilityIdentifier($\"{prefix}.filter.{type}\")", browse);
+        Assert.Equal("native.resources.filter.type", NativeAccess.ResourceType);
         Assert.DoesNotContain("WithAccessibilityIdentifier(\"native.resources.screen\")", browser);
         Assert.DoesNotContain(
             "WithAccessibilityIdentifier(NativeAccess.ResourcesTab)", scene);

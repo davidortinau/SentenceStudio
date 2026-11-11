@@ -26,6 +26,10 @@ public sealed partial class NativeResourcePresenter(
     private string? _mediaType;
     private string? _language;
     private NativeResourceViewMode _viewMode = NativeResourceViewMode.Grid;
+    private string _sortField = NativeResourceSort.Updated;
+    private bool _sortDescending = true;
+    private bool _filterPanelHidden;
+    private NativeResourceFilterDraft? _sheet;
     private NativeResourceSyncPhase _syncPhase = NativeResourceSyncPhase.Unconfirmed;
     private string? _syncErrorKey;
     private NativeResourceListState _list = new(NativeResourceListPhase.Idle);
@@ -151,8 +155,8 @@ public sealed partial class NativeResourcePresenter(
                         || IsLatestSynchronizationLocked(synchronization)))
                 {
                     _list = previous.Phase == NativeResourceListPhase.Loading
-                        ? new(NativeResourceListPhase.Idle, Sync: _syncPhase,
-                            SyncErrorKey: _syncErrorKey)
+                        ? WithListOptions(new(NativeResourceListPhase.Idle, Sync: _syncPhase,
+                            SyncErrorKey: _syncErrorKey))
                         : previous with {
                             Sync = _syncPhase, SyncErrorKey = _syncErrorKey };
                     if (CanProjectList())
@@ -898,21 +902,21 @@ public sealed partial class NativeResourcePresenter(
 
     private NativeResourceListState ProjectList()
     {
-        var matching = _all.Where(item =>
+        var matching = Ordered(_all.Where(item =>
             (_mediaType is null || FilterComparer.Equals(item.MediaType, _mediaType))
             && (_language is null || FilterComparer.Equals(item.Language, _language))
             && (string.IsNullOrWhiteSpace(_searchText)
                 || Contains(item.Title, _searchText)
                 || Contains(item.Description, _searchText)
                 || Contains(item.Tags, _searchText)
-                || Contains(item.Language, _searchText)))
+                || Contains(item.Language, _searchText))))
             .ToImmutableArray();
         var phase = _all.Count == 0 ? NativeResourceListPhase.Empty
             : matching.Length == 0 ? NativeResourceListPhase.NoMatches
             : NativeResourceListPhase.Populated;
-        return _list = new(phase, matching, TypeCatalog, LanguageCatalog,
+        return _list = WithListOptions(new(phase, matching, TypeCatalog, LanguageCatalog,
             _searchText, _mediaType, _language, Sync: _syncPhase,
-            SyncErrorKey: _syncErrorKey, ViewMode: _viewMode);
+            SyncErrorKey: _syncErrorKey, ViewMode: _viewMode));
     }
 
     private bool CanProjectList() =>
@@ -952,7 +956,8 @@ public sealed partial class NativeResourcePresenter(
                 _language = null;
                 _viewMode = preferences.Get(ViewModeKey, "grid") == "list"
                     ? NativeResourceViewMode.List : NativeResourceViewMode.Grid;
-                _list = new(NativeResourceListPhase.Idle, ViewMode: _viewMode);
+                ReadListOptions();
+                _list = WithListOptions(new(NativeResourceListPhase.Idle, ViewMode: _viewMode));
                 _detail = new(NativeResourceDetailPhase.Idle);
                 _syncPhase = NativeResourceSyncPhase.Unconfirmed;
                 _syncErrorKey = null;

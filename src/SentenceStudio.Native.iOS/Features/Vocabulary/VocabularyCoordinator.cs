@@ -42,7 +42,12 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// <summary>Opens Recent lookups from the list toolbar (decision 4 B); none hides the button.</summary>
     internal Action? OpenLookups { get; init; }
 
-    internal string WordFormTitle => Text("VocabWordEdit_EditTitle");
+    /// <summary>Source: Add Word for a new word, Edit Word otherwise.</summary>
+    internal string WordFormTitle =>
+        Text(IsCreatingWord ? "VocabWordEdit_AddTitle" : "VocabWordEdit_EditTitle");
+
+    /// <summary>The list toolbar's Add (+) and the empty page's Add your first word.</summary>
+    internal void AddWord() => Run(OpenNewWordAsync);
 
     internal void OnListAppeared() => Run(ReloadAsync);
 
@@ -88,7 +93,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     ShowMore: () => Run(ShowMoreDuplicatesAsync),
                     Merge: term => Run(() => MergeDuplicatesAsync(term)),
                     EditRecord: id => Run(() => OpenWordAsync(id))),
-                PageWidthChanged: OnPageWidthChanged),
+                PageWidthChanged: OnPageWidthChanged,
+                AddWord: AddWord),
             PageWidth);
     }
 

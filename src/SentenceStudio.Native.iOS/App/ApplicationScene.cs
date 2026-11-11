@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Diagnostics;
 using CoreFoundation;
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native.iOS.Features.Dashboard;
 using SentenceStudio.Native.iOS.Features.LearningResources;
@@ -39,6 +40,12 @@ internal sealed partial class ApplicationScene : IDisposable
     private CancellationTokenSource? _quizProgressCancellation;
     private SwiftView? _resourcesSlot;
     private SwiftView? _resourcesSearch;
+    // The Resources page's phone filter sheet and what the mounted page and sheet show.
+    private SwiftView? _resourcesFilterSlot;
+    private SwiftView? _resourcesSheet;
+    private string? _renderedResourcesArrangement;
+    private object? _renderedResourcesKey;
+    private string? _renderedResourceSheetKey;
     private SwiftView? _settingsStack;
     private SwiftView? _samTab;
     private SwiftView? _samUnavailableNotice;
@@ -399,236 +406,62 @@ internal sealed partial class ApplicationScene : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the Resources page again. A page with the same outline is updated in place
+    /// (<see cref="BrowserPageUpdate"/>), so the search field keeps focus and Korean composition
+    /// while typing; another layout, sort or grid/list choice mounts a new page (its results start
+    /// at the top), with focus handed to its search field.
+    /// </summary>
     private void UpdateResources(bool replaceAll = false)
     {
+        if (_resourcesSlot is null)
+            return;
+        _renderedResourcesKey = _app.ResourcesRenderKey;
         var next = _app.RenderResources(_style);
-        var current = _resourcesSlot!.Children.Single();
-        if (replaceAll || current.Kind != "toolbar" || next.Kind != "toolbar"
-            || current.Children.Count == 0 || next.Children.Count == 0
-            || !SameToolbarActions(current, next)
-            || current.Children[0].Kind != next.Children[0].Kind
-            || current.Children[0].Children.Count == 0
-            || next.Children[0].Children.Count == 0
-            || !SameBrowserControls(current.Children[0], next.Children[0]))
+        var current = _resourcesSlot.Children.Single();
+        var oldSearch = Find(current, BrowserPageUpdate.Resources.SearchId);
+        var arrangement = _app.ResourcesArrangement;
+        replaceAll |= !string.Equals(arrangement, _renderedResourcesArrangement, StringComparison.Ordinal);
+        _renderedResourcesArrangement = arrangement;
+        if (replaceAll || oldSearch is null
+            || !BrowserPageUpdate.Resources.TryUpdateInPlace(current, next))
         {
+            var focused = oldSearch?.FocusRequested == true;
             Replace(_resourcesSlot, next);
-            _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
+            _resourcesSearch = Find(_resourcesSlot, BrowserPageUpdate.Resources.SearchId);
+            if (focused && _resourcesSearch?.IsEnabled == true)
+                _resourcesSearch.FocusRequested = true;
             return;
         }
-
-        // The incremental update works on the scroll so the search field keeps focus.
-        var page = current.Children[0];
-        var nextPage = next.Children[0];
-        var content = page.Kind == "scroll" ? page.Children[0] : page;
-        var nextContent = nextPage.Kind == "scroll"
-            ? nextPage.Children[0] : nextPage;
-        var search = content.Children[0];
-        var nextSearch = nextContent.Children[0];
-        if (search.Kind != "textField" || nextSearch.Kind != "textField"
-            || search.AccessibilityIdentifier != "native.resources.search"
-            || nextSearch.AccessibilityIdentifier != "native.resources.search")
-        {
-            Replace(_resourcesSlot, next);
-            _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
-            return;
-        }
-
-        if (page.IsEnabled != nextPage.IsEnabled)
-            page.IsEnabled = nextPage.IsEnabled;
-        if (search.IsEnabled != nextSearch.IsEnabled)
-            search.IsEnabled = nextSearch.IsEnabled;
-        if (!string.Equals(search.Text, _app.ResourcesSearchText, StringComparison.Ordinal))
-            search.Text = _app.ResourcesSearchText;
-        if (page.Spacing != nextPage.Spacing)
-            page.Spacing = nextPage.Spacing;
-        if (content.Spacing != nextContent.Spacing)
-            content.Spacing = nextContent.Spacing;
-        var controls = content.Children[1];
-        var nextControls = nextContent.Children[1];
-        if (controls.IsEnabled != nextControls.IsEnabled)
-            controls.IsEnabled = nextControls.IsEnabled;
-        var filters = controls.Children[0];
-        var nextFilters = nextControls.Children[0];
-        if (filters.IsEnabled != nextFilters.IsEnabled)
-            filters.IsEnabled = nextFilters.IsEnabled;
-        for (var index = 0; index < filters.Children.Count; index++)
-        {
-            var menu = filters.Children[index];
-            var nextMenu = nextFilters.Children[index];
-            if (menu.IsEnabled != nextMenu.IsEnabled)
-                menu.IsEnabled = nextMenu.IsEnabled;
-            if (menu.Text != nextMenu.Text)
-            {
-                menu.Text = nextMenu.Text;
-                menu.Children[0].Children[0].Text = nextMenu.Text;
-                for (var optionIndex = 1; optionIndex < menu.Children.Count;
-                    optionIndex++)
-                {
-                    var option = menu.Children[optionIndex];
-                    var selected = option.Text == nextMenu.Text;
-                    option.WithAccessibilitySelected(selected);
-                    // A moved checkmark fails SameBrowserControls and rebuilds the
-                    // page: button labels cannot be re-parented in place.
-                }
-            }
-        }
-        var modes = controls.Children[1];
-        var nextModes = nextControls.Children[1];
-        if (modes.IsEnabled != nextModes.IsEnabled)
-            modes.IsEnabled = nextModes.IsEnabled;
-        var modeChanged = modes.SelectedIndex != nextModes.SelectedIndex;
-        if (modeChanged)
-            modes.SelectedIndex = nextModes.SelectedIndex;
-        for (var index = 0; index < modes.Children.Count; index++)
-        {
-            var button = modes.Children[index];
-            var nextButton = nextModes.Children[index];
-            if (button.IsEnabled != nextButton.IsEnabled)
-                button.IsEnabled = nextButton.IsEnabled;
-            if (button.Text != nextButton.Text)
-            {
-                button.Text = nextButton.Text;
-                button.WithAccessibilityLabel(nextButton.Text);
-            }
-            if (modeChanged)
-                _style.UpdateResourceViewModeButton(button,
-                    index == modes.SelectedIndex,
-                    index == 0 ? SourceButtonGroupPosition.First
-                        : SourceButtonGroupPosition.Last);
-        }
-        for (var index = content.Children.Count - 1; index > 1; index--)
-        {
-            var old = content.Children[index];
-            content.RemoveAt(index);
-            old.Dispose();
-        }
-        while (nextContent.Children.Count > 2)
-        {
-            var child = nextContent.Children[2];
-            nextContent.RemoveAt(2);
-            content.Add(child);
-        }
-        for (var actionIndex = 1; actionIndex < current.Children.Count;
-            actionIndex++)
-        {
-            var action = current.Children[actionIndex];
-            var nextAction = next.Children[actionIndex];
-            if (action.IsEnabled != nextAction.IsEnabled)
-                action.IsEnabled = nextAction.IsEnabled;
-            if (action.Text != nextAction.Text)
-                action.Text = nextAction.Text;
-            for (var index = 0; index < action.Children.Count; index++)
-            {
-                var child = action.Children[index];
-                var nextChild = nextAction.Children[index];
-                if (child.IsEnabled != nextChild.IsEnabled)
-                    child.IsEnabled = nextChild.IsEnabled;
-                if (child.Text != nextChild.Text)
-                    child.Text = nextChild.Text;
-            }
-        }
+        if (!string.Equals(oldSearch.Text, _app.ResourcesSearchText, StringComparison.Ordinal))
+            oldSearch.Text = _app.ResourcesSearchText;
+        _resourcesSearch = oldSearch;
         next.Dispose();
-        _resourcesSearch = search;
     }
 
-    /// <summary>A filter row is plain text, or text plus the selected checkmark.</summary>
-    private static bool IsFilterOptionLabel(SwiftView label) =>
-        label.Kind == "text"
-        || label.Kind == "hstack" && label.Children.Count == 2
-            && label.Children[0].Kind == "text"
-            && label.Children[1].Kind == "image";
-
-    private static bool SameBrowserControls(SwiftView currentPage, SwiftView nextPage)
+    /// <summary>The phone filter sheet over the Resources page: drawn again when what it shows changes.</summary>
+    private void UpdateResourceFilters(bool appearanceChanged)
     {
-        if (currentPage.Kind != "scroll" || nextPage.Kind != "scroll"
-            || currentPage.Children.Count != 1 || nextPage.Children.Count != 1)
-            return false;
-        var current = currentPage.Children[0];
-        var next = nextPage.Children[0];
-        if (current.Kind != "vstack" || next.Kind != "vstack"
-            || current.Children.Count < 2 || next.Children.Count < 2)
-            return false;
-        var controls = current.Children[1];
-        var nextControls = next.Children[1];
-        if (controls.Kind != "hstack" || nextControls.Kind != "hstack"
-            || controls.AccessibilityIdentifier != "native.resources.browser.controls"
-            || controls.AccessibilityIdentifier != nextControls.AccessibilityIdentifier
-            || controls.Children.Count != 2 || nextControls.Children.Count != 2)
-            return false;
-        var filters = controls.Children[0];
-        var nextFilters = nextControls.Children[0];
-        if (filters.Kind != "hstack" || nextFilters.Kind != "hstack"
-            || filters.AccessibilityIdentifier != "native.resources.filters"
-            || filters.AccessibilityIdentifier != nextFilters.AccessibilityIdentifier
-            || filters.Children.Count != 2 || nextFilters.Children.Count != 2)
-            return false;
-        for (var index = 0; index < filters.Children.Count; index++)
+        if (_resourcesSheet is null || _resourcesFilterSlot is null)
+            return;
+        var key = _app.ResourceFilterSheetKey;
+        if (appearanceChanged || !string.Equals(key, _renderedResourceSheetKey, StringComparison.Ordinal))
         {
-            var menu = filters.Children[index];
-            var nextMenu = nextFilters.Children[index];
-            if (menu.Kind != "menu" || nextMenu.Kind != "menu"
-                || menu.AccessibilityIdentifier != nextMenu.AccessibilityIdentifier
-                || menu.Children.Count != nextMenu.Children.Count
-                || menu.Children.Count < 2
-                || menu.Children[0].Kind != "hstack"
-                || nextMenu.Children[0].Kind != "hstack"
-                || menu.Children[0].Children.Count != 2
-                || nextMenu.Children[0].Children.Count != 2
-                || menu.Children[0].Children[0].Kind != "text"
-                || nextMenu.Children[0].Children[0].Kind != "text"
-                || menu.Children[0].Children[1].Kind != "image"
-                || nextMenu.Children[0].Children[1].Kind != "image")
-                return false;
-            for (var option = 1; option < menu.Children.Count; option++)
-                if (menu.Children[option].Kind != "button"
-                    || nextMenu.Children[option].Kind != "button"
-                    || menu.Children[option].Children.Count != 1
-                    || nextMenu.Children[option].Children.Count != 1
-                    || !IsFilterOptionLabel(menu.Children[option].Children[0])
-                    || !IsFilterOptionLabel(nextMenu.Children[option].Children[0])
-                    // A moved checkmark changes the row label's shape; buttons are
-                    // not bridge containers, so rebuild instead of re-parenting.
-                    || menu.Children[option].Children[0].Kind
-                        != nextMenu.Children[option].Children[0].Kind
-                    || menu.Children[option].Text != nextMenu.Children[option].Text)
-                    return false;
+            Replace(_resourcesFilterSlot, _app.RenderResourceFilters(_style));
+            _renderedResourceSheetKey = key;
         }
-        var modes = controls.Children[1];
-        var nextModes = nextControls.Children[1];
-        if (modes.Kind != "buttonGroup" || nextModes.Kind != "buttonGroup"
-            || modes.AccessibilityIdentifier != "native.resources.view.mode"
-            || modes.AccessibilityIdentifier != nextModes.AccessibilityIdentifier
-            || modes.Children.Count != 2 || nextModes.Children.Count != 2)
-            return false;
-        for (var index = 0; index < modes.Children.Count; index++)
-            if (modes.Children[index].Kind != "button"
-                || nextModes.Children[index].Kind != "button"
-                || modes.Children[index].AccessibilityIdentifier
-                    != nextModes.Children[index].AccessibilityIdentifier)
-                return false;
-        return true;
+        _resourcesSheet.IsPresented = _app.IsResourceFilterPresented;
     }
 
-    private static bool SameToolbarActions(SwiftView current, SwiftView next)
+    private void DropResourcesReferences()
     {
-        if (current.Children.Count != next.Children.Count)
-            return false;
-        for (var index = 1; index < current.Children.Count; index++)
-        {
-            var action = current.Children[index];
-            var nextAction = next.Children[index];
-            if (action.Kind != nextAction.Kind
-                || action.AccessibilityIdentifier
-                    != nextAction.AccessibilityIdentifier
-                || action.Children.Count != nextAction.Children.Count)
-                return false;
-            for (var child = 0; child < action.Children.Count; child++)
-                if (action.Children[child].Kind != nextAction.Children[child].Kind
-                    || action.Children[child].AccessibilityIdentifier
-                        != nextAction.Children[child].AccessibilityIdentifier)
-                    return false;
-        }
-        return true;
+        _resourcesSlot = null;
+        _resourcesSearch = null;
+        _resourcesFilterSlot = null;
+        _resourcesSheet = null;
+        _renderedResourcesArrangement = null;
+        _renderedResourcesKey = null;
+        _renderedResourceSheetKey = null;
     }
 
     private void UpdateChooseOwn()
@@ -967,7 +800,10 @@ internal sealed partial class ApplicationScene : IDisposable
                 != (width < SourceUiLayout.DesktopWidth);
         // The Vocabulary page's reported width belonged to the old window; it reports again.
         if (Math.Abs(_style.ViewportWidth - width) >= 0.5)
+        {
             _app.ForgetVocabularyPageWidth();
+            _app.ForgetResourcesPageWidth();
+        }
         _style.ViewportWidth = width;
         _dynamicType = dynamicType;
         _style.DynamicType = dynamicType;
@@ -989,7 +825,11 @@ internal sealed partial class ApplicationScene : IDisposable
         Find(_vocabularyWordSlot, "native.vocabulary.edit.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         if (Find(_resourcesSlot, "native.resources.grid") is { } resourceGrid)
-            resourceGrid.GridColumns = SourceUiLayout.ResourceColumns(width);
+            resourceGrid.GridColumns = LearningResourcesView.GridColumns(
+                _app.ResourcesPageWidth ?? width, _style.TextScale, _app.ResourcesFilterPanelShown);
+        if (Find(_resourcesSlot, "native.resources.filters.panel") is { } resourcePanel)
+            resourcePanel.WithFixedWidth(BrowserPage.FilterColumnWidth(
+                _app.ResourcesPageWidth ?? width, _style.TextScale));
         if (Find(_skillsSlot, "native.skills.grid") is { } skillsGrid)
             skillsGrid.GridColumns = SkillsView.Columns(width);
         if (Find(_vocabularySlot, "native.vocabulary.cards") is { } wordsGrid)
@@ -1006,6 +846,8 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             if (_app.IsVocabularyFilterPresented)
                 _app.CancelVocabularyFilters();
+            if (_app.IsResourceFilterPresented)
+                _app.CancelResourceFilters();
             if (_dashboardSlot is not null)
                 Replace(_dashboardSlot, _app.RenderDashboardContent(_style));
             if (_resourcesSlot is not null)
@@ -1126,8 +968,7 @@ internal sealed partial class ApplicationScene : IDisposable
             _overlayCancel = null;
             _dashboardSlot = null;
             _dashboardStack = null;
-            _resourcesSlot = null;
-            _resourcesSearch = null;
+            DropResourcesReferences();
             _libraryStack = null;
             _libraryRoot = null;
             _libraryListSlot = null;

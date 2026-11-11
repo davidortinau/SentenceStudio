@@ -66,7 +66,9 @@ public sealed class NativeResourcePickerTests
             "Features", "LearningResources", "LearningResourcesView.cs"));
         var fields = File.ReadAllText(Path.Combine(HeadPath,
             "Features", "LearningResources", "LearningResourceFieldsView.cs"));
-        var filter = browser[browser.IndexOf("private static SwiftView Filter(",
+        // Captain 2026-11-10: the Resources filters are the Vocabulary page's menus (All first).
+        var browse = File.ReadAllText(Path.Combine(HeadPath, "Features", "Browse", "BrowserPage.cs"));
+        var filter = browse[browse.IndexOf("internal static SwiftView FilterMenu(",
             StringComparison.Ordinal)..];
         var select = fields[fields.IndexOf("internal static SwiftView Select(",
             StringComparison.Ordinal)..];
@@ -81,21 +83,18 @@ public sealed class NativeResourcePickerTests
             view);
         Assert.Contains("value => actions.Change(nameof(LearningResourceViewState.Language), value)",
             view);
-        Assert.Contains("var values = new[] { all }.Concat(options).ToArray();", filter);
-        Assert.Contains("Views.Menu(menuLabel, choices)", filter);
-        Assert.Contains("changed(choice == 0 ? null : values[choice])", filter);
-        Assert.Contains("menu.Text = values[selectedIndex];", filter);
+        Assert.Contains("var options = new[] { allLabel }", filter);
+        Assert.Contains("Views.Picker(", filter);
+        Assert.Contains("? values[selection - 1] : null", filter);
+        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", filter);
         Assert.Contains(".WithAccessibilityLabel(label)", filter);
-        Assert.Contains(".WithAccessibilityLabel(values[index])", filter);
-        Assert.Contains(".WithAccessibilitySelected(index == selectedIndex)", filter);
-        Assert.DoesNotContain("Views.Picker(", filter);
-        Assert.Contains("types, state.MediaType, actions.FilterType)", browser);
-        Assert.Contains("actions.FilterLanguage)", browser);
+        Assert.Contains("text(\"Resources_AllTypes\"), types, mediaType, style, changeType);", browser);
+        Assert.Contains("language, style, changeLanguage);", browser);
         var coordinator = File.ReadAllText(Path.Combine(HeadPath,
             "Features", "LearningResources", "LearningResourcesCoordinator.cs"));
-        Assert.Contains("_presenter.Filter(type, _presenter.List.Language);",
+        Assert.Contains("FilterType: type => FilterNow(type, _presenter.List.Language),",
             coordinator);
-        Assert.Contains("_presenter.Filter(_presenter.List.MediaType, language);",
+        Assert.Contains("FilterLanguage: language => FilterNow(_presenter.List.MediaType, language),",
             coordinator);
     }
 

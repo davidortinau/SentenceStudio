@@ -67,15 +67,23 @@ internal static partial class VocabularyWordEditView
 
         var detail = state.Detail;
         var draft = state.Draft;
+        // Source VocabularyWordEdit add mode: Add (not Save), and no Find Duplicates, encoding
+        // strength, sentences, progress, history or More menu until the word exists.
+        var creating = state.Creating;
+        var saveKey = creating ? "Common_Add" : "Common_Save";
         if (state.Saving)
-            fields.Add(Views.IndeterminateProgress(text("Common_Save"))
+            fields.Add(Views.IndeterminateProgress(text(saveKey))
                 .WithAccessibilityIdentifier("native.vocabulary.edit.saving"));
 
         // Source: the Vocabulary Terms header carries Find Duplicates for an existing word.
-        var findDuplicates = style.OutlineButton(
-                Views.Text(text("VocabWordEdit_FindDuplicates")), actions.FindDuplicates)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates");
-        findDuplicates.IsEnabled = state.CanFindDuplicates;
+        SwiftView? findDuplicates = null;
+        if (!creating)
+        {
+            findDuplicates = style.OutlineButton(
+                    Views.Text(text("VocabWordEdit_FindDuplicates")), actions.FindDuplicates)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates");
+            findDuplicates.IsEnabled = state.CanFindDuplicates;
+        }
         fields.Add(CardWithHeaderAction(style, "VocabWordEdit_VocabularyTerms", text,
             findDuplicates,
             TargetField(state, style, text, actions),
@@ -84,9 +92,10 @@ internal static partial class VocabularyWordEditView
                 draft.NativeTerm, nameof(draft.NativeTerm), state, style, text,
                 actions)));
         fields.Add(EncodingCard(detail, state, style, text, actions));
-        // Source: Reference Sentences for an existing word (every word the editor opens).
-        fields.Add(Section(VocabularyEditSection.Examples,
-            ExamplesCard(state, style, text, actions.Examples), actions));
+        // Source: Reference Sentences for an existing word.
+        if (!creating)
+            fields.Add(Section(VocabularyEditSection.Examples,
+                ExamplesCard(state, style, text, actions.Examples), actions));
         if (draft.LexicalUnitType is LexicalUnitType.Phrase or LexicalUnitType.Sentence
             || detail.HasConstituentLinks)
         {
@@ -111,23 +120,29 @@ internal static partial class VocabularyWordEditView
             fields.Add(Card(style, "NativeVocabulary_Constituents", text,
                 constituents.ToArray()));
         }
-        fields.Add(ProgressCard(detail, style, text));
-        fields.Add(HistoryCard(detail, style, text));
+        if (!creating)
+        {
+            fields.Add(ProgressCard(detail, style, text));
+            fields.Add(HistoryCard(detail, style, text));
+        }
         fields.Add(Section(VocabularyEditSection.Resources,
             ResourceCard(detail, state, style, text, actions), actions));
         // The More menu's Delete is disabled for a word the server would keep; this says why.
-        if (VocabularyWordCommands.DeleteBlockedReason(detail, text) is { } deleteBlocked)
+        if (!creating && VocabularyWordCommands.DeleteBlockedReason(detail, text) is { } deleteBlocked)
             fields.Add(style.Text(Views.Text(deleteBlocked), SourceTextRole.Small,
                     SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.delete.blocked"));
         // Captain 2026-11-10: one Save, the toolbar's primary action at every width, as plain
         // toolbar text (no filled button, no second Save in the More menu, none at the bottom).
         // Back leaves without saving, as the source's Cancel did.
-        var save = Views.Button(text("Common_Save"), actions.Save)
+        var save = Views.Button(text(saveKey), actions.Save)
             .WithAccessibilityIdentifier("native.vocabulary.edit.save");
         save.IsEnabled = state.CanSave;
         // VocabularyCoordinator.UpdateSaveButtons follows typing (one enable rule).
         actions.RegisterSave(save);
+        if (creating)
+            return Views.Toolbar(PageContent(fields, style), save)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.page");
         var menuDuplicates = Views.Button(text("VocabWordEdit_FindDuplicates"),
                 actions.FindDuplicates)
             .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates.menu");
@@ -250,15 +265,20 @@ internal static partial class VocabularyWordEditView
         var encoding = style.Text(Views.Text(EncodingText(detail.Word.EncodingLabel, text)),
                 SourceTextRole.Body2)
             .WithAccessibilityIdentifier("native.vocabulary.edit.encoding");
-        // The coordinator updates it in place as sentences are added or removed.
-        actions.RegisterSection?.Invoke(VocabularyEditSection.EncodingLabel, encoding);
-        var fields = new List<SwiftView> {
-            encoding,
-            TextField("VocabWordEdit_Lemma",
-                "VocabWordEdit_LemmaPlaceholder", "native.vocabulary.edit.lemma",
-                draft.Lemma ?? string.Empty, nameof(draft.Lemma),
-                state, style, text, actions)
-        };
+        var fields = new List<SwiftView>();
+        // Source: the strength of an existing word (a new one has no sentences to count). The
+        // coordinator updates it in place as sentences are added or removed.
+        if (!state.Creating)
+        {
+            actions.RegisterSection?.Invoke(VocabularyEditSection.EncodingLabel, encoding);
+            fields.Add(encoding);
+        }
+        else
+            encoding.Dispose();
+        fields.Add(TextField("VocabWordEdit_Lemma",
+            "VocabWordEdit_LemmaPlaceholder", "native.vocabulary.edit.lemma",
+            draft.Lemma ?? string.Empty, nameof(draft.Lemma),
+            state, style, text, actions));
         var languages = new[] { string.Empty }.Concat(Constants.Languages)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var selectedLanguage = Array.FindIndex(languages, value =>
@@ -429,6 +449,8 @@ internal static partial class VocabularyWordEditView
         SourceUiStyle style, Func<string, string> text,
         VocabularyEditActions actions)
     {
+        if (state.Creating)
+            return NewWordResourceCard(detail, state, style, text, actions);
         var selected = state.SelectedResources;
         var fields = new List<SwiftView> {
             style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
@@ -485,6 +507,40 @@ internal static partial class VocabularyWordEditView
         }
         return Card(style, "VocabWordEdit_ResourceAssociations", text,
             fields.ToArray());
+    }
+
+    /// <summary>
+    /// Source add mode: every resource of the learner's with its checkbox (Captain 2026-11-10:
+    /// the selected-only list is the edit form's). A smart resource fills itself, so its row is
+    /// shown but not choosable.
+    /// </summary>
+    private static SwiftView NewWordResourceCard(
+        NativeVocabularyDetail detail, VocabularyBrowserEdit state,
+        SourceUiStyle style, Func<string, string> text, VocabularyEditActions actions)
+    {
+        var selected = state.Draft!.ResourceIds.ToHashSet(StringComparer.Ordinal);
+        var fields = new List<SwiftView> {
+            style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        text("VocabWordEdit_SelectedCount"), selected.Count)),
+                    SourceTextRole.Body2, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.resources.count"),
+            style.Text(Views.Text(text("VocabWordEdit_SelectResources")),
+                SourceTextRole.Body2, SourceTextTone.Secondary)
+        };
+        if (detail.AvailableResources.Count == 0)
+            fields.Add(style.Text(Views.Text(text("VocabWordEdit_NoResources")),
+                    SourceTextRole.Body2, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.resources.none"));
+        else
+            fields.AddRange(detail.AvailableResources.Select(resource =>
+            {
+                var toggle = Views.Toggle(resource.Title, selected.Contains(resource.Id),
+                        isSelected => actions.ToggleResource(resource.Id, isSelected))
+                    .WithAccessibilityIdentifier($"native.vocabulary.edit.resource.{resource.Id}");
+                toggle.IsEnabled = !state.Saving && !resource.IsSmartResource;
+                return toggle;
+            }));
+        return Card(style, "VocabWordEdit_ResourceAssociations", text, fields.ToArray());
     }
 
     private static SwiftView Value(

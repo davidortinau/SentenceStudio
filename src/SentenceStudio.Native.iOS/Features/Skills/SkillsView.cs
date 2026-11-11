@@ -1,4 +1,5 @@
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Shared.Models;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -60,22 +61,10 @@ internal static class SkillsView
             .WithAccessibilityIdentifier("native.skills.scroll.content");
         content.Spacing = SourceUiLayout.FormGap;
         var canAdd = state.Phase is SkillsListPhase.Empty or SkillsListPhase.Populated;
-        // Library toolbar Add (+): the one action the source More menu held.
-        SwiftView action;
-        if (style.ViewportWidth < 768)
-        {
-            action = Views.Button(Views.Image("plus"), add)
-                .WithAccessibilityLabel(text("Skills_AddSkillProfile"))
-                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                .WithAccessibilityIdentifier("native.skills.add");
-            action.IsEnabled = canAdd;
-        }
-        else
-        {
-            action = style.PrimaryButton(text("Common_Add"), add)
-                .WithAccessibilityIdentifier("native.skills.add.primary");
-            action.IsEnabled = canAdd;
-        }
+        // Captain 2026-11-10: the same plain Add (+) as every browse page, at every width (the
+        // one action the source More menu held).
+        var action = BrowserPage.AddButton("native.skills", text("Skills_AddSkillProfile"), add,
+            canAdd);
         var actions = new[] { action };
         return Views.Toolbar(
                 style.Page(Views.Scroll(content)

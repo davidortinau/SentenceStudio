@@ -319,13 +319,13 @@ public sealed class NativeSwiftUIResourceContractTests
         var presenter = NativeSource("NativeResourcePresenter.cs");
         var scene = Source("App/ApplicationScene.cs");
 
-        Assert.Contains("SourceUiLayout.ResourceColumns(style.ViewportWidth)", resources);
+        Assert.Contains("return SourceUiLayout.ResourceColumns(width);", resources);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", resources);
         Assert.Contains("if (rows.Count != 0)\n                rows.Add(Views.Divider());",
             resources);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             resources);
-        Assert.Contains("items.Add(ResourceListGroup(resources, text, actions.Open, style))",
+        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style));",
             resources);
         Assert.DoesNotContain("Views.List(", resources);
         Assert.Contains("Views.Button(label, () => open(resource.Id))", row);
@@ -343,7 +343,8 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("NativeResourceListPhase.Empty", resources);
         Assert.Contains("Resources_AddFirstResource", resources);
         Assert.Contains("Resources_CreateStarter", resources);
-        Assert.Contains("_presenter.SetViewMode(mode)", coordinator);
+        Assert.Contains("ToggleViewMode() => ListChanged(_presenter.SetViewMode(",
+            Source("Features/LearningResources/LearningResourcesCoordinator.ListOptions.cs"));
         Assert.Contains("private const string ViewModeKey = \"resources-view-mode\"", presenter);
         Assert.Contains("Views.TextField(", resources);
         Assert.Contains("Search: Search,", coordinator);
@@ -364,7 +365,7 @@ public sealed class NativeSwiftUIResourceContractTests
         var app = Source("App/ApplicationController.cs");
         Assert.DoesNotContain("MarkListStale", app + Source("App/ApplicationController.Sam.cs"));
         Assert.DoesNotContain("OnResourcesAppeared", app);
-        Assert.Contains("if (state.Phase == NativeResourceListPhase.Loading)",
+        Assert.Contains("if (state.Phase is NativeResourceListPhase.Loading or NativeResourceListPhase.Idle)",
             resources);
         Assert.Contains("Resources_NoResourcesFound", resources);
         Assert.Contains("native.resources.empty.actions", resources);

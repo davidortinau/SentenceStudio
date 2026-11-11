@@ -1,168 +1,282 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Microsoft.SwiftUI;
-using SentenceStudio.Common;
-using SentenceStudio.Shared.Models;
-using DateFormatter = SentenceStudio.Native.iOS.Platform.NativeResourceDateFormatter;
-using Views = Microsoft.SwiftUI.SwiftUI;
-
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Styling;
+using Views = Microsoft.SwiftUI.SwiftUI;
 
 namespace SentenceStudio.Native.iOS.Features.LearningResources;
 
+/// <summary>
+/// The Resources list on the shared browse layout (<see cref="BrowserPage"/>; Captain 2026-11-10:
+/// the same layout and filter and sort options as Vocabulary). Phone: one scrolling column with
+/// type, language and sort in a sheet. Wide: a fixed filter column beside the results, whose own
+/// scroll starts with the count. The toolbar holds the grid/list switch, Filters and Add (+).
+/// </summary>
+/// <remarks>
+/// The scene updates a mounted page in place (the search field keeps focus while typing), so a
+/// toolbar button's action must not depend on the state it was built with.
+/// </remarks>
 internal static class LearningResourcesView
 {
+    private const string Prefix = "native.resources";
+
+    /// <param name="pageWidth">
+    /// The page's own width once it has reported one (an iPad sidebar takes part of the window);
+    /// before that, the window's.
+    /// </param>
     internal static SwiftView Page(
         NativeResourceListState state,
         string? feedback,
         SourceUiStyle style,
         Func<string, string> text,
-        LearningResourcesActions actions)
+        LearningResourcesActions actions,
+        double? pageWidth = null)
     {
-        if (state.Phase == NativeResourceListPhase.Loading)
-            return Views.Toolbar(style.Page(Views.Scroll(
-                    Views.VStack(
-                            Views.IndeterminateProgress(text("Common_Loading"))
-                                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                                .WithAccessibilityIdentifier("native.resources.status"))
-                        .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-                        .WithFlexibleWidth()
-                        .WithAccessibilityIdentifier("native.resources.scroll.content"))
-                .WithAccessibilityIdentifier("native.resources.scroll")),
-                BrowserHeader(state, style, text, actions.Add));
+        var width = BrowserPage.Width(pageWidth, style);
+        var wide = BrowserPage.IsWide(width);
+        var ready = IsReady(state);
+        var page = wide && ready
+            ? WideLayout(state, feedback, style, text, actions, width)
+            : SingleColumn(state, feedback, style, text, actions, width);
+        // Making a starter resource holds the page still until it is done.
+        page.IsEnabled = !state.StarterBusy;
+        return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
+            ToolbarActions(state, text, actions, wide, ready));
+    }
 
-        var items = new List<SwiftView>();
-        var types = state.Types.IsDefault ? [] : state.Types;
-        var languages = state.Languages.IsDefault ? [] : state.Languages;
+    /// <summary>The list has loaded and can show its resources (or that there are none).</summary>
+    internal static bool IsReady(NativeResourceListState state) =>
+        state.Phase is NativeResourceListPhase.Populated or NativeResourceListPhase.Empty
+            or NativeResourceListPhase.NoMatches;
+
+    /// <summary>
+    /// Card columns in grid mode: the source's columns for the window on a phone; wide, as many
+    /// as the results column holds beside the filter column. A resource card carries its date
+    /// beside the title, so it needs more room than a word card: one column under 600 points
+    /// (larger text counting as narrower), two under 1000, then three.
+    /// </summary>
+    internal static int GridColumns(double width, double textScale, bool filterPanelShown)
+    {
+        if (!BrowserPage.IsWide(width))
+            return SourceUiLayout.ResourceColumns(width);
+        var results = width - 2 * SourceUiLayout.CardInset
+            - (filterPanelShown ? BrowserPage.FilterColumnWidth(width, textScale) + 1 : 0);
+        var effective = NativeAdaptiveLayout.EffectiveWidth(results, textScale);
+        return effective < 600 ? 1 : effective < 1000 ? 2 : 3;
+    }
+
+    /// <summary>The phone filter sheet: sort, type and language, applied together.</summary>
+    internal static SwiftView FilterSheet(
+        NativeResourceListState state, SourceUiStyle style,
+        Func<string, string> text, LearningResourceFilterActions actions)
+    {
+        var sheet = state.Sheet ?? new NativeResourceFilterDraft(state.MediaType, state.Language,
+            state.SortField, state.SortDescending);
+        var fields = new List<SwiftView> {
+            BrowserPage.SortField(Prefix, sheet.SortField, sheet.SortDescending, style, text,
+                actions.Sort)
+        };
+        fields.AddRange(FilterFields(state, sheet.MediaType, sheet.Language, style, text,
+            actions.ChangeType, actions.ChangeLanguage));
+        return BrowserPage.FilterSheet(Prefix, style, text, fields,
+            actions.Clear, actions.Cancel, actions.Apply);
+    }
+
+    private static SwiftView[] ToolbarActions(
+        NativeResourceListState state, Func<string, string> text,
+        LearningResourcesActions actions, bool wide, bool ready)
+    {
+        var enabled = ready && !state.StarterBusy;
+        var filters = BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
+            state.HasActiveFilters, wide, enabled, !state.FilterPanelHidden,
+            actions.OpenFilters, actions.ToggleFilterPanel);
+        // The phone sheet opens while the list loads, as on Vocabulary, but not while a
+        // starter resource is made or the owner is unknown.
+        if (state.StarterBusy || state.Phase == NativeResourceListPhase.Blocked)
+            filters.IsEnabled = false;
+        return [
+            // The phone list differs from its one-column grid, so the switch shows at every width.
+            BrowserPage.ViewToggle(Prefix, state.ViewMode == NativeResourceViewMode.List,
+                actions.ToggleViewMode, text("Resources_GridView"), text("Resources_ListView"),
+                enabled),
+            filters,
+            BrowserPage.AddButton(Prefix, text("Resources_AddResource"), actions.Add,
+                state.Phase != NativeResourceListPhase.Blocked && !state.StarterBusy)
+        ];
+    }
+
+    private static SwiftView SearchRow(
+        NativeResourceListState state, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions)
+    {
         var search = style.TextInput(Views.TextField(
                 text("Resources_SearchPlaceholder"), state.SearchText, actions.Search))
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.resources.search");
         search.IsEnabled = state.Phase != NativeResourceListPhase.Blocked
             && !state.StarterBusy;
-        items.Add(search);
-        var filters = Views.HStack(
-            Filter(style, text("NativeResources_TypeFilter"), text("Resources_AllTypes"),
-                    types, state.MediaType, actions.FilterType)
-                .WithAccessibilityIdentifier(NativeAccess.ResourceType),
-            Filter(style, text("NativeResources_LanguageFilter"),
-                    text("Resources_AllLanguages"), languages, state.Language,
-                    actions.FilterLanguage)
-                .WithAccessibilityIdentifier(NativeAccess.ResourceLanguage))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.resources.filters");
-        filters.Spacing = SourceUiLayout.ItemGap;
-        var modes = Views.ButtonGroup([
-            style.ResourceViewModeButton("square.grid.3x3",
-                    text("Resources_GridView"),
-                    state.ViewMode == NativeResourceViewMode.Grid,
-                    () => actions.SetViewMode(NativeResourceViewMode.Grid),
-                    SourceButtonGroupPosition.First)
-                .WithAccessibilityIdentifier("native.resources.view.grid"),
-            style.ResourceViewModeButton("list.bullet",
-                    text("Resources_ListView"),
-                    state.ViewMode == NativeResourceViewMode.List,
-                    () => actions.SetViewMode(NativeResourceViewMode.List),
-                    SourceButtonGroupPosition.Last)
-                .WithAccessibilityIdentifier("native.resources.view.list")],
-                selectedIndex: state.ViewMode == NativeResourceViewMode.Grid ? 0 : 1)
-            .WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth)
-            .WithAccessibilityIdentifier("native.resources.view.mode");
-        if (style.ViewportWidth < 768)
-            modes.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing);
-        // Two flexible halves need room for both 180-point source filter menus.
-        var controls = Views.HStack(filters, modes)
-            .WithAdaptiveStack(720)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.resources.browser.controls");
-        controls.Spacing = SourceUiLayout.PageGap;
-        items.Add(controls);
+        // As on Vocabulary: one tap clears the search and the filters.
+        var clear = state.HasActiveFilters || !string.IsNullOrEmpty(state.SearchText)
+            ? Views.Button(Views.Image("xmark"), actions.ClearSearchAndFilters)
+                .WithAccessibilityLabel(text("Vocabulary_ClearFilters"))
+                .WithAccessibilityIdentifier("native.resources.search.clear")
+            : null;
+        return BrowserPage.SearchRow(Prefix, search, clear);
+    }
 
+    /// <summary>The phone page, and the wide page while it loads or cannot show resources.</summary>
+    private static SwiftView SingleColumn(
+        NativeResourceListState state, string? feedback, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions, double width)
+    {
+        var children = new List<SwiftView> { SearchRow(state, style, text, actions) };
+        if (state.Phase is NativeResourceListPhase.Loading or NativeResourceListPhase.Idle)
+            children.Add(Views.IndeterminateProgress(text("Common_Loading"))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                .WithAccessibilityIdentifier("native.resources.status"));
+        else
+        {
+            if (Count(state, style, text) is { } count)
+                children.Add(count);
+            AddResults(children, state, feedback, style, text, actions, width);
+        }
+        return BrowserPage.SingleColumn(Prefix, style, children);
+    }
+
+    private static SwiftView WideLayout(
+        NativeResourceListState state, string? feedback, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions, double width)
+    {
+        var header = new List<SwiftView>();
+        if (Count(state, style, text) is { } count)
+            header.Add(count);
+        var results = new List<SwiftView>();
+        AddResults(results, state, feedback, style, text, actions, width);
+        return BrowserPage.Wide(Prefix, style,
+            state.FilterPanelHidden ? null : FilterPanel(state, style, text, actions, width),
+            SearchRow(state, style, text, actions),
+            BrowserPage.ResultsHeader(Prefix, header), results);
+    }
+
+    /// <summary>The wide filter column: sort, type and language (applied at once), Clear All Filters.</summary>
+    private static SwiftView FilterPanel(
+        NativeResourceListState state, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions, double width)
+    {
+        var fields = new List<SwiftView> {
+            BrowserPage.SortField(Prefix, state.SortField, state.SortDescending, style, text,
+                actions.Sort)
+        };
+        fields.AddRange(FilterFields(state, state.MediaType, state.Language, style, text,
+            actions.FilterType, actions.FilterLanguage));
+        if (state.HasActiveFilters)
+            fields.Add(BrowserPage.ClearAllButton("native.resources.filters.panel.clear",
+                style, text, actions.ClearFilters));
+        return BrowserPage.FilterPanel(Prefix, style, width, fields);
+    }
+
+    private static IEnumerable<SwiftView> FilterFields(
+        NativeResourceListState state, string? mediaType, string? language,
+        SourceUiStyle style, Func<string, string> text,
+        Action<string?> changeType, Action<string?> changeLanguage)
+    {
+        var types = state.Types.IsDefault ? [] : state.Types;
+        var languages = state.Languages.IsDefault ? [] : state.Languages;
+        yield return BrowserPage.FilterMenu(Prefix, "type", text("NativeResources_TypeFilter"),
+            text("Resources_AllTypes"), types, mediaType, style, changeType);
+        yield return BrowserPage.FilterMenu(Prefix, "language",
+            text("NativeResources_LanguageFilter"), text("Resources_AllLanguages"), languages,
+            language, style, changeLanguage);
+    }
+
+    /// <summary>Source: the count above the resources, shown while there are some.</summary>
+    private static SwiftView? Count(
+        NativeResourceListState state, SourceUiStyle style, Func<string, string> text) =>
+        state.Phase != NativeResourceListPhase.Populated ? null
+            : style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                    text("Resources_ResourcesCount"), Items(state).Length)),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.resources.count");
+
+    private static ImmutableArray<NativeResourceItem> Items(NativeResourceListState state) =>
+        state.Items.IsDefault ? ImmutableArray<NativeResourceItem>.Empty : state.Items;
+
+    /// <summary>Sync status, feedback, why the list cannot show, the empty page or the resources.</summary>
+    private static void AddResults(
+        List<SwiftView> children, NativeResourceListState state, string? feedback,
+        SourceUiStyle style, Func<string, string> text, LearningResourcesActions actions,
+        double width)
+    {
         var syncStatus = NativeResourceSyncStatus.Describe(
             state.Sync, state.SyncErrorKey, text);
         if (!string.IsNullOrEmpty(syncStatus))
-            items.Add(style.Text(Views.Text(syncStatus),
+            children.Add(style.Text(Views.Text(syncStatus),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.resources.sync.status"));
         if (!string.IsNullOrWhiteSpace(feedback))
-            items.Add(style.Text(Views.Text(feedback),
+            children.Add(style.Text(Views.Text(feedback),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.resources.feedback"));
         if (state.ErrorKey == "NativeResources_LoadError"
             || state.Phase is NativeResourceListPhase.LoadError
                 or NativeResourceListPhase.Blocked)
         {
-            items.Add(style.Text(Views.Text(
+            children.Add(style.Text(Views.Text(
                     text(state.ErrorKey ?? "NativeResources_LoadError")),
                     SourceTextRole.Body1, SourceTextTone.Danger)
                 .WithAccessibilityIdentifier("native.resources.status"));
             if (state.Phase != NativeResourceListPhase.Blocked)
-                items.Add(Views.Button(text(NativeText.Retry), actions.Reload)
+                children.Add(Views.Button(text(NativeText.Retry), actions.Reload)
                     .WithAccessibilityIdentifier("native.resources.retry"));
         }
-        if (state.Phase is not (NativeResourceListPhase.LoadError
-            or NativeResourceListPhase.Blocked))
+        if (state.Phase is NativeResourceListPhase.Empty or NativeResourceListPhase.NoMatches)
+            children.Add(Empty(state, style, text, actions));
+        else if (state.Phase == NativeResourceListPhase.Populated)
         {
-            var resources = state.Items.IsDefault
-                ? ImmutableArray<NativeResourceItem>.Empty : state.Items;
-            if (state.Phase is NativeResourceListPhase.Empty
-                or NativeResourceListPhase.NoMatches)
-            {
-                var message = style.Text(Views.Text(
-                        text("Resources_NoResourcesFound")),
-                        SourceTextRole.Body1, SourceTextTone.Secondary)
-                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier("native.resources.status");
-                var starter = style.SecondaryButton(
-                        text("Resources_CreateStarter"), actions.CreateStarter)
-                    .WithAccessibilityIdentifier("native.resources.empty.starter");
-                SourceUiStyle.SetCustomButtonAvailability(starter, style.Appearance,
-                    SourceButtonRole.FilledSecondary, !state.StarterBusy);
-                var emptyActions = Views.HStack(
-                        style.PrimaryButton(text("Resources_AddFirstResource"),
-                                actions.Add)
-                            .WithAccessibilityIdentifier("native.resources.empty.add"),
-                        starter)
-                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier("native.resources.empty.actions");
-                emptyActions.Spacing = SourceUiLayout.ItemGap;
-                var empty = Views.VStack(message, emptyActions)
-                    .WithPadding(48)
-                    .WithFlexibleWidth()
-                    .WithAccessibilityIdentifier("native.resources.empty");
-                empty.Spacing = SourceUiLayout.LargeCardInset;
-                items.Add(empty);
-            }
+            var resources = Items(state);
+            if (state.ViewMode == NativeResourceViewMode.Grid)
+                children.Add(Views.LazyVGrid(
+                        GridColumns(width, style.TextScale, !state.FilterPanelHidden),
+                        resources.Select(item => LearningResourceRowView.Row(item, text,
+                            actions.Open, style, list: false)).ToArray())
+                    .WithAccessibilityIdentifier("native.resources.grid"));
             else
-            {
-                items.Add(style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
-                        text("Resources_ResourcesCount"), resources.Length)),
-                        SourceTextRole.Small, SourceTextTone.Secondary)
-                    .WithAccessibilityIdentifier("native.resources.count"));
-                if (state.ViewMode == NativeResourceViewMode.Grid)
-                    items.Add(Views.LazyVGrid(
-                            SourceUiLayout.ResourceColumns(style.ViewportWidth),
-                            resources.Select(item => LearningResourceRowView.Row(item, text, actions.Open,
-                                style, list: false)).ToArray())
-                        .WithAccessibilityIdentifier("native.resources.grid"));
-                else
-                    items.Add(ResourceListGroup(resources, text, actions.Open, style));
-            }
+                children.Add(ResourceListGroup(resources, text, actions.Open, style));
         }
         if (state.StarterBusy)
-            items.Add(style.Text(Views.Text(text("Resources_CreatingStarter")),
+            children.Add(style.Text(Views.Text(text("Resources_CreatingStarter")),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.resources.starter.progress"));
-        var scrollContent = Views.VStack(items.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
+    }
+
+    /// <summary>Source: No resources found, Add your first resource and Create a starter resource.</summary>
+    private static SwiftView Empty(
+        NativeResourceListState state, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions)
+    {
+        var message = style.Text(Views.Text(text("Resources_NoResourcesFound")),
+                SourceTextRole.Body1, SourceTextTone.Secondary)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithAccessibilityIdentifier("native.resources.status");
+        var starter = style.SecondaryButton(
+                text("Resources_CreateStarter"), actions.CreateStarter)
+            .WithAccessibilityIdentifier("native.resources.empty.starter");
+        SourceUiStyle.SetCustomButtonAvailability(starter, style.Appearance,
+            SourceButtonRole.FilledSecondary, !state.StarterBusy);
+        var emptyActions = Views.HStack(
+                style.PrimaryButton(text("Resources_AddFirstResource"), actions.Add)
+                    .WithAccessibilityIdentifier("native.resources.empty.add"),
+                starter)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithAccessibilityIdentifier("native.resources.empty.actions");
+        emptyActions.Spacing = SourceUiLayout.ItemGap;
+        var empty = Views.VStack(message, emptyActions)
+            .WithPadding(48)
             .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.resources.scroll.content");
-        scrollContent.Spacing = SourceUiLayout.PageGap;
-        var page = Views.Scroll(scrollContent)
-            .WithAccessibilityIdentifier("native.resources.scroll");
-        page.IsEnabled = !state.StarterBusy;
-        return Views.Toolbar(style.Page(page),
-            BrowserHeader(state, style, text, actions.Add));
+            .WithAccessibilityIdentifier("native.resources.empty");
+        empty.Spacing = SourceUiLayout.LargeCardInset;
+        return empty;
     }
 
     private static SwiftView ResourceListGroup(
@@ -181,76 +295,4 @@ internal static class LearningResourcesView
         group.Spacing = 0;
         return style.BorderedCard(group, radius: style.Appearance.BootstrapRadius);
     }
-
-    /// <summary>
-    /// The Resources page's one action: Add (+) on a phone, the source primary button
-    /// on wider screens (the Library list reaches Skills and Vocabulary).
-    /// </summary>
-    private static SwiftView[] BrowserHeader(
-        NativeResourceListState state, SourceUiStyle style,
-        Func<string, string> text, Action addResource)
-    {
-        var enabled = state.Phase != NativeResourceListPhase.Blocked
-            && !state.StarterBusy;
-        if (style.ViewportWidth < 768)
-        {
-            var plus = Views.Button(Views.Image("plus"), addResource)
-                .WithAccessibilityLabel(text("Resources_AddResource"))
-                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                .WithAccessibilityIdentifier("native.resources.add");
-            plus.IsEnabled = enabled;
-            return [plus];
-        }
-        var wide = style.PrimaryButton(text("Resources_AddResource"), addResource)
-            .WithAccessibilityIdentifier("native.resources.add.primary");
-        SourceUiStyle.SetCustomButtonAvailability(wide, style.Appearance,
-            SourceButtonRole.Primary, enabled);
-        return [wide];
-    }
-
-    private static SwiftView Filter(
-        SourceUiStyle style, string label, string all,
-        ImmutableArray<string> options, string? selected,
-        Action<string?> changed)
-    {
-        var values = new[] { all }.Concat(options).ToArray();
-        var selectedIndex = selected is null
-            ? 0 : Array.IndexOf(values, selected);
-        if (selectedIndex < 0)
-            selectedIndex = 0;
-        var selectedText = Views.Text(values[selectedIndex])
-            .WithFlexibleWidth();
-        var chevron = Views.Image("chevron.up.chevron.down")
-            .WithForegroundColor(style.Appearance.SecondaryText.Light,
-                style.Appearance.SecondaryText.Dark);
-        var menuLabel = style.Input(Views.HStack(selectedText, chevron)
-            .WithFlexibleWidth());
-        menuLabel.Spacing = SourceUiLayout.ItemGap;
-
-        var choices = new SwiftView[values.Length];
-        for (var index = 0; index < choices.Length; index++)
-        {
-            var choice = index;
-            // iOS menu rows ignore opacity on their image, so only the selected
-            // row may carry the checkmark (the source select marks one option).
-            var optionLabel = index == selectedIndex
-                ? Views.HStack(Views.Text(values[index]).WithFlexibleWidth(),
-                    Views.Image("checkmark"))
-                : Views.Text(values[index]);
-            choices[index] = Views.Button(optionLabel,
-                    () => changed(choice == 0 ? null : values[choice]))
-                .WithAccessibilityLabel(values[index])
-                .WithAccessibilitySelected(index == selectedIndex);
-            choices[index].Text = values[index];
-        }
-
-        var menu = Views.Menu(menuLabel, choices)
-            .WithTintColor(style.Appearance.Primary.Light,
-                style.Appearance.Primary.Dark)
-            .WithAccessibilityLabel(label)
-            .WithFlexibleWidth();
-        menu.Text = values[selectedIndex];
-        return menu;
-    }
-
 }

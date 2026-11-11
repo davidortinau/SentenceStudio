@@ -4,107 +4,91 @@ namespace SentenceStudio.Native.iOS.Tests;
 
 public sealed class NativeSwiftUIResourceSceneContractTests
 {
+    // Captain 2026-11-10: the Resources page uses the Vocabulary page's browse layout, and the
+    // scene updates it with the same in-place updater, so typing keeps the search field mounted.
     [Fact]
-    public void LoadingWithoutSearch_UsesReplacementUntilPopulatedSearchCanStayMounted()
+    public void ResourcesRefresh_UpdatesTheMountedBrowsePageInPlace()
     {
         var scene = Source();
         var update = scene[scene.IndexOf("private void UpdateResources(",
                 StringComparison.Ordinal)
-            ..scene.IndexOf("private static bool SameToolbarActions(",
+            ..scene.IndexOf("private void UpdateResourceFilters(",
                 StringComparison.Ordinal)];
 
-        Assert.Contains("var nextSearch = nextContent.Children[0];", update);
-        Assert.Contains("search.Kind != \"textField\"", update);
-        Assert.Contains("nextSearch.Kind != \"textField\"", update);
-        Assert.Contains("nextSearch.AccessibilityIdentifier != \"native.resources.search\"",
+        Assert.Contains("var current = _resourcesSlot.Children.Single();", update);
+        Assert.Contains("var oldSearch = Find(current, BrowserPageUpdate.Resources.SearchId);",
             update);
-        Assert.Contains("page.IsEnabled = nextPage.IsEnabled;", update);
-        Assert.Contains("search.IsEnabled = nextSearch.IsEnabled;", update);
+        Assert.Contains("!BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", update);
+        // Another layout, sort or grid/list choice: a new page, with focus handed over.
+        Assert.Contains("replaceAll |= !string.Equals(arrangement, _renderedResourcesArrangement",
+            update);
         Assert.Contains("Replace(_resourcesSlot, next);", update);
-        Assert.Contains("!SameBrowserControls(current.Children[0], next.Children[0])", update);
-        Assert.Contains("var controls = content.Children[1];", update);
-        Assert.Contains("var filters = controls.Children[0];", update);
-        Assert.Contains("var menu = filters.Children[index];", update);
-        Assert.Contains("if (menu.Text != nextMenu.Text)", update);
-        Assert.Contains("menu.Children[0].Children[0].Text = nextMenu.Text;",
-            update);
-        Assert.Contains("option.WithAccessibilitySelected(selected);", update);
-        Assert.DoesNotContain("WithOpacity(selected", update);
-        // Bridge buttons are not containers: RemoveAt/Add on a menu option
-        // threw "Expected a container node, not button" on every filter pick.
-        Assert.DoesNotContain("option.Add(", update);
-        Assert.DoesNotContain("option.RemoveAt(", update);
-        Assert.DoesNotContain("nextOption.RemoveAt(", update);
-        Assert.Contains("menu.Text = nextMenu.Text;", update);
-        Assert.DoesNotContain("picker.SelectedIndex", update);
-        Assert.Contains("var modes = controls.Children[1];", update);
-        Assert.Contains("modes.SelectedIndex = nextModes.SelectedIndex;", update);
-        Assert.Contains("button.WithAccessibilityLabel(nextButton.Text);", update);
-        Assert.Contains("for (var index = content.Children.Count - 1; index > 1; index--)",
-            update);
-        Assert.Contains("while (nextContent.Children.Count > 2)", update);
-        Assert.Contains("content.Add(child);", update);
-        Assert.Contains("_resourcesSearch = search;", update);
+        Assert.Contains("_resourcesSearch.FocusRequested = true;", update);
+        Assert.Contains("oldSearch.Text = _app.ResourcesSearchText;", update);
+        Assert.Contains("_resourcesSearch = oldSearch;", update);
+        Assert.Contains("next.Dispose();", update);
+        Assert.DoesNotContain("current.RemoveAt(", update);
+        Assert.DoesNotContain("current.Add(", update);
+        Assert.DoesNotContain("SameBrowserControls", scene);
+        Assert.DoesNotContain("UpdateResourceViewModeButton", scene);
+
+        var updater = Browse("BrowserPageUpdate.cs");
+        Assert.Contains("Resources = new(\"native.resources\", headerKeep: 0);", updater);
+        // The search field and the page (while a starter resource is made) change availability
+        // in place.
+        Assert.Contains("node.IsEnabled = nextNode.IsEnabled;", updater);
+        Assert.Contains("CopyButtonState(current.Children[index], next.Children[index]);", updater);
     }
 
     [Fact]
-    public void GridListSwitch_RetainsScrollHostSearchMenusAndToggleWithLiveFilterCallbacks()
+    public void ResourcesToolbar_GridListFiltersAndAddReadTheStateWhenTapped()
     {
-        var scene = Source();
         var browser = Feature("LearningResourcesView.cs");
         var coordinator = Feature("LearningResourcesCoordinator.cs");
-        var update = scene[scene.IndexOf("private void UpdateResources(",
-                StringComparison.Ordinal)
-            ..scene.IndexOf("private static bool SameToolbarActions(",
-                StringComparison.Ordinal)];
-        var page = browser[browser.IndexOf("internal static SwiftView Page(",
-                StringComparison.Ordinal)
-            ..browser.IndexOf("private static SwiftView ResourceListGroup(",
-                StringComparison.Ordinal)];
+        var options = Feature("LearningResourcesCoordinator.ListOptions.cs");
 
-        Assert.Contains("var page = Views.Scroll(scrollContent)", page);
-        // iOS menus ignore image opacity: only the selected filter row has a checkmark.
-        Assert.DoesNotContain(".WithOpacity(index == selectedIndex", browser);
-        Assert.Contains("var optionLabel = index == selectedIndex", browser);
-        Assert.DoesNotContain("Views.List(", page);
-        Assert.Contains("items.Add(search);", page);
-        Assert.Contains("items.Add(controls);", page);
-        Assert.Contains("var controls = Views.HStack(filters, modes)", page);
-        Assert.Contains("var current = _resourcesSlot!.Children.Single();", update);
-        Assert.DoesNotContain("Replace(_resourcesSlot, next);",
-            update[update.IndexOf("page.IsEnabled = nextPage.IsEnabled;",
-                StringComparison.Ordinal)..]);
-        Assert.Contains("for (var index = content.Children.Count - 1; index > 1; index--)",
-            update);
-        Assert.Contains("while (nextContent.Children.Count > 2)", update);
-        Assert.Contains("_style.UpdateResourceViewModeButton(button,", update);
-        Assert.Contains("_presenter.Filter(type, _presenter.List.Language);",
+        Assert.Contains("BrowserPage.ViewToggle(Prefix, state.ViewMode == NativeResourceViewMode.List,",
+            browser);
+        Assert.Contains("BrowserPage.FiltersButton(Prefix, text(\"Vocabulary_Filters\"),", browser);
+        Assert.Contains("BrowserPage.AddButton(Prefix, text(\"Resources_AddResource\"), actions.Add,",
+            browser);
+        // Plain toolbar icons, as on Vocabulary (no tint, no filled Add button when wide).
+        Assert.DoesNotContain("WithTintColor", browser);
+        Assert.DoesNotContain("PrimaryButton(text(\"Resources_AddResource\")", browser);
+        Assert.DoesNotContain("Views.List(", browser);
+        Assert.Contains("BrowserPage.FilterMenu(Prefix, \"type\"", browser);
+        Assert.Contains("BrowserPage.SortField(Prefix, state.SortField, state.SortDescending,",
+            browser);
+
+        Assert.Contains("ToggleViewMode: ToggleViewMode,", coordinator);
+        Assert.Contains("FilterType: type => FilterNow(type, _presenter.List.Language),",
             coordinator);
-        Assert.Contains("_presenter.Filter(_presenter.List.MediaType, language);",
+        Assert.Contains("FilterLanguage: language => FilterNow(_presenter.List.MediaType, language),",
             coordinator);
-        Assert.Contains("menu.Children[option].Text != nextMenu.Children[option].Text",
-            scene);
-        Assert.Contains("menu.Children[0].Children[0].Kind != \"text\"", scene);
-        // A moved checkmark changes the option label kind and forces a rebuild.
-        Assert.Contains("menu.Children[option].Children[0].Kind\n"
-            + "                        != nextMenu.Children[option].Children[0].Kind",
-            scene);
-        Assert.Contains("!IsFilterOptionLabel(menu.Children[option].Children[0])",
-            scene);
+        Assert.Contains("_presenter.List.ViewMode == NativeResourceViewMode.Grid", options);
+        Assert.Contains("ListChanged(_presenter.Filter(mediaType, language));", options);
     }
 
     [Fact]
-    public void PhoneAndWideToolbars_UpdateAllSourceActionsWithoutTreatingPrimaryAsMenu()
+    public void ResourcesPhoneSheet_HostsSortAndFiltersOverThePage()
     {
         var scene = Source();
-        Assert.Contains("!SameToolbarActions(current, next)", scene);
-        Assert.Contains("current.Children.Count != next.Children.Count", scene);
-        Assert.Contains("for (var actionIndex = 1; actionIndex < current.Children.Count;",
-            scene);
-        Assert.Contains("action.IsEnabled = nextAction.IsEnabled;", scene);
-        Assert.Contains("var nextChild = nextAction.Children[index];", scene);
-        Assert.Contains("child.IsEnabled = nextChild.IsEnabled;", scene);
-        Assert.DoesNotContain("var menu = current.Children[1];", scene);
+        var library = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS/App/ApplicationScene.Library.cs")));
+        var options = Feature("LearningResourcesCoordinator.ListOptions.cs");
+
+        Assert.Contains("_resourcesSheet = Views.Sheet(_resourcesSlot, _resourcesFilterSlot,", library);
+        Assert.Contains(".WithSheetDetentFraction(0.85)", library);
+        Assert.Contains("_libraryStack.Push(ApplicationFormRoutes.LibraryResources, _resourcesSheet);",
+            library);
+        Assert.Contains("UpdateResourceFilters(appearanceChanged);", library);
+        Assert.Contains("Replace(_resourcesFilterSlot, _app.RenderResourceFilters(_style));", scene);
+        Assert.Contains("_resourcesSheet.IsPresented = _app.IsResourceFilterPresented;", scene);
+        // Becoming wide drops the sheet's choices, as on Vocabulary.
+        Assert.Contains("_app.CancelResourceFilters();", scene);
+        Assert.Contains("if (wide && IsFilterSheetPresented)", options);
+        Assert.Contains("Apply: () => ListChanged(_presenter.ApplyFilterSheet()),", options);
     }
 
     [Fact]
@@ -167,18 +151,13 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         var quickAdd = Feature("LearningResourceQuickAddView.cs");
         var coordinator = Feature("LearningResourcesCoordinator.cs");
 
-        var search = browser.IndexOf("items.Add(search);", StringComparison.Ordinal);
-        var controls = browser.IndexOf("items.Add(controls);",
-            StringComparison.Ordinal);
-        Assert.True(search >= 0 && controls > search);
-        Assert.Contains("return Views.Toolbar(style.Page(page),",
+        Assert.Contains("var children = new List<SwiftView> { SearchRow(state, style, text, actions) };",
             browser);
-        Assert.Contains("var search = content.Children[0];", scene);
-        Assert.Contains("for (var index = content.Children.Count - 1; index > 1; index--)",
+        Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
+            browser);
+        Assert.Contains("_resourcesSearch = Find(_resourcesSlot, BrowserPageUpdate.Resources.SearchId);",
             scene);
-        Assert.Contains("while (nextContent.Children.Count > 2)", scene);
-        Assert.Contains("content.Add(child);", scene);
-        Assert.Contains("next.Dispose();\n        _resourcesSearch = search;", scene);
+        Assert.Contains("_resourcesSearch = oldSearch;", scene);
 
         Assert.Contains("inputs.RegisterQuickSearch(input);", quickAdd);
         Assert.Contains("_quickSearchField = view;", coordinator);
@@ -199,6 +178,10 @@ public sealed class NativeSwiftUIResourceSceneContractTests
     private static string Feature(string file) => File.ReadAllText(
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
             "../../src/SentenceStudio.Native.iOS/Features/LearningResources", file)));
+
+    private static string Browse(string file) => File.ReadAllText(
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS/Features/Browse", file)));
 
     private static string Source() => File.ReadAllText(Path.GetFullPath(
         Path.Combine(Path.GetDirectoryName(CurrentFile())!,

@@ -4,6 +4,8 @@ using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Lookups;
+using SentenceStudio.Native.iOS.Features.Browse;
+using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Features.Vocabulary;
@@ -483,7 +485,7 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(page, "native.vocabulary.filters.panel")!.FixedWidth == 400);
         Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 3);
         var next = VocabularyListView.Page(ListState(), sidebarStyle, key => key, actions, pageWidth: 940);
-        Assert(VocabularyListUpdate.TryUpdateInPlace(page, next));
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, next));
         next.Dispose();
         Assert(Find(page, "native.vocabulary.filters.panel")!.FixedWidth == 313);
         Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 2);
@@ -516,16 +518,16 @@ var cases = new (string Name, Action Test)[]
     ("Vocabulary: typing updates the page in place and keeps the search field", () =>
     {
         using var page = VocabularyListView.Page(ListState(), wideStyle, Counts, ListActions());
-        var search = Find(page, VocabularyListUpdate.SearchId)!;
+        var search = Find(page, BrowserPageUpdate.Vocabulary.SearchId)!;
         var panelContent = Find(page, "native.vocabulary.filters.panel.content")!;
         var stats = Find(page, "native.vocabulary.stats")!;
         var header = Find(page, "native.vocabulary.results.header")!;
         var total = Find(page, "native.vocabulary.stats.total")!;
         Assert(total.Text == "3 of 3");
         var next = VocabularyListView.Page(ListState(query: "바다"), wideStyle, Counts, ListActions());
-        Assert(VocabularyListUpdate.TryUpdateInPlace(page, next));
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, next));
         next.Dispose();
-        Assert(ReferenceEquals(Find(page, VocabularyListUpdate.SearchId), search));
+        Assert(ReferenceEquals(Find(page, BrowserPageUpdate.Vocabulary.SearchId), search));
         Assert(ReferenceEquals(Find(page, "native.vocabulary.filters.panel.content"), panelContent));
         // The counts row stays mounted (its sideways scroll stays) and shows the new counts.
         Assert(ReferenceEquals(Find(page, "native.vocabulary.stats"), stats));
@@ -539,31 +541,165 @@ var cases = new (string Name, Action Test)[]
             == "line.3.horizontal.decrease.circle.fill");
 
         using var phone = VocabularyListView.Page(ListState(), style, key => key, ListActions());
-        var phoneSearch = Find(phone, VocabularyListUpdate.SearchId)!;
+        var phoneSearch = Find(phone, BrowserPageUpdate.Vocabulary.SearchId)!;
         var phoneNext = VocabularyListView.Page(ListState(query: "바다"), style, key => key, ListActions());
-        Assert(VocabularyListUpdate.TryUpdateInPlace(phone, phoneNext));
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(phone, phoneNext));
         phoneNext.Dispose();
-        Assert(ReferenceEquals(Find(phone, VocabularyListUpdate.SearchId), phoneSearch));
+        Assert(ReferenceEquals(Find(phone, BrowserPageUpdate.Vocabulary.SearchId), phoneSearch));
         Assert(Find(phone, "native.vocabulary.cards")!.Children.Count == 1);
     }),
     ("Vocabulary: another layout is mounted anew; the grid/list switch changes in place", () =>
     {
         using var page = VocabularyListView.Page(ListState(), wideStyle, key => key, ListActions());
-        var shape = VocabularyListUpdate.Outline(page).Shape;
+        var shape = BrowserPageUpdate.Vocabulary.Outline(page).Shape;
         var hidden = VocabularyListView.Page(ListState(panelHidden: true), wideStyle, key => key, ListActions());
-        Assert(!VocabularyListUpdate.TryUpdateInPlace(page, hidden));
+        Assert(!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, hidden));
         hidden.Dispose();
         var phone = VocabularyListView.Page(ListState(), style, key => key, ListActions());
-        Assert(!VocabularyListUpdate.TryUpdateInPlace(page, phone));
+        Assert(!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, phone));
         phone.Dispose();
-        Assert(VocabularyListUpdate.Outline(page).Shape == shape);
+        Assert(BrowserPageUpdate.Vocabulary.Outline(page).Shape == shape);
         var list = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
-        Assert(VocabularyListUpdate.TryUpdateInPlace(page, list));
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, list));
         list.Dispose();
         var toggle = Find(page, "native.vocabulary.view.toggle")!;
         Assert(toggle.AccessibilityLabel == "Vocabulary_GridView"
             && toggle.Children[0].SystemImageName == "square.grid.3x3");
         Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 1);
+    }),
+    // Captain 2026-11-10: every Library browse page has the same plain Add (+), last in its
+    // toolbar; the Vocabulary one opens the source's add-word form.
+    ("Vocabulary: the toolbar ends with the plain Add (+); an empty page offers its first word", () =>
+    {
+        var added = 0;
+        var actions = ListActions() with { AddWord = () => added++ };
+        using var wide = VocabularyListView.Page(ListState(), wideStyle, key => key, actions);
+        Assert(wide.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
+            "native.vocabulary.view.toggle", "native.vocabulary.filters.open", "native.vocabulary.add"]));
+        var add = Find(wide, "native.vocabulary.add")!;
+        Assert(add.Kind == "button" && add.IsEnabled && add.AccessibilityLabel == "Vocabulary_Add"
+            && add.Children[0].SystemImageName == "plus");
+        using var phone = VocabularyListView.Page(ListState(), style, key => key, actions);
+        Assert(phone.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
+            "native.vocabulary.filters.open", "native.vocabulary.add"]));
+        var none = ListState() with { Catalog = new NativeVocabularyCatalog(true, [], []), FilteredWords = [] };
+        using var empty = VocabularyListView.Page(none, style, key => key, actions);
+        Assert(Find(empty, "native.vocabulary.empty.add") is not null);
+        using var blocked = VocabularyListView.Page(ListState() with { Blocked = true }, style, key => key, actions);
+        Assert(!Find(blocked, "native.vocabulary.add")!.IsEnabled);
+    }),
+    ("Vocabulary new word: one Add, no More menu, sentences, progress or history; every resource to tick", () =>
+    {
+        var open = WordState(history: true);
+        var created = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+        var story = new NativeVocabularyResource("res-a", "Story", "Korean", false);
+        var smart = new NativeVocabularyResource("res-s", "Struggling", "Korean", true);
+        var draft = new NativeVocabularyEditDraft(string.Empty, created, string.Empty, string.Empty, null,
+            "Korean", null, null, null, LexicalUnitType.Word, []);
+        var state = open with { Creating = true, Draft = draft,
+            Detail = open.Detail! with { Word = open.Detail.Word with { Id = string.Empty },
+                AvailableResources = [story, smart], Progress = null, History = [] } };
+        var toggled = new List<(string, bool)>();
+        using var page = VocabularyWordEditView.Page(state, style, key => key,
+            WordActions(toggleResource: (id, on) => toggled.Add((id, on))));
+        Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier)
+            .SequenceEqual(["native.vocabulary.edit.save"]));
+        var save = Find(page, "native.vocabulary.edit.save")!;
+        Assert(save.Text == "Common_Add" && !save.IsEnabled);
+        foreach (var id in new[] { "native.vocabulary.edit.more", "native.vocabulary.edit.duplicates",
+                     "native.vocabulary.edit.encoding", "native.vocabulary.edit.slot.Examples",
+                     "native.vocabulary.edit.section.VocabWordEdit_LearningProgress",
+                     "native.vocabulary.edit.section.VocabWordEdit_HistoryTitle",
+                     "native.vocabulary.edit.resources.add" })
+            Assert(Find(page, id) is null);
+        var row = Find(page, "native.vocabulary.edit.resource.res-a")!;
+        Assert(row.Kind == "toggle" && row.IsEnabled);
+        Assert(!Find(page, "native.vocabulary.edit.resource.res-s")!.IsEnabled);
+    }),
+    ("Resources phone: one column, the shared toolbar icons and no button group", () =>
+    {
+        using var page = LearningResourcesView.Page(Resources(), null, style, key => key, ResourceActions());
+        Assert(page.Kind == "toolbar");
+        Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
+            "native.resources.view.toggle", "native.resources.filters.open", "native.resources.add"]));
+        var add = Find(page, "native.resources.add")!;
+        Assert(add.AccessibilityLabel == "Resources_AddResource" && add.Children[0].SystemImageName == "plus");
+        Assert(Find(page, "native.resources.view.toggle")!.Children[0].SystemImageName == "list.bullet");
+        var content = Find(page, "native.resources.scroll.content")!;
+        Assert(content.Children[0].AccessibilityIdentifier == "native.resources.search.row");
+        Assert(Find(page, "native.resources.count") is not null);
+        Assert(Find(page, "native.resources.grid")!.GridColumns == 1);
+        Assert(Find(page, "native.resources.view.mode") is null);
+        Assert(Find(page, "native.resources.filters.panel") is null);
+        using var list = LearningResourcesView.Page(Resources() with { ViewMode = NativeResourceViewMode.List },
+            null, style, key => key, ResourceActions());
+        Assert(Find(list, "native.resources.list") is not null);
+        Assert(Find(list, "native.resources.view.toggle")!.Children[0].SystemImageName == "square.grid.3x3");
+    }),
+    ("Resources wide: the Vocabulary filter column, sort first, beside the results", () =>
+    {
+        using var page = LearningResourcesView.Page(Resources(), null, wideStyle, key => key, ResourceActions());
+        var layout = Find(page, "native.resources.wide.layout")!;
+        Assert(layout.Kind == "hstack" && layout.Children.Count == 3);
+        var panel = layout.Children[0];
+        Assert(panel.AccessibilityIdentifier == "native.resources.filters.panel" && panel.FixedWidth == 333);
+        var fields = Find(panel, "native.resources.filters.panel.content")!.Children
+            .Select(child => child.AccessibilityIdentifier).ToArray();
+        Assert(fields.SequenceEqual(["native.resources.filter.field.sort",
+            "native.resources.filter.field.type", "native.resources.filter.field.language"]));
+        Assert(Find(panel, NativeAccess.ResourceType) is not null && Find(panel, NativeAccess.ResourceLanguage) is not null);
+        Assert(AllText(Find(panel, "native.resources.sort.updated")!).Contains('↓'));
+        Assert(Find(page, "native.resources.filters.open")!.AccessibilitySelected);
+        var results = layout.Children[2];
+        Assert(results.Children.Select(child => child.AccessibilityIdentifier).SequenceEqual([
+            "native.resources.search.row", "native.resources.results.scroll"]));
+        Assert(Find(results, "native.resources.results.header")!.Children[0].AccessibilityIdentifier
+            == "native.resources.count");
+        Assert(Find(results, "native.resources.grid")!.GridColumns == 2);
+        using var filtered = LearningResourcesView.Page(Resources() with { MediaType = "Video", FilterPanelHidden = true },
+            null, wideStyle, key => key, ResourceActions());
+        Assert(Find(filtered, "native.resources.filters.panel") is null);
+        // Resource cards keep their titles: two across in 1000 points, three from about 1030.
+        Assert(Find(filtered, "native.resources.grid")!.GridColumns == 2);
+        Assert(LearningResourcesView.GridColumns(1210, 1, filterPanelShown: false) == 3);
+        Assert(LearningResourcesView.GridColumns(1210, 1, filterPanelShown: true) == 2);
+        Assert(LearningResourcesView.GridColumns(820, 1, filterPanelShown: true) == 1);
+        Assert(LearningResourcesView.GridColumns(402, 1, filterPanelShown: true) == 1);
+        Assert(Find(filtered, "native.resources.search.clear") is not null);
+        Assert(Find(filtered, "native.resources.filters.open")!.Children[0].SystemImageName
+            == "line.3.horizontal.decrease.circle.fill");
+    }),
+    ("Resources: typing and filtering update the mounted page; the sheet holds sort, type and language", () =>
+    {
+        using var page = LearningResourcesView.Page(Resources(), null, style, key => key, ResourceActions());
+        var search = Find(page, BrowserPageUpdate.Resources.SearchId)!;
+        var next = LearningResourcesView.Page(Resources(searchText: "lesson"), null, style, key => key, ResourceActions());
+        Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, next));
+        next.Dispose();
+        Assert(ReferenceEquals(Find(page, BrowserPageUpdate.Resources.SearchId), search));
+        Assert(Find(page, "native.resources.search.clear") is not null);
+        // No matches: the count leaves and the empty page shows, still in place.
+        var none = LearningResourcesView.Page(Resources() with { Phase = NativeResourceListPhase.NoMatches, Items = [] },
+            null, style, key => key, ResourceActions());
+        Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, none));
+        none.Dispose();
+        Assert(ReferenceEquals(Find(page, BrowserPageUpdate.Resources.SearchId), search));
+        Assert(Find(page, "native.resources.count") is null && Find(page, "native.resources.empty.add") is not null);
+        // A starter resource in progress holds the page and its toolbar still, in place.
+        var busy = LearningResourcesView.Page(Resources() with { StarterBusy = true }, null, style, key => key, ResourceActions());
+        Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, busy));
+        busy.Dispose();
+        Assert(!Find(page, "native.resources.scroll")!.IsEnabled && !search.IsEnabled);
+        Assert(!Find(page, "native.resources.add")!.IsEnabled && !Find(page, "native.resources.filters.open")!.IsEnabled);
+
+        var sheetState = Resources() with { Sheet = new NativeResourceFilterDraft("Video", null, NativeResourceSort.Added, false) };
+        using var sheet = LearningResourcesView.FilterSheet(sheetState, style, key => key,
+            new LearningResourceFilterActions(_ => { }, _ => { }, _ => { }, () => { }, () => { }, () => { }));
+        Assert(AllText(Find(sheet, "native.resources.sort.added")!).Contains('↑'));
+        Assert(Find(sheet, NativeAccess.ResourceType) is not null);
+        foreach (var id in new[] { "native.resources.filters.clear", "native.resources.filters.cancel",
+                     "native.resources.filters.apply", "native.resources.filters.close" })
+            Assert(Find(sheet, id) is not null);
     }),
 };
 
@@ -616,6 +752,23 @@ static VocabularyListActions ListActions() => new(
     ClearFilters: () => { }, OpenWord: _ => { }, Reload: () => { }, Sort: _ => { },
     ToggleListMode: () => { }, ChangeWideFilter: (_, _) => { });
 
+static NativeResourceListState Resources(string searchText = "")
+{
+    var day = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+    NativeResourceItem Item(string id, string title, string type) =>
+        new(id, title, null, null, type, "Korean", false, day, day);
+    return new NativeResourceListState(NativeResourceListPhase.Populated,
+        [Item("r1", "Lesson one", "Video"), Item("r2", "Story", "Vocabulary List")],
+        ["Video", "Vocabulary List"], ["Korean"], SearchText: searchText,
+        Sync: NativeResourceSyncPhase.Confirmed);
+}
+
+static LearningResourcesActions ResourceActions() => new(
+    Search: _ => { }, FilterType: _ => { }, FilterLanguage: _ => { }, ToggleViewMode: () => { },
+    Open: _ => { }, Add: () => { }, CreateStarter: () => { }, Reload: () => { }, Sort: _ => { },
+    OpenFilters: () => { }, ToggleFilterPanel: () => { }, ClearFilters: () => { },
+    ClearSearchAndFilters: () => { });
+
 static VocabularyBrowserEdit WordState(bool history)
 {
     var created = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
@@ -667,6 +820,9 @@ static SwiftView? Parent(SwiftView node, string id)
     }
     return null;
 }
+
+static string AllText(SwiftView node) =>
+    (node.Text ?? string.Empty) + string.Concat(node.Children.Select(AllText));
 
 static SwiftView? Find(SwiftView node, string id)
 {

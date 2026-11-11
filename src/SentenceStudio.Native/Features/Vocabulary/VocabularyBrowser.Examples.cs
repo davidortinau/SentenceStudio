@@ -379,7 +379,7 @@ internal partial class VocabularyBrowser
     {
         owner = string.Empty;
         wordId = _detail?.Word.Id ?? string.Empty;
-        return _formOpen && !_formLoading && _detail is not null && !_saving
+        return _formOpen && !_creating && !_formLoading && _detail is not null && !_saving
             && !_cleanup.Deleting && !_handingOff && TryOwner(out owner);
     }
 
