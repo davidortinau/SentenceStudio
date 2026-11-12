@@ -1,5 +1,7 @@
 # Sentence Studio
 
+<img width="1920" height="1080" alt="04-wall" src="https://github.com/user-attachments/assets/2dd39318-5625-4487-87b6-362a76490f31" />
+
 Sentence Studio is a language learning application that empowers learners to practice their target language through interactive, AI-powered exercises. The key advantage of this tool over other language learning platforms is that you can bring your own vocabulary and curriculum. This allows you to focus on exercises targeted at what you are studying and learning elsewhere, rather than being overwhelmed with different skills and contexts.
 
 Whether you're following a textbook, taking a class, or working with a tutor, Sentence Studio lets you import your specific vocabulary lists and practice the exact grammar patterns you need to master. This targeted approach ensures your practice time directly supports your primary learning goals.
