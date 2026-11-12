@@ -22,6 +22,9 @@ internal sealed class VocabularyFilterState
     internal bool HasActiveFilters => !string.IsNullOrWhiteSpace(CommittedQuery);
     internal int ActiveFilterCount => _parser.Parse(CommittedQuery).Filters.Count;
 
+    /// <summary>The search's words outside its filters (source GetInitialTargetTermForAdd).</summary>
+    internal IReadOnlyList<string> FreeTextTerms => _parser.Parse(CommittedQuery).FreeTextTerms;
+
     internal void Search(string? query) => Commit(query ?? string.Empty);
 
     internal void OpenPhoneSheet() => _phoneDraft = CommittedQuery;

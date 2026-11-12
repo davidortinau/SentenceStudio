@@ -12,7 +12,7 @@ using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.Features.LearningResources;
 
-internal sealed class LearningResourcesCoordinator : IDisposable
+internal sealed partial class LearningResourcesCoordinator : IDisposable
 {
     private readonly NativeResourcePresenter _presenter;
     private readonly ILogger<LearningResourcesCoordinator> _logger;
@@ -140,28 +140,24 @@ internal sealed class LearningResourcesCoordinator : IDisposable
         if (_controlledStarterLoading)
             state = state with { StarterBusy = true };
 #endif
+        _drawnPageWidth = PageWidth ?? style.ViewportWidth;
         return LearningResourcesView.Page(state, _listFeedback, style, _text,
             new LearningResourcesActions(
                 Search: Search,
-                FilterType: type =>
-                {
-                    _presenter.Filter(type, _presenter.List.Language);
-                    Publish(formChanged: false);
-                },
-                FilterLanguage: language =>
-                {
-                    _presenter.Filter(_presenter.List.MediaType, language);
-                    Publish(formChanged: false);
-                },
-                SetViewMode: mode =>
-                {
-                    _presenter.SetViewMode(mode);
-                    Publish(formChanged: false);
-                },
+                FilterType: type => FilterNow(type, _presenter.List.Language),
+                FilterLanguage: language => FilterNow(_presenter.List.MediaType, language),
+                ToggleViewMode: ToggleViewMode,
                 Open: id => Run(() => OpenAsync(id)),
                 Add: OpenCreate,
                 CreateStarter: () => Run(CreateStarterAsync),
-                Reload: () => Run(LoadListAsync)));
+                Reload: () => Run(LoadListAsync),
+                Sort: SetSort,
+                OpenFilters: OpenFilterSheet,
+                ToggleFilterPanel: ToggleFilterPanel,
+                ClearFilters: ClearFilters,
+                ClearSearchAndFilters: ClearSearchAndFilters,
+                PageWidthChanged: OnPageWidthChanged),
+            PageWidth);
     }
 
 #if DEBUG

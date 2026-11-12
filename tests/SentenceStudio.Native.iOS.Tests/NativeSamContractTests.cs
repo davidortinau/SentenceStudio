@@ -241,7 +241,7 @@ public sealed class NativeSamContractTests
     {
         var scene = Source("App/ApplicationScene.cs");
         Assert.DoesNotContain("WithoutSamInset", scene);
-        Assert.Contains("!SameBrowserControls(current.Children[0], next.Children[0])", scene);
+        Assert.Contains("!BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", scene);
         var view = Source("Features/LearningResources/LearningResourcesView.cs");
         Assert.DoesNotContain("samEntry", view);
         Assert.DoesNotContain("native.resources.more", view);

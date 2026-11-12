@@ -116,6 +116,13 @@ public enum NativeVocabularySaveStatus
     Invalid, Duplicate, Conflict
 }
 
+/// <summary>A new word's save: its status and, once saved, the word's ID.</summary>
+public sealed record NativeVocabularyCreateResult(NativeVocabularySaveStatus Status, string? WordId = null)
+{
+    public bool Saved => Status is NativeVocabularySaveStatus.Saved
+        or NativeVocabularySaveStatus.SavedSyncUnconfirmed;
+}
+
 /// <summary>
 /// Source VocabularyWordEdit ConfirmDelete, refused for a word the server would keep
 /// (<see cref="NativeVocabularyDeleteBlock"/>).

@@ -55,8 +55,7 @@ public sealed class NativeVocabularyRouteTests
             "_vocabularySheet.IsPresented = _app.IsVocabularyFilterPresented;",
             scene);
         var view = Source("Features/Vocabulary/VocabularyListView.cs");
-        Assert.Contains("FilterFields(state, style, text, actions.Change,\n"
-            + "            useDraft: true);", view);
+        Assert.Contains("FilterFields(state, style, text, actions.Change, useDraft: true);", view);
         Assert.Contains("var words = state.Catalog.Words;", view);
         Assert.Contains("var resources = state.Catalog.Resources;", view);
         foreach (var type in new[] { "resource", "tag", "lemma", "language" })
@@ -70,7 +69,10 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("ToolbarActions(state, text, actions, wide, ready))", browser);
         // A mounted toolbar button keeps its action, so the grid/list switch reads the mode
         // when tapped (Captain 2026-11-09).
-        Assert.Contains("actions.ToggleListMode)", browser);
+        Assert.Contains("BrowserPage.ViewToggle(Prefix, state.ListMode, actions.ToggleListMode,", browser);
+        // Captain 2026-11-10: Add (+) last, the same plain icon as every browse page.
+        Assert.Contains("shown.Add(BrowserPage.AddButton(Prefix, text(\"Vocabulary_Add\"), addWord,", browser);
+        Assert.Contains("AddWord: AddWord),", Source("Features/Vocabulary/VocabularyCoordinator.cs"));
         var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
         Assert.Contains("ToggleListMode: () => SetListMode(!ListMode),", coordinator);
 
@@ -80,18 +82,19 @@ public sealed class NativeVocabularyRouteTests
             ..scene.IndexOf("private void UpdateVocabularyWord(",
                 StringComparison.Ordinal)];
         Assert.Contains("var current = _vocabularySlot.Children.Single();", refresh);
-        Assert.Contains("!VocabularyListUpdate.TryUpdateInPlace(current, next)", refresh);
+        Assert.Contains("!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(current, next)", refresh);
         Assert.DoesNotContain("current.RemoveAt(", refresh);
         Assert.DoesNotContain("current.Add(", refresh);
         Assert.Contains("next.Dispose();", refresh);
 
-        var update = Source("Features/Vocabulary/VocabularyListUpdate.cs");
+        var update = Source("Features/Browse/BrowserPageUpdate.cs");
         Assert.Contains("if (current.Kind != \"toolbar\")", update);
         Assert.Contains("if (mounted.Shape != fresh.Shape)", update);
-        Assert.Contains("(\"native.vocabulary.search.row\", 1),", update);
-        Assert.Contains("(\"native.vocabulary.scroll.content\", 1),", update);
-        Assert.Contains("(\"native.vocabulary.results.header\", 1),", update);
-        Assert.Contains("(\"native.vocabulary.results.content\", 1),", update);
+        Assert.Contains("Vocabulary = new(\"native.vocabulary\", headerKeep: 1);", update);
+        Assert.Contains("($\"{prefix}.search.row\", 1),", update);
+        Assert.Contains("($\"{prefix}.scroll.content\", 1),", update);
+        Assert.Contains("($\"{prefix}.results.header\", headerKeep),", update);
+        Assert.Contains("($\"{prefix}.results.content\", 1),", update);
         // Another sort or grid/list choice mounts a new page, so the results start at the top.
         Assert.Contains("|| arrangement != _renderedVocabularyArrangement);", scene);
         Assert.Contains("child.SystemImageName = nextChild.SystemImageName;", update);
@@ -133,8 +136,11 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("return PageContent(fields, style);", editor);
         // Captain 2026-11-10: one plain Save as the toolbar's last (primary) action at every
         // width; the More menu keeps Find Duplicates and Delete; nothing under the last card.
+        // A new word's form says Add and has no More menu (source add mode).
         Assert.Contains("return Views.Toolbar(PageContent(fields, style), more, save)", editor);
-        Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", editor);
+        Assert.Contains("var saveKey = creating ? \"Common_Add\" : \"Common_Save\";", editor);
+        Assert.Contains("var save = Views.Button(text(saveKey), actions.Save)", editor);
+        Assert.Contains("return Views.Toolbar(PageContent(fields, style), save)", editor);
         Assert.Contains("Views.Menu(text(\"More\"), menuDuplicates, menuDelete)", editor);
         Assert.DoesNotContain("PrimaryButton(text(\"Common_Save\")", editor);
         Assert.DoesNotContain("native.vocabulary.edit.actions", editor);

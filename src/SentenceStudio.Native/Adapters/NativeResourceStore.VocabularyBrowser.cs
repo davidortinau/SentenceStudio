@@ -249,18 +249,7 @@ public sealed partial class NativeResourceStore
             || currentSmartIds.Any(resourceId => !selectedIds.Contains(resourceId)))
             return NativeVocabularySaveStatus.Invalid;
 
-        var targetKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(draft.TargetTerm);
-        var nativeKey = VocabularyDuplicatePolicy.NormalizeKeyPart(draft.NativeTerm);
-        var candidateWords = await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
-            .Where(candidate => candidate.Id != draft.Id)
-            .Select(candidate => new {
-                candidate.TargetLanguageTerm, candidate.NativeLanguageTerm
-            }).ToListAsync(cancellationToken);
-        if (candidateWords.Any(candidate =>
-            VocabularyDuplicatePolicy.NormalizeTargetTerm(candidate.TargetLanguageTerm)
-                == targetKey
-            && VocabularyDuplicatePolicy.NormalizeKeyPart(candidate.NativeLanguageTerm)
-                == nativeKey))
+        if (await HasOwnedDuplicateAsync(db, owner, draft, cancellationToken))
             return NativeVocabularySaveStatus.Duplicate;
 
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
@@ -296,6 +285,113 @@ public sealed partial class NativeResourceStore
             logger.LogError(ex, "Vocabulary save committed but sync tracking was not confirmed.");
             return NativeVocabularySaveStatus.SavedSyncUnconfirmed;
         }
+    }
+
+    public async Task<string?> GetOwnerTargetLanguageAsync(
+        string owner, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return null;
+        using var scope = scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserProfiles.AsNoTracking()
+            .Where(profile => profile.Id == owner)
+            .Select(profile => profile.TargetLanguage)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// A new word (source VocabularyWordEdit add mode): recorded to the owner who creates it,
+    /// with the draft's terms, memory aids and type, linked to the chosen resources, which must
+    /// all be the owner's and not smart (a smart resource fills itself). The same duplicate rule
+    /// as an edit: one of the owner's words with the same terms refuses it.
+    /// </summary>
+    public async Task<NativeVocabularyCreateResult> CreateOwnedVocabularyAsync(
+        string owner, NativeVocabularyEditDraft draft, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner) || draft is null)
+            return new(NativeVocabularySaveStatus.NotFoundOrForbidden);
+        if (string.IsNullOrWhiteSpace(draft.TargetTerm)
+            || string.IsNullOrWhiteSpace(draft.NativeTerm)
+            || draft.LexicalUnitType is not (LexicalUnitType.Word or LexicalUnitType.Phrase
+                or LexicalUnitType.Sentence)
+            || draft.ResourceIds is null)
+            return new(NativeVocabularySaveStatus.Invalid);
+
+        var stamp = userScope.CaptureStamp();
+        using var scope = scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await using var transaction = await db.Database
+            .BeginTransactionAsync(cancellationToken);
+        var selectedIds = draft.ResourceIds.ToHashSet(StringComparer.Ordinal);
+        var selected = await db.LearningResources.AsNoTracking()
+            .Where(resource => selectedIds.Contains(resource.Id)
+                && resource.UserProfileId == owner)
+            .Select(resource => new { resource.Id, resource.IsSmartResource })
+            .ToListAsync(cancellationToken);
+        if (selected.Count != selectedIds.Count)
+            return new(NativeVocabularySaveStatus.NotFoundOrForbidden);
+        if (selected.Any(resource => resource.IsSmartResource))
+            return new(NativeVocabularySaveStatus.Invalid);
+        if (await HasOwnedDuplicateAsync(db, owner, draft, cancellationToken))
+            return new(NativeVocabularySaveStatus.Duplicate);
+        if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
+            return new(NativeVocabularySaveStatus.NotFoundOrForbidden);
+
+        var now = DateTime.UtcNow;
+        var word = new VocabularyWord
+        {
+            UserProfileId = owner,
+            TargetLanguageTerm = draft.TargetTerm.Trim(),
+            NativeLanguageTerm = draft.NativeTerm.Trim(),
+            Lemma = string.IsNullOrWhiteSpace(draft.Lemma) ? null : draft.Lemma.Trim(),
+            Language = string.IsNullOrWhiteSpace(draft.Language) ? null : draft.Language.Trim(),
+            Tags = string.IsNullOrWhiteSpace(draft.Tags) ? null : draft.Tags.Trim(),
+            MnemonicText = string.IsNullOrWhiteSpace(draft.MnemonicText) ? null : draft.MnemonicText.Trim(),
+            MnemonicImageUri = string.IsNullOrWhiteSpace(draft.MnemonicImageUri)
+                ? null : draft.MnemonicImageUri.Trim(),
+            LexicalUnitType = draft.LexicalUnitType,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.VocabularyWords.Add(word);
+        foreach (var resourceId in selectedIds)
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                ResourceId = resourceId, VocabularyWordId = word.Id
+            });
+        await db.SaveChangesAsync(cancellationToken);
+        if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
+            return new(NativeVocabularySaveStatus.NotFoundOrForbidden);
+        await transaction.CommitAsync(cancellationToken);
+        try
+        {
+            pendingWrites.MarkPending(owner);
+            return new(NativeVocabularySaveStatus.Saved, word.Id);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Vocabulary create committed but sync tracking was not confirmed.");
+            return new(NativeVocabularySaveStatus.SavedSyncUnconfirmed, word.Id);
+        }
+    }
+
+    /// <summary>
+    /// One of the owner's other words has the draft's terms (the shared duplicate rule, on the
+    /// normalized target and native terms).
+    /// </summary>
+    private static async Task<bool> HasOwnedDuplicateAsync(ApplicationDbContext db, string owner,
+        NativeVocabularyEditDraft draft, CancellationToken cancellationToken)
+    {
+        var targetKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(draft.TargetTerm);
+        var nativeKey = VocabularyDuplicatePolicy.NormalizeKeyPart(draft.NativeTerm);
+        var candidates = await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
+            .Where(candidate => candidate.Id != draft.Id)
+            .Select(candidate => new {
+                candidate.TargetLanguageTerm, candidate.NativeLanguageTerm
+            }).ToListAsync(cancellationToken);
+        return candidates.Any(candidate =>
+            VocabularyDuplicatePolicy.NormalizeTargetTerm(candidate.TargetLanguageTerm) == targetKey
+            && VocabularyDuplicatePolicy.NormalizeKeyPart(candidate.NativeLanguageTerm) == nativeKey);
     }
 
     /// <summary>The owner's own example sentences: recorded to them (the one ownership rule).</summary>

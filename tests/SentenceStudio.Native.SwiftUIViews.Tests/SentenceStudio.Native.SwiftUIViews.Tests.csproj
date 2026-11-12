@@ -41,7 +41,14 @@
              Link="Features/VocabularyDuplicatesView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs"
              Link="Features/VocabularyListView.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListUpdate.cs"
-             Link="Features/VocabularyListUpdate.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Browse/*.cs" LinkBase="Features/Browse" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourcesView.cs"
+             Link="Features/LearningResources/LearningResourcesView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourcesActions.cs"
+             Link="Features/LearningResources/LearningResourcesActions.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourceRowView.cs"
+             Link="Features/LearningResources/LearningResourceRowView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
+             Link="Platform/NativeResourceDateFormatter.cs" />
   </ItemGroup>
 </Project>

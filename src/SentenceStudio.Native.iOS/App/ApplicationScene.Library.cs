@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -166,8 +167,7 @@ internal sealed partial class ApplicationScene
                 return;
             while (_libraryStack.NavigationPath.Count > 0)
                 _libraryStack.Pop();
-            _resourcesSlot = null;
-            _resourcesSearch = null;
+            DropResourcesReferences();
             DropFormReferences();
             DropVocabularyReferences();
             DropSkillsReferences();
@@ -200,11 +200,24 @@ internal sealed partial class ApplicationScene
             _resourcesSlot = Views.VStack(_app.RenderResources(_style))
                 .WithNavigationTitle(_app.Localize("Resources_Title"))
                 .WithInlineNavigationTitle();
-            _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
-            _libraryStack.Push(ApplicationFormRoutes.LibraryResources, _resourcesSlot);
+            _resourcesSearch = Find(_resourcesSlot, BrowserPageUpdate.Resources.SearchId);
+            _renderedResourcesArrangement = _app.ResourcesArrangement;
+            _renderedResourcesKey = _app.ResourcesRenderKey;
+            // As on Vocabulary: a phone's filters and sort in a sheet over the page.
+            _resourcesFilterSlot = Views.VStack(_app.RenderResourceFilters(_style));
+            _renderedResourceSheetKey = _app.ResourceFilterSheetKey;
+            _resourcesSheet = Views.Sheet(_resourcesSlot, _resourcesFilterSlot,
+                    _app.CancelResourceFilters)
+                .WithSheetDetentFraction(0.85)
+                .WithAccessibilityIdentifier("native.resources.filters.host");
+            _libraryStack.Push(ApplicationFormRoutes.LibraryResources, _resourcesSheet);
         }
-        else if (_app.SelectedTab == NativeTabs.Library || appearanceChanged)
+        // Drawn again only when what it shows changed, so an unrelated publish leaves an open
+        // filter menu (and the results' build) alone.
+        else if (appearanceChanged || _app.SelectedTab == NativeTabs.Library
+            && !Equals(_renderedResourcesKey, _app.ResourcesRenderKey))
             UpdateResources(appearanceChanged);
+        UpdateResourceFilters(appearanceChanged);
     }
 
     /// <summary>System Back (or a swipe) changed the Library path: drop what left it.</summary>
@@ -220,8 +233,7 @@ internal sealed partial class ApplicationScene
         }
         if (_resourcesSlot is not null && !routes.Contains(ApplicationFormRoutes.LibraryResources))
         {
-            _resourcesSlot = null;
-            _resourcesSearch = null;
+            DropResourcesReferences();
             _app.OnLibraryResourcesPopped();
         }
         if (_vocabularySlot is not null || _lookupsSlot is not null)

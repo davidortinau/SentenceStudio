@@ -174,8 +174,26 @@ internal sealed partial class ApplicationController
         if (!_libraryResourcesOpen)
             return;
         _libraryResourcesOpen = false;
+        // A filter sheet left open goes with its page (its choices are dropped).
+        _resources?.CancelFilterSheet();
         Publish();
     }
+
+    // The Resources page's browse layout (Captain 2026-11-10: as Vocabulary's).
+    internal bool IsResourceFilterPresented => _resources?.IsFilterSheetPresented == true;
+    internal string ResourcesArrangement => _resources?.Arrangement ?? string.Empty;
+    internal object? ResourcesRenderKey => _resources?.RenderKey;
+    internal string ResourceFilterSheetKey => _resources?.FilterSheetKey ?? string.Empty;
+    internal double? ResourcesPageWidth => _resources?.PageWidth;
+    internal bool ResourcesFilterPanelShown => _resources?.ListState.FilterPanelHidden == false;
+
+    /// <summary>The window changed size: the Resources page is drawn for it until it reports its own width.</summary>
+    internal void ForgetResourcesPageWidth() => _resources?.ForgetPageWidth();
+
+    internal void CancelResourceFilters() => _resources?.CancelFilterSheet();
+
+    internal SwiftView RenderResourceFilters(SourceUiStyle style) =>
+        _resources?.RenderFilterSheet(style) ?? Views.Text(Text("Common_Loading"));
 
     /// <summary>
     /// The Resources row's count: the owner's resources once the browser has loaded them

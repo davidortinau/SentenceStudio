@@ -227,3 +227,16 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   write handlers; localize write-card text as one change.
 - `get_vocabulary_example_sentences` reuses scope definition `TrackedVocabularyDetail`; a code of
   its own would need a client evidence wire change and en/ko strings.
+
+## Library browse pages (iOS, 2026-11-10)
+
+- Android parity for departures 69-71 (plain "+" on Resources, Skills and Vocabulary; the
+  add-word form; the Resources sort and filter sheet/column) is not built yet; the shared
+  presenter and browser already hold the rules (`NativeResourcePresenter.ListOptions.cs`,
+  `VocabularyBrowser.OpenNewWordAsync`).
+- `SourceUiStyle.ResourceViewModeButton` and `UpdateResourceViewModeButton` have no iOS caller
+  now that the grid/list switch is a toolbar icon; their style contract tests still pin them.
+  Remove them with those tests in one change.
+- `NativeResourceStore.CreateOwnedVocabularyAsync` repeats `SaveOwnedVocabularyAsync`'s owned
+  resource, smart-resource and scope-stamp checks (only the duplicate check is shared). Move them
+  into one helper so edit and create cannot drift.

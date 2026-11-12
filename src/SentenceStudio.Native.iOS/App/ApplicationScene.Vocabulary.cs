@@ -1,4 +1,5 @@
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Features.Vocabulary;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -92,7 +93,7 @@ internal sealed partial class ApplicationScene
             _vocabularySlot = Views.VStack(_app.RenderVocabularyList(_style))
                 .WithNavigationTitle(_app.Localize("Vocabulary_Title"))
                 .WithInlineNavigationTitle();
-            _vocabularySearch = Find(_vocabularySlot, VocabularyListUpdate.SearchId);
+            _vocabularySearch = Find(_vocabularySlot, BrowserPageUpdate.Vocabulary.SearchId);
             _vocabularyFilterSlot = Views.VStack(
                 _app.RenderVocabularyFilters(_style));
             // A browse page: the tab bar stays (the filters sheet covers it while open).
@@ -168,14 +169,14 @@ internal sealed partial class ApplicationScene
             return;
         var next = _app.RenderVocabularyList(_style);
         var current = _vocabularySlot.Children.Single();
-        var oldSearch = Find(current, VocabularyListUpdate.SearchId);
-        if (replaceAll || oldSearch is null || !VocabularyListUpdate.TryUpdateInPlace(current, next))
+        var oldSearch = Find(current, BrowserPageUpdate.Vocabulary.SearchId);
+        if (replaceAll || oldSearch is null || !BrowserPageUpdate.Vocabulary.TryUpdateInPlace(current, next))
         {
             // Another layout (phone or wide, the filter column shown or hidden, loading or
             // loaded): a new page, with focus handed to its search field.
             var focused = oldSearch?.FocusRequested == true;
             Replace(_vocabularySlot, next);
-            _vocabularySearch = Find(_vocabularySlot, VocabularyListUpdate.SearchId);
+            _vocabularySearch = Find(_vocabularySlot, BrowserPageUpdate.Vocabulary.SearchId);
             if (focused && _vocabularySearch?.IsEnabled == true)
                 _vocabularySearch.FocusRequested = true;
             return;

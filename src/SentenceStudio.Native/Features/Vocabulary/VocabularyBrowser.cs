@@ -23,14 +23,15 @@ internal sealed record VocabularyBrowserEdit(
     bool PlayingAudio, NativeQuizPhotoAsset? Photo,
     bool ConfirmingDelete = false, bool Deleting = false,
     string? DeleteError = null, bool HandingOff = false,
-    VocabularyExamplesState? Examples = null)
+    VocabularyExamplesState? Examples = null, bool Creating = false)
 {
-    /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving.</summary>
-    internal bool CanFindDuplicates =>
-        VocabularyWordCommands.CanFindDuplicates(Saving || Deleting || HandingOff, Draft);
+    /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving (and absent for a new word).</summary>
+    internal bool CanFindDuplicates => !Creating
+        && VocabularyWordCommands.CanFindDuplicates(Saving || Deleting || HandingOff, Draft);
 
-    /// <summary>Source Delete, for a word only this owner uses.</summary>
-    internal bool CanDelete => VocabularyWordCommands.CanDelete(Saving || Deleting || HandingOff, Detail);
+    /// <summary>Source Delete, for a word only this owner uses (a new word has nothing to delete).</summary>
+    internal bool CanDelete => !Creating
+        && VocabularyWordCommands.CanDelete(Saving || Deleting || HandingOff, Detail);
 
     internal bool CanSave => CanSaveWord(Saving || Deleting || HandingOff, Detail, Draft);
 
@@ -138,6 +139,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// </summary>
     private bool _handingOff;
     private bool _playingAudio;
+    /// <summary>The editor holds a new word (source VocabularyWordEdit add mode), not a stored one.</summary>
+    private bool _creating;
     private bool _disposed;
     private long _loadGeneration;
     private long _formGeneration;
@@ -172,6 +175,9 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal bool IsPhoneFilterPresented =>
         _listOpen && _filters?.PhoneSheetOpen == true;
     internal bool IsNavigationBlocked => _saving || _cleanup.Deleting || _handingOff;
+
+    /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
+    internal bool IsCreatingWord => IsFormOpen && _creating;
 
     /// <summary>Source showDeleteConfirm.</summary>
     internal bool IsDeleteConfirmationPresented => _cleanup.IsDeleteConfirmationPresented;
@@ -228,7 +234,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
             _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff,
-            ExamplesState)
+            ExamplesState, _creating)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -268,6 +274,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _cleanup.Reset();
         ResetExamples();
         _examplesChanged = false;
+        _creating = false;
         _filters?.CancelPhoneSheet();
         _sheetSort = null;
         _listOpen = false;
@@ -306,6 +313,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!_listOpen || !TryOwner(out var owner))
             return;
         var generation = Interlocked.Increment(ref _loadGeneration);
+        var resourcesChanged = false;
         _loading = true;
         _listErrorKey = null;
         // This read counts the sentences saved so far.
@@ -326,6 +334,16 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             _catalog = catalog;
             if (!catalog.OwnerValid)
                 _listErrorKey = "Vocabulary_NoActiveProfile";
+            // An open Add Word form chooses from the resources as they are now (one deleted
+            // or synced away leaves the choice).
+            if (_creating && _formOpen && _detail is { } detail && _draft is { } draft)
+            {
+                var resources = catalog.Resources;
+                _detail = detail with { AvailableResources = resources };
+                _draft = draft with { ResourceIds = draft.ResourceIds.Where(id =>
+                    resources.Any(resource => resource.Id == id)).ToArray() };
+                resourcesChanged = true;
+            }
         }
         catch (OperationCanceledException) when (_disposed)
         {
@@ -342,7 +360,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             {
                 _loading = false;
                 Notify(VocabularyChanges.List | (_filters?.PhoneSheetOpen == true
-                    ? VocabularyChanges.Sheet : VocabularyChanges.None));
+                        ? VocabularyChanges.Sheet : VocabularyChanges.None)
+                    | (resourcesChanged ? VocabularyChanges.ResourceToggle : VocabularyChanges.None));
             }
         }
     }
@@ -357,6 +376,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _selectedWordId = id;
         var generation = Interlocked.Increment(ref _formGeneration);
         ResetExamples();
+        _creating = false;
         _formOpen = true;
         _formLoading = true;
         _editErrorKey = null;
@@ -402,7 +422,72 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         }
     }
 
-    internal Task RetryWordAsync() => OpenWordAsync(_selectedWordId ?? string.Empty);
+    internal Task RetryWordAsync() => _creating ? OpenNewWordAsync()
+        : OpenWordAsync(_selectedWordId ?? string.Empty);
+
+    /// <summary>
+    /// Source Vocabulary Add: the editor opens on a new word in the owner's target language
+    /// (Korean when none is set), of type Word, in no resource yet, with the owner's resources to
+    /// choose from. When the search found nothing, its words start the target term (source
+    /// GetInitialTargetTermForAdd). Nothing is stored until Save. It waits for the list to load,
+    /// which reads the resources to choose from.
+    /// </summary>
+    internal async Task OpenNewWordAsync()
+    {
+        if (!_listOpen || _saving || _loading || !_catalog.OwnerValid || !TryOwner(out var owner))
+            return;
+        if (_formOpen && !_creating)
+            return;
+        var terms = _filters?.FreeTextTerms ?? [];
+        var initialTarget = terms.Count > 0
+            && (_filters?.Filter(_catalog.Words, _sortField, _sortDescending).Count ?? 0) == 0
+                ? string.Join(" ", terms).Trim() : string.Empty;
+        _selectedWordId = null;
+        var generation = Interlocked.Increment(ref _formGeneration);
+        ResetExamples();
+        _creating = true;
+        _formOpen = true;
+        _formLoading = true;
+        _editErrorKey = null;
+        _photo = null;
+        _detail = null;
+        _draft = null;
+        _cleanup.ResetDelete();
+        Notify(VocabularyChanges.Form);
+        string? language = null;
+        try
+        {
+            language = await OffUiAsync(() => _store.GetOwnerTargetLanguageAsync(
+                owner, _lifetimeToken));
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            // The form still opens; the learner can choose the language.
+            _logger.LogWarning(ex, "Native Vocabulary could not read the target language for a new word.");
+        }
+        if (generation != Volatile.Read(ref _formGeneration) || !_formOpen || !_creating)
+            return;
+        if (!TryOwner(out _))
+        {
+            Block();
+            return;
+        }
+        language = string.IsNullOrWhiteSpace(language) ? "Korean" : language.Trim();
+        var now = DateTime.UtcNow;
+        _draft = new NativeVocabularyEditDraft(string.Empty, now, initialTarget, string.Empty,
+            null, language, null, null, null, LexicalUnitType.Word, []);
+        _detail = new NativeVocabularyDetail(
+            new NativeVocabularyEntry(string.Empty, string.Empty, string.Empty,
+                LexicalUnitType.Word, null, null, language, now, now, "Basic",
+                LearningStatus.Unknown, false, []),
+            _draft, _catalog.Resources, null, [], [], [], false, NativeVocabularyDeleteBlock.None);
+        _formLoading = false;
+        Notify(VocabularyChanges.Form);
+    }
 
     internal void ChangeDraft(string field, string value)
     {
@@ -464,20 +549,25 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _editErrorKey = null;
         Notify(VocabularyChanges.Form);
         var saved = false;
+        var creating = _creating;
         try
         {
-            var result = await OffUiAsync(() => _store.SaveOwnedVocabularyAsync(
-                owner, draft, _lifetimeToken));
+            var result = creating
+                ? (await OffUiAsync(() => _store.CreateOwnedVocabularyAsync(
+                    owner, draft, _lifetimeToken))).Status
+                : await OffUiAsync(() => _store.SaveOwnedVocabularyAsync(
+                    owner, draft, _lifetimeToken));
             if (result is NativeVocabularySaveStatus.Saved
                 or NativeVocabularySaveStatus.SavedSyncUnconfirmed)
             {
-                _feedback = _text(result == NativeVocabularySaveStatus.Saved
-                    ? "VocabWordEdit_UpdatedSuccess"
-                    : "NativeVocabulary_SavedSyncUnconfirmed");
+                _feedback = _text(result != NativeVocabularySaveStatus.Saved
+                    ? "NativeVocabulary_SavedSyncUnconfirmed"
+                    : creating ? "VocabWordEdit_AddedSuccess" : "VocabWordEdit_UpdatedSuccess");
                 _feedbackWarning =
                     result == NativeVocabularySaveStatus.SavedSyncUnconfirmed;
                 _media.StopPlayback();
                 ResetExamples();
+                _creating = false;
                 _formOpen = false;
                 _draft = null;
                 _detail = null;
@@ -492,7 +582,9 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                     Block();
                     return;
                 }
-                _editErrorKey = SaveErrorKey(result, _detail, draft);
+                // A new word has nothing to be "not found": a refused create says it failed.
+                _editErrorKey = creating && result == NativeVocabularySaveStatus.NotFoundOrForbidden
+                    ? "VocabWordEdit_SaveFailed" : SaveErrorKey(result, _detail, draft);
             }
         }
         catch (OperationCanceledException) when (_disposed)
@@ -541,7 +633,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal Func<string, string, bool>? FindDuplicatesElsewhere { get; init; }
 
     /// <summary>Source OpenDuplicateManager (see <see cref="VocabularyWordCleanup"/>).</summary>
-    internal Task FindDuplicatesAsync() =>
+    internal Task FindDuplicatesAsync() => _creating ? Task.CompletedTask :
         Guard(() => _cleanup.FindDuplicatesAsync(FindDuplicatesElsewhere is { } elsewhere
             ? (term, wordId) =>
             {
@@ -587,7 +679,11 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal void CloseDuplicates() => _cleanup.CloseDuplicates();
 
     /// <summary>Source RequestDelete: shows the confirmation.</summary>
-    internal void RequestDelete() => _cleanup.RequestDelete();
+    internal void RequestDelete()
+    {
+        if (!_creating)
+            _cleanup.RequestDelete();
+    }
 
     /// <summary>Source CancelDelete (Cancel, Close or the backdrop); ignored while deleting.</summary>
     internal void CancelDelete() => _cleanup.CancelDelete();
@@ -616,7 +712,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.Form);
         try
         {
-            if (!await OffUiAsync(() => _store.OwnsVocabularyAsync(
+            // A new word is not stored yet: only the typed term is spoken.
+            if (!_creating && !await OffUiAsync(() => _store.OwnsVocabularyAsync(
                     owner, draft.Id, _lifetimeToken)))
             {
                 _editErrorKey = "VocabWordEdit_NotFound";
@@ -838,6 +935,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _cleanup.Reset();
         ResetExamples();
         _examplesChanged = false;
+        _creating = false;
         _listErrorKey = "Vocabulary_NoActiveProfile";
         _media.StopPlayback();
         Notify(VocabularyChanges.List | VocabularyChanges.Form | VocabularyChanges.Sheet);
@@ -847,6 +945,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     private void LeaveWord()
     {
         ResetExamples();
+        _creating = false;
         _formOpen = false;
         _detail = null;
         _draft = null;
@@ -930,7 +1029,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     async Task IVocabularyCleanupHost.RefreshOpenWordAsync()
     {
-        if (!_formOpen || _selectedWordId is not { } id || !TryOwner(out var owner))
+        if (!_formOpen || _creating || _selectedWordId is not { } id || !TryOwner(out var owner))
             return;
         var generation = Volatile.Read(ref _formGeneration);
         try
