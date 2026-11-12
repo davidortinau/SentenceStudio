@@ -329,3 +329,34 @@ At the Captain's go ("Push to azure so we can test this"), following the runbook
     fix must be on every native device first (Duotopia has it). Then every device syncs against the
     new server, `send-withheld-vocabulary-rows.sql` runs (dry run, then apply, with his go), and the
     devices sync again.
+
+## Deployed 2026-11-12 (Sam help, general assistant, feedback filing; Sam writes and memory on)
+
+At the Captain's go ("merge to main, then deploy"). Times are UTC.
+
+- **Why:** Sam on Duotopia would not answer "help", would not file a bug report, and would not act
+  on requests. Production ran `a5c5ecc6` (2026-11-06), before the Sam help reply, general reply
+  and GitHub App feedback filing (2026-11-07 to 11-08), and its API had no
+  `Coach__SamWriteTools__Enabled`, so every write tool (including `propose_feedback`) was off
+  ("27 registered, 15 enabled").
+- **Settings first (00:40):** added `Coach__SamWriteTools__Enabled=true` and
+  `Coach__Memory__Enabled=true` to the `api` container app (revision `api--0000034`); startup
+  logged "27 registered, 27 enabled". `prod-deploy.sh` carries live `Coach__*` values, so both
+  stay on through later deploys (13 Sam settings).
+- **What shipped:** `79ab1ab3`, 31 commits after `a5c5ecc6`, now on `main` as well:
+  `main` was fast-forwarded to `native-platform-heads` after merging its README edit
+  (`7c80a56e`). Production now deploys from `main`.
+- **Checks before:** MAUI Mac Catalyst and Android Debug builds succeeded at `79ab1ab3`.
+  Step 1 backup `~/sstudio-prod-backup-20261111-1854/sentencestudio.dump` (11 MB, 70 of 70
+  tables; VocabularyWord 5090, VocabularyProgress 2790, UserProfile 24); access closed, lock
+  restored. `prod-deploy.sh check` passed.
+- **Deploy (00:58):** api `api--0000035`, webapp `webapp--0000030`, workers `workers--0000030`,
+  marketing `marketing--0000036`, all Healthy; Sam settings equal to `api--0000034`. Validation:
+  17 pass, 0 fail, 2 skipped (auth flow without a test password), 2 warnings (workers scaled to
+  zero; no migration log lines).
+- **Change-specific:** startup logged "Coach tool registry ... 32 registered, 32 enabled",
+  "Feedback schema is up to date". A read-only query (access opened and closed again) showed
+  `__FeedbackMigrationsHistory` ends with `20261108021430_AddFeedbackScreenSnapshot` and the
+  snapshot table exists.
+- **Still to confirm on Duotopia:** "help", a bug report through Sam (review card, then a GitHub
+  issue), and one write request (for example, add a word).
