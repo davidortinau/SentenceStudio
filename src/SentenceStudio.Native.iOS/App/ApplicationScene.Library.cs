@@ -48,7 +48,8 @@ internal sealed partial class ApplicationScene
         // the open place's list in the middle and the open item on the right. A compact width
         // (a slab iPhone, the folded iPhone Duo) collapses it to one column at a time.
         _librarySplit = new LibrarySplitNavigation(_libraryRoot, LibraryPlaceRoutes,
-            ContentPlaceholder(), DetailPlaceholder(), OnLibraryRoutesChanged);
+            ContentPlaceholder(), DetailPlaceholder(), OnLibraryRoutesChanged,
+            _app.Localize("Library_FullScreen"), _app.Localize("Library_ExitFullScreen"));
         _libraryStack = _librarySplit;
         return _librarySplit.Split.WithAccessibilityIdentifier("native.library.split");
     }

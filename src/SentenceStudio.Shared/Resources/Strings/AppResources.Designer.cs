@@ -9832,6 +9832,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Exit full screen.
+        /// </summary>
+        internal static string Library_ExitFullScreen {
+            get {
+                return ResourceManager.GetString("Library_ExitFullScreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Full screen.
+        /// </summary>
+        internal static string Library_FullScreen {
+            get {
+                return ResourceManager.GetString("Library_FullScreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Quick add.
         /// </summary>
         internal static string Library_QuickAdd {

@@ -43,20 +43,33 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     private SwiftView? _contentPage;
     private SwiftView? _detailPage;
     private bool _canNavigateBack = true;
+    private readonly string _enterFullScreenLabel;
+    private readonly string _exitFullScreenLabel;
+    private SwiftView? _fullScreenButton;
+    private SwiftView? _fullScreenSymbol;
 
     /// <summary>True while the path's first page fills the detail column (not a place).</summary>
     private bool _startsInDetail;
+
+    /// <summary>The open item fills the window (the person chose Full screen).</summary>
+    private bool _fullScreen;
+    private bool _sidebarReasserted;
 
     /// <param name="sidebar">The sidebar column (the Library's list of places).</param>
     /// <param name="placeRoutes">The routes of the places, whose pages fill the content column.</param>
     /// <param name="contentPlaceholder">What the content column shows while no place is open.</param>
     /// <param name="detailPlaceholder">What the detail column shows while no item is open.</param>
     /// <param name="routesChanged">The person's Back changed the path (as a stack reports it).</param>
+    /// <param name="enterFullScreenLabel">The full-screen button's name while the columns show.</param>
+    /// <param name="exitFullScreenLabel">Its name while the item fills the window.</param>
     public LibrarySplitNavigation(SwiftView sidebar, IReadOnlySet<string> placeRoutes,
         SwiftView contentPlaceholder, SwiftView detailPlaceholder,
-        Action<IReadOnlyList<string>> routesChanged)
+        Action<IReadOnlyList<string>> routesChanged,
+        string enterFullScreenLabel, string exitFullScreenLabel)
     {
         _placeRoutes = placeRoutes;
+        _enterFullScreenLabel = enterFullScreenLabel;
+        _exitFullScreenLabel = exitFullScreenLabel;
         _routesChanged = routesChanged;
         _contentPlaceholder = contentPlaceholder;
         _detailPlaceholder = detailPlaceholder;
@@ -67,8 +80,8 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         _detailRoot.Spacing = 0;
         _detailStack = Views.NavigationStack(_detailRoot, OnDetailRoutesChanged);
         Split = Views.NavigationSplitView(sidebar, _contentSlot, _detailStack,
-            onCompactColumnChanged: OnCompactColumnChanged);
-        Split.SplitColumnVisibility = SwiftSplitViewVisibility.All;
+            OnVisibilityChanged, OnCompactColumnChanged);
+        ShowColumns();
     }
 
     /// <summary>The split view node the Library tab shows.</summary>
@@ -100,7 +113,7 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
                 _contentPage = Swap(_contentSlot, page);
                 break;
             case 0:
-                _detailPage = Swap(_detailRoot, page);
+                _detailPage = Swap(_detailRoot, _startsInDetail ? page : WithFullScreenButton(page));
                 break;
             default:
                 _detailStack.Push(route, page);
@@ -108,6 +121,69 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         }
         _path.Add(route);
         ShowColumns();
+    }
+
+    /// <summary>
+    /// The item's toolbar gets a Full screen button (beside the list only: it is left out in a
+    /// compact width), which hides the sidebar and the list so the item fills the window, and
+    /// brings them back.
+    /// </summary>
+    private SwiftView WithFullScreenButton(SwiftView page)
+    {
+        _fullScreenSymbol = Views.Image(FullScreenSymbol);
+        _fullScreenButton = Views.Button(_fullScreenSymbol, ToggleFullScreen)
+            .WithAccessibilityLabel(FullScreenLabel)
+            .WithHiddenInCompactWidth()
+            .WithAccessibilityIdentifier("native.library.fullscreen");
+        return Views.Toolbar(page, _fullScreenButton);
+    }
+
+    private string FullScreenSymbol => _fullScreen
+        ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right";
+
+    private string FullScreenLabel => _fullScreen ? _exitFullScreenLabel : _enterFullScreenLabel;
+
+    private void ToggleFullScreen()
+    {
+        if (_detailPage is null || _startsInDetail)
+            return;
+        _fullScreen = !_fullScreen;
+        ShowColumns();
+    }
+
+    /// <summary>The full-screen button shows the state it would change.</summary>
+    private void UpdateFullScreenButton()
+    {
+        if (_fullScreenSymbol is { } symbol && _fullScreenButton is { } button)
+        {
+            symbol.SystemImageName = FullScreenSymbol;
+            button.WithAccessibilityLabel(FullScreenLabel);
+        }
+    }
+
+    /// <summary>
+    /// The person showed the sidebar (its button) or SwiftUI changed the columns: leaving the
+    /// item-only view ends full screen.
+    /// </summary>
+    private void OnVisibilityChanged(SwiftSplitViewVisibility visibility)
+    {
+        // SwiftUI hides the sidebar on its first layout in a narrower regular width (iPad
+        // portrait, the iPhone Duo's inner display). With nothing open the sidebar is how a place
+        // is chosen, so it is shown again once, after that layout pass.
+        if (_path.Count == 0 && visibility != SwiftSplitViewVisibility.All && !_sidebarReasserted)
+        {
+            _sidebarReasserted = true;
+            CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
+            {
+                if (_path.Count == 0)
+                    Split.SplitColumnVisibility = SwiftSplitViewVisibility.All;
+            });
+        }
+        if (_fullScreen && visibility != SwiftSplitViewVisibility.DetailOnly)
+        {
+            _fullScreen = false;
+            UpdateFullScreenButton();
+        }
     }
 
     public void Pop()
@@ -178,6 +254,9 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
             case 0:
                 Restore(_detailRoot, _detailPlaceholder, _detailPage);
                 _detailPage = null;
+                _fullScreenButton = null;
+                _fullScreenSymbol = null;
+                _fullScreen = false;
                 break;
             default:
                 _detailStack.Pop();
@@ -189,16 +268,21 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     }
 
     /// <summary>
-    /// Nothing open: every column, so the sidebar is in view to choose a place. A page open:
-    /// the sidebar tucks away (its toolbar button brings it back over the screen); a page that
-    /// fills the detail column on its own shows only that column. In a compact width the
-    /// deepest open level is the column on top.
+    /// Nothing open: every column side by side (balanced), so the sidebar is fixed open to
+    /// choose a place. A page open: the sidebar tucks away and its toolbar button brings it back
+    /// as a drawer over the screen (the automatic style); full screen, or a page that fills the
+    /// detail column on its own, shows only that column. In a compact width the deepest open
+    /// level is the column on top.
     /// </summary>
     private void ShowColumns()
     {
+        Split.WithSplitViewStyle(_path.Count == 0
+            ? SwiftSplitViewStyle.Balanced : SwiftSplitViewStyle.Automatic);
         Split.SplitColumnVisibility = _path.Count == 0 ? SwiftSplitViewVisibility.All
-            : _startsInDetail ? SwiftSplitViewVisibility.DetailOnly
+            : _startsInDetail || (_fullScreen && _detailPage is not null)
+                ? SwiftSplitViewVisibility.DetailOnly
             : SwiftSplitViewVisibility.DoubleColumn;
+        UpdateFullScreenButton();
         Split.PreferredCompactColumn = _path.Count == 0 ? SwiftSplitViewColumn.Sidebar
             : DetailLevel(_path.Count - 1) < 0 ? SwiftSplitViewColumn.Content
             : SwiftSplitViewColumn.Detail;
