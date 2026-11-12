@@ -240,3 +240,16 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - `NativeResourceStore.CreateOwnedVocabularyAsync` repeats `SaveOwnedVocabularyAsync`'s owned
   resource, smart-resource and scope-stamp checks (only the duplicate check is shared). Move them
   into one helper so edit and create cannot drift.
+
+## Library split view list column (iOS, 2026-11-12)
+
+- The phone filter sheets are unreachable now that a narrow page uses the toolbar filter menu:
+  `VocabularyListView.PhoneFilterSheet`, `LearningResourcesView.FilterSheet`, their sheet slots,
+  `UpdateResourceFilters`, the `OpenFilters`/`OpenPhoneFilters` actions, and the sheet content
+  `ApplicationScene.Vocabulary.cs` builds on every mount. Remove them, with the contract tests
+  that pin them, in one change (the shared draft logic stays for web/MAUI/Android parity).
+- `BrowserPage.FilterSubmenu` repeats the option list and selection mapping of the filter-column
+  `BrowserPage.FilterMenu(prefix, type, ...)`, and the toolbar `FilterMenu` overload shares that
+  name. Pull the options and index into one helper and rename the toolbar menu.
+- On Vocabulary, typing a filter token whose value the catalog lacks (`tag:f`) appends that value
+  to its submenu, which changes the toolbar outline once and remounts the page at that keystroke.

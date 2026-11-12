@@ -88,10 +88,15 @@ internal static class LearningResourcesView
         LearningResourcesActions actions, bool wide, bool ready)
     {
         var enabled = ready && !state.StarterBusy;
-        var filters = BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
-            state.HasActiveFilters, wide, enabled, !state.FilterPanelHidden,
-            actions.OpenFilters, actions.ToggleFilterPanel);
-        // The phone sheet opens while the list loads, as on Vocabulary, but not while a
+        // Wide: the filter column's show/hide. Otherwise (a phone, the Library split view's
+        // list column) a native menu: sort, type and language, applied at once.
+        var filters = wide
+            ? BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
+                state.HasActiveFilters, wide, enabled, !state.FilterPanelHidden,
+                actions.OpenFilters, actions.ToggleFilterPanel)
+            : BrowserPage.FilterMenu(Prefix, text("Vocabulary_Filters"), state.HasActiveFilters,
+                enabled: true, FilterMenuItems(state, text, actions));
+        // The filter menu opens while the list loads, as on Vocabulary, but not while a
         // starter resource is made or the owner is unknown.
         if (state.StarterBusy || state.Phase == NativeResourceListPhase.Blocked)
             filters.IsEnabled = false;
@@ -106,14 +111,37 @@ internal static class LearningResourcesView
         ];
     }
 
+    /// <summary>The filter menu's items: Sort, Type, Language, and Clear All Filters while one is on.</summary>
+    private static IEnumerable<SwiftView> FilterMenuItems(
+        NativeResourceListState state, Func<string, string> text, LearningResourcesActions actions)
+    {
+        var types = state.Types.IsDefault ? [] : state.Types;
+        var languages = state.Languages.IsDefault ? [] : state.Languages;
+        var items = new List<SwiftView> {
+            BrowserPage.SortMenuSection(Prefix, state.SortField, state.SortDescending, text,
+                actions.Sort),
+            BrowserPage.FilterSubmenu(Prefix, "type", text("NativeResources_TypeFilter"),
+                text("Resources_AllTypes"), types, state.MediaType, actions.FilterType),
+            BrowserPage.FilterSubmenu(Prefix, "language", text("NativeResources_LanguageFilter"),
+                text("Resources_AllLanguages"), languages, state.Language, actions.FilterLanguage),
+        };
+        items.AddRange(BrowserPage.ClearAllMenuItems(Prefix, text, actions.ClearFilters,
+            state.HasActiveFilters));
+        return items;
+    }
+
+    /// <param name="bottom">The bottom search bar (its capsule draws the field's surface).</param>
     private static SwiftView SearchRow(
         NativeResourceListState state, SourceUiStyle style,
-        Func<string, string> text, LearningResourcesActions actions)
+        Func<string, string> text, LearningResourcesActions actions, bool bottom = false)
     {
-        var search = style.TextInput(Views.TextField(
-                text("Resources_SearchPlaceholder"), state.SearchText, actions.Search))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.resources.search");
+        var search = bottom
+            ? BrowserPage.SearchField(style, text("Resources_SearchPlaceholder"), state.SearchText,
+                actions.Search, "native.resources.search")
+            : style.TextInput(Views.TextField(
+                    text("Resources_SearchPlaceholder"), state.SearchText, actions.Search))
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier("native.resources.search");
         search.IsEnabled = state.Phase != NativeResourceListPhase.Blocked
             && !state.StarterBusy;
         // As on Vocabulary: one tap clears the search and the filters.
@@ -130,7 +158,7 @@ internal static class LearningResourcesView
         NativeResourceListState state, string? feedback, SourceUiStyle style,
         Func<string, string> text, LearningResourcesActions actions, double width)
     {
-        var children = new List<SwiftView> { SearchRow(state, style, text, actions) };
+        var children = new List<SwiftView>();
         if (state.Phase is NativeResourceListPhase.Loading or NativeResourceListPhase.Idle)
             children.Add(Views.IndeterminateProgress(text("Common_Loading"))
                 .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
@@ -141,7 +169,10 @@ internal static class LearningResourcesView
                 children.Add(count);
             AddResults(children, state, feedback, style, text, actions, width);
         }
-        return BrowserPage.SingleColumn(Prefix, style, children);
+        // A wide page shows this while it loads: its search stays at the top.
+        var bottom = !BrowserPage.IsWide(width);
+        return BrowserPage.SingleColumn(Prefix, style, children,
+            SearchRow(state, style, text, actions, bottom), width, bottom);
     }
 
     private static SwiftView WideLayout(
@@ -242,7 +273,7 @@ internal static class LearningResourcesView
                             actions.Open, style, list: false)).ToArray())
                     .WithAccessibilityIdentifier("native.resources.grid"));
             else
-                children.Add(ResourceListGroup(resources, text, actions.Open, style));
+                children.Add(ResourceListGroup(resources, text, actions.Open, style, width));
         }
         if (state.StarterBusy)
             children.Add(style.Text(Views.Text(text("Resources_CreatingStarter")),
@@ -281,14 +312,14 @@ internal static class LearningResourcesView
 
     private static SwiftView ResourceListGroup(
         ImmutableArray<NativeResourceItem> resources, Func<string, string> text,
-        Action<string> open, SourceUiStyle style)
+        Action<string> open, SourceUiStyle style, double width)
     {
         var rows = new List<SwiftView>();
         foreach (var resource in resources)
         {
             if (rows.Count != 0)
                 rows.Add(Views.Divider());
-            rows.Add(LearningResourceRowView.Row(resource, text, open, style, list: true));
+            rows.Add(LearningResourceRowView.Row(resource, text, open, style, list: true, width));
         }
         var group = Views.LazyVGrid(1, rows.ToArray())
             .WithAccessibilityIdentifier("native.resources.list");

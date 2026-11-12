@@ -100,9 +100,15 @@ internal static class VocabularyListView
         if (wide)
             shown.Add(BrowserPage.ViewToggle(Prefix, state.ListMode, actions.ToggleListMode,
                 text("Vocabulary_GridView"), text("Vocabulary_ListView"), ready));
-        shown.Add(BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
-            state.Filters.HasActiveFilters, wide, ready, !state.FilterPanelHidden,
-            actions.OpenFilters, actions.ToggleFilterPanel));
+        // Wide: the filter column's show/hide. Otherwise (a phone, the Library split view's list
+        // column) a native menu: sort and every filter, applied at once.
+        shown.Add(wide
+            ? BrowserPage.FiltersButton(Prefix, text("Vocabulary_Filters"),
+                state.Filters.HasActiveFilters, wide, ready, !state.FilterPanelHidden,
+                actions.OpenFilters, actions.ToggleFilterPanel)
+            : BrowserPage.FilterMenu(Prefix, text("Vocabulary_Filters"),
+                state.Filters.HasActiveFilters, enabled: true,
+                FilterMenuItems(state, text, actions)));
         // Captain 2026-11-10: Add (+) on every browse page (source Vocabulary Add).
         if (actions.AddWord is { } addWord)
             // It waits for the list, which reads the resources a new word can join.
@@ -110,15 +116,36 @@ internal static class VocabularyListView
         return shown.ToArray();
     }
 
+    /// <summary>The filter menu's items: Sort, one submenu per filter, and Clear All Filters while one is on.</summary>
+    private static IEnumerable<SwiftView> FilterMenuItems(
+        VocabularyBrowserList state, Func<string, string> text, VocabularyListActions actions)
+    {
+        var items = new List<SwiftView> {
+            BrowserPage.SortMenuSection(Prefix, state.SortField, state.SortDescending, text,
+                actions.Sort)
+        };
+        foreach (var filter in FilterChoices(state, text))
+            items.Add(BrowserPage.FilterSubmenu(Prefix, filter.Type, text(filter.LabelKey),
+                text(filter.AllKey), filter.Values, state.Filters.FilterValue(filter.Type, false),
+                value => actions.ChangeWideFilter(filter.Type, value), filter.ValueLabel));
+        items.AddRange(BrowserPage.ClearAllMenuItems(Prefix, text, actions.ClearFilters,
+            state.Filters.HasActiveFilters));
+        return items;
+    }
+
+    /// <param name="bottom">The bottom search bar (its capsule draws the field's surface).</param>
     private static SwiftView SearchRow(
         VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, VocabularyListActions actions)
+        Func<string, string> text, VocabularyListActions actions, bool bottom = false)
     {
-        var search = style.TextInput(Views.TextField(
-                text("Vocabulary_SearchPlaceholder"),
-                state.Filters.CommittedQuery, actions.Search))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.search");
+        var search = bottom
+            ? BrowserPage.SearchField(style, text("Vocabulary_SearchPlaceholder"),
+                state.Filters.CommittedQuery, actions.Search, "native.vocabulary.search")
+            : style.TextInput(Views.TextField(
+                    text("Vocabulary_SearchPlaceholder"),
+                    state.Filters.CommittedQuery, actions.Search))
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier("native.vocabulary.search");
         var clear = state.Filters.HasActiveFilters
             ? Views.Button(Views.Image("xmark"), actions.ClearFilters)
                 .WithAccessibilityLabel(text("Vocabulary_ClearFilters"))
@@ -132,7 +159,7 @@ internal static class VocabularyListView
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double width)
     {
-        var children = new List<SwiftView> { SearchRow(state, style, text, actions) };
+        var children = new List<SwiftView>();
         if (state.Loading)
             children.Add(Views.IndeterminateProgress(text("Common_Loading"))
                 .WithAccessibilityIdentifier("native.vocabulary.status"));
@@ -148,7 +175,10 @@ internal static class VocabularyListView
         }
         else
             AddResults(children, state, style, text, actions, width, wide: false);
-        return BrowserPage.SingleColumn(Prefix, style, children);
+        // A wide page shows this while it loads: its search stays at the top.
+        var bottom = !BrowserPage.IsWide(width);
+        return BrowserPage.SingleColumn(Prefix, style, children,
+            SearchRow(state, style, text, actions, bottom), width, bottom);
     }
 
     private static SwiftView WideLayout(
@@ -291,9 +321,15 @@ internal static class VocabularyListView
         children.Add(list);
     }
 
-    private static List<SwiftView> FilterFields(
-        VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, Action<string, string?> changed, bool useDraft)
+    /// <summary>
+    /// One filter the page offers: its type, label, "All" label, values (from the catalog) and how
+    /// a value reads. The filter column, the phone sheet and the filter menu share this list.
+    /// </summary>
+    private sealed record FilterChoice(string Type, string LabelKey, string AllKey,
+        IReadOnlyList<string> Values, Func<string, string>? ValueLabel = null);
+
+    private static List<FilterChoice> FilterChoices(
+        VocabularyBrowserList state, Func<string, string> text)
     {
         var words = state.Catalog.Words;
         var resources = state.Catalog.Resources;
@@ -319,23 +355,19 @@ internal static class VocabularyListView
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
-        var fields = new List<SwiftView> {
-            Filter("association", "Vocabulary_Association",
-                "Vocabulary_AllWords", ["associated", "orphaned"], state,
-                style, text, changed, useDraft,
+        var choices = new List<FilterChoice> {
+            new("association", "Vocabulary_Association", "Vocabulary_AllWords",
+                ["associated", "orphaned"],
                 value => text(value == "associated"
                     ? "Vocabulary_Associated" : "Vocabulary_Orphaned")),
-            Filter("type", "NativeResources_TypeFilter", "Vocabulary_FilterTypeAll",
-                ["word", "phrase", "sentence"], state, style, text,
-                changed, useDraft, value => text(value switch {
+            new("type", "NativeResources_TypeFilter", "Vocabulary_FilterTypeAll",
+                ["word", "phrase", "sentence"], value => text(value switch {
                     "word" => "Vocabulary_FilterTypeWord",
                     "phrase" => "Vocabulary_FilterTypePhrase",
                     _ => "Vocabulary_FilterTypeSentence"
                 })),
-            Filter("status", "Vocabulary_StatusLabel", "Vocabulary_AllStatus",
-                ["known", "familiar", "learning", "unknown"], state,
-                style, text, changed, useDraft,
-                value => text(value switch {
+            new("status", "Vocabulary_StatusLabel", "Vocabulary_AllStatus",
+                ["known", "familiar", "learning", "unknown"], value => text(value switch {
                     "known" => "Vocabulary_Known",
                     "familiar" => "Vocabulary_Familiar",
                     "learning" => "Vocabulary_Learning",
@@ -343,32 +375,32 @@ internal static class VocabularyListView
                 }))
         };
         if (resources.Count > 0)
-            fields.Add(Filter("resource", "Vocabulary_ResourceLabel",
-                "Vocabulary_AllResources",
+            choices.Add(new("resource", "Vocabulary_ResourceLabel", "Vocabulary_AllResources",
                 resources.Select(resource => resource.Title)
-                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                state, style, text, changed, useDraft));
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray()));
         if (tags.Length > 0)
-            fields.Add(Filter("tag", "Vocabulary_TagLabel",
-                "Vocabulary_AllTags", tags, state, style, text, changed, useDraft));
+            choices.Add(new("tag", "Vocabulary_TagLabel", "Vocabulary_AllTags", tags));
         if (lemmas.Length > 0)
-            fields.Add(Filter("lemma", "Vocabulary_LemmaLabel",
-                "Vocabulary_AllLemmas", lemmas, state, style, text,
-                changed, useDraft));
+            choices.Add(new("lemma", "Vocabulary_LemmaLabel", "Vocabulary_AllLemmas", lemmas));
         if (languages.Length > 0)
-            fields.Add(Filter("language", "Vocabulary_LanguageLabel",
-                "Vocabulary_AllLanguages", languages, state, style, text,
-                changed, useDraft));
-        fields.Add(Filter("encoding", "Vocabulary_EncodingStrength",
-            "Vocabulary_AllEncoding", ["strong", "good", "basic"],
-            state, style, text, changed, useDraft,
-            value => text(value switch {
+            choices.Add(new("language", "Vocabulary_LanguageLabel", "Vocabulary_AllLanguages",
+                languages));
+        choices.Add(new("encoding", "Vocabulary_EncodingStrength", "Vocabulary_AllEncoding",
+            ["strong", "good", "basic"], value => text(value switch {
                 "strong" => "Vocabulary_Strong",
                 "good" => "Vocabulary_Good",
                 _ => "Vocabulary_Basic"
             })));
-        return fields;
+        return choices;
     }
+
+    private static List<SwiftView> FilterFields(
+        VocabularyBrowserList state, SourceUiStyle style,
+        Func<string, string> text, Action<string, string?> changed, bool useDraft) =>
+        FilterChoices(state, text).Select(choice => Filter(choice.Type, choice.LabelKey,
+                choice.AllKey, choice.Values, state, style, text, changed, useDraft,
+                choice.ValueLabel))
+            .ToList();
 
     private static SwiftView Filter(
         string type, string labelKey, string allKey,

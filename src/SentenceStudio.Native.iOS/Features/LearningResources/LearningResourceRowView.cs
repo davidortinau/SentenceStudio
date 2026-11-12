@@ -17,7 +17,8 @@ internal static class LearningResourceRowView
         Func<string, string> text,
         Action<string> open,
         SourceUiStyle style,
-        bool list)
+        bool list,
+        double? width = null)
     {
         var title = string.IsNullOrWhiteSpace(resource.Title)
             ? text("NativeResources_Untitled") : resource.Title;
@@ -49,20 +50,19 @@ internal static class LearningResourceRowView
             .WithAccessibilityIdentifier(
                 $"{NativeAccess.ResourceRow}.{resource.Id}.created");
         SwiftView label;
-        if (list)
+        // A list row follows the page's own width (a split view's list column is narrow): the
+        // type and language beside the title only where they fit; otherwise under it, as a
+        // two-line native list row.
+        if (list && SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth))
         {
-            SwiftView[] contents = SourceUiLayout.ShowResourceListMetadata(style.ViewportWidth)
-                ? [
-                    icon,
-                    name,
-                    style.Text(Views.Text(media), SourceTextRole.Small,
-                            SourceTextTone.Secondary)
-                        .WithAccessibilityIdentifier(
-                            $"{NativeAccess.ResourceRow}.{resource.Id}.metadata"),
-                    time
-                ]
-                : [icon, name, time];
-            label = Views.HStack(contents);
+            label = Views.HStack(
+                icon,
+                name,
+                style.Text(Views.Text(media), SourceTextRole.Small,
+                        SourceTextTone.Secondary)
+                    .WithAccessibilityIdentifier(
+                        $"{NativeAccess.ResourceRow}.{resource.Id}.metadata"),
+                time);
         }
         else
         {

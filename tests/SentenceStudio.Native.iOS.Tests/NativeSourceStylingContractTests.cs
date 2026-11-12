@@ -51,13 +51,15 @@ public sealed class NativeSourceStylingContractTests
         var form = Source("Features/LearningResources/LearningResourceView.cs");
         // Captain 2026-11-10: the Resources page is the shared browse layout; its scroll content
         // owns the gutter (BrowserPage.SingleColumn), as on Vocabulary.
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom);", browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
             browser);
         var browse = Source("Features/Browse/BrowserPage.cs");
         Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))", browse);
-        Assert.Contains("return Views.Scroll(content).WithAccessibilityIdentifier($\"{prefix}.scroll\");",
+        Assert.Contains("var scroll = Views.Scroll(content).WithAccessibilityIdentifier($\"{prefix}.scroll\");",
+            browse);
+        Assert.Contains("return Views.BottomInset(scroll, BottomSearchBar(prefix, style, searchRow, gutter));",
             browse);
         Assert.Contains("style.Page(Views.Scroll(content)", form);
         Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll.content\")",
@@ -182,7 +184,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("GridColumns(width, style.TextScale, !state.FilterPanelHidden)", browser);
         Assert.Contains("return effective < 600 ? 1 : effective < 1000 ? 2 : 3;", browser);
         Assert.Contains("return SourceUiLayout.ResourceColumns(width);", browser);
-        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style));",
+        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style, width));",
             browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("if (rows.Count != 0)\n                rows.Add(Views.Divider());",
@@ -190,7 +192,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("group.Spacing = 0;", browser);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             browser);
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom);", browser);
         Assert.Contains("return BrowserPage.Wide(Prefix, style,", browser);
         Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,", row);
         Assert.DoesNotContain("Views.List(", browser);

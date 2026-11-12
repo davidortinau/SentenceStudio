@@ -20,7 +20,8 @@ public sealed class NativeSwiftUIResourceContractTests
         // iOS tab shell trial: Resources is the Library's first page.
         Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
         Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
-        Assert.Contains("\"native.library.row.resources\"", Source("App/ApplicationScene.Library.cs"));
+        Assert.Contains("$\"{prefix}.row.resources\"", Source("App/ApplicationScene.Library.cs"));
+        Assert.Contains("string prefix = \"native.library\"", Source("App/ApplicationScene.Library.cs"));
         Assert.Contains("_libraryStack.Push(ApplicationFormRoutes.LibraryResources,",
             Source("App/ApplicationScene.Library.cs"));
 
@@ -325,11 +326,11 @@ public sealed class NativeSwiftUIResourceContractTests
             resources);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             resources);
-        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style));",
+        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style, width));",
             resources);
         Assert.DoesNotContain("Views.List(", resources);
         Assert.Contains("Views.Button(label, () => open(resource.Id))", row);
-        Assert.Contains("SourceUiLayout.ShowResourceListMetadata(style.ViewportWidth)",
+        Assert.Contains("SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth)",
             row);
         Assert.Equal(1, row.Split(".WithLineLimit(1)",
             StringSplitOptions.None).Length - 1);
@@ -377,16 +378,17 @@ public sealed class NativeSwiftUIResourceContractTests
     public void ResourceListRows_KeepPhoneTitleAndDateWithoutGridMetadataOrCardChrome()
     {
         var row = Source("Features/LearningResources/LearningResourceRowView.cs");
-        var list = row[row.IndexOf("if (list)\n        {\n            SwiftView[] contents",
+        // A list row follows its own column's width: the type and language beside the title
+        // where they fit, otherwise under it (a split view's narrow list column).
+        var list = row[row.IndexOf(
+                "if (list && SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth))",
                 StringComparison.Ordinal)
-            ..row.IndexOf("\n        else\n        {\n            label = Views.HStack",
-                StringComparison.Ordinal)];
+            ..row.IndexOf("label.WithFlexibleWidth();", StringComparison.Ordinal)];
 
-        Assert.Contains("SourceUiLayout.ShowResourceListMetadata(style.ViewportWidth)",
-            list);
+        Assert.Contains("label = Views.HStack(\n                icon,\n                name,", list);
         Assert.Contains("style.Text(Views.Text(media), SourceTextRole.Small,", list);
-        Assert.Contains(": [icon, name, time];", list);
-        Assert.Contains("label = Views.HStack(contents);", list);
+        Assert.Contains("label = Views.HStack(icon,\n                Views.VStack(\n                    name,", list);
+        Assert.Contains("double? width = null)", row);
         Assert.Contains("list ? SourceTextRole.ListTitle : SourceTextRole.Title3", row);
         Assert.Contains("sourceHeading: !list)\n            .WithLineLimit(1)", row);
         Assert.Equal(1, row.Split(".WithLineLimit(",

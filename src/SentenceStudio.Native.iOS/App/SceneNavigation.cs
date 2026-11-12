@@ -53,11 +53,10 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
 
     /// <summary>The open item fills the window (the person chose Full screen).</summary>
     private bool _fullScreen;
-    private bool _sidebarReasserted;
 
     /// <param name="sidebar">The sidebar column (the Library's list of places).</param>
     /// <param name="placeRoutes">The routes of the places, whose pages fill the content column.</param>
-    /// <param name="contentPlaceholder">What the content column shows while no place is open.</param>
+    /// <param name="contentPlaceholder">What the content column shows while no place is open (the places).</param>
     /// <param name="detailPlaceholder">What the detail column shows while no item is open.</param>
     /// <param name="routesChanged">The person's Back changed the path (as a stack reports it).</param>
     /// <param name="enterFullScreenLabel">The full-screen button's name while the columns show.</param>
@@ -81,6 +80,8 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         _detailStack = Views.NavigationStack(_detailRoot, OnDetailRoutesChanged);
         Split = Views.NavigationSplitView(sidebar, _contentSlot, _detailStack,
             OnVisibilityChanged, OnCompactColumnChanged);
+        // The sidebar is a drawer over the columns, never a fixed column beside them.
+        Split.WithSplitViewStyle(SwiftSplitViewStyle.Automatic);
         ShowColumns();
     }
 
@@ -167,18 +168,6 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     /// </summary>
     private void OnVisibilityChanged(SwiftSplitViewVisibility visibility)
     {
-        // SwiftUI hides the sidebar on its first layout in a narrower regular width (iPad
-        // portrait, the iPhone Duo's inner display). With nothing open the sidebar is how a place
-        // is chosen, so it is shown again once, after that layout pass.
-        if (_path.Count == 0 && visibility != SwiftSplitViewVisibility.All && !_sidebarReasserted)
-        {
-            _sidebarReasserted = true;
-            CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
-            {
-                if (_path.Count == 0)
-                    Split.SplitColumnVisibility = SwiftSplitViewVisibility.All;
-            });
-        }
         if (_fullScreen && visibility != SwiftSplitViewVisibility.DetailOnly)
         {
             _fullScreen = false;
@@ -268,19 +257,16 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     }
 
     /// <summary>
-    /// Nothing open: every column side by side (balanced), so the sidebar is fixed open to
-    /// choose a place. A page open: the sidebar tucks away and its toolbar button brings it back
-    /// as a drawer over the screen (the automatic style); full screen, or a page that fills the
-    /// detail column on its own, shows only that column. In a compact width the deepest open
-    /// level is the column on top.
+    /// The list and detail columns show; the sidebar is a drawer behind its toolbar button.
+    /// With nothing open the content column's placeholder is the list of places itself (Captain
+    /// 2026-11-12: "I expected to see it where the list appears"), so choosing one needs no
+    /// drawer. Full screen, or a page that fills the detail column on its own, shows only that
+    /// column. In a compact width the deepest open level is the column on top.
     /// </summary>
     private void ShowColumns()
     {
-        Split.WithSplitViewStyle(_path.Count == 0
-            ? SwiftSplitViewStyle.Balanced : SwiftSplitViewStyle.Automatic);
-        Split.SplitColumnVisibility = _path.Count == 0 ? SwiftSplitViewVisibility.All
-            : _startsInDetail || (_fullScreen && _detailPage is not null)
-                ? SwiftSplitViewVisibility.DetailOnly
+        Split.SplitColumnVisibility = _startsInDetail || (_fullScreen && _detailPage is not null)
+            ? SwiftSplitViewVisibility.DetailOnly
             : SwiftSplitViewVisibility.DoubleColumn;
         UpdateFullScreenButton();
         Split.PreferredCompactColumn = _path.Count == 0 ? SwiftSplitViewColumn.Sidebar

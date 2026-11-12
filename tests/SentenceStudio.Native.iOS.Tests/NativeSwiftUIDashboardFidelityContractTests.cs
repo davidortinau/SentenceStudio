@@ -77,10 +77,11 @@ public sealed class NativeSwiftUIDashboardFidelityContractTests
         // Source NavMenu Minimal Pairs: the Library list's Minimal Pairs row (tab shell trial),
         // after Vocabulary as in the source sidebar.
         var library = Source("App/ApplicationScene.Library.cs");
-        Assert.Contains("\"native.library.row.minimal-pairs\"", library);
-        Assert.True(library.IndexOf("\"native.library.row.vocabulary\"", StringComparison.Ordinal)
-            < library.IndexOf("\"native.library.row.minimal-pairs\"", StringComparison.Ordinal));
-        Assert.Contains("\"native.library.list\"", library);
+        Assert.Contains("$\"{prefix}.row.minimal-pairs\"", library);
+        Assert.True(library.IndexOf("$\"{prefix}.row.vocabulary\"", StringComparison.Ordinal)
+            < library.IndexOf("$\"{prefix}.row.minimal-pairs\"", StringComparison.Ordinal));
+        Assert.Contains("$\"{prefix}.list\"", library);
+        Assert.Contains("string prefix = \"native.library\"", library);
         var entries = Source("App/ApplicationController.Library.cs");
         Assert.Contains("_dashboard.SelectNavigationEntry()", entries);
         Assert.Contains(".FromChooseOwnAsync(selection, NativeActivityCatalog.MinimalPairs, _lifetime.Token)",

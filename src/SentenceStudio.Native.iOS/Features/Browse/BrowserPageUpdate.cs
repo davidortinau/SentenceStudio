@@ -30,7 +30,7 @@ internal sealed class BrowserPageUpdate
         Regions =
         [
             ($"{prefix}.search.row", 1),
-            ($"{prefix}.scroll.content", 1),
+            ($"{prefix}.scroll.content", 0),
             ($"{prefix}.filters.panel.content", 0),
             ($"{prefix}.results.header", headerKeep),
             ($"{prefix}.results.content", 1),
@@ -127,9 +127,54 @@ internal sealed class BrowserPageUpdate
         }
     }
 
+    /// <summary>
+    /// The filter menu keeps its node: its symbol, availability and label follow, and each
+    /// submenu's choice and option titles and each item's title take the new values (the
+    /// outline already matched, so the menus hold the same items).
+    /// </summary>
+    private static void CopyMenuState(SwiftView menu, SwiftView next)
+    {
+        if (menu.IsEnabled != next.IsEnabled)
+            menu.IsEnabled = next.IsEnabled;
+        if (menu.AccessibilityLabel != next.AccessibilityLabel)
+            menu.WithAccessibilityLabel(next.AccessibilityLabel);
+        CopyItems(menu, next);
+
+        static void CopyItems(SwiftView node, SwiftView fresh)
+        {
+            for (var index = 0; index < node.Children.Count && index < fresh.Children.Count; index++)
+            {
+                var child = node.Children[index];
+                var nextChild = fresh.Children[index];
+                if (child.Kind != nextChild.Kind)
+                    continue;
+                if (child.Kind == "image")
+                {
+                    if (child.SystemImageName != nextChild.SystemImageName)
+                        child.SystemImageName = nextChild.SystemImageName;
+                    continue;
+                }
+                if (child.Text != nextChild.Text)
+                    child.Text = nextChild.Text;
+                if (child.IsEnabled != nextChild.IsEnabled)
+                    child.IsEnabled = nextChild.IsEnabled;
+                if (child.Kind == "button" && child.AccessibilitySelected != nextChild.AccessibilitySelected)
+                    child.WithAccessibilitySelected(nextChild.AccessibilitySelected);
+                if (child.Kind == "picker" && child.SelectedIndex != nextChild.SelectedIndex)
+                    child.SelectedIndex = nextChild.SelectedIndex;
+                CopyItems(child, nextChild);
+            }
+        }
+    }
+
     /// <summary>Copies a rebuilt toolbar button's look and state onto the mounted one.</summary>
     private static void CopyButtonState(SwiftView button, SwiftView next)
     {
+        if (button.Kind == "menu" && next.Kind == "menu")
+        {
+            CopyMenuState(button, next);
+            return;
+        }
         if (button.Kind != "button" || next.Kind != "button")
             return;
         if (button.IsEnabled != next.IsEnabled)

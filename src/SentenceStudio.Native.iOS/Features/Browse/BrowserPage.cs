@@ -118,6 +118,97 @@ internal static class BrowserPage
         return button;
     }
 
+    /// <summary>
+    /// Filters as a native menu from the toolbar (Captain 2026-11-12: "a native menu popover
+    /// like the native apps"): Sort, then one submenu per filter with a checkmark on its choice,
+    /// applied at once, and Clear All Filters while one is on. The symbol is filled while a
+    /// filter is on.
+    /// </summary>
+    internal static SwiftView FilterMenu(string prefix, string label, bool active, bool enabled,
+        IEnumerable<SwiftView> items)
+    {
+        var menu = Views.Menu(Views.Image(active
+                    ? "line.3.horizontal.decrease.circle.fill"
+                    : "line.3.horizontal.decrease.circle"),
+                items.ToArray())
+            .WithAccessibilityLabel(label)
+            .WithAccessibilityIdentifier($"{prefix}.filters.open");
+        menu.IsEnabled = enabled;
+        return menu;
+    }
+
+    /// <summary>The filter menu's Sort section: Added and Updated, the chosen one with its direction.</summary>
+    internal static SwiftView SortMenuSection(string prefix, string field, bool descending,
+        Func<string, string> text, Action<string> changed)
+    {
+        SwiftView Item(string sort, string labelKey) =>
+            Views.Button(field == sort
+                    ? $"{text(labelKey)} {(descending ? "↓" : "↑")}" : text(labelKey),
+                    () => changed(sort))
+                .WithAccessibilitySelected(field == sort)
+                .WithAccessibilityIdentifier($"{prefix}.sort.{sort}");
+        return Views.Section(text("Vocabulary_SortLabel"),
+                Item("added", "Vocabulary_SortAdded"), Item("updated", "Vocabulary_SortUpdated"))
+            .WithAccessibilityIdentifier($"{prefix}.sort");
+    }
+
+    /// <summary>
+    /// One filter as a submenu of the filter menu: "All" (<paramref name="allLabel"/>) then the
+    /// <paramref name="values"/>, a checkmark on the chosen one; a <paramref name="selected"/>
+    /// value the list no longer has stays choosable.
+    /// </summary>
+    internal static SwiftView FilterSubmenu(string prefix, string type, string label,
+        string allLabel, IReadOnlyList<string> values, string? selected,
+        Action<string?> changed, Func<string, string>? valueLabel = null)
+    {
+        var known = values.Count;
+        if (!string.IsNullOrWhiteSpace(selected)
+            && !values.Any(value => value.Equals(selected, StringComparison.OrdinalIgnoreCase)))
+            values = [.. values, selected];
+        var options = new[] { allLabel }
+            .Concat(values.Select((value, index) =>
+                index < known ? valueLabel?.Invoke(value) ?? value : value))
+            .ToArray();
+        var index = values
+            .Select((value, position) => (value, position))
+            .FirstOrDefault(item => item.Item1.Equals(selected, StringComparison.OrdinalIgnoreCase),
+                (string.Empty, -1)).Item2 + 1;
+        SwiftView? picker = null;
+        picker = Views.Picker(label, options, index, selection =>
+            {
+                if (selection <= 0)
+                {
+                    changed(null);
+                    return;
+                }
+                // The menu updates in place and keeps this handler, so a catalog list (whose
+                // option titles are its values) reads the mounted options, not this build's
+                // list. A labelled list (association, status...) has fixed values.
+                if (valueLabel is null && picker is { } mounted
+                    && selection < mounted.Children.Count)
+                    changed(mounted.Children[selection].Text);
+                else
+                    changed(selection <= values.Count ? values[selection - 1] : null);
+            })
+            .WithPickerStyle(SwiftPickerStyle.Menu)
+            .WithAccessibilityIdentifier($"{prefix}.filter.{type}");
+        return picker;
+    }
+
+    /// <summary>
+    /// The filter menu's Clear All Filters, after a divider: always there (unavailable while no
+    /// filter is on), so the menu keeps its shape and the page updates in place as the person
+    /// types.
+    /// </summary>
+    internal static IEnumerable<SwiftView> ClearAllMenuItems(string prefix,
+        Func<string, string> text, Action clear, bool enabled)
+    {
+        var button = Views.Button(text("Vocabulary_ClearFilters"), clear)
+            .WithAccessibilityIdentifier($"{prefix}.filters.clear");
+        button.IsEnabled = enabled;
+        return [Views.Divider(), button];
+    }
+
     // ------------------------------------------------------------------ filter fields
 
     /// <summary>Added and Updated, the chosen one marked with its direction (Captain 2026-11-09).</summary>
@@ -199,17 +290,59 @@ internal static class BrowserPage
         return row;
     }
 
-    /// <summary>The phone page, and the wide page while it loads or cannot show its items.</summary>
+    /// <summary>
+    /// The phone page (and the list column of the Library split view), and the wide page while
+    /// it loads or cannot show its items: one scrolling column with the search bar at the
+    /// bottom, in reach of the thumb, as in Notes and Mail (Captain 2026-11-12).
+    /// </summary>
+    /// <param name="width">The page's own width (a split view's list column is narrow).</param>
+    /// <param name="searchAtBottom">
+    /// False for a wide page while it loads: its search stays at the top, where the loaded
+    /// wide page has it.
+    /// </param>
     internal static SwiftView SingleColumn(string prefix, SourceUiStyle style,
-        IEnumerable<SwiftView> children)
+        IEnumerable<SwiftView> children, SwiftView searchRow, double width, bool searchAtBottom)
     {
+        var gutter = SourceUiLayout.PageGutter(width);
         var content = Views.VStack(children.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
+            .WithPadding(gutter)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier($"{prefix}.scroll.content");
         content.Spacing = SourceUiLayout.PageGap;
-        return Views.Scroll(content).WithAccessibilityIdentifier($"{prefix}.scroll");
+        var scroll = Views.Scroll(content).WithAccessibilityIdentifier($"{prefix}.scroll");
+        if (!searchAtBottom)
+        {
+            var top = Views.VStack(searchRow.WithPadding(gutter, gutter, 0, gutter), scroll)
+                .WithFlexibleWidth();
+            top.Spacing = 0;
+            return top;
+        }
+        return Views.BottomInset(scroll, BottomSearchBar(prefix, style, searchRow, gutter));
     }
+
+    /// <summary>A rounded search bar: a magnifying glass, then the search row (field and clear).</summary>
+    private static SwiftView BottomSearchBar(string prefix, SourceUiStyle style,
+        SwiftView searchRow, double gutter)
+    {
+        var appearance = style.Appearance;
+        var bar = Views.HStack(
+                Views.Image("magnifyingglass")
+                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
+                searchRow)
+            .WithFlexibleWidth();
+        bar.Spacing = 8;
+        // The capsule sets its own inner padding on its node, so the gutter goes on a host.
+        return Views.VStack(style.ComposerCapsule(bar))
+            .WithPadding(6, gutter, 10, gutter)
+            .WithAccessibilityIdentifier($"{prefix}.search.bar");
+    }
+
+    /// <summary>The search field in the bottom bar: the capsule draws its surface.</summary>
+    internal static SwiftView SearchField(SourceUiStyle style, string placeholder, string text,
+        Action<string> changed, string id) =>
+        style.ComposerField(Views.TextField(placeholder, text, changed))
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier(id);
 
     /// <summary>
     /// The wide page: the filter column (when shown) and a divider, then the results: the search

@@ -502,7 +502,8 @@ public sealed class NativeSkillsContractTests
         // The Library list's Skills row pushes the Skills page (tab shell trial).
         Assert.Contains("LibraryRow(LibrarySection.Skills, \"target\", \"Nav_Skills\",",
             Read("App/ApplicationScene.Library.cs"));
-        Assert.Contains("\"native.library.row.skills\"", Read("App/ApplicationScene.Library.cs"));
+        Assert.Contains("$\"{prefix}.row.skills\"", Read("App/ApplicationScene.Library.cs"));
+        Assert.Contains("string prefix = \"native.library\"", Read("App/ApplicationScene.Library.cs"));
         // The Resources page has no More menu; the Library list reaches Skills.
         Assert.DoesNotContain("openSkills", resources);
         Assert.Contains("Views.LazyVGrid(", list);

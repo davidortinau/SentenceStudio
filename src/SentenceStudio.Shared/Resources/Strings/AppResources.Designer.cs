@@ -9823,15 +9823,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Choose a place in your library.
-        /// </summary>
-        internal static string Library_ChooseSection {
-            get {
-                return ResourceManager.GetString("Library_ChooseSection", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Exit full screen.
         /// </summary>
         internal static string Library_ExitFullScreen {

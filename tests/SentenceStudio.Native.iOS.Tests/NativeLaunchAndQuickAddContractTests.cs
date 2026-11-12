@@ -49,9 +49,9 @@ public sealed class NativeLaunchAndQuickAddContractTests
     public void QuickAddOpensTheExistingCreateFlowsBelowTheLibraryList()
     {
         var library = Source("App/ApplicationScene.Library.cs");
-        Assert.Contains("if (QuickAddGrid() is { } quickAdd)", library);
+        Assert.Contains("if (QuickAddGrid(prefix) is { } quickAdd)", library);
         Assert.Contains("Views.Section(_app.Localize(\"Library_QuickAdd\"), grid)", library);
-        Assert.Contains("$\"native.library.quickadd.{item.Id}\"", library);
+        Assert.Contains("$\"{prefix}.quickadd.{item.Id}\"", library);
         Assert.Contains(".WithButtonStyle(SwiftButtonStyle.Plain)", library);
         // Two: the Library list is the split view's sidebar, a narrow column (as on iPhone).
         Assert.Contains("private static int QuickAddColumns(int count) => 2;", library);

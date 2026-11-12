@@ -58,8 +58,11 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("FilterFields(state, style, text, actions.Change, useDraft: true);", view);
         Assert.Contains("var words = state.Catalog.Words;", view);
         Assert.Contains("var resources = state.Catalog.Resources;", view);
+        // The filter column, the phone sheet and the filter menu share one list of choices.
+        Assert.Contains("FilterChoices(state, text).Select(choice => Filter(choice.Type,", view);
+        Assert.Contains("foreach (var filter in FilterChoices(state, text))", view);
         foreach (var type in new[] { "resource", "tag", "lemma", "language" })
-            Assert.Contains($"fields.Add(Filter(\"{type}\"", view);
+            Assert.Contains($"choices.Add(new(\"{type}\"", view);
     }
 
     [Fact]
@@ -92,7 +95,8 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("if (mounted.Shape != fresh.Shape)", update);
         Assert.Contains("Vocabulary = new(\"native.vocabulary\", headerKeep: 1);", update);
         Assert.Contains("($\"{prefix}.search.row\", 1),", update);
-        Assert.Contains("($\"{prefix}.scroll.content\", 1),", update);
+        // The search bar sits below the scroll (Captain 2026-11-12), so the content keeps no rows.
+        Assert.Contains("($\"{prefix}.scroll.content\", 0),", update);
         Assert.Contains("($\"{prefix}.results.header\", headerKeep),", update);
         Assert.Contains("($\"{prefix}.results.content\", 1),", update);
         // Another sort or grid/list choice mounts a new page, so the results start at the top.
