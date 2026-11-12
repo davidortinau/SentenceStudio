@@ -228,6 +228,24 @@ page." Sources: `src/SentenceStudio.UI/Pages/Resources.razor`, `Vocabulary.razor
 | 70 | Vocabulary's "+" (and "Add your first word" on an empty page) opens the source's add-word form: title "Add Word", one plain "Add" toolbar action, no More menu, no Find Duplicates, encoding strength, Reference Sentences, progress or history; every resource of the learner as a checkbox (smart resources shown but not choosable); a new word starts in the learner's target language (Korean when none is set) as a Word, and when the search found nothing its words start the target term (as the source). The "+" waits while the list loads (it reads the resources to choose from), and an open form follows a reload's resources. Add refuses a duplicate of the learner's own word and keeps the form | Same form; the source's header also has an Add item in its More menu, and its add form lists the resources as checkboxes | Captain 2026-11-10 (row 67's selected-only list stays the edit form's) |
 | 71 | The Resources list uses the Vocabulary layout: phone, one column with the search row, then the count, sync line and cards or list; Filters opens a sheet with Sort (Added/Updated), Type and Language, applied together by Apply and dropped by Cancel. From 768 pt, a fixed filter column (Sort, Type, Language, Clear All Filters while one is on; applied at once) beside the results, whose search stays put above their own scroll. The toolbar holds grid/list (at every width, since the phone list differs from its one-column grid), Filters (filled while a type or language filter is on) and "+". Smart resources stay first; the rest sort by Updated, newest first, by default (the source's order); the sort, the column's shown or hidden state and grid/list are remembered on the device. The search row's clear button clears the search and the filters | Search, then a row with two filter menus and the grid/list button group, all in one page scroll; no sort | Captain 2026-11-10 |
 
+## Library as a split view (iOS, 2026-11-12)
+
+The Captain asked to restructure the Library tab as a split view for the iPhone Duo and iPad while
+slab iPhones keep working as before ("yes, restructure the library tab as split view. Keep in mind
+we also run this on traditional slab iPhones so it needs to continue working well there"). He chose
+the layouts from the mockups at https://claude.ai/artifact/VhbBTqawm9DysM2CwHWfeP: an adaptive
+sidebar (C), tabs kept in the tab bar with a Library-only drawer, and a resource's details first
+leading into its words (G, then H). Code: `src/SentenceStudio.Native.iOS/App/SceneNavigation.cs`
+(`LibrarySplitNavigation`), `App/ApplicationScene.Library.cs`; bridge preview.47
+(`NavigationSplitView`, `SwiftTabViewStyle.TabBarOnly`) and preview.48
+(`WithTabBarHiddenInCompactWidth`).
+
+| # | Departure | Original behavior | Decision |
+|---|---|---|---|
+| 72 | The Library tab is a three-column split view: its sidebar lists Resources, Vocabulary, Skills and Minimal Pairs (and quick add), the open place's page fills the middle column, and the open item (a word, resource or skill editor) fills the right column; deeper pages push on the right column. The sidebar shows while nothing is open and tucks away once a place is open; its button brings it back over the screen. A compact width (slab iPhone, folded iPhone Duo) collapses it to the original stack: the Library list, then the page, then the editor, with Back as before | One stack: the Library list pushes a page, the page pushes its editor | Captain 2026-11-12 |
+| 73 | The app's tabs use the tab-bar-only style: no app sidebar on iPad; on the iPhone Duo the system places the tab bar at the side | Sidebar-adaptable tabs (an app sidebar on iPad) | Captain 2026-11-12 |
+| 74 | Beside the list in a regular width, an editor keeps the tab bar; it still hides the tab bar in a compact width | Editors hide the tab bar | Captain 2026-11-12 (tabs stay in the tab bar) |
+
 ## Kept exactly like the original (also your call)
 
 | # | Behavior | Possible change | Decision |

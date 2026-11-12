@@ -9417,6 +9417,18 @@
     <value>빠른 추가</value>
     <comment>Library list: heading of the grid of create buttons (new resource, skill profile, minimal pair). Draft translation, needs review.</comment>
   </data>
+  <data name="Library_ChooseSection" xml:space="preserve">
+    <value>라이브러리에서 볼 곳을 선택하세요</value>
+    <comment>Library split view: the middle column before a place is chosen. Draft translation, needs review.</comment>
+  </data>
+  <data name="Library_ChooseItem" xml:space="preserve">
+    <value>항목을 선택하면 여기에 표시됩니다</value>
+    <comment>Library split view: the right column before a resource, word or skill is chosen. Draft translation, needs review.</comment>
+  </data>
+  <data name="VocabWordEdit_SaveBeforeOpeningAnother" xml:space="preserve">
+    <value>다른 단어를 열기 전에 이 단어의 변경 사항을 저장하거나 되돌리세요.</value>
+    <comment>Word editor beside the list: another word was chosen while this one has unsaved changes. Draft translation, needs review.</comment>
+  </data>
   <data name="NativeSam_SlotChecking" xml:space="preserve">
     <value>{0} 사용 가능 여부를 확인하는 중...</value>
     <comment>Sam's tab slot: availability is being read after a tap. {0} is Sam's name.</comment>

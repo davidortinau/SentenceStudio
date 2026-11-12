@@ -285,7 +285,7 @@ public sealed class NativeSourceStylingContractTests
         var library = Source("App/ApplicationScene.Library.cs");
         var libraryTitle = library[library.IndexOf("_libraryRoot = _libraryListSlot",
             StringComparison.Ordinal)
-            ..library.IndexOf("_libraryStack = Views.NavigationStack(",
+            ..library.IndexOf("_librarySplit = new LibrarySplitNavigation(",
                 StringComparison.Ordinal)];
         Assert.Contains(".WithNavigationTitle(_app.Localize(\"Nav_Library\"))", libraryTitle);
         Assert.Contains(".WithInlineNavigationTitle()", libraryTitle);

@@ -81,7 +81,7 @@ internal sealed partial class ApplicationScene
     /// The channel page (source /media-import/channel/{Id?}), pushed above the YouTube import page.
     /// A form with Save and Cancel: the tab bar hides, as for the other Library editors.
     /// </summary>
-    private void UpdateYouTubeChannel(SwiftView stack, bool appearanceChanged)
+    private void UpdateYouTubeChannel(ISceneNavigation stack, bool appearanceChanged)
     {
         const string route = ApplicationYouTubeRoutes.YouTubeChannel;
         if (_app.IsYouTubeChannelOpen)

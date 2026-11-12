@@ -366,6 +366,19 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         }
     }
 
+    /// <summary>
+    /// The open editor holds changes that are not saved: a new word with any term typed, or an
+    /// existing word whose draft differs from the one it loaded.
+    /// </summary>
+    internal bool HasUnsavedEdits => _formOpen && _draft is { } draft
+        && (_creating
+            ? !string.IsNullOrWhiteSpace(draft.TargetTerm) || !string.IsNullOrWhiteSpace(draft.NativeTerm)
+            : _detail is { } detail && !SameDraft(detail.Draft, draft));
+
+    private static bool SameDraft(NativeVocabularyEditDraft loaded, NativeVocabularyEditDraft current) =>
+        current with { ResourceIds = loaded.ResourceIds } == loaded
+        && loaded.ResourceIds.SequenceEqual(current.ResourceIds, StringComparer.Ordinal);
+
     internal async Task OpenWordAsync(string id)
     {
         if (!_listOpen || _saving || !TryOwner(out var owner)
@@ -373,6 +386,15 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         if (!_formOpen && !_catalog.Words.Any(word => word.Id == id))
             return;
+        // Beside the list (the iPad and iPhone Duo split view) another word can be chosen while
+        // one is open: unsaved edits stay, and the editor says to save them first.
+        if (_formOpen && !string.Equals(id, _selectedWordId, StringComparison.Ordinal)
+            && HasUnsavedEdits)
+        {
+            _editErrorKey = "VocabWordEdit_SaveBeforeOpeningAnother";
+            Notify(VocabularyChanges.Form);
+            return;
+        }
         _selectedWordId = id;
         var generation = Interlocked.Increment(ref _formGeneration);
         ResetExamples();

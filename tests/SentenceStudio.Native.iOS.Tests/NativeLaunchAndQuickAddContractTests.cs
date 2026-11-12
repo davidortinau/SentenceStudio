@@ -53,7 +53,10 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.Contains("Views.Section(_app.Localize(\"Library_QuickAdd\"), grid)", library);
         Assert.Contains("$\"native.library.quickadd.{item.Id}\"", library);
         Assert.Contains(".WithButtonStyle(SwiftButtonStyle.Plain)", library);
-        Assert.Contains("NativeDeviceIdiom.IsPhone || _style.ViewportWidth < 600 ? 2 : Math.Clamp(count, 2, 4)", library);
+        // Two: the Library list is the split view's sidebar, a narrow column (as on iPhone).
+        Assert.Contains("private static int QuickAddColumns(int count) => 2;", library);
+        // The sidebar can show beside an open page: a tile closes it first, as Back would.
+        Assert.Contains("Views.Button(content, () => OpenLibraryQuickAdd(item))", library);
 
         var controller = Source("App/ApplicationController.Library.cs");
         Assert.Contains("new(\"resource\", \"doc.badge.plus\", \"Resources_AddResource\",", controller);

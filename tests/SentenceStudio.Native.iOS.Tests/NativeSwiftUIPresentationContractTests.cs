@@ -57,7 +57,12 @@ public sealed class NativeSwiftUIPresentationContractTests
 
         Assert.Contains("Views.TabView(_app.SelectedTab", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
-        Assert.Contains("Views.NavigationStack(_libraryRoot", Source("App/ApplicationScene.Library.cs"));
+        Assert.Contains("new LibrarySplitNavigation(_libraryRoot", Source("App/ApplicationScene.Library.cs"));
+        // The split view keeps a stack's path and Back rules, so the pages' code is unchanged.
+        var navigation = Source("App/SceneNavigation.cs");
+        Assert.Contains("Views.NavigationSplitView(sidebar, _contentSlot, _detailStack,", navigation);
+        Assert.Contains("_routesChanged(NavigationPath);", navigation);
+        Assert.Contains("if (!_canNavigateBack)", navigation);
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_libraryStack.Push(\"resource-form\"", scene);
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);

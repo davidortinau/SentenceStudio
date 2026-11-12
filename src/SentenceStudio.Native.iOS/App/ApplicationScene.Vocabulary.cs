@@ -53,7 +53,7 @@ internal sealed partial class ApplicationScene
     private SwiftView? _lookupsSlot;
     private int _renderedLookupsVersion = -1;
 
-    private void UpdateRecentLookups(SwiftView stack, bool appearanceChanged)
+    private void UpdateRecentLookups(ISceneNavigation stack, bool appearanceChanged)
     {
         if (_app.IsRecentLookupsOpen && _lookupsSlot is null
             && stack.NavigationPath.Count == 1 && _vocabularyWordSlot is null)

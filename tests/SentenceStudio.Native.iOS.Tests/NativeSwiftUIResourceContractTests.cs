@@ -348,9 +348,9 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("private const string ViewModeKey = \"resources-view-mode\"", presenter);
         Assert.Contains("Views.TextField(", resources);
         Assert.Contains("Search: Search,", coordinator);
-        // Resources is the Library's first page on the Library stack.
+        // Resources is the Library's first page: the split view's middle column.
         var library = Source("App/ApplicationScene.Library.cs");
-        Assert.Contains("_libraryStack = Views.NavigationStack(_libraryRoot,", library);
+        Assert.Contains("_librarySplit = new LibrarySplitNavigation(_libraryRoot,", library);
         Assert.Contains("_resourcesSlot = Views.VStack(_app.RenderResources(_style))", library);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot,", scene + library);
         // One freshness path: the list is read again when its source moved since its last

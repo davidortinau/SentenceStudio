@@ -35,7 +35,7 @@ internal sealed partial class ApplicationScene
     private NativeSamPanelSize? _renderedSamSize;
     private double _samDetent;
 
-    private readonly List<(SwiftView Stack, string Route, SwiftView Slot, Func<bool>? TabBarShown)> _samToolbars = [];
+    private readonly List<(object Owner, Func<IReadOnlyList<string>> Path, string Route, SwiftView Slot, Func<bool>? TabBarShown)> _samToolbars = [];
 
     /// <summary>
     /// Source MainLayout mounts Sam on every signed-in page. Wherever the tab bar shows, Sam
@@ -55,13 +55,21 @@ internal sealed partial class ApplicationScene
     /// pushed before Sam's availability loads still gets the entry.
     /// </remarks>
     private SwiftView WithSamToolbar(SwiftView stack, string route, SwiftView page,
-        Func<bool>? tabBarShown = null)
+        Func<bool>? tabBarShown = null) =>
+        WithSamToolbar(stack, () => stack.NavigationPath, route, page, tabBarShown);
+
+    private SwiftView WithSamToolbar(ISceneNavigation navigation, string route, SwiftView page,
+        Func<bool>? tabBarShown = null) =>
+        WithSamToolbar(navigation, () => navigation.NavigationPath, route, page, tabBarShown);
+
+    private SwiftView WithSamToolbar(object owner, Func<IReadOnlyList<string>> path, string route,
+        SwiftView page, Func<bool>? tabBarShown)
     {
-        _samToolbars.RemoveAll(entry => ReferenceEquals(entry.Stack, stack)
+        _samToolbars.RemoveAll(entry => ReferenceEquals(entry.Owner, owner)
             && string.Equals(entry.Route, route, StringComparison.Ordinal));
         var slot = Views.VStack();
         slot.Spacing = 0;
-        _samToolbars.Add((stack, route, slot, tabBarShown));
+        _samToolbars.Add((owner, path, route, slot, tabBarShown));
         return Views.Overlay(page, slot, SwiftOverlayEdge.Top);
     }
 
@@ -71,7 +79,7 @@ internal sealed partial class ApplicationScene
     /// </summary>
     private void UpdateSamToolbars()
     {
-        _samToolbars.RemoveAll(entry => !entry.Stack.NavigationPath.Contains(entry.Route));
+        _samToolbars.RemoveAll(entry => !entry.Path().Contains(entry.Route));
         var available = _app.IsSamAvailable;
         var enabled = _app.IsSamEntryVisible;
         var label = SamView.EntryLabel(_app.SamState, _app.Localize);

@@ -86,7 +86,7 @@ internal sealed partial class ApplicationScene
     /// A result row's word editor, pushed above the results (an editor: the tab bar hides;
     /// Save, Cancel or Back closes it and the results show again).
     /// </summary>
-    private void UpdateImportWord(SwiftView stack, bool appearanceChanged)
+    private void UpdateImportWord(ISceneNavigation stack, bool appearanceChanged)
     {
         const string route = ApplicationImportRoutes.ImportWord;
         if (_app.IsImportWordOpen)

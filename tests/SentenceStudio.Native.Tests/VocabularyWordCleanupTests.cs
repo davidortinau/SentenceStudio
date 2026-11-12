@@ -98,6 +98,40 @@ public sealed class VocabularyWordCleanupTests
     }
 
     [Fact]
+    public async Task Browser_KeepsUnsavedEditsWhenAnotherWordIsChosenBesideTheList()
+    {
+        // The iPad and iPhone Duo split view shows the list beside an open word, so another word
+        // can be chosen while one has unsaved changes: they stay, and the editor says to save.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var first = fixture.WordId(UserA, 1);
+        var second = fixture.WordId(UserA, 2);
+        await browser.OpenWordAsync(first);
+        Assert.False(browser.HasUnsavedEdits);
+
+        // Unchanged: another word opens.
+        await browser.OpenWordAsync(second);
+        Assert.Equal(second, browser.EditState.Detail!.Word.Id);
+
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.NativeTerm), "edited meaning");
+        Assert.True(browser.HasUnsavedEdits);
+        await browser.OpenWordAsync(first);
+        Assert.Equal(second, browser.EditState.Detail!.Word.Id);
+        Assert.Equal("edited meaning", browser.EditState.Draft!.NativeTerm);
+        Assert.Equal("VocabWordEdit_SaveBeforeOpeningAnother", browser.EditState.ErrorKey);
+
+        // Undoing the edit by hand lets the other word open.
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.NativeTerm),
+            browser.EditState.Detail!.Draft.NativeTerm);
+        Assert.False(browser.HasUnsavedEdits);
+        await browser.OpenWordAsync(first);
+        Assert.Equal(first, browser.EditState.Detail!.Word.Id);
+    }
+
+    [Fact]
     public async Task Browser_DeleteAsksFirstThenReturnsToTheListWithoutTheWord()
     {
         using var fixture = new NativeSliceFixture();

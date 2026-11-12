@@ -15,7 +15,8 @@ namespace SentenceStudio.Native.iOS.App;
 /// </summary>
 internal sealed partial class ApplicationScene
 {
-    private SwiftView? _libraryStack;
+    private ISceneNavigation? _libraryStack;
+    private LibrarySplitNavigation? _librarySplit;
     private SwiftView? _libraryRoot;
     private SwiftView? _libraryListSlot;
     private string? _renderedLibraryList;
@@ -43,8 +44,60 @@ internal sealed partial class ApplicationScene
         _libraryRoot = _libraryListSlot
             .WithNavigationTitle(_app.Localize("Nav_Library"))
             .WithInlineNavigationTitle();
-        _libraryStack = Views.NavigationStack(_libraryRoot, OnLibraryRoutesChanged);
-        return _libraryStack;
+        // The Library as a split view (Captain 2026-11-12): its four places in the sidebar,
+        // the open place's list in the middle and the open item on the right. A compact width
+        // (a slab iPhone, the folded iPhone Duo) collapses it to one column at a time.
+        _librarySplit = new LibrarySplitNavigation(_libraryRoot, LibraryPlaceRoutes,
+            ContentPlaceholder(), DetailPlaceholder(), OnLibraryRoutesChanged);
+        _libraryStack = _librarySplit;
+        return _librarySplit.Split.WithAccessibilityIdentifier("native.library.split");
+    }
+
+    /// <summary>The places' pages, which fill the split view's content column.</summary>
+    private static readonly IReadOnlySet<string> LibraryPlaceRoutes = new HashSet<string>(
+        [ApplicationFormRoutes.LibraryResources, ApplicationFormRoutes.Vocabulary,
+            ApplicationFormRoutes.Skills, ApplicationFormRoutes.MinimalPairs],
+        StringComparer.Ordinal);
+
+    private SwiftView ContentPlaceholder() =>
+        ColumnPlaceholder("Library_ChooseSection", "native.library.content.placeholder");
+
+    private SwiftView DetailPlaceholder() =>
+        ColumnPlaceholder("Library_ChooseItem", "native.library.detail.placeholder");
+
+    /// <summary>What an empty split view column says (centered, secondary text).</summary>
+    private SwiftView ColumnPlaceholder(string key, string id)
+    {
+        var appearance = _style.Appearance;
+        var placeholder = Views.VStack(
+                _style.Text(Views.Text(_app.Localize(key)), SourceTextRole.Body1, SourceTextTone.Secondary)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center))
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithFlexibleHeight()
+            .WithBackgroundColor(appearance.BodyBackground.Light, appearance.BodyBackground.Dark)
+            .WithAccessibilityIdentifier(id);
+        return placeholder;
+    }
+
+    /// <summary>The place the Library has open, for the sidebar's selection.</summary>
+    private LibrarySection? OpenLibrarySection =>
+        _app.IsLibraryResourcesOpen ? LibrarySection.Resources
+        : _app.IsVocabularyOpen ? LibrarySection.Vocabulary
+        : _app.IsSkillsOpen ? LibrarySection.Skills
+        : _app.IsLibraryPairsOpen ? LibrarySection.Pairs
+        : null;
+
+    /// <summary>
+    /// A sidebar row: in the split view the sidebar stays in view, so choosing another place
+    /// first leaves the open one (as Back would; nothing happens while Back is blocked).
+    /// </summary>
+    private void SelectLibrarySection(LibrarySection page)
+    {
+        if (OpenLibrarySection == page)
+            return;
+        if (_librarySplit is { } split && split.NavigationPath.Count > 0 && !split.PopAllAsBack())
+            return;
+        _app.OpenLibraryPage(page);
     }
 
     /// <summary>
@@ -52,13 +105,12 @@ internal sealed partial class ApplicationScene
     /// the quick-add grid's column count (its buttons are fixed).
     /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
 
     private const double QuickAddTileHeight = 84;
 
-    /// <summary>Two columns on iPhone; on a wider page one per button, up to four.</summary>
-    private int QuickAddColumns(int count) =>
-        NativeDeviceIdiom.IsPhone || _style.ViewportWidth < 600 ? 2 : Math.Clamp(count, 2, 4);
+    /// <summary>Two columns: the Library list is the split view's sidebar, a narrow column (as on iPhone).</summary>
+    private static int QuickAddColumns(int count) => 2;
 
     /// <summary>
     /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
@@ -113,7 +165,7 @@ internal sealed partial class ApplicationScene
                 .WithMinimumHeight(QuickAddTileHeight);
             content.Spacing = 6;
             // Plain: each button in the shared list row takes only its own taps.
-            var button = Views.Button(content, item.Open)
+            var button = Views.Button(content, () => OpenLibraryQuickAdd(item))
                 .WithButtonStyle(SwiftButtonStyle.Plain)
                 .WithAccessibilityLabel(title)
                 .WithAccessibilityIdentifier($"native.library.quickadd.{item.Id}");
@@ -125,31 +177,54 @@ internal sealed partial class ApplicationScene
         return Views.Section(_app.Localize("Library_QuickAdd"), grid);
     }
 
-    /// <summary>A list row: symbol, title, the count when it is already loaded, and a chevron.</summary>
+    /// <summary>
+    /// A quick-add tile: the sidebar can show beside an open page, so the open page closes
+    /// first (as Back would; nothing happens while Back is blocked), then the create flow opens.
+    /// </summary>
+    private void OpenLibraryQuickAdd(ApplicationController.LibraryQuickAddItem item)
+    {
+        if (_librarySplit is { } split && split.NavigationPath.Count > 0 && !split.PopAllAsBack())
+            return;
+        item.Open();
+    }
+
+    /// <summary>
+    /// A list row: symbol, title, the count when it is already loaded, and a chevron. The open
+    /// place's row is marked in the sidebar: its title and symbol in the accent color, bold,
+    /// and a checkmark in place of the chevron (not color alone), and selected for VoiceOver.
+    /// </summary>
     private SwiftView LibraryRow(LibrarySection page, string symbol, string titleKey,
         int? count, string id)
     {
         var appearance = _style.Appearance;
         var title = _app.Localize(titleKey);
+        var selected = OpenLibrarySection == page;
         var items = new List<SwiftView>
         {
             Views.Image(symbol)
                 .WithFixedSymbolSize(20)
                 .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark),
-            _style.Text(Views.Text(title), SourceTextRole.Body1).WithFlexibleWidth(),
+            _style.Text(Views.Text(title), SourceTextRole.Body1,
+                selected ? SourceTextTone.Primary : SourceTextTone.Body,
+                strongElement: selected).WithFlexibleWidth(),
         };
         if (count is { } total)
             items.Add(_style.Text(Views.Text(total.ToString(CultureInfo.CurrentCulture)),
                 SourceTextRole.Body1, SourceTextTone.Secondary));
-        items.Add(Views.Image("chevron.right")
-            .WithFixedSymbolSize(13)
-            .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark));
+        items.Add(selected
+            ? Views.Image("checkmark")
+                .WithFixedSymbolSize(15)
+                .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+            : Views.Image("chevron.right")
+                .WithFixedSymbolSize(13)
+                .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark));
         // The list row itself keeps the 44-point minimum; no extra height, as in Settings.
         var row = Views.HStack(items.ToArray()).WithFlexibleWidth();
         row.Spacing = 12;
-        return Views.Button(row, () => _app.OpenLibraryPage(page))
+        return Views.Button(row, () => SelectLibrarySection(page))
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
+            .WithAccessibilitySelected(selected)
             .WithAccessibilityLabel(count is { } shown
                 ? string.Create(CultureInfo.CurrentCulture, $"{title}, {shown}") : title)
             .WithAccessibilityIdentifier(id);
@@ -182,6 +257,9 @@ internal sealed partial class ApplicationScene
             Replace(_libraryListSlot, LibraryList());
             _renderedLibraryList = key;
         }
+        // The empty columns' text follows the theme, text size and language too.
+        if (appearanceChanged)
+            _librarySplit?.ReplacePlaceholders(ContentPlaceholder(), DetailPlaceholder());
         UpdateLibraryResources(appearanceChanged);
         UpdateLibraryPairs(appearanceChanged);
         UpdateLibraryImport(appearanceChanged);

@@ -34,7 +34,8 @@ public sealed class NativeSwiftUIDashboardContractTests
         var samScene = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationScene.Sam.cs"));
         Assert.Contains("notice.Text = _app.SamSlotNoticeText;", samScene);
         Assert.DoesNotContain("DispatchAfter", samScene);
-        Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable)", scene);
+        // Tabs only (Captain 2026-11-12): the Library's split view has its own sidebar.
+        Assert.Contains(".WithTabViewStyle(SwiftTabViewStyle.TabBarOnly)", scene);
         // iPhone: the tab bar (Sam's slot with it) minimizes while a page scrolls down.
         Assert.Contains("if (NativeDeviceIdiom.IsPhone)\n"
             + "            _tabs.WithTabBarMinimizeBehavior(SwiftTabBarMinimizeBehavior.OnScrollDown);", scene);
@@ -52,7 +53,7 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("if (crossedDesktopBreakpoint)", scene);
         Assert.Contains("if (_dashboardSlot is not null)", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet,", scene);
-        Assert.Contains("Views.NavigationStack(_libraryRoot,", library);
+        Assert.Contains("new LibrarySplitNavigation(_libraryRoot,", library);
         Assert.Contains("Views.NavigationStack(_settingsSlot,", scene);
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);

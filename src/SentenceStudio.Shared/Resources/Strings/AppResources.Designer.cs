@@ -9814,6 +9814,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Choose an item to see it here.
+        /// </summary>
+        internal static string Library_ChooseItem {
+            get {
+                return ResourceManager.GetString("Library_ChooseItem", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose a place in your library.
+        /// </summary>
+        internal static string Library_ChooseSection {
+            get {
+                return ResourceManager.GetString("Library_ChooseSection", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Quick add.
         /// </summary>
         internal static string Library_QuickAdd {
@@ -22472,6 +22490,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_ResourcesSelected {
             get {
                 return ResourceManager.GetString("VocabWordEdit_ResourcesSelected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save or undo your changes to this word before opening another..
+        /// </summary>
+        internal static string VocabWordEdit_SaveBeforeOpeningAnother {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_SaveBeforeOpeningAnother", resourceCulture);
             }
         }
 

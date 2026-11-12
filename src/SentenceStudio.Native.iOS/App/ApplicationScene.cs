@@ -300,7 +300,9 @@ internal sealed partial class ApplicationScene : IDisposable
                 Views.Tab(localize("Settings_Title"), "gearshape", _settingsStack)
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
-            .WithTabViewStyle(SwiftTabViewStyle.SidebarAdaptable);
+            // Tabs only (Captain 2026-11-12): the tabs stay in the tab bar (at the side on the
+            // iPhone Duo); the Library's split view has its own sidebar of its places.
+            .WithTabViewStyle(SwiftTabViewStyle.TabBarOnly);
         // iOS 26 on iPhone: the tab bar shrinks while a page scrolls down (Sam's slot with
         // it) and returns on scroll up or a tap.
         if (NativeDeviceIdiom.IsPhone)
@@ -970,6 +972,7 @@ internal sealed partial class ApplicationScene : IDisposable
             _dashboardStack = null;
             DropResourcesReferences();
             _libraryStack = null;
+            _librarySplit = null;
             _libraryRoot = null;
             _libraryListSlot = null;
             _renderedLibraryList = null;
