@@ -146,9 +146,9 @@ internal sealed partial class ApplicationController : IDisposable
         _skills?.IsDeleteConfirmationPresented == true;
     internal bool IsSkillDeletePending => _skills?.IsDeletePending == true;
     internal long SkillsListVersion => _skills?.ListVersion ?? -1;
-    internal string SkillsSearchText => _skills?.ListState.Search ?? string.Empty;
+    internal string SkillsSearchText => _skills?.SearchText ?? string.Empty;
     /// <summary>The Skills title's subtitle: "Archived" while the archive shows, else none.</summary>
-    internal string SkillsSubtitle => _skills?.ListState.Archived == true
+    internal string SkillsSubtitle => _skills?.ShowingArchived == true
         ? Text("Skills_ShowArchived") : string.Empty;
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
@@ -266,6 +266,8 @@ internal sealed partial class ApplicationController : IDisposable
             }
 #endif
             EnsureResources();
+            // The Library rows' counts, ready if Library is (or becomes) the page shown.
+            RefreshLibraryCounts();
             if (_authState.UserId is { Length: > 0 } owner)
             {
                 var profile = await _services!.Provider
@@ -846,8 +848,6 @@ internal sealed partial class ApplicationController : IDisposable
         try
         {
             await action();
-            // Archive, Restore and Delete change the Skills row's count.
-            RefreshLibraryCounts();
         }
         catch (Exception ex)
         {
@@ -855,6 +855,9 @@ internal sealed partial class ApplicationController : IDisposable
             OnLibraryActionFailed();
             Publish();
         }
+        // Archive, Restore and Delete change the Skills row's count (a side read: it never
+        // reports the action as failed).
+        RefreshLibraryCounts();
     }
 
     /// <summary>

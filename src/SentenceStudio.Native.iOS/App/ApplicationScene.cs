@@ -896,7 +896,8 @@ internal sealed partial class ApplicationScene : IDisposable
             }
             if (_skillsSlot is not null && _app.IsSkillsOpen)
             {
-                Replace(_skillsSlot, _app.RenderSkillsList(_style));
+                // Drawn again for the new width; the search field keeps its focus.
+                UpdateSkillsList(replaceAll: true);
                 _renderedSkillsListVersion = _app.SkillsListVersion;
             }
             if (_activityLogSlot is not null && _app.IsActivityLogOpen)

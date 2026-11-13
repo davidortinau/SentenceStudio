@@ -214,11 +214,11 @@ internal sealed partial class ApplicationController
     /// successful read started after the latest sync. Never read, failed and pre-sync reads
     /// are read again; a fresh list is not read twice.
     /// </summary>
-    /// <summary>Library shows: its resources when stale, and the other rows' counts.</summary>
+    /// <summary>Library shows: its resources, and the other rows' counts, when stale.</summary>
     private void ReadResourcesIfStale()
     {
         _resources?.ReadListIfStale();
-        RefreshLibraryCounts();
+        RefreshLibraryCountsIfStale();
     }
 
     /// <summary>

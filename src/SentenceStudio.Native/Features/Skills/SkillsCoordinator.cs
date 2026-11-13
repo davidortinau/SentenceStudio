@@ -114,16 +114,30 @@ internal sealed class SkillsCoordinator : IDisposable
         Notify(list: true);
     }
 
+    private (IReadOnlyList<SkillProfile> Source, string Search, IReadOnlyList<SkillProfile> Result)? _matching;
+
+    /// <summary>The matching skills, filtered once per list and search (the state is read often).</summary>
     private IReadOnlyList<SkillProfile> Matching()
     {
+        if (_matching is { } cached && ReferenceEquals(cached.Source, _profiles)
+            && cached.Search == _search)
+            return cached.Result;
         var query = _search.Trim();
-        return query.Length == 0 ? _profiles
+        IReadOnlyList<SkillProfile> result = query.Length == 0 ? _profiles
             : _profiles.Where(profile =>
                     (profile.Title ?? string.Empty).Contains(query, StringComparison.CurrentCultureIgnoreCase)
                     || (profile.Description ?? string.Empty).Contains(query,
                         StringComparison.CurrentCultureIgnoreCase))
                 .ToArray();
+        _matching = (_profiles, _search, result);
+        return result;
     }
+
+    /// <summary>The search field's text (without building the whole state).</summary>
+    internal string SearchText => _search;
+
+    /// <summary>The archive shows (without building the whole state).</summary>
+    internal bool ShowingArchived => _showArchived;
 
     /// <summary>A row's swipe Delete is asking to confirm (never while it runs).</summary>
     internal bool IsListDeletePresented => _open && _askingListDelete is not null;

@@ -26,9 +26,9 @@ public sealed class NativeLibraryCounts(IServiceScopeFactory scopes)
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var words = await db.VocabularyWords.AsNoTracking().OwnedBy(owner)
             .CountAsync(cancellationToken);
-        var skills = await db.SkillProfiles.AsNoTracking()
-            .CountAsync(skill => skill.UserProfileId == owner && !skill.IsArchived,
-                cancellationToken);
+        // The repository's own active-skill rule (the one the dashboard counts by).
+        var skills = await scope.ServiceProvider.GetRequiredService<SkillProfileRepository>()
+            .CountActiveSkillsAsync(owner, cancellationToken);
         var pairs = await NativeMinimalPairStore.OwnedPairs(db, owner).AsNoTracking()
             .CountAsync(cancellationToken);
         return new(words, skills, pairs);
