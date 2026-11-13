@@ -22,6 +22,7 @@ public sealed class NativeLibraryNotesStyleContractTests
     {
         var browse = Source("Features/Browse/BrowserPage.cs");
         Assert.Contains(".WithSearchPlacement(SwiftSearchPlacement.BottomBar)", browse);
+        Assert.Contains(".WithSearchKeepingToolbar()", browse);
     }
 
     [Fact]

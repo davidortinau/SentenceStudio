@@ -319,6 +319,9 @@ internal static class BrowserPage
                     search.Changed, search.Tokens, search.TokensChanged)
                 // In the bottom toolbar, as in Notes; it rises above the keyboard while typing.
                 .WithSearchPlacement(SwiftSearchPlacement.BottomBar)
+                // Filters, grid/list and Add stay usable while searching (Captain 2026-11-12:
+                // "once I tap into the search field I can no longer use the filters").
+                .WithSearchKeepingToolbar()
                 .WithAccessibilityIdentifier($"{prefix}.search");
     }
 
