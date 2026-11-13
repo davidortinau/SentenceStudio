@@ -18,8 +18,14 @@ internal sealed partial class ApplicationController
 
     internal bool IsVocabularyOpen => _vocabulary?.IsOpen == true;
     internal bool IsVocabularyWordOpen => _vocabulary?.IsFormOpen == true;
+    /// <summary>The count under the Vocabulary title.</summary>
+    internal string VocabularySubtitle => _vocabulary?.ListSubtitle ?? string.Empty;
+
+    /// <summary>The Vocabulary row's count in the Library list: the owner's words once read.</summary>
+    internal int? LibraryVocabularyCount => _vocabulary?.KnownWordCount;
+
     internal bool IsVocabularyFilterPresented =>
-        _vocabulary?.IsPhoneFilterPresented == true;
+        _vocabulary?.IsFilterSheetPresented == true;
     internal long VocabularyListVersion => _vocabulary?.ListVersion ?? -1;
     internal long VocabularyFormVersion => _vocabulary?.FormVersion ?? -1;
     internal long VocabularySheetVersion => _vocabulary?.SheetVersion ?? -1;
@@ -184,7 +190,7 @@ internal sealed partial class ApplicationController
         ?? Views.Text(Text("Common_Loading"));
 
     internal void CancelVocabularyFilters() =>
-        _vocabulary?.CancelPhoneFilters();
+        _vocabulary?.CancelFilterSheet();
 
     internal void OnVocabularyListPopped() =>
         _vocabulary?.OnListPopped();

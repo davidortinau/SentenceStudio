@@ -59,7 +59,8 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("var words = state.Catalog.Words;", view);
         Assert.Contains("var resources = state.Catalog.Resources;", view);
         // The filter column, the phone sheet and the filter menu share one list of choices.
-        Assert.Contains("FilterChoices(state, text).Select(choice => Filter(choice.Type,", view);
+        Assert.Contains("FilterChoices(state, text).Select(choice =>", view);
+        Assert.Contains(": Filter(choice.Type, choice.LabelKey,", view);
         Assert.Contains("foreach (var filter in FilterChoices(state, text))", view);
         foreach (var type in new[] { "resource", "tag", "lemma", "language" })
             Assert.Contains($"choices.Add(new(\"{type}\"", view);

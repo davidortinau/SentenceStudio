@@ -114,6 +114,7 @@ internal partial class VocabularyBrowser
                 // The row goes now, not after the reload: it can no longer be swiped.
                 _catalog = _catalog with { Words = _catalog.Words
                     .Where(entry => entry.Id != word.Id).ToArray() };
+                RememberWordCount(owner);
                 if (openWord && _formOpen
                     && string.Equals(_selectedWordId, word.Id, StringComparison.Ordinal))
                 {

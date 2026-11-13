@@ -61,4 +61,33 @@ public sealed class NativeVocabularyListContractTests
         Assert.Contains("_store.DeleteOwnedVocabularyAsync(\n                owner, word.Id, _lifetimeToken)",
             Source("SentenceStudio.Native/Features/Vocabulary/VocabularyBrowser.ListDelete.cs"));
     }
+
+    [Fact]
+    public void LongListsNeverBuildEveryRowOrMenuItem()
+    {
+        // 2026-11-12: 4,466 words and 2,908 lemmas held Duotopia past the background redraw
+        // watchdog (0x8BADF00D) on every switch away.
+        var view = ListView;
+        Assert.Contains("state.ShownWords.Select(word =>\n                ListRow(", view);
+        Assert.Contains("state.ShownWords.Select(word =>\n                    Card(", view);
+        Assert.DoesNotContain("state.FilteredWords.Select(word =>", view);
+        Assert.Contains("internal const int InlineValueLimit = 30;", view);
+        Assert.Contains("? ChooserMenuItem(filter, state, text, actions.ChooseFilterValue!)", view);
+        Assert.Contains("matches.Take(ChooserRowLimit)", view);
+        Assert.Contains("Views.Searchable(rows, text(\"Common_Search\"), query, search)", view);
+        Assert.Contains("return Views.NavigationStack(page);", view);
+        var coordinator = Source("SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.Contains("ChooseFilterValue: OpenChooser),", coordinator);
+        Assert.Contains("ShowMoreRows: ShowMoreRows,", coordinator);
+    }
+
+    [Fact]
+    public void TheCountIsTheTitlesSubtitleAndTheLibraryRowsCount()
+    {
+        var scene = Source("SentenceStudio.Native.iOS/App/ApplicationScene.Vocabulary.cs");
+        Assert.Contains(".WithNavigationSubtitle(_app.VocabularySubtitle)", scene);
+        Assert.Contains("_vocabularySlot.WithNavigationSubtitle(_app.VocabularySubtitle);", scene);
+        Assert.Contains("_app.LibraryVocabularyCount, \"native.library.row.vocabulary\"",
+            Source("SentenceStudio.Native.iOS/App/ApplicationScene.Library.cs"));
+    }
 }

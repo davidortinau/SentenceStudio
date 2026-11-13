@@ -9711,4 +9711,12 @@
     <value>문장과 번역은 각각 500자까지 입력할 수 있습니다.</value>
     <comment>Reference sentences: the sentence or translation is longer than 500 characters</comment>
   </data>
+  <data name="Vocabulary_ChooserMore" xml:space="preserve">
+    <value>{0}개가 더 있습니다. 검색해서 찾으세요.</value>
+    <comment>Under a long filter's choices: how many more values match</comment>
+  </data>
+  <data name="Vocabulary_WordCount" xml:space="preserve">
+    <value>단어 {0}개</value>
+    <comment>Under the Vocabulary title: how many words the learner has</comment>
+  </data>
 </root>

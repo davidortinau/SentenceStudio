@@ -32,13 +32,19 @@ public sealed class VocabularyBrowserTests
     }
 
     [Fact]
-    public async Task Browser_FiltersPersistPerOwnerAndClearRestoresAllWords()
+    public async Task Browser_FiltersApplyAndClearButAnotherVisitStartsUnfiltered()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.Activate(NativeSliceFixture.UserA);
+        var key = $"vocabulary_query_{NativeSliceFixture.UserA}";
+        // A query an earlier build saved is not restored (Captain 2026-11-12).
+        fixture.Preferences.Set(key, "status:known");
         using var browser = Create(fixture);
         Assert.True(await browser.OpenAsync(NativeSliceFixture.UserA));
+        Assert.False(browser.ListState.Filters.HasActiveFilters);
+        Assert.Equal(4, browser.ListState.FilteredWords.Count);
+        Assert.Equal(4, browser.KnownWordCount);
 
         browser.OpenPhoneFilters();
         browser.ChangeFilter("status", "known", live: false);
@@ -46,13 +52,45 @@ public sealed class VocabularyBrowserTests
         Assert.Equal(4, browser.ListState.FilteredWords.Count);
         browser.ApplyPhoneFilters();
         Assert.Empty(browser.ListState.FilteredWords);
-        Assert.Equal("status:known", fixture.Preferences.Get(
-            $"vocabulary_query_{NativeSliceFixture.UserA}", string.Empty));
 
         browser.ClearFilters();
         Assert.Equal(4, browser.ListState.FilteredWords.Count);
-        Assert.Equal(string.Empty, fixture.Preferences.Get(
-            $"vocabulary_query_{NativeSliceFixture.UserA}", "unset"));
+
+        browser.ChangeFilter("status", "known", live: true);
+        browser.Close();
+        Assert.True(await browser.OpenAsync(NativeSliceFixture.UserA));
+        Assert.False(browser.ListState.Filters.HasActiveFilters);
+        Assert.Equal(4, browser.ListState.FilteredWords.Count);
+    }
+
+    [Fact]
+    public async Task Browser_ShowsRowsAPageAtATimeAndStartsAgainForANewSearch()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(NativeSliceFixture.UserA));
+        Assert.Equal(VocabularyBrowser.RowPage, browser.ListState.RowLimit);
+        Assert.Equal(0, browser.ListState.HiddenWordCount);
+
+        browser.ShowMoreRows();
+        Assert.Equal(2 * VocabularyBrowser.RowPage, browser.ListState.RowLimit);
+        browser.ChangeFilter("status", "known", live: true);
+        Assert.Equal(VocabularyBrowser.RowPage, browser.ListState.RowLimit);
+
+        browser.ShowMoreRows();
+        browser.SetSort("updated");
+        Assert.Equal(VocabularyBrowser.RowPage, browser.ListState.RowLimit);
+        browser.ShowMoreRows();
+        browser.SetListMode(!browser.ListMode);
+        Assert.Equal(VocabularyBrowser.RowPage, browser.ListState.RowLimit);
+
+        browser.ClearFilters();
+        var state = browser.ListState with { RowLimit = 2 };
+        Assert.Equal(4, state.FilteredWords.Count);
+        Assert.Equal(2, state.ShownWords.Count());
+        Assert.Equal(state.FilteredWords.Count - 2, state.HiddenWordCount);
     }
 
     [Fact]

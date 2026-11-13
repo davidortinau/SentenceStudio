@@ -75,7 +75,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     internal SwiftView RenderList(SourceUiStyle style)
     {
         _drawnPageWidth = PageWidth ?? style.ViewportWidth;
-        return VocabularyListView.Page(ListState, style, Text,
+        var state = _drawnList = ListState;
+        return VocabularyListView.Page(state, style, Text,
             new VocabularyListActions(
                 Search: Search,
                 OpenFilters: OpenPhoneFilters,
@@ -100,7 +101,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 RequestDelete: RequestListDelete,
                 ConfirmDelete: () => Run(ConfirmListDeleteAsync),
                 CancelDelete: CancelListDeleteLater,
-                Study: StudyWord),
+                Study: StudyWord,
+                ShowMoreRows: ShowMoreRows,
+                ChooseFilterValue: OpenChooser),
             PageWidth, ListDeleteMessage);
     }
 
@@ -153,7 +156,128 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
         Publish(list: true, form: false, sheet: false);
     }
 
-    internal SwiftView RenderFilterSheet(SourceUiStyle style) =>
+    /// <summary>
+    /// The count under the Vocabulary title (Captain 2026-11-12: "We are missing the count", as
+    /// Resources has): the owner's words, or how many of them match while a search or filter
+    /// is on. Empty while the list loads or cannot show. Read from the state the list was last
+    /// drawn with, so a redraw filters the words once.
+    /// </summary>
+    internal string ListSubtitle
+    {
+        get
+        {
+            if (_drawnList is not { } state || state.Loading || state.Blocked
+                || state.ErrorKey is not null)
+                return string.Empty;
+            var total = state.Catalog.Words.Count;
+            return state.Filters.HasActiveFilters
+                ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Text("Vocabulary_StatsTotal"), state.FilteredWords.Count, total)
+                : string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Text("Vocabulary_WordCount"), total);
+        }
+    }
+
+    /// <summary>The list state the page was last drawn with.</summary>
+    private VocabularyBrowserList? _drawnList;
+
+    /// <summary>The long filter whose chooser sheet is open (lemma, tag, resource...), its values read when it opened, and the choice then.</summary>
+    private VocabularyListView.FilterChoice? _chooser;
+    private string _chooserCurrent = string.Empty;
+    private string _chooserQuery = string.Empty;
+    /// <summary>The open chooser's list, refilled in place as its search changes.</summary>
+    private SwiftView? _chooserRows;
+    private SourceUiStyle? _chooserStyle;
+
+    /// <summary>The filter sheet shows: the phone filters, or a long filter's chooser.</summary>
+    internal bool IsFilterSheetPresented => IsOpen && (IsPhoneFilterPresented || _chooser is not null);
+
+    private void OpenChooser(string type)
+    {
+        if (IsDisposed || !IsOpen || IsNavigationBlocked)
+            return;
+        var state = ListState;
+        if (VocabularyListView.Choice(state, Text, type) is not { } choice)
+            return;
+        _chooser = choice;
+        _chooserCurrent = state.Filters.FilterValue(type, false);
+        _chooserQuery = string.Empty;
+        Publish(list: false, form: false, sheet: true);
+    }
+
+    /// <summary>The list closed or its owner was refused: a chooser left open goes with it.</summary>
+    protected override void OnListReset() => DropChooser();
+
+    private void DropChooser()
+    {
+        _chooser = null;
+        _chooserRows = null;
+        _chooserStyle = null;
+        _chooserQuery = string.Empty;
+    }
+
+    /// <summary>The chooser's Cancel, its choice, or the sheet dismissed; the phone filters cancel as before.</summary>
+    internal void CancelFilterSheet()
+    {
+        if (_chooser is not null)
+        {
+            DropChooser();
+            Publish(list: false, form: false, sheet: true);
+            return;
+        }
+        CancelPhoneFilters();
+    }
+
+    private void ChooseValue(string? value)
+    {
+        if (_chooser is not { } chooser)
+            return;
+        ChangeWideFilter(chooser.Type, value);
+        CancelFilterSheet();
+    }
+
+    /// <summary>
+    /// The chooser's search: its list refills in place (the field keeps focus), from the values
+    /// read when it opened (no pass over the words per keystroke).
+    /// </summary>
+    private void SearchChooser(string query)
+    {
+        _chooserQuery = query ?? string.Empty;
+        if (IsDisposed || _chooser is not { } chooser || _chooserRows is not { } rows
+            || _chooserStyle is not { } style)
+            return;
+        var fresh = VocabularyListView.ChooserRows(chooser, _chooserCurrent, _chooserQuery,
+            style, Text, ChooseValue);
+        while (rows.Children.Count > 0)
+        {
+            var old = rows.Children[0];
+            rows.RemoveAt(0);
+            old.Dispose();
+        }
+        foreach (var row in fresh)
+            rows.Add(row);
+    }
+
+    internal SwiftView RenderFilterSheet(SourceUiStyle style)
+    {
+        if (_chooser is { } chooser && IsOpen)
+        {
+            _chooserStyle = style;
+            var sheet = VocabularyListView.Chooser(chooser, _chooserCurrent, _chooserQuery, style,
+                Text, SearchChooser, ChooseValue, CancelFilterSheet, out var rows);
+            _chooserRows = rows;
+            return sheet;
+        }
+        _chooserRows = null;
+        // Nothing while no sheet shows: the sheet's content is built even while hidden, and the
+        // phone filters list every lemma, tag and resource as picker options (thousands of
+        // views; 2026-11-12 they grew the app by hundreds of MB on each sheet change). The
+        // phone filters open only from the Filters button, which a phone does not show.
+        return IsPhoneFilterPresented ? RenderPhoneFilterSheet(style)
+            : Microsoft.SwiftUI.SwiftUI.VStack().WithAccessibilityIdentifier("native.vocabulary.filters.empty");
+    }
+
+    private SwiftView RenderPhoneFilterSheet(SourceUiStyle style) =>
         VocabularyListView.PhoneFilterSheet(ListState, style, Text,
             new VocabularyFilterActions(
                 Change: (type, value) => ChangeFilter(type, value, live: false),

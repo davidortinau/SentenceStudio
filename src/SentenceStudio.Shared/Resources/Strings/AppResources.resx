@@ -10374,4 +10374,12 @@ For example: {0} ...</value>
     <value>A sentence and its translation can each be up to 500 characters.</value>
     <comment>Reference sentences: the sentence or translation is longer than 500 characters</comment>
   </data>
+  <data name="Vocabulary_ChooserMore" xml:space="preserve">
+    <value>{0} more match. Search to find them.</value>
+    <comment>Under a long filter's choices: how many more values match</comment>
+  </data>
+  <data name="Vocabulary_WordCount" xml:space="preserve">
+    <value>{0} word(s)</value>
+    <comment>Under the Vocabulary title: how many words the learner has</comment>
+  </data>
 </root>

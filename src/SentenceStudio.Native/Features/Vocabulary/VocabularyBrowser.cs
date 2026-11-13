@@ -15,7 +15,20 @@ internal sealed record VocabularyBrowserList(
     string? Feedback, bool FeedbackWarning,
     VocabularyDuplicatePanel? Duplicates = null,
     string SheetSortField = "added", bool SheetSortDescending = true,
-    bool FilterPanelHidden = false);
+    bool FilterPanelHidden = false,
+    int RowLimit = int.MaxValue)
+{
+    /// <summary>
+    /// The words a head that builds every row up front shows now (iOS): the first
+    /// <see cref="RowLimit"/> of <see cref="FilteredWords"/>. A learner can hold thousands of
+    /// words, and one view per word for all of them held the iOS app past the system's time
+    /// to redraw when it went to the background (2026-11-12, 4,466 words on Duotopia).
+    /// </summary>
+    internal IEnumerable<NativeVocabularyEntry> ShownWords => FilteredWords.Take(RowLimit);
+
+    /// <summary>The filtered words beyond <see cref="RowLimit"/>.</summary>
+    internal int HiddenWordCount => Math.Max(0, FilteredWords.Count - RowLimit);
+}
 
 internal sealed record VocabularyBrowserEdit(
     bool Loading, bool Saving, NativeVocabularyDetail? Detail,
@@ -227,8 +240,43 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 _feedback, _feedbackWarning, _cleanup.Duplicates,
                 SheetSortField: _sheetSort?.Field ?? _sortField,
                 SheetSortDescending: _sheetSort?.Descending ?? _sortDescending,
-                FilterPanelHidden: _filterPanelHidden);
+                FilterPanelHidden: _filterPanelHidden,
+                RowLimit: _rowLimit);
         }
+    }
+
+    /// <summary>The owner's word count from the last read, kept after the list closes (the Library row shows it).</summary>
+    private (string Owner, int Count)? _knownWordCount;
+
+    /// <summary>
+    /// How many words the active owner has, from the last read of the list; null before one
+    /// read or for another owner.
+    /// </summary>
+    internal int? KnownWordCount => _knownWordCount is { } known && TrustedOwner(known.Owner)
+        ? known.Count : null;
+
+    /// <summary>The list read or changed its words: the count the Library row shows follows.</summary>
+    private void RememberWordCount(string owner) =>
+        _knownWordCount = _catalog.OwnerValid ? (owner, _catalog.Words.Count) : null;
+
+    /// <summary>The rows a head builds at first, and each time it reaches the end of them.</summary>
+    internal const int RowPage = 100;
+
+    private int _rowLimit = RowPage;
+
+    /// <summary>
+    /// Another search, filter, sort or arrangement starts the row window again at the first
+    /// page (its results start at the top). Called where each of them changes.
+    /// </summary>
+    private void ResetRowWindow() => _rowLimit = RowPage;
+
+    /// <summary>The list reached its last shown row: the next page joins it.</summary>
+    internal void ShowMoreRows()
+    {
+        if (!_listOpen || _rowLimit >= int.MaxValue - RowPage)
+            return;
+        _rowLimit += RowPage;
+        Notify(VocabularyChanges.List);
     }
 
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
@@ -244,12 +292,11 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return false;
         _owner = owner;
         _ownerStamp = _userScope.CaptureStamp();
-        _filters = new VocabularyFilterState(
-            _preferences.Get(QueryKey(owner), string.Empty), query =>
-            {
-                if (TryOwner(out var current))
-                    _preferences.Set(QueryKey(current), query);
-            });
+        // Every visit starts with no search or filter, as the source page does (its query comes
+        // only from the link that opened it). Captain 2026-11-12: "The first load had a filter
+        // already applied. Shouldn't be." The sort and grid/list choice are still remembered.
+        _filters = new VocabularyFilterState(null, _ => ResetRowWindow());
+        ResetRowWindow();
         var sort = _preferences.Get($"vocabulary_sort_{owner}", "added:desc");
         var parts = sort.Split(':', 2);
         _sortField = parts[0] == "updated" ? "updated" : "added";
@@ -273,6 +320,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         _cleanup.Reset();
         _askingListDelete = null;
+        ResetRowWindow();
+        OnListReset();
         ResetExamples();
         _examplesChanged = false;
         _creating = false;
@@ -333,6 +382,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 return;
             }
             _catalog = catalog;
+            RememberWordCount(owner);
             if (!catalog.OwnerValid)
                 _listErrorKey = "Vocabulary_NoActiveProfile";
             // An open Add Word form chooses from the resources as they are now (one deleted
@@ -849,6 +899,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             // The sheet's sort is applied with its filters (Cancel leaves the list as it was).
             var changed = sort.Field != _sortField || sort.Descending != _sortDescending;
             (_sortField, _sortDescending) = sort;
+            ResetRowWindow();
             _sheetSort = null;
             if (changed)
                 SaveSort(owner);
@@ -898,6 +949,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out var owner))
             return;
         (_sortField, _sortDescending) = NextSort(_sortField, _sortDescending, field);
+        ResetRowWindow();
         SaveSort(owner);
         // An open sheet's draft follows, so its Apply cannot put back the sort it opened with.
         if (_sheetSort is not null)
@@ -921,6 +973,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (!TryOwner(out var owner))
             return;
         _listMode = list;
+        ResetRowWindow();
         _preferences.Set($"vocabulary_view_{owner}", list ? "list" : "grid");
         Notify(VocabularyChanges.List);
     }
@@ -964,6 +1017,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _logger.LogWarning("Vocabulary view refused a missing or changed active owner.");
         _catalog = new(false, [], []);
         _askingListDelete = null;
+        _knownWordCount = null;
+        OnListReset();
         _detail = null;
         _draft = null;
         _photo = null;
@@ -1000,8 +1055,6 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _media.StopPlayback();
         Interlocked.Increment(ref _formGeneration);
     }
-
-    private static string QueryKey(string owner) => $"vocabulary_query_{owner}";
 
     private static string FilterPanelKey(string owner) => $"vocabulary_filter_panel_{owner}";
 
@@ -1040,6 +1093,11 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     }
 
     protected virtual void RaiseChanged() => Changed?.Invoke();
+
+    /// <summary>The list closed or its owner was refused: a head drops what it kept for the list (a chooser left open).</summary>
+    protected virtual void OnListReset()
+    {
+    }
 
     /// <summary>
     /// Runs store work off the UI thread: SQLite work is synchronous under its async API. On

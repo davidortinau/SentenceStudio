@@ -92,6 +92,7 @@ internal sealed partial class ApplicationScene
         {
             _vocabularySlot = Views.VStack(_app.RenderVocabularyList(_style))
                 .WithNavigationTitle(_app.Localize("Vocabulary_Title"))
+                .WithNavigationSubtitle(_app.VocabularySubtitle)
                 .WithInlineNavigationTitle();
             _vocabularySearch = Find(_vocabularySlot, BrowserPageUpdate.Vocabulary.SearchId);
             _vocabularyFilterSlot = Views.VStack(
@@ -168,6 +169,8 @@ internal sealed partial class ApplicationScene
         if (_vocabularySlot is null)
             return;
         var next = _app.RenderVocabularyList(_style);
+        // After the render: the subtitle reads the state the list was drawn with.
+        _vocabularySlot.WithNavigationSubtitle(_app.VocabularySubtitle);
         var current = _vocabularySlot.Children.Single();
         var oldSearch = Find(current, BrowserPageUpdate.Vocabulary.SearchId);
         if (replaceAll || oldSearch is null || !BrowserPageUpdate.Vocabulary.TryUpdateInPlace(current, next))

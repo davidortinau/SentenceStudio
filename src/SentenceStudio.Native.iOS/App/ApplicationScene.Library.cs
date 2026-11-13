@@ -112,7 +112,7 @@ internal sealed partial class ApplicationScene
     /// the quick-add grid's column count (its buttons are fixed).
     /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryVocabularyCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
 
 
     private const double QuickAddTileHeight = 84;
@@ -123,7 +123,7 @@ internal sealed partial class ApplicationScene
     /// <summary>
     /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
     /// bi-soundwave) and are about equally wide, so the titles and separators line up.
-    /// Only the Resources row has a count: it is the list the browser already read.
+    /// Resources and Vocabulary show a count once their lists have been read (no extra query).
     /// </summary>
     private SwiftView LibraryList()
     {
@@ -132,7 +132,7 @@ internal sealed partial class ApplicationScene
             LibraryRow(LibrarySection.Resources, "book.closed", "Library_Resources",
                 _app.LibraryResourceCount, "native.library.row.resources"),
             LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
-                null, "native.library.row.vocabulary"),
+                _app.LibraryVocabularyCount, "native.library.row.vocabulary"),
             LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
                 null, "native.library.row.skills"),
             LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",

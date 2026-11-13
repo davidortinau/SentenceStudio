@@ -20469,6 +20469,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} more match. Search to find them..
+        /// </summary>
+        internal static string Vocabulary_ChooserMore {
+            get {
+                return ResourceManager.GetString("Vocabulary_ChooserMore", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Error: {0}.
         /// </summary>
         internal static string Vocabulary_CleanupError {
@@ -21725,6 +21734,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_Unknown {
             get {
                 return ResourceManager.GetString("Vocabulary_Unknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} word(s).
+        /// </summary>
+        internal static string Vocabulary_WordCount {
+            get {
+                return ResourceManager.GetString("Vocabulary_WordCount", resourceCulture);
             }
         }
 

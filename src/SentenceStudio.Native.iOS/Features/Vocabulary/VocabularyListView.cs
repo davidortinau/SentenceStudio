@@ -27,7 +27,9 @@ internal sealed record VocabularyListActions(
     Action<string>? RequestDelete = null,
     Action? ConfirmDelete = null,
     Action? CancelDelete = null,
-    Action<string>? Study = null);
+    Action<string>? Study = null,
+    Action? ShowMoreRows = null,
+    Action<string>? ChooseFilterValue = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -165,12 +167,119 @@ internal static class VocabularyListView
                 actions.Sort)
         };
         foreach (var filter in FilterChoices(state, text))
-            items.Add(BrowserPage.FilterSubmenu(Prefix, filter.Type, text(filter.LabelKey),
-                text(filter.AllKey), filter.Values, state.Filters.FilterValue(filter.Type, false),
-                value => actions.ChangeWideFilter(filter.Type, value), filter.ValueLabel));
+            items.Add(UsesChooser(filter, actions)
+                ? ChooserMenuItem(filter, state, text, actions.ChooseFilterValue!)
+                : BrowserPage.FilterSubmenu(Prefix, filter.Type, text(filter.LabelKey),
+                    text(filter.AllKey), filter.Values, state.Filters.FilterValue(filter.Type, false),
+                    value => actions.ChangeWideFilter(filter.Type, value), filter.ValueLabel));
         items.AddRange(BrowserPage.ClearAllMenuItems(Prefix, text, actions.ClearFilters,
             state.Filters.HasActiveFilters));
         return items;
+    }
+
+    /// <summary>
+    /// The most values a filter lists inline (in the menu or as a picker). A learner's lemmas,
+    /// tags and resources can run to thousands, and a menu builds every item each time the
+    /// toolbar lays out (2026-11-12: 2,908 lemmas on Duotopia held the app past the system's
+    /// background redraw time). A longer filter opens <see cref="Chooser"/> instead.
+    /// </summary>
+    internal const int InlineValueLimit = 30;
+
+    /// <summary>The most values the chooser lists at once; its search finds the rest.</summary>
+    internal const int ChooserRowLimit = 100;
+
+    private static bool UsesChooser(FilterChoice filter, VocabularyListActions actions) =>
+        filter.Values.Count > InlineValueLimit && actions.ChooseFilterValue is not null;
+
+    /// <summary>The filter's current choice as the menu names it (its All label when off).</summary>
+    private static string ChoiceTitle(FilterChoice filter, VocabularyBrowserList state,
+        Func<string, string> text)
+    {
+        var value = state.Filters.FilterValue(filter.Type, false);
+        return string.IsNullOrWhiteSpace(value) ? text(filter.AllKey)
+            : filter.ValueLabel?.Invoke(value) ?? value;
+    }
+
+    private static SwiftView ChooserMenuItem(FilterChoice filter, VocabularyBrowserList state,
+        Func<string, string> text, Action<string> choose) =>
+        Views.Button($"{text(filter.LabelKey)}: {ChoiceTitle(filter, state, text)}",
+                () => choose(filter.Type))
+            .WithAccessibilityIdentifier($"{Prefix}.filter.{filter.Type}.choose");
+
+    /// <summary>The filter <paramref name="type"/> as the page offers it now (its values from the catalog); null when it is not offered.</summary>
+    internal static FilterChoice? Choice(VocabularyBrowserList state, Func<string, string> text,
+        string type) => FilterChoices(state, text).FirstOrDefault(item => item.Type == type);
+
+    /// <summary>
+    /// A long filter's chooser (a sheet), with the system containers (Captain 2026-11-12, native
+    /// first, as the Choose My Own selector): a navigation stack titled with the filter, Cancel in
+    /// its toolbar, the system search field, and a native list of All and the matching values
+    /// (the first <see cref="ChooserRowLimit"/>), the current one checked. <paramref name="rows"/>
+    /// is the list the coordinator refills as the search changes, so the field keeps focus.
+    /// </summary>
+    internal static SwiftView Chooser(FilterChoice filter, string current, string query,
+        SourceUiStyle style, Func<string, string> text, Action<string> search,
+        Action<string?> choose, Action cancel, out SwiftView rows)
+    {
+        rows = BrowserPage.NativeList($"{Prefix}.chooser.list",
+            ChooserRows(filter, current, query, style, text, choose), style);
+        var searchable = Views.Searchable(rows, text("Common_Search"), query, search)
+            .WithAccessibilityIdentifier($"{Prefix}.chooser.search");
+        var page = Views.Toolbar(searchable,
+                Views.Button(text("Common_Cancel"), cancel)
+                    .WithAccessibilityIdentifier($"{Prefix}.chooser.cancel"))
+            .WithNavigationTitle(text(filter.LabelKey))
+            .WithInlineNavigationTitle()
+            .WithAccessibilityIdentifier($"{Prefix}.chooser");
+        return Views.NavigationStack(page);
+    }
+
+    /// <summary>
+    /// All, the current choice when the first rows would not show it, then the values matching
+    /// <paramref name="query"/> (the first <see cref="ChooserRowLimit"/>), and how many more match.
+    /// Each row's automation ID names its value, so it stays the same as the search changes.
+    /// </summary>
+    internal static List<SwiftView> ChooserRows(FilterChoice filter, string current,
+        string query, SourceUiStyle style, Func<string, string> text, Action<string?> choose)
+    {
+        var rows = new List<SwiftView>
+        {
+            Row(text(filter.AllKey), null, string.IsNullOrWhiteSpace(current), "all")
+        };
+        var needle = query.Trim();
+        var matches = filter.Values.Where(value => needle.Length == 0
+                || value.Contains(needle, StringComparison.CurrentCultureIgnoreCase)
+                || filter.ValueLabel?.Invoke(value).Contains(needle,
+                    StringComparison.CurrentCultureIgnoreCase) == true)
+            .ToList();
+        var shown = matches.Take(ChooserRowLimit).ToList();
+        // The current choice stays visible (and checked) even past the first rows.
+        if (!string.IsNullOrWhiteSpace(current) && needle.Length == 0
+            && !shown.Any(value => value.Equals(current, StringComparison.OrdinalIgnoreCase)))
+            rows.Add(Row(filter.ValueLabel?.Invoke(current) ?? current, current, true, $"value.{current}"));
+        foreach (var value in shown)
+            rows.Add(Row(filter.ValueLabel?.Invoke(value) ?? value, value,
+                value.Equals(current, StringComparison.OrdinalIgnoreCase), $"value.{value}"));
+        if (matches.Count > ChooserRowLimit)
+            rows.Add(style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        text("Vocabulary_ChooserMore"), matches.Count - ChooserRowLimit)),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier($"{Prefix}.chooser.more"));
+        return rows;
+
+        SwiftView Row(string title, string? value, bool selected, string id)
+        {
+            var label = selected
+                ? Views.HStack(Views.Text(title).WithFlexibleWidth(), Views.Image("checkmark"))
+                : Views.HStack(Views.Text(title).WithFlexibleWidth());
+            return Views.Button(label.WithFlexibleWidth(), () => choose(value))
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithFlexibleWidth()
+                .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+                .WithAccessibilityLabel(title)
+                .WithAccessibilitySelected(selected)
+                .WithAccessibilityIdentifier($"{Prefix}.chooser.option.{id}");
+        }
     }
 
     /// <summary>The wide page's search row (the whole query as text, and clear).</summary>
@@ -279,7 +388,7 @@ internal static class VocabularyListView
                 actions.Sort)
         };
         fields.AddRange(FilterFields(state, style, text, actions.ChangeWideFilter,
-            useDraft: false));
+            useDraft: false, actions));
         if (state.Filters.HasActiveFilters)
             fields.Add(BrowserPage.ClearAllButton("native.vocabulary.filters.panel.clear",
                 style, text, actions.ClearFilters));
@@ -376,27 +485,45 @@ internal static class VocabularyListView
                     .WithAccessibilityIdentifier("native.vocabulary.empty.add"));
             return;
         }
+        // The first rows only (RowLimit), then Load More for the next page: every built row is a
+        // view the system redraws, and thousands of them held the app past its background
+        // redraw time.
         if (AsNativeList(state, wide))
         {
-            children.AddRange(state.FilteredWords.Select(word =>
+            children.AddRange(state.ShownWords.Select(word =>
                 ListRow(word, style, text, actions)));
+            AddLoadMore(children, state, style, text, actions);
             return;
         }
         var list = Views.LazyVGrid(
                 CardColumns(width, style.TextScale, state.ListMode,
                     !state.FilterPanelHidden, wide),
-                state.FilteredWords.Select(word =>
+                state.ShownWords.Select(word =>
                     Card(word, style, text, actions.OpenWord)).ToArray())
             .WithAccessibilityIdentifier("native.vocabulary.cards");
         list.Spacing = SourceUiLayout.PageGap;
         children.Add(list);
+        AddLoadMore(children, state, style, text, actions);
+    }
+
+    /// <summary>Load More after the shown rows while more words match (the next <see cref="VocabularyBrowser.RowPage"/>).</summary>
+    private static void AddLoadMore(List<SwiftView> children, VocabularyBrowserList state,
+        SourceUiStyle style, Func<string, string> text, VocabularyListActions actions)
+    {
+        if (state.HiddenWordCount == 0 || actions.ShowMoreRows is not { } more)
+            return;
+        children.Add(Views.Button(text("Common_LoadMore"), more)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier("native.vocabulary.loadMore"));
     }
 
     /// <summary>
     /// One filter the page offers: its type, label, "All" label, values (from the catalog) and how
     /// a value reads. The filter column, the phone sheet and the filter menu share this list.
     /// </summary>
-    private sealed record FilterChoice(string Type, string LabelKey, string AllKey,
+    internal sealed record FilterChoice(string Type, string LabelKey, string AllKey,
         IReadOnlyList<string> Values, Func<string, string>? ValueLabel = null);
 
     private static List<FilterChoice> FilterChoices(
@@ -467,11 +594,37 @@ internal static class VocabularyListView
 
     private static List<SwiftView> FilterFields(
         VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, Action<string, string?> changed, bool useDraft) =>
-        FilterChoices(state, text).Select(choice => Filter(choice.Type, choice.LabelKey,
-                choice.AllKey, choice.Values, state, style, text, changed, useDraft,
-                choice.ValueLabel))
+        Func<string, string> text, Action<string, string?> changed, bool useDraft,
+        VocabularyListActions? actions = null) =>
+        FilterChoices(state, text).Select(choice =>
+                !useDraft && actions is not null && UsesChooser(choice, actions)
+                    ? ChooserField(choice, state, style, text, actions.ChooseFilterValue!)
+                    : Filter(choice.Type, choice.LabelKey,
+                        choice.AllKey, choice.Values, state, style, text, changed, useDraft,
+                        choice.ValueLabel))
             .ToList();
+
+    /// <summary>A long filter in the wide filter column: its label and a button naming the choice, which opens the chooser.</summary>
+    private static SwiftView ChooserField(FilterChoice filter, VocabularyBrowserList state,
+        SourceUiStyle style, Func<string, string> text, Action<string> choose)
+    {
+        var label = text(filter.LabelKey);
+        var current = ChoiceTitle(filter, state, text);
+        var button = style.Input(Views.Button(
+                    Views.HStack(Views.Text(current).WithFlexibleWidth(),
+                            Views.Image("chevron.up.chevron.down"))
+                        .WithFlexibleWidth(),
+                    () => choose(filter.Type))
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithFlexibleWidth())
+            .WithAccessibilityLabel($"{label}, {current}")
+            .WithAccessibilityIdentifier($"{Prefix}.filter.{filter.Type}.choose");
+        return Views.VStack(
+                style.Text(Views.Text(label), SourceTextRole.Body2, SourceTextTone.Secondary),
+                button)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"{Prefix}.filter.field.{filter.Type}");
+    }
 
     private static SwiftView Filter(
         string type, string labelKey, string allKey,
