@@ -76,6 +76,13 @@ Ailoha branches with SwiftUI fixes (PRs #140-#143 upstream): `fix/swiftui-access
   with 11.0.100, the newest SDK, since there is no `global.json`), Docker Desktop 29.9.3; `gh` and
   `az` are signed in. The HTTPS dev certificate is trusted (`~/.aspnet` had been created by root
   on 2026-11-11 and was handed back to the user).
+- Agent tooling: git identity set as on the old machine and `gh` is the git credential helper;
+  Node 22 (Homebrew `node@22`) and the Aspire CLI 13.6.4 (.NET global tool) for the repo's
+  `.mcp.json` servers (`aspire`, `squad_state`); `~/.zprofile` puts `node@22`, `~/.dotnet/tools`,
+  `~/.docker/bin` and the Android SDK tools on the PATH. The old machine's project memory notes
+  are in `~/.claude/projects/-Users-davidortinau-work-SentenceStudio/memory` (linked for the
+  native worktree). No Android emulator exists yet, and the MAUI DevFlow and Ailoha CLIs aren't
+  installed (install them when that work starts).
 - **Starting the backend:** `~/start-sentencestudio-apphost.command` (open it, or `open` it over
   SSH). It runs the AppHost in the desktop session, where the login keychain holds the dev
   certificate; an AppHost started from an SSH shell can't read the keychain and stops with
