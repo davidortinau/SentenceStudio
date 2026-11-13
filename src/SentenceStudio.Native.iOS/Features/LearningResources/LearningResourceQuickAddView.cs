@@ -15,15 +15,15 @@ internal static class LearningResourceQuickAddView
     internal const string QuickAddFieldAutomationId =
         "native.resources.edit.quick.search";
 
-    internal static SwiftView QuickAdd(
+    /// <summary>
+    /// Quick add as Form rows (Captain 2026-11-13): the search field, then either why it is
+    /// unavailable or, after "add new word", the meaning field and Add.
+    /// </summary>
+    internal static IReadOnlyList<SwiftView> QuickAdd(
         LearningResourceViewState state, bool busy, LearningResourceActions actions,
         LearningResourceInputs inputs, SourceUiStyle style, Func<string, string> text)
     {
-        var parts = new List<SwiftView>
-        {
-            style.Text(Views.Text(text("ResourceEdit_QuickAddLabel")),
-                SourceTextRole.Body2, SourceTextTone.Secondary)
-        };
+        var label = text("ResourceEdit_QuickAddLabel");
         var input = Views.TextField(text("ResourceEdit_QuickAddPlaceholder"),
             inputs.QuickQuery, inputs.QuickQueryChanged);
         input.OnKeyPress(key => key switch
@@ -39,47 +39,33 @@ internal static class LearningResourceQuickAddView
                 _ => false
             })
             .OnFocusChanged(focused => inputs.QuickFocusChanged(input, focused));
-        style.TextInput(input)
+        input.WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(QuickAddFieldAutomationId);
         input.IsEnabled = state.CanQuickAdd && !busy;
         inputs.RegisterQuickSearch(input);
-        parts.Add(input);
+        // The field alone (its prompt says what it does): a label beside it would leave the
+        // prompt too little width on a phone.
+        var rows = new List<SwiftView> { input };
 
         if (!state.CanQuickAdd && state.Phase != NativeResourceDetailPhase.Conflict)
-            parts.Add(style.Text(Views.Text(text(
+            rows.Add(Views.Text(text(
                     string.IsNullOrWhiteSpace(state.Language)
                     || string.Equals(state.Language, "Other",
                         StringComparison.OrdinalIgnoreCase)
                         ? "ResourceEdit_SetLanguageFirst"
-                        : "NativeResources_SaveLanguageBeforeQuickAdd")),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary)
+                        : "NativeResources_SaveLanguageBeforeQuickAdd"))
+                .WithFont(SwiftFontStyle.Caption)
                 .WithAccessibilityIdentifier("native.resources.edit.quick.hint"));
-        else if (!string.IsNullOrWhiteSpace(inputs.QuickQuery))
+        else if (!string.IsNullOrWhiteSpace(inputs.QuickQuery) && inputs.CreateWordExpanded)
         {
-            if (inputs.CreateWordExpanded)
-            {
-                var native = style.TextInput(Views.TextField(
-                        text("ResourceEdit_NativeTermPrompt"),
-                        inputs.QuickNativeTerm, inputs.QuickNativeTermChanged))
-                    .WithFlexibleWidth()
-                    .WithAccessibilityIdentifier("native.resources.edit.quick.native");
-                var create = Views.HStack(
-                        native,
-                        style.PrimaryButton(text("ResourceEdit_QuickAddLabel"),
-                                actions.CreateWord)
-                            .WithAccessibilityIdentifier(
-                                "native.resources.edit.quick.create"))
-                    .WithAdaptiveStack(368)
-                    .WithFlexibleWidth();
-                create.Spacing = SourceUiLayout.ItemGap;
-                parts.Add(create);
-            }
+            rows.Add(LearningResourceFieldsView.Field(text("ResourceEdit_NativeTermPrompt"),
+                inputs.QuickNativeTerm, "native.resources.edit.quick.native",
+                inputs.QuickNativeTermChanged, readOnly: false));
+            rows.Add(LearningResourceVocabularyView.Action(style, Views.Button(
+                    Views.Label(label, "plus"), actions.CreateWord)
+                .WithAccessibilityIdentifier("native.resources.edit.quick.create")));
         }
-        var quickAdd = Views.VStack(parts.ToArray())
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.resources.edit.quick.add");
-        quickAdd.Spacing = SourceUiLayout.ItemGap;
-        return quickAdd;
+        return rows;
     }
 
     internal static SwiftView QuickAddSuggestions(

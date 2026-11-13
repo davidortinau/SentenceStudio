@@ -42,7 +42,8 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("Views.SecureField(", Source("Features/Authentication/SignInView.cs"));
         Assert.Contains("text(NativeText.RememberMe), rememberMe",
             Source("Features/Authentication/SignInView.cs"));
-        Assert.Contains("Views.Scroll(content)",
+        // Captain 2026-11-13: native Resource form (a grouped system Form).
+        Assert.Contains("Views.Form(sections.ToArray())",
             Source("Features/LearningResources/LearningResourceView.cs"));
         Assert.Contains("Views.LazyVGrid(",
             Source("Features/LearningResources/LearningResourcesView.cs"));
@@ -106,7 +107,10 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("_presenter.OpenAsync(id, _lifetime.Token)", resources);
         Assert.Contains("Views.TextField(", fields);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot", scene);
-        Assert.Contains("Views.FileImporter(_formSlot", scene);
+        // Captain 2026-11-13: native Resource form. The import sheet wraps the form and the
+        // file chooser wraps the sheet.
+        Assert.Contains("Views.Sheet(_formSlot, _importSheetSlot,", scene);
+        Assert.Contains("Views.FileImporter(_importSheet", scene);
         Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter",
             scene);
         Assert.Contains("Views.Alert(_deleteConfirmation,", scene);
@@ -119,7 +123,7 @@ public sealed class NativeSwiftUIPresentationContractTests
         var scene = Source("App/ApplicationScene.cs");
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
 
-        Assert.Contains("Views.FileImporter(_formSlot,", scene);
+        Assert.Contains("Views.FileImporter(_importSheet,", scene);
         Assert.Contains("_app.OnResourceFileImportError,", scene);
         Assert.Contains("_app.OnFileImporterDismissed);", scene);
         Assert.Contains("_fileImporter.IsPresented = _app.IsFileImporterPresented;", scene);

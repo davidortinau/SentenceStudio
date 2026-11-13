@@ -60,6 +60,8 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _quickSuggestions;
     private SwiftView? _quickSuggestionSlot;
     private SwiftView? _fileImporter;
+    private SwiftView? _importSheet;
+    private SwiftView? _importSheetSlot;
     private SwiftView? _deleteConfirmation;
     private SwiftView? _conflictAlert;
     private long _renderedFormVersion = -1;
@@ -665,7 +667,12 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithNavigationTitle(_app.ResourceFormTitle)
                     .WithInlineNavigationTitle();
                 _renderedFormVersion = _app.ResourceFormProjectionVersion;
-                _fileImporter = Views.FileImporter(_formSlot,
+                // An existing resource's bulk import (Captain 2026-11-13): a sheet over the
+                // form, outside it, so the form's updates never redraw the open sheet.
+                _importSheetSlot = Views.VStack();
+                _importSheet = Views.Sheet(_formSlot, _importSheetSlot,
+                    _app.OnResourceImportSheetDismissed);
+                _fileImporter = Views.FileImporter(_importSheet,
                     _app.OnResourceFileImported,
                     _app.OnResourceFileImportError,
                     _app.OnFileImporterDismissed);
@@ -718,6 +725,16 @@ internal sealed partial class ApplicationScene : IDisposable
                 _renderedResourceFormHidesTabBar = hideTabBar;
             }
             RefreshQuickSuggestions();
+            if (_importSheet is { } importSheet && _importSheetSlot is { } importSlot)
+            {
+                var showImport = _app.IsResourceImportSheetPresented;
+                // Drawn when it opens; its fields keep what is typed until it closes.
+                if (showImport && !importSheet.IsPresented)
+                    ReplaceContainerChildren(importSlot,
+                        Views.VStack(_app.RenderResourceImportSheet(_style)));
+                if (importSheet.IsPresented != showImport)
+                    importSheet.IsPresented = showImport;
+            }
             if (_fileImporter is not null)
                 _fileImporter.IsPresented = _app.IsFileImporterPresented;
             if (_deleteConfirmation is not null)
@@ -956,6 +973,8 @@ internal sealed partial class ApplicationScene : IDisposable
         _quickSuggestions = null;
         _quickSuggestionSlot = null;
         _fileImporter = null;
+        _importSheet = null;
+        _importSheetSlot = null;
         _deleteConfirmation = null;
         _conflictAlert = null;
         _conflictAcknowledged = false;

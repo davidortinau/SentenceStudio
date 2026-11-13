@@ -1,67 +1,69 @@
-using System.Collections.Immutable;
-using System.Globalization;
 using Microsoft.SwiftUI;
-using SentenceStudio.Common;
-using SentenceStudio.Shared.Models;
-using DateFormatter = SentenceStudio.Native.iOS.Platform.NativeResourceDateFormatter;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
 using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.Features.LearningResources;
 
+/// <summary>
+/// The Resource form's rows (Captain 2026-11-13: the native Form). A short field is a
+/// LabeledContent row, its label beside it as in Settings and Contacts; a long text is a
+/// Section with its label as the header; a choice is a system Picker row.
+/// </summary>
 internal static class LearningResourceFieldsView
 {
+    /// <summary>
+    /// A short field: the label beside a text field, or beside the value when read only (a
+    /// smart resource). The automation ID is on the field (or the read-only row).
+    /// </summary>
     internal static SwiftView Field(
-        SourceUiStyle style,
         string label, string? value, string id,
         Action<string> changed, bool readOnly, string? placeholder = null) =>
         readOnly
-            ? Views.VStack(
-                style.Text(Views.Text(label), SourceTextRole.Body2,
-                    SourceTextTone.Secondary),
-                style.Text(Views.Text(value ?? string.Empty), SourceTextRole.Body1))
-                .WithAccessibilityIdentifier(id)
-            : Views.VStack(
-                style.Text(Views.Text(label), SourceTextRole.Body2,
-                    SourceTextTone.Secondary),
-                style.TextInput(Views.TextField(placeholder ?? label,
-                        value ?? string.Empty, changed))
+            ? Value(label, value, id)
+            : Views.LabeledContent(label,
+                // No prompt unless one is given: the label already sits beside the field.
+                Views.TextField(placeholder ?? string.Empty, value ?? string.Empty, changed)
+                    .WithAccessibilityLabel(label)
                     .WithAccessibilityIdentifier(id));
 
+    /// <summary>A read-only value row: the label beside its value.</summary>
+    internal static SwiftView Value(string label, string? value, string id) =>
+        Views.LabeledContent(label, Views.Text(value ?? string.Empty))
+            .WithAccessibilityIdentifier(id);
+
+    /// <summary>
+    /// A long text (description, transcript, translation) as its own Section: the label is the
+    /// header and the row is a text editor, or the text itself when read only (Captain
+    /// 2026-11-12: nothing on a smart resource is editable).
+    /// </summary>
     internal static SwiftView Area(
         SourceUiStyle style,
         string label, string? value, string id,
-        Action<string> changed, bool readOnly, bool heading = false, int rows = 3,
-        string? placeholder = null)
+        Action<string> changed, bool readOnly, int rows = 3,
+        string? placeholder = null) =>
+        Views.Section(label, readOnly
+                ? Views.Text(value ?? string.Empty)
+                    .WithFlexibleWidth()
+                    .WithAccessibilityIdentifier(id)
+                : Editor(style, label, value, id, changed, rows, placeholder));
+
+    /// <summary>A multiline text editor row, at least <paramref name="rows"/> lines high.</summary>
+    internal static SwiftView Editor(
+        SourceUiStyle style,
+        string label, string? value, string id,
+        Action<string> changed, int rows = 3, string? placeholder = null)
     {
-        // Read-only (a smart resource): the text itself, not an input box (Captain 2026-11-12:
-        // "no fields should be editable"), as a read-only Field shows its value.
-        if (readOnly)
-            return Views.VStack(
-                    style.Text(Views.Text(label),
-                        heading ? SourceTextRole.Title3 : SourceTextRole.Body2,
-                        heading ? SourceTextTone.Body : SourceTextTone.Secondary,
-                        sourceHeading: heading),
-                    style.Text(Views.Text(value ?? string.Empty), SourceTextRole.Body1)
-                        .WithFlexibleWidth())
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier(id);
         var input = Views.TextEditor(value ?? string.Empty, changed)
             .WithTextEditorScrollBackgroundHidden();
         if (placeholder is not null)
             input.WithTextEditorPlaceholder(placeholder)
                 .WithPlaceholderColor(style.Appearance.TertiaryText.Light,
                     style.Appearance.TertiaryText.Dark);
-        var editor = style.Input(input)
+        return input
             .WithMinimumHeight(AreaHeight(style, rows))
+            .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
-        return Views.VStack(
-                style.Text(Views.Text(label),
-                    heading ? SourceTextRole.Title3 : SourceTextRole.Body2,
-                    heading ? SourceTextTone.Body : SourceTextTone.Secondary,
-                    sourceHeading: heading),
-                editor);
     }
 
     private static double AreaHeight(SourceUiStyle style, int rows)
@@ -69,78 +71,26 @@ internal static class LearningResourceFieldsView
         var font = SourceUiTypography.For(SourceTextRole.Input,
             style.ViewportWidth, style.Appearance.Selection.FontScale,
             style.Appearance.Selection.ThemeId);
-        return rows * font.Size * font.LineHeight + 2 * SourceUiLayout.ItemGap;
+        return rows * font.Size * font.LineHeight;
     }
 
+    /// <summary>
+    /// A required choice (media type, language) as a system menu Picker row: the label beside
+    /// the current value. A stored value outside the catalog stays selectable
+    /// (<see cref="ResourceRequiredPicker"/>).
+    /// </summary>
     internal static SwiftView Select(
         SourceUiStyle style,
         string label, string? current, IReadOnlyList<string> options,
-        string id, Action<string> changed, bool readOnly, string? editMenuId)
+        string id, Action<string> changed, bool readOnly)
     {
         if (readOnly)
-            return Views.VStack(
-                    style.Text(Views.Text(label), SourceTextRole.Body2,
-                        SourceTextTone.Secondary),
-                    style.Text(Views.Text(current ?? string.Empty), SourceTextRole.Body1))
-                .WithAccessibilityIdentifier(id);
+            return Value(label, current, id);
         var picker = new ResourceRequiredPicker(current, options);
-        var fieldLabel = style.Text(Views.Text(label), SourceTextRole.Body2,
-            SourceTextTone.Secondary);
-        if (editMenuId is null)
-            return Views.VStack(
-                    fieldLabel,
-                    style.Input(Views.Picker(string.Empty, picker.Options,
-                            picker.SelectedIndex, next => picker.Select(next, changed))
-                        .WithPickerStyle(SwiftPickerStyle.Menu)
-                        .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading))
-                        .WithTintColor(style.Appearance.Primary.Light,
-                            style.Appearance.Primary.Dark)
-                        .WithAccessibilityLabel(label)
-                        .WithAccessibilityIdentifier(id))
-                .WithFlexibleWidth();
-
-        var selectedValue = picker.Options[picker.SelectedIndex];
-        var selectedText = Views.Text(selectedValue)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier($"{editMenuId}.value");
-        var chevron = Views.Image("chevron.up.chevron.down")
-            .WithForegroundColor(style.Appearance.SecondaryText.Light,
-                style.Appearance.SecondaryText.Dark);
-        var menuLabel = style.Input(Views.HStack(selectedText, chevron)
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier($"{editMenuId}.label"));
-        menuLabel.Spacing = SourceUiLayout.ItemGap;
-
-        SwiftView? menu = null;
-        var choices = new SwiftView[picker.Options.Count];
-        for (var index = 0; index < choices.Length; index++)
-        {
-            var choice = index;
-            var value = picker.Options[index];
-            var optionLabel = index == picker.SelectedIndex
-                ? Views.HStack(Views.Text(value).WithFlexibleWidth(),
-                    Views.Image("checkmark"))
-                : Views.Text(value);
-            choices[index] = Views.Button(optionLabel,
-                    () =>
-                    {
-                        selectedText.Text = value;
-                        menu!.Text = value;
-                        for (var i = 0; i < choices.Length; i++)
-                            choices[i].WithAccessibilitySelected(i == choice);
-                        picker.Select(choice, changed);
-                    })
-                .WithAccessibilityIdentifier($"{editMenuId}.option.{index}")
-                .WithAccessibilityLabel(value)
-                .WithAccessibilitySelected(index == picker.SelectedIndex);
-        }
-
-        menu = Views.Menu(menuLabel, choices)
-            .WithAccessibilityIdentifier(id)
-            .WithAccessibilityLabel(label)
-            .WithFlexibleWidth();
-        menu.Text = selectedValue;
-        return Views.VStack(fieldLabel, menu).WithFlexibleWidth();
+        return Views.Picker(label, picker.Options, picker.SelectedIndex,
+                next => picker.Select(next, changed))
+            .WithPickerStyle(SwiftPickerStyle.Menu)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier(id);
     }
-
 }

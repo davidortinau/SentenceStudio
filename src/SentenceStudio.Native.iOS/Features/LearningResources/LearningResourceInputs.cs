@@ -13,7 +13,6 @@ internal sealed record LearningResourceInputs(
     string QuickNativeTerm,
     string PasteText,
     string Delimiter,
-    bool BulkExpanded,
     bool CreateWordExpanded,
     Action<string> QuickQueryChanged,
     Action<string> QuickNativeTermChanged,
@@ -27,6 +26,5 @@ internal sealed record LearningResourceInputs(
     Func<ResourceQuickAddKey, bool> QuickKeyPressed,
     Action<SwiftView> RegisterImport,
     Action<SwiftView> RegisterStagedGrid,
-    Action<SwiftView> RegisterStagedCount,
     Action<SwiftView> RegisterVocabularySection);
 

@@ -22,7 +22,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private readonly List<SwiftView> _saveButtons = [];
     private readonly List<SwiftView> _importButtons = [];
     private readonly List<SwiftView> _quickOptionNodes = [];
-    private SourceUiAppearance? _saveAppearance;
     private SourceUiAppearance? _quickOptionAppearance;
     private SourceUiStyle? _formStyle;
     private CancellationTokenSource? _quickSearch;
@@ -41,7 +40,10 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private string _delimiter = "comma";
     private SwiftView? _quickSearchField;
     private SwiftView? _stagedGrid;
-    private SwiftView? _stagedCount;
+    private SwiftView? _importSheetButton;
+    private LearningResourceActions? _formActions;
+    private LearningResourceInputs? _formInputs;
+    private bool _chooseFileAfterImportSheet;
     private SwiftView? _vocabularySection;
     private int _quickHighlightedIndex = -1;
     private bool _quickSearchFocused;
@@ -226,10 +228,8 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _saveButtons.Clear();
         _importButtons.Clear();
         _stagedGrid = null;
-        _stagedCount = null;
         _vocabularySection = null;
         _formStyle = style;
-        _saveAppearance = style.Appearance;
         var state = ProjectFormState();
         var actions = new LearningResourceActions(
                 Change: ChangeDraft,
@@ -252,12 +252,20 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                         && _presenter.SetStagedLexicalUnitType(id, kind))
                         Publish(formChanged: false);
                 },
-                ImportText: () => Run(() =>
-                    ImportVocabularyTextAsync(_pasteText, _delimiter)));
+                ImportText: () =>
+                {
+                    // The sheet's Import closes it; the form shows the progress and result.
+                    if (_bulkExpanded && !_creating)
+                    {
+                        _bulkExpanded = false;
+                        Publish(formChanged: false);
+                    }
+                    Run(() => ImportVocabularyTextAsync(_pasteText, _delimiter));
+                });
         var form = LearningResourceView.Page(style, state, _creating, actions,
-            new LearningResourceInputs(
+            _formInputs = new LearningResourceInputs(
                 _quickQuery, _quickNativeTerm, _pasteText, _delimiter,
-                _bulkExpanded, _createWordExpanded,
+                _createWordExpanded,
                 QuickQueryChanged: query =>
                 {
                     _quickQuery = query;
@@ -274,16 +282,12 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                     _pasteText = value;
                     UpdateImportButtons();
                 },
-                DelimiterChanged: value =>
-                {
-                    _delimiter = value;
-                    Publish();
-                },
-                ToggleBulk: () =>
-                {
-                    _bulkExpanded = !_bulkExpanded;
-                    Publish();
-                },
+                // The segmented picker shows its own choice; Import reads _delimiter. No
+                // redraw (one would return the form, under an open sheet too, to the top).
+                DelimiterChanged: value => _delimiter = value,
+                // Captain 2026-11-13: an existing resource's bulk import is a sheet over
+                // the form (the scene presents it; RenderImportSheet draws it).
+                ToggleBulk: OpenImportSheet,
                 ToggleCreateWord: () =>
                 {
                     _createWordExpanded = !_createWordExpanded;
@@ -294,6 +298,15 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 {
                     if (!_formOpen || IsNavigationBlocked)
                         return;
+                    // From the import sheet: the file chooser opens once the sheet has gone
+                    // (a view cannot present while its sheet is up).
+                    if (_bulkExpanded && !_creating)
+                    {
+                        _chooseFileAfterImportSheet = true;
+                        _bulkExpanded = false;
+                        Publish(formChanged: false);
+                        return;
+                    }
                     _fileStatus = null;
                     _fileImporterPresented = true;
                     FileImporterChanged?.Invoke(true);
@@ -309,15 +322,87 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 QuickKeyPressed: HandleQuickAddKey,
                 RegisterImport: button => _importButtons.Add(button),
                 RegisterStagedGrid: table => _stagedGrid = table,
-                RegisterStagedCount: count => _stagedCount = count,
                 RegisterVocabularySection: section =>
                     _vocabularySection = section), _text);
+        _formActions = actions;
         var content = LearningResourceView.WithToolbar(form, style, state,
             _creating, IsNavigationBlocked, actions,
             button => _saveButtons.Add(button), _text);
         UpdateSaveButtons();
         UpdateImportButtons();
         return content;
+    }
+
+    /// <summary>Whether an existing resource's bulk import sheet shows.</summary>
+    internal bool IsImportSheetPresented => _formOpen && !_creating && _bulkExpanded;
+
+    private void OpenImportSheet()
+    {
+        if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded)
+            return;
+        _bulkExpanded = true;
+        _chooseFileAfterImportSheet = false;
+        Publish(formChanged: false);
+    }
+
+    private void CloseImportSheet()
+    {
+        if (!_bulkExpanded)
+            return;
+        _bulkExpanded = false;
+        Publish(formChanged: false);
+    }
+
+    /// <summary>
+    /// The sheet has gone (Cancel, Import, Choose File or a swipe down). Choose File opens the
+    /// file chooser now that nothing covers the form.
+    /// </summary>
+    internal void OnImportSheetDismissed()
+    {
+        // Cancel, Import and Choose File already published the close; a swipe down did not.
+        var swipedAway = _bulkExpanded;
+        _bulkExpanded = false;
+        _importSheetButton = null;
+        if (!_chooseFileAfterImportSheet)
+        {
+            if (swipedAway)
+                Publish(formChanged: false);
+            return;
+        }
+        _chooseFileAfterImportSheet = false;
+        if (!_formOpen || IsNavigationBlocked)
+            return;
+        _fileStatus = null;
+        _fileImporterPresented = true;
+        FileImporterChanged?.Invoke(true);
+    }
+
+    /// <summary>
+    /// The bulk import sheet (Captain 2026-11-13): the pasted words and their delimiter, then a
+    /// file to import instead; Cancel and Import in its toolbar.
+    /// </summary>
+    internal SwiftView RenderImportSheet(SourceUiStyle style)
+    {
+        if (_formActions is not { } actions || _formInputs is not { } formInputs)
+            return Views.Text(string.Empty);
+        var inputs = formInputs with { PasteText = _pasteText, Delimiter = _delimiter };
+        var rows = LearningResourceVocabularyView.ImportRows(ProjectFormState(),
+            creating: false, busy: _importing, actions, inputs, style, _text,
+            includeImport: false);
+        var form = style.GroupedForm(Views.Form(
+                Views.Section(_text("ResourceEdit_ImportVocabLabel"), rows[0], rows[1]),
+                Views.Section(_text("ResourceEdit_OrImportFile"), rows.Skip(2).ToArray()))
+            .WithAccessibilityIdentifier("native.resources.edit.bulk.form"))
+            .WithNavigationTitle(_text("ResourceEdit_BulkImportToggle"))
+            .WithInlineNavigationTitle();
+        var cancel = Views.Button(_text("Common_Cancel"), CloseImportSheet)
+            .WithAccessibilityIdentifier("native.resources.edit.bulk.cancel");
+        var import = Views.Button(_text("ResourceEdit_Import"), actions.ImportText)
+            .WithAccessibilityIdentifier("native.resources.form.vocabulary.import");
+        _importSheetButton = import;
+        UpdateImportButtons();
+        return Views.NavigationStack(Views.Toolbar(form, cancel, import))
+            .WithAccessibilityIdentifier("native.resources.edit.bulk.sheet");
     }
 
     internal SwiftView RenderQuickAddSuggestions(SourceUiStyle style)
@@ -534,7 +619,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _quickNativeTerm = string.Empty;
         _quickSearchField = null;
         _stagedGrid = null;
-        _stagedCount = null;
         _vocabularySection = null;
         _formStyle = null;
         _quickOptionNodes.Clear();
@@ -546,6 +630,8 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _pasteText = string.Empty;
         _delimiter = "comma";
         _bulkExpanded = false;
+        _chooseFileAfterImportSheet = false;
+        _importSheetButton = null;
         _createWordExpanded = false;
     }
 
@@ -699,7 +785,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _creating = false;
         _quickSearchField = null;
         _stagedGrid = null;
-        _stagedCount = null;
         _vocabularySection = null;
         _formStyle = null;
         _quickOptionNodes.Clear();
@@ -1027,26 +1112,32 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
 
     private void RemoveVocabulary(string id)
     {
-        if (!_formOpen || IsNavigationBlocked)
+        if (!_formOpen)
             return;
+        if (IsNavigationBlocked)
+        {
+            // A refused swipe: the swiped row may already look gone, so redraw what is true.
+            Publish();
+            return;
+        }
         if (_presenter.RemoveStagedVocabulary(id))
         {
-            if (_creating && _stagedGrid is { } grid
-                && _stagedCount is not null
+            // The staged words' Section drops the row in place and its header takes the new
+            // count (the last word's removal rebuilds the form without the Section).
+            if (_creating && _stagedGrid is { } section
                 && _presenter.Detail.Draft is { } draft
                 && !draft.StagedVocabulary.IsDefaultOrEmpty)
             {
-                for (var index = 1; index < grid.Children.Count; index++)
+                for (var index = 0; index < section.Children.Count; index++)
                 {
-                    if (grid.Children[index].AccessibilityIdentifier
+                    if (section.Children[index].AccessibilityIdentifier
                         != $"native.resources.form.vocabulary.word.{id}")
                         continue;
-                    var detached = grid.Children[index];
-                    grid.RemoveAt(index);
+                    var detached = section.Children[index];
+                    section.RemoveAt(index);
                     detached.Dispose();
-                    _stagedCount.Text = string.Format(CultureInfo.CurrentCulture,
-                        _text("ResourceAdd_VocabWordsAdded"),
-                        draft.StagedVocabulary.Length);
+                    section.Text = LearningResourceVocabularyView.StagedHeader(
+                        draft.StagedVocabulary.Length, _text);
                     Publish(formChanged: false);
                     return;
                 }
@@ -1054,14 +1145,45 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             Publish();
         }
         else if (!_creating)
+        {
+            // In place only while no status or error shows: those rows sit at the top of the
+            // form, and changing them needs the full redraw (the removal confirmation too).
+            var inPlace = _formStatus is null && _formErrorKey is null;
             Run(() => MutateVocabularyAsync(
                 token => _presenter.RemoveVocabularyAsync(id, token),
-                "ResourceEdit_RemoveWord", clearQuery: false));
+                "ResourceEdit_RemoveWord", clearQuery: false,
+                applyInPlace: inPlace ? () => TryRemoveWordRow(id) : null));
+        }
+    }
+
+    /// <summary>
+    /// A removed word leaves its Section in place, so the form keeps its scroll position (a
+    /// rebuilt Form returns to the top); the header takes the new count.
+    /// </summary>
+    private bool TryRemoveWordRow(string id)
+    {
+        if (_vocabularySection is not { } section || _formStyle is not { } style)
+            return false;
+        for (var index = 0; index < section.Children.Count; index++)
+        {
+            if (section.Children[index].AccessibilityIdentifier
+                != $"native.resources.form.vocabulary.word.{id}")
+                continue;
+            var row = section.Children[index];
+            section.RemoveAt(index);
+            row.Dispose();
+            var count = ProjectFormState().Vocabulary.Count;
+            if (count == 0)
+                section.Add(LearningResourceVocabularyView.EmptyRow(style, _text));
+            section.Text = LearningResourceVocabularyView.VocabularyHeader(count, _text);
+            return true;
+        }
+        return false;
     }
 
     private async Task MutateVocabularyAsync(
         Func<CancellationToken, Task<NativeResourceMutationResult>> mutate,
-        string successKey, bool clearQuery)
+        string successKey, bool clearQuery, Func<bool>? applyInPlace = null)
     {
         if (!_formOpen || _creating || IsNavigationBlocked)
             return;
@@ -1075,16 +1197,22 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             ?? ImmutableArray<NativeResourceVocabularyRow>.Empty;
         var stagedCount = staged.IsDefault ? 0 : staged.Length;
         var appendedStagedWord = false;
+        var appliedInPlace = false;
         _quickAdding = true;
         _formErrorKey = null;
-        if (!stageOnly)
+        // An in-place change (a swiped-away word) does not redraw the form first: a rebuilt
+        // Form returns to the top.
+        if (!stageOnly && applyInPlace is null)
             Publish();
         try
         {
             var result = await mutate(_lifetime.Token);
             if (!IsCurrentForm(formGeneration, selectedId))
                 return;
-            if (result == NativeResourceMutationResult.Success)
+            if (result == NativeResourceMutationResult.Success
+                && applyInPlace is not null && applyInPlace())
+                appliedInPlace = true;
+            else if (result == NativeResourceMutationResult.Success)
             {
                 _formStatus = _presenter.Detail.Draft is { } draft
                     && !draft.StagedVocabulary.IsDefaultOrEmpty
@@ -1113,7 +1241,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             _quickAdding = false;
             if (IsCurrentForm(formGeneration, selectedId))
             {
-                Publish(formChanged: !appendedStagedWord);
+                Publish(formChanged: !appendedStagedWord && !appliedInPlace);
                 if (appendedStagedWord && _quickSearchField is { } field)
                     DispatchQueue.MainQueue.DispatchAsync(() =>
                     {
@@ -1132,20 +1260,14 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             || _formStyle is not { } style
             || _presenter.Detail.Draft is not { } draft
             || draft.StagedVocabulary.IsDefault
-            || draft.StagedVocabulary.Length != previousCount + 1
-            || section.Children.Count == 0
-            || section.Children[0].AccessibilityIdentifier
-                != "native.resources.form.vocabulary")
+            || draft.StagedVocabulary.Length != previousCount + 1)
             return false;
 
         var word = AsFormWord(draft.StagedVocabulary[^1]);
-        var rows = section.Children.FirstOrDefault(child =>
-            child.AccessibilityIdentifier == LearningResourceVocabularyView.EditVocabularyRowsId);
-        if (rows is not null && rows.Children.Any(child =>
-                child.AccessibilityIdentifier ==
-                    $"native.resources.form.vocabulary.word.{word.Id}"))
+        if (section.Children.Any(child => child.AccessibilityIdentifier ==
+                $"native.resources.form.vocabulary.word.{word.Id}"))
             return false;
-        for (var index = 1; index < section.Children.Count; index++)
+        for (var index = 0; index < section.Children.Count; index++)
         {
             if (section.Children[index].AccessibilityIdentifier
                 != "native.resources.form.vocabulary.empty")
@@ -1155,16 +1277,11 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             empty.Dispose();
             break;
         }
-        if (rows is null)
-        {
-            rows = LearningResourceVocabularyView.CreateEditVocabularyRows();
-            section.Add(rows);
-        }
-        LearningResourceVocabularyView.AppendEditVocabularyRow(rows, word, false, false,
-            RemoveVocabulary, style, _text);
-        section.Children[0].Text = string.Format(CultureInfo.CurrentCulture,
-            _text("ResourceEdit_VocabularySection"),
-            ProjectFormState().Vocabulary.Count);
+        // The words are the Section's last rows: the new one goes after them.
+        section.Add(LearningResourceVocabularyView.EditVocabularyRow(word, false, false,
+            RemoveVocabulary, style, _text));
+        section.Text = LearningResourceVocabularyView.VocabularyHeader(
+            ProjectFormState().Vocabulary.Count, _text);
         field.Text = string.Empty;
         return true;
     }
@@ -1430,10 +1547,9 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         var available = _formOpen && !IsNavigationBlocked
             && !string.IsNullOrWhiteSpace(_pasteText);
         foreach (var button in _importButtons)
-            SourceUiStyle.SetCustomButtonAvailability(button,
-                _saveAppearance ?? throw new InvalidOperationException(
-                    "A registered Import button requires its source appearance."),
-                SourceButtonRole.FilledSecondary, available);
+            button.IsEnabled = available;
+        if (_importSheetButton is { } sheetImport)
+            sheetImport.IsEnabled = available;
     }
 
     private void Publish(bool formChanged = true)
@@ -1465,7 +1581,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _quickOptionNodes.Clear();
         _quickOptionAppearance = null;
         _stagedGrid = null;
-        _stagedCount = null;
         _vocabularySection = null;
         _formStyle = null;
         Interlocked.Increment(ref _quickSearchVersion);

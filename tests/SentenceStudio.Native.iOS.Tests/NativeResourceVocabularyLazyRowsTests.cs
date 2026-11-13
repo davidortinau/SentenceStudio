@@ -3,39 +3,45 @@ using System.Runtime.CompilerServices;
 namespace SentenceStudio.Native.iOS.Tests;
 
 /// <summary>
-/// AF-R11: Resource Edit vocabulary rows are a SwiftUI lazy container inside the
-/// form's ScrollView (AGENTS.md native virtualization), while keeping the word
-/// row, count heading, No Vocab Yet and read-only smart-resource behavior, and the
-/// coordinator's in-place quick-add append into the same container.
+/// AF-R11: Resource Edit vocabulary rows stay lazy (AGENTS.md native virtualization). Captain
+/// 2026-11-13: native Resource form. Each word is now a row of the form's vocabulary Section,
+/// and a SwiftUI Form is a lazy List, so the one-column LazyVGrid inside a ScrollView is gone.
+/// The word row, count heading, No Vocab Yet and read-only smart-resource behavior stay, and the
+/// coordinator still appends a quick-added word to the mounted Section in place.
 /// </summary>
 public sealed class NativeResourceVocabularyLazyRowsTests
 {
     [Fact]
-    public void EditVocabularyRowsAreAOneColumnLazyGridThatTheCoordinatorAppendsTo()
+    public void EditVocabularyRowsAreSectionRowsThatTheCoordinatorAppendsTo()
     {
         var vocabulary = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
-        var create = Between(vocabulary, "internal static SwiftView CreateEditVocabularyRows()",
-            "internal static void AppendEditVocabularyRow(");
-        Assert.Contains("Views.LazyVGrid(1)", create);
-        Assert.Contains("rows.Spacing = 0;", create);
-        Assert.DoesNotContain("Views.VStack()", create);
-        Assert.Contains("rows.Kind != \"grid\"", vocabulary);
+        var add = Between(vocabulary, "internal static void AddVocabulary(",
+            "internal static string VocabularyHeader(");
+        Assert.Contains("rows.AddRange(state.Vocabulary.Select(word =>", add);
+        Assert.Contains("Views.Section(VocabularyHeader(state.Vocabulary.Count, text)", add);
+        Assert.Contains("inputs.RegisterVocabularySection(section);", add);
+        Assert.DoesNotContain("LazyVGrid", vocabulary);
 
-        // Source row contract is unchanged.
-        Assert.Contains("text(\"ResourceEdit_VocabularySection\"), state.Vocabulary.Count", vocabulary);
+        // Source row contract is unchanged: the count heading, No Vocab Yet, and no removal on a
+        // smart resource or while busy.
+        Assert.Contains("text(\"ResourceEdit_VocabularySection\"), count)", vocabulary);
         Assert.Contains("text(\"ResourceEdit_NoVocabYet\")", vocabulary);
-        Assert.Contains("if (!isSmartResource && !busy)\n            cells.Add(RemoveWordButton(", vocabulary);
-        Assert.Contains("LearningResourceVocabularyView.CreateEditVocabularyRows()", coordinator);
-        Assert.Contains("LearningResourceVocabularyView.AppendEditVocabularyRow(rows,", coordinator);
+        var row = Between(vocabulary, "internal static SwiftView EditVocabularyRow(",
+            "internal static SwiftView StagedRow(");
+        Assert.Contains("if (isSmartResource || busy)", row);
+        Assert.Contains("Views.SwipeRow(content, [RemoveAction(", row);
+        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+            coordinator);
     }
 
     [Fact]
-    public void TheFormScrollViewHostsTheLazyRows()
+    public void TheFormHostsTheLazyRows()
     {
         var form = Source("Features/LearningResources/LearningResourceView.cs");
-        Assert.Contains("style.Page(Views.Scroll(content)", form);
-        Assert.Contains("LearningResourceVocabularyView.AddVocabulary(vocabulary, state,", form);
+        Assert.Contains("style.GroupedForm(Views.Form(sections.ToArray())", form);
+        Assert.Contains("LearningResourceVocabularyView.AddVocabulary(sections, state,", form);
+        Assert.DoesNotContain("Views.Scroll(", form);
     }
 
     private static string Between(string source, string start, string end)

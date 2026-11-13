@@ -121,8 +121,8 @@ internal static class SkillProfileFormView
             return Views.Toolbar(page, save);
         // Captain 2026-11-13: Save stays plain text, which the system draws apart from the
         // icons; the skill's actions are icons (Archive or Restore, then Delete, which asks
-        // first). Each icon is
-        // a titled Label, so a long press shows its name as the tab bar's do.
+        // first). Each icon is a titled Label: its name for VoiceOver and, at the larger
+        // accessibility text sizes, the system's long-press viewer.
         var delete = Views.Button(Views.Label(text("Common_Delete"), "trash"), actions.RequestDelete)
             .WithAccessibilityIdentifier("native.skills.edit.delete.request");
         delete.IsEnabled = !busy && !state.Busy;

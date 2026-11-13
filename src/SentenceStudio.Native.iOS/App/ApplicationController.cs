@@ -108,6 +108,12 @@ internal sealed partial class ApplicationController : IDisposable
     internal string StarterBusyTitle => Text(_dashboardStarterBusy
         ? "Dashboard_SettingUp" : "Resources_CreatingStarter");
     internal bool IsFileImporterPresented => _resources?.IsFileImporterPresented == true;
+    internal bool IsResourceImportSheetPresented =>
+        _resources?.IsImportSheetPresented == true;
+    internal SwiftView RenderResourceImportSheet(SourceUiStyle style) =>
+        _resources?.RenderImportSheet(style) ?? Views.Text(string.Empty);
+    internal void OnResourceImportSheetDismissed() =>
+        _resources?.OnImportSheetDismissed();
     internal bool IsQuickAddSuggestionsPresented => _resources?.IsQuickAddOpen == true;
     internal bool HasQuickAddField => _resources?.HasQuickAddField == true;
     internal string? QuickAddFieldAutomationId => _resources?.QuickAddFieldAutomationId;

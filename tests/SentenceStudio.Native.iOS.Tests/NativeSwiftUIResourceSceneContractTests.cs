@@ -166,13 +166,16 @@ public sealed class NativeSwiftUIResourceSceneContractTests
 
         Assert.Contains("inputs.RegisterQuickSearch(input);", quickAdd);
         Assert.Contains("_quickSearchField = view;", coordinator);
-        Assert.Contains("inputs.RegisterVocabularySection(vocabularyCard);", form);
-        Assert.Contains("fields.Add(vocabularyCard);", form);
-        Assert.Contains("fields.Add(style.Text(Views.Text(creating", vocabulary);
-        Assert.Contains("fields.Add(rows);", vocabulary);
-        Assert.Contains("section.Children[0].AccessibilityIdentifier", coordinator);
-        Assert.Contains("section.Add(rows);", coordinator);
-        Assert.Contains("LearningResourceVocabularyView.AppendEditVocabularyRow(rows,",
+        // Captain 2026-11-13: native Resource form. The vocabulary is a Form Section whose
+        // header carries the count; the coordinator keeps the registered Section and appends a
+        // quick-added word to it in place (it has no automation ID to look up).
+        Assert.Contains("LearningResourceVocabularyView.AddVocabulary(sections, state,", form);
+        Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
+        Assert.Contains("sections.Add(section);", vocabulary);
+        Assert.Contains("_vocabularySection = section", coordinator);
+        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+            coordinator);
+        Assert.Contains("section.Text = LearningResourceVocabularyView.VocabularyHeader(",
             coordinator);
         Assert.Contains("slot.RemoveAt(0);", scene);
         Assert.Contains("slot.Add(child);", scene);

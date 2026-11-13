@@ -51,7 +51,13 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Contains("style.InfoAlert(pattern, compact: true)", insight);
         Assert.Contains("style.InfoAlert(message, compact: true)", feature);
         Assert.Contains("style.InfoAlert(panel, compact: true)", feature);
-        Assert.Contains("fields.Add(style.InfoAlert(smartNotice));", resource);
+        // Captain 2026-11-13: native Resource form. The smart-resource notice is the first
+        // row of the form's notices Section (a sparkles Label in the info color), not a custom
+        // info alert card.
+        Assert.Contains("Views.Label(text(\"ResourceEdit_SmartResource\"), \"sparkles\")", resource);
+        Assert.Contains("style.Appearance.InfoAlertText.Light", resource);
+        Assert.Contains("notices.Insert(0, smartNotice);", resource);
+        Assert.DoesNotContain("style.InfoAlert(smartNotice", resource);
         Assert.Contains("appearance.InfoAlertFill", style);
         Assert.Contains("appearance.InfoAlertText", style);
         Assert.Contains("appearance.InfoAlertBorder", style);

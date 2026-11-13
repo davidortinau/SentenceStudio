@@ -182,107 +182,74 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Constants.Languages.ToImmutableArray()", presenter);
     }
 
+    /// <summary>
+    /// Captain 2026-11-13: native Resource form. Bulk import rows keep the visible comma/tab
+    /// delimiter (a segmented Picker) and a registered Import; a word is removed by swiping its
+    /// row (a red, destructive Remove), replacing the trailing x button.
+    /// </summary>
     [Fact]
-    public void BulkVocabularyShowsVisibleDelimiterNextToImportAndIconOnlyRemove()
+    public void BulkVocabularyShowsVisibleDelimiterAndSwipeToRemove()
     {
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var start = form.IndexOf("var delimiter = style.Text(Views.Picker(",
-            StringComparison.Ordinal);
-        var end = form.IndexOf("fields.Add(importRow);", start,
-            StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start);
-        var bulk = form[start..end];
+        var bulk = form[form.IndexOf("internal static List<SwiftView> ImportRows(",
+                StringComparison.Ordinal)
+            ..form.IndexOf("internal static SwiftView EditVocabularyRow(", StringComparison.Ordinal)];
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Segmented)", bulk);
-        Assert.Contains("inputs.DelimiterChanged(index == 1 ? \"tab\" : \"comma\")",
-            bulk);
-        Assert.Contains("var importRow = Views.HStack(delimiter, import)", bulk);
+        Assert.Contains("inputs.DelimiterChanged(index == 1 ? \"tab\" : \"comma\")", bulk);
         Assert.Contains("inputs.RegisterImport(import);", bulk);
-        Assert.DoesNotContain("fields.Add(delimiter);", bulk);
+        Assert.Contains("import.IsEnabled = !busy && !string.IsNullOrWhiteSpace(inputs.PasteText);",
+            bulk);
+        Assert.Contains("inputs.ChooseFile", bulk);
 
-        var rows = form[form.IndexOf("private static void AddVocabularyRows(",
+        var remove = form[form.IndexOf("private static SwiftView RemoveAction(",
                 StringComparison.Ordinal)..];
-        Assert.Contains("Views.Button(Views.Image(\"xmark\"),", rows);
-        Assert.Contains("creating ? style.Appearance.Danger.Light", rows);
-        Assert.Contains("style.Appearance.SecondaryText.Light", rows);
-        Assert.Contains(".WithAccessibilityLabel(text(\"ResourceEdit_RemoveWord\"))",
-            rows);
-        Assert.DoesNotContain("style.SecondaryButton(\n"
-            + "                        text(\"ResourceEdit_RemoveWord\")", rows);
+        Assert.Contains("Views.Button(Views.Label(text(\"ResourceEdit_RemoveWord\"), \"trash\"),", remove);
+        Assert.Contains("() => removeWord(id)", remove);
+        Assert.Contains(".WithButtonRole(SwiftButtonRole.Destructive)", remove);
+        Assert.Contains(".WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)",
+            remove);
+        Assert.DoesNotContain("Views.Image(\"xmark\")", form);
     }
 
+    /// <summary>
+    /// Captain 2026-11-13: native Resource form. A new resource's staged words are rows of
+    /// their own Section (header: the count) instead of the five-column table: the term and
+    /// meaning, the tags under them, the type as a menu Picker, swipe to remove; never editable
+    /// text fields. An existing resource's words keep the bold term and secondary meaning.
+    /// </summary>
     [Fact]
-    public void ResourceAddStagedWords_UseFiveAlignedHorizontallyScrollableColumns()
+    public void ResourceAddStagedWords_AreSectionRowsWithATypeMenu()
     {
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var start = form.IndexOf("private static void AddVocabularyRows(",
-            StringComparison.Ordinal);
-        var end = form.Length;
-        Assert.True(start >= 0 && end > start);
-        var vocabulary = form[start..end];
+        var add = form[form.IndexOf("internal static void AddVocabulary(", StringComparison.Ordinal)
+            ..form.IndexOf("internal static string VocabularyHeader(", StringComparison.Ordinal)];
+        Assert.Contains("if (state.Vocabulary.Count > 0)", add);
+        Assert.Contains("var staged = Views.Section(StagedHeader(state.Vocabulary.Count, text),", add);
+        Assert.Contains("StagedRow(word, busy, actions, style, text)", add);
+        Assert.Contains("inputs.RegisterStagedGrid(staged);", add);
+        Assert.Contains("text(\"ResourceAdd_VocabWordsAdded\"), count)", form);
 
-        Assert.Contains("if (creating && state.Vocabulary.Count > 0)", vocabulary);
-        Assert.Contains("var table = CreateStagedTable(state.Vocabulary, busy, actions, style, text);",
-            vocabulary);
-        Assert.Contains("inputs.RegisterStagedGrid(table);", vocabulary);
-        Assert.Contains("Views.HorizontalGrid([0, 0, 120, 0, 0], header, rows);",
-            vocabulary);
-        var headerStart = vocabulary.IndexOf("var header = Views.HStack(",
-            StringComparison.Ordinal);
-        var headerEnd = vocabulary.IndexOf("native.resources.add.table.header",
-            headerStart, StringComparison.Ordinal);
-        Assert.True(headerStart >= 0 && headerEnd > headerStart);
-        var header = vocabulary[headerStart..headerEnd];
-        var prior = -1;
-        foreach (var key in new[]
-        {
-            "Import_TargetLanguageTerm", "Import_ColNative", "Import_ColType",
-            "VocabWordEdit_Tags"
-        })
-        {
-            var index = header.IndexOf($"Header(\"{key}\"", StringComparison.Ordinal);
-            Assert.True(index > prior, $"{key} must follow the previous header");
-            prior = index;
-        }
-        Assert.Contains("Views.Text(string.Empty)", header);
-        Assert.Contains("Views.HStack(target, native, kind, tags, remove)",
-            vocabulary);
-        var pickerStart = vocabulary.IndexOf("var kind = style.Input(Views.Picker(",
-            StringComparison.Ordinal);
-        var pickerEnd = vocabulary.IndexOf("var tags =", pickerStart,
-            StringComparison.Ordinal);
-        Assert.True(pickerStart >= 0 && pickerEnd > pickerStart);
-        var picker = vocabulary[pickerStart..pickerEnd];
-        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", picker);
-        Assert.Contains(".WithFlexibleWidth()", picker);
-        Assert.Contains(".WithAccessibilityLabel(text(\"Import_ColType\"))", picker);
-        Assert.Contains("remove.IsEnabled = !busy;", vocabulary);
-        Assert.Contains("actions.SetWordType(id,", vocabulary);
-        Assert.Contains("actions.RemoveWord, style, text", vocabulary);
-        Assert.Contains("() => removeWord(id)", vocabulary);
-        Assert.Contains("string.IsNullOrWhiteSpace(word.Tags)", vocabulary);
-        Assert.DoesNotContain("Views.TextField(word.TargetTerm", vocabulary);
-        Assert.DoesNotContain("Views.TextField(word.NativeTerm", vocabulary);
+        var staged = form[form.IndexOf("internal static SwiftView StagedRow(", StringComparison.Ordinal)
+            ..form.IndexOf("private static SwiftView Terms(", StringComparison.Ordinal)];
+        Assert.Contains("string.IsNullOrWhiteSpace(word.Tags)", staged);
+        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", staged);
+        Assert.Contains(".WithAccessibilityLabel(text(\"Import_ColType\"))", staged);
+        Assert.Contains("actions.SetWordType(id,", staged);
+        Assert.Contains("Views.SwipeRow(content, [RemoveAction(id, actions.RemoveWord, style, text)])",
+            staged);
+        Assert.Contains("if (busy)", staged);
+        Assert.DoesNotContain("Views.HorizontalGrid(", form);
+        Assert.DoesNotContain("Views.TextField(word.TargetTerm", form);
+        Assert.DoesNotContain("Views.TextField(word.NativeTerm", form);
 
-        var edit = vocabulary[..vocabulary.IndexOf(
-            "private static SwiftView CreateStagedTable(", StringComparison.Ordinal)];
-        Assert.Contains("var terms = Views.InlineText(target, native)", edit);
-        Assert.Contains("var row = Views.HStack(cells.ToArray())", edit);
-        Assert.Contains("rows.Add(Views.Divider()", edit);
-        Assert.Contains(".WithBackgroundColor(style.Appearance.BorderSecondary.Light,", edit);
-        Assert.Contains("if (rows.Children.Count > 0)", edit);
-        Assert.Contains("fields.Add(rows);", edit);
-        Assert.Contains("string.IsNullOrEmpty(word.NativeTerm)", edit);
-        Assert.Contains("SourceTextRole.Body1Bold, strongElement: true", edit);
-        Assert.Contains("SourceTextRole.Body1, SourceTextTone.Secondary", edit);
-        Assert.Contains("if (!isSmartResource && !busy)", edit);
-        Assert.DoesNotContain(".WithAdaptiveStack(420)", edit);
-        Assert.DoesNotContain(".WithAdaptiveStack(690)", edit);
-        Assert.DoesNotContain("Views.HorizontalGrid(", edit);
-        Assert.DoesNotContain("VocabWordEdit_Tags", edit);
+        var terms = form[form.IndexOf("private static SwiftView Terms(", StringComparison.Ordinal)..];
+        Assert.Contains("string.IsNullOrEmpty(word.NativeTerm)", terms);
+        Assert.Contains("SourceTextRole.Body1Bold,\n                strongElement: true", terms);
+        Assert.Contains("SourceTextRole.Body1, SourceTextTone.Secondary", terms);
     }
 
     [Fact]
-    public void StagedTypeAndRemove_PreserveMountedTableUntilItsLastRow()
+    public void StagedTypeAndRemove_PreserveMountedSectionUntilItsLastRow()
     {
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
@@ -293,21 +260,37 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Publish(formChanged: false);", type);
         Assert.DoesNotContain("Publish();", type);
 
+        // Captain 2026-11-13: native Resource form. The staged words' Section drops the row
+        // in place and its header takes the new count.
         var remove = coordinator[coordinator.IndexOf(
                 "private void RemoveVocabulary(string id)", StringComparison.Ordinal)
-            ..coordinator.IndexOf("private async Task MutateVocabularyAsync(",
+            ..coordinator.IndexOf("private bool TryRemoveWordRow(string id)",
                 StringComparison.Ordinal)];
-        Assert.Contains("if (_creating && _stagedGrid is { } grid", remove);
-        Assert.Contains("for (var index = 1;", remove);
-        Assert.Contains("grid.RemoveAt(index);", remove);
+        Assert.Contains("if (_creating && _stagedGrid is { } section", remove);
+        Assert.Contains("for (var index = 0; index < section.Children.Count; index++)", remove);
+        Assert.Contains("section.RemoveAt(index);", remove);
         Assert.Contains("detached.Dispose();", remove);
-        Assert.True(remove.IndexOf("grid.RemoveAt(index);", StringComparison.Ordinal)
+        Assert.True(remove.IndexOf("section.RemoveAt(index);", StringComparison.Ordinal)
             < remove.IndexOf("detached.Dispose();", StringComparison.Ordinal));
-        Assert.Contains("_stagedCount.Text = string.Format(", remove);
+        Assert.Contains("section.Text = LearningResourceVocabularyView.StagedHeader(", remove);
         Assert.Contains("Publish(formChanged: false);", remove);
         Assert.Contains("Publish();", remove);
-        Assert.Contains("inputs.RegisterStagedGrid(table);", form);
-        Assert.Contains("inputs.RegisterStagedCount(count);", form);
+        Assert.Contains("inputs.RegisterStagedGrid(staged);", form);
+
+        // An existing resource's removed word leaves its Section in place too (the form keeps
+        // its scroll position), and the form is not redrawn before the removal.
+        var inPlace = coordinator[coordinator.IndexOf("private bool TryRemoveWordRow(string id)",
+                StringComparison.Ordinal)
+            ..coordinator.IndexOf("private async Task MutateVocabularyAsync(", StringComparison.Ordinal)];
+        Assert.Contains("section.RemoveAt(index);", inPlace);
+        Assert.Contains("section.Add(LearningResourceVocabularyView.EmptyRow(style, _text));", inPlace);
+        Assert.Contains("section.Text = LearningResourceVocabularyView.VocabularyHeader(count, _text);",
+            inPlace);
+        // In place only while no status or error row shows (review 2026-11-13); a refused
+        // swipe redraws what is true.
+        Assert.Contains("applyInPlace: inPlace ? () => TryRemoveWordRow(id) : null", remove);
+        Assert.Contains("var inPlace = _formStatus is null && _formErrorKey is null;", remove);
+        Assert.Contains("if (!stageOnly && applyInPlace is null)", coordinator);
     }
 
     [Fact]
@@ -415,8 +398,9 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Translation = draft?.Translation ?? resource?.Translation",
             coordinator);
         Assert.Contains("Views.TextEditor(value ?? string.Empty,", fields);
-        // A read-only area (a smart resource) is its text, not a disabled input (Captain 2026-11-12).
-        Assert.Contains("if (readOnly)\n            return Views.VStack(", fields);
+        // A read-only area (a smart resource) is its text, not a disabled input (Captain 2026-11-12);
+        // Captain 2026-11-13 (native Resource form): the text is the row of the field's Section.
+        Assert.Contains("Views.Section(label, readOnly\n                ? Views.Text(value ?? string.Empty)", fields);
         Assert.DoesNotContain("TranscriptPreview", resources);
         Assert.DoesNotContain("TranslationPreview", resources);
         Assert.DoesNotContain("Substring(0, 240)", resources);
@@ -445,23 +429,27 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains(".WithTextEditorScrollBackgroundHidden();", fields);
         Assert.Equal(1, fields.Split(".WithTextEditorScrollBackgroundHidden()",
             StringSplitOptions.None).Length - 1);
-        Assert.Contains("var editor = style.Input(input)", fields);
+        // Captain 2026-11-13: native Resource form. The editor is the Section's row itself, at
+        // least the given number of lines high (no input box around it).
+        Assert.Contains(".WithMinimumHeight(AreaHeight(style, rows))", fields);
+        Assert.DoesNotContain("style.Input(input)", fields);
         Assert.Contains("if (placeholder is not null)", fields);
         Assert.DoesNotContain("native.resources.form.vocabulary.example", vocabulary);
 
-        var edit = form[form.IndexOf("if (!creating && !state.IsSmartResource)\n        {\n            fields.Add(CardSection(style, \"native.resources.form.transcript.card\", [",
+        var edit = form[form.IndexOf("if (!creating && !readOnly)\n        {\n            sections.Add(LearningResourceFieldsView.Area(style, text(\"ResourceEdit_Transcript\"),",
                 StringComparison.Ordinal)
-            ..form.IndexOf("var vocabulary = new List<SwiftView>();",
+            ..form.IndexOf("LearningResourceVocabularyView.AddVocabulary(sections,",
                 StringComparison.Ordinal)];
         Assert.Contains("ResourceEdit_Transcript", edit);
         Assert.Contains("ResourceEdit_Translation", edit);
         Assert.DoesNotContain("placeholder:", edit);
-        // A smart resource hides these cards, so they are always editable here.
-        Assert.Contains("readOnly: false, heading: true, rows: 6", edit);
+        // A smart resource hides these Sections, so they are always editable here.
+        Assert.Contains("readOnly: false, rows: 6", edit);
     }
 
+    // Captain 2026-11-13: native Resource form (a grouped Form, not cards in a ScrollView).
     [Fact]
-    public void FullResourceCreateEditAndSmartReadOnlyUseBoundSwiftUICards()
+    public void FullResourceCreateEditAndSmartReadOnlyUseABoundNativeForm()
     {
         var form = Source("Features/LearningResources/LearningResourceView.cs");
         var fields = Source("Features/LearningResources/LearningResourceFieldsView.cs");
@@ -473,10 +461,11 @@ public sealed class NativeSwiftUIResourceContractTests
             "MediaUrl", "Tags", "Transcript", "Translation"
         })
             Assert.Contains($"nameof(LearningResourceViewState.{field})", form);
-        Assert.Contains("style.Page(Views.Scroll(content)", form);
-        Assert.Contains("return style.Card(card);", form);
-        Assert.DoesNotContain("Views.Form(", form);
+        Assert.Contains("style.GroupedForm(Views.Form(sections.ToArray())", form);
+        Assert.DoesNotContain("style.Card(", form);
         Assert.Contains("Views.Picker(", fields);
+        Assert.Contains("Views.LabeledContent(label,", fields);
+        Assert.Contains("var readOnly = state.IsSmartResource;", form);
         Assert.Contains("state.IsSmartResource", form);
         Assert.Contains("ResourceEdit_AutoUpdated", form);
         Assert.Contains("_presenter.BeginCreate()", coordinator);
@@ -488,8 +477,9 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);
     }
 
+    // Captain 2026-11-13: native Resource form (Form Sections replace the cards).
     [Fact]
-    public void CardBackedResourceEditorRetainsLiveInputsFocusAndQuickAddMutations()
+    public void NativeFormResourceEditorRetainsLiveInputsFocusAndQuickAddMutations()
     {
         var form = Source("Features/LearningResources/LearningResourceView.cs");
         var fields = Source("Features/LearningResources/LearningResourceFieldsView.cs");
@@ -498,8 +488,9 @@ public sealed class NativeSwiftUIResourceContractTests
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var scene = Source("App/ApplicationScene.cs");
 
-        Assert.Contains("Views.TextField(placeholder ?? label,", fields);
-        Assert.Contains("value ?? string.Empty, changed))", fields);
+        // The label sits beside the field, so the field has no prompt unless one is given.
+        Assert.Contains("Views.TextField(placeholder ?? string.Empty,", fields);
+        Assert.Contains("value ?? string.Empty, changed)", fields);
         Assert.Contains("Views.TextEditor(value ?? string.Empty,", fields);
         Assert.Contains("Views.TextEditor(value ?? string.Empty, changed)\n            .WithTextEditorScrollBackgroundHidden();",
             fields);
@@ -512,12 +503,13 @@ public sealed class NativeSwiftUIResourceContractTests
         // The toolbar's plain Save is the form's only Save (Captain 2026-11-10).
         Assert.Contains("registerSave(save);", form);
 
-        Assert.Contains("inputs.RegisterVocabularySection(vocabularyCard);", form);
-        Assert.Contains("section.Children[0].AccessibilityIdentifier", coordinator);
-        Assert.Contains("section.Add(rows);", coordinator);
-        Assert.Contains("LearningResourceVocabularyView.AppendEditVocabularyRow(rows,",
+        Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
+        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
             coordinator);
-        Assert.Contains("Views.FileImporter(_formSlot,", scene);
+        // The bulk import sheet sits outside the form (so a form update never redraws it), and
+        // the file chooser outside the sheet.
+        Assert.Contains("_importSheet = Views.Sheet(_formSlot, _importSheetSlot,", scene);
+        Assert.Contains("Views.FileImporter(_importSheet,", scene);
         Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
         Assert.Contains("Views.Alert(_deleteConfirmation,", scene);
         Assert.Contains("Views.QuickAddSuggestions(", scene);
@@ -669,8 +661,14 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("result.GeneratedTotal, result.CreatedCount,", coordinator);
         Assert.Contains("result.ExistingLinkedCount", coordinator);
         Assert.Contains("ResourceEdit_GenerateSuccess", coordinator);
-        Assert.Contains("if (creating || !state.IsSmartResource && inputs.BulkExpanded)",
-            form);
+        // Captain 2026-11-13: native Resource form. A new resource imports in place; an
+        // existing one opens the bulk import sheet (never on a smart resource).
+        Assert.Contains("ImportRows(state, creating: true, busy, actions, inputs, style, text,", form);
+        Assert.Contains("inputs.ToggleBulk)", form);
+        Assert.Contains("internal bool IsImportSheetPresented => _formOpen && !_creating && _bulkExpanded;",
+            coordinator);
+        Assert.Contains("if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded)",
+            coordinator);
         Assert.Contains("state.QuickAddResults", quickAdd);
         Assert.Contains("native.resources.form.vocabulary.remove.{id}", form);
         Assert.Contains("text(\"ResourceEdit_QuickAddPlaceholder\"),",
@@ -697,9 +695,9 @@ public sealed class NativeSwiftUIResourceContractTests
             quickAdd);
         Assert.Contains("inputs.RegisterQuickSearch(input)", quickAdd);
         Assert.Contains("native.resources.edit.quick.listbox", quickAdd);
-        Assert.True(form.IndexOf("fields.Add(LearningResourceQuickAddView.QuickAdd(",
+        Assert.True(form.IndexOf("rows.AddRange(LearningResourceQuickAddView.QuickAdd(",
                 StringComparison.Ordinal)
-            < form.IndexOf("AddVocabularyRows(fields,", StringComparison.Ordinal));
+            < form.IndexOf("rows.AddRange(state.Vocabulary.Select(", StringComparison.Ordinal));
         Assert.Contains("ResourceAdd_VocabWordsAdded", form);
     }
 
@@ -711,13 +709,16 @@ public sealed class NativeSwiftUIResourceContractTests
         var quickAdd = Source("Features/LearningResources/LearningResourceQuickAddView.cs");
         Assert.Contains("_quickQuery.Trim(), _quickNativeTerm.Trim()", coordinator);
         Assert.Contains("ImportVocabularyTextAsync(_pasteText, _delimiter)", coordinator);
-        Assert.Contains("style.PrimaryButton(text(\"ResourceEdit_QuickAddLabel\"),",
-            quickAdd);
-        Assert.Contains("actions.CreateWord)", quickAdd);
+        // Captain 2026-11-13: native Resource form. Add is a Form action row.
+        Assert.Contains("Views.Label(label, \"plus\"), actions.CreateWord)", quickAdd);
         Assert.Contains("actions.ImportText)", form);
         Assert.Contains("PasteTextChanged: value =>", coordinator);
         Assert.Contains("UpdateImportButtons();", coordinator);
         Assert.Contains("inputs.RegisterImport(import);", form);
+        // The sheet reads the current paste text, not the form's captured inputs.
+        Assert.Contains("formInputs with { PasteText = _pasteText, Delimiter = _delimiter }",
+            coordinator);
+        Assert.Contains("_importSheetButton = import;", coordinator);
         Assert.DoesNotContain("actions.CreateWord(inputs.QuickQuery", quickAdd);
         Assert.DoesNotContain("actions.ImportText(inputs.PasteText", form);
     }
@@ -753,18 +754,17 @@ public sealed class NativeSwiftUIResourceContractTests
             ..coordinator.IndexOf("private async Task ImportVocabularyTextAsync(",
                 StringComparison.Ordinal)];
 
+        // Captain 2026-11-13: native Resource form. The staged word joins the mounted
+        // vocabulary Section in place (no rebuilt form, so focus and scroll stay).
         Assert.Contains("RegisterVocabularySection: section =>", coordinator);
-        Assert.Contains("inputs.RegisterVocabularySection(vocabularyCard);", views);
+        Assert.Contains("LearningResourceVocabularyView.AddVocabulary(sections, state,", views);
+        Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
         Assert.Contains("TryAppendStagedQuickAdd(", mutation);
-        Assert.Contains("Publish(formChanged: !appendedStagedWord);", mutation);
-        Assert.Contains("section.Add(rows);", coordinator);
+        Assert.Contains("Publish(formChanged: !appendedStagedWord && !appliedInPlace);", mutation);
+        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+            coordinator);
+        Assert.Contains("\"native.resources.form.vocabulary.empty\")", coordinator);
         Assert.Contains("field.Text = string.Empty;", coordinator);
-        Assert.Contains("LearningResourceVocabularyView.CreateEditVocabularyRows()",
-            coordinator);
-        Assert.Contains("LearningResourceVocabularyView.AppendEditVocabularyRow(rows,",
-            coordinator);
-        Assert.Contains("rows.Add(EditVocabularyRow(", vocabulary);
-        Assert.Contains("if (rows.Children.Count > 0)", vocabulary);
     }
 
     [Fact]
@@ -772,7 +772,10 @@ public sealed class NativeSwiftUIResourceContractTests
     {
         var scene = Source("App/ApplicationScene.cs");
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
-        Assert.Contains("Views.FileImporter(_formSlot,", scene);
+        // Captain 2026-11-13: native Resource form. The file chooser wraps the import sheet,
+        // which wraps the form; Choose File in the sheet opens it once the sheet has gone.
+        Assert.Contains("Views.FileImporter(_importSheet,", scene);
+        Assert.Contains("_chooseFileAfterImportSheet = true;", coordinator);
         Assert.Contains("_app.OnResourceFileImported,", scene);
         Assert.Contains("_app.OnResourceFileImportError,", scene);
         Assert.Contains("_app.OnFileImporterDismissed);", scene);

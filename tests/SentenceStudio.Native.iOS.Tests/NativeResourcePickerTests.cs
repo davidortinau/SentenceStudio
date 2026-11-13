@@ -77,8 +77,10 @@ public sealed class NativeResourcePickerTests
         Assert.Contains("next => picker.Select(next, changed)", select);
         Assert.DoesNotContain("next == 0 ? null", select);
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", select);
-        Assert.Contains(".WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading)",
-            select);
+        // Captain 2026-11-13: native Resource form. A titled system Picker row (label beside
+        // the value), not an input box.
+        Assert.Contains("Views.Picker(label, picker.Options, picker.SelectedIndex,", select);
+        Assert.DoesNotContain("style.Input(", select);
         Assert.Contains("value => actions.Change(nameof(LearningResourceViewState.MediaType), value)",
             view);
         Assert.Contains("value => actions.Change(nameof(LearningResourceViewState.Language), value)",
@@ -98,13 +100,17 @@ public sealed class NativeResourcePickerTests
             coordinator);
     }
 
+    /// <summary>
+    /// Captain 2026-11-13: native Resource form. Media type and language are system menu
+    /// Picker rows at every width (the label beside the chosen value, the system's chevron and
+    /// checkmark), replacing the hand-built edit menu with its own chevron and checkmarks.
+    /// </summary>
     [Theory]
-    [InlineData("native.resources.edit.media-type", "native.resources.form.media.type",
-        "Constants.MediaTypes", "LearningResourceViewState.MediaType")]
-    [InlineData("native.resources.edit.language", "native.resources.form.language",
-        "Constants.Languages", "LearningResourceViewState.Language")]
-    public void ResourceEditSelect_UsesNativeMenuWithLeadingValueAndTrailingChevron(
-        string menuId, string fieldId, string catalog, string field)
+    [InlineData("native.resources.form.media.type", "Constants.MediaTypes",
+        "LearningResourceViewState.MediaType")]
+    [InlineData("native.resources.form.language", "Constants.Languages",
+        "LearningResourceViewState.Language")]
+    public void ResourceSelect_IsASystemMenuPickerRow(string fieldId, string catalog, string field)
     {
         var view = File.ReadAllText(Path.Combine(HeadPath,
             "Features", "LearningResources", "LearningResourceView.cs"));
@@ -114,35 +120,20 @@ public sealed class NativeResourcePickerTests
             ..view.IndexOf("internal static SwiftView WithToolbar(", StringComparison.Ordinal)];
         var select = fields[fields.IndexOf("internal static SwiftView Select(",
             StringComparison.Ordinal)..];
-        var edit = select[select.IndexOf("var selectedValue = ", StringComparison.Ordinal)..];
 
-        Assert.Equal(2, form.Split("Select(style, text(creating").Length - 1);
+        Assert.Equal(2, form.Split("LearningResourceFieldsView.Select(style, text(creating").Length - 1);
         Assert.Contains($"state.{field[(field.LastIndexOf('.') + 1)..]}, {catalog}", form);
-        Assert.Contains($"creating ? null : \"{menuId}\"", form);
         Assert.Contains($"value => actions.Change(nameof({field}), value)", form);
-        Assert.True(select.IndexOf("if (readOnly)", StringComparison.Ordinal)
-            < select.IndexOf("if (editMenuId is null)", StringComparison.Ordinal));
-        Assert.Contains("Views.Text(current ?? string.Empty)", select);
-        Assert.Contains("Views.Picker(string.Empty, picker.Options,", select);
-        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", select);
-        Assert.Contains("Views.Text(selectedValue)", edit);
-        Assert.Contains("Views.HStack(selectedText, chevron)", edit);
-        Assert.Contains("Views.Image(\"chevron.up.chevron.down\")", edit);
-        Assert.Contains("style.Input(Views.HStack(", edit);
-        Assert.Contains(".WithAccessibilityIdentifier(id)", edit);
         Assert.Contains($"\"{fieldId}\"", form);
-        Assert.DoesNotContain(".WithAccessibilityIdentifier(editMenuId)", edit);
-        Assert.Contains(".WithAccessibilityLabel(label)", edit);
-        Assert.Contains("menu.Text = selectedValue;", edit);
-        Assert.Contains("Views.Menu(menuLabel, choices)", edit);
-        Assert.Contains("picker.Options[index]", edit);
-        Assert.Contains("picker.Select(choice, changed);", edit);
-        Assert.Contains("menu!.Text = value;", edit);
-        Assert.Contains("var optionLabel = index == picker.SelectedIndex", edit);
-        Assert.Contains("Views.Image(\"checkmark\")", edit);
-        Assert.DoesNotContain("WithOpacity(", edit);
-        Assert.Contains("choices[i].WithAccessibilitySelected(i == choice);", edit);
-        Assert.Contains(".WithAccessibilityLabel(value)", edit);
+        // Read only (a smart resource): the value beside its label, not a picker.
+        Assert.True(select.IndexOf("if (readOnly)", StringComparison.Ordinal)
+            < select.IndexOf("Views.Picker(", StringComparison.Ordinal));
+        Assert.Contains("return Value(label, current, id);", select);
+        Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", select);
+        Assert.Contains(".WithAccessibilityIdentifier(id)", select);
+        Assert.DoesNotContain("chevron.up.chevron.down", fields);
+        Assert.DoesNotContain("Views.Menu(", fields);
+        Assert.DoesNotContain("editMenuId", fields);
         Assert.DoesNotContain("actions.Save", select);
         Assert.DoesNotContain("Repository", select);
     }

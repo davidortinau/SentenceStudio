@@ -64,11 +64,15 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(": NativeList($\"{prefix}.scroll.content\", children, list);", browse);
         Assert.Contains("node.SearchTokens = nextNode.SearchTokens;", Source("Features/Browse/BrowserPageUpdate.cs"));
         Assert.DoesNotContain("ComposerCapsule", browse);
-        Assert.Contains("style.Page(Views.Scroll(content)", form);
-        Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll.content\")",
+        // Captain 2026-11-13: native Resource form. The Resource form is a grouped system Form
+        // (its own native viewport and insets), not a padded ScrollView; dragging its rows puts
+        // the keyboard away.
+        Assert.Contains("style.GroupedForm(Views.Form(sections.ToArray())", form);
+        Assert.Contains(".WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
             form);
-        Assert.DoesNotContain("style.GroupedForm(Views.Form(fields.ToArray()))",
-            form);
+        Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll\")", form);
+        Assert.DoesNotContain("Views.Scroll(", form);
+        Assert.DoesNotContain("PageGutter", form);
 
         var settings = Source("Features/Settings/SettingsView.cs");
         Assert.Contains("Views.VStack(sections.ToArray())", settings);
@@ -224,29 +228,35 @@ public sealed class NativeSourceStylingContractTests
             filter);
     }
 
+    /// <summary>
+    /// Captain 2026-11-13: native Resource form. The form's groups are system Form Sections
+    /// (Basic Info, each long text, Media Content on create, the vocabulary) instead of the
+    /// custom cards; Save stays in the toolbar and never moves into the vocabulary.
+    /// </summary>
     [Fact]
-    public void ResourceForm_UsesSharedCards_WithoutMovingTheBottomSaveIntoVocab()
+    public void ResourceForm_UsesNativeSections_WithoutMovingSaveIntoVocab()
     {
         var form = Source("Features/LearningResources/LearningResourceView.cs");
+        var fields = Source("Features/LearningResources/LearningResourceFieldsView.cs");
+        var vocabulary = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
         Assert.Contains("internal static SwiftView Page(", form);
-        Assert.Contains("fields.Add(CardSection(style, \"native.resources.form.basic.card\", basic));", form);
-        Assert.Contains("fields.Add(CardSection(style, \"native.resources.form.media.card\", media));", form);
-        Assert.Contains("fields.Add(CardSection(style, \"native.resources.form.transcript.card\", [", form);
-        Assert.Contains("fields.Add(CardSection(style, \"native.resources.form.translation.card\", [", form);
-        Assert.Contains("inputs.RegisterVocabularySection(vocabularyCard);", form);
-        Assert.Contains("fields.Add(vocabularyCard);", form);
-        Assert.Contains(".WithPadding(SourceUiLayout.LargeCardInset)", form);
-        Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))", form);
-        Assert.Contains("content.Spacing = SourceUiLayout.FormGap;", form);
-        Assert.Contains("card.Spacing = SourceUiLayout.FormGap;", form);
-        Assert.Contains("return style.Card(card);", form);
-        Assert.DoesNotContain("Views.Form(", form);
-        Assert.DoesNotContain("Views.Section(", form);
+        Assert.Contains("sections.Add(Views.Section(text(creating\n                    ? \"ResourceAdd_BasicInfo\" : \"ResourceEdit_BasicInfo\"), basic.ToArray()));", form);
+        Assert.Contains("sections.Add(Views.Section(text(\"ResourceAdd_MediaContent\"),", form);
+        Assert.Contains("sections.Add(LearningResourceFieldsView.Area(style, text(\"ResourceEdit_Transcript\"),", form);
+        Assert.Contains("sections.Add(LearningResourceFieldsView.Area(style, text(\"ResourceEdit_Translation\"),", form);
+        Assert.Contains("Views.Section(label, readOnly", fields);
+        Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
+        Assert.Contains("sections.Add(section);", vocabulary);
+        Assert.DoesNotContain("CardSection(", form);
+        Assert.DoesNotContain("style.Card(", form);
+        // A Section carries no automation ID: SwiftUI would give it to every row.
+        Assert.DoesNotContain("Views.Section(string.Empty, notices.ToArray())\n                .WithAccessibilityIdentifier", form);
+        Assert.DoesNotContain(".WithAccessibilityIdentifier(\"native.resources.form.basic.card\")", form);
+        var toolbar = form[form.IndexOf("internal static SwiftView WithToolbar(", StringComparison.Ordinal)..];
+        Assert.Contains("Views.Button(text(\"Common_Save\"), actions.Save)", toolbar);
+        Assert.DoesNotContain("Common_Save", vocabulary);
         var sharedStyle = Source("Styling/SourceUiStyle.cs");
-        Assert.Contains("double radius = 16)", sharedStyle);
-        Assert.Contains("appearance.ElevatedSurface : appearance.CardSurface;", sharedStyle);
-        Assert.Contains(".WithRoundedSurface(surface.Light, surface.Dark, radius);",
-            sharedStyle);
+        Assert.Contains("internal SwiftView GroupedForm(SwiftView form)", sharedStyle);
         foreach (var field in new[]
             {
                 "Title", "Description", "MediaType", "Language",
