@@ -342,124 +342,127 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     private SwiftView RenderCreate(NativeMinimalPairsState state, NativeMinimalPairsCreateState create,
         SourceUiStyle style)
     {
+        // Captain 2026-11-13 (the native form pattern): one grouped Form; Create is the
+        // toolbar's plain action; each word is a Section with its search field and the words
+        // to choose from as rows (a checkmark on the chosen one).
         var text = _host.Text;
-        var items = new List<SwiftView>();
-        SwiftView submitLabel = create.IsSaving
-            ? Views.HStack(Views.IndeterminateProgress(text(NativeMinimalPairsText.Create)),
-                Views.Text(text(NativeMinimalPairsText.Create)))
-            : Views.Text(text(NativeMinimalPairsText.Create));
-        var submit = style.LabelButton(submitLabel, () => Fire(_presenter.CreatePairAsync), SourceButtonRole.Primary)
-            .WithAccessibilityLabel(text(NativeMinimalPairsText.Create))
+        var sections = new List<SwiftView>();
+        var submit = Views.Button(text(NativeMinimalPairsText.Create), () => Fire(_presenter.CreatePairAsync))
             .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreateSubmit);
-        SourceUiStyle.SetCustomButtonAvailability(submit, style.Appearance, SourceButtonRole.Primary, create.CanCreate);
-        items.Add(Views.HStack(Views.VStack().WithFlexibleWidth(), submit).WithFlexibleWidth());
+        submit.IsEnabled = create.CanCreate;
         if (create.IsLoading)
         {
-            items.Add(Spinner(text(NativeMinimalPairsText.CreateTitle)));
-            return Page(items, style, NativeMinimalPairsAccess.Create);
+            // The last draw's word rows are disposed with it: typing must not refill them.
+            _rowsA = null;
+            _rowsB = null;
+            sections.Add(Views.Section(string.Empty, Spinner(text(NativeMinimalPairsText.CreateTitle))));
+            return Views.Toolbar(CreateForm(sections, style), submit);
         }
-        if (!state.Notices.IsDefaultOrEmpty)
-            if (Notices(state, style) is { } notices)
-                items.Add(notices);
+        var notices = new List<SwiftView>();
+        if (create.IsSaving)
+            notices.Add(Views.IndeterminateProgress(text(NativeMinimalPairsText.Create)));
+        if (!state.Notices.IsDefaultOrEmpty && Notices(state, style) is { } banners)
+            notices.Add(banners);
         if (create.ErrorKey is { } error)
-            items.Add(style.Alert(style.Text(Views.Text(text(error)), SourceTextRole.Body2), success: false)
-                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreateError));
-        items.Add(WordCard('A', create, style));
-        items.Add(WordCard('B', create, style));
-
-        var contrastTitle = text(NativeMinimalPairsText.ContrastLabel);
-        var contrast = style.TextInput(Views.TextField(NativeMinimalPairsText.ContrastPlaceholder,
-                create.ContrastLabel, value => _presenter.SetContrastLabel(value)))
-            .WithFlexibleWidth()
-            .WithAccessibilityLabel(contrastTitle)
-            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.ContrastLabel);
-        var contrastCard = Views.VStack(
-                style.Text(Views.Text(contrastTitle), SourceTextRole.Title3, sourceHeading: true),
-                contrast)
-            .WithPadding(SourceUiLayout.CardInset);
-        contrastCard.Spacing = 12;
-        items.Add(style.Card(contrastCard));
-        return Page(items, style, NativeMinimalPairsAccess.Create);
+            notices.Add(NativeForm.Notice(style, text(error), NativeMinimalPairsAccess.CreateError, error: true));
+        if (notices.Count > 0)
+            sections.Add(Views.Section(string.Empty, notices.ToArray()));
+        sections.AddRange(WordSections('A', create, style));
+        sections.AddRange(WordSections('B', create, style));
+        sections.Add(Views.Section(text(NativeMinimalPairsText.ContrastLabel),
+            Views.TextField(NativeMinimalPairsText.ContrastPlaceholder, create.ContrastLabel,
+                    value => _presenter.SetContrastLabel(value))
+                .WithAccessibilityLabel(text(NativeMinimalPairsText.ContrastLabel))
+                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.ContrastLabel)));
+        return Views.Toolbar(CreateForm(sections, style), submit);
     }
 
-    private SwiftView WordCard(char slot, NativeMinimalPairsCreateState create, SourceUiStyle style)
+    private static SwiftView CreateForm(List<SwiftView> sections, SourceUiStyle style) =>
+        NativeForm.Page(style, sections, $"{NativeMinimalPairsAccess.Create}.content",
+            NativeMinimalPairsAccess.Create);
+
+    /// <summary>
+    /// A word's Sections: its title over the search field and the chosen word, then the words to
+    /// choose from (their own Section, which typing refills in place; the field stays mounted).
+    /// </summary>
+    private IEnumerable<SwiftView> WordSections(char slot, NativeMinimalPairsCreateState create, SourceUiStyle style)
     {
         var text = _host.Text;
         var isA = slot == 'A';
         var title = text(isA ? NativeMinimalPairsText.SelectFirstWord : NativeMinimalPairsText.SelectSecondWord);
-        var search = style.TextInput(Views.TextField(text(NativeMinimalPairsText.SearchVocabulary),
-                isA ? create.SearchA : create.SearchB, value => OnSearchChanged(slot, value)))
-            .WithFlexibleWidth()
+        var search = Views.TextField(text(NativeMinimalPairsText.SearchVocabulary),
+                isA ? create.SearchA : create.SearchB, value => OnSearchChanged(slot, value))
             .WithAccessibilityLabel($"{title}. {text(NativeMinimalPairsText.SearchVocabulary)}")
             .WithAccessibilityIdentifier(isA ? NativeMinimalPairsAccess.SearchA : NativeMinimalPairsAccess.SearchB);
-        var rows = Views.VStack(WordRows(slot, create, style)).WithFlexibleWidth();
+        var head = new List<SwiftView> { search };
+        if ((isA ? create.WordA : create.WordB) is { } chosen)
+        {
+            // The word's Text carries its speech language (a Label cannot).
+            var word = Views.Text(chosen.Target).WithSpeechLanguage(SpeechLanguage)
+                .WithAccessibilityIdentifier(isA ? NativeMinimalPairsAccess.SelectedA : NativeMinimalPairsAccess.SelectedB);
+            var chosenRow = Views.HStack(Views.Image("checkmark.circle.fill"), word)
+                .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
+            chosenRow.Spacing = SourceUiLayout.ItemGap;
+            head.Add(chosenRow);
+        }
+        yield return Views.Section(title, head.ToArray());
+        var rows = Views.Section(string.Empty, WordRows(slot, create, style));
         if (isA)
             _rowsA = rows;
         else
             _rowsB = rows;
-        var content = new List<SwiftView>
-        {
-            style.Text(Views.Text(title), SourceTextRole.Title3, sourceHeading: true),
-            search,
-            rows,
-        };
-        if ((isA ? create.WordA : create.WordB) is { } chosen)
-            content.Add(style.Text(Views.Text(chosen.Target), SourceTextRole.BadgeSmall, SourceTextTone.OnPrimary)
-                .WithPadding(2, 8, 2, 8)
-                .WithRoundedSurface(style.Appearance.Primary.Light, style.Appearance.Primary.Dark, 6)
-                .WithSpeechLanguage(SpeechLanguage)
-                .WithAccessibilityIdentifier(isA ? NativeMinimalPairsAccess.SelectedA : NativeMinimalPairsAccess.SelectedB));
-        var card = Views.VStack(content.ToArray()).WithPadding(SourceUiLayout.CardInset);
-        card.Spacing = 12;
-        return style.Card(card);
+        yield return rows;
     }
 
-    /// <summary>Typing only swaps the rows under the field; the field itself is never re-mounted.</summary>
+    /// <summary>Typing only refills the word rows' Section; the field itself is never re-mounted.</summary>
     private void OnSearchChanged(char slot, string value)
     {
         if (_presenter.SetSearch(slot, value) is not { } create || _style is null)
             return;
         _state = _state with { Create = create };
-        var rows = slot == 'A' ? _rowsA : _rowsB;
-        if (rows is not null)
-            Swap(rows, WordRows(slot, create, _style));
+        if ((slot == 'A' ? _rowsA : _rowsB) is not { } rows)
+            return;
+        while (rows.Children.Count > 0)
+        {
+            var old = rows.Children[0];
+            rows.RemoveAt(0);
+            old.Dispose();
+        }
+        foreach (var row in WordRows(slot, create, _style))
+            rows.Add(row);
     }
 
-    private SwiftView WordRows(char slot, NativeMinimalPairsCreateState create, SourceUiStyle style)
+    /// <summary>The words to choose from (at most MaxRows; then the refine hint), each a row.</summary>
+    private SwiftView[] WordRows(char slot, NativeMinimalPairsCreateState create, SourceUiStyle style)
     {
         var appearance = style.Appearance;
         var filtered = create.Filter(slot == 'A' ? create.SearchA : create.SearchB);
         var selectedId = slot == 'A' ? create.WordAId : create.WordBId;
-        var shown = filtered.Take(NativeMinimalPairsCreateState.MaxRows).Select(word =>
+        var rows = filtered.Take(NativeMinimalPairsCreateState.MaxRows).Select(word =>
         {
             var selected = word.Id == selectedId;
-            var rowText = style.Text(Views.Text($"{word.Target} — {word.Native}"), SourceTextRole.Body2,
-                    selected ? SourceTextTone.OnPrimary : SourceTextTone.Body)
-                .WithLineLimit(1)
-                .WithFlexibleWidth()
-                .WithPadding(8, 12, 8, 12);
-            var surface = selected ? appearance.Primary : appearance.ListRowSurface;
-            rowText.WithRoundedSurface(surface.Light, surface.Dark, 6);
-            return Views.Button(rowText, () => Fire(token => _presenter.SelectWordAsync(slot, word.Id, token)))
-                .WithButtonStyle(SwiftButtonStyle.Plain)
+            var check = Views.Image("checkmark")
+                .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+                .WithHidden(!selected);
+            var line = Views.HStack(
+                    style.Text(Views.Text($"{word.Target} — {word.Native}"), SourceTextRole.Body1)
+                        .WithLineLimit(1)
+                        .WithFlexibleWidth(),
+                    check)
+                .WithFlexibleWidth();
+            return Views.Button(line, () => Fire(token => _presenter.SelectWordAsync(slot, word.Id, token)))
+                .WithForegroundColor(appearance.Text.Light, appearance.Text.Dark)
                 .WithFlexibleWidth()
                 .WithAccessibilityLabel($"{word.Target}, {word.Native}")
                 .WithAccessibilitySelected(selected)
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.WordOption(slot, word.Id));
         }).ToList();
-        var list = Views.LazyVGrid(1, shown.ToArray())
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier(slot == 'A' ? NativeMinimalPairsAccess.WordsA : NativeMinimalPairsAccess.WordsB);
-        list.Spacing = 4;
-        if (filtered.Length <= NativeMinimalPairsCreateState.MaxRows)
-            return list;
-        var more = style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
-                    _host.Text(NativeMinimalPairsText.RefineSearch), NativeMinimalPairsCreateState.MaxRows,
-                    filtered.Length)), SourceTextRole.Small, SourceTextTone.Secondary)
-            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.RefineSearch);
-        var stack = Views.VStack(list, more).WithFlexibleWidth();
-        stack.Spacing = 4;
-        return stack;
+        if (filtered.Length > NativeMinimalPairsCreateState.MaxRows)
+            rows.Add(style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        _host.Text(NativeMinimalPairsText.RefineSearch), NativeMinimalPairsCreateState.MaxRows,
+                        filtered.Length)), SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.RefineSearch));
+        return rows.ToArray();
     }
 
     private SwiftView RenderSession(NativeMinimalPairsState state, NativeMinimalPairsSessionState session,
@@ -665,17 +668,6 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         Views.IndeterminateProgress(label)
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
             .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Loading);
-
-    private static void Swap(SwiftView slot, SwiftView next)
-    {
-        while (slot.Children.Count > 0)
-        {
-            var old = slot.Children[0];
-            slot.RemoveAt(0);
-            old.Dispose();
-        }
-        slot.Add(next);
-    }
 
     private static SwiftView Page(List<SwiftView> items, SourceUiStyle style, string id)
     {

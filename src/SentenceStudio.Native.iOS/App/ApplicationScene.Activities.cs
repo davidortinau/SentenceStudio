@@ -186,7 +186,14 @@ internal sealed partial class ApplicationScene
                 || !ReferenceEquals(_renderedActivityChildStyle, _style)
                 || Math.Abs(_renderedActivityChildWidth - _style.ViewportWidth) >= 0.5)
             {
-                Replace(_activityChildSlot, _app.RenderActivityChild(_style));
+                // Create Pair swaps its Form Sections into the mounted Form, so its scroll
+                // position stays; every other child page, or a new style, redraws whole.
+                var next = _app.RenderActivityChild(_style);
+                var reshaped = !ReferenceEquals(_renderedActivityChildStyle, _style)
+                    || Math.Abs(_renderedActivityChildWidth - _style.ViewportWidth) >= 0.5;
+                if (reshaped || !TrySwapFormSections(_activityChildSlot, next,
+                        NativeMinimalPairsAccess.Create))
+                    Replace(_activityChildSlot, next);
                 RecordActivityChild();
             }
             _activityChildSlot.WithNavigationTitle(_app.ActivityChildTitle);

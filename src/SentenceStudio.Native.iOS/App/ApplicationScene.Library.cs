@@ -428,7 +428,15 @@ internal sealed partial class ApplicationScene
                     || !ReferenceEquals(_renderedPairsChildStyle, _style)
                     || Math.Abs(_renderedPairsChildWidth - _style.ViewportWidth) >= 0.5)
                 {
-                    Replace(_pairsChildSlot, _app.RenderLibraryPairsChild(_style));
+                    // The create page swaps its Form Sections into the mounted Form, so its
+                    // scroll position stays; a new shape (the session) redraws whole.
+                    var next = _app.RenderLibraryPairsChild(_style);
+                    var reshaped = appearanceChanged
+                        || !ReferenceEquals(_renderedPairsChildStyle, _style)
+                        || Math.Abs(_renderedPairsChildWidth - _style.ViewportWidth) >= 0.5;
+                    if (reshaped || !TrySwapFormSections(_pairsChildSlot, next,
+                            NativeMinimalPairsAccess.Create))
+                        Replace(_pairsChildSlot, next);
                     RecordPairsChild();
                 }
                 _pairsChildSlot.WithNavigationTitle(_app.LibraryPairsChildTitle);
