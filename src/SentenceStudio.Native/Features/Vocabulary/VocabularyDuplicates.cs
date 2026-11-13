@@ -680,18 +680,25 @@ internal static class VocabularyWordCommands
 
     /// <summary>Source deleteConfirmMessage, with the saved term.</summary>
     internal static string DeleteMessage(NativeVocabularyDetail detail, Func<string, string> text) =>
-        string.Format(CultureInfo.CurrentCulture, text("VocabWordEdit_DeleteMessage"),
-            detail.Word.TargetTerm);
+        DeleteMessage(detail.Word.TargetTerm, text);
+
+    /// <summary>Source deleteConfirmMessage for <paramref name="term"/> (the list's swipe Delete).</summary>
+    internal static string DeleteMessage(string term, Func<string, string> text) =>
+        string.Format(CultureInfo.CurrentCulture, text("VocabWordEdit_DeleteMessage"), term);
 
     /// <summary>The message for a refused or failed delete.</summary>
     internal static string DeleteError(NativeVocabularyDeleteStatus status,
-        NativeVocabularyDetail detail, Func<string, string> text) => status switch
+        NativeVocabularyDetail detail, Func<string, string> text) =>
+        DeleteError(status, detail.Word.TargetTerm, text);
+
+    /// <summary>The message for a refused or failed delete of <paramref name="term"/>.</summary>
+    internal static string DeleteError(NativeVocabularyDeleteStatus status,
+        string term, Func<string, string> text) => status switch
     {
         NativeVocabularyDeleteStatus.UsedByOthers => text("NativeVocabulary_DeleteUsedByOthers"),
         NativeVocabularyDeleteStatus.UsedByAnswers => text("NativeVocabulary_DeleteUsedByAnswers"),
         NativeVocabularyDeleteStatus.NotFoundOrForbidden => text("VocabWordEdit_NotFound"),
-        _ => string.Format(CultureInfo.CurrentCulture, text("Common_DeleteFailed"),
-            detail.Word.TargetTerm)
+        _ => string.Format(CultureInfo.CurrentCulture, text("Common_DeleteFailed"), term)
     };
 
     /// <summary>Source GetEncodingBadgeClass tone for an encoding label.</summary>

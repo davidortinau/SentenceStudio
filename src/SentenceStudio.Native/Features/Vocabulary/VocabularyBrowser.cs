@@ -174,7 +174,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal bool IsFormOpen => _listOpen && _formOpen;
     internal bool IsPhoneFilterPresented =>
         _listOpen && _filters?.PhoneSheetOpen == true;
-    internal bool IsNavigationBlocked => _saving || _cleanup.Deleting || _handingOff;
+    internal bool IsNavigationBlocked => _saving || AnyDeleting || _handingOff;
 
     /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
     internal bool IsCreatingWord => IsFormOpen && _creating;
@@ -207,7 +207,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     /// <summary>Whether Save can run now (the rule of every Save button).</summary>
     protected bool CanSaveOpenWord => _formOpen && !_handingOff
-        && VocabularyBrowserEdit.CanSaveWord(_saving || _cleanup.Deleting, _detail, _draft);
+        && VocabularyBrowserEdit.CanSaveWord(_saving || AnyDeleting, _detail, _draft);
 
     internal VocabularyBrowserList ListState
     {
@@ -269,9 +269,10 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Back from the list: drops the catalog, the open word and the owner.</summary>
     internal void Close()
     {
-        if (!_listOpen || _saving || _cleanup.Deleting)
+        if (!_listOpen || _saving || AnyDeleting)
             return;
         _cleanup.Reset();
+        _askingListDelete = null;
         ResetExamples();
         _examplesChanged = false;
         _creating = false;
@@ -297,7 +298,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// </summary>
     internal void CloseWord()
     {
-        if (!_formOpen || _saving || _cleanup.Deleting || _handingOff)
+        if (!_formOpen || _saving || AnyDeleting || _handingOff)
             return;
         var reload = _examplesChanged;
         _cleanup.ResetDelete();
@@ -381,7 +382,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal async Task OpenWordAsync(string id)
     {
-        if (!_listOpen || _saving || !TryOwner(out var owner)
+        if (!_listOpen || _saving || _listDeleting || !TryOwner(out var owner)
             || string.IsNullOrWhiteSpace(id))
             return;
         if (!_formOpen && !_catalog.Words.Any(word => word.Id == id))
@@ -556,7 +557,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
 
     internal async Task SaveAsync()
     {
-        if (!_formOpen || _saving || _cleanup.Deleting || _handingOff || _detail is null
+        if (!_formOpen || _saving || AnyDeleting || _handingOff || _detail is null
             || _draft is not { } draft
             || !TryOwner(out var owner))
             return;
@@ -703,7 +704,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Source RequestDelete: shows the confirmation.</summary>
     internal void RequestDelete()
     {
-        if (!_creating)
+        // One confirmation at a time: not while the list's swipe Delete is asking or running.
+        if (!_creating && _askingListDelete is null && !_listDeleting)
             _cleanup.RequestDelete();
     }
 
@@ -961,6 +963,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     {
         _logger.LogWarning("Vocabulary view refused a missing or changed active owner.");
         _catalog = new(false, [], []);
+        _askingListDelete = null;
         _detail = null;
         _draft = null;
         _photo = null;

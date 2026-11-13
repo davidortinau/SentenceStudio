@@ -23,7 +23,11 @@ internal sealed record VocabularyListActions(
     Action<double>? PageWidthChanged = null,
     Action? AddWord = null,
     Action<string>? SearchField = null,
-    Action<IReadOnlyList<string>>? KeepChips = null);
+    Action<IReadOnlyList<string>>? KeepChips = null,
+    Action<string>? RequestDelete = null,
+    Action? ConfirmDelete = null,
+    Action? CancelDelete = null,
+    Action<string>? Study = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -62,7 +66,8 @@ internal static class VocabularyListView
     /// </param>
     internal static SwiftView Page(
         VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, VocabularyListActions actions, double? pageWidth = null)
+        Func<string, string> text, VocabularyListActions actions, double? pageWidth = null,
+        string? deleteMessage = null)
     {
         var width = BrowserPage.Width(pageWidth, style);
         var wide = IsWide(width);
@@ -70,9 +75,42 @@ internal static class VocabularyListView
         var page = wide && ready
             ? WideLayout(state, style, text, actions, width)
             : SingleColumn(state, style, text, actions, width);
+        page = DeleteConfirmation(page, deleteMessage, text, actions);
         return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
             ToolbarActions(state, text, actions, wide, ready));
     }
+
+    /// <summary>
+    /// A row's swipe Delete asks first: a native confirmation dialog with the source's message
+    /// naming the word. The dialog is always there, shown while a delete waits, so the page
+    /// updates in place.
+    /// </summary>
+    private static SwiftView DeleteConfirmation(SwiftView page, string? message,
+        Func<string, string> text, VocabularyListActions actions)
+    {
+        var dialog = Views.ConfirmationDialog(page, message ?? string.Empty,
+                () => actions.CancelDelete?.Invoke(),
+                Views.Button(text("Common_Delete"), () => actions.ConfirmDelete?.Invoke())
+                    .WithButtonRole(SwiftButtonRole.Destructive)
+                    .WithAccessibilityIdentifier("native.vocabulary.delete.confirm"),
+                Views.Button(text("Common_Cancel"), () => actions.CancelDelete?.Invoke())
+                    .WithButtonRole(SwiftButtonRole.Cancel)
+                    .WithAccessibilityIdentifier("native.vocabulary.delete.cancel"))
+            .WithAccessibilityIdentifier("native.vocabulary.delete.dialog");
+        dialog.IsPresented = message is not null;
+        return dialog;
+    }
+
+    /// <summary>
+    /// The words show as a native List (Captain 2026-11-12: Library lists are native lists with
+    /// swipe actions): always in one column (a phone, the Library split view's list column),
+    /// and in list mode on a wide page (its grid stays a grid). Not while the duplicate manager
+    /// is open above the words: its several buttons would share one list row's tap.
+    /// </summary>
+    internal static bool AsNativeList(VocabularyBrowserList state, bool wide) =>
+        !state.Loading && !state.Blocked && state.ErrorKey is null
+        && state.FilteredWords.Count > 0 && state.Duplicates is null
+        && (!wide || state.ListMode);
 
     internal static SwiftView PhoneFilterSheet(
         VocabularyBrowserList state, SourceUiStyle style,
@@ -185,7 +223,8 @@ internal static class VocabularyListView
         return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(
             text("Vocabulary_SearchPlaceholder"), state.Filters.FieldText,
             actions.SearchField ?? actions.Search, SearchTokens(state, text),
-            remaining => actions.KeepChips?.Invoke(remaining)));
+            remaining => actions.KeepChips?.Invoke(remaining)),
+            AsNativeList(state, wide: false) ? style : null);
     }
 
     /// <summary>
@@ -223,7 +262,8 @@ internal static class VocabularyListView
         return BrowserPage.Wide(Prefix, style,
             state.FilterPanelHidden ? null : FilterPanel(state, style, text, actions, width),
             SearchRow(state, style, text, actions),
-            BrowserPage.ResultsHeader(Prefix, headerRows), results);
+            BrowserPage.ResultsHeader(Prefix, headerRows), results,
+            asList: AsNativeList(state, wide: true));
     }
 
     /// <summary>
@@ -334,6 +374,12 @@ internal static class VocabularyListView
                 children.Add(style.PrimaryButton(text("Vocabulary_AddFirstWord"), addWord)
                     .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.vocabulary.empty.add"));
+            return;
+        }
+        if (AsNativeList(state, wide))
+        {
+            children.AddRange(state.FilteredWords.Select(word =>
+                ListRow(word, style, text, actions)));
             return;
         }
         var list = Views.LazyVGrid(
@@ -466,25 +512,7 @@ internal static class VocabularyListView
                 status)
             .WithFlexibleWidth();
         heading.Spacing = SourceUiLayout.ItemGap;
-        var metadata = new List<string> {
-            text(word.AssociatedResources.Count == 0
-                ? "Vocabulary_OrphanedBadge" : "Vocabulary_ResourcesCount")
-        };
-        if (word.AssociatedResources.Count > 0)
-            metadata[0] = string.Format(CultureInfo.CurrentCulture,
-                metadata[0], word.AssociatedResources.Count);
-        if (!string.IsNullOrWhiteSpace(word.Lemma))
-            metadata.Add(word.Lemma);
-        if (!string.IsNullOrWhiteSpace(word.Tags))
-            metadata.AddRange(word.Tags.Split(',',
-                StringSplitOptions.TrimEntries |
-                StringSplitOptions.RemoveEmptyEntries).Take(3));
-        var details = style.Text(Views.Text(
-                $"{text(word.EncodingLabel switch {
-                    "Strong" => "Vocabulary_Strong",
-                    "Good" => "Vocabulary_Good",
-                    _ => "Vocabulary_Basic"
-                })} · {string.Join(" · ", metadata)}"),
+        var details = style.Text(Views.Text(Details(word, text)),
                 SourceTextRole.Small, SourceTextTone.Secondary)
             .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.details");
         var card = style.Card(Views.VStack(heading, details)
@@ -497,6 +525,90 @@ internal static class VocabularyListView
             .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}")
             .WithAccessibilityLabel(
                 $"{word.TargetTerm}, {word.NativeTerm}, {text(StatusKey(word))}");
+    }
+
+    /// <summary>
+    /// A native List row (Captain 2026-11-12: native rows, icons kept): the word's type icon,
+    /// its terms and details, and its status in words. Swipe left to delete it (asks first),
+    /// right to study the resources it belongs to.
+    /// </summary>
+    private static SwiftView ListRow(NativeVocabularyEntry word, SourceUiStyle style,
+        Func<string, string> text, VocabularyListActions actions)
+    {
+        var icon = Views.Image(word.LexicalUnitType switch
+            {
+                LexicalUnitType.Phrase => "text.quote",
+                LexicalUnitType.Sentence => "text.alignleft",
+                _ => "textformat"
+            })
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
+        var target = style.Text(Views.Text(word.TargetTerm), SourceTextRole.ListTitle)
+            .WithLineLimit(1)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.target");
+        var native = style.Text(Views.Text(word.NativeTerm),
+                SourceTextRole.Body2, SourceTextTone.Secondary)
+            .WithLineLimit(1)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.native");
+        var details = style.Text(Views.Text(Details(word, text)),
+                SourceTextRole.Small, SourceTextTone.Secondary)
+            .WithLineLimit(1)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.details");
+        var terms = Views.VStack(target, native, details).WithFlexibleWidth();
+        terms.Spacing = 2;
+        var status = style.Text(Views.Text(text(StatusKey(word))), SourceTextRole.Small,
+                word.IsKnown ? SourceTextTone.Success : SourceTextTone.Secondary)
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.status");
+        var label = Views.HStack(icon, terms, status).WithFlexibleWidth();
+        label.Spacing = SourceUiLayout.ItemGap;
+        var row = Views.Button(label, () => actions.OpenWord(word.Id))
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithFlexibleWidth()
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}")
+            .WithAccessibilityLabel(
+                $"{word.TargetTerm}, {word.NativeTerm}, {text(StatusKey(word))}");
+        var trailing = actions.RequestDelete is not { } delete ? []
+            : new[] {
+                // Red, not destructive: a destructive swipe action removes its row at once, and
+                // this one asks first.
+                Views.Button(Views.Label(text("Common_Delete"), "trash"), () => delete(word.Id))
+                    .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+                    .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.delete")
+            };
+        // A word in no resource has nothing Choose My Own can study.
+        var leading = actions.Study is not { } study || word.AssociatedResources.Count == 0 ? []
+            : new[] {
+                Views.Button(Views.Label(text("Library_StudyThis"), "graduationcap"),
+                        () => study(word.Id))
+                    .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                    .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.study")
+            };
+        return Views.SwipeRow(row, trailing, leading)
+            .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.swipe");
+    }
+
+    /// <summary>The card's details line: encoding, resources (or orphaned), lemma and up to three tags.</summary>
+    private static string Details(NativeVocabularyEntry word, Func<string, string> text)
+    {
+        var metadata = new List<string> {
+            word.AssociatedResources.Count == 0 ? text("Vocabulary_OrphanedBadge")
+                : string.Format(CultureInfo.CurrentCulture, text("Vocabulary_ResourcesCount"),
+                    word.AssociatedResources.Count)
+        };
+        if (!string.IsNullOrWhiteSpace(word.Lemma))
+            metadata.Add(word.Lemma);
+        if (!string.IsNullOrWhiteSpace(word.Tags))
+            metadata.AddRange(word.Tags.Split(',',
+                StringSplitOptions.TrimEntries |
+                StringSplitOptions.RemoveEmptyEntries).Take(3));
+        return $"{text(word.EncodingLabel switch {
+            "Strong" => "Vocabulary_Strong",
+            "Good" => "Vocabulary_Good",
+            _ => "Vocabulary_Basic"
+        })} · {string.Join(" · ", metadata)}";
     }
 
     private static string StatusKey(NativeVocabularyEntry word) =>

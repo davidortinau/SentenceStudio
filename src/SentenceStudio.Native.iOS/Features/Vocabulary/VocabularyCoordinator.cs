@@ -96,8 +96,40 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 PageWidthChanged: OnPageWidthChanged,
                 AddWord: AddWord,
                 SearchField: SearchField,
-                KeepChips: KeepChips),
-            PageWidth);
+                KeepChips: KeepChips,
+                RequestDelete: RequestListDelete,
+                ConfirmDelete: () => Run(ConfirmListDeleteAsync),
+                CancelDelete: CancelListDeleteLater,
+                Study: StudyWord),
+            PageWidth, ListDeleteMessage);
+    }
+
+    /// <summary>A row's swipe Study: Study opens on Choose My Own with the word's resources (none hides it).</summary>
+    internal event Action<IReadOnlyList<string>>? StudyRequested;
+
+    private void StudyWord(string wordId)
+    {
+        if (IsDisposed || IsNavigationBlocked)
+            return;
+        var resources = StudyResourceIds(wordId);
+        if (resources.Count > 0)
+            StudyRequested?.Invoke(resources);
+    }
+
+    /// <summary>
+    /// The delete dialog closed (Cancel, a tap outside it, or after Delete). SwiftUI can report
+    /// the close before the Delete action runs, so the cancel waits for the next turn of the
+    /// main loop: Delete has started by then, and a running delete ignores it.
+    /// </summary>
+    private void CancelListDeleteLater()
+    {
+        if (PendingListDeleteId is not { } id)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed && PendingListDeleteId == id)
+                CancelListDelete();
+        });
     }
 
     /// <summary>

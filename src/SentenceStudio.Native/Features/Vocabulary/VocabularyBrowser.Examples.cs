@@ -380,7 +380,7 @@ internal partial class VocabularyBrowser
         owner = string.Empty;
         wordId = _detail?.Word.Id ?? string.Empty;
         return _formOpen && !_creating && !_formLoading && _detail is not null && !_saving
-            && !_cleanup.Deleting && !_handingOff && TryOwner(out owner);
+            && !AnyDeleting && !_handingOff && TryOwner(out owner);
     }
 
     private bool IsSameOpenWord(long generation, string wordId) =>

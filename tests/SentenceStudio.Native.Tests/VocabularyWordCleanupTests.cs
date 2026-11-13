@@ -169,6 +169,165 @@ public sealed class VocabularyWordCleanupTests
     }
 
     [Fact]
+    public async Task ListDelete_AsksFirstThenRemovesOnlyTheOwnersWord()
+    {
+        // Captain 2026-11-12: the list's swipe Delete, on the same owner-scoped delete.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA, known: true);
+        await fixture.SeedAsync(UserB, known: true);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var wordId = fixture.WordId(UserA, 1);
+        var other = fixture.WordId(UserB, 1);
+
+        // Another owner's word is not in the list: nothing is asked.
+        browser.RequestListDelete(other);
+        Assert.False(browser.IsListDeletePresented);
+
+        browser.RequestListDelete(wordId);
+        Assert.True(browser.IsListDeletePresented);
+        Assert.Equal(wordId, browser.PendingListDeleteId);
+        Assert.Equal("VocabWordEdit_DeleteMessage", browser.ListDeleteMessage);
+        browser.CancelListDelete();
+        Assert.False(browser.IsListDeletePresented);
+        Assert.Null(browser.ListDeleteMessage);
+        Assert.Equal(1, (await RowsAsync(fixture, wordId)).Words);
+
+        browser.RequestListDelete(wordId);
+        await browser.ConfirmListDeleteAsync();
+
+        Assert.False(browser.IsListDeletePresented);
+        var list = browser.ListState;
+        Assert.Equal("VocabWordEdit_DeletedSuccess", list.Feedback);
+        Assert.False(list.FeedbackWarning);
+        Assert.DoesNotContain(list.FilteredWords, word => word.Id == wordId);
+        Assert.Equal(new WordRows(0, 0, 0, 0, 0), await RowsAsync(fixture, wordId));
+        Assert.Equal(1, (await RowsAsync(fixture, other)).Words);
+        Assert.True(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(UserA));
+        Assert.False(fixture.Provider.GetRequiredService<NativePendingWrites>().IsPending(UserB));
+    }
+
+    [Fact]
+    public async Task ListDelete_ClosesTheOpenWordItDeletesAndKeepsAnotherOpen()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var open = fixture.WordId(UserA, 0);
+        var swiped = fixture.WordId(UserA, 1);
+
+        // Beside the list (the iPad split view), another word's delete leaves the editor open.
+        await browser.OpenWordAsync(open);
+        browser.RequestListDelete(swiped);
+        await browser.ConfirmListDeleteAsync();
+        Assert.True(browser.IsFormOpen);
+        Assert.Equal(open, browser.EditState.Detail!.Word.Id);
+        Assert.Equal(0, (await RowsAsync(fixture, swiped)).Words);
+
+        // The open word's own delete leaves the editor.
+        browser.RequestListDelete(open);
+        await browser.ConfirmListDeleteAsync();
+        Assert.False(browser.IsFormOpen);
+        Assert.Equal(0, (await RowsAsync(fixture, open)).Words);
+    }
+
+    [Fact]
+    public async Task ListDelete_AndTheEditorsDeleteNeverAskAtOnce()
+    {
+        // The iPad split view shows both: only one confirmation can present.
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var open = fixture.WordId(UserA, 0);
+        var swiped = fixture.WordId(UserA, 1);
+        await browser.OpenWordAsync(open);
+
+        browser.RequestDelete();
+        Assert.True(browser.IsDeleteConfirmationPresented);
+        browser.RequestListDelete(swiped);
+        Assert.False(browser.IsListDeletePresented);
+        browser.CancelDelete();
+
+        browser.RequestListDelete(swiped);
+        Assert.True(browser.IsListDeletePresented);
+        browser.RequestDelete();
+        Assert.False(browser.IsDeleteConfirmationPresented);
+        browser.CancelListDelete();
+        Assert.Equal(1, (await RowsAsync(fixture, swiped)).Words);
+    }
+
+    [Fact]
+    public async Task ListDelete_SaysWhyAWordAnotherOwnerUsesIsKept()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        var shared = fixture.WordId(UserA, 0);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                Id = "mapping-list-shared-by-b", ResourceId = fixture.ResourceId(UserB),
+                VocabularyWordId = shared
+            });
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+
+        browser.RequestListDelete(shared);
+        await browser.ConfirmListDeleteAsync();
+
+        Assert.False(browser.IsListDeletePresented);
+        Assert.Equal("NativeVocabulary_DeleteUsedByOthers", browser.ListState.Feedback);
+        Assert.Contains(browser.ListState.FilteredWords, word => word.Id == shared);
+        Assert.True(browser.ListState.FeedbackWarning);
+        Assert.Equal(1, (await RowsAsync(fixture, shared)).Words);
+    }
+
+    [Fact]
+    public async Task ListDelete_AnAbsentOwnerDeletesNothing()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var wordId = fixture.WordId(UserA, 0);
+        browser.RequestListDelete(wordId);
+        Assert.True(browser.IsListDeletePresented);
+
+        fixture.LoseOwner();
+        await browser.ConfirmListDeleteAsync();
+
+        Assert.False(browser.IsListDeletePresented);
+        Assert.Equal(1, (await RowsAsync(fixture, wordId)).Words);
+    }
+
+    [Fact]
+    public async Task StudyResourceIds_AreTheWordsOwnResources()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        var word = browser.ListState.Catalog.Words.First(entry => entry.AssociatedResources.Count > 0);
+
+        Assert.Equal(word.AssociatedResources.Select(resource => resource.Id),
+            browser.StudyResourceIds(word.Id));
+        Assert.Empty(browser.StudyResourceIds(fixture.WordId(UserB, 0)));
+        Assert.Empty(browser.StudyResourceIds("missing"));
+    }
+
+    [Fact]
     public async Task FindDuplicates_FocusesTheWordAndMergesOnlyTheOwnersCopies()
     {
         using var fixture = new NativeSliceFixture();

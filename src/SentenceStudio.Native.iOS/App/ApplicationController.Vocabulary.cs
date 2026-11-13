@@ -59,6 +59,7 @@ internal sealed partial class ApplicationController
             OpenLookups = OpenRecentLookups
         };
         _vocabulary.Changed += Publish;
+        _vocabulary.StudyRequested += StudyResources;
     }
 
     internal void OpenVocabulary()

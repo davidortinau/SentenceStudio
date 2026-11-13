@@ -719,9 +719,15 @@ internal sealed partial class ApplicationController : IDisposable
     /// A Library row's Study (Captain 2026-11-12, "Choose an activity"): Study opens on Choose
     /// My Own with this resource selected, for the person to pick the activity.
     /// </summary>
-    internal void StudyResource(string resourceId)
+    internal void StudyResource(string resourceId) => StudyResources([resourceId]);
+
+    /// <summary>
+    /// Study opens on Choose My Own with these resources selected (a resource row's, or the
+    /// resources a word row's word belongs to), for the person to pick the activity.
+    /// </summary>
+    internal void StudyResources(IReadOnlyList<string> resourceIds)
     {
-        if (_dashboard is null || NavigationBlocked)
+        if (_dashboard is null || NavigationBlocked || resourceIds.Count == 0)
             return;
         // One step: the tab switch inside it cannot start a competing load first.
         Run(async () =>
@@ -729,13 +735,18 @@ internal sealed partial class ApplicationController : IDisposable
             SelectTab(NativeTabs.Study);
             _dashboardState = _dashboard.SetMode(NativeDashboardMode.ChooseOwn);
             _dashboardState = await _dashboard.LoadChooseOwnAsync(_lifetime.Token);
-            // Only a resource Choose My Own offers is selected; otherwise the saved selection
-            // stays as it was.
+            // Only resources Choose My Own offers are selected. With none of them offered the
+            // selection is cleared rather than left on unrelated resources (review): the person
+            // chooses from what is offered.
             if (_dashboardState.ChooseOwn is { } chooseOwn
-                && !chooseOwn.Resources.IsDefault
-                && chooseOwn.Resources.Any(option => option.Id == resourceId))
-                _dashboardState = _dashboard.SelectChooseOwn([resourceId],
+                && !chooseOwn.Resources.IsDefault)
+            {
+                var offered = resourceIds.Where(id =>
+                        chooseOwn.Resources.Any(option => option.Id == id))
+                    .Distinct(StringComparer.Ordinal).ToArray();
+                _dashboardState = _dashboard.SelectChooseOwn(offered,
                     chooseOwn.SelectedSkillId);
+            }
         });
     }
 

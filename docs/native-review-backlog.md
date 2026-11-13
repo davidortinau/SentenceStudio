@@ -259,3 +259,10 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - On the iPhone Duo's outer screen the bottom-bar search item lands in the side toolbar rail and
   collapses with other items into a "…" overflow (Add moved there too). Confirm on the phone and
   decide whether narrow-and-tall layouts keep the system placement.
+
+## Vocabulary native list review (2026-11-12, branch `library-split-view`)
+
+- `VocabularyBrowser.ConfirmListDeleteAsync` repeats most of `VocabularyWordCleanup.ConfirmDeleteAsync` (store call, DeletedSuccess and SyncUnconfirmed feedback, error mapping, reload and rescan). Move the shared outcome handling onto `VocabularyWordCleanup` so the two can't drift apart.
+- The deferred-dismiss workaround (SwiftUI reports a confirmation dialog's dismissal before its action runs) exists twice: `VocabularyCoordinator.CancelListDeleteLater` and `LearningResourcesCoordinator.CancelListDelete`. Both are wired to the Cancel button and to `onDismissed`, so one Cancel queues two no-op cancels. Use one helper beside `BrowserPage`.
+- `NativeVocabularyListContractTests` and `NativeLibraryNotesStyleContractTests` match exact source text, including whitespace. Replace them with SwiftUIViews tests that render the page and check the List, SwipeRow and dialog nodes.
+- Observed on the iPad simulator, 2026-11-12: after a Vocabulary delete (from the list or the editor), the Study dashboard's "Total words" stays at the old count until the dashboard reloads. Library changes don't refresh the dashboard stats.
