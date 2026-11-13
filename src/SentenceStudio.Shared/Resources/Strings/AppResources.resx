@@ -10382,4 +10382,48 @@ For example: {0} ...</value>
     <value>{0} word(s)</value>
     <comment>Under the Vocabulary title: how many words the learner has</comment>
   </data>
+  <data name="Skills_Show" xml:space="preserve">
+    <value>Show</value>
+    <comment>Skills toolbar menu: which skill profiles the list shows</comment>
+  </data>
+  <data name="Skills_ShowActive" xml:space="preserve">
+    <value>Skill Profiles</value>
+    <comment>Skills Show choice: the learner's skill profiles (not archived)</comment>
+  </data>
+  <data name="Skills_ShowArchived" xml:space="preserve">
+    <value>Archived</value>
+    <comment>Skills Show choice: the archived skill profiles</comment>
+  </data>
+  <data name="Skills_Archive" xml:space="preserve">
+    <value>Archive</value>
+    <comment>Skills row swipe action: archive the skill profile</comment>
+  </data>
+  <data name="Skills_Restore" xml:space="preserve">
+    <value>Restore</value>
+    <comment>Skills row swipe action in the archive: restore the skill profile</comment>
+  </data>
+  <data name="Skills_ArchivedSuccess" xml:space="preserve">
+    <value>Skill profile archived.</value>
+    <comment>Skills list: a swipe Archive succeeded</comment>
+  </data>
+  <data name="Skills_RestoredSuccess" xml:space="preserve">
+    <value>Skill profile restored.</value>
+    <comment>Skills list: a swipe Restore succeeded</comment>
+  </data>
+  <data name="Skills_ArchiveFailed" xml:space="preserve">
+    <value>The skill profile could not be archived. Try again.</value>
+    <comment>Skills list: a swipe Archive failed</comment>
+  </data>
+  <data name="Skills_RestoreFailed" xml:space="preserve">
+    <value>The skill profile could not be restored. Try again.</value>
+    <comment>Skills list: a swipe Restore failed</comment>
+  </data>
+  <data name="Skills_NoArchived" xml:space="preserve">
+    <value>No archived skill profiles</value>
+    <comment>Skills archive: nothing is archived</comment>
+  </data>
+  <data name="Skills_DeleteConfirm" xml:space="preserve">
+    <value>Delete "{0}"? This cannot be undone.</value>
+    <comment>Skills list: the swipe Delete confirmation title; {0} is the skill profile title</comment>
+  </data>
 </root>

@@ -9719,4 +9719,48 @@
     <value>단어 {0}개</value>
     <comment>Under the Vocabulary title: how many words the learner has</comment>
   </data>
+  <data name="Skills_Show" xml:space="preserve">
+    <value>보기</value>
+    <comment>Skills toolbar menu: which skill profiles the list shows</comment>
+  </data>
+  <data name="Skills_ShowActive" xml:space="preserve">
+    <value>스킬 프로필</value>
+    <comment>Skills Show choice: the learner's skill profiles (not archived)</comment>
+  </data>
+  <data name="Skills_ShowArchived" xml:space="preserve">
+    <value>보관됨</value>
+    <comment>Skills Show choice: the archived skill profiles</comment>
+  </data>
+  <data name="Skills_Archive" xml:space="preserve">
+    <value>보관</value>
+    <comment>Skills row swipe action: archive the skill profile</comment>
+  </data>
+  <data name="Skills_Restore" xml:space="preserve">
+    <value>복원</value>
+    <comment>Skills row swipe action in the archive: restore the skill profile</comment>
+  </data>
+  <data name="Skills_ArchivedSuccess" xml:space="preserve">
+    <value>스킬 프로필을 보관했습니다.</value>
+    <comment>Skills list: a swipe Archive succeeded</comment>
+  </data>
+  <data name="Skills_RestoredSuccess" xml:space="preserve">
+    <value>스킬 프로필을 복원했습니다.</value>
+    <comment>Skills list: a swipe Restore succeeded</comment>
+  </data>
+  <data name="Skills_ArchiveFailed" xml:space="preserve">
+    <value>스킬 프로필을 보관하지 못했습니다. 다시 시도하세요.</value>
+    <comment>Skills list: a swipe Archive failed</comment>
+  </data>
+  <data name="Skills_RestoreFailed" xml:space="preserve">
+    <value>스킬 프로필을 복원하지 못했습니다. 다시 시도하세요.</value>
+    <comment>Skills list: a swipe Restore failed</comment>
+  </data>
+  <data name="Skills_NoArchived" xml:space="preserve">
+    <value>보관된 스킬 프로필이 없습니다</value>
+    <comment>Skills archive: nothing is archived</comment>
+  </data>
+  <data name="Skills_DeleteConfirm" xml:space="preserve">
+    <value>"{0}"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</value>
+    <comment>Skills list: the swipe Delete confirmation title; {0} is the skill profile title</comment>
+  </data>
 </root>

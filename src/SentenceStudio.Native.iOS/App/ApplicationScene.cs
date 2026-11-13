@@ -365,6 +365,8 @@ internal sealed partial class ApplicationScene : IDisposable
             Replace(_skillsSlot, _app.RenderSkillsList(_style));
             _renderedSkillsListVersion = _app.SkillsListVersion;
         }
+        // "Archived" under the title while the archive shows.
+        _skillsSlot.WithNavigationSubtitle(_app.SkillsSubtitle);
 
         if (_app.IsSkillFormOpen && _skillFormSlot is null
             && stack.NavigationPath.Count == 1)
@@ -833,8 +835,6 @@ internal sealed partial class ApplicationScene : IDisposable
         if (Find(_resourcesSlot, "native.resources.filters.panel") is { } resourcePanel)
             resourcePanel.WithFixedWidth(BrowserPage.FilterColumnWidth(
                 _app.ResourcesPageWidth ?? width, _style.TextScale));
-        if (Find(_skillsSlot, "native.skills.grid") is { } skillsGrid)
-            skillsGrid.GridColumns = SkillsView.Columns(width);
         if (Find(_vocabularySlot, "native.vocabulary.cards") is { } wordsGrid)
             wordsGrid.GridColumns = VocabularyListView.CardColumns(
                 _app.VocabularyPageWidth ?? width, _style.TextScale,

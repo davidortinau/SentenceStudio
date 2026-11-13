@@ -14,9 +14,13 @@ internal enum SkillFormPhase
     Saving, SaveError, Deleting, DeleteError, Blocked
 }
 
+/// <param name="Archived">The list shows the archived skills (the toolbar's Show choice).</param>
+/// <param name="FeedbackIsError">The feedback reports a refusal or failure, not a success.</param>
+/// <param name="Busy">An archive, restore or delete from the list is running.</param>
 internal sealed record SkillsListState(
     SkillsListPhase Phase, IReadOnlyList<SkillProfile> Profiles,
-    string? ErrorKey = null, string? FeedbackKey = null);
+    string? ErrorKey = null, string? FeedbackKey = null, bool Archived = false,
+    bool FeedbackIsError = false, bool Busy = false);
 
 internal sealed record SkillProfileFormState(
     SkillFormPhase Phase, bool Creating, string Title, string Description,
@@ -49,6 +53,10 @@ internal sealed class SkillsCoordinator : IDisposable
     private bool _pending;
     private bool _confirmDelete;
     private bool _disposed;
+    private bool _showArchived;
+    private bool _listFeedbackIsError;
+    private bool _listBusy;
+    private SkillProfile? _askingListDelete;
 
     internal SkillsCoordinator(
         SkillProfileRepository repository,
@@ -63,13 +71,24 @@ internal sealed class SkillsCoordinator : IDisposable
     internal event Action? Changed;
     internal bool IsOpen => _open;
     internal bool IsFormOpen => _formOpen;
-    internal bool IsPending => _pending;
+    internal bool IsPending => _pending || _listBusy;
     internal bool IsDeletePending => _formPhase == SkillFormPhase.Deleting;
     internal bool IsDeleteConfirmationPresented => _confirmDelete;
     internal long ListVersion { get; private set; }
     internal long FormVersion { get; private set; }
     internal SkillsListState ListState =>
-        new(_listPhase, _profiles, _listErrorKey, _listFeedbackKey);
+        new(_listPhase, _profiles, _listErrorKey, _listFeedbackKey, _showArchived,
+            _listFeedbackIsError, _listBusy);
+
+    /// <summary>A row's swipe Delete is asking to confirm (never while it runs).</summary>
+    internal bool IsListDeletePresented => _open && _askingListDelete is not null;
+
+    /// <summary>The title of the skill whose swipe Delete is asking; null when none asks.</summary>
+    internal string? PendingListDeleteTitle =>
+        IsListDeletePresented ? _askingListDelete!.Title ?? string.Empty : null;
+
+    /// <summary>The id of the skill whose swipe Delete is asking; null when none asks.</summary>
+    internal string? PendingListDeleteId => IsListDeletePresented ? _askingListDelete!.Id : null;
     internal SkillProfileFormState FormState =>
         new(_formPhase, _creating, _title, _description, _createdAt,
             _updatedAt, _formErrorKey, _confirmDelete);
@@ -100,25 +119,44 @@ internal sealed class SkillsCoordinator : IDisposable
         _formOpen = false;
         _profiles = [];
         _listFeedbackKey = null;
+        _listFeedbackIsError = false;
         _listErrorKey = null;
         _listPhase = SkillsListPhase.Loading;
+        // Each visit starts on the learner's skills, not the archive.
+        _showArchived = false;
+        _askingListDelete = null;
         Interlocked.Increment(ref _formGeneration);
         Notify(list: true, form: true);
         await ReloadAsync();
         return IsCurrentOwner(expectedOwner, stamp);
     }
 
-    internal async Task ReloadAsync()
+    internal Task ReloadAsync() => ReloadAsync(quiet: false);
+
+    /// <param name="quiet">
+    /// Keep the rows shown while it reads (after a swipe action the list stays in place, its
+    /// scroll position and swipe animation kept, instead of passing through Loading).
+    /// </param>
+    private async Task ReloadAsync(bool quiet)
     {
         if (!TryCurrentOwner(out var owner, out var stamp))
             return;
         var generation = Interlocked.Increment(ref _listGeneration);
-        _listPhase = SkillsListPhase.Loading;
-        _listErrorKey = null;
-        Notify(list: true);
+        var archived = _showArchived;
+        if (!quiet || _listPhase is not (SkillsListPhase.Populated or SkillsListPhase.Empty))
+        {
+            _listPhase = SkillsListPhase.Loading;
+            _listErrorKey = null;
+            Notify(list: true);
+        }
         try
         {
-            var profiles = await _repository.ListAsync(owner);
+            // The archive asks for every skill and keeps the archived ones; the learner's list
+            // is the active ones only, as before.
+            IReadOnlyList<SkillProfile> profiles = await _repository.ListAsync(
+                owner, includeArchived: archived);
+            if (archived)
+                profiles = profiles.Where(profile => profile.IsArchived).ToArray();
             if (!IsCurrentOwner(owner, stamp))
             {
                 InvalidateOwner();
@@ -149,7 +187,7 @@ internal sealed class SkillsCoordinator : IDisposable
 
     internal void OpenCreate()
     {
-        if (!TryCurrentOwner(out _, out _) || _formOpen || _pending)
+        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending)
             return;
         BeginForm(null);
         _creating = true;
@@ -160,7 +198,7 @@ internal sealed class SkillsCoordinator : IDisposable
     internal async Task OpenEditAsync(string? id)
     {
         if (!TryCurrentOwner(out var owner, out var stamp)
-            || _formOpen || _pending)
+            || _formOpen || IsPending || _askingListDelete is not null)
             return;
         BeginForm(id);
         _formPhase = SkillFormPhase.Loading;
@@ -193,7 +231,7 @@ internal sealed class SkillsCoordinator : IDisposable
         }
         try
         {
-            var profile = await _repository.GetSkillProfileAsync(id, owner);
+            var profile = await _repository.GetAsync(id, owner, includeArchived: true);
             if (!IsCurrentOwner(owner, stamp))
             {
                 InvalidateOwner();
@@ -272,7 +310,7 @@ internal sealed class SkillsCoordinator : IDisposable
             Notify(form: true);
             var profile = creating
                 ? new SkillProfile()
-                : await _repository.GetSkillProfileAsync(id!, owner);
+                : await _repository.GetAsync(id!, owner, includeArchived: true);
             if (!IsCurrentForm(owner, stamp, generation, id))
                 return false;
             if (profile is null)
@@ -298,6 +336,7 @@ internal sealed class SkillsCoordinator : IDisposable
             }
             _listFeedbackKey = creating
                 ? "SkillAdd_SavedSuccess" : "SkillEdit_SavedSuccess";
+            _listFeedbackIsError = false;
             EndForm();
             await ReloadAsync();
             return true;
@@ -354,7 +393,7 @@ internal sealed class SkillsCoordinator : IDisposable
         try
         {
             Notify(form: true);
-            var profile = await _repository.GetSkillProfileAsync(id!, owner);
+            var profile = await _repository.GetAsync(id!, owner, includeArchived: true);
             if (!IsCurrentForm(owner, stamp, generation, id))
                 return false;
             if (profile is null)
@@ -374,6 +413,7 @@ internal sealed class SkillsCoordinator : IDisposable
                 return false;
             }
             _listFeedbackKey = "SkillEdit_DeletedSuccess";
+            _listFeedbackIsError = false;
             EndForm();
             await ReloadAsync();
             return true;
@@ -399,6 +439,165 @@ internal sealed class SkillsCoordinator : IDisposable
         }
     }
 
+    /// <summary>
+    /// The toolbar's Show choice: the learner's skills or the archived ones (Captain
+    /// 2026-11-12: swipe Archive and Restore on skills; collections live in the list's menu).
+    /// </summary>
+    internal async Task ShowArchivedAsync(bool archived)
+    {
+        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending
+            || _askingListDelete is not null || _showArchived == archived)
+            return;
+        _showArchived = archived;
+        _listFeedbackKey = null;
+        _listFeedbackIsError = false;
+        _profiles = [];
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// A row's swipe Archive (in the learner's skills) or Restore (in the archive). Nothing is
+    /// deleted: an archived skill leaves the lists and practice until it is restored, through
+    /// the same owner-scoped repository call Sam uses. The row goes at once and the list says
+    /// what happened.
+    /// </summary>
+    internal async Task<bool> ToggleArchivedAsync(string id)
+    {
+        if (!TryCurrentOwner(out var owner, out var stamp) || _formOpen || IsPending
+            || _askingListDelete is not null
+            || _profiles.FirstOrDefault(profile => profile.Id == id) is null)
+            return false;
+        var archive = !_showArchived;
+        var changed = false;
+        _listBusy = true;
+        Notify(list: true);
+        try
+        {
+            var result = await _repository.SetArchivedAsync(id, archive, owner);
+            if (!IsCurrentOwner(owner, stamp))
+            {
+                Abandon();
+                return false;
+            }
+            changed = result > 0;
+            if (changed)
+            {
+                RemoveRow(id);
+                _listFeedbackKey = archive ? "Skills_ArchivedSuccess" : "Skills_RestoredSuccess";
+                _listFeedbackIsError = false;
+            }
+            else if (result == 0)
+            {
+                // Already moved (another device or Sam), deleted, or no longer the learner's:
+                // the reload below shows where it is now; nothing failed.
+                _listFeedbackKey = null;
+                _listFeedbackIsError = false;
+            }
+            else
+            {
+                _listFeedbackKey = archive ? "Skills_ArchiveFailed" : "Skills_RestoreFailed";
+                _listFeedbackIsError = true;
+            }
+        }
+        finally
+        {
+            _listBusy = false;
+            Notify(list: true);
+        }
+        await ReloadAsync(quiet: true);
+        return changed;
+    }
+
+    /// <summary>A row's swipe Delete: asks to confirm (one presentation at a time).</summary>
+    internal void RequestListDelete(string id)
+    {
+        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending
+            || _askingListDelete is not null
+            || _profiles.FirstOrDefault(profile => profile.Id == id) is not { } profile)
+            return;
+        _askingListDelete = profile;
+        Notify(list: true);
+    }
+
+    /// <summary>Cancel, or the dialog dismissed, while the list delete asks.</summary>
+    internal void CancelListDelete()
+    {
+        if (_askingListDelete is null)
+            return;
+        _askingListDelete = null;
+        Notify(list: true);
+    }
+
+    /// <summary>
+    /// Deletes the confirmed skill through the same owner-scoped delete as the editor's. The
+    /// dialog goes at once; the row goes on success and the list says what happened.
+    /// </summary>
+    internal async Task<bool> ConfirmListDeleteAsync()
+    {
+        if (_askingListDelete is not { } profile)
+            return false;
+        _askingListDelete = null;
+        if (!TryCurrentOwner(out var owner, out var stamp))
+            return false;
+        if (_formOpen || IsPending)
+        {
+            // Something else started after it asked: say so rather than drop it silently.
+            _listFeedbackKey = "SkillEdit_DeleteFailed";
+            _listFeedbackIsError = true;
+            Notify(list: true);
+            return false;
+        }
+        var removed = false;
+        _listBusy = true;
+        Notify(list: true);
+        try
+        {
+            // The repository logs a failure and returns -1; it does not throw.
+            var count = await _repository.DeleteAsync(profile, owner);
+            if (!IsCurrentOwner(owner, stamp))
+            {
+                Abandon();
+                return false;
+            }
+            removed = count > 0;
+            if (removed)
+            {
+                RemoveRow(profile.Id);
+                _listFeedbackKey = "SkillEdit_DeletedSuccess";
+                _listFeedbackIsError = false;
+            }
+            else
+            {
+                _listFeedbackKey = count == 0 ? "SkillEdit_NotFound" : "SkillEdit_DeleteFailed";
+                _listFeedbackIsError = true;
+            }
+        }
+        finally
+        {
+            _listBusy = false;
+            Notify(list: true);
+        }
+        await ReloadAsync(quiet: true);
+        return removed;
+    }
+
+    /// <summary>
+    /// A list action finished after the owner changed or the page closed: block the list for a
+    /// changed owner; a closed page has nothing to show.
+    /// </summary>
+    private void Abandon()
+    {
+        if (_open)
+            InvalidateOwner();
+    }
+
+    private void RemoveRow(string id)
+    {
+        _profiles = _profiles.Where(profile => profile.Id != id).ToArray();
+        if (_profiles.Count == 0 && _listPhase == SkillsListPhase.Populated)
+            _listPhase = SkillsListPhase.Empty;
+    }
+
     internal void CancelForm()
     {
         if (!_formOpen || _pending)
@@ -409,12 +608,17 @@ internal sealed class SkillsCoordinator : IDisposable
 
     internal void Close()
     {
+        // A running list action does not hold the page: the stack has already popped, and the
+        // action finds the page closed when it returns.
         if (!_open || _pending)
             return;
         _open = false;
         _owner = null;
         _profiles = [];
+        _askingListDelete = null;
+        _showArchived = false;
         _listFeedbackKey = null;
+        _listFeedbackIsError = false;
         _listErrorKey = null;
         Interlocked.Increment(ref _listGeneration);
         EndForm();
@@ -492,6 +696,7 @@ internal sealed class SkillsCoordinator : IDisposable
     {
         _owner = null;
         _profiles = [];
+        _askingListDelete = null;
         _listPhase = SkillsListPhase.Blocked;
         _listErrorKey = NativeText.InvalidCredentials;
         _listFeedbackKey = null;

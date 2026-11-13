@@ -505,7 +505,11 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("\"native.library.row.skills\"", Read("App/ApplicationScene.Library.cs"));
         // The Resources page has no More menu; the Library list reaches Skills.
         Assert.DoesNotContain("openSkills", resources);
-        Assert.Contains("Views.LazyVGrid(", list);
+        // Captain 2026-11-12: a native List with swipe Delete and Archive or Restore.
+        Assert.Contains("BrowserPage.NativeList(\"native.skills.list\"", list);
+        Assert.Contains("Views.SwipeRow(row, trailing)", list);
+        Assert.Contains("Views.ConfirmationDialog(page,", list);
+        Assert.Contains("CancelSkillListDeleteLater", controller);
         Assert.Contains("Views.TextField(", form);
         Assert.Contains("Views.TextEditor(", form);
         // Captain 2026-11-10: one plain toolbar Save at every width; no Save in More and no
@@ -519,6 +523,148 @@ public sealed class NativeSkillsContractTests
         Assert.DoesNotContain("using UIKit;", scene);
         Assert.DoesNotContain("using UIKit;", list);
         Assert.DoesNotContain("using UIKit;", form);
+    }
+
+    [Fact]
+    public async Task SwipeArchiveAndRestoreMoveOnlyTheOwnersSkillAndKeepTheRow()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("mine", "Past tense", NativeSliceFixture.UserA),
+            Skill("other", "Ordering food", NativeSliceFixture.UserA),
+            Skill("foreign", "Not mine", NativeSliceFixture.UserB));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        Assert.Equal(2, coordinator.ListState.Profiles.Count);
+
+        // Another learner's skill is not in the list, so it cannot be archived from it.
+        Assert.False(await coordinator.ToggleArchivedAsync("foreign"));
+        Assert.True(await coordinator.ToggleArchivedAsync("mine"));
+        Assert.Equal("Skills_ArchivedSuccess", coordinator.ListState.FeedbackKey);
+        Assert.False(coordinator.ListState.FeedbackIsError);
+        Assert.Equal("other", Assert.Single(coordinator.ListState.Profiles).Id);
+        var rows = await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA);
+        Assert.Equal(2, rows.Count);
+        Assert.True(rows.Single(row => row.Id == "mine").IsArchived);
+        Assert.False(Assert.Single(await OwnedSkillsAsync(
+            fixture, NativeSliceFixture.UserB)).IsArchived);
+
+        await coordinator.ShowArchivedAsync(true);
+        Assert.True(coordinator.ListState.Archived);
+        Assert.Equal("mine", Assert.Single(coordinator.ListState.Profiles).Id);
+        // An archived skill still opens in the editor from the archive.
+        await coordinator.OpenEditAsync("mine");
+        Assert.Equal(SkillFormPhase.Editing, coordinator.FormState.Phase);
+        Assert.Equal("Past tense", coordinator.FormState.Title);
+        coordinator.CancelForm();
+
+        Assert.True(await coordinator.ToggleArchivedAsync("mine"));
+        Assert.Equal("Skills_RestoredSuccess", coordinator.ListState.FeedbackKey);
+        Assert.Equal(SkillsListPhase.Empty, coordinator.ListState.Phase);
+        await coordinator.ShowArchivedAsync(false);
+        Assert.Equal(2, coordinator.ListState.Profiles.Count);
+        Assert.All(await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA),
+            row => Assert.False(row.IsArchived));
+
+        // Each visit starts on the learner's skills.
+        await coordinator.ShowArchivedAsync(true);
+        coordinator.Close();
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        Assert.False(coordinator.ListState.Archived);
+    }
+
+    [Fact]
+    public async Task SwipeDeleteAsksFirstAndDeletesOnlyTheConfirmedOwnedSkill()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("mine", "Past tense", NativeSliceFixture.UserA),
+            Skill("archived", "Old skill", NativeSliceFixture.UserA, archived: true),
+            Skill("foreign", "Not mine", NativeSliceFixture.UserB));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+
+        coordinator.RequestListDelete("foreign");
+        Assert.False(coordinator.IsListDeletePresented);
+        coordinator.RequestListDelete("mine");
+        Assert.True(coordinator.IsListDeletePresented);
+        Assert.Equal("Past tense", coordinator.PendingListDeleteTitle);
+        // One presentation at a time: the editor does not open while it asks.
+        await coordinator.OpenEditAsync("mine");
+        Assert.False(coordinator.IsFormOpen);
+        coordinator.CancelListDelete();
+        Assert.False(coordinator.IsListDeletePresented);
+        Assert.False(await coordinator.ConfirmListDeleteAsync());
+        Assert.Equal(2, (await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA)).Count);
+
+        coordinator.RequestListDelete("mine");
+        Assert.True(await coordinator.ConfirmListDeleteAsync());
+        Assert.False(coordinator.IsListDeletePresented);
+        Assert.Equal("SkillEdit_DeletedSuccess", coordinator.ListState.FeedbackKey);
+        Assert.Equal(SkillsListPhase.Empty, coordinator.ListState.Phase);
+
+        // An archived skill can be deleted from the archive.
+        await coordinator.ShowArchivedAsync(true);
+        coordinator.RequestListDelete("archived");
+        Assert.True(await coordinator.ConfirmListDeleteAsync());
+        Assert.Empty(await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA));
+        Assert.Equal("foreign", Assert.Single(await OwnedSkillsAsync(
+            fixture, NativeSliceFixture.UserB)).Id);
+    }
+
+    [Fact]
+    public async Task SwipeArchiveOfASkillAlreadyArchivedElsewhereReportsNoFailure()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture, Skill("mine", "Past tense", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        // Another device (or Sam) archives it while this list still shows it.
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.SkillProfiles.SingleAsync(skill => skill.Id == "mine")).IsArchived = true;
+            await db.SaveChangesAsync();
+        }
+        var versions = new List<SkillsListPhase>();
+        coordinator.Changed += () => versions.Add(coordinator.ListState.Phase);
+        Assert.False(await coordinator.ToggleArchivedAsync("mine"));
+        Assert.Null(coordinator.ListState.FeedbackKey);
+        Assert.Equal(SkillsListPhase.Empty, coordinator.ListState.Phase);
+        // The list stays in place while it reads again (no pass through Loading).
+        Assert.DoesNotContain(SkillsListPhase.Loading, versions);
+    }
+
+    [Fact]
+    public async Task SwipeActionsRefuseAChangedOwner()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture, Skill("mine", "Past tense", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        coordinator.RequestListDelete("mine");
+        fixture.Activate(NativeSliceFixture.UserB);
+        Assert.False(await coordinator.ConfirmListDeleteAsync());
+        Assert.False(await coordinator.ToggleArchivedAsync("mine"));
+        Assert.Equal(SkillsListPhase.Blocked, coordinator.ListState.Phase);
+        var row = Assert.Single(await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA));
+        Assert.False(row.IsArchived);
+    }
+
+    private static SkillProfile Skill(string id, string title, string owner,
+        bool archived = false) => new()
+    {
+        Id = id, Title = title, Description = $"{title} description",
+        UserProfileId = owner, IsArchived = archived
+    };
+
+    private static async Task SeedSkillsAsync(NativeSliceFixture fixture,
+        params SkillProfile[] skills)
+    {
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.SkillProfiles.AddRange(skills);
+        await db.SaveChangesAsync();
     }
 
     private static async Task<NativeSliceFixture> OwnersAsync()

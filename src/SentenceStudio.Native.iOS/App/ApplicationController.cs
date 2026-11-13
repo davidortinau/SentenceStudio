@@ -146,6 +146,9 @@ internal sealed partial class ApplicationController : IDisposable
         _skills?.IsDeleteConfirmationPresented == true;
     internal bool IsSkillDeletePending => _skills?.IsDeletePending == true;
     internal long SkillsListVersion => _skills?.ListVersion ?? -1;
+    /// <summary>The Skills title's subtitle: "Archived" while the archive shows, else none.</summary>
+    internal string SkillsSubtitle => _skills?.ListState.Archived == true
+        ? Text("Skills_ShowArchived") : string.Empty;
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
         ? "SkillAdd_Title" : "SkillEdit_Title");
@@ -813,10 +816,58 @@ internal sealed partial class ApplicationController : IDisposable
     internal SwiftView RenderSkillsList(SourceUiStyle style) =>
         _skills is { IsOpen: true } coordinator
             ? SkillsView.Page(coordinator.ListState, style, Text,
-                coordinator.OpenCreate,
-                id => _ = coordinator.OpenEditAsync(id),
-                () => _ = coordinator.ReloadAsync())
+                new SkillsListActions(
+                    coordinator.OpenCreate,
+                    id => _ = coordinator.OpenEditAsync(id),
+                    () => _ = coordinator.ReloadAsync(),
+                    archived => RunSkills(() => coordinator.ShowArchivedAsync(archived)),
+                    id => RunSkills(() => coordinator.ToggleArchivedAsync(id)),
+                    coordinator.RequestListDelete,
+                    () => RunSkills(() => coordinator.ConfirmListDeleteAsync()),
+                    CancelSkillListDeleteLater),
+                coordinator.PendingListDeleteTitle)
             : Views.Text(Text("Common_Loading"));
+
+    /// <summary>
+    /// A Skills list action. The coordinator refuses overlapping work itself (and says so), so
+    /// this does not wait on the controller's busy flag, which would drop the action silently.
+    /// </summary>
+    private void RunSkills(Func<Task> action)
+    {
+        if (_disposed)
+            return;
+        _ = RunSkillsAsync(action);
+    }
+
+    private async Task RunSkillsAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Skills list action failed.");
+            OnLibraryActionFailed();
+            Publish();
+        }
+    }
+
+    /// <summary>
+    /// The list's delete dialog closed (Cancel, a tap outside it, or after Delete). SwiftUI can
+    /// report the close before the Delete action runs, so the cancel waits for the next turn of
+    /// the main loop: Delete has read the pending skill by then.
+    /// </summary>
+    private void CancelSkillListDeleteLater()
+    {
+        if (_skills?.PendingListDeleteId is not { } id)
+            return;
+        CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (_skills is { } coordinator && coordinator.PendingListDeleteId == id)
+                coordinator.CancelListDelete();
+        });
+    }
 
     internal SwiftView RenderSkillForm(SourceUiStyle style) =>
         _skills is { IsFormOpen: true } coordinator

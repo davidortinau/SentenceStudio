@@ -18416,11 +18416,110 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Archive.
+        /// </summary>
+        internal static string Skills_Archive {
+            get {
+                return ResourceManager.GetString("Skills_Archive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Skill profile archived..
+        /// </summary>
+        internal static string Skills_ArchivedSuccess {
+            get {
+                return ResourceManager.GetString("Skills_ArchivedSuccess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The skill profile could not be archived. Try again..
+        /// </summary>
+        internal static string Skills_ArchiveFailed {
+            get {
+                return ResourceManager.GetString("Skills_ArchiveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete &quot;{0}&quot;? This cannot be undone..
+        /// </summary>
+        internal static string Skills_DeleteConfirm {
+            get {
+                return ResourceManager.GetString("Skills_DeleteConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No archived skill profiles.
+        /// </summary>
+        internal static string Skills_NoArchived {
+            get {
+                return ResourceManager.GetString("Skills_NoArchived", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No skill profiles yet.
         /// </summary>
         internal static string Skills_NoProfilesYet {
             get {
                 return ResourceManager.GetString("Skills_NoProfilesYet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restore.
+        /// </summary>
+        internal static string Skills_Restore {
+            get {
+                return ResourceManager.GetString("Skills_Restore", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Skill profile restored..
+        /// </summary>
+        internal static string Skills_RestoredSuccess {
+            get {
+                return ResourceManager.GetString("Skills_RestoredSuccess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The skill profile could not be restored. Try again..
+        /// </summary>
+        internal static string Skills_RestoreFailed {
+            get {
+                return ResourceManager.GetString("Skills_RestoreFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show.
+        /// </summary>
+        internal static string Skills_Show {
+            get {
+                return ResourceManager.GetString("Skills_Show", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Skill Profiles.
+        /// </summary>
+        internal static string Skills_ShowActive {
+            get {
+                return ResourceManager.GetString("Skills_ShowActive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Archived.
+        /// </summary>
+        internal static string Skills_ShowArchived {
+            get {
+                return ResourceManager.GetString("Skills_ShowArchived", resourceCulture);
             }
         }
 
