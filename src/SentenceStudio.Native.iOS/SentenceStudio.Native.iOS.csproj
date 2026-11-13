@@ -15,6 +15,12 @@
     <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
     <UseInterpreter>true</UseInterpreter>
     <UseMauiEssentials>true</UseMauiEssentials>
+    <!-- The .NET 11 GA iOS pack (MT7199) requires a UIApplicationSceneManifest for the UIKit
+         scene lifecycle. This app starts through the bridge's SwiftUI App
+         (Microsoft.SwiftUI MicrosoftSwiftUIApplication), whose scenes SwiftUI creates without
+         an Info.plist manifest, as it already runs on iOS 27. Adding a manifest would change
+         iPad multi-window behavior, so the check is skipped instead. -->
+    <ValidateSceneManifest>false</ValidateSceneManifest>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(NativeApiBaseUrl)' != ''">
