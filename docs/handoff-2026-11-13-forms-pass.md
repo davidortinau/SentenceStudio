@@ -17,7 +17,7 @@ Written so the work can continue on another machine. Read with
 
 1. Clone SentenceStudio and check out `library-split-view`. Write your own `global.json` (it is
    ignored and developer-specific; see `.squad/skills/dotnet-sdk-detection/SKILL.md`). This
-   machine builds the native iOS head with the .NET 11 SDK (11.0.100) and Xcode 27.
+   machine pins SDK `11.0.100-rc.2.26504.105` (`rollForward: disable`) with Xcode 27.2.
 2. Clone the bridge to `~/work/Microsoft.SwiftUI` (branch `split-view`). The iOS head's
    `src/SentenceStudio.Native.iOS/NuGet.Config` reads the package from
    `/Users/davidortinau/work/Microsoft.SwiftUI/artifacts` (an absolute path: change it locally if
