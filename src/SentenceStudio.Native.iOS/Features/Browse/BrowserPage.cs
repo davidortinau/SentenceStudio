@@ -300,8 +300,10 @@ internal static class BrowserPage
     /// False for a wide page while it loads: its search stays at the top, where the loaded
     /// wide page has it.
     /// </param>
+    /// <param name="chips">The active filters, shown in the bottom search bar before its field.</param>
     internal static SwiftView SingleColumn(string prefix, SourceUiStyle style,
-        IEnumerable<SwiftView> children, SwiftView searchRow, double width, bool searchAtBottom)
+        IEnumerable<SwiftView> children, SwiftView searchRow, double width, bool searchAtBottom,
+        IReadOnlyList<SwiftView>? chips = null)
     {
         var gutter = SourceUiLayout.PageGutter(width);
         var content = Views.VStack(children.ToArray())
@@ -309,7 +311,11 @@ internal static class BrowserPage
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier($"{prefix}.scroll.content");
         content.Spacing = SourceUiLayout.PageGap;
-        var scroll = Views.Scroll(content).WithAccessibilityIdentifier($"{prefix}.scroll");
+        // Dragging the list puts the keyboard away (Captain 2026-11-12: "I can't seem to
+        // dismiss the keyboard"), as in Messages and Notes; Return also ends the search.
+        var scroll = Views.Scroll(content)
+            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)
+            .WithAccessibilityIdentifier($"{prefix}.scroll");
         if (!searchAtBottom)
         {
             var top = Views.VStack(searchRow.WithPadding(gutter, gutter, 0, gutter), scroll)
@@ -317,24 +323,76 @@ internal static class BrowserPage
             top.Spacing = 0;
             return top;
         }
-        return Views.BottomInset(scroll, BottomSearchBar(prefix, style, searchRow, gutter));
+        return Views.BottomInset(scroll,
+            BottomSearchBar(prefix, style, searchRow, gutter, chips ?? []));
     }
 
-    /// <summary>A rounded search bar: a magnifying glass, then the search row (field and clear).</summary>
+    /// <summary>
+    /// A rounded search bar: a magnifying glass, the active filters as chips (Captain
+    /// 2026-11-12: "Chips, not text"), then the search row (field and clear). The chips sit in
+    /// their own slot, rebuilt on each update while the field stays mounted.
+    /// </summary>
     private static SwiftView BottomSearchBar(string prefix, SourceUiStyle style,
-        SwiftView searchRow, double gutter)
+        SwiftView searchRow, double gutter, IReadOnlyList<SwiftView> chips)
     {
         var appearance = style.Appearance;
-        var bar = Views.HStack(
+        var field = Views.HStack(
                 Views.Image("magnifyingglass")
                     .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
                 searchRow)
             .WithFlexibleWidth();
-        bar.Spacing = 8;
+        field.Spacing = 8;
+        // The chips take their own line above the field and scroll sideways when they do not
+        // fit, so the field keeps its width; with no filter on, the line is empty and adds no
+        // height.
+        var chipLine = Views.VStack(chips.Count == 0 ? []
+                : [ChipStrip($"{prefix}.search.chips.strip", chips, 6).WithPadding(2, 0, 6, 0)])
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"{prefix}.search.chips");
+        var bar = Views.VStack(chipLine, field).WithFlexibleWidth();
+        bar.Spacing = 0;
         // The capsule sets its own inner padding on its node, so the gutter goes on a host.
         return Views.VStack(style.ComposerCapsule(bar))
             .WithPadding(6, gutter, 10, gutter)
             .WithAccessibilityIdentifier($"{prefix}.search.bar");
+    }
+
+    /// <summary>
+    /// Chips in one row that scrolls sideways when they do not fit: the bottom search bar's and
+    /// the wide page's filter chips. The row is <paramref name="id"/>.row.
+    /// </summary>
+    internal static SwiftView ChipStrip(string id, IReadOnlyList<SwiftView> chips, double spacing)
+    {
+        var row = Views.HStack(chips.ToArray())
+            .WithAccessibilityIdentifier($"{id}.row");
+        var strip = Views.HorizontalGrid(new double[chips.Count], row)
+            .WithAccessibilityIdentifier(id);
+        strip.Spacing = spacing;
+        return strip;
+    }
+
+    /// <summary>
+    /// One active filter as a chip in the search bar: its value and an x; a tap removes that
+    /// filter. VoiceOver reads "Remove filter, Type: Video".
+    /// </summary>
+    internal static SwiftView SearchChip(string prefix, string type, string label, string value,
+        string removeName, Action remove, SourceUiStyle style)
+    {
+        var appearance = style.Appearance;
+        var content = Views.HStack(
+                style.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Primary)
+                    .WithLineLimit(1),
+                Views.Image("xmark")
+                    .WithFixedSymbolSize(10)
+                    .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark))
+            .WithPadding(4, 10, 4, 8)
+            .WithRoundedSurface(appearance.BodyBackground.Light, appearance.BodyBackground.Dark,
+                12, appearance.Primary.Light, appearance.Primary.Dark, 1);
+        content.Spacing = 4;
+        return Views.Button(content, remove)
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithAccessibilityLabel($"{removeName}, {label}: {value}")
+            .WithAccessibilityIdentifier($"{prefix}.search.chip.{type}");
     }
 
     /// <summary>The search field in the bottom bar: the capsule draws its surface.</summary>

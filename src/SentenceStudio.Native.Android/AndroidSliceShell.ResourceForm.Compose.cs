@@ -132,17 +132,18 @@ internal sealed partial class AndroidSliceShell
                     Localize("ResourceAdd_TranslationLabel"), state.Translation,
                     "native.resources.form.translation", readOnly, false,
                     Localize("ResourceAdd_TranslationPlaceholder"), palette, lines: 5)));
-        if (!creating)
+        // Captain 2026-11-12: a smart resource hides media, transcript and translation.
+        if (!creating && !state.IsSmartResource)
         {
             Add("transcript", () => Card(palette, "native.resources.form.transcript.card",
                 ResourceField(resources, NativeResourceField.Transcript,
                     Localize("ResourceEdit_Transcript"), state.Transcript,
-                    "native.resources.form.transcript", readOnly, state.IsSmartResource,
+                    "native.resources.form.transcript", readOnly, false,
                     null, palette, lines: 6)));
             Add("translation", () => Card(palette, "native.resources.form.translation.card",
                 ResourceField(resources, NativeResourceField.Translation,
                     Localize("ResourceEdit_Translation"), state.Translation,
-                    "native.resources.form.translation", readOnly, state.IsSmartResource,
+                    "native.resources.form.translation", readOnly, false,
                     null, palette, lines: 6)));
         }
 
@@ -185,10 +186,10 @@ internal sealed partial class AndroidSliceShell
                 state.Language, Constants.Languages, "native.resources.form.language",
                 readOnly, state.IsSmartResource, palette),
         };
-        if (!creating)
+        if (!creating && !state.IsSmartResource)
             basic.Add(ResourceField(resources, NativeResourceField.MediaUrl,
                 Localize("ResourceEdit_MediaUrl"), state.MediaUrl,
-                "native.resources.form.media.url", readOnly, state.IsSmartResource,
+                "native.resources.form.media.url", readOnly, false,
                 null, palette));
         basic.Add(ResourceField(resources, NativeResourceField.Tags,
             Localize(creating ? "ResourceAdd_TagsLabel" : "ResourceEdit_Tags"),

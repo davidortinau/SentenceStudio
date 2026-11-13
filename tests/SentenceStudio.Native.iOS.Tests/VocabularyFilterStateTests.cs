@@ -21,6 +21,111 @@ public sealed class VocabularyFilterStateTests
     ];
 
     [Fact]
+    public void SearchBarChips_KeepMenuFiltersOutOfTheTypedText()
+    {
+        var persisted = string.Empty;
+        var filters = new VocabularyFilterState(null, next => persisted = next);
+
+        // The bar's typed words stay exactly as typed (a trailing space included).
+        filters.SearchField("감사 ");
+        Assert.Equal("감사 ", filters.FieldText);
+        Assert.Empty(filters.ChipFilters);
+        Assert.Equal("감사 ", persisted);
+
+        // A menu choice becomes a chip; the typed words stay in the field.
+        filters.ChangeFilter("status", "unknown", live: true);
+        Assert.Equal(new FilterToken("status", "unknown"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("감사 ", filters.FieldText);
+        Assert.Equal("status:unknown 감사 ", persisted);
+        Assert.Equal("unknown", filters.FilterValue("status"));
+        Assert.Equal("word-two", Assert.Single(filters.Filter(Words, "added", true)).Id);
+
+        // Typing keeps the chip.
+        filters.SearchField("감사합니다");
+        Assert.Single(filters.ChipFilters);
+        Assert.Equal("status:unknown 감사합니다", persisted);
+
+        // A typed token of the same type gives way to the menu's choice.
+        filters.SearchField("tag:polite");
+        filters.ChangeFilter("tag", "food", live: true);
+        Assert.Equal(string.Empty, filters.FieldText);
+        Assert.Equal(2, filters.ChipFilters.Count);
+        Assert.Equal("food", filters.FilterValue("tag"));
+
+        // Removing a chip (its submenu's "All") leaves the rest.
+        filters.ChangeFilter("status", null, live: true);
+        Assert.Equal(new FilterToken("tag", "food"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("tag:food", persisted);
+
+        // Clear All drops chips and text.
+        filters.ClearAll();
+        Assert.Empty(filters.ChipFilters);
+        Assert.Equal(string.Empty, filters.FieldText);
+        Assert.Equal(string.Empty, persisted);
+    }
+
+    [Fact]
+    public void SearchBarChips_RestoredAndWholeQuerySearchesShowTheirFiltersAsChips()
+    {
+        var persisted = "status:learning tag:food 사과";
+        var filters = new VocabularyFilterState(persisted, next => persisted = next);
+        Assert.Equal(2, filters.ChipFilters.Count);
+        Assert.Equal("사과", filters.FieldText);
+        Assert.Equal("status:learning tag:food 사과", filters.CommittedQuery);
+
+        // The wide page's field (and Android) set the whole query as typed; the bottom bar
+        // still shows its filters as chips beside the rest.
+        filters.Search("type:word 사과");
+        Assert.Equal(new FilterToken("type", "word"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("사과", filters.FieldText);
+        Assert.Equal("type:word 사과", persisted);
+        Assert.Equal("word", filters.FilterValue("type"));
+    }
+
+    [Fact]
+    public void SearchBarChips_RemoveOnlyTheTappedChipAndNeverRewriteTypedText()
+    {
+        var persisted = "tag:food tag:polite 사과";
+        var filters = new VocabularyFilterState(persisted, next => persisted = next);
+        Assert.Equal(2, filters.ChipFilters.Count);
+
+        // A chip's x removes that chip alone.
+        filters.RemoveFilter(new FilterToken("tag", "food"));
+        Assert.Equal(new FilterToken("tag", "polite"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("tag:polite 사과", persisted);
+
+        // A menu choice cuts only the token it replaces out of the typed text: repeats and
+        // spacing stay as typed.
+        filters.SearchField("go go tag:x  더 ");
+        filters.ChangeFilter("tag", "food", live: true);
+        Assert.Equal("go go  더 ", filters.FieldText);
+        Assert.Equal(new FilterToken("tag", "food"), Assert.Single(filters.ChipFilters));
+    }
+
+    [Fact]
+    public void SearchBarChips_FollowTheParsersTokensAndItsFilterLimit()
+    {
+        // A token the parser reads inside a word becomes a chip and leaves the field; removing
+        // the chip removes the filter.
+        var persisted = "사과tag:food";
+        var filters = new VocabularyFilterState(persisted, next => persisted = next);
+        Assert.Equal(new FilterToken("tag", "food"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("사과", filters.FieldText);
+        filters.RemoveFilter(new FilterToken("tag", "food"));
+        Assert.Empty(filters.CommittedFilters);
+        Assert.Equal("사과", persisted);
+
+        // No chip past the parser's limit (it would show without filtering).
+        var full = string.Join(" ", Enumerable.Range(1, ParsedQuery.MaxFilters)
+            .Select(index => $"tag:t{index}"));
+        filters = new VocabularyFilterState(full, _ => { });
+        Assert.Equal(ParsedQuery.MaxFilters, filters.ChipFilters.Count);
+        filters.ChangeFilter("status", "learning", live: true);
+        Assert.Equal(ParsedQuery.MaxFilters, filters.ChipFilters.Count);
+        Assert.Equal(string.Empty, filters.FilterValue("status"));
+    }
+
+    [Fact]
     public void PhoneDraft_CancelApplyAndClearRetainOnlyCommittedQueryAfterRestoration()
     {
         var persisted = "status:learning";

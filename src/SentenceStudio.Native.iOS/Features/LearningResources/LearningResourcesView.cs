@@ -172,7 +172,25 @@ internal static class LearningResourcesView
         // A wide page shows this while it loads: its search stays at the top.
         var bottom = !BrowserPage.IsWide(width);
         return BrowserPage.SingleColumn(Prefix, style, children,
-            SearchRow(state, style, text, actions, bottom), width, bottom);
+            SearchRow(state, style, text, actions, bottom), width, bottom,
+            bottom ? SearchChips(state, style, text, actions) : null);
+    }
+
+    /// <summary>The bottom search bar's chips: the Type and Language filters that are on.</summary>
+    private static List<SwiftView> SearchChips(
+        NativeResourceListState state, SourceUiStyle style,
+        Func<string, string> text, LearningResourcesActions actions)
+    {
+        var chips = new List<SwiftView>();
+        var remove = text("Library_RemoveFilter");
+        if (!string.IsNullOrWhiteSpace(state.MediaType))
+            chips.Add(BrowserPage.SearchChip(Prefix, "type", text("NativeResources_TypeFilter"),
+                state.MediaType, remove, () => actions.FilterType(null), style));
+        if (!string.IsNullOrWhiteSpace(state.Language))
+            chips.Add(BrowserPage.SearchChip(Prefix, "language",
+                text("NativeResources_LanguageFilter"), state.Language, remove,
+                () => actions.FilterLanguage(null), style));
+        return chips;
     }
 
     private static SwiftView WideLayout(

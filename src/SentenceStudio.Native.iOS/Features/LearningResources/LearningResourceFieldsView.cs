@@ -35,17 +35,27 @@ internal static class LearningResourceFieldsView
         Action<string> changed, bool readOnly, bool heading = false, int rows = 3,
         string? placeholder = null)
     {
-        var input = Views.TextEditor(value ?? string.Empty,
-            readOnly ? null : changed)
+        // Read-only (a smart resource): the text itself, not an input box (Captain 2026-11-12:
+        // "no fields should be editable"), as a read-only Field shows its value.
+        if (readOnly)
+            return Views.VStack(
+                    style.Text(Views.Text(label),
+                        heading ? SourceTextRole.Title3 : SourceTextRole.Body2,
+                        heading ? SourceTextTone.Body : SourceTextTone.Secondary,
+                        sourceHeading: heading),
+                    style.Text(Views.Text(value ?? string.Empty), SourceTextRole.Body1)
+                        .WithFlexibleWidth())
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier(id);
+        var input = Views.TextEditor(value ?? string.Empty, changed)
             .WithTextEditorScrollBackgroundHidden();
-        if (!readOnly && placeholder is not null)
+        if (placeholder is not null)
             input.WithTextEditorPlaceholder(placeholder)
                 .WithPlaceholderColor(style.Appearance.TertiaryText.Light,
                     style.Appearance.TertiaryText.Dark);
         var editor = style.Input(input)
             .WithMinimumHeight(AreaHeight(style, rows))
             .WithAccessibilityIdentifier(id);
-        editor.IsEnabled = !readOnly;
         return Views.VStack(
                 style.Text(Views.Text(label),
                     heading ? SourceTextRole.Title3 : SourceTextRole.Body2,

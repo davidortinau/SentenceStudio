@@ -30,6 +30,7 @@ internal sealed class BrowserPageUpdate
         Regions =
         [
             ($"{prefix}.search.row", 1),
+            ($"{prefix}.search.chips", 0),
             ($"{prefix}.scroll.content", 0),
             ($"{prefix}.filters.panel.content", 0),
             ($"{prefix}.results.header", headerKeep),

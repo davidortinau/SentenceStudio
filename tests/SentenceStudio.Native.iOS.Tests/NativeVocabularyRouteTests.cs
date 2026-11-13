@@ -75,7 +75,9 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("BrowserPage.ViewToggle(Prefix, state.ListMode, actions.ToggleListMode,", browser);
         // Captain 2026-11-10: Add (+) last, the same plain icon as every browse page.
         Assert.Contains("shown.Add(BrowserPage.AddButton(Prefix, text(\"Vocabulary_Add\"), addWord,", browser);
-        Assert.Contains("AddWord: AddWord),", Source("Features/Vocabulary/VocabularyCoordinator.cs"));
+        Assert.Contains("AddWord: AddWord,", Source("Features/Vocabulary/VocabularyCoordinator.cs"));
+        // The bottom bar's field holds the words beside the filter chips (Captain 2026-11-12).
+        Assert.Contains("SearchField: SearchField,", Source("Features/Vocabulary/VocabularyCoordinator.cs"));
         var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
         Assert.Contains("ToggleListMode: () => SetListMode(!ListMode),", coordinator);
 

@@ -82,10 +82,15 @@ else
             </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaUrl"]</label>
-            <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" disabled="@resource.IsSmartResource" />
-        </div>
+        @* Captain 2026-11-12: a smart resource hides what it cannot have (media, transcript,
+           translation). *@
+        @if (!resource.IsSmartResource)
+        {
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaUrl"]</label>
+                <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" />
+            </div>
+        }
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Tags"]</label>
@@ -101,15 +106,18 @@ else
         </div>
     </div>
 
-    <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Transcript"]</h5>
-        <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6" disabled="@resource.IsSmartResource"></textarea>
-    </div>
+    @if (!resource.IsSmartResource)
+    {
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Transcript"]</h5>
+            <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6"></textarea>
+        </div>
 
-    <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Translation"]</h5>
-        <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6" disabled="@resource.IsSmartResource"></textarea>
-    </div>
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Translation"]</h5>
+            <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6"></textarea>
+        </div>
+    }
 
     @* Vocabulary *@
     <div class="card card-ss p-4 mb-3">

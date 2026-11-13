@@ -668,4 +668,16 @@ public class SearchQueryParserTests
     }
 
     #endregion
+
+    [Fact]
+    public void FindTokens_ReturnsTheParsersTokensWithTheirPlaceInTheText()
+    {
+        const string raw = "사과tag:food status:\"learning\" 감사";
+
+        var tokens = _sut.FindTokens(raw);
+
+        tokens.Select(found => found.Token).Should().Equal(_sut.Parse(raw).Filters);
+        tokens.Select(found => raw.Substring(found.Index, found.Length))
+            .Should().Equal("tag:food", "status:\"learning\"");
+    }
 }

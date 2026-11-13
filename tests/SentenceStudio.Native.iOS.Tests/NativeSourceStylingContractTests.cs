@@ -51,16 +51,17 @@ public sealed class NativeSourceStylingContractTests
         var form = Source("Features/LearningResources/LearningResourceView.cs");
         // Captain 2026-11-10: the Resources page is the shared browse layout; its scroll content
         // owns the gutter (BrowserPage.SingleColumn), as on Vocabulary.
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
             browser);
         var browse = Source("Features/Browse/BrowserPage.cs");
         Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))", browse);
-        Assert.Contains("var scroll = Views.Scroll(content).WithAccessibilityIdentifier($\"{prefix}.scroll\");",
+        Assert.Contains("var scroll = Views.Scroll(content)\n            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
             browse);
-        Assert.Contains("return Views.BottomInset(scroll, BottomSearchBar(prefix, style, searchRow, gutter));",
+        Assert.Contains("BottomSearchBar(prefix, style, searchRow, gutter, chips ?? []));",
             browse);
+        Assert.Contains("($\"{prefix}.search.chips\", 0),", Source("Features/Browse/BrowserPageUpdate.cs"));
         Assert.Contains("style.Page(Views.Scroll(content)", form);
         Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll.content\")",
             form);
@@ -192,7 +193,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("group.Spacing = 0;", browser);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             browser);
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
         Assert.Contains("return BrowserPage.Wide(Prefix, style,", browser);
         Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,", row);
         Assert.DoesNotContain("Views.List(", browser);

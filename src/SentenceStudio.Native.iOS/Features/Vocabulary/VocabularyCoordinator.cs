@@ -94,7 +94,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     Merge: term => Run(() => MergeDuplicatesAsync(term)),
                     EditRecord: id => Run(() => OpenWordAsync(id))),
                 PageWidthChanged: OnPageWidthChanged,
-                AddWord: AddWord),
+                AddWord: AddWord,
+                SearchField: SearchField,
+                RemoveChip: RemoveChip),
             PageWidth);
     }
 

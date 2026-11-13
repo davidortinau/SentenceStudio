@@ -152,7 +152,7 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         var coordinator = Feature("LearningResourcesCoordinator.cs");
 
         // The single column's search bar sits below its scroll; the wide page keeps it above.
-        Assert.Contains("SearchRow(state, style, text, actions, bottom), width, bottom);", browser);
+        Assert.Contains("SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
         Assert.Contains("            SearchRow(state, style, text, actions),\n            BrowserPage.ResultsHeader(",
             browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",

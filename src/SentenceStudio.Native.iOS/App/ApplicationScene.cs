@@ -976,7 +976,6 @@ internal sealed partial class ApplicationScene : IDisposable
             _libraryRoot = null;
             _libraryListSlot = null;
             _renderedLibraryList = null;
-            _renderedLibraryPlaceholders = null;
             DropPairsReferences();
             _settingsStack = null;
             _samTab = null;

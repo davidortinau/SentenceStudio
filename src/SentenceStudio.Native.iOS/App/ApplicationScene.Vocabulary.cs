@@ -181,9 +181,12 @@ internal sealed partial class ApplicationScene
                 _vocabularySearch.FocusRequested = true;
             return;
         }
-        if (!string.Equals(oldSearch.Text, _app.VocabularySearchText,
-                StringComparison.Ordinal))
-            oldSearch.Text = _app.VocabularySearchText;
+        // The fresh page's field holds the text for its layout: the whole query on the wide
+        // page, the words beside the chips in the bottom bar.
+        var text = Find(next, BrowserPageUpdate.Vocabulary.SearchId)?.Text
+            ?? _app.VocabularySearchText;
+        if (!string.Equals(oldSearch.Text, text, StringComparison.Ordinal))
+            oldSearch.Text = text;
         _vocabularySearch = oldSearch;
         next.Dispose();
     }

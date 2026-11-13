@@ -54,9 +54,12 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     /// <summary>The open item fills the window (the person chose Full screen).</summary>
     private bool _fullScreen;
 
+    /// <summary>The pinned sidebar was put back once since the last page closed (no loop).</summary>
+    private bool _pinRestored;
+
     /// <param name="sidebar">The sidebar column (the Library's list of places).</param>
     /// <param name="placeRoutes">The routes of the places, whose pages fill the content column.</param>
-    /// <param name="contentPlaceholder">What the content column shows while no place is open (the places).</param>
+    /// <param name="contentPlaceholder">What the content column shows while no place is open.</param>
     /// <param name="detailPlaceholder">What the detail column shows while no item is open.</param>
     /// <param name="routesChanged">The person's Back changed the path (as a stack reports it).</param>
     /// <param name="enterFullScreenLabel">The full-screen button's name while the columns show.</param>
@@ -72,15 +75,17 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         _routesChanged = routesChanged;
         _contentPlaceholder = contentPlaceholder;
         _detailPlaceholder = detailPlaceholder;
-        _contentSlot = Views.VStack(contentPlaceholder).WithFlexibleWidth()
-            .WithSplitColumnWidth(380, min: 300, max: 560);
+        // The pinned sidebar keeps a readable width beside the list.
+        sidebar.WithSplitColumnWidth(320, min: 280, max: 400);
+        _contentSlot = Views.VStack(contentPlaceholder).WithFlexibleWidth();
         _contentSlot.Spacing = 0;
         _detailRoot = Views.VStack(detailPlaceholder).WithFlexibleWidth();
         _detailRoot.Spacing = 0;
         _detailStack = Views.NavigationStack(_detailRoot, OnDetailRoutesChanged);
         Split = Views.NavigationSplitView(sidebar, _contentSlot, _detailStack,
             OnVisibilityChanged, OnCompactColumnChanged);
-        // The sidebar is a drawer over the columns, never a fixed column beside them.
+        // Once a place is open the sidebar is a drawer over the columns (with nothing open it is
+        // pinned in view, see ShowColumns).
         Split.WithSplitViewStyle(SwiftSplitViewStyle.Automatic);
         ShowColumns();
     }
@@ -107,7 +112,10 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         if (_path.Contains(route, StringComparer.Ordinal))
             throw new ArgumentException("A route may appear only once in a navigation path.", nameof(route));
         if (_path.Count == 0)
+        {
             _startsInDetail = !_placeRoutes.Contains(route);
+            _pinRestored = false;
+        }
         switch (DetailLevel(_path.Count))
         {
             case < 0:
@@ -164,10 +172,21 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
 
     /// <summary>
     /// The person showed the sidebar (its button) or SwiftUI changed the columns: leaving the
-    /// item-only view ends full screen.
+    /// item-only view ends full screen. With nothing open the sidebar has no button, so if the
+    /// system tucks it away (a narrow multitasking width) it comes straight back.
     /// </summary>
     private void OnVisibilityChanged(SwiftSplitViewVisibility visibility)
     {
+        if (_path.Count == 0 && visibility != SwiftSplitViewVisibility.All && !_pinRestored)
+        {
+            _pinRestored = true;
+            CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
+            {
+                if (_path.Count == 0)
+                    Split.SplitColumnVisibility = SwiftSplitViewVisibility.All;
+            });
+            return;
+        }
         if (_fullScreen && visibility != SwiftSplitViewVisibility.DetailOnly)
         {
             _fullScreen = false;
@@ -257,17 +276,29 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     }
 
     /// <summary>
-    /// The list and detail columns show; the sidebar is a drawer behind its toolbar button.
-    /// With nothing open the content column's placeholder is the list of places itself (Captain
-    /// 2026-11-12: "I expected to see it where the list appears"), so choosing one needs no
-    /// drawer. Full screen, or a page that fills the detail column on its own, shows only that
-    /// column. In a compact width the deepest open level is the column on top.
+    /// Nothing open: the sidebar with the places is pinned in view, without its button, beside
+    /// the list column's "choose a place" text. A place open: the list and detail columns show
+    /// and the sidebar is a drawer behind its button. Full screen, or a page that fills the
+    /// detail column on its own, shows only that column. In a compact width the deepest open
+    /// level is the column on top.
     /// </summary>
     private void ShowColumns()
     {
-        Split.SplitColumnVisibility = _startsInDetail || (_fullScreen && _detailPage is not null)
-            ? SwiftSplitViewVisibility.DetailOnly
-            : SwiftSplitViewVisibility.DoubleColumn;
+        // Nothing open: the sidebar stays in view with the places and no button (without its
+        // button the system keeps it shown). The first choice brings the button and tucks the
+        // sidebar into a drawer (Captain 2026-11-12: "The first selection should show the toggle
+        // button and populate the split view").
+        Split.SidebarToggleHidden = _path.Count == 0;
+        // With nothing open the list column holds one sentence, so the pinned sidebar gets the
+        // room (an iPad in portrait cannot fit three full columns); a place's list gets its own.
+        if (_path.Count == 0)
+            _contentSlot.WithSplitColumnWidth(240, min: 200, max: 300);
+        else
+            _contentSlot.WithSplitColumnWidth(380, min: 300, max: 560);
+        Split.SplitColumnVisibility = _path.Count == 0 ? SwiftSplitViewVisibility.All
+            : _startsInDetail || (_fullScreen && _detailPage is not null)
+                ? SwiftSplitViewVisibility.DetailOnly
+                : SwiftSplitViewVisibility.DoubleColumn;
         UpdateFullScreenButton();
         Split.PreferredCompactColumn = _path.Count == 0 ? SwiftSplitViewColumn.Sidebar
             : DetailLevel(_path.Count - 1) < 0 ? SwiftSplitViewColumn.Content

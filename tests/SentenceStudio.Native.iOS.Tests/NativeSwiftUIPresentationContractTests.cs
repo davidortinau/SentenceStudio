@@ -63,6 +63,14 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("Views.NavigationSplitView(sidebar, _contentSlot, _detailStack,", navigation);
         Assert.Contains("_routesChanged(NavigationPath);", navigation);
         Assert.Contains("if (!_canNavigateBack)", navigation);
+        // Captain 2026-11-12: nothing open, the sidebar stays in view without its button and
+        // the list column does not repeat the places; the first choice brings the button.
+        Assert.Contains("Split.SidebarToggleHidden = _path.Count == 0;", navigation);
+        Assert.Contains("_path.Count == 0 ? SwiftSplitViewVisibility.All", navigation);
+        var library = Source("App/ApplicationScene.Library.cs");
+        Assert.Contains("ColumnPlaceholder(\"Library_ChooseSection\", \"native.library.content.placeholder\")",
+            library);
+        Assert.DoesNotContain("native.library.content.places", library);
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_libraryStack.Push(\"resource-form\"", scene);
         Assert.Contains("_conflictAlert.WithTabBarHidden()", scene);

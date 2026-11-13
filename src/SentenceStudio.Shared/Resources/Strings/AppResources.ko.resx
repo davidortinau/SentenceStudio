@@ -9417,6 +9417,14 @@
     <value>빠른 추가</value>
     <comment>Library list: heading of the grid of create buttons (new resource, skill profile, minimal pair). Draft translation, needs review.</comment>
   </data>
+  <data name="Library_RemoveFilter" xml:space="preserve">
+    <value>필터 제거</value>
+    <comment>Library browse pages: VoiceOver name of a filter chip in the search bar. Draft translation, needs review.</comment>
+  </data>
+  <data name="Library_ChooseSection" xml:space="preserve">
+    <value>라이브러리에서 볼 곳을 선택하세요</value>
+    <comment>Library split view: the middle column before a place is chosen. Draft translation, needs review.</comment>
+  </data>
   <data name="Library_ChooseItem" xml:space="preserve">
     <value>항목을 선택하면 여기에 표시됩니다</value>
     <comment>Library split view: the right column before a resource, word or skill is chosen. Draft translation, needs review.</comment>

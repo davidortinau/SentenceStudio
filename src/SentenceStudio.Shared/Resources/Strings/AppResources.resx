@@ -10070,6 +10070,14 @@ For example: {0} ...</value>
     <value>Quick add</value>
     <comment>Library list: heading of the grid of create buttons (new resource, skill profile, minimal pair)</comment>
   </data>
+  <data name="Library_RemoveFilter" xml:space="preserve">
+    <value>Remove filter</value>
+    <comment>Library browse pages (iOS): VoiceOver name of a filter chip in the search bar, followed by the filter, e.g. "Remove filter, Type: Video"</comment>
+  </data>
+  <data name="Library_ChooseSection" xml:space="preserve">
+    <value>Choose a place in your library</value>
+    <comment>Library split view (iPad, iPhone Duo): the middle column before a place (Resources, Vocabulary, Skills, Minimal Pairs) is chosen</comment>
+  </data>
   <data name="Library_ChooseItem" xml:space="preserve">
     <value>Choose an item to see it here</value>
     <comment>Library split view (iPad, iPhone Duo): the right column before a resource, word or skill is chosen</comment>

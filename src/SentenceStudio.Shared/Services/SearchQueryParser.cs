@@ -80,6 +80,27 @@ public class SearchQueryParser : ISearchQueryParser
     }
 
     /// <summary>
+    /// Every filter token in <paramref name="rawQuery"/> with where it sits (the same matches
+    /// <see cref="Parse"/> reads), so a caller can cut a token out of text the person typed and
+    /// leave the rest exactly as typed.
+    /// </summary>
+    public IReadOnlyList<(FilterToken Token, int Index, int Length)> FindTokens(string rawQuery)
+    {
+        var found = new List<(FilterToken, int, int)>();
+        if (string.IsNullOrEmpty(rawQuery))
+            return found;
+        foreach (Match match in FilterPattern.Matches(rawQuery))
+        {
+            var value = !string.IsNullOrEmpty(match.Groups[2].Value)
+                ? match.Groups[2].Value
+                : match.Groups[3].Value;
+            found.Add((new FilterToken(match.Groups[1].Value.ToLowerInvariant(), value),
+                match.Index, match.Length));
+        }
+        return found;
+    }
+
+    /// <summary>
     /// Validate that a filter token is well-formed
     /// </summary>
     public bool IsValidFilterToken(string filterType, string filterValue)

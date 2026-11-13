@@ -20,7 +20,7 @@ internal sealed partial class ApplicationScene
     private SwiftView? _libraryRoot;
     private SwiftView? _libraryListSlot;
     private string? _renderedLibraryList;
-    private string? _renderedLibraryPlaceholders;
+    private SourceUiStyle? _placeholderStyle;
     private SwiftView? _pairsSlot;
     private SwiftView? _pairsToastLayer;
     private SwiftView? _pairsChildSlot;
@@ -41,7 +41,7 @@ internal sealed partial class ApplicationScene
         _libraryListSlot = Views.VStack(LibraryList()).WithFlexibleWidth();
         _libraryListSlot.Spacing = 0;
         _renderedLibraryList = LibraryListKey();
-        _renderedLibraryPlaceholders = LibraryPlaceholderKey();
+        _placeholderStyle = _style;
         _renderedLibraryResetVersion = _app.LibraryResetVersion;
         _libraryRoot = _libraryListSlot
             .WithNavigationTitle(_app.Localize("Nav_Library"))
@@ -63,20 +63,11 @@ internal sealed partial class ApplicationScene
         StringComparer.Ordinal);
 
     /// <summary>
-    /// The content column while no place is open: the Library's list of places itself, so a
-    /// place is chosen where its list will appear (the sidebar drawer holds the same list, so
-    /// this copy has its own automation IDs). It shows only while nothing is open, so it marks
-    /// no place.
+    /// The content column while no place is open, beside the pinned sidebar that lists the
+    /// places (the places are not repeated here).
     /// </summary>
-    private SwiftView ContentPlaceholder()
-    {
-        var places = Views.VStack(LibraryList(ContentPlacesPrefix, marksOpen: false))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.library.content.places");
-        places.Spacing = 0;
-        return places.WithNavigationTitle(_app.Localize("Nav_Library"))
-            .WithInlineNavigationTitle();
-    }
+    private SwiftView ContentPlaceholder() =>
+        ColumnPlaceholder("Library_ChooseSection", "native.library.content.placeholder");
 
     private SwiftView DetailPlaceholder() =>
         ColumnPlaceholder("Library_ChooseItem", "native.library.detail.placeholder");
@@ -121,11 +112,8 @@ internal sealed partial class ApplicationScene
     /// the quick-add grid's column count (its buttons are fixed).
     /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{LibraryPlaceholderKey()}|{OpenLibrarySection}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
 
-    /// <summary>What the content column's places and the detail placeholder show.</summary>
-    private string LibraryPlaceholderKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}");
 
     private const double QuickAddTileHeight = 84;
 
@@ -137,36 +125,34 @@ internal sealed partial class ApplicationScene
     /// bi-soundwave) and are about equally wide, so the titles and separators line up.
     /// Only the Resources row has a count: it is the list the browser already read.
     /// </summary>
-    private SwiftView LibraryList(string prefix = "native.library", bool marksOpen = true)
+    private SwiftView LibraryList()
     {
         var rows = new List<SwiftView>
         {
             LibraryRow(LibrarySection.Resources, "book.closed", "Library_Resources",
-                _app.LibraryResourceCount, $"{prefix}.row.resources", marksOpen),
+                _app.LibraryResourceCount, "native.library.row.resources"),
             LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
-                null, $"{prefix}.row.vocabulary", marksOpen),
+                null, "native.library.row.vocabulary"),
             LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
-                null, $"{prefix}.row.skills", marksOpen),
+                null, "native.library.row.skills"),
             LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",
-                null, $"{prefix}.row.minimal-pairs", marksOpen),
+                null, "native.library.row.minimal-pairs"),
         };
         if (_app.LibraryErrorText is { } error)
             rows.Add(_style.Text(Views.Text(error), SourceTextRole.Body2, SourceTextTone.Danger)
-                .WithAccessibilityIdentifier($"{prefix}.error"));
-        if (QuickAddGrid(prefix) is { } quickAdd)
+                .WithAccessibilityIdentifier("native.library.error"));
+        if (QuickAddGrid() is { } quickAdd)
             rows.Add(quickAdd);
         return _style.GroupedForm(Views.Form(rows.ToArray()))
-            .WithAccessibilityIdentifier($"{prefix}.list");
+            .WithAccessibilityIdentifier("native.library.list");
     }
 
-    /// <summary>The automation ID prefix of the places shown in the content column.</summary>
-    private const string ContentPlacesPrefix = "native.library.content";
 
     /// <summary>
     /// The quick-add grid below the rows (Captain 2026-11-06): one icon-and-label button per
     /// create flow (<see cref="ApplicationController.LibraryQuickAddItems"/>).
     /// </summary>
-    private SwiftView? QuickAddGrid(string prefix)
+    private SwiftView? QuickAddGrid()
     {
         var items = _app.LibraryQuickAddItems;
         if (items.Count == 0)
@@ -191,11 +177,11 @@ internal sealed partial class ApplicationScene
             var button = Views.Button(content, () => OpenLibraryQuickAdd(item))
                 .WithButtonStyle(SwiftButtonStyle.Plain)
                 .WithAccessibilityLabel(title)
-                .WithAccessibilityIdentifier($"{prefix}.quickadd.{item.Id}");
+                .WithAccessibilityIdentifier($"native.library.quickadd.{item.Id}");
             return _style.BorderedCard(button, radius: appearance.BootstrapRadius);
         }).ToArray();
         var grid = Views.LazyVGrid(QuickAddColumns(items.Count), buttons)
-            .WithAccessibilityIdentifier($"{prefix}.quickadd");
+            .WithAccessibilityIdentifier("native.library.quickadd");
         grid.Spacing = SourceUiLayout.ItemGap;
         return Views.Section(_app.Localize("Library_QuickAdd"), grid);
     }
@@ -217,11 +203,11 @@ internal sealed partial class ApplicationScene
     /// and a checkmark in place of the chevron (not color alone), and selected for VoiceOver.
     /// </summary>
     private SwiftView LibraryRow(LibrarySection page, string symbol, string titleKey,
-        int? count, string id, bool marksOpen = true)
+        int? count, string id)
     {
         var appearance = _style.Appearance;
         var title = _app.Localize(titleKey);
-        var selected = marksOpen && OpenLibrarySection == page;
+        var selected = OpenLibrarySection == page;
         var items = new List<SwiftView>
         {
             Views.Image(symbol)
@@ -280,14 +266,12 @@ internal sealed partial class ApplicationScene
             Replace(_libraryListSlot, LibraryList());
             _renderedLibraryList = key;
         }
-        // The places in the content column, and the empty detail column's text, follow the
-        // list, the theme, text size and language; not the open place, which they never mark.
-        var placeholders = LibraryPlaceholderKey();
-        if (appearanceChanged
-            || !string.Equals(placeholders, _renderedLibraryPlaceholders, StringComparison.Ordinal))
+        // The empty columns' texts follow the theme and the text size (a new style; a text size
+        // change is not an appearance change here).
+        if (appearanceChanged || !ReferenceEquals(_placeholderStyle, _style))
         {
             _librarySplit?.ReplacePlaceholders(ContentPlaceholder(), DetailPlaceholder());
-            _renderedLibraryPlaceholders = placeholders;
+            _placeholderStyle = _style;
         }
         UpdateLibraryResources(appearanceChanged);
         UpdateLibraryPairs(appearanceChanged);

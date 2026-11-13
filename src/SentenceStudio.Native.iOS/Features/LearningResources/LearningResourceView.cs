@@ -120,12 +120,14 @@ internal static class LearningResourceView
             .WithFlexibleWidth();
         typeAndLanguage.Spacing = SourceUiLayout.FormGap;
         basic.Add(typeAndLanguage);
-        if (!creating)
+        // Captain 2026-11-12: a smart resource hides what it cannot have (media, transcript,
+        // translation); nothing on it is editable.
+        if (!creating && !state.IsSmartResource)
         {
             basic.Add(LearningResourceFieldsView.Field(style, text("ResourceEdit_MediaUrl"),
                 state.MediaUrl, "native.resources.form.media.url",
                 value => actions.Change(nameof(LearningResourceViewState.MediaUrl), value),
-                state.IsSmartResource));
+                readOnly: false));
         }
         basic.Add(LearningResourceFieldsView.Field(style, text(creating
                     ? "ResourceAdd_TagsLabel" : "ResourceEdit_Tags"),
@@ -179,18 +181,18 @@ internal static class LearningResourceView
             };
             fields.Add(CardSection(style, "native.resources.form.media.card", media));
         }
-        if (!creating)
+        if (!creating && !state.IsSmartResource)
         {
             fields.Add(CardSection(style, "native.resources.form.transcript.card", [
                 LearningResourceFieldsView.Area(style, text("ResourceEdit_Transcript"),
                     state.Transcript, "native.resources.form.transcript",
                     value => actions.Change(nameof(LearningResourceViewState.Transcript), value),
-                    state.IsSmartResource, heading: true, rows: 6)]));
+                    readOnly: false, heading: true, rows: 6)]));
             fields.Add(CardSection(style, "native.resources.form.translation.card", [
                 LearningResourceFieldsView.Area(style, text("ResourceEdit_Translation"),
                     state.Translation, "native.resources.form.translation",
                     value => actions.Change(nameof(LearningResourceViewState.Translation), value),
-                    state.IsSmartResource, heading: true, rows: 6)]));
+                    readOnly: false, heading: true, rows: 6)]));
         }
 
         var vocabulary = new List<SwiftView>();

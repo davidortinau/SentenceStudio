@@ -20,8 +20,7 @@ public sealed class NativeSwiftUIResourceContractTests
         // iOS tab shell trial: Resources is the Library's first page.
         Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
         Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
-        Assert.Contains("$\"{prefix}.row.resources\"", Source("App/ApplicationScene.Library.cs"));
-        Assert.Contains("string prefix = \"native.library\"", Source("App/ApplicationScene.Library.cs"));
+        Assert.Contains("\"native.library.row.resources\"", Source("App/ApplicationScene.Library.cs"));
         Assert.Contains("_libraryStack.Push(ApplicationFormRoutes.LibraryResources,",
             Source("App/ApplicationScene.Library.cs"));
 
@@ -415,7 +414,8 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Translation = draft?.Translation ?? resource?.Translation",
             coordinator);
         Assert.Contains("Views.TextEditor(value ?? string.Empty,", fields);
-        Assert.Contains("editor.IsEnabled = !readOnly;", fields);
+        // A read-only area (a smart resource) is its text, not a disabled input (Captain 2026-11-12).
+        Assert.Contains("if (readOnly)\n            return Views.VStack(", fields);
         Assert.DoesNotContain("TranscriptPreview", resources);
         Assert.DoesNotContain("TranslationPreview", resources);
         Assert.DoesNotContain("Substring(0, 240)", resources);
@@ -445,17 +445,18 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Equal(1, fields.Split(".WithTextEditorScrollBackgroundHidden()",
             StringSplitOptions.None).Length - 1);
         Assert.Contains("var editor = style.Input(input)", fields);
-        Assert.Contains("if (!readOnly && placeholder is not null)", fields);
+        Assert.Contains("if (placeholder is not null)", fields);
         Assert.DoesNotContain("native.resources.form.vocabulary.example", vocabulary);
 
-        var edit = form[form.IndexOf("if (!creating)\n        {\n            fields.Add(CardSection(style, \"native.resources.form.transcript.card\", [",
+        var edit = form[form.IndexOf("if (!creating && !state.IsSmartResource)\n        {\n            fields.Add(CardSection(style, \"native.resources.form.transcript.card\", [",
                 StringComparison.Ordinal)
             ..form.IndexOf("var vocabulary = new List<SwiftView>();",
                 StringComparison.Ordinal)];
         Assert.Contains("ResourceEdit_Transcript", edit);
         Assert.Contains("ResourceEdit_Translation", edit);
         Assert.DoesNotContain("placeholder:", edit);
-        Assert.Contains("state.IsSmartResource, heading: true, rows: 6", edit);
+        // A smart resource hides these cards, so they are always editable here.
+        Assert.Contains("readOnly: false, heading: true, rows: 6", edit);
     }
 
     [Fact]
@@ -499,7 +500,7 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Views.TextField(placeholder ?? label,", fields);
         Assert.Contains("value ?? string.Empty, changed))", fields);
         Assert.Contains("Views.TextEditor(value ?? string.Empty,", fields);
-        Assert.Contains("readOnly ? null : changed)\n            .WithTextEditorScrollBackgroundHidden();",
+        Assert.Contains("Views.TextEditor(value ?? string.Empty, changed)\n            .WithTextEditorScrollBackgroundHidden();",
             fields);
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", fields);
         Assert.Contains("input.OnKeyPress(key => key switch", quickAdd);

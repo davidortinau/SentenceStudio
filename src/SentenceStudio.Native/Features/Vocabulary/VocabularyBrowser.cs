@@ -796,6 +796,24 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.List);
     }
 
+    /// <summary>The search bar's text beside its filter chips changed (the chips stay).</summary>
+    internal void SearchField(string value)
+    {
+        if (!TryOwner(out _) || _filters is null)
+            return;
+        _filters.SearchField(value);
+        Notify(VocabularyChanges.List);
+    }
+
+    /// <summary>A search bar chip's x: removes that one filter.</summary>
+    internal void RemoveChip(FilterToken filter)
+    {
+        if (!TryOwner(out _) || _filters is null)
+            return;
+        _filters.RemoveFilter(filter);
+        Notify(VocabularyChanges.List);
+    }
+
     internal void OpenPhoneFilters()
     {
         if (!TryOwner(out _) || _filters is null)

@@ -21,7 +21,9 @@ internal sealed record VocabularyListActions(
     Action? OpenLookups = null,
     VocabularyDuplicateActions? Duplicates = null,
     Action<double>? PageWidthChanged = null,
-    Action? AddWord = null);
+    Action? AddWord = null,
+    Action<string>? SearchField = null,
+    Action<FilterToken>? RemoveChip = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -138,9 +140,11 @@ internal static class VocabularyListView
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, bool bottom = false)
     {
+        // The bottom bar's field holds the words; its filters are chips beside it.
         var search = bottom
             ? BrowserPage.SearchField(style, text("Vocabulary_SearchPlaceholder"),
-                state.Filters.CommittedQuery, actions.Search, "native.vocabulary.search")
+                state.Filters.FieldText, actions.SearchField ?? actions.Search,
+                "native.vocabulary.search")
             : style.TextInput(Views.TextField(
                     text("Vocabulary_SearchPlaceholder"),
                     state.Filters.CommittedQuery, actions.Search))
@@ -178,7 +182,45 @@ internal static class VocabularyListView
         // A wide page shows this while it loads: its search stays at the top.
         var bottom = !BrowserPage.IsWide(width);
         return BrowserPage.SingleColumn(Prefix, style, children,
-            SearchRow(state, style, text, actions, bottom), width, bottom);
+            SearchRow(state, style, text, actions, bottom), width, bottom,
+            bottom ? SearchChips(state, style, text, actions) : null);
+    }
+
+    /// <summary>
+    /// The bottom search bar's chips: the filters chosen from the menu (or restored), each
+    /// named as the menu names it.
+    /// </summary>
+    private static List<SwiftView> SearchChips(
+        VocabularyBrowserList state, SourceUiStyle style,
+        Func<string, string> text, VocabularyListActions actions)
+    {
+        if (state.Filters.ChipFilters.Count == 0)
+            return [];
+        var choices = FilterChoices(state, text);
+        var remove = text("Library_RemoveFilter");
+        var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        return state.Filters.ChipFilters.Select(filter =>
+            {
+                // Two chips of one type (a restored or typed query) get distinct IDs.
+                var ordinal = seen.TryGetValue(filter.Type, out var count) ? count : 0;
+                seen[filter.Type] = ordinal + 1;
+                var choice = choices.FirstOrDefault(item =>
+                    item.Type.Equals(filter.Type, StringComparison.OrdinalIgnoreCase));
+                var label = choice is null ? filter.Type : text(choice.LabelKey);
+                var known = choice?.Values.Any(value =>
+                    value.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)) == true;
+                var value = known && choice!.ValueLabel is { } name ? name(filter.Value) : filter.Value;
+                return BrowserPage.SearchChip(Prefix,
+                    ordinal == 0 ? filter.Type : $"{filter.Type}.{ordinal}", label, value, remove,
+                    () =>
+                    {
+                        if (actions.RemoveChip is { } removeChip)
+                            removeChip(filter);
+                        else
+                            actions.ChangeWideFilter(filter.Type, null);
+                    }, style);
+            })
+            .ToList();
     }
 
     private static SwiftView WideLayout(
@@ -271,12 +313,7 @@ internal static class VocabularyListView
                         () => actions.ChangeWideFilter(filter.Type, null))
                     .WithAccessibilityIdentifier($"native.vocabulary.chip.{filter.Type}"))
             .ToArray();
-        var row = Views.HStack(chips)
-            .WithAccessibilityIdentifier("native.vocabulary.chips.row");
-        var grid = Views.HorizontalGrid(new double[chips.Length], row)
-            .WithAccessibilityIdentifier("native.vocabulary.chips");
-        grid.Spacing = SourceUiLayout.ItemGap;
-        return grid;
+        return BrowserPage.ChipStrip("native.vocabulary.chips", chips, SourceUiLayout.ItemGap);
     }
 
     /// <summary>Feedback, the duplicate manager and the word cards (or why there are none).</summary>
