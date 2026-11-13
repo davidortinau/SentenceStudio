@@ -139,9 +139,9 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     /// </summary>
     private SwiftView WithFullScreenButton(SwiftView page)
     {
-        _fullScreenSymbol = Views.Image(FullScreenSymbol);
+        // A titled Label: the toolbar shows the symbol, a long press its name.
+        _fullScreenSymbol = Views.Label(FullScreenLabel, FullScreenSymbol);
         _fullScreenButton = Views.Button(_fullScreenSymbol, ToggleFullScreen)
-            .WithAccessibilityLabel(FullScreenLabel)
             .WithHiddenInCompactWidth()
             .WithAccessibilityIdentifier("native.library.fullscreen");
         return Views.Toolbar(page, _fullScreenButton);
@@ -163,10 +163,10 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     /// <summary>The full-screen button shows the state it would change.</summary>
     private void UpdateFullScreenButton()
     {
-        if (_fullScreenSymbol is { } symbol && _fullScreenButton is { } button)
+        if (_fullScreenSymbol is { } symbol && _fullScreenButton is not null)
         {
             symbol.SystemImageName = FullScreenSymbol;
-            button.WithAccessibilityLabel(FullScreenLabel);
+            symbol.Text = FullScreenLabel;
         }
     }
 

@@ -118,7 +118,7 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
         if (state.Phase == NativePhase.Blocked)
             return page;
 
-        var newGame = Views.Button(Views.Image("arrow.clockwise"),
+        var newGame = Views.Button(Views.Label(text(NativeMatchingText.NewGame), "arrow.clockwise"),
                 () => Fire(_presenter.RestartAsync))
             .WithAccessibilityLabel(text(NativeMatchingText.NewGame))
             .WithAccessibilityIdentifier(NativeMatchingAccess.NewGame);

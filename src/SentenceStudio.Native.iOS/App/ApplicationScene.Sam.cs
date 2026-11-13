@@ -97,7 +97,15 @@ internal sealed partial class ApplicationScene
             var button = slot.Children[0].Children[1];
             if (button.IsEnabled != enabled)
                 button.IsEnabled = enabled;
-            button.WithAccessibilityLabel(label);
+            // The entry is a titled Label: its title is what a long press and VoiceOver say.
+            if (button.Children.FirstOrDefault(child => child.Kind == "label") is { } title)
+            {
+                if (title.Text != label)
+                    title.Text = label;
+            }
+            else
+                // Not a titled entry: name the button itself, as before.
+                button.WithAccessibilityLabel(label);
         }
     }
 

@@ -80,8 +80,7 @@ internal static class ActivityLogView
     internal static SwiftView Refresh(
         SourceUiStyle style, Func<string, string> text, Action refresh)
     {
-        var button = Views.Button(Views.Image("arrow.clockwise"), refresh)
-            .WithAccessibilityLabel(text("Common_Refresh"))
+        var button = Views.Button(Views.Label(text("Common_Refresh"), "arrow.clockwise"), refresh)
             .WithTintColor(style.Appearance.Primary.Light,
                 style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier("native.activity-log.refresh");
@@ -118,8 +117,8 @@ internal static class ActivityLogView
             return button;
         }).ToArray();
         var color = style.Appearance.SecondaryText;
-        var icon = Views.Image("ellipsis")
-            .WithFixedSymbolSize(20)
+        // A titled Label: the toolbar shows the symbol, a long press its name.
+        var icon = Views.Label(text("More"), "ellipsis")
             .WithForegroundColor(color.Light, color.Dark)
             .WithAccessibilityIdentifier("native.activity-log.filters.icon");
         return Views.Menu(icon, buttons)

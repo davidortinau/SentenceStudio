@@ -391,10 +391,10 @@ var cases = new (string Name, Action Test)[]
         Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier)
             .SequenceEqual(["native.vocabulary.view.toggle", "native.vocabulary.filters.open"]));
         var filters = Find(page, "native.vocabulary.filters.open")!;
-        Assert(filters.AccessibilitySelected && filters.AccessibilityLabel == "Vocabulary_Filters");
+        Assert(filters.AccessibilitySelected && filters.Children[0].Text == "Vocabulary_Filters");
         Assert(filters.Children[0].SystemImageName == "line.3.horizontal.decrease.circle");
         var toggle = Find(page, "native.vocabulary.view.toggle")!;
-        Assert(toggle.AccessibilityLabel == "Vocabulary_ListView"
+        Assert(toggle.Children[0].Text == "Vocabulary_ListView"
             && toggle.Children[0].SystemImageName == "list.bullet");
         var layout = Find(page, "native.vocabulary.wide.layout")!;
         Assert(layout.Kind == "hstack" && layout.Children.Count == 3);
@@ -431,7 +431,7 @@ var cases = new (string Name, Action Test)[]
         using var listPage = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
         Assert(Find(listPage, "native.vocabulary.cards")!.GridColumns == 1);
         var toggle = Find(listPage, "native.vocabulary.view.toggle")!;
-        Assert(toggle.AccessibilityLabel == "Vocabulary_GridView"
+        Assert(toggle.Children[0].Text == "Vocabulary_GridView"
             && toggle.Children[0].SystemImageName == "square.grid.3x3");
         using var filtered = VocabularyListView.Page(ListState(query: "status:learning"), wideStyle,
             key => key, ListActions());
@@ -564,7 +564,7 @@ var cases = new (string Name, Action Test)[]
         Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, list));
         list.Dispose();
         var toggle = Find(page, "native.vocabulary.view.toggle")!;
-        Assert(toggle.AccessibilityLabel == "Vocabulary_GridView"
+        Assert(toggle.Children[0].Text == "Vocabulary_GridView"
             && toggle.Children[0].SystemImageName == "square.grid.3x3");
         Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 1);
     }),
@@ -578,7 +578,7 @@ var cases = new (string Name, Action Test)[]
         Assert(wide.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
             "native.vocabulary.view.toggle", "native.vocabulary.filters.open", "native.vocabulary.add"]));
         var add = Find(wide, "native.vocabulary.add")!;
-        Assert(add.Kind == "button" && add.IsEnabled && add.AccessibilityLabel == "Vocabulary_Add"
+        Assert(add.Kind == "button" && add.IsEnabled && add.Children[0].Text == "Vocabulary_Add"
             && add.Children[0].SystemImageName == "plus");
         using var phone = VocabularyListView.Page(ListState(), style, key => key, actions);
         Assert(phone.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
@@ -624,7 +624,7 @@ var cases = new (string Name, Action Test)[]
         Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier).SequenceEqual([
             "native.resources.view.toggle", "native.resources.filters.open", "native.resources.add"]));
         var add = Find(page, "native.resources.add")!;
-        Assert(add.AccessibilityLabel == "Resources_AddResource" && add.Children[0].SystemImageName == "plus");
+        Assert(add.Children[0].Text == "Resources_AddResource" && add.Children[0].SystemImageName == "plus");
         Assert(Find(page, "native.resources.view.toggle")!.Children[0].SystemImageName == "list.bullet");
         // The system search field wraps the page (bottom toolbar); the count is the title's
         // subtitle, not a row.

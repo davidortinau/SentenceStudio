@@ -92,8 +92,7 @@ internal static class SamView
     /// </summary>
     internal static SwiftView ToolbarEntry(NativeSamState state, Func<string, string> text,
         Action open, string id = "native.sam.toolbar") =>
-        Views.Button(Views.Image("bubble.left.and.bubble.right.fill"), open)
-            .WithAccessibilityLabel(EntryLabel(state, text))
+        Views.Button(Views.Label(EntryLabel(state, text), "bubble.left.and.bubble.right.fill"), open)
             .WithAccessibilityIdentifier(id);
 
     /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>

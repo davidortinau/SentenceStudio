@@ -361,7 +361,7 @@ public sealed class NativeActivityLogTests
         var scene = File.ReadAllText(Path.Combine(root,
             "App/ApplicationScene.ActivityLog.cs"));
         Assert.Contains("Views.Menu(icon, buttons)", view);
-        Assert.Contains("Views.Image(\"ellipsis\")", view);
+        Assert.Contains("Views.Label(text(\"More\"), \"ellipsis\")", view);
         Assert.DoesNotContain("Views.Image(\"ellipsis.vertical\")", view);
         Assert.Contains("\"checkmark.circle.fill\" : \"circle\"", view);
         Assert.Contains("Views.Image(state.Filter == category", view);

@@ -81,7 +81,7 @@ public sealed class NativeSwiftUIDashboardContractTests
             toolbar);
         Assert.Contains("Views.Toolbar(page,", toolbar);
         Assert.Contains("_app.RenderDashboardContent(_style)", scene);
-        Assert.Contains(": Views.Image(\"arrow.clockwise\");", toolbar);
+        Assert.Contains(": Views.Label(text(\"Common_Refresh\"), \"arrow.clockwise\");", toolbar);
         Assert.Contains("Views.Button(indicator, refresh)", toolbar);
         Assert.Contains("new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,\n"
             + "                OpenActivityLog));", app);

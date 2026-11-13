@@ -111,8 +111,7 @@ internal static class DashboardView
     private static SwiftView History(
         SourceUiStyle style, Func<string, string> text, bool isBusy, Action openHistory)
     {
-        var button = Views.Button(Views.Image("calendar"), openHistory)
-            .WithAccessibilityLabel(text("Nav_History"))
+        var button = Views.Button(Views.Label(text("Nav_History"), "calendar"), openHistory)
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier("native.study.history");
         button.IsEnabled = !isBusy;
@@ -122,8 +121,8 @@ internal static class DashboardView
     private static SwiftView Regenerate(
         SourceUiStyle style, Func<string, string> text, bool isBusy, Action regenerate)
     {
-        var button = Views.Button(Views.Image("wand.and.stars"), regenerate)
-            .WithAccessibilityLabel(text(NativeText.Regenerate))
+        var button = Views.Button(Views.Label(text(NativeText.Regenerate), "wand.and.stars"),
+                regenerate)
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier("native.dashboard.regenerate");
         button.IsEnabled = !isBusy;
@@ -137,7 +136,7 @@ internal static class DashboardView
         var indicator = isRefreshing
             ? Views.IndeterminateProgress(text("Common_Refresh"))
                 .WithAccessibilityIdentifier("native.dashboard.refresh.spinner")
-            : Views.Image("arrow.clockwise");
+            : Views.Label(text("Common_Refresh"), "arrow.clockwise");
         var button = Views.Button(indicator, refresh)
             .WithAccessibilityLabel(text("Common_Refresh"))
             .WithTintColor(style.Appearance.Primary.Light,

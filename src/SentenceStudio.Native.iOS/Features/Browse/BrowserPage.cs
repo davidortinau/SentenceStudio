@@ -79,8 +79,8 @@ internal static class BrowserPage
     /// </summary>
     internal static SwiftView AddButton(string prefix, string label, Action add, bool enabled)
     {
-        var button = Views.Button(Views.Image("plus"), add)
-            .WithAccessibilityLabel(label)
+        // A titled Label (the toolbar shows its icon; a long press shows its name).
+        var button = Views.Button(Views.Label(label, "plus"), add)
             .WithAccessibilityIdentifier($"{prefix}.add");
         button.IsEnabled = enabled;
         return button;
@@ -93,8 +93,8 @@ internal static class BrowserPage
     internal static SwiftView ViewToggle(string prefix, bool listMode, Action toggle,
         string gridLabel, string listLabel, bool enabled)
     {
-        var button = Views.Button(Views.Image(listMode ? "square.grid.3x3" : "list.bullet"), toggle)
-            .WithAccessibilityLabel(listMode ? gridLabel : listLabel)
+        var button = Views.Button(Views.Label(listMode ? gridLabel : listLabel,
+                    listMode ? "square.grid.3x3" : "list.bullet"), toggle)
             .WithAccessibilityIdentifier($"{prefix}.view.toggle");
         button.IsEnabled = enabled;
         return button;
@@ -107,11 +107,10 @@ internal static class BrowserPage
     internal static SwiftView FiltersButton(string prefix, string label, bool active, bool wide,
         bool ready, bool panelShown, Action openSheet, Action togglePanel)
     {
-        var button = Views.Button(Views.Image(active
+        var button = Views.Button(Views.Label(label, active
                     ? "line.3.horizontal.decrease.circle.fill"
                     : "line.3.horizontal.decrease.circle"),
                 wide ? togglePanel : openSheet)
-            .WithAccessibilityLabel(label)
             .WithAccessibilitySelected(wide && ready && panelShown)
             .WithAccessibilityIdentifier($"{prefix}.filters.open");
         button.IsEnabled = !wide || ready;
@@ -127,11 +126,10 @@ internal static class BrowserPage
     internal static SwiftView FilterMenu(string prefix, string label, bool active, bool enabled,
         IEnumerable<SwiftView> items)
     {
-        var menu = Views.Menu(Views.Image(active
+        var menu = Views.Menu(Views.Label(label, active
                     ? "line.3.horizontal.decrease.circle.fill"
                     : "line.3.horizontal.decrease.circle"),
                 items.ToArray())
-            .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier($"{prefix}.filters.open");
         menu.IsEnabled = enabled;
         return menu;

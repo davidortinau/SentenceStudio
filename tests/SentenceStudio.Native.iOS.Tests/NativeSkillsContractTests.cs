@@ -516,7 +516,11 @@ public sealed class NativeSkillsContractTests
         // Captain 2026-11-10: one plain toolbar Save at every width; no Save in More and no
         // Save or Cancel under the form.
         Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", form);
-        Assert.Contains("return Views.Toolbar(page, more, save);", form);
+        // Captain 2026-11-13: Save stays text; Archive and Delete are titled icons (a long
+        // press shows their names) in the other toolbar group.
+        Assert.Contains("return Views.Toolbar(page, archive, delete, save);", form);
+        Assert.Contains("Views.Button(Views.Label(text(\"Common_Delete\"), \"trash\")", form);
+        Assert.DoesNotContain("Views.Menu(text(\"More\")", form);
         Assert.DoesNotContain("native.skills.form.cancel", form);
         Assert.DoesNotContain("native.skills.form.save.bottom", form);
         Assert.DoesNotContain("native.skills.form.save.menu", form);

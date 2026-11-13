@@ -162,12 +162,11 @@ internal sealed class BrowserPageUpdate
                 var nextChild = fresh.Children[index];
                 if (child.Kind != nextChild.Kind)
                     continue;
+                if (child.Kind is "image" or "label"
+                    && child.SystemImageName != nextChild.SystemImageName)
+                    child.SystemImageName = nextChild.SystemImageName;
                 if (child.Kind == "image")
-                {
-                    if (child.SystemImageName != nextChild.SystemImageName)
-                        child.SystemImageName = nextChild.SystemImageName;
                     continue;
-                }
                 if (child.Text != nextChild.Text)
                     child.Text = nextChild.Text;
                 if (child.IsEnabled != nextChild.IsEnabled)
@@ -206,12 +205,12 @@ internal sealed class BrowserPageUpdate
             var nextChild = next.Children[index];
             if (child.IsEnabled != nextChild.IsEnabled)
                 child.IsEnabled = nextChild.IsEnabled;
-            if (child.Kind == "image" && nextChild.Kind == "image")
-            {
-                if (child.SystemImageName != nextChild.SystemImageName)
-                    child.SystemImageName = nextChild.SystemImageName;
-            }
-            else if (child.Kind == nextChild.Kind && child.Text != nextChild.Text)
+            // An icon (Image) or a titled toolbar icon (Label: its symbol and its title).
+            if (child.Kind is "image" or "label" && nextChild.Kind == child.Kind
+                && child.SystemImageName != nextChild.SystemImageName)
+                child.SystemImageName = nextChild.SystemImageName;
+            if (child.Kind != "image" && child.Kind == nextChild.Kind
+                && child.Text != nextChild.Text)
                 child.Text = nextChild.Text;
         }
     }
