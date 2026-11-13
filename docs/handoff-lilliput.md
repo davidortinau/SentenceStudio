@@ -50,6 +50,32 @@ Ailoha branches with SwiftUI fixes (PRs #140-#143 upstream): `fix/swiftui-access
 7. **Run:** `scripts/ios-sim.sh <UDID>` (build, install, launch, confirm). Ailoha is opt-in for
    Debug (`AilohaAgentXCFramework` property); the build does not need it.
 
+## Lilliput as configured (2026-11-13, over SSH from the old machine)
+
+- Xcode 27.2, .NET SDK **11.0.100 GA** only (workloads `maui`, `macos`), no `global.json`. The
+  native iOS head builds under GA after `8e7f03ba` (`ValidateSceneManifest=false`, MT7199: the
+  app starts through the bridge's SwiftUI App, so it needs no scene manifest) and launches on an
+  iPad simulator. The AppHost and API build.
+- Worktree `~/work/SentenceStudio-native-platform-heads` on `library-split-view`, beside the
+  main checkout `~/work/SentenceStudio`.
+- **Package mirror:** Lilliput can't reach `api.nuget.org` directly; it reaches
+  `packagefeedproxy.microsoft.io` (the user-level NuGet config already lists it). In the worktree,
+  `src/NuGet.config`'s `nuget.org` entry points at the mirror and the file is marked
+  `git update-index --skip-worktree`, so the local change can't be committed. Undo with
+  `--no-skip-worktree` before editing that file on purpose. Repeat the same edit in any new
+  worktree.
+- Installed: `gh` 2.104, Azure CLI 2.92 (Homebrew); the iOS 27.2 simulator runtime; simulator
+  "SS iPad" (iPad Pro 11-inch M5, `7F9CD5B1-95BE-4191-9E20-BA83EBE5D5ED`).
+- Copied from the old machine (SHA-256 checked): the three user-secrets folders,
+  `src/SentenceStudio.AppLib/appsettings.json` (both checkouts), the seven LocalNuGets packages,
+  and `Microsoft.SwiftUI.0.1.0-preview.66.nupkg` in `~/work/Microsoft.SwiftUI/artifacts`.
+- The bridge checkout `~/work/Microsoft.SwiftUI` is on Lilliput's own branch
+  `fix-versioned-platform-target-validation` with an uncommitted verifier change (packing under
+  the GA SDK); it was left as is. Bridge work for this branch continues on `split-view`.
+- **Still needed (the Captain's hands):** Docker Desktop (the AppHost runs Postgres, Redis and
+  Azurite in containers), `az login`, `gh auth login`, and the `MaxProWildDev` signing identity
+  for phone builds. Local test accounts need seeding once the backend runs.
+
 ## Secrets
 
 None are in git. Move them by hand (AirDrop or a password manager), never through git, chat,
