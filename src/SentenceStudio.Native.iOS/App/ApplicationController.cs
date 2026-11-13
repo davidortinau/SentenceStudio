@@ -429,12 +429,11 @@ internal sealed partial class ApplicationController : IDisposable
     private void UpdateSignInSubmitAvailability()
     {
         if (_signInSubmit is { } submit)
-            SourceUiStyle.SetBootstrapLoginAvailability(submit, Appearance,
-                !_busy
-                    && _auth is not null
-                    && _authState.Phase != NativePhase.Loading
-                    && !string.IsNullOrWhiteSpace(_email)
-                    && !string.IsNullOrWhiteSpace(_password));
+            submit.IsEnabled = !_busy
+                && _auth is not null
+                && _authState.Phase != NativePhase.Loading
+                && !string.IsNullOrWhiteSpace(_email)
+                && !string.IsNullOrWhiteSpace(_password);
     }
 
     internal SwiftView RenderOnboarding(SourceUiStyle style) =>

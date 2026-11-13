@@ -156,10 +156,24 @@ internal static class NativeForm
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier(id);
 
-    /// <summary>A status or error row (red for an error), for the form's first Section.</summary>
+    /// <summary>
+    /// A status or error row, for the form's first Section. An error is red with a warning
+    /// symbol before it, so it is not told apart from a status by color alone.
+    /// </summary>
     internal static SwiftView Notice(SourceUiStyle style, string message, string id,
-        bool error) =>
-        style.Text(Views.Text(message), SourceTextRole.Body2,
-                error ? SourceTextTone.Danger : SourceTextTone.Secondary)
+        bool error)
+    {
+        var text = style.Text(Views.Text(message), SourceTextRole.Body2,
+            error ? SourceTextTone.Danger : SourceTextTone.Secondary);
+        if (!error)
+            return text.WithAccessibilityIdentifier(id);
+        var row = Views.HStack(
+                Views.Image("exclamationmark.triangle.fill")
+                    .WithForegroundColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark),
+                text)
+            .WithAccessibilityLabel(message)
             .WithAccessibilityIdentifier(id);
+        row.Spacing = SourceUiLayout.ItemGap;
+        return row;
+    }
 }

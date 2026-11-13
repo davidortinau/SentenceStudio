@@ -94,27 +94,25 @@ public sealed class NativeSourceStylingContractTests
     }
 
     [Fact]
-    public void SignIn_KeepsTheSourceLabeledFieldAndIconOnlyVisibilityStructure()
+    public void SignIn_IsAGroupedFormWithLabeledFieldsAndIconOnlyVisibility()
     {
+        // Captain 2026-11-13 (the native form pattern, departure 92): labels beside the
+        // fields, the app mark above the rows, Sign In as the system filled button.
         var auth = Source("Features/Authentication/SignInView.cs");
-        Assert.Contains("Views.Text(text(NativeText.Email))", auth);
-        Assert.Contains("Views.Text(text(NativeText.Password))", auth);
-        Assert.Contains("Views.Image(showPassword ? \"eye.slash\" : \"eye\")", auth);
-        Assert.Contains("style.OutlineButton(", auth);
-        Assert.Contains("togglePassword)", auth);
-        Assert.Contains(".WithAccessibilityIdentifier(NativeAccess.PasswordVisibility)", auth);
-        Assert.Contains(".WithPadding(SourceUiLayout.LargeCardInset)", auth);
-        Assert.Contains(".WithPadding(SourceUiLayout.AuthOuterInset)", auth);
+        Assert.Contains("NativeForm.Field(text(NativeText.Email)", auth);
+        Assert.Contains("SecretField(style, text(NativeText.Password)", auth);
+        Assert.Contains("Views.Image(show ? \"eye.slash\" : \"eye\")", auth);
+        Assert.Contains(".WithButtonStyle(SwiftButtonStyle.Plain)", auth);
+        Assert.Contains("togglePassword, NativeAccess.Password, NativeAccess.PasswordVisibility", auth);
+        Assert.Contains(".WithAccessibilityIdentifier(visibilityId)", auth);
         Assert.Contains("SourceTextRole.Brand,", auth);
-        Assert.Contains(".WithForegroundColor(style.Appearance.Text.Light,", auth);
+        Assert.Contains(".WithListRowBackgroundHidden()", auth);
         Assert.Contains("text(\"Common_EmailPlaceholder\")", auth);
         Assert.Contains("text(\"Common_PasswordPlaceholder\")", auth);
         Assert.Contains("\"Login_SigningIn\" : NativeText.SignIn", auth);
-        Assert.Contains("style.BootstrapLoginButton(", auth);
+        Assert.Contains("NativeForm.Prominent(style, title, action, id)", auth);
+        Assert.DoesNotContain("style.BootstrapLoginButton(", auth);
         Assert.DoesNotContain("style.FullWidthPrimaryButton(", auth);
-        Assert.Contains(".WithCenterWhenShort()", auth);
-        Assert.Contains("style.TextInput(passwordInput)", auth);
-        Assert.DoesNotContain(".WithPadding(20)", auth);
     }
 
     [Fact]
@@ -515,7 +513,7 @@ public sealed class NativeSourceStylingContractTests
         var auth = Source("Features/Authentication/SignInView.cs");
         var feedback = Source("Features/Quiz/QuizFeedbackView.cs");
 
-        Assert.Equal(1, auth.Split("style.BootstrapLoginButton(",
+        Assert.Equal(1, auth.Split("NativeForm.Prominent(",
             StringSplitOptions.None).Length - 1);
         // Captain 2026-11-10: the resource form's Save is the toolbar's plain Save only (the
         // full-width Save Resource under the add form is gone, as on every editor).
@@ -535,10 +533,10 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("text(NativeText.QuizNext), \"chevron.right\", next", feedback);
         Assert.DoesNotContain("style.SecondaryButton(", feedback);
         Assert.DoesNotContain("style.SuccessOutlineSmallButton(", auth);
-        Assert.Contains("signIn, canSubmit)", auth);
+        Assert.Contains("signIn, NativeAccess.SignIn, canSubmit)", auth);
         Assert.Contains("SetBootstrapLoginAvailability(button, appearance, enabled)",
             Source("Styling/SourceUiStyle.cs"));
-        Assert.Contains("SetBootstrapLoginAvailability(submit, Appearance,",
+        Assert.Contains("submit.IsEnabled = !_busy",
             Source("App/ApplicationController.cs"));
         Assert.Contains("SourceButtonRole.Primary => appearance.Primary",
             Source("Styling/SourceUiStyle.cs"));

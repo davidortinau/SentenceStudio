@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.65" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.66" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <!-- The views under test and the iOS styling they use (SwiftUI facade only, no UIKit). -->

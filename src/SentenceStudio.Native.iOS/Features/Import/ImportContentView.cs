@@ -442,7 +442,8 @@ internal static class ImportContentView
                 {
                     if (import.SetNewResourceTitle(value) && error is not null)
                     {
-                        error.Text = string.Empty;
+                        // The error is a symbol and text row: emptying it closes the row up.
+                        error.Clear();
                         error.WithHidden(true);
                     }
                 }, text("Import_ResourceTitlePlaceholder"));

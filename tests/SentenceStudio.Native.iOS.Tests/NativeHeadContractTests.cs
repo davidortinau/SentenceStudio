@@ -42,7 +42,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains(project.Descendants("PackageReference"),
             reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Essentials");
         Assert.Equal("true", project.Descendants("UseMauiEssentials").Single().Value);
-        Assert.Equal("0.1.0-preview.65", project.Descendants("PackageVersion")
+        Assert.Equal("0.1.0-preview.66", project.Descendants("PackageVersion")
             .Single(item => item.Attribute("Include")?.Value == "Microsoft.SwiftUI")
             .Attribute("Version")?.Value);
         Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
@@ -415,15 +415,15 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
-    public void SignInUsesSwiftUIScrollAndSecureFieldWithoutUIKitKeyboardGuide()
+    public void SignInUsesSwiftUIFormAndSecureFieldWithoutUIKitKeyboardGuide()
     {
         var source = File.ReadAllText(Path.Combine(
             HeadPath, "Features", "Authentication", "SignInView.cs"));
-        Assert.Contains("Views.Scroll(content.ToArray())", source);
-        Assert.Contains("Views.SecureField(text(\"Common_PasswordPlaceholder\")",
-            source);
-        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Email)", source);
-        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Password)", source);
+        // Captain 2026-11-13 (the native form pattern): a grouped SwiftUI Form.
+        Assert.Contains("NativeForm.Page(style, sections, screenId, screenId)", source);
+        Assert.Contains("Views.SecureField(placeholder, value, changed)", source);
+        Assert.Contains("NativeAccess.Email,", source);
+        Assert.Contains("NativeAccess.Password, NativeAccess.PasswordVisibility", source);
         Assert.DoesNotContain("View.KeyboardLayoutGuide", source);
     }
 
@@ -449,10 +449,8 @@ public sealed class NativeHeadContractTests
         var signIn = File.ReadAllText(Path.Combine(
             HeadPath, "Features", "Authentication", "SignInView.cs"));
         Assert.Contains("NativeAccess.PasswordVisibility", signIn);
-        Assert.Contains("? Views.TextField(text(\"Common_PasswordPlaceholder\")",
-            signIn);
-        Assert.Contains(": Views.SecureField(text(\"Common_PasswordPlaceholder\")",
-            signIn);
+        Assert.Contains("? Views.TextField(placeholder, value, changed)", signIn);
+        Assert.Contains(": Views.SecureField(placeholder, value, changed)", signIn);
         Assert.Contains("NativeAccess.RememberMe", signIn);
         Assert.Contains("_email, password, _rememberMe, _lifetime.Token)",
             File.ReadAllText(Path.Combine(

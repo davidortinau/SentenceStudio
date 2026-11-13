@@ -64,8 +64,7 @@ internal sealed partial class ApplicationController
                 {
                     _email = value;
                     if (_recoverySubmit is { } send)
-                        SourceUiStyle.SetBootstrapLoginAvailability(send, Appearance,
-                            !_busy && !string.IsNullOrWhiteSpace(value));
+                        send.IsEnabled = !_busy && !string.IsNullOrWhiteSpace(value);
                 },
                 SubmitRecovery,
                 () => OpenAccountEntry(AccountEntry.SignIn),

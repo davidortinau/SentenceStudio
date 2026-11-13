@@ -20,7 +20,10 @@ internal sealed record RegisterActions(
     Action BackToSignIn,
     Action<SwiftView, SwiftView, SwiftView> RegisterLive);
 
-/// <summary>Source RegisterPage, ForgotPasswordPage and MainLayout sync overlay.</summary>
+/// <summary>
+/// Source RegisterPage, ForgotPasswordPage and MainLayout sync overlay, as grouped Forms like
+/// Sign In (Captain 2026-11-13, the native form pattern).
+/// </summary>
 internal static class AccountViews
 {
     internal static bool IsPasswordValid(string password) =>
@@ -36,132 +39,147 @@ internal static class AccountViews
         SourceUiStyle style, RegisterInputs inputs, bool busy,
         Func<string, string> text, RegisterActions actions)
     {
-        var content = new List<SwiftView> { SignInView.Brand(style) };
-        var form = new List<SwiftView> { Heading(style, text("Register_CreateAccount")) };
+        var sections = new List<SwiftView> { SignInView.Header(style, text("Register_CreateAccount")) };
         if (inputs.Complete)
         {
-            form.Add(Views.Image("envelope.badge")
-                .WithFixedSymbolSize(48)
-                .WithForegroundColor(style.Appearance.SuccessAlertText.Light,
-                    style.Appearance.SuccessAlertText.Dark)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
-            form.Add(style.Text(Views.Text(text("Register_CheckYourEmail")),
-                    SourceTextRole.Title2, SourceTextTone.PlainCard, sourceHeading: true)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithAccessibilityIdentifier("native.register.complete"));
-            form.Add(style.Text(Views.Text(string.Format(
-                        System.Globalization.CultureInfo.CurrentCulture,
-                        text("Register_VerificationSent"), inputs.Email)),
-                    SourceTextRole.Body2, SourceTextTone.Secondary)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
-            form.Add(style.BootstrapLoginButton(text("Register_GoToSignIn"),
-                    actions.BackToSignIn, enabled: true)
-                .WithAccessibilityIdentifier("native.register.go-to-sign-in"));
-            content.Add(SignInView.Card(style, form));
-            return SignInView.AuthPage(style, content, "native.register.screen");
+            var sent = Views.VStack(
+                    Views.Image("envelope.badge")
+                        .WithFixedSymbolSize(48)
+                        .WithForegroundColor(style.Appearance.SuccessAlertText.Light,
+                            style.Appearance.SuccessAlertText.Dark),
+                    style.Text(Views.Text(text("Register_CheckYourEmail")),
+                            SourceTextRole.Title2, sourceHeading: true)
+                        .WithAccessibilityIdentifier("native.register.complete"),
+                    style.Text(Views.Text(string.Format(
+                            System.Globalization.CultureInfo.CurrentCulture,
+                            text("Register_VerificationSent"), inputs.Email)),
+                        SourceTextRole.Body2, SourceTextTone.Secondary))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
+            sent.Spacing = SourceUiLayout.ItemGap;
+            sections.Add(Views.Section(string.Empty, sent));
+            sections.Add(Views.Section(string.Empty, SignInView.SubmitRow(SignInView.Submit(style,
+                text("Register_GoToSignIn"), actions.BackToSignIn,
+                "native.register.go-to-sign-in", enabled: true))));
+            return SignInView.Page(style, sections, "native.register.screen");
         }
 
         if (inputs.ErrorKey is { } errorKey)
-            form.Add(style.Alert(style.Text(Views.Text(text(errorKey)),
-                    SourceTextRole.DefaultBody), success: false)
-                .WithAccessibilityIdentifier("native.register.error"));
-        form.Add(Field(style, text("Register_DisplayName"),
-            Input(style, Views.TextField(text("Register_YourName"),
-                inputs.DisplayName, actions.DisplayNameChanged),
-                "native.register.display-name", busy)));
-        form.Add(Field(style, text(NativeText.Email),
-            Input(style, Views.TextField(text("Common_EmailPlaceholder"),
-                inputs.Email, actions.EmailChanged),
-                "native.register.email", busy)));
+            sections.Add(Views.Section(string.Empty, NativeForm.Notice(style, text(errorKey),
+                "native.register.error", error: true)));
+        var name = NativeForm.Field(text("Register_DisplayName"), inputs.DisplayName,
+            "native.register.display-name", actions.DisplayNameChanged, text("Register_YourName"));
+        name.IsEnabled = !busy;
+        var email = NativeForm.Field(text(NativeText.Email), inputs.Email,
+            "native.register.email", actions.EmailChanged, text("Common_EmailPlaceholder"));
+        email.IsEnabled = !busy;
+        sections.Add(Views.Section(string.Empty, name, email));
 
+        // The rules and the mismatch are their own row under the two fields: typing refills
+        // only that row. Refilling a field's own row re-mounts its SecureField, and iOS clears
+        // a secure field that starts a new editing session.
         var hints = Views.VStack();
         hints.Spacing = 2;
         FillPasswordHints(style, hints, inputs.Password, text);
-        form.Add(Field(style, text(NativeText.Password),
-            SecretRow(style, text("Common_PasswordPlaceholder"), inputs.Password,
-                inputs.ShowPassword, actions.PasswordChanged, actions.TogglePassword,
-                "native.register.password", busy, text),
-            hints));
         var mismatch = Views.VStack();
         FillMismatch(style, mismatch, inputs, text);
-        form.Add(Field(style, text("Register_ConfirmPassword"),
-            SecretRow(style, text("Register_ConfirmPasswordPlaceholder"),
-                inputs.ConfirmPassword, inputs.ShowConfirmPassword,
-                actions.ConfirmPasswordChanged, actions.ToggleConfirmPassword,
-                "native.register.confirm-password", busy, text),
-            mismatch));
+        var checks = Views.VStack(hints, mismatch).WithFlexibleWidth();
+        checks.Spacing = SourceUiLayout.ItemGap;
+        sections.Add(Views.Section(string.Empty,
+            SignInView.SecretField(style, text(NativeText.Password),
+                text("Common_PasswordPlaceholder"), inputs.Password, inputs.ShowPassword,
+                actions.PasswordChanged, actions.TogglePassword, "native.register.password",
+                "native.register.password.visibility", !busy, text),
+            SignInView.SecretField(style, text("Register_ConfirmPassword"),
+                text("Register_ConfirmPasswordPlaceholder"), inputs.ConfirmPassword,
+                inputs.ShowConfirmPassword, actions.ConfirmPasswordChanged,
+                actions.ToggleConfirmPassword, "native.register.confirm-password",
+                "native.register.confirm-password.visibility", !busy, text),
+            checks));
 
-        var submit = style.BootstrapLoginButton(
-                text(busy ? "Register_CreatingAccount" : "Register_CreateAccount"),
-                actions.Submit, CanRegister(inputs, busy))
-            .WithAccessibilityIdentifier("native.register.submit");
-        form.Add(submit);
-        form.Add(Views.Divider());
-        var back = SignInView.Link(style, text(NativeText.SignIn), actions.BackToSignIn,
-            "native.register.sign-in");
+        var submit = SignInView.Submit(style,
+            text(busy ? "Register_CreatingAccount" : "Register_CreateAccount"),
+            actions.Submit, "native.register.submit", CanRegister(inputs, busy));
+        sections.Add(Views.Section(string.Empty, SignInView.SubmitRow(submit)));
+        var back = NativeForm.Action(style, Views.Button(text(NativeText.SignIn), actions.BackToSignIn)
+            .WithAccessibilityIdentifier("native.register.sign-in"));
         back.IsEnabled = !busy;
-        var backRow = Views.HStack(
-            style.Text(Views.Text(text("Register_AlreadyHaveAccount")),
-                SourceTextRole.DefaultBody, SourceTextTone.PlainCard),
-            back);
-        backRow.Spacing = 4;
-        form.Add(backRow.WithAdaptiveStack(320)
-            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
-        content.Add(SignInView.Card(style, form));
-        // Typing must not rebuild the fields (that would drop focus), so the
-        // hint/mismatch containers and the submit button update in place.
+        sections.Add(Views.Section(text("Register_AlreadyHaveAccount"), back));
         actions.RegisterLive(submit, hints, mismatch);
-        return SignInView.AuthPage(style, content, "native.register.screen");
+        return SignInView.Page(style, sections, "native.register.screen");
     }
 
     internal static void UpdateRegisterLive(
         SourceUiStyle style, SwiftView submit, SwiftView hints, SwiftView mismatch,
         RegisterInputs inputs, bool busy, Func<string, string> text)
     {
-        SourceUiStyle.SetBootstrapLoginAvailability(submit, style.Appearance,
-            CanRegister(inputs, busy));
+        submit.IsEnabled = CanRegister(inputs, busy);
         FillPasswordHints(style, hints, inputs.Password, text);
         FillMismatch(style, mismatch, inputs, text);
     }
 
+    /// <summary>
+    /// The password rules, always all of them (neutral until a password is typed), so the row
+    /// keeps its height while typing: a Form row that changes height is laid out again and
+    /// its field can lose focus mid-word.
+    /// </summary>
     private static void FillPasswordHints(
         SourceUiStyle style, SwiftView hints, string password, Func<string, string> text)
     {
         hints.Clear();
-        if (string.IsNullOrEmpty(password))
-            return;
         foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
             hints.Add(Rule(style,
-                SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, password),
+                string.IsNullOrEmpty(password)
+                    ? null
+                    : SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, password),
                 text(SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)),
                 "native.register.rule."
                 + SentenceStudio.Contracts.Auth.PasswordPolicy.AutomationSuffix(rule)));
     }
 
+    /// <summary>The mismatch line keeps its space (hidden when the passwords match), for the same reason.</summary>
     private static void FillMismatch(
         SourceUiStyle style, SwiftView slot, RegisterInputs inputs, Func<string, string> text)
     {
         slot.Clear();
-        if (!string.IsNullOrEmpty(inputs.Password)
+        var mismatched = !string.IsNullOrEmpty(inputs.Password)
             && !string.IsNullOrEmpty(inputs.ConfirmPassword)
-            && inputs.Password != inputs.ConfirmPassword)
-            slot.Add(Views.HStack(
-                    Views.Image("exclamationmark.triangle"),
-                    style.Text(Views.Text(text("Register_PasswordsDoNotMatch")),
-                        SourceTextRole.Caption1, SourceTextTone.Danger))
-                .WithForegroundColor(style.Appearance.DangerAlertText.Light,
-                    style.Appearance.DangerAlertText.Dark)
-                .WithAccessibilityIdentifier("native.register.mismatch"));
+            && inputs.Password != inputs.ConfirmPassword;
+        var line = Views.HStack(
+                Views.Image("exclamationmark.triangle"),
+                style.Text(Views.Text(text("Register_PasswordsDoNotMatch")),
+                    SourceTextRole.Caption1, SourceTextTone.Danger))
+            .WithForegroundColor(style.Appearance.DangerAlertText.Light,
+                style.Appearance.DangerAlertText.Dark)
+            .WithHidden(!mismatched);
+        // The automation ID marks a shown mismatch only (the hidden line keeps its space).
+        if (mismatched)
+            line.WithAccessibilityIdentifier("native.register.mismatch");
+        slot.Add(line);
     }
 
+    /// <summary>A rule line: met (green check), not met (red cross) or not yet checked (neutral).</summary>
     private static SwiftView Rule(
-        SourceUiStyle style, bool met, string label, string id)
+        SourceUiStyle style, bool? met, string label, string id)
     {
-        var color = met ? style.Appearance.SuccessAlertText : style.Appearance.DangerAlertText;
+        var color = met switch
+        {
+            true => style.Appearance.SuccessAlertText,
+            false => style.Appearance.DangerAlertText,
+            null => style.Appearance.TertiaryText,
+        };
         var row = Views.HStack(
-                Views.Image(met ? "checkmark.circle" : "xmark.circle"),
-                style.Text(Views.Text(label), SourceTextRole.Caption1,
-                    met ? SourceTextTone.Success : SourceTextTone.Danger))
+                Views.Image(met switch
+                {
+                    true => "checkmark.circle",
+                    false => "xmark.circle",
+                    null => "circle",
+                }),
+                style.Text(Views.Text(label), SourceTextRole.Caption1, met switch
+                {
+                    true => SourceTextTone.Success,
+                    false => SourceTextTone.Danger,
+                    null => SourceTextTone.Secondary,
+                }))
             .WithForegroundColor(color.Light, color.Dark)
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
@@ -174,42 +192,38 @@ internal static class AccountViews
         Func<string, string> text, Action<string> emailChanged, Action submit,
         Action backToSignIn, Action<SwiftView> registerSubmit)
     {
-        var content = new List<SwiftView> { SignInView.Brand(style) };
-        var form = new List<SwiftView> { Heading(style, text("ForgotPassword_Title")) };
+        var sections = new List<SwiftView> { SignInView.Header(style, text("ForgotPassword_Title")) };
         if (sent)
         {
-            form.Add(style.Alert(style.Text(Views.Text(text("ForgotPassword_ResetSent")),
-                    SourceTextRole.DefaultBody), success: true)
-                .WithAccessibilityIdentifier("native.forgot.sent"));
-            form.Add(style.BootstrapLoginButton(text("ForgotPassword_BackToSignIn"),
-                    backToSignIn, enabled: true)
-                .WithAccessibilityIdentifier("native.forgot.back"));
-            content.Add(SignInView.Card(style, form));
-            return SignInView.AuthPage(style, content, "native.forgot.screen");
+            sections.Add(Views.Section(string.Empty, NativeForm.Notice(style,
+                text("ForgotPassword_ResetSent"), "native.forgot.sent", error: false)));
+            sections.Add(Views.Section(string.Empty, SignInView.SubmitRow(SignInView.Submit(style,
+                text("ForgotPassword_BackToSignIn"), backToSignIn, "native.forgot.back",
+                enabled: true))));
+            return SignInView.Page(style, sections, "native.forgot.screen");
         }
 
         if (errorKey is not null)
-            form.Add(style.Alert(style.Text(Views.Text(text(errorKey)),
-                    SourceTextRole.DefaultBody), success: false)
-                .WithAccessibilityIdentifier("native.forgot.error"));
-        form.Add(style.Text(Views.Text(text("ForgotPassword_Instructions")),
-            SourceTextRole.DefaultBody, SourceTextTone.Secondary));
-        form.Add(Field(style, text(NativeText.Email),
-            Input(style, Views.TextField(text("Common_EmailPlaceholder"),
-                email, emailChanged), "native.forgot.email", busy)));
-        var send = style.BootstrapLoginButton(
-                text(busy ? "ForgotPassword_Sending" : "ForgotPassword_SendResetLink"),
-                submit, !busy && !string.IsNullOrWhiteSpace(email))
-            .WithAccessibilityIdentifier("native.forgot.submit");
+            sections.Add(Views.Section(string.Empty, NativeForm.Notice(style, text(errorKey),
+                "native.forgot.error", error: true)));
+        var field = NativeForm.Field(text(NativeText.Email), email, "native.forgot.email",
+            emailChanged, text("Common_EmailPlaceholder"));
+        field.IsEnabled = !busy;
+        sections.Add(Views.Section(string.Empty,
+            NativeForm.Notice(style, text("ForgotPassword_Instructions"),
+                "native.forgot.instructions", error: false),
+            field));
+        var send = SignInView.Submit(style,
+            text(busy ? "ForgotPassword_Sending" : "ForgotPassword_SendResetLink"),
+            submit, "native.forgot.submit", !busy && !string.IsNullOrWhiteSpace(email));
         registerSubmit(send);
-        form.Add(send);
-        form.Add(Views.Divider());
-        var back = SignInView.Link(style, text("ForgotPassword_BackToSignIn"),
-            backToSignIn, "native.forgot.back");
+        sections.Add(Views.Section(string.Empty, SignInView.SubmitRow(send)));
+        var back = NativeForm.Action(style, Views.Button(text("ForgotPassword_BackToSignIn"),
+                backToSignIn)
+            .WithAccessibilityIdentifier("native.forgot.back"));
         back.IsEnabled = !busy;
-        form.Add(back.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
-        content.Add(SignInView.Card(style, form));
-        return SignInView.AuthPage(style, content, "native.forgot.screen");
+        sections.Add(Views.Section(string.Empty, back));
+        return SignInView.Page(style, sections, "native.forgot.screen");
     }
 
     /// <summary>
@@ -221,80 +235,32 @@ internal static class AccountViews
         SourceUiStyle style, NativeAuthState state, bool loading, bool busy,
         Func<string, string> text, Action retry, Action signOut)
     {
-        var items = new List<SwiftView>();
+        var sections = new List<SwiftView> { SignInView.Header(style, text("MainLayout_SyncingProfile")) };
         if (loading)
         {
-            items.Add(Views.IndeterminateProgress(text("MainLayout_Syncing"))
-                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithAccessibilityIdentifier("native.auth.sync.progress"));
-            items.Add(style.Text(Views.Text(text("MainLayout_SyncingProfile")),
-                    SourceTextRole.Title2, SourceTextTone.PlainCard, sourceHeading: true)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
-            items.Add(style.Text(Views.Text(
-                    $"{text("MainLayout_SyncingDescription")}\n{text("MainLayout_ThisMayTakeAMoment")}"),
-                    SourceTextRole.Body2, SourceTextTone.Secondary)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
+            var progress = Views.VStack(
+                    Views.IndeterminateProgress(text("MainLayout_Syncing"))
+                        .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                        .WithAccessibilityIdentifier("native.auth.sync.progress"),
+                    style.Text(Views.Text(
+                            $"{text("MainLayout_SyncingDescription")}\n{text("MainLayout_ThisMayTakeAMoment")}"),
+                        SourceTextRole.Body2, SourceTextTone.Secondary))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
+            progress.Spacing = SourceUiLayout.ItemGap;
+            sections.Add(Views.Section(string.Empty, progress));
         }
         else
         {
-            items.Add(Heading(style, text("MainLayout_SyncingProfile")));
-            items.Add(style.Alert(style.Text(Views.Text(
-                        text(state.ErrorKey ?? NativeText.ConnectionError)),
-                    SourceTextRole.DefaultBody), success: false)
-                .WithAccessibilityIdentifier(NativeAccess.AuthError));
-            var again = style.BootstrapLoginButton(text(NativeText.Retry), retry, !busy)
-                .WithAccessibilityIdentifier("native.auth.sync.retry");
-            items.Add(again);
-            var leave = style.SecondaryButton(text("Nav_Logout"), signOut, fullWidth: true)
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier("native.auth.sync.signout");
+            sections.Add(Views.Section(string.Empty, NativeForm.Notice(style,
+                text(state.ErrorKey ?? NativeText.ConnectionError), NativeAccess.AuthError,
+                error: true)));
+            sections.Add(Views.Section(string.Empty, SignInView.SubmitRow(SignInView.Submit(style,
+                text(NativeText.Retry), retry, "native.auth.sync.retry", !busy))));
+            var leave = NativeForm.Action(style, Views.Button(text("Nav_Logout"), signOut)
+                .WithAccessibilityIdentifier("native.auth.sync.signout"));
             leave.IsEnabled = !busy;
-            items.Add(leave);
+            sections.Add(Views.Section(string.Empty, leave));
         }
-        var content = new List<SwiftView> { SignInView.Brand(style), SignInView.Card(style, items) };
-        return SignInView.AuthPage(style, content, "native.auth.sync.screen");
-    }
-
-    private static SwiftView Heading(SourceUiStyle style, string title) =>
-        style.Text(Views.Text(title), SourceTextRole.LoginHeading, SourceTextTone.PlainCard,
-                sourceHeading: true)
-            .WithFlexibleWidth(440, SwiftHorizontalAlignment.Center)
-            .WithAccessibilityIdentifier("native.auth.heading");
-
-    private static SwiftView Field(SourceUiStyle style, string label, params SwiftView[] input)
-    {
-        var field = Views.VStack([
-            style.Text(Views.Text(label), SourceTextRole.FormLabel, SourceTextTone.PlainCard),
-            .. input]);
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field;
-    }
-
-    private static SwiftView Input(SourceUiStyle style, SwiftView field, string id, bool busy)
-    {
-        style.TextInput(field).WithFlexibleWidth().WithAccessibilityIdentifier(id);
-        field.IsEnabled = !busy;
-        return field;
-    }
-
-    private static SwiftView SecretRow(
-        SourceUiStyle style, string placeholder, string value, bool show,
-        Action<string> changed, Action toggle, string id, bool busy,
-        Func<string, string> text)
-    {
-        var input = show
-            ? Views.TextField(placeholder, value, changed)
-            : Views.SecureField(placeholder, value, changed);
-        Input(style, input, id, busy);
-        var visibility = style.OutlineButton(
-                Views.Image(show ? "eye.slash" : "eye"), toggle)
-            .WithAccessibilityLabel(text(show
-                ? NativeText.HidePassword : NativeText.ShowPassword))
-            .WithAccessibilityIdentifier(id + ".visibility");
-        visibility.IsEnabled = !busy;
-        var row = Views.HStack(input, visibility).WithFlexibleWidth();
-        row.Spacing = 0;
-        return row;
+        return SignInView.Page(style, sections, "native.auth.sync.screen");
     }
 }

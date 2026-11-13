@@ -67,7 +67,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.65" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.66" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
