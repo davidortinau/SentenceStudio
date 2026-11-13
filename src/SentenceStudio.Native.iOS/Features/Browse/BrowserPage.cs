@@ -305,13 +305,33 @@ internal static class BrowserPage
     /// </summary>
     /// <param name="width">The page's own width (a split view's list column is narrow).</param>
     /// <param name="search">Null leaves the page without search (its list cannot be searched now).</param>
+    /// <param name="list">
+    /// The items as a native List (rows, swipe actions) in place of the scrolling column
+    /// (Captain 2026-11-12: native lists; the grid stays a lazy grid in the scroll).
+    /// </param>
     internal static SwiftView SingleColumn(string prefix, IEnumerable<SwiftView> children,
-        double width, PageSearch? search) =>
-        search is null
-            ? Scroll(prefix, children, width)
-            : Views.Searchable(Scroll(prefix, children, width), search.Placeholder, search.Text,
+        double width, PageSearch? search, SourceUiStyle? list = null)
+    {
+        var content = list is null ? Scroll(prefix, children, width)
+            : NativeList($"{prefix}.scroll.content", children, list);
+        return search is null ? content
+            : Views.Searchable(content, search.Placeholder, search.Text,
                     search.Changed, search.Tokens, search.TokensChanged)
                 .WithAccessibilityIdentifier($"{prefix}.search");
+    }
+
+    /// <summary>
+    /// A native List in the app's colours: the page canvas behind it and list row surfaces.
+    /// Its children are its rows (the scene rebuilds them on each update).
+    /// </summary>
+    internal static SwiftView NativeList(string id, IEnumerable<SwiftView> rows, SourceUiStyle style)
+    {
+        var appearance = style.Appearance;
+        return Views.List(rows.ToArray())
+            .WithNativeListColors(appearance.BodyBackground.Light, appearance.BodyBackground.Dark,
+                appearance.ListRowSurface.Light, appearance.ListRowSurface.Dark)
+            .WithAccessibilityIdentifier(id);
+    }
 
     /// <summary>
     /// The wide page while it loads or cannot show its items: its search row stays at the top,
@@ -362,8 +382,9 @@ internal static class BrowserPage
     /// The wide page: the filter column (when shown) and a divider, then the results: the search
     /// row stays put above their own scroll, which starts with <paramref name="header"/>.
     /// </summary>
+    /// <param name="asList">The results as a native List (the header is its first row).</param>
     internal static SwiftView Wide(string prefix, SourceUiStyle style, SwiftView? filterPanel,
-        SwiftView searchRow, SwiftView header, IEnumerable<SwiftView> results)
+        SwiftView searchRow, SwiftView header, IEnumerable<SwiftView> results, bool asList = false)
     {
         var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
         var columns = new List<SwiftView>();
@@ -372,14 +393,21 @@ internal static class BrowserPage
             columns.Add(filterPanel);
             columns.Add(Views.Divider().WithAccessibilityIdentifier($"{prefix}.filters.panel.divider"));
         }
-        var content = Views.VStack([header, .. results])
-            .WithPadding(0, gutter, gutter, gutter)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier($"{prefix}.results.content");
-        content.Spacing = SourceUiLayout.PageGap;
+        SwiftView scroll;
+        if (asList)
+            scroll = NativeList($"{prefix}.results.content", [header, .. results], style);
+        else
+        {
+            var content = Views.VStack([header, .. results])
+                .WithPadding(0, gutter, gutter, gutter)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{prefix}.results.content");
+            content.Spacing = SourceUiLayout.PageGap;
+            scroll = Views.Scroll(content).WithAccessibilityIdentifier($"{prefix}.results.scroll");
+        }
         var column = Views.VStack(
                 searchRow.WithPadding(gutter, gutter, 0, gutter),
-                Views.Scroll(content).WithAccessibilityIdentifier($"{prefix}.results.scroll"))
+                scroll)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier($"{prefix}.results");
         column.Spacing = SourceUiLayout.PageGap;

@@ -10074,6 +10074,14 @@ For example: {0} ...</value>
     <value>Choose a place in your library</value>
     <comment>Library split view (iPad, iPhone Duo): the middle column before a place (Resources, Vocabulary, Skills, Minimal Pairs) is chosen</comment>
   </data>
+  <data name="Library_DeleteResourceConfirm" xml:space="preserve">
+    <value>Delete "{0}"? This cannot be undone.</value>
+    <comment>Library resource list: confirmation dialog title for a row's swipe Delete; {0} is the resource title</comment>
+  </data>
+  <data name="Library_StudyThis" xml:space="preserve">
+    <value>Study</value>
+    <comment>Library list swipe action on a resource or word: opens Study > Choose My Own with it selected</comment>
+  </data>
   <data name="Library_ChooseItem" xml:space="preserve">
     <value>Choose an item to see it here</value>
     <comment>Library split view (iPad, iPhone Duo): the right column before a resource, word or skill is chosen</comment>

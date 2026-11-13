@@ -85,6 +85,14 @@ internal sealed class BrowserPageUpdate
                 node.IsEnabled = nextNode.IsEnabled;
             if (nextNode.FixedWidth is { } width && node.FixedWidth != width)
                 node.WithFixedWidth(width);
+            // A confirmation dialog keeps its node; its title and whether it shows follow.
+            if (node.Kind == "confirmationDialog")
+            {
+                if (node.Text != nextNode.Text)
+                    node.Text = nextNode.Text;
+                if (node.IsPresented != nextNode.IsPresented)
+                    node.IsPresented = nextNode.IsPresented;
+            }
             // The system search field keeps its node (and focus); its filter tokens follow.
             if (node.Kind == "searchable")
                 node.SearchTokens = nextNode.SearchTokens;

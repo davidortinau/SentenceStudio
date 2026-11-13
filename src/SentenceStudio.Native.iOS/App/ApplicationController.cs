@@ -352,6 +352,7 @@ internal sealed partial class ApplicationController : IDisposable
         };
         _resources.FileImporterChanged += _ => Publish();
         _resources.FormTitleChanged += title => ResourceFormTitleChanged?.Invoke(title);
+        _resources.StudyRequested += StudyResource;
     }
 
     private void EnsureSkills()
@@ -712,6 +713,30 @@ internal sealed partial class ApplicationController : IDisposable
         _dashboardState = await _dashboard!.RegenerateAsync(_lifetime.Token));
 
     internal void SignOut() => Run(SignOutAsync);
+
+    /// <summary>
+    /// A Library row's Study (Captain 2026-11-12, "Choose an activity"): Study opens on Choose
+    /// My Own with this resource selected, for the person to pick the activity.
+    /// </summary>
+    internal void StudyResource(string resourceId)
+    {
+        if (_dashboard is null || NavigationBlocked)
+            return;
+        // One step: the tab switch inside it cannot start a competing load first.
+        Run(async () =>
+        {
+            SelectTab(NativeTabs.Study);
+            _dashboardState = _dashboard.SetMode(NativeDashboardMode.ChooseOwn);
+            _dashboardState = await _dashboard.LoadChooseOwnAsync(_lifetime.Token);
+            // Only a resource Choose My Own offers is selected; otherwise the saved selection
+            // stays as it was.
+            if (_dashboardState.ChooseOwn is { } chooseOwn
+                && !chooseOwn.Resources.IsDefault
+                && chooseOwn.Resources.Any(option => option.Id == resourceId))
+                _dashboardState = _dashboard.SelectChooseOwn([resourceId],
+                    chooseOwn.SelectedSkillId);
+        });
+    }
 
     private async Task SetDashboardModeAsync(NativeDashboardMode mode)
     {

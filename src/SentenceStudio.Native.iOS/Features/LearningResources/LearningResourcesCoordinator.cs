@@ -82,6 +82,27 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     internal event Action<bool>? FormOpenChanged;
     internal event Action<string>? FormTitleChanged;
     internal event Action<bool>? FileImporterChanged;
+
+    /// <summary>A list row's Study: the app opens Study > Choose My Own with this resource.</summary>
+    internal event Action<string>? StudyRequested;
+
+    /// <summary>The listed resource whose Delete awaits the person's confirmation.</summary>
+    private string? _pendingListDelete;
+
+    /// <summary>
+    /// The resource awaiting delete confirmation, while it is still listed; one that left the
+    /// list (a sync, a filter) is no longer awaited, so later deletes are not blocked.
+    /// </summary>
+    private NativeResourceItem? PendingListDelete()
+    {
+        if (_pendingListDelete is not { } id)
+            return null;
+        var item = _presenter.List.Items.IsDefault ? null
+            : _presenter.List.Items.FirstOrDefault(row => row.Id == id);
+        if (item is null)
+            _pendingListDelete = null;
+        return item;
+    }
     internal bool IsFormOpen => _formOpen;
     internal bool IsCreatingForm => _creating;
     internal long FormProjectionVersion => Interlocked.Read(ref _formProjectionVersion);
@@ -147,6 +168,10 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 FilterType: type => FilterNow(type, _presenter.List.Language),
                 FilterLanguage: language => FilterNow(_presenter.List.MediaType, language),
                 KeepFilterTokens: KeepFilterTokens,
+                RequestListDelete: RequestListDelete,
+                ConfirmListDelete: () => Run(ConfirmListDeleteAsync),
+                CancelListDelete: CancelListDelete,
+                Study: id => StudyRequested?.Invoke(id),
                 ToggleViewMode: ToggleViewMode,
                 Open: id => Run(() => OpenAsync(id)),
                 Add: OpenCreate,
@@ -158,7 +183,9 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 ClearFilters: ClearFilters,
                 ClearSearchAndFilters: ClearSearchAndFilters,
                 PageWidthChanged: OnPageWidthChanged),
-            PageWidth);
+            PageWidth, PendingListDelete() is { } pending
+                ? string.IsNullOrWhiteSpace(pending.Title) ? _text("NativeResources_Untitled") : pending.Title
+                : null);
     }
 
 #if DEBUG
@@ -802,6 +829,58 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     }
 
     internal void ConfirmDelete() => Run(DeleteResourceAsync);
+
+    /// <summary>A list row's Delete: asks first (the list's confirmation dialog).</summary>
+    private void RequestListDelete(string id)
+    {
+        if (_disposed || IsNavigationBlocked || _pendingListDelete is not null)
+            return;
+        _pendingListDelete = id;
+        Publish(formChanged: false);
+    }
+
+    /// <summary>
+    /// The dialog closed (Cancel, a tap outside it, or after Delete). SwiftUI can report the
+    /// close before the Delete action runs, so the pending delete is dropped on the next turn
+    /// of the main loop: Delete has read it by then.
+    /// </summary>
+    private void CancelListDelete()
+    {
+        if (_pendingListDelete is not { } id)
+            return;
+        CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (_disposed || _pendingListDelete != id)
+                return;
+            _pendingListDelete = null;
+            Publish(formChanged: false);
+        });
+    }
+
+    /// <summary>
+    /// The confirmed list delete: owner-scoped in the presenter. The open form closes when it
+    /// showed this resource; the list says what happened.
+    /// </summary>
+    private async Task ConfirmListDeleteAsync()
+    {
+        if (_pendingListDelete is not { } id)
+            return;
+        _pendingListDelete = null;
+        var result = await _presenter.DeleteListedAsync(id, _lifetime.Token);
+        if (result == NativeResourceMutationResult.Success)
+        {
+            _listFeedback = _text("ResourceEdit_DeletedSuccess");
+            if (_formOpen && _selectedId == id)
+                CloseForm(publish: false);
+            // The delete committed but the list could not be read again: read it now.
+            if (!_presenter.List.Items.IsDefault
+                && _presenter.List.Items.Any(item => item.Id == id))
+                await LoadListAsync();
+        }
+        else
+            _listFeedback = _text("NativeResources_DeleteFailed");
+        Publish(formChanged: false);
+    }
 
     internal void ReloadDraft() => Run(ReloadDraftAsync);
 

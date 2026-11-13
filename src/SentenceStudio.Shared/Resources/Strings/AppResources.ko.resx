@@ -9421,6 +9421,14 @@
     <value>라이브러리에서 볼 곳을 선택하세요</value>
     <comment>Library split view: the middle column before a place is chosen. Draft translation, needs review.</comment>
   </data>
+  <data name="Library_DeleteResourceConfirm" xml:space="preserve">
+    <value>"{0}"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</value>
+    <comment>Library resource list: delete confirmation title; {0} is the resource title. Draft translation, needs review.</comment>
+  </data>
+  <data name="Library_StudyThis" xml:space="preserve">
+    <value>공부하기</value>
+    <comment>Library list swipe action: study this resource or word. Draft translation, needs review.</comment>
+  </data>
   <data name="Library_ChooseItem" xml:space="preserve">
     <value>항목을 선택하면 여기에 표시됩니다</value>
     <comment>Library split view: the right column before a resource, word or skill is chosen. Draft translation, needs review.</comment>

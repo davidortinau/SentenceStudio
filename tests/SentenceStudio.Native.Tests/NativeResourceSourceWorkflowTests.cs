@@ -633,6 +633,58 @@ public sealed class NativeResourceSourceWorkflowTests
     }
 
     [Fact]
+    public async Task DeleteListed_RemovesOnlyTheOwnersListedNonSmartResource()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserB);
+        var presenter = fixture.Resources;
+
+        fixture.Activate(NativeSliceFixture.UserB);
+        presenter.BeginCreate();
+        presenter.ChangeDraft(NativeResourceField.Title, "Owner B list");
+        Assert.True(await presenter.SaveAsync());
+        var resourceB = presenter.Detail.Resource!.Id;
+
+        fixture.Activate(NativeSliceFixture.UserA);
+        foreach (var title in new[] { "Keep me", "Delete me", "Smart one" })
+        {
+            presenter.BeginCreate();
+            presenter.ChangeDraft(NativeResourceField.Title, title);
+            Assert.True(await presenter.SaveAsync());
+        }
+        await presenter.LoadListAsync();
+        var listed = presenter.List.Items;
+        var deleteId = listed.Single(item => item.Title == "Delete me").Id;
+        var smartId = listed.Single(item => item.Title == "Smart one").Id;
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.LearningResources.SingleAsync(row => row.Id == smartId)).IsSmartResource = true;
+            await db.SaveChangesAsync();
+        }
+        await presenter.LoadListAsync();
+        var pending = fixture.Provider.GetRequiredService<NativePendingWrites>();
+        Assert.Equal(NativeResourceSyncPhase.Confirmed, await presenter.SynchronizeAsync());
+        Assert.False(pending.IsPending(NativeSliceFixture.UserA));
+
+        // Another owner's resource is not in this owner's list; a smart resource is refused.
+        Assert.Equal(NativeResourceMutationResult.Invalid, await presenter.DeleteListedAsync(resourceB));
+        Assert.Equal(NativeResourceMutationResult.Invalid, await presenter.DeleteListedAsync(smartId));
+        Assert.Equal(NativeResourceMutationResult.Success, await presenter.DeleteListedAsync(deleteId));
+
+        Assert.DoesNotContain(presenter.List.Items, item => item.Id == deleteId);
+        Assert.Equal(NativeResourceSyncPhase.Pending, presenter.List.Sync);
+        Assert.True(pending.IsPending(NativeSliceFixture.UserA));
+        using var verify = fixture.Scope();
+        var verifyDb = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.False(await verifyDb.LearningResources.AnyAsync(row => row.Id == deleteId));
+        Assert.True(await verifyDb.LearningResources.AnyAsync(row => row.Id == smartId));
+        Assert.True(await verifyDb.LearningResources.AnyAsync(row =>
+            row.Id == resourceB && row.UserProfileId == NativeSliceFixture.UserB));
+    }
+
+    [Fact]
     public async Task ExistingRepositoryDeleteCallerStillTriggersItsDefaultAmbientSync()
     {
         using var fixture = new NativeSliceFixture();

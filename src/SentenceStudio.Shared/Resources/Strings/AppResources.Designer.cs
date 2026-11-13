@@ -9832,6 +9832,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Delete &quot;{0}&quot;? This cannot be undone..
+        /// </summary>
+        internal static string Library_DeleteResourceConfirm {
+            get {
+                return ResourceManager.GetString("Library_DeleteResourceConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Exit full screen.
         /// </summary>
         internal static string Library_ExitFullScreen {
@@ -9864,6 +9873,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Library_Resources {
             get {
                 return ResourceManager.GetString("Library_Resources", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Study.
+        /// </summary>
+        internal static string Library_StudyThis {
+            get {
+                return ResourceManager.GetString("Library_StudyThis", resourceCulture);
             }
         }
 

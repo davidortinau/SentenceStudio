@@ -31,7 +31,8 @@ internal static class LearningResourcesView
         SourceUiStyle style,
         Func<string, string> text,
         LearningResourcesActions actions,
-        double? pageWidth = null)
+        double? pageWidth = null,
+        string? pendingDeleteTitle = null)
     {
         var width = BrowserPage.Width(pageWidth, style);
         var wide = BrowserPage.IsWide(width);
@@ -41,8 +42,31 @@ internal static class LearningResourcesView
             : SingleColumn(state, feedback, style, text, actions, width);
         // Making a starter resource holds the page still until it is done.
         page.IsEnabled = !state.StarterBusy;
+        page = DeleteConfirmation(page, pendingDeleteTitle, text, actions);
         return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
             ToolbarActions(state, text, actions, wide, ready));
+    }
+
+    /// <summary>
+    /// A list row's Delete asks first (a native confirmation dialog naming the resource). The
+    /// dialog is always there, shown while a delete waits, so the page updates in place.
+    /// </summary>
+    private static SwiftView DeleteConfirmation(SwiftView page, string? pendingTitle,
+        Func<string, string> text, LearningResourcesActions actions)
+    {
+        var dialog = Views.ConfirmationDialog(page,
+            string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                text("Library_DeleteResourceConfirm"), pendingTitle ?? string.Empty),
+            () => actions.CancelListDelete?.Invoke(),
+            Views.Button(text("Common_Delete"), () => actions.ConfirmListDelete?.Invoke())
+                .WithButtonRole(SwiftButtonRole.Destructive)
+                .WithAccessibilityIdentifier("native.resources.delete.confirm"),
+            Views.Button(text("Common_Cancel"), () => actions.CancelListDelete?.Invoke())
+                .WithButtonRole(SwiftButtonRole.Cancel)
+                .WithAccessibilityIdentifier("native.resources.delete.cancel"))
+            .WithAccessibilityIdentifier("native.resources.delete.dialog");
+        dialog.IsPresented = pendingTitle is not null;
+        return dialog;
     }
 
     /// <summary>The list has loaded and can show its resources (or that there are none).</summary>
@@ -177,8 +201,14 @@ internal static class LearningResourcesView
             text("Resources_SearchPlaceholder"), state.SearchText, actions.Search,
             SearchTokens(state),
             // A token deleted in the field turns its filter off.
-            remaining => actions.KeepFilterTokens?.Invoke(remaining)));
+            remaining => actions.KeepFilterTokens?.Invoke(remaining)),
+            AsNativeList(state) ? style : null);
     }
+
+    /// <summary>The list mode with resources to show is a native List (the grid stays a grid).</summary>
+    private static bool AsNativeList(NativeResourceListState state) =>
+        state.ViewMode == NativeResourceViewMode.List
+        && state.Phase == NativeResourceListPhase.Populated;
 
     /// <summary>The search field's tokens: the Type and Language filters that are on.</summary>
     private static List<SwiftSearchToken> SearchTokens(NativeResourceListState state)
@@ -203,7 +233,7 @@ internal static class LearningResourcesView
         return BrowserPage.Wide(Prefix, style,
             state.FilterPanelHidden ? null : FilterPanel(state, style, text, actions, width),
             SearchRow(state, style, text, actions),
-            BrowserPage.ResultsHeader(Prefix, header), results);
+            BrowserPage.ResultsHeader(Prefix, header), results, asList: AsNativeList(state));
     }
 
     /// <summary>The wide filter column: sort, type and language (applied at once), Clear All Filters.</summary>
@@ -289,7 +319,7 @@ internal static class LearningResourcesView
                             actions.Open, style, list: false)).ToArray())
                     .WithAccessibilityIdentifier("native.resources.grid"));
             else
-                children.Add(ResourceListGroup(resources, text, actions.Open, style, width));
+                children.AddRange(resources.Select(item => ListRow(item, text, actions, style, width)));
         }
         if (state.StarterBusy)
             children.Add(style.Text(Views.Text(text("Resources_CreatingStarter")),
@@ -326,20 +356,31 @@ internal static class LearningResourcesView
         return empty;
     }
 
-    private static SwiftView ResourceListGroup(
-        ImmutableArray<NativeResourceItem> resources, Func<string, string> text,
-        Action<string> open, SourceUiStyle style, double width)
+    /// <summary>
+    /// A native List row (Captain 2026-11-12: native rows, icons kept): swipe left to delete
+    /// (not a smart resource, which the system maintains), swipe right to study it.
+    /// </summary>
+    private static SwiftView ListRow(NativeResourceItem resource, Func<string, string> text,
+        LearningResourcesActions actions, SourceUiStyle style, double width)
     {
-        var rows = new List<SwiftView>();
-        foreach (var resource in resources)
-        {
-            if (rows.Count != 0)
-                rows.Add(Views.Divider());
-            rows.Add(LearningResourceRowView.Row(resource, text, open, style, list: true, width));
-        }
-        var group = Views.LazyVGrid(1, rows.ToArray())
-            .WithAccessibilityIdentifier("native.resources.list");
-        group.Spacing = 0;
-        return style.BorderedCard(group, radius: style.Appearance.BootstrapRadius);
+        var row = LearningResourceRowView.Row(resource, text, actions.Open, style, list: true,
+            width, nativeRow: true);
+        var trailing = resource.IsSmartResource ? []
+            : new[] {
+                // Red, not destructive: a destructive swipe action removes its row at once, and
+                // this one asks first.
+                Views.Button(Views.Label(text("Common_Delete"), "trash"),
+                        () => actions.RequestListDelete?.Invoke(resource.Id))
+                    .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+                    .WithAccessibilityIdentifier($"{NativeAccess.ResourceRow}.{resource.Id}.delete")
+            };
+        var leading = new[] {
+            Views.Button(Views.Label(text("Library_StudyThis"), "graduationcap"),
+                    () => actions.Study?.Invoke(resource.Id))
+                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                .WithAccessibilityIdentifier($"{NativeAccess.ResourceRow}.{resource.Id}.study")
+        };
+        return Views.SwipeRow(row, trailing, leading)
+            .WithAccessibilityIdentifier($"{NativeAccess.ResourceRow}.{resource.Id}.swipe");
     }
 }

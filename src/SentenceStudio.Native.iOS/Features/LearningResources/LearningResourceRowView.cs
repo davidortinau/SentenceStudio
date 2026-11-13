@@ -18,7 +18,8 @@ internal static class LearningResourceRowView
         Action<string> open,
         SourceUiStyle style,
         bool list,
-        double? width = null)
+        double? width = null,
+        bool nativeRow = false)
     {
         var title = string.IsNullOrWhiteSpace(resource.Title)
             ? text("NativeResources_Untitled") : resource.Title;
@@ -77,7 +78,11 @@ internal static class LearningResourceRowView
                 time);
         }
         label.WithFlexibleWidth();
-        if (list)
+        if (nativeRow)
+        {
+            // A native List row: the list draws the row, its insets and separators.
+        }
+        else if (list)
         {
             label.WithPadding(8, SourceUiLayout.CardInset,
                 8, SourceUiLayout.CardInset);

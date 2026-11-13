@@ -52,7 +52,6 @@ public sealed class NativeSourceStylingContractTests
         // Captain 2026-11-10: the Resources page is the shared browse layout; its scroll content
         // owns the gutter (BrowserPage.SingleColumn), as on Vocabulary.
         Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
-        Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
             browser);
         var browse = Source("Features/Browse/BrowserPage.cs");
@@ -61,8 +60,8 @@ public sealed class NativeSourceStylingContractTests
             browse);
         // Captain 2026-11-12, "I want the native way": the narrow page's search is the system
         // search field, its filters as tokens in the field.
-        Assert.Contains("Views.Searchable(Scroll(prefix, children, width), search.Placeholder, search.Text,",
-            browse);
+        Assert.Contains(": Views.Searchable(content, search.Placeholder, search.Text,", browse);
+        Assert.Contains(": NativeList($\"{prefix}.scroll.content\", children, list);", browse);
         Assert.Contains("node.SearchTokens = nextNode.SearchTokens;", Source("Features/Browse/BrowserPageUpdate.cs"));
         Assert.DoesNotContain("ComposerCapsule", browse);
         Assert.Contains("style.Page(Views.Scroll(content)", form);
@@ -188,14 +187,13 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("GridColumns(width, style.TextScale, !state.FilterPanelHidden)", browser);
         Assert.Contains("return effective < 600 ? 1 : effective < 1000 ? 2 : 3;", browser);
         Assert.Contains("return SourceUiLayout.ResourceColumns(width);", browser);
-        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style, width));",
-            browser);
-        Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
-        Assert.Contains("if (rows.Count != 0)\n                rows.Add(Views.Divider());",
-            browser);
-        Assert.Contains("group.Spacing = 0;", browser);
-        Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
-            browser);
+        // Captain 2026-11-12: list mode is a native List of rows (icons kept) with swipe actions:
+        // Delete (not smart resources, confirmed) and Study; the grid stays a lazy grid.
+        Assert.Contains("children.AddRange(resources.Select(item => ListRow(item, text, actions, style, width)));", browser);
+        Assert.Contains("return Views.SwipeRow(row, trailing, leading)", browser);
+        Assert.Contains(".WithButtonRole(SwiftButtonRole.Destructive)", browser);
+        Assert.Contains("AsNativeList(state) ? style : null);", browser);
+        Assert.Contains("asList: AsNativeList(state));", browser);
         Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
         Assert.Contains("return BrowserPage.Wide(Prefix, style,", browser);
         Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,", row);

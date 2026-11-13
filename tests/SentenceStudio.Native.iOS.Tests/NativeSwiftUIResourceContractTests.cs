@@ -320,13 +320,13 @@ public sealed class NativeSwiftUIResourceContractTests
         var scene = Source("App/ApplicationScene.cs");
 
         Assert.Contains("return SourceUiLayout.ResourceColumns(width);", resources);
-        Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", resources);
-        Assert.Contains("if (rows.Count != 0)\n                rows.Add(Views.Divider());",
-            resources);
-        Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
-            resources);
-        Assert.Contains("children.Add(ResourceListGroup(resources, text, actions.Open, style, width));",
-            resources);
+        // Captain 2026-11-12: list mode is a native List of rows (icons kept) with swipe actions:
+        // Delete (not smart resources, confirmed) and Study; the grid stays a lazy grid.
+        Assert.Contains("children.AddRange(resources.Select(item => ListRow(item, text, actions, style, width)));", resources);
+        Assert.Contains("return Views.SwipeRow(row, trailing, leading)", resources);
+        Assert.Contains(".WithButtonRole(SwiftButtonRole.Destructive)", resources);
+        Assert.Contains("AsNativeList(state) ? style : null);", resources);
+        Assert.Contains("asList: AsNativeList(state));", resources);
         Assert.DoesNotContain("Views.List(", resources);
         Assert.Contains("Views.Button(label, () => open(resource.Id))", row);
         Assert.Contains("SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth)",
@@ -387,7 +387,8 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("label = Views.HStack(\n                icon,\n                name,", list);
         Assert.Contains("style.Text(Views.Text(media), SourceTextRole.Small,", list);
         Assert.Contains("label = Views.HStack(icon,\n                Views.VStack(\n                    name,", list);
-        Assert.Contains("double? width = null)", row);
+        Assert.Contains("double? width = null,", row);
+        Assert.Contains("bool nativeRow = false)", row);
         Assert.Contains("list ? SourceTextRole.ListTitle : SourceTextRole.Title3", row);
         Assert.Contains("sourceHeading: !list)\n            .WithLineLimit(1)", row);
         Assert.Equal(1, row.Split(".WithLineLimit(",

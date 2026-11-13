@@ -58,7 +58,8 @@ internal sealed partial class LearningResourcesCoordinator
 #if DEBUG
             starterPreview = _controlledStarterLoading;
 #endif
-            return (_presenter.List, _listFeedback, PageWidth, starterPreview);
+            // The pending list delete shows its confirmation dialog.
+            return (_presenter.List, _listFeedback, PageWidth, starterPreview, _pendingListDelete);
         }
     }
 

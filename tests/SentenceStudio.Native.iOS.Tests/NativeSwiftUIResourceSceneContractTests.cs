@@ -53,7 +53,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("BrowserPage.AddButton(Prefix, text(\"Resources_AddResource\"), actions.Add,",
             browser);
         // Plain toolbar icons, as on Vocabulary (no tint, no filled Add button when wide).
-        Assert.DoesNotContain("WithTintColor", browser);
+        var toolbar = browser[browser.IndexOf("private static SwiftView[] ToolbarActions(", StringComparison.Ordinal)..
+            browser.IndexOf("private static IEnumerable<SwiftView> FilterMenuItems(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("WithTintColor", toolbar);
         Assert.DoesNotContain("PrimaryButton(text(\"Resources_AddResource\")", browser);
         Assert.DoesNotContain("Views.List(", browser);
         Assert.Contains("BrowserPage.FilterMenu(Prefix, \"type\"", browser);
