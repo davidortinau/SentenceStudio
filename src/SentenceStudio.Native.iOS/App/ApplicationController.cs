@@ -876,7 +876,8 @@ internal sealed partial class ApplicationController : IDisposable
                     coordinator.SetTitle, coordinator.SetDescription,
                     () => _ = coordinator.SaveAsync(),
                     () => _ = coordinator.RetryEditAsync(),
-                    coordinator.RequestDelete))
+                    coordinator.RequestDelete,
+                    () => RunSkills(() => coordinator.ToggleFormArchivedAsync())))
             : Views.Text(Text("Common_Loading"));
 
     internal void CancelSkillDelete() => _skills?.CancelDelete();

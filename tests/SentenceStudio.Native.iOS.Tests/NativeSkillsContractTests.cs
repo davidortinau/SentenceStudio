@@ -636,6 +636,125 @@ public sealed class NativeSkillsContractTests
     }
 
     [Fact]
+    public async Task ListActionsWorkWithTheEditorOpenBesideTheList()
+    {
+        // Duotopia unfolded (2026-11-13): the editor shows beside the list, and every list
+        // action was refused silently while it was open.
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("open", "Beginner Korean", NativeSliceFixture.UserA),
+            Skill("other", "Int1.2", NativeSliceFixture.UserA),
+            Skill("third", "Int1.5", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        await coordinator.OpenEditAsync("open");
+        Assert.True(coordinator.IsFormOpen);
+
+        Assert.True(await coordinator.ToggleArchivedAsync("other"));
+        Assert.Equal("Skills_ArchivedSuccess", coordinator.ListState.FeedbackKey);
+        Assert.True((await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA))
+            .Single(row => row.Id == "other").IsArchived);
+        Assert.True(coordinator.IsFormOpen);
+
+        await coordinator.ShowArchivedAsync(true);
+        Assert.Equal("other", Assert.Single(coordinator.ListState.Profiles).Id);
+        await coordinator.ShowArchivedAsync(false);
+        Assert.Equal(2, coordinator.ListState.Profiles.Count);
+
+        // The editor's own Archive keeps it open (and its unsaved text), now offering Restore.
+        coordinator.SetTitle("Beginner Korean edited");
+        Assert.True(await coordinator.ToggleFormArchivedAsync());
+        Assert.True(coordinator.FormState.Archived);
+        Assert.Equal("Skills_ArchivedSuccess", coordinator.FormState.StatusKey);
+        Assert.Equal("Beginner Korean edited", coordinator.FormState.Title);
+        Assert.DoesNotContain(coordinator.ListState.Profiles, row => row.Id == "open");
+        Assert.True(await coordinator.ToggleFormArchivedAsync());
+        Assert.False(coordinator.FormState.Archived);
+        Assert.False((await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA))
+            .Single(row => row.Id == "open").IsArchived);
+
+        // Another row opens that skill in the editor (once the unsaved title is undone).
+        coordinator.SetTitle("Beginner Korean");
+        await coordinator.OpenEditAsync("third");
+        Assert.Equal("Int1.5", coordinator.FormState.Title);
+
+        // Deleting the skill the editor shows closes the editor.
+        coordinator.RequestListDelete("third");
+        Assert.True(coordinator.IsListDeletePresented);
+        Assert.True(await coordinator.ConfirmListDeleteAsync());
+        Assert.False(coordinator.IsFormOpen);
+        Assert.DoesNotContain(await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA),
+            row => row.Id == "third");
+    }
+
+    [Fact]
+    public async Task ChoosingAnotherSkillNeverDiscardsUnsavedText()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("one", "One", NativeSliceFixture.UserA),
+            Skill("two", "Two", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+
+        await coordinator.OpenEditAsync("one");
+        coordinator.SetDescription("Unsaved notes");
+        await coordinator.OpenEditAsync("two");
+        Assert.Equal("One", coordinator.FormState.Title);
+        Assert.Equal("Unsaved notes", coordinator.FormState.Description);
+        Assert.Equal("Skills_SaveFirst", coordinator.ListState.FeedbackKey);
+        coordinator.OpenCreate();
+        Assert.False(coordinator.FormState.Creating);
+
+        // Unchanged text: another row (or Add) replaces the editor.
+        coordinator.SetDescription("One description");
+        await coordinator.OpenEditAsync("two");
+        Assert.Equal("Two", coordinator.FormState.Title);
+        coordinator.OpenCreate();
+        Assert.True(coordinator.FormState.Creating);
+        coordinator.SetTitle("Draft");
+        await coordinator.OpenEditAsync("one");
+        Assert.True(coordinator.FormState.Creating);
+        Assert.Equal("Draft", coordinator.FormState.Title);
+    }
+
+    [Fact]
+    public async Task EditorArchiveOfASkillArchivedElsewhereOffersRestoreWithoutAFailure()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture, Skill("one", "One", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        await coordinator.OpenEditAsync("one");
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.SkillProfiles.SingleAsync(skill => skill.Id == "one")).IsArchived = true;
+            await db.SaveChangesAsync();
+        }
+        Assert.False(await coordinator.ToggleFormArchivedAsync());
+        Assert.True(coordinator.FormState.Archived);
+        Assert.Null(coordinator.FormState.ErrorKey);
+    }
+
+    [Fact]
+    public async Task AListActionDuringAConfirmationSaysWhyInsteadOfDoingNothing()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("one", "One", NativeSliceFixture.UserA),
+            Skill("two", "Two", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        coordinator.RequestListDelete("one");
+        Assert.False(await coordinator.ToggleArchivedAsync("two"));
+        Assert.Equal("Skills_WaitForChange", coordinator.ListState.FeedbackKey);
+        Assert.True(coordinator.ListState.FeedbackIsError);
+        Assert.All(await OwnedSkillsAsync(fixture, NativeSliceFixture.UserA),
+            row => Assert.False(row.IsArchived));
+    }
+
+    [Fact]
     public async Task SwipeActionsRefuseAChangedOwner()
     {
         using var fixture = await OwnersAsync();

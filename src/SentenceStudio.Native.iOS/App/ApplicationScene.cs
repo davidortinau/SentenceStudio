@@ -402,6 +402,8 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             Replace(_skillFormSlot, _app.RenderSkillForm(_style));
             _renderedSkillFormVersion = _app.SkillFormVersion;
+            // Another row chosen beside the list can turn Add into Edit.
+            _skillFormSlot.WithNavigationTitle(_app.SkillFormTitle);
         }
         if (_skillDeleteConfirmation is not null)
         {

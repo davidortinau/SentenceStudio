@@ -18497,6 +18497,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Save your changes to this skill profile first, or go back to discard them..
+        /// </summary>
+        internal static string Skills_SaveFirst {
+            get {
+                return ResourceManager.GetString("Skills_SaveFirst", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Show.
         /// </summary>
         internal static string Skills_Show {
@@ -18529,6 +18538,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Skills_Title {
             get {
                 return ResourceManager.GetString("Skills_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Another change is still in progress. Try again in a moment..
+        /// </summary>
+        internal static string Skills_WaitForChange {
+            get {
+                return ResourceManager.GetString("Skills_WaitForChange", resourceCulture);
             }
         }
 

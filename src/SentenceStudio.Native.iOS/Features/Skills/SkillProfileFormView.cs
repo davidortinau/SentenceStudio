@@ -8,7 +8,7 @@ namespace SentenceStudio.Native.iOS.Features.Skills;
 
 internal sealed record SkillProfileFormActions(
     Action<string> TitleChanged, Action<string> DescriptionChanged,
-    Action Save, Action Retry, Action RequestDelete);
+    Action Save, Action Retry, Action RequestDelete, Action? ToggleArchived = null);
 
 internal static class SkillProfileFormView
 {
@@ -27,6 +27,9 @@ internal static class SkillProfileFormView
                     _ => "Common_Save"
                 }))
                 .WithAccessibilityIdentifier("native.skills.form.progress"));
+        if (state.StatusKey is { } status && state.ErrorKey is null)
+            fields.Add(style.Alert(Views.Text(text(status)), success: true)
+                .WithAccessibilityIdentifier("native.skills.form.status"));
         if (state.ErrorKey is { } error)
             fields.Add(style.Alert(Views.Text(Error(error, text)), success: false)
                 .WithAccessibilityIdentifier("native.skills.form.error"));
@@ -112,16 +115,27 @@ internal static class SkillProfileFormView
         // there is no Save or Cancel under the form (Back leaves without saving).
         var save = Views.Button(text("Common_Save"), actions.Save)
             .WithAccessibilityIdentifier("native.skills.form.save");
-        save.IsEnabled = !busy;
+        // Not while a list action on the skills runs (it could undo the archive or delete).
+        save.IsEnabled = !busy && !state.Busy;
         if (state.Creating)
             return Views.Toolbar(page, save);
         var delete = Views.Button(text("Common_Delete"), actions.RequestDelete)
             .WithAccessibilityIdentifier("native.skills.edit.delete.request");
-        delete.IsEnabled = !busy;
+        delete.IsEnabled = !busy && !state.Busy;
         var more = Views.Menu(text("More"), delete)
             .WithAccessibilityIdentifier("native.skills.form.more");
         more.IsEnabled = !busy;
-        return Views.Toolbar(page, more, save);
+        if (actions.ToggleArchived is not { } toggle)
+            return Views.Toolbar(page, more, save);
+        // Captain 2026-11-13: the detail toolbar offers the row's swipe actions too. Archive
+        // (or Restore for an archived skill) as a toolbar icon, as Mail's message toolbar has.
+        var archive = Views.Button(Views.Image(state.Archived ? "arrow.uturn.backward" : "archivebox"),
+                toggle)
+            .WithAccessibilityLabel(text(state.Archived ? "Skills_Restore" : "Skills_Archive"))
+            .WithAccessibilityIdentifier(state.Archived
+                ? "native.skills.form.restore" : "native.skills.form.archive");
+        archive.IsEnabled = !busy && !state.Busy;
+        return Views.Toolbar(page, archive, more, save);
     }
 
     internal static string Error(string? errorKey, Func<string, string> text)

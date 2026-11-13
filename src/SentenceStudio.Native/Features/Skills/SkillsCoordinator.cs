@@ -22,10 +22,13 @@ internal sealed record SkillsListState(
     string? ErrorKey = null, string? FeedbackKey = null, bool Archived = false,
     bool FeedbackIsError = false, bool Busy = false);
 
+/// <param name="Archived">The open skill is archived (its toolbar offers Restore, not Archive).</param>
+/// <param name="StatusKey">What the editor's last Archive or Restore did.</param>
 internal sealed record SkillProfileFormState(
     SkillFormPhase Phase, bool Creating, string Title, string Description,
     DateTime? CreatedAt, DateTime? UpdatedAt, string? ErrorKey,
-    bool ShowDeleteConfirmation);
+    bool ShowDeleteConfirmation, bool Archived = false, string? StatusKey = null,
+    bool Busy = false);
 
 internal sealed class SkillsCoordinator : IDisposable
 {
@@ -57,6 +60,10 @@ internal sealed class SkillsCoordinator : IDisposable
     private bool _listFeedbackIsError;
     private bool _listBusy;
     private SkillProfile? _askingListDelete;
+    private bool _formArchived;
+    private string? _formStatusKey;
+    private string _loadedTitle = string.Empty;
+    private string _loadedDescription = string.Empty;
 
     internal SkillsCoordinator(
         SkillProfileRepository repository,
@@ -72,6 +79,17 @@ internal sealed class SkillsCoordinator : IDisposable
     internal bool IsOpen => _open;
     internal bool IsFormOpen => _formOpen;
     internal bool IsPending => _pending || _listBusy;
+
+    /// <summary>
+    /// Another change runs or a confirmation asks: every list and editor action waits (and
+    /// says so) until it is done.
+    /// </summary>
+    private bool IsBlocked => IsPending || _askingListDelete is not null || _confirmDelete;
+
+    /// <summary>The editor holds text not yet saved (a new skill's, or edits to the open one).</summary>
+    private bool FormDirty => _formOpen && (_creating
+        ? !string.IsNullOrWhiteSpace(_title) || !string.IsNullOrWhiteSpace(_description)
+        : _title != _loadedTitle || _description != _loadedDescription);
     internal bool IsDeletePending => _formPhase == SkillFormPhase.Deleting;
     internal bool IsDeleteConfirmationPresented => _confirmDelete;
     internal long ListVersion { get; private set; }
@@ -91,7 +109,8 @@ internal sealed class SkillsCoordinator : IDisposable
     internal string? PendingListDeleteId => IsListDeletePresented ? _askingListDelete!.Id : null;
     internal SkillProfileFormState FormState =>
         new(_formPhase, _creating, _title, _description, _createdAt,
-            _updatedAt, _formErrorKey, _confirmDelete);
+            _updatedAt, _formErrorKey, _confirmDelete, _formArchived, _formStatusKey,
+            _listBusy);
 
     internal async Task<bool> OpenAsync(string? expectedOwner)
     {
@@ -187,8 +206,15 @@ internal sealed class SkillsCoordinator : IDisposable
 
     internal void OpenCreate()
     {
-        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending)
+        if (!TryCurrentOwner(out _, out _) || (_formOpen && _creating))
             return;
+        // Add while the editor shows beside the list (a split view) replaces it, unless it
+        // holds unsaved text or something else runs.
+        if (IsBlocked || FormDirty)
+        {
+            Busy(fromForm: false, FormDirty && !IsBlocked ? "Skills_SaveFirst" : null);
+            return;
+        }
         BeginForm(null);
         _creating = true;
         _formPhase = SkillFormPhase.Creating;
@@ -198,8 +224,16 @@ internal sealed class SkillsCoordinator : IDisposable
     internal async Task OpenEditAsync(string? id)
     {
         if (!TryCurrentOwner(out var owner, out var stamp)
-            || _formOpen || IsPending || _askingListDelete is not null)
+            || (_formOpen && _formId == id && !_creating))
             return;
+        // Another row while the editor shows beside the list (a split view) opens that skill
+        // instead, as a list selection does; not while a change runs or a dialog asks.
+        if (IsBlocked || FormDirty)
+        {
+            if (_open)
+                Busy(fromForm: false, FormDirty && !IsBlocked ? "Skills_SaveFirst" : null);
+            return;
+        }
         BeginForm(id);
         _formPhase = SkillFormPhase.Loading;
         var generation = Volatile.Read(ref _formGeneration);
@@ -249,8 +283,11 @@ internal sealed class SkillsCoordinator : IDisposable
             {
                 _title = profile.Title ?? string.Empty;
                 _description = profile.Description ?? string.Empty;
+                _loadedTitle = _title;
+                _loadedDescription = _description;
                 _createdAt = profile.CreatedAt;
                 _updatedAt = profile.UpdatedAt;
+                _formArchived = profile.IsArchived;
                 _formPhase = SkillFormPhase.Editing;
             }
         }
@@ -288,6 +325,13 @@ internal sealed class SkillsCoordinator : IDisposable
         if (!TryCurrentOwner(out var owner, out var stamp)
             || !_formOpen || _pending || !Editable)
             return false;
+        // A list action on this skill (archive, delete) must finish first: a Save read before
+        // it commits would write the old archive state back, or bring a deleted skill back.
+        if (IsBlocked)
+        {
+            Busy(fromForm: true);
+            return false;
+        }
         if (string.IsNullOrWhiteSpace(_title))
         {
             _formPhase = SkillFormPhase.SaveError;
@@ -367,6 +411,11 @@ internal sealed class SkillsCoordinator : IDisposable
         if (!TryCurrentOwner(out _, out _) || !_formOpen || _pending
             || _creating || !Editable)
             return;
+        if (IsBlocked)
+        {
+            Busy(fromForm: true);
+            return;
+        }
         _confirmDelete = true;
         Notify();
     }
@@ -383,7 +432,7 @@ internal sealed class SkillsCoordinator : IDisposable
     {
         if (!TryCurrentOwner(out var owner, out var stamp)
             || !_formOpen || _pending || _creating || !_confirmDelete
-            || !Editable)
+            || !Editable || _listBusy || _askingListDelete is not null)
             return false;
         var id = _formId;
         var generation = Volatile.Read(ref _formGeneration);
@@ -445,9 +494,15 @@ internal sealed class SkillsCoordinator : IDisposable
     /// </summary>
     internal async Task ShowArchivedAsync(bool archived)
     {
-        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending
-            || _askingListDelete is not null || _showArchived == archived)
+        // The editor may be open beside the list (a split view): switching what the list shows
+        // leaves it alone.
+        if (!TryCurrentOwner(out _, out _) || _showArchived == archived)
             return;
+        if (IsBlocked)
+        {
+            Busy(fromForm: false);
+            return;
+        }
         _showArchived = archived;
         _listFeedbackKey = null;
         _listFeedbackIsError = false;
@@ -461,16 +516,44 @@ internal sealed class SkillsCoordinator : IDisposable
     /// the same owner-scoped repository call Sam uses. The row goes at once and the list says
     /// what happened.
     /// </summary>
-    internal async Task<bool> ToggleArchivedAsync(string id)
+    internal Task<bool> ToggleArchivedAsync(string id) =>
+        // A row from a list no longer shown (the Show choice changed) is refused.
+        _profiles.Any(profile => profile.Id == id)
+            ? ChangeArchivedAsync(id, archive: !_showArchived, fromForm: false)
+            : Task.FromResult(false);
+
+    /// <summary>
+    /// The editor's Archive or Restore (Captain 2026-11-13: the detail toolbar offers the
+    /// row's actions too). The editor stays open with its unsaved text; only the archive flag
+    /// changes.
+    /// </summary>
+    internal Task<bool> ToggleFormArchivedAsync()
     {
-        if (!TryCurrentOwner(out var owner, out var stamp) || _formOpen || IsPending
-            || _askingListDelete is not null
-            || _profiles.FirstOrDefault(profile => profile.Id == id) is null)
+        if (!_formOpen || _creating || _formId is not { } id
+            || _formPhase is not (SkillFormPhase.Editing or SkillFormPhase.SaveError
+                or SkillFormPhase.DeleteError))
+            return Task.FromResult(false);
+        return ChangeArchivedAsync(id, archive: !_formArchived, fromForm: true);
+    }
+
+    /// <summary>
+    /// Archives or restores one of the learner's skills, from its row or the editor. Nothing is
+    /// deleted, and the editor may be open beside the list. A row that leaves the list shown
+    /// goes at once; the list (and the editor, when it shows the skill) say what happened.
+    /// </summary>
+    private async Task<bool> ChangeArchivedAsync(string id, bool archive, bool fromForm)
+    {
+        if (!TryCurrentOwner(out var owner, out var stamp))
             return false;
-        var archive = !_showArchived;
+        // Not while the editor still loads this skill: its read could undo the new state.
+        if (IsBlocked || (_formOpen && _formId == id && _formPhase == SkillFormPhase.Loading))
+        {
+            Busy(fromForm);
+            return false;
+        }
         var changed = false;
         _listBusy = true;
-        Notify(list: true);
+        Notify(list: true, form: _formOpen);
         try
         {
             var result = await _repository.SetArchivedAsync(id, archive, owner);
@@ -480,41 +563,87 @@ internal sealed class SkillsCoordinator : IDisposable
                 return false;
             }
             changed = result > 0;
+            var openHere = _formOpen && _formId == id;
             if (changed)
             {
-                RemoveRow(id);
-                _listFeedbackKey = archive ? "Skills_ArchivedSuccess" : "Skills_RestoredSuccess";
+                if (_showArchived != archive)
+                    RemoveRow(id);
+                var done = archive ? "Skills_ArchivedSuccess" : "Skills_RestoredSuccess";
+                _listFeedbackKey = done;
                 _listFeedbackIsError = false;
+                if (openHere)
+                {
+                    _formArchived = archive;
+                    _formStatusKey = done;
+                    _formErrorKey = null;
+                    // The repository stamps the row's UpdatedAt (UTC) when it archives.
+                    _updatedAt = DateTime.UtcNow;
+                }
             }
             else if (result == 0)
             {
                 // Already moved (another device or Sam), deleted, or no longer the learner's:
-                // the reload below shows where it is now; nothing failed.
+                // the reload below shows where it is now; nothing failed. The editor offers
+                // the other action from now on.
                 _listFeedbackKey = null;
                 _listFeedbackIsError = false;
+                if (openHere)
+                {
+                    _formArchived = archive;
+                    _formStatusKey = null;
+                }
             }
             else
             {
-                _listFeedbackKey = archive ? "Skills_ArchiveFailed" : "Skills_RestoreFailed";
+                var failed = archive ? "Skills_ArchiveFailed" : "Skills_RestoreFailed";
+                _listFeedbackKey = failed;
                 _listFeedbackIsError = true;
+                if (openHere)
+                {
+                    _formStatusKey = null;
+                    _formErrorKey = failed;
+                }
             }
         }
         finally
         {
             _listBusy = false;
-            Notify(list: true);
+            Notify(list: true, form: _formOpen);
         }
         await ReloadAsync(quiet: true);
         return changed;
     }
 
+    /// <summary>
+    /// A list action arrived while another change runs or a confirmation asks: say so, never
+    /// drop it silently.
+    /// </summary>
+    /// <param name="fromForm">The editor asked: it says so too (on a phone the list is hidden).</param>
+    /// <param name="key">The reason; by default another change runs.</param>
+    private void Busy(bool fromForm, string? key = null)
+    {
+        key ??= "Skills_WaitForChange";
+        _listFeedbackKey = key;
+        _listFeedbackIsError = true;
+        if (fromForm && _formOpen)
+        {
+            _formStatusKey = null;
+            _formErrorKey = key;
+        }
+        Notify(list: true, form: fromForm && _formOpen);
+    }
+
     /// <summary>A row's swipe Delete: asks to confirm (one presentation at a time).</summary>
     internal void RequestListDelete(string id)
     {
-        if (!TryCurrentOwner(out _, out _) || _formOpen || IsPending
-            || _askingListDelete is not null
+        if (!TryCurrentOwner(out _, out _)
             || _profiles.FirstOrDefault(profile => profile.Id == id) is not { } profile)
             return;
+        if (IsBlocked)
+        {
+            Busy(fromForm: false);
+            return;
+        }
         _askingListDelete = profile;
         Notify(list: true);
     }
@@ -539,17 +668,15 @@ internal sealed class SkillsCoordinator : IDisposable
         _askingListDelete = null;
         if (!TryCurrentOwner(out var owner, out var stamp))
             return false;
-        if (_formOpen || IsPending)
+        if (IsBlocked)
         {
             // Something else started after it asked: say so rather than drop it silently.
-            _listFeedbackKey = "SkillEdit_DeleteFailed";
-            _listFeedbackIsError = true;
-            Notify(list: true);
+            Busy(fromForm: false);
             return false;
         }
         var removed = false;
         _listBusy = true;
-        Notify(list: true);
+        Notify(list: true, form: _formOpen);
         try
         {
             // The repository logs a failure and returns -1; it does not throw.
@@ -565,6 +692,9 @@ internal sealed class SkillsCoordinator : IDisposable
                 RemoveRow(profile.Id);
                 _listFeedbackKey = "SkillEdit_DeletedSuccess";
                 _listFeedbackIsError = false;
+                // The editor beside the list showed the deleted skill: it has nothing to show.
+                if (_formOpen && _formId == profile.Id)
+                    EndForm();
             }
             else
             {
@@ -575,7 +705,7 @@ internal sealed class SkillsCoordinator : IDisposable
         finally
         {
             _listBusy = false;
-            Notify(list: true);
+            Notify(list: true, form: true);
         }
         await ReloadAsync(quiet: true);
         return removed;
@@ -640,6 +770,10 @@ internal sealed class SkillsCoordinator : IDisposable
         _updatedAt = null;
         _formErrorKey = null;
         _confirmDelete = false;
+        _formArchived = false;
+        _formStatusKey = null;
+        _loadedTitle = string.Empty;
+        _loadedDescription = string.Empty;
         Interlocked.Increment(ref _formGeneration);
     }
 
@@ -654,6 +788,10 @@ internal sealed class SkillsCoordinator : IDisposable
         _updatedAt = null;
         _formErrorKey = null;
         _confirmDelete = false;
+        _formArchived = false;
+        _formStatusKey = null;
+        _loadedTitle = string.Empty;
+        _loadedDescription = string.Empty;
         Interlocked.Increment(ref _formGeneration);
     }
 
