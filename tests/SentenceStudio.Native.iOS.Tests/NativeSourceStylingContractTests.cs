@@ -384,7 +384,6 @@ public sealed class NativeSourceStylingContractTests
             ".WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)";
         foreach (var page in new[]
         {
-            "Features/Import/ImportContentView.cs",
             "Features/LearningResources/LearningResourceView.cs",
             "Features/Quiz/QuizView.cs",
         })
@@ -393,6 +392,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(dismiss, Source("Styling/NativeForm.cs"));
         foreach (var page in new[]
         {
+            "Features/Import/ImportContentView.cs",
             "Features/Skills/SkillProfileFormView.cs",
             "Features/Vocabulary/VocabularyWordEditView.cs",
         })

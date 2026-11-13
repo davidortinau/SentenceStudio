@@ -109,6 +109,7 @@ internal sealed partial class ApplicationScene
             {
                 if (_renderedYouTubeChannelGeneration != _app.YouTubeChannelGeneration)
                     _youTubeChannelSlot.WithNavigationTitle(_app.YouTubeChannelTitle);
+                // Redrawn whole: the link field's typing updates this draw's toolbar Save.
                 if (_youTubeChannelContent is not null)
                     Replace(_youTubeChannelContent, _app.RenderYouTubeChannel(_style));
                 RecordYouTubeChannel();
@@ -189,59 +190,36 @@ internal sealed partial class ApplicationScene
         layer.Add(Views.VStack(overlay).WithFlexibleWidth().WithPadding(8, gutter, 0, gutter));
     }
 
-    /// <summary>System Back (or a swipe) left the YouTube import page.</summary>
+    /// <summary>
+    /// System Back (or a swipe) left the YouTube pages. On a phone one Back can close both (the
+    /// collapsed split view goes back to the list column): every reference is dropped first,
+    /// then the app is told, because telling it redraws at once and must not meet a disposed
+    /// page.
+    /// </summary>
     private void OnYouTubeRoutesChanged(IReadOnlyList<string> routes)
     {
-        if (_youTubeChannelSlot is not null && !routes.Contains(ApplicationYouTubeRoutes.YouTubeChannel))
-        {
+        var channelLeft = _youTubeChannelSlot is not null
+            && !routes.Contains(ApplicationYouTubeRoutes.YouTubeChannel);
+        var importLeft = _youTubeSlot is not null
+            && !routes.Contains(ApplicationYouTubeRoutes.YouTubeImport);
+        if (channelLeft)
             DropYouTubeChannelReferences();
-            _app.OnYouTubeChannelPopped();
-        }
-        if (_youTubeSlot is not null && !routes.Contains(ApplicationYouTubeRoutes.YouTubeImport))
-        {
+        if (importLeft)
             DropYouTubeReferences();
+        // Releasing the import releases its channel page too; telling the app about the
+        // channel first would redraw with the import still open and push it again.
+        if (importLeft)
             _app.OnYouTubeImportPopped();
-        }
+        else if (channelLeft)
+            _app.OnYouTubeChannelPopped();
     }
 
     /// <summary>
-    /// Swaps the page's scroll content for the next render's when both have the same toolbar
+    /// Swaps the page's Form Sections for the next render's when both have the same toolbar
     /// shape (the same actions); false when the shapes differ, which redraws the page whole.
     /// </summary>
-    private bool TrySwapYouTubeScroll(SwiftView slot, SwiftView next)
-    {
-        if (slot.Children.Count != 1)
-            return false;
-        var current = slot.Children[0];
-        if (current.Kind != next.Kind || current.Children.Count != next.Children.Count
-            || YouTubeScroll(current) is not { } scroll || YouTubeScroll(next) is not { } nextScroll
-            || scroll.Children.Count != 1 || nextScroll.Children.Count != 1)
-            return false;
-        for (var index = 1; index < current.Children.Count; index++)
-        {
-            var action = current.Children[index];
-            var nextAction = next.Children[index];
-            if (action.Kind != nextAction.Kind || action.Text != nextAction.Text
-                || action.AccessibilityIdentifier != nextAction.AccessibilityIdentifier)
-                return false;
-            if (action.IsEnabled != nextAction.IsEnabled)
-                action.IsEnabled = nextAction.IsEnabled;
-        }
-        var content = nextScroll.Children[0];
-        nextScroll.RemoveAt(0);
-        next.Dispose();
-        ReplaceContainerChildren(scroll.Children[0], content);
-        return true;
-    }
-
-    private static SwiftView? YouTubeScroll(SwiftView page)
-    {
-        var scroll = page.Kind == "toolbar" && page.Children.Count > 0 ? page.Children[0] : page;
-        return scroll is { Kind: "scroll", AccessibilityIdentifier: YouTubeImportView.ScrollId }
-            && scroll.Children.Count == 1
-            && scroll.Children[0].AccessibilityIdentifier == YouTubeImportView.ContentId
-            ? scroll : null;
-    }
+    private bool TrySwapYouTubeScroll(SwiftView slot, SwiftView next) =>
+        TrySwapFormSections(slot, next, YouTubeImportView.ScrollId);
 
     private void DropYouTubeReferences()
     {

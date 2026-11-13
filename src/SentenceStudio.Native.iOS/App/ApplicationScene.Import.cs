@@ -7,7 +7,7 @@ namespace SentenceStudio.Native.iOS.App;
 
 /// <summary>
 /// The Library's import pages, pushed on the Library stack above the list (browse pages:
-/// the tab bar stays). A redraw swaps the page's scroll content in place, so the scroll
+/// the tab bar stays). A redraw swaps the page's Form Sections in place, so the scroll
 /// position stays while the wizard grows below; the messages are pinned over the page.
 /// </summary>
 internal sealed partial class ApplicationScene
@@ -189,61 +189,30 @@ internal sealed partial class ApplicationScene
     /// <summary>System Back (or a swipe) left the import page.</summary>
     private void OnImportRoutesChanged(IReadOnlyList<string> routes)
     {
-        if (_importWordSlot is not null && !routes.Contains(ApplicationImportRoutes.ImportWord))
-        {
+        // One Back can close both pages on a phone: drop every reference before telling the
+        // app, whose redraw must not meet a disposed page.
+        var wordLeft = _importWordSlot is not null && !routes.Contains(ApplicationImportRoutes.ImportWord);
+        var contentLeft = _importContentSlot is not null
+            && !routes.Contains(ApplicationImportRoutes.ImportContent);
+        if (wordLeft)
             DropImportWordReferences();
-            _app.OnImportWordPopped();
-        }
-        if (_importContentSlot is not null && !routes.Contains(ApplicationImportRoutes.ImportContent))
-        {
+        if (contentLeft)
             DropImportReferences();
+        // Releasing the import releases its word editor too; telling the app about the word
+        // first would redraw with the import still open and push it again.
+        if (contentLeft)
             _app.OnImportContentPopped();
-        }
+        else if (wordLeft)
+            _app.OnImportWordPopped();
     }
 
     /// <summary>
-    /// Swaps the page's scroll content for the next render's when both have the same shape
-    /// (the scroll alone, or the scroll under a toolbar with the same actions). False when
-    /// the shapes differ (the Import action appeared or left), which redraws the page whole.
+    /// Swaps the page's Form Sections for the next render's when both have the same shape
+    /// (the Form alone, or under a toolbar with the same actions), so the Form keeps its place
+    /// and scroll position while the wizard grows below.
     /// </summary>
-    private bool TrySwapImportScroll(SwiftView slot, SwiftView next)
-    {
-        if (slot.Children.Count != 1)
-            return false;
-        var current = slot.Children[0];
-        if (current.Kind != next.Kind || current.Children.Count != next.Children.Count
-            || ImportScroll(current) is not { } scroll || ImportScroll(next) is not { } nextScroll
-            || scroll.Children.Count != 1 || nextScroll.Children.Count != 1)
-            return false;
-        for (var index = 1; index < current.Children.Count; index++)
-        {
-            var action = current.Children[index];
-            var nextAction = next.Children[index];
-            if (action.Kind != nextAction.Kind || action.Text != nextAction.Text
-                || action.AccessibilityIdentifier != nextAction.AccessibilityIdentifier)
-                return false;
-            // The kept toolbar action takes the new availability with its look (the primary
-            // Import button on iPad has a drawn disabled state, not only IsEnabled).
-            if (action.AccessibilityIdentifier == ImportContentView.CommitId)
-                ImportContentView.SetCommitAvailability(action, _style, nextAction.IsEnabled);
-            else if (action.IsEnabled != nextAction.IsEnabled)
-                action.IsEnabled = nextAction.IsEnabled;
-        }
-        var content = nextScroll.Children[0];
-        nextScroll.RemoveAt(0);
-        next.Dispose();
-        ReplaceContainerChildren(scroll.Children[0], content);
-        return true;
-    }
-
-    private static SwiftView? ImportScroll(SwiftView page)
-    {
-        var scroll = page.Kind == "toolbar" && page.Children.Count > 0 ? page.Children[0] : page;
-        return scroll is { Kind: "scroll", AccessibilityIdentifier: ImportContentView.ScrollId }
-            && scroll.Children.Count == 1
-            && scroll.Children[0].AccessibilityIdentifier == ImportContentView.ContentId
-            ? scroll : null;
-    }
+    private bool TrySwapImportScroll(SwiftView slot, SwiftView next) =>
+        TrySwapFormSections(slot, next, ImportContentView.ScrollId);
 
     private void DropImportReferences()
     {

@@ -320,7 +320,7 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
     /// <summary>
     /// In the collapsed stack the person went back to the content column or the sidebar: the
     /// levels above it close, as a stack's Back closes them (a page that started in the detail
-    /// column has no content column page, so going back from it closes it). While Back is
+    /// column has no content column page, so going back closes its top page only). While Back is
     /// blocked the column stays where the path is.
     /// </summary>
     private void OnCompactColumnChanged(SwiftSplitViewColumn column)
@@ -328,7 +328,12 @@ internal sealed class LibrarySplitNavigation : ISceneNavigation
         var keep = column switch
         {
             SwiftSplitViewColumn.Sidebar => 0,
-            SwiftSplitViewColumn.Content => _startsInDetail ? 0 : 1,
+            // A page that started in the detail column has no content column page. Back from a
+            // page pushed above it (YouTube Import's channel page, Import Content's word) is
+            // reported as going back to the content column: it closes that one page, and the
+            // page below shows again (ShowColumns brings the detail column back).
+            SwiftSplitViewColumn.Content => _startsInDetail
+                ? Math.Max(0, _path.Count - 1) : 1,
             _ => _path.Count,
         };
         if (keep >= _path.Count)

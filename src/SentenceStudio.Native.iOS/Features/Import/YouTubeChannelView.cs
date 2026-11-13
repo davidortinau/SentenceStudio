@@ -7,9 +7,9 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.Import;
 
 /// <summary>
-/// The source Channel Detail page (src/SentenceStudio.UI/Pages/ChannelDetail.razor) in SwiftUI:
-/// the channel form with Cancel and Save Channel, and on an existing channel the video discovery
-/// card. Typing the link updates the coordinator without drawing the page again; Save's
+/// The source Channel Detail page (src/SentenceStudio.UI/Pages/ChannelDetail.razor) in SwiftUI,
+/// as one grouped Form (Captain 2026-11-13): the channel Section with Save Channel in the toolbar
+/// (Back leaves without saving), and on an existing channel the video discovery Section. Typing the link updates the coordinator without drawing the page again; Save's
 /// availability follows it in place.
 /// </summary>
 internal static class YouTubeChannelView
@@ -23,52 +23,47 @@ internal static class YouTubeChannelView
     private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");
 
     internal static SwiftView Page(YouTubeChannelCoordinator channel, SourceUiStyle style,
-        Func<string, string> text, Action cancel)
+        Func<string, string> text)
     {
         var state = channel.State;
-        var items = new List<SwiftView>();
+        var sections = new List<SwiftView>();
+        SwiftView? save = null;
         if (state.Blocked)
-            items.Add(style.Alert(Views.Text(text("Import_ProfileNotFound")), success: false)
-                .WithAccessibilityIdentifier("native.import.youtube.channel.blocked"));
+            sections.Add(Views.Section(string.Empty, NativeForm.Notice(style, text("Import_ProfileNotFound"),
+                "native.import.youtube.channel.blocked", error: true)));
         else if (state.IsLoading)
-            items.Add(Views.IndeterminateProgress(text("Common_Loading"))
-                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithPadding(48)
-                .WithAccessibilityIdentifier("native.import.youtube.channel.loading"));
+            sections.Add(Views.Section(string.Empty, Views.IndeterminateProgress(text("Common_Loading"))
+                .WithAccessibilityIdentifier("native.import.youtube.channel.loading")));
         else
         {
-            items.Add(Form(channel, state, style, text, cancel));
+            sections.Add(ChannelForm(channel, state, style, text, () => save));
             if (state.ShowsDiscovery)
-                items.Add(Discovery(channel, state, style, text));
+                sections.Add(Discovery(channel, state, style, text));
         }
-        var content = Views.VStack(items.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier(ContentId);
-        content.Spacing = SourceUiLayout.FormGap;
-        return style.Page(Views.Scroll(content).WithAccessibilityIdentifier(ScrollId)
-            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively));
+        // Captain 2026-11-13 (the native form pattern): one grouped Form; Save Channel is the
+        // toolbar's action and Back leaves without saving (the source's Cancel).
+        var page = NativeForm.Page(style, sections, ContentId, ScrollId);
+        if (state.Blocked || state.IsLoading)
+            return page;
+        save = Views.Button(state.IsSaving ? text("Import_Saving") : text("ChannelDetail_SaveChannel"),
+                () => _ = channel.SaveAsync())
+            .WithAccessibilityIdentifier("native.import.youtube.channel.save");
+        YouTubeImportView.SetAvailability(save, style, state.CanSave);
+        return Views.Toolbar(page, save);
     }
 
     // ---- The form (source ChannelDetail.razor:23-92) ----
 
-    private static SwiftView Form(YouTubeChannelCoordinator channel, YouTubeChannelState state,
-        SourceUiStyle style, Func<string, string> text, Action cancel)
+    private static SwiftView ChannelForm(YouTubeChannelCoordinator channel, YouTubeChannelState state,
+        SourceUiStyle style, Func<string, string> text, Func<SwiftView?> save)
     {
-        SwiftView? save = null;
-        var url = style.TextInput(Views.TextField(text("ChannelDetail_URLPlaceholder"), state.ChannelUrl,
-                    value =>
-                    {
-                        channel.SetChannelUrl(value);
-                        if (save is not null)
-                            YouTubeImportView.SetAvailability(save, style, channel.CanSave);
-                    }))
-            .WithFlexibleWidth()
-            .WithAccessibilityLabel(text("ChannelDetail_ChannelURL"))
-            .WithAccessibilityIdentifier("native.import.youtube.channel.url");
-        var urlField = Field(style, $"{text("ChannelDetail_ChannelURL")} *", url,
-            Caption(style, text("ChannelDetail_EnterFullURL")));
+        var url = NativeForm.Field($"{text("ChannelDetail_ChannelURL")} *", state.ChannelUrl,
+            "native.import.youtube.channel.url", value =>
+            {
+                channel.SetChannelUrl(value);
+                if (save() is { } button)
+                    YouTubeImportView.SetAvailability(button, style, channel.CanSave);
+            }, text("ChannelDetail_URLPlaceholder"));
 
         // Source select: "-- Select Language --" (no language) and SentenceStudio.Common.Constants.Languages.
         // The bridge's picker values must be nonempty, so "no language" has a placeholder value; a
@@ -79,10 +74,10 @@ internal static class YouTubeChannelView
         if (!string.IsNullOrWhiteSpace(state.Language) && !names.Contains(state.Language))
             names.Insert(0, state.Language);
         languages.AddRange(names.Select(language => new SwiftPickerOption(language, language)));
-        var language = Menu(style, languages,
+        var language = Choice(style, languages,
             string.IsNullOrWhiteSpace(state.Language) ? NoLanguage : state.Language,
             value => channel.SetLanguage(value == NoLanguage ? string.Empty : value),
-            text("ChannelDetail_Language"), "native.import.youtube.channel.language");
+            $"{text("ChannelDetail_Language")} *", "native.import.youtube.channel.language");
         var intervals = new SwiftPickerOption[]
         {
             new("6", text("ChannelDetail_Every6Hours")),
@@ -90,56 +85,30 @@ internal static class YouTubeChannelView
             new("24", text("ChannelDetail_Every24Hours")),
             new("48", text("ChannelDetail_Every48Hours")),
         };
-        var interval = Menu(style, intervals, state.CheckIntervalHours.ToString(CultureInfo.InvariantCulture),
+        var interval = Choice(style, intervals, state.CheckIntervalHours.ToString(CultureInfo.InvariantCulture),
             value => channel.SetCheckIntervalHours(int.Parse(value, CultureInfo.InvariantCulture)),
             text("ChannelDetail_CheckInterval"), "native.import.youtube.channel.interval");
-        var monitor = style.Text(Views.Toggle(text("ChannelDetail_MonitorChannel"), state.IsActive,
-                    channel.SetIsActive)
-                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark), SourceTextRole.Body2)
-            .WithAccessibilityIdentifier("native.import.youtube.channel.active");
+        var monitor = NativeForm.Switch(style, text("ChannelDetail_MonitorChannel"), state.IsActive,
+            channel.SetIsActive, "native.import.youtube.channel.active");
 
-        var children = new List<SwiftView>
+        var rows = new List<SwiftView>
         {
-            urlField,
-            Field(style, $"{text("ChannelDetail_Language")} *", language),
-            Field(style, text("ChannelDetail_CheckInterval"), interval),
+            url,
+            Caption(style, text("ChannelDetail_EnterFullURL")),
+            language,
+            interval,
             monitor,
         };
         if (state.Error is { } error)
-            children.Add(style.Alert(IconLabel("exclamationmark.circle", error.Format(text)), success: false)
-                .WithAccessibilityIdentifier("native.import.youtube.channel.error"));
+            rows.Add(NativeForm.Notice(style, error.Format(text), "native.import.youtube.channel.error",
+                error: true));
         if (state.IsResolving)
-        {
-            var resolving = Views.HStack(Views.IndeterminateProgress(text("ChannelDetail_ResolvingChannel")),
-                Views.Text(text("ChannelDetail_ResolvingChannel")));
-            resolving.Spacing = SourceUiLayout.ItemGap;
-            children.Add(style.InfoAlert(resolving)
+            rows.Add(Views.IndeterminateProgress(text("ChannelDetail_ResolvingChannel"))
                 .WithAccessibilityIdentifier("native.import.youtube.channel.resolving"));
-        }
-
-        var cancelButton = style.SecondaryButton(text("Common_Cancel"), cancel)
-            .WithAccessibilityIdentifier("native.import.youtube.channel.cancel");
-        SourceUiStyle.SetCustomButtonAvailability(cancelButton, style.Appearance,
-            SourceButtonRole.FilledSecondary, !state.IsSaving);
-        var saveLabel = Views.HStack();
         if (state.IsSaving)
-            saveLabel.Add(Views.IndeterminateProgress(text("Import_Saving")).WithTintColor("#FFFFFF", "#FFFFFF"));
-        saveLabel.Add(Views.Image("square.and.arrow.down"));
-        saveLabel.Add(Views.Text(text("ChannelDetail_SaveChannel")));
-        saveLabel.Spacing = 4;
-        save = style.LabelButton(saveLabel, () => _ = channel.SaveAsync(), SourceButtonRole.Primary,
-                fullWidth: true)
-            .WithAccessibilityLabel(text("ChannelDetail_SaveChannel"))
-            .WithAccessibilityIdentifier("native.import.youtube.channel.save");
-        YouTubeImportView.SetAvailability(save, style, state.CanSave);
-        var buttons = Views.HStack(cancelButton, save).WithFlexibleWidth();
-        buttons.Spacing = SourceUiLayout.ItemGap;
-        children.Add(buttons);
-
-        var column = Views.VStack(children.ToArray()).WithFlexibleWidth();
-        column.Spacing = SourceUiLayout.FormGap;
-        return style.Card(column.WithPadding(SourceUiLayout.CardInset))
-            .WithAccessibilityIdentifier("native.import.youtube.channel.form");
+            rows.Add(Views.IndeterminateProgress(text("Import_Saving"))
+                .WithAccessibilityIdentifier("native.import.youtube.channel.saving"));
+        return Views.Section(string.Empty, rows.ToArray());
     }
 
     // ---- Video discovery (source ChannelDetail.razor:95-211) ----
@@ -147,109 +116,83 @@ internal static class YouTubeChannelView
     private static SwiftView Discovery(YouTubeChannelCoordinator channel, YouTubeChannelState state,
         SourceUiStyle style, Func<string, string> text)
     {
-        var children = new List<SwiftView>
-        {
-            style.Text(IconLabel("magnifyingglass", text("ChannelDetail_DiscoverVideos")),
-                SourceTextRole.Title3, sourceHeading: true),
-        };
-
+        var rows = new List<SwiftView>();
         var checkLabel = state.IsCheckingVideos
             ? Views.HStack(Views.IndeterminateProgress(text("ChannelDetail_Checking")),
                 Views.Text(text("ChannelDetail_Checking")))
-            : Views.HStack(Views.Image("arrow.triangle.2.circlepath"),
-                Views.Text(text("ChannelDetail_CheckForNewVideos")));
-        checkLabel.Spacing = 4;
-        var check = style.LabelButton(checkLabel, () => _ = channel.CheckForNewVideosAsync(),
-                SourceButtonRole.FilledSecondary)
+            : Views.Label(text("ChannelDetail_CheckForNewVideos"), "arrow.triangle.2.circlepath");
+        if (state.IsCheckingVideos)
+            checkLabel.Spacing = SourceUiLayout.ItemGap;
+        var check = NativeForm.Action(style, Views.Button(checkLabel, () => _ = channel.CheckForNewVideosAsync())
             .WithAccessibilityLabel(text("ChannelDetail_CheckForNewVideos"))
-            .WithAccessibilityIdentifier("native.import.youtube.channel.check");
-        SourceUiStyle.SetCustomButtonAvailability(check, style.Appearance, SourceButtonRole.FilledSecondary,
-            !state.IsCheckingVideos && state.HasYouTubeChannelId);
-        var actions = new List<SwiftView> { check };
+            .WithAccessibilityIdentifier("native.import.youtube.channel.check"));
+        check.IsEnabled = !state.IsCheckingVideos && state.HasYouTubeChannelId;
+        rows.Add(check);
         if (!state.Videos.IsDefaultOrEmpty)
         {
+            var title = Format(text("ChannelDetail_ImportSelected"), state.SelectedVideoIds.Count);
             var importLabel = state.IsImportingVideos
-                ? Views.HStack(Views.IndeterminateProgress(text("ChannelDetail_Importing"))
-                        .WithTintColor("#FFFFFF", "#FFFFFF"),
+                ? Views.HStack(Views.IndeterminateProgress(text("ChannelDetail_Importing")),
                     Views.Text(text("ChannelDetail_Importing")))
-                : Views.HStack(Views.Image("arrow.down.circle"),
-                    Views.Text(Format(text("ChannelDetail_ImportSelected"), state.SelectedVideoIds.Count)));
-            importLabel.Spacing = 4;
-            var import = style.LabelButton(importLabel, () => _ = channel.ImportSelectedAsync(),
-                    SourceButtonRole.Primary)
-                .WithAccessibilityLabel(Format(text("ChannelDetail_ImportSelected"), state.SelectedVideoIds.Count))
-                .WithAccessibilityIdentifier("native.import.youtube.channel.import");
+                : Views.Label(title, "arrow.down.circle");
+            if (state.IsImportingVideos)
+                importLabel.Spacing = SourceUiLayout.ItemGap;
+            var import = NativeForm.Action(style, Views.Button(importLabel, () => _ = channel.ImportSelectedAsync())
+                .WithAccessibilityLabel(title)
+                .WithAccessibilityIdentifier("native.import.youtube.channel.import"));
             YouTubeImportView.SetAvailability(import, style,
                 !state.IsImportingVideos && state.SelectedVideoIds.Count > 0);
-            actions.Add(import);
+            rows.Add(import);
         }
-        var actionRow = Views.HStack(actions.ToArray()).WithAdaptiveStack(420);
-        actionRow.Spacing = SourceUiLayout.ItemGap;
-        children.Add(actionRow);
 
         if (!state.HasYouTubeChannelId)
         {
             var warning = new List<SwiftView>
             {
-                IconLabel("exclamationmark.triangle", text("ChannelDetail_ChannelIDNotResolved")),
+                Views.Label(text("ChannelDetail_ChannelIDNotResolved"), "exclamationmark.triangle"),
             };
             if (!string.IsNullOrEmpty(state.ResolutionError))
                 warning.Add(style.Text(Views.Text(Format(text("YouTubeChannel_ErrorLabel"), state.ResolutionError)),
                     SourceTextRole.Caption1, SourceTextTone.Secondary));
             var warningColumn = Views.VStack(warning.ToArray()).WithFlexibleWidth();
             warningColumn.Spacing = 4;
-            children.Add(warningColumn.WithForegroundColor(WarningText.Light, WarningText.Dark)
-                .WithPadding(16)
-                .WithFlexibleWidth()
-                .WithRoundedSurface("#FFF3CD", "#332701", style.Appearance.BootstrapRadius,
-                    "#FFE69C", "#997404", 1)
+            rows.Add(warningColumn.WithForegroundColor(WarningText.Light, WarningText.Dark)
                 .WithAccessibilityIdentifier("native.import.youtube.channel.unresolved"));
             var retryLabel = state.IsRetryingResolve
                 ? Views.HStack(Views.IndeterminateProgress(text("ChannelDetail_Resolving")),
                     Views.Text(text("ChannelDetail_Resolving")))
-                : Views.HStack(Views.Image("arrow.triangle.2.circlepath"),
-                    Views.Text(text("ChannelDetail_RetryResolve")));
-            retryLabel.Spacing = 4;
-            var retry = style.LabelButton(retryLabel, () => _ = channel.RetryResolveAsync(),
-                    SourceButtonRole.FilledSecondary)
+                : Views.Label(text("ChannelDetail_RetryResolve"), "arrow.triangle.2.circlepath");
+            if (state.IsRetryingResolve)
+                retryLabel.Spacing = SourceUiLayout.ItemGap;
+            var retry = NativeForm.Action(style, Views.Button(retryLabel, () => _ = channel.RetryResolveAsync())
                 .WithAccessibilityLabel(text("ChannelDetail_RetryResolve"))
-                .WithAccessibilityIdentifier("native.import.youtube.channel.retry-resolve");
-            SourceUiStyle.SetCustomButtonAvailability(retry, style.Appearance, SourceButtonRole.FilledSecondary,
-                !state.IsRetryingResolve);
-            children.Add(retry);
+                .WithAccessibilityIdentifier("native.import.youtube.channel.retry-resolve"));
+            retry.IsEnabled = !state.IsRetryingResolve;
+            rows.Add(retry);
         }
         else if (!state.Videos.IsDefaultOrEmpty)
         {
-            var toggleAll = style.LabelButton(Views.Text(text(state.AllNewSelected
-                        ? "ChannelDetail_SelectNone" : "ChannelDetail_SelectAllNew")),
-                    channel.ToggleSelectAll, SourceButtonRole.OutlineSecondary, horizontalPadding: 8)
-                .WithFixedSize()
-                .WithAccessibilityIdentifier("native.import.youtube.channel.select-all");
+            var toggleAll = NativeForm.Bordered(style, text(state.AllNewSelected
+                    ? "ChannelDetail_SelectNone" : "ChannelDetail_SelectAllNew"),
+                channel.ToggleSelectAll, "native.import.youtube.channel.select-all")
+                .WithFixedSize();
             var countRow = Views.HStack(Caption(style, Format(text("ChannelDetail_VideosFound"),
-                    state.Videos.Length)), toggleAll);
+                    state.Videos.Length)).WithFlexibleWidth(), toggleAll);
             countRow.Spacing = SourceUiLayout.ItemGap;
-            children.Add(countRow);
-            // A lazy grid draws only the rows on screen (source: a virtualized list).
-            var rows = Views.LazyVGrid(1, state.Videos.Select((video, index) =>
-                    VideoRow(channel, state, video, index, style, text)).ToArray())
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier("native.import.youtube.channel.videos");
-            rows.Spacing = 0;
-            children.Add(style.BorderedCard(rows, radius: 8));
+            rows.Add(countRow);
+            // Each video is a Form row (the Form draws only the rows on screen).
+            rows.AddRange(state.Videos.Select((video, index) =>
+                VideoRow(channel, state, video, index, style, text)));
         }
         else if (state.HasCheckedVideos && !state.IsCheckingVideos)
-            children.Add(style.Text(Views.Text(text("ChannelDetail_NoVideosFound")), SourceTextRole.Body2,
+            rows.Add(style.Text(Views.Text(text("ChannelDetail_NoVideosFound")), SourceTextRole.Body2,
                     SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.import.youtube.channel.no-videos"));
 
         if (state.DiscoveryError is { } error)
-            children.Add(style.Alert(IconLabel("exclamationmark.circle", error.Format(text)), success: false)
-                .WithAccessibilityIdentifier("native.import.youtube.channel.discovery-error"));
-
-        var column = Views.VStack(children.ToArray()).WithFlexibleWidth();
-        column.Spacing = SourceUiLayout.ItemGap + 4;
-        return style.Card(column.WithPadding(SourceUiLayout.CardInset))
-            .WithAccessibilityIdentifier("native.import.youtube.channel.discovery");
+            rows.Add(NativeForm.Notice(style, error.Format(text), "native.import.youtube.channel.discovery-error",
+                error: true));
+        return Views.Section(text("ChannelDetail_DiscoverVideos"), rows.ToArray());
     }
 
     private static SwiftView VideoRow(YouTubeChannelCoordinator channel, YouTubeChannelState state,
@@ -292,7 +235,7 @@ internal static class YouTubeChannelView
                 $"{id}.importing"));
         var row = Views.HStack(cells.ToArray()).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap + 4;
-        var padded = row.WithPadding(8, 16, 8, 16).WithFlexibleWidth();
+        var padded = row;
         // Source: an imported video's row is dimmed (opacity-50).
         if (video.IsCompleted)
             padded.WithOpacity(0.5);
@@ -313,34 +256,14 @@ internal static class YouTubeChannelView
             .WithAccessibilityIdentifier(id);
     }
 
-    private static SwiftView Menu(SourceUiStyle style, IReadOnlyList<SwiftPickerOption> options, string selected,
-        Action<string> changed, string label, string id) =>
-        style.Input(Views.Picker(string.Empty, options, selected, changed)
-                .WithPickerStyle(SwiftPickerStyle.Menu)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading))
-            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-            .WithAccessibilityLabel(label)
-            .WithAccessibilityIdentifier(id);
-
-    private static SwiftView Field(SourceUiStyle style, string label, SwiftView input, SwiftView? help = null)
-    {
-        var children = new List<SwiftView>
+    /// <summary>A choice row (NativeForm.Choice): the label beside the current value.</summary>
+    private static SwiftView Choice(SourceUiStyle style, IReadOnlyList<SwiftPickerOption> options,
+        string selected, Action<string> changed, string label, string id) =>
+        NativeForm.Choice(style, label, options, selected, id, value =>
         {
-            style.Text(Views.Text(label), SourceTextRole.Body2, SourceTextTone.Secondary), input
-        };
-        if (help is not null)
-            children.Add(help);
-        var field = Views.VStack(children.ToArray()).WithFlexibleWidth();
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field;
-    }
-
-    private static SwiftView IconLabel(string symbol, string title)
-    {
-        var label = Views.HStack(Views.Image(symbol), Views.Text(title));
-        label.Spacing = 4;
-        return label;
-    }
+            changed(value);
+            return true;
+        });
 
     private static SwiftView Caption(SourceUiStyle style, string value) =>
         style.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Secondary);

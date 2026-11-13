@@ -53,8 +53,9 @@ public sealed class NativeYouTubeImportContractTests
         Assert.DoesNotContain("IndeterminateProgress(string.Empty)", view);
         // The channel card's switch draws alone; its text is the accessible name (bridge preview.42).
         Assert.Contains(".WithLabelsHidden()", view);
-        // Source: the channel column shows from the md breakpoint, the page's Add Channel button too.
-        Assert.Equal(2, Regex.Matches(view, @"style\.ViewportWidth >= 768").Count);
+        // Source: the channel column shows from the md breakpoint. Add Channel is a toolbar icon at
+        // every width (Captain 2026-11-13, departure 90).
+        Assert.Equal(1, Regex.Matches(view, @"style\.ViewportWidth >= 768").Count);
     }
 
     [Fact]

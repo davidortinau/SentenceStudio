@@ -780,6 +780,60 @@ internal sealed partial class ApplicationScene : IDisposable
     // Quick add is a sheet (Captain 2026-11-13); the form needs no suggestion popup.
     private SwiftView ResourceFormContent() => _app.RenderResourceForm(_style);
 
+    /// <summary>
+    /// A Form page's in-place redraw (the native form pattern): when the mounted page and the
+    /// next draw have the same shape (the Form with <paramref name="formId"/>, alone or under a
+    /// toolbar with the same actions), the next Form's Sections move into the mounted Form, so
+    /// it keeps its place and scroll position, and the toolbar actions take the new
+    /// availability. False when the
+    /// shapes differ; the caller then redraws the page whole.
+    /// </summary>
+    private static bool TrySwapFormSections(SwiftView slot, SwiftView next, string formId)
+    {
+        if (slot.Children.Count != 1)
+            return false;
+        var current = slot.Children[0];
+        if (current.Kind != next.Kind
+            || FormOf(current, formId) is not { } form || FormOf(next, formId) is not { } nextForm)
+            return false;
+        // Under a toolbar, the actions must be the same ones (a Form alone has none to compare).
+        var toolbar = current.Kind == "toolbar";
+        if (toolbar && current.Children.Count != next.Children.Count)
+            return false;
+        for (var index = 1; toolbar && index < current.Children.Count; index++)
+        {
+            var action = current.Children[index];
+            var nextAction = next.Children[index];
+            if (action.Kind != nextAction.Kind || action.Text != nextAction.Text
+                || action.AccessibilityIdentifier != nextAction.AccessibilityIdentifier)
+                return false;
+            if (action.IsEnabled != nextAction.IsEnabled)
+                action.IsEnabled = nextAction.IsEnabled;
+        }
+        // The next Form's Sections move into the mounted Form; the rest of the next draw (its
+        // emptied Form, and its toolbar, which is not a container to detach from) ends here.
+        while (form.Children.Count > 0)
+        {
+            var previous = form.Children[0];
+            form.RemoveAt(0);
+            previous.Dispose();
+        }
+        while (nextForm.Children.Count > 0)
+        {
+            var section = nextForm.Children[0];
+            nextForm.RemoveAt(0);
+            form.Add(section);
+        }
+        next.Dispose();
+        return true;
+
+        static SwiftView? FormOf(SwiftView page, string id)
+        {
+            var form = page.Kind == "toolbar" && page.Children.Count > 0 ? page.Children[0] : page;
+            return form is { Kind: "form" } && form.AccessibilityIdentifier == id ? form : null;
+        }
+    }
+
     private static void ReplaceContainerChildren(SwiftView slot, SwiftView next)
     {
         while (slot.Children.Count > 0)
@@ -1004,7 +1058,8 @@ internal sealed partial class ApplicationScene : IDisposable
     {
         if (slot.Children.Count != 1)
             throw new InvalidOperationException(
-                "A SwiftUI scene slot must have exactly one mounted view.");
+                "A SwiftUI scene slot must have exactly one mounted view; it has "
+                + $"{slot.Children.Count} ({string.Join(", ", slot.Children.Select(child => child.Kind))}).");
         var previous = slot.Children[0];
         slot.RemoveAt(0);
         previous.Dispose();

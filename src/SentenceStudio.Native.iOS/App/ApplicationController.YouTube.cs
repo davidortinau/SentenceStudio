@@ -274,21 +274,8 @@ internal sealed partial class ApplicationController
 
     internal SwiftView RenderYouTubeChannel(SourceUiStyle style) =>
         _youTubeChannel is { IsOpen: true } channel
-            ? YouTubeChannelView.Page(channel, style, Text, CancelYouTubeChannel)
+            ? YouTubeChannelView.Page(channel, style, Text)
             : Views.Text(Text("Common_Loading"));
-
-    /// <summary>
-    /// Source Cancel and Back: the channel page closes without saving, and /media-import loads
-    /// its lists again.
-    /// </summary>
-    internal void CancelYouTubeChannel()
-    {
-        if (_youTubeChannel is null || IsYouTubeImportNavigationBlocked)
-            return;
-        ReleaseYouTubeChannel();
-        _ = _youTubeImport?.ReloadAfterChannelPageAsync();
-        Publish();
-    }
 
     internal string YouTubeChannelOverlayKey
     {
