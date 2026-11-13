@@ -173,32 +173,28 @@ var cases = new (string Name, Action Test)[]
     }),
     // Review 2026-11-05: a Card overload taking a header action first bound the Progress card's
     // Status row (and the empty History text) as a header action beside the title.
-    ("Word editor: Progress, History, memory aids and resources have no header action; their rows stay in the card", () =>
+    // Captain 2026-11-13 (the native form pattern): each card is a Form Section headed with its
+    // title; Find Duplicates is the terms Section's last row, and every other row sits in its own
+    // Section, not in a header.
+    ("Word editor: each card is a titled Section; Find Duplicates is the terms' last row", () =>
     {
         using var page = VocabularyWordEditView.Page(WordState(history: false), style, key => key, WordActions());
-        var terms = Find(page, "native.vocabulary.edit.section.VocabWordEdit_VocabularyTerms.header")
-            ?? throw new Exception("The Vocabulary Terms header is missing.");
-        Assert(Find(terms, "native.vocabulary.edit.duplicates") is not null);
-        foreach (var key in new[] { "VocabWordEdit_LearningProgress", "VocabWordEdit_HistoryTitle",
-                     "VocabWordEdit_EncodingMemoryAids", "VocabWordEdit_ResourceAssociations" })
+        var terms = Parent(page, "native.vocabulary.edit.duplicates")
+            ?? throw new Exception("Find Duplicates is missing.");
+        Assert(terms.Kind == "section" && terms.Text == "VocabWordEdit_VocabularyTerms");
+        Assert(terms.Children[^1].AccessibilityIdentifier == "native.vocabulary.edit.duplicates");
+        foreach (var (row, title) in new[] {
+                     ("native.vocabulary.edit.progress.status.row", "VocabWordEdit_LearningProgress"),
+                     ("native.vocabulary.edit.progress.review.row", "VocabWordEdit_LearningProgress"),
+                     ("native.vocabulary.edit.history.empty", "VocabWordEdit_HistoryTitle"),
+                     ("native.vocabulary.edit.lemma", "VocabWordEdit_EncodingMemoryAids"),
+                     ("native.vocabulary.edit.resources.count", "VocabWordEdit_ResourceAssociations") })
         {
-            Assert(Find(page, $"native.vocabulary.edit.section.{key}.header") is null);
-            Assert(Find(page, $"native.vocabulary.edit.section.{key}") is not null);
-        }
-        // Each row sits beside its card's title, not inside a header stack.
-        foreach (var row in new[] { "native.vocabulary.edit.progress.status.row",
-                     "native.vocabulary.edit.progress.details.row", "native.vocabulary.edit.progress.review.row",
-                     "native.vocabulary.edit.history.empty" })
-        {
-            var parent = Parent(page, row) ?? throw new Exception($"{row} is missing.");
-            Assert(parent.AccessibilityIdentifier?.EndsWith(".header", StringComparison.Ordinal) != true);
-            Assert(parent.Children.Any(child => child.AccessibilityIdentifier is { } sibling
-                && sibling.StartsWith("native.vocabulary.edit.section.", StringComparison.Ordinal)
-                && !sibling.EndsWith(".header", StringComparison.Ordinal)));
+            var section = Parent(page, row) ?? throw new Exception($"{row} is missing.");
+            Assert(section.Kind == "section" && section.Text == title);
         }
         using var withHistory = VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions());
-        Assert(Find(withHistory, "native.vocabulary.edit.section.VocabWordEdit_HistoryTitle.header") is null);
-        Assert(Find(withHistory, "native.vocabulary.edit.history.count") is not null);
+        Assert(Parent(withHistory, "native.vocabulary.edit.history.count")?.Text == "VocabWordEdit_HistoryTitle");
     }),
     ("Duplicate manager: encoding badges use the shared rule on the page surface, light and dark", () =>
     {
@@ -252,36 +248,38 @@ var cases = new (string Name, Action Test)[]
     {
         var open = WordState(history: false);
         using var free = VocabularyWordEditView.Page(open, style, key => key, WordActions());
-        Assert(Find(free, "native.vocabulary.edit.delete.menu")?.IsEnabled == true);
+        Assert(Find(free, "native.vocabulary.edit.delete.request")?.IsEnabled == true);
         Assert(Find(free, "native.vocabulary.edit.delete.blocked") is null);
 
         var answered = open with { Detail = open.Detail! with {
             DeleteBlock = NativeVocabularyDeleteBlock.UsedByAnswers } };
         using var blockedPage = VocabularyWordEditView.Page(answered, style, key => key, WordActions());
-        Assert(Find(blockedPage, "native.vocabulary.edit.delete.menu")?.IsEnabled == false);
+        Assert(Find(blockedPage, "native.vocabulary.edit.delete.request")?.IsEnabled == false);
         Assert(Find(blockedPage, "native.vocabulary.edit.delete.blocked")?.Text
             == "NativeVocabulary_DeleteUsedByAnswers");
         Assert(Find(blockedPage, "native.vocabulary.edit.readonly") is null);
     }),
     // Captain 2026-11-10 (Duotopia): one Save, the toolbar's primary action, as plain text at
-    // every width; no Save in the More menu and no Cancel/Save under the last card.
-    ("Word editor: one plain toolbar Save at every width, More keeps Find Duplicates and Delete", () =>
+    // every width; no Cancel/Save under the last card. Captain 2026-11-13: Delete is a trash
+    // icon beside Save and Find Duplicates a row, so there is no More menu.
+    ("Word editor: one plain toolbar Save at every width, beside the Delete icon", () =>
     {
         foreach (var width in new[] { style, wideStyle })
         {
             using var page = VocabularyWordEditView.Page(WordState(history: false), width, key => key, WordActions());
             Assert(page.Kind == "toolbar");
             Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier)
-                .SequenceEqual(["native.vocabulary.edit.more", "native.vocabulary.edit.save"]));
+                .SequenceEqual(["native.vocabulary.edit.delete.request", "native.vocabulary.edit.save"]));
             var save = Find(page, "native.vocabulary.edit.save")!;
             // A plain toolbar Button with its title, not a source-styled (filled) button.
             Assert(save.Kind == "button" && save.Text == "Common_Save" && save.Children.Count == 0);
             Assert(save.IsEnabled);
-            var more = Find(page, "native.vocabulary.edit.more")!;
-            Assert(more.Children.Select(item => item.AccessibilityIdentifier).SequenceEqual(
-                ["native.vocabulary.edit.duplicates.menu", "native.vocabulary.edit.delete.menu"]));
+            var delete = Find(page, "native.vocabulary.edit.delete.request")!;
+            Assert(delete.Children[0].Text == "Common_Delete" && delete.Children[0].SystemImageName == "trash");
+            Assert(Find(page, "native.vocabulary.edit.duplicates") is not null);
             foreach (var gone in new[] { "native.vocabulary.edit.actions", "native.vocabulary.edit.cancel",
-                         "native.vocabulary.edit.save.menu", "native.vocabulary.edit.save.toolbar" })
+                         "native.vocabulary.edit.more", "native.vocabulary.edit.save.menu",
+                         "native.vocabulary.edit.save.toolbar" })
                 Assert(Find(page, gone) is null);
         }
         var blank = WordState(history: false);
@@ -348,8 +346,8 @@ var cases = new (string Name, Action Test)[]
             WordActions(registerSection: (section, view) => sections[section] = view));
         Assert(sections.Keys.OrderBy(key => key).SequenceEqual(
             [VocabularyEditSection.Examples, VocabularyEditSection.Resources, VocabularyEditSection.EncodingLabel]));
-        var header = Find(page, "native.vocabulary.edit.section.RefSentences_Title.header")!;
-        Assert(Find(header, "native.vocabulary.edit.examples.generate")?.IsEnabled == true);
+        Assert(Parent(page, "native.vocabulary.edit.examples.generate")?.Text == "RefSentences_Title");
+        Assert(Find(page, "native.vocabulary.edit.examples.generate")?.IsEnabled == true);
         // Add needs a sentence (source); the empty text is not shown beside sentences.
         Assert(Find(page, "native.vocabulary.edit.examples.add")?.IsEnabled == false);
         Assert(Find(page, "native.vocabulary.edit.examples.empty") is null);
@@ -609,8 +607,8 @@ var cases = new (string Name, Action Test)[]
         Assert(save.Text == "Common_Add" && !save.IsEnabled);
         foreach (var id in new[] { "native.vocabulary.edit.more", "native.vocabulary.edit.duplicates",
                      "native.vocabulary.edit.encoding", "native.vocabulary.edit.slot.Examples",
-                     "native.vocabulary.edit.section.VocabWordEdit_LearningProgress",
-                     "native.vocabulary.edit.section.VocabWordEdit_HistoryTitle",
+                     "native.vocabulary.edit.progress.status.row",
+                     "native.vocabulary.edit.history.empty", "native.vocabulary.edit.delete.request",
                      "native.vocabulary.edit.resources.add" })
             Assert(Find(page, id) is null);
         var row = Find(page, "native.vocabulary.edit.resource.res-a")!;

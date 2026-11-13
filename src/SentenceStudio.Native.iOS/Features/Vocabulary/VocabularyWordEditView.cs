@@ -41,28 +41,26 @@ internal static partial class VocabularyWordEditView
         VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions)
     {
+        // Captain 2026-11-13: the native form pattern (departure 84), as the Resource form.
+        var notices = new List<SwiftView>();
         var fields = new List<SwiftView>();
         if (state.Loading)
-            fields.Add(Views.IndeterminateProgress(text("Common_Loading"))
+            notices.Add(Views.IndeterminateProgress(text("Common_Loading"))
                 .WithAccessibilityIdentifier("native.vocabulary.edit.status"));
         if (state.ErrorKey is { } error)
-            fields.Add(style.Alert(
-                    style.Text(Views.Text(text(error)), SourceTextRole.Body2),
-                    success: false)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.error"));
+            notices.Add(NativeForm.Notice(style, text(error), "native.vocabulary.edit.error",
+                error: true));
         if (state.DeleteError is { } deleteError)
-            fields.Add(style.Alert(
-                    style.Text(Views.Text(deleteError), SourceTextRole.Body2),
-                    success: false)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.delete.error"));
+            notices.Add(NativeForm.Notice(style, deleteError,
+                "native.vocabulary.edit.delete.error", error: true));
         if (state.Detail is null || state.Draft is null)
         {
             if (!state.Loading)
-                fields.Add(Views.Button(text("Common_Retry"), actions.Retry)
-                    .WithAccessibilityIdentifier("native.vocabulary.edit.retry"));
-            fields.Add(Views.Button(text("Common_Cancel"), actions.Cancel)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.cancel"));
-            return PageContent(fields, style);
+                notices.Add(NativeForm.Action(style, Views.Button(text("Common_Retry"), actions.Retry)
+                    .WithAccessibilityIdentifier("native.vocabulary.edit.retry")));
+            notices.Add(NativeForm.Action(style, Views.Button(text("Common_Cancel"), actions.Cancel)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.cancel")));
+            return PageContent([Views.Section(string.Empty, notices.ToArray())], style);
         }
 
         var detail = state.Detail;
@@ -72,16 +70,23 @@ internal static partial class VocabularyWordEditView
         var creating = state.Creating;
         var saveKey = creating ? "Common_Add" : "Common_Save";
         if (state.Saving)
-            fields.Add(Views.IndeterminateProgress(text(saveKey))
+            notices.Add(Views.IndeterminateProgress(text(saveKey))
                 .WithAccessibilityIdentifier("native.vocabulary.edit.saving"));
+        // The system dialog closes once Delete is chosen; this row shows the delete running.
+        if (state.Deleting)
+            notices.Add(Views.IndeterminateProgress(text("Common_Delete"))
+                .WithAccessibilityIdentifier("native.vocabulary.edit.deleting"));
+        if (notices.Count > 0)
+            fields.Add(Views.Section(string.Empty, notices.ToArray()));
 
-        // Source: the Vocabulary Terms header carries Find Duplicates for an existing word.
+        // Source: the Vocabulary Terms header carries Find Duplicates for an existing word;
+        // in the Form it is the Section's last row, after the terms it checks.
         SwiftView? findDuplicates = null;
         if (!creating)
         {
-            findDuplicates = style.OutlineButton(
-                    Views.Text(text("VocabWordEdit_FindDuplicates")), actions.FindDuplicates)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates");
+            findDuplicates = NativeForm.Action(style, Views.Button(Views.Label(
+                        text("VocabWordEdit_FindDuplicates"), "doc.on.doc"), actions.FindDuplicates)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates"));
             findDuplicates.IsEnabled = state.CanFindDuplicates;
         }
         fields.Add(CardWithHeaderAction(style, "VocabWordEdit_VocabularyTerms", text,
@@ -91,7 +96,7 @@ internal static partial class VocabularyWordEditView
                 "VocabWordEdit_NativePlaceholder", "native.vocabulary.edit.native",
                 draft.NativeTerm, nameof(draft.NativeTerm), state, style, text,
                 actions)));
-        fields.Add(EncodingCard(detail, state, style, text, actions));
+        fields.AddRange(EncodingCard(detail, state, style, text, actions));
         // Source: Reference Sentences for an existing word.
         if (!creating)
             fields.Add(Section(VocabularyEditSection.Examples,
@@ -127,11 +132,11 @@ internal static partial class VocabularyWordEditView
         }
         fields.Add(Section(VocabularyEditSection.Resources,
             ResourceCard(detail, state, style, text, actions), actions));
-        // The More menu's Delete is disabled for a word the server would keep; this says why.
+        // The toolbar Delete is disabled for a word the server would keep; this says why.
         if (!creating && VocabularyWordCommands.DeleteBlockedReason(detail, text) is { } deleteBlocked)
-            fields.Add(style.Text(Views.Text(deleteBlocked), SourceTextRole.Small,
-                    SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.delete.blocked"));
+            fields.Add(Views.Section(string.Empty, style.Text(Views.Text(deleteBlocked),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.delete.blocked")));
         // Captain 2026-11-10: one Save, the toolbar's primary action at every width, as plain
         // toolbar text (no filled button, no second Save in the More menu, none at the bottom).
         // Back leaves without saving, as the source's Cancel did.
@@ -143,43 +148,29 @@ internal static partial class VocabularyWordEditView
         if (creating)
             return Views.Toolbar(PageContent(fields, style), save)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.page");
-        var menuDuplicates = Views.Button(text("VocabWordEdit_FindDuplicates"),
-                actions.FindDuplicates)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.duplicates.menu");
-        menuDuplicates.IsEnabled = state.CanFindDuplicates;
-        var menuDelete = Views.Button(text("Common_Delete"), actions.RequestDelete)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.delete.menu");
-        menuDelete.IsEnabled = state.CanDelete;
-        var more = Views.Menu(text("More"), menuDuplicates, menuDelete)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.more");
+        // Captain 2026-11-13 (the Skill and Resource editors, for every editor): Delete is a
+        // trash icon beside Save, not in a More menu; Find Duplicates is the terms' row.
+        var delete = Views.Button(Views.Label(text("Common_Delete"), "trash"),
+                actions.RequestDelete)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.delete.request");
+        delete.IsEnabled = state.CanDelete;
         // Save last: the trailing place of a confirming action.
-        return Views.Toolbar(PageContent(fields, style), more, save)
+        return Views.Toolbar(PageContent(fields, style), delete, save)
             .WithAccessibilityIdentifier("native.vocabulary.edit.page");
     }
 
-    /// <summary>A card in its own slot, which the coordinator refills when only that card changed.</summary>
+    /// <summary>A card's Section, which the coordinator refills in place when only it changed.</summary>
     private static SwiftView Section(
         VocabularyEditSection section, SwiftView card, VocabularyEditActions actions)
     {
-        var slot = Views.VStack(card).WithFlexibleWidth()
-            .WithAccessibilityIdentifier($"native.vocabulary.edit.slot.{section}");
-        actions.RegisterSection?.Invoke(section, slot);
-        return slot;
+        actions.RegisterSection?.Invoke(section, card);
+        return card;
     }
 
     private static SwiftView PageContent(
-        List<SwiftView> fields, SourceUiStyle style)
-    {
-        var content = Views.VStack(fields.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.edit.scroll.content");
-        content.Spacing = SourceUiLayout.PageGap;
-        // A drag into the keyboard puts it away: the mnemonic's Return adds a line.
-        return style.Page(Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.scroll")
-            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively));
-    }
+        List<SwiftView> sections, SourceUiStyle style) =>
+        NativeForm.Page(style, sections, "native.vocabulary.edit.scroll",
+            "native.vocabulary.edit.screen");
 
     private static SwiftView Card(
         SourceUiStyle style, string titleKey, Func<string, string> text,
@@ -188,55 +179,37 @@ internal static partial class VocabularyWordEditView
 
     // Not a Card overload: with a SwiftView? parameter first, Card(style, key, text, row, ...)
     // would bind its first row as the header action.
+    /// <summary>A Section headed with the card's title; its action (if any) is the last row.</summary>
     private static SwiftView CardWithHeaderAction(
         SourceUiStyle style, string titleKey, Func<string, string> text,
-        SwiftView? headerAction, params SwiftView[] content)
-    {
-        var title = style.Text(Views.Text(text(titleKey)),
-                SourceTextRole.Title3, sourceHeading: true)
-            .WithAccessibilityIdentifier($"native.vocabulary.edit.section.{titleKey}");
-        var heading = title;
-        if (headerAction is not null)
-        {
-            heading = Views.HStack(title.WithFlexibleWidth(), headerAction)
-                .WithAdaptiveStack(420)
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier(
-                    $"native.vocabulary.edit.section.{titleKey}.header");
-            heading.Spacing = SourceUiLayout.ItemGap;
-        }
-        var items = Views.VStack([heading, ..content])
-            .WithPadding(SourceUiLayout.LargeCardInset)
-            .WithFlexibleWidth();
-        items.Spacing = SourceUiLayout.FormGap;
-        return style.Card(items);
-    }
+        SwiftView? headerAction, params SwiftView[] content) =>
+        Views.Section(text(titleKey), headerAction is null ? content : [.. content, headerAction]);
 
     private static SwiftView TargetField(
         VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions)
     {
         var draft = state.Draft!;
-        var field = style.TextInput(Views.TextField(
+        var field = Views.TextField(
                 text("VocabWordEdit_TargetPlaceholder"),
                 draft.TargetTerm,
-                value => actions.Change(nameof(draft.TargetTerm), value)))
-            .WithFlexibleWidth()
+                value => actions.Change(nameof(draft.TargetTerm), value))
+            .WithAccessibilityLabel(text("VocabWordEdit_TargetLanguageTerm"))
             .WithAccessibilityIdentifier("native.vocabulary.edit.target");
         field.IsEnabled = !state.Saving;
         var play = Views.Button(Views.Image(
                     state.PlayingAudio ? "speaker.wave.3.fill" : "speaker.wave.2"),
                 actions.PlayAudio)
+            // Its own target: an automatic-style button would make the whole Form row play.
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityLabel(text("VocabWordEdit_PlayAudio"))
             .WithAccessibilityIdentifier("native.vocabulary.edit.audio");
         play.IsEnabled = !state.PlayingAudio && !state.Saving
             && !string.IsNullOrWhiteSpace(draft.TargetTerm);
-        var row = Views.HStack(field, play).WithFlexibleWidth();
+        var row = Views.HStack(field, play);
         row.Spacing = SourceUiLayout.ItemGap;
-        return Views.VStack(
-                style.Text(Views.Text(text("VocabWordEdit_TargetLanguageTerm")),
-                    SourceTextRole.Body2, SourceTextTone.Secondary),
-                row)
+        return Views.LabeledContent(text("VocabWordEdit_TargetLanguageTerm"), row)
             .WithAccessibilityIdentifier("native.vocabulary.edit.target.field");
     }
 
@@ -245,36 +218,29 @@ internal static partial class VocabularyWordEditView
         string property, VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions)
     {
-        var field = style.TextInput(Views.TextField(
-            text(placeholderKey), value,
-            changed => actions.Change(property, changed)));
+        var field = NativeForm.Field(text(titleKey), value, id,
+            changed => actions.Change(property, changed), text(placeholderKey));
         field.IsEnabled = !state.Saving;
-        return Views.VStack(
-                style.Text(Views.Text(text(titleKey)),
-                    SourceTextRole.Body2, SourceTextTone.Secondary),
-                field.WithAccessibilityIdentifier(id))
-            .WithFlexibleWidth();
+        return field;
     }
 
-    private static SwiftView EncodingCard(
+    private static IEnumerable<SwiftView> EncodingCard(
         NativeVocabularyDetail detail, VocabularyBrowserEdit state,
         SourceUiStyle style, Func<string, string> text,
         VocabularyEditActions actions)
     {
         var draft = state.Draft!;
-        var encoding = style.Text(Views.Text(EncodingText(detail.Word.EncodingLabel, text)),
-                SourceTextRole.Body2)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.encoding");
         var fields = new List<SwiftView>();
-        // Source: the strength of an existing word (a new one has no sentences to count). The
-        // coordinator updates it in place as sentences are added or removed.
+        // Source: the strength of an existing word (a new one has no sentences to count), as a
+        // value row: the label beside Basic, Good or Strong. The coordinator updates the value
+        // in place as sentences are added or removed.
         if (!state.Creating)
         {
-            actions.RegisterSection?.Invoke(VocabularyEditSection.EncodingLabel, encoding);
-            fields.Add(encoding);
+            var strength = Views.Text(EncodingText(detail.Word.EncodingLabel, text));
+            actions.RegisterSection?.Invoke(VocabularyEditSection.EncodingLabel, strength);
+            fields.Add(Views.LabeledContent(EncodingLabelText(text), strength)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.encoding"));
         }
-        else
-            encoding.Dispose();
         fields.Add(TextField("VocabWordEdit_Lemma",
             "VocabWordEdit_LemmaPlaceholder", "native.vocabulary.edit.lemma",
             draft.Lemma ?? string.Empty, nameof(draft.Lemma),
@@ -286,21 +252,14 @@ internal static partial class VocabularyWordEditView
                 StringComparison.OrdinalIgnoreCase));
         if (selectedLanguage < 0)
             selectedLanguage = 0;
-        var language = style.Input(Views.Picker(
-                text("VocabWordEdit_Language"),
-                languages.Select(value => value.Length == 0
-                        ? text("VocabWordEdit_NotSet") : value).ToArray(),
-                selectedLanguage,
-                index => actions.Change(nameof(draft.Language),
-                    languages[Math.Clamp(index, 0, languages.Length - 1)]))
-            .WithPickerStyle(SwiftPickerStyle.Menu)
-            .WithFlexibleWidth())
-            .WithAccessibilityIdentifier("native.vocabulary.edit.language");
+        var language = NativeForm.Choice(style, text("VocabWordEdit_Language"),
+            languages.Select(value => value.Length == 0
+                ? text("VocabWordEdit_NotSet") : value).ToArray(),
+            selectedLanguage, "native.vocabulary.edit.language",
+            index => actions.Change(nameof(draft.Language),
+                languages[Math.Clamp(index, 0, languages.Length - 1)]));
         language.IsEnabled = !state.Saving;
-        fields.Add(Views.VStack(
-            style.Text(Views.Text(text("VocabWordEdit_Language")),
-                SourceTextRole.Body2, SourceTextTone.Secondary),
-            language));
+        fields.Add(language);
 
         var types = draft.LexicalUnitType is LexicalUnitType.Unknown
                 or LexicalUnitType.Idiom
@@ -308,8 +267,7 @@ internal static partial class VocabularyWordEditView
                 LexicalUnitType.Phrase, LexicalUnitType.Sentence }
             : new[] { LexicalUnitType.Word, LexicalUnitType.Phrase,
                 LexicalUnitType.Sentence };
-        var type = style.Input(Views.Picker(
-                text("NativeResources_TypeFilter"),
+        var type = NativeForm.Choice(style, text("NativeResources_TypeFilter"),
                 types.Select(value => text(value switch {
                     LexicalUnitType.Phrase => "Vocabulary_FilterTypePhrase",
                     LexicalUnitType.Sentence => "Vocabulary_FilterTypeSentence",
@@ -317,48 +275,42 @@ internal static partial class VocabularyWordEditView
                     LexicalUnitType.Idiom => "NativeResources_LexicalIdiom",
                     _ => "Vocabulary_FilterTypeWord"
                 })).ToArray(),
-                Array.IndexOf(types, draft.LexicalUnitType),
+                Array.IndexOf(types, draft.LexicalUnitType), "native.vocabulary.edit.type",
                 index => actions.Change(nameof(draft.LexicalUnitType),
-                    types[Math.Clamp(index, 0, types.Length - 1)].ToString()))
-            .WithPickerStyle(SwiftPickerStyle.Menu)
-            .WithFlexibleWidth())
-            .WithAccessibilityIdentifier("native.vocabulary.edit.type");
+                    types[Math.Clamp(index, 0, types.Length - 1)].ToString()));
         type.IsEnabled = !state.Saving && !detail.HasConstituentLinks;
-        fields.Add(Views.VStack(
-            style.Text(Views.Text(text("NativeResources_TypeFilter")),
-                SourceTextRole.Body2, SourceTextTone.Secondary),
-            type));
+        fields.Add(type);
         fields.Add(TextField("VocabWordEdit_Tags",
             "VocabWordEdit_TagsPlaceholder", "native.vocabulary.edit.tags",
             draft.Tags ?? string.Empty, nameof(draft.Tags), state, style,
             text, actions));
-        var mnemonic = Views.TextEditor(draft.MnemonicText ?? string.Empty,
-                state.Saving ? null
-                    : value => actions.Change(nameof(draft.MnemonicText), value))
-            .WithTextEditorScrollBackgroundHidden()
-            .WithMinimumHeight(110);
+        var mnemonic = NativeForm.Editor(style, text("VocabWordEdit_MnemonicStory"),
+            draft.MnemonicText, "native.vocabulary.edit.mnemonic",
+            value => actions.Change(nameof(draft.MnemonicText), value), rows: 4);
         mnemonic.IsEnabled = !state.Saving;
-        fields.Add(Views.VStack(
-            style.Text(Views.Text(text("VocabWordEdit_MnemonicStory")),
-                SourceTextRole.Body2, SourceTextTone.Secondary),
-            style.Input(mnemonic)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.mnemonic")));
-        fields.Add(TextField("VocabWordEdit_MnemonicImageUrl",
+        var memory = new List<SwiftView> { mnemonic };
+        memory.Add(TextField("VocabWordEdit_MnemonicImageUrl",
             "VocabWordEdit_MnemonicImageUrl",
             "native.vocabulary.edit.image.url", draft.MnemonicImageUri ?? string.Empty,
             nameof(draft.MnemonicImageUri), state, style, text, actions));
         if (state.Photo is { } photo)
-            fields.Add(Views.ImageFromBytes(
+            memory.Add(Views.ImageFromBytes(
                     photo.Bytes, text("VocabWordEdit_MnemonicAlt"), 120)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.image.preview"));
-        return Card(style, "VocabWordEdit_EncodingMemoryAids",
-            text, fields.ToArray());
+        return [
+            Card(style, "VocabWordEdit_EncodingMemoryAids", text, fields.ToArray()),
+            Views.Section(text("VocabWordEdit_MnemonicStory"), memory.ToArray())
+        ];
     }
 
-    /// <summary>"Encoding strength" and the word's label (Basic, Good or Strong).</summary>
+    /// <summary>The word's encoding strength (Basic, Good or Strong), the value of its row.</summary>
     internal static string EncodingText(string label, Func<string, string> text) =>
-        $"{text("VocabWordEdit_EncodingStrength")} "
-        + text(VocabularyExampleText.EncodingKey(label));
+        text(VocabularyExampleText.EncodingKey(label));
+
+    /// <summary>The row's label: the source's "Encoding Strength:" without the colon, which a
+    /// label beside its value does not need.</summary>
+    private static string EncodingLabelText(Func<string, string> text) =>
+        text("VocabWordEdit_EncodingStrength").TrimEnd(':', ' ');
 
     private static SwiftView ProgressCard(
         NativeVocabularyDetail detail, SourceUiStyle style,
@@ -384,24 +336,31 @@ internal static partial class VocabularyWordEditView
                             text("VocabWordEdit_DaysAway"),
                             (review.Date - DateTime.Now.Date).Days)
                         : review.ToString("MMM d", CultureInfo.CurrentCulture);
-        var summary = progress is null
-            ? text("VocabWordEdit_StartPracticing")
-            : string.Join("\n", [
-                $"{text("NativeVocabQuiz_Details_CurrentStreak")}: "
-                    + progress.CurrentStreak.ToString("F1", CultureInfo.CurrentCulture),
-                $"{text("NativeVocabQuiz_Details_ProductionInStreak")}: "
-                    + $"{progress.ProductionInStreak}/2",
-                $"{text("NativeVocabQuiz_Details_MasteryScore")}: "
-                    + progress.MasteryScore.ToString("P0", CultureInfo.CurrentCulture)
-            ]);
-        return Card(style, "VocabWordEdit_LearningProgress", text,
+        var rows = new List<SwiftView> {
             Value("VocabWordEdit_Status", detail.Word.IsKnown
                 ? $"{status} · {text("VocabWordEdit_EarnedThrough")}" : status,
-                "native.vocabulary.edit.progress.status", style, text),
-            Value("VocabWordEdit_Details", summary,
-                "native.vocabulary.edit.progress.details", style, text),
-            Value("VocabWordEdit_NextReview", next,
-                "native.vocabulary.edit.progress.review", style, text));
+                "native.vocabulary.edit.progress.status", style, text)
+        };
+        // Source "Details": one value row per measure (the native form pattern), or the
+        // invitation to start practicing.
+        if (progress is null)
+            rows.Add(Value("VocabWordEdit_Details", text("VocabWordEdit_StartPracticing"),
+                "native.vocabulary.edit.progress.details", style, text));
+        else
+        {
+            rows.Add(Value("NativeVocabQuiz_Details_CurrentStreak",
+                progress.CurrentStreak.ToString("F1", CultureInfo.CurrentCulture),
+                "native.vocabulary.edit.progress.streak", style, text));
+            rows.Add(Value("NativeVocabQuiz_Details_ProductionInStreak",
+                $"{progress.ProductionInStreak}/2",
+                "native.vocabulary.edit.progress.production", style, text));
+            rows.Add(Value("NativeVocabQuiz_Details_MasteryScore",
+                progress.MasteryScore.ToString("P0", CultureInfo.CurrentCulture),
+                "native.vocabulary.edit.progress.mastery", style, text));
+        }
+        rows.Add(Value("VocabWordEdit_NextReview", next,
+            "native.vocabulary.edit.progress.review", style, text));
+        return Card(style, "VocabWordEdit_LearningProgress", text, rows.ToArray());
     }
 
     private static SwiftView HistoryCard(
@@ -470,24 +429,29 @@ internal static partial class VocabularyWordEditView
         {
             var title = style.Text(Views.Text(resource.Title), SourceTextRole.Body1)
                 .WithFlexibleWidth();
-            SwiftView trailing;
+            // A smart resource fills itself: shown, marked, never removed.
             if (resource.IsSmartResource)
-                trailing = style.Text(Views.Text(text("SmartResource")),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary);
-            else
             {
-                trailing = Views.Button(Views.Image("minus.circle"),
-                        () => actions.ToggleResource(resource.Id, false))
-                    .WithAccessibilityLabel(string.Format(CultureInfo.CurrentCulture,
-                        text("VocabWordEdit_RemoveFromResource"), resource.Title))
-                    .WithAccessibilityIdentifier(
-                        $"native.vocabulary.edit.resource.{resource.Id}.remove");
-                trailing.IsEnabled = !state.Saving;
+                var smart = Views.HStack(title, style.Text(Views.Text(text("SmartResource")),
+                        SourceTextRole.Caption1, SourceTextTone.Secondary))
+                    .WithFlexibleWidth()
+                    .WithAccessibilityIdentifier($"native.vocabulary.edit.resource.{resource.Id}");
+                smart.Spacing = SourceUiLayout.ItemGap;
+                return smart;
             }
-            var row = Views.HStack(title, trailing).WithFlexibleWidth()
+            // Captain 2026-11-13 (the native pattern): swipe left to remove the word from it.
+            if (state.Saving)
+                return title.WithAccessibilityIdentifier(
+                    $"native.vocabulary.edit.resource.{resource.Id}");
+            var remove = Views.Button(Views.Label(string.Format(CultureInfo.CurrentCulture,
+                        text("VocabWordEdit_RemoveFromResource"), resource.Title), "minus.circle"),
+                    () => actions.ToggleResource(resource.Id, false))
+                .WithButtonRole(SwiftButtonRole.Destructive)
+                .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+                .WithAccessibilityIdentifier(
+                    $"native.vocabulary.edit.resource.{resource.Id}.remove");
+            return Views.SwipeRow(title, [remove])
                 .WithAccessibilityIdentifier($"native.vocabulary.edit.resource.{resource.Id}");
-            row.Spacing = SourceUiLayout.ItemGap;
-            return row;
         }));
         var addable = state.AddableResources
             .Select(resource => Views.Button(resource.Title,
@@ -497,11 +461,9 @@ internal static partial class VocabularyWordEditView
             .ToArray();
         if (addable.Length > 0)
         {
-            var label = Views.HStack(Views.Image("plus.circle"),
-                Views.Text(text("VocabWordEdit_AddToResource")));
-            label.Spacing = 6;
-            var add = Views.Menu(label, addable)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.resources.add");
+            var add = NativeForm.Action(style, Views.Menu(
+                    Views.Label(text("VocabWordEdit_AddToResource"), "plus.circle"), addable)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.resources.add"));
             add.IsEnabled = !state.Saving;
             fields.Add(add);
         }
@@ -546,10 +508,6 @@ internal static partial class VocabularyWordEditView
     private static SwiftView Value(
         string key, string value, string id,
         SourceUiStyle style, Func<string, string> text) =>
-        Views.VStack(
-            style.Text(Views.Text(text(key)),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary),
-            style.Text(Views.Text(value), SourceTextRole.Body2)
-                .WithAccessibilityIdentifier(id))
+        Views.LabeledContent(text(key), Views.Text(value).WithAccessibilityIdentifier(id))
             .WithAccessibilityIdentifier($"{id}.row");
 }

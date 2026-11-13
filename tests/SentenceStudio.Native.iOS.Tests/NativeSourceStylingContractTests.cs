@@ -378,16 +378,23 @@ public sealed class NativeSourceStylingContractTests
     {
         // A TextEditor's Return adds a line, so without this nothing but the page's own action
         // closes the keyboard, and it covers the tab bar (found on Import Content, 2026-11-06).
+        const string dismiss =
+            ".WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)";
         foreach (var page in new[]
         {
             "Features/Import/ImportContentView.cs",
             "Features/LearningResources/LearningResourceView.cs",
             "Features/Quiz/QuizView.cs",
+        })
+            Assert.Contains(dismiss, Source(page));
+        // The native form pattern (Captain 2026-11-13): NativeForm.Page carries it for every form.
+        Assert.Contains(dismiss, Source("Styling/NativeForm.cs"));
+        foreach (var page in new[]
+        {
             "Features/Skills/SkillProfileFormView.cs",
             "Features/Vocabulary/VocabularyWordEditView.cs",
         })
-            Assert.Contains(".WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
-                Source(page));
+            Assert.Contains("NativeForm.Page(", Source(page));
     }
 
     [Fact]

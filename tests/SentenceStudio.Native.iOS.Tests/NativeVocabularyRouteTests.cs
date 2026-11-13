@@ -129,9 +129,12 @@ public sealed class NativeVocabularyRouteTests
             "Replace(_vocabularyWordContent, _app.RenderVocabularyWord(_style));",
             scene);
         Assert.Contains("Replace(_vocabularyWordSlot, confirmation);", scene);
+        // The system confirmation dialog (Captain 2026-11-13): shown while the request waits,
+        // gone once Delete is running.
         Assert.Contains(
-            "_vocabularyDeleteConfirmation.IsPresented = _app.IsVocabularyDeletePresented;",
+            "var asking = _app.IsVocabularyDeletePresented && !_app.IsVocabularyDeletePending;",
             scene);
+        Assert.Contains("_vocabularyDeleteConfirmation.IsPresented = asking;", scene);
         Assert.DoesNotContain("_vocabularyWordContent.RemoveAt(", scene);
         Assert.Contains("FindFocusedInput(_vocabularyWordSlot)", scene);
         Assert.Contains("input.FocusRequested = true;", scene);
@@ -140,15 +143,20 @@ public sealed class NativeVocabularyRouteTests
         Assert.DoesNotContain("_vocabularyFilterSlot.RemoveAt(", scene);
 
         var editor = Source("Features/Vocabulary/VocabularyWordEditView.cs");
-        Assert.Contains("return PageContent(fields, style);", editor);
+        // A load error is a notices Section with Retry and Cancel rows.
+        Assert.Contains("return PageContent([Views.Section(string.Empty, notices.ToArray())], style);",
+            editor);
         // Captain 2026-11-10: one plain Save as the toolbar's last (primary) action at every
-        // width; the More menu keeps Find Duplicates and Delete; nothing under the last card.
-        // A new word's form says Add and has no More menu (source add mode).
-        Assert.Contains("return Views.Toolbar(PageContent(fields, style), more, save)", editor);
+        // width; nothing under the last card. Captain 2026-11-13 (the native form pattern):
+        // Delete is a trash icon beside Save and Find Duplicates a row of the terms Section, so
+        // there is no More menu. A new word's form says Add and has neither (source add mode).
+        Assert.Contains("return Views.Toolbar(PageContent(fields, style), delete, save)", editor);
+        Assert.Contains("Views.Button(Views.Label(text(\"Common_Delete\"), \"trash\")", editor);
+        Assert.Contains("native.vocabulary.edit.duplicates", editor);
         Assert.Contains("var saveKey = creating ? \"Common_Add\" : \"Common_Save\";", editor);
         Assert.Contains("var save = Views.Button(text(saveKey), actions.Save)", editor);
         Assert.Contains("return Views.Toolbar(PageContent(fields, style), save)", editor);
-        Assert.Contains("Views.Menu(text(\"More\"), menuDuplicates, menuDelete)", editor);
+        Assert.DoesNotContain("Views.Menu(text(\"More\")", editor);
         Assert.DoesNotContain("PrimaryButton(text(\"Common_Save\")", editor);
         Assert.DoesNotContain("native.vocabulary.edit.actions", editor);
         Assert.DoesNotContain("ViewportWidth >= 768", editor);
@@ -157,7 +165,7 @@ public sealed class NativeVocabularyRouteTests
         var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
         Assert.Contains("RegisterSave: view => _saveButtons.Add(view),", coordinator);
         Assert.Contains("button.IsEnabled = enabled;", coordinator);
-        Assert.Contains("return style.Page(Views.Scroll(content)", editor);
+        Assert.Contains("NativeForm.Page(style, sections,", editor);
         // A resource or sentence change refills only its card, so the page keeps its scroll,
         // on the next main-queue turn (not inside the tap of the button it replaces).
         Assert.Contains("ScheduleRefill(VocabularyEditSection.Resources);", coordinator);

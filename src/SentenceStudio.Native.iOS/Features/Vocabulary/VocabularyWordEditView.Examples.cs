@@ -7,9 +7,10 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 
 /// <summary>
-/// The word editor's Reference Sentences card (source ReferenceSentencesSection, restored at the
-/// Captain's request 2026-11-10): Generate in the header, the add row, the AI suggestions to
-/// keep or discard, then the owner's sentences, core first, each with its actions menu. Every
+/// The word editor's Reference Sentences Section (source ReferenceSentencesSection, restored at
+/// the Captain's request 2026-11-10; native Form rows 2026-11-13): Generate, the add rows, the
+/// AI suggestions to keep or discard, then the owner's sentences, core first, each with its
+/// actions menu. Every
 /// change saves at once, as the source does; the word's own Save is not involved.
 /// </summary>
 internal static partial class VocabularyWordEditView
@@ -28,16 +29,20 @@ internal static partial class VocabularyWordEditView
         var examples = state.Examples ?? VocabularyExamplesState.Empty;
         // The word's Save, Delete or a handoff holds the whole editor.
         var locked = state.Saving || state.Deleting || state.HandingOff;
+        // Captain 2026-11-13 (the native form pattern): the card is a Form Section of rows.
+        // Generate is an accent action row; the add fields are field rows; each sentence is a
+        // row with its actions menu.
         var generateLabel = examples.Generating
             ? Views.HStack(Views.IndeterminateProgress(text("RefSentences_Generating")),
                 Views.Text(text("RefSentences_Generating")))
-            : Views.HStack(Views.Image("sparkles"), Views.Text(text("RefSentences_Generate")));
-        generateLabel.Spacing = 6;
+            : Views.Label(text("RefSentences_Generate"), "sparkles");
+        if (examples.Generating)
+            generateLabel.Spacing = SourceUiLayout.ItemGap;
         // One accessible name: the spinner and the text would otherwise both be read.
-        var generate = style.OutlineButton(generateLabel, actions.Generate)
+        var generate = NativeForm.Action(style, Views.Button(generateLabel, actions.Generate)
             .WithAccessibilityLabel(text(examples.Generating
                 ? "RefSentences_Generating" : "RefSentences_Generate"))
-            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.generate");
+            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.generate"));
         generate.IsEnabled = !examples.Generating && !locked;
 
         var rows = new List<SwiftView>
@@ -45,108 +50,96 @@ internal static partial class VocabularyWordEditView
             style.Text(Views.Text(text("RefSentences_Help")),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.examples.help"),
-            // A write in progress makes the fields read-only: it may clear them when it ends.
-            AddExampleRow(examples, locked || examples.Writing, style, text, actions)
+            generate
         };
         if (examples.Message is { } message)
-            rows.Add(style.Alert(style.Text(Views.Text(message), SourceTextRole.Body2),
-                    success: !examples.MessageIsError, compact: true)
-                .WithAccessibilityAnnouncement(message)
-                .WithAccessibilityIdentifier("native.vocabulary.edit.examples.message"));
+            rows.Add(NativeForm.Notice(style, message,
+                    "native.vocabulary.edit.examples.message", examples.MessageIsError)
+                .WithAccessibilityAnnouncement(message));
+        // A write in progress makes the fields read-only: it may clear them when it ends.
+        rows.AddRange(AddExampleRows(examples, locked || examples.Writing, style, text, actions));
         if (examples.Suggestions.Count > 0)
-            rows.Add(SuggestionTray(examples, locked || examples.Writing, style, text, actions));
+            rows.AddRange(SuggestionRows(examples, locked || examples.Writing, style, text,
+                actions));
         if (examples.Sentences.Count == 0 && examples.Suggestions.Count == 0)
             rows.Add(style.Text(Views.Text(text("RefSentences_Empty")),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.vocabulary.edit.examples.empty"));
-        rows.AddRange(examples.Sentences.Select(sentence => examples.EditingId == sentence.Id
-            ? EditedSentence(sentence, examples, locked || examples.Writing, style, text, actions)
-            : Sentence(sentence, examples.Writing || locked, style, text, actions)));
-        return CardWithHeaderAction(style, "RefSentences_Title", text, generate, rows.ToArray());
+        foreach (var sentence in examples.Sentences)
+        {
+            if (examples.EditingId == sentence.Id)
+                rows.AddRange(EditedSentenceRows(sentence, examples,
+                    locked || examples.Writing, style, text, actions));
+            else
+                rows.Add(Sentence(sentence, examples.Writing || locked, style, text, actions));
+        }
+        return Views.Section(text("RefSentences_Title"), rows.ToArray());
     }
 
-    private static SwiftView AddExampleRow(
+    /// <summary>The add rows: the sentence, its translation, its register, and Add.</summary>
+    private static IEnumerable<SwiftView> AddExampleRows(
         VocabularyExamplesState examples, bool locked, SourceUiStyle style,
         Func<string, string> text, VocabularyExampleActions actions)
     {
-        var target = SentenceField(text("RefSentences_AddTargetPlaceholder"), examples.NewTarget,
+        yield return SentenceField(text("RefSentences_AddTargetPlaceholder"), examples.NewTarget,
             value => actions.ChangeNew(VocabularyExampleField.Target, value),
-            "native.vocabulary.edit.examples.new.target", !locked, style);
-        var native = SentenceField(text("RefSentences_AddNativePlaceholder"), examples.NewNative,
+            "native.vocabulary.edit.examples.new.target", !locked);
+        yield return SentenceField(text("RefSentences_AddNativePlaceholder"), examples.NewNative,
             value => actions.ChangeNew(VocabularyExampleField.Native, value),
-            "native.vocabulary.edit.examples.new.native", !locked, style);
-        var register = RegisterPicker(examples.NewRegister, actions.SetNewRegister,
+            "native.vocabulary.edit.examples.new.native", !locked);
+        yield return RegisterPicker(examples.NewRegister, actions.SetNewRegister,
             "native.vocabulary.edit.examples.new.register", !locked, style, text);
-        var add = style.PrimaryButton(text("RefSentences_Add"), actions.Add)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.add");
-        SourceUiStyle.SetCustomButtonAvailability(add, style.Appearance,
-            SourceButtonRole.Primary, !locked && examples.CanAdd);
+        var add = NativeForm.Action(style, Views.Button(
+                Views.Label(text("RefSentences_Add"), "plus.circle"), actions.Add)
+            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.add"));
+        add.IsEnabled = !locked && examples.CanAdd;
         actions.RegisterButton?.Invoke(AddExampleButton, add);
-        var controls = Views.HStack(register.WithFlexibleWidth(), add).WithFlexibleWidth();
-        controls.Spacing = SourceUiLayout.ItemGap;
-        var row = Views.VStack(target, native, controls).WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.new");
-        row.Spacing = SourceUiLayout.ItemGap;
-        return row;
+        yield return add;
     }
 
-    /// <summary>Source suggestion tray: each one editable, with its register and difficulty, Keep and Discard.</summary>
-    private static SwiftView SuggestionTray(
+    /// <summary>
+    /// Source suggestion tray: a heading row, then each suggestion's fields (editable), its
+    /// register and difficulty, and Keep and Discard side by side (bordered buttons, each its
+    /// own target in the row).
+    /// </summary>
+    private static IEnumerable<SwiftView> SuggestionRows(
         VocabularyExamplesState examples, bool locked, SourceUiStyle style,
         Func<string, string> text, VocabularyExampleActions actions)
     {
-        var appearance = style.Appearance;
-        var heading = Views.HStack(Views.Image("sparkles"),
-                style.Text(Views.Text(text("RefSentences_Suggestions")), SourceTextRole.Body2,
-                    strongElement: true))
-            .WithForegroundColor(appearance.InfoAlertText.Light, appearance.InfoAlertText.Dark)
+        yield return style.Text(Views.Label(text("RefSentences_Suggestions"), "sparkles"),
+                SourceTextRole.Body2, SourceTextTone.Secondary, strongElement: true)
             .WithAccessibilityIdentifier("native.vocabulary.edit.examples.suggestions.title");
-        heading.Spacing = 6;
-        var items = new List<SwiftView> { heading };
         foreach (var suggestion in examples.Suggestions)
         {
             var id = $"native.vocabulary.edit.examples.suggestion.{suggestion.Key}";
-            var target = SentenceField(text("RefSentences_AddTargetPlaceholder"),
+            yield return SentenceField(text("RefSentences_AddTargetPlaceholder"),
                 suggestion.TargetSentence,
                 value => actions.ChangeSuggestion(suggestion.Key, VocabularyExampleField.Target, value),
-                $"{id}.target", !locked, style);
-            var native = SentenceField(text("RefSentences_AddNativePlaceholder"),
+                $"{id}.target", !locked);
+            yield return SentenceField(text("RefSentences_AddNativePlaceholder"),
                 suggestion.NativeSentence,
                 value => actions.ChangeSuggestion(suggestion.Key, VocabularyExampleField.Native, value),
-                $"{id}.native", !locked, style);
-            var keep = style.PrimaryButton(text("RefSentences_Keep"),
-                    () => actions.Keep(suggestion.Key))
-                .WithAccessibilityIdentifier($"{id}.keep");
-            SourceUiStyle.SetCustomButtonAvailability(keep, appearance, SourceButtonRole.Primary,
-                !locked && VocabularyExamplesState.CanKeep(examples.Writing, suggestion));
+                $"{id}.native", !locked);
+            var keep = ProminentButton(style, text("RefSentences_Keep"),
+                () => actions.Keep(suggestion.Key), $"{id}.keep");
+            keep.IsEnabled = !locked
+                && VocabularyExamplesState.CanKeep(examples.Writing, suggestion);
             actions.RegisterButton?.Invoke(KeepSuggestionButton(suggestion.Key), keep);
-            var discard = style.OutlineButton(Views.Text(text("RefSentences_Discard")),
-                    () => actions.Discard(suggestion.Key))
-                .WithAccessibilityIdentifier($"{id}.discard");
+            var discard = BorderedButton(style, text("RefSentences_Discard"),
+                () => actions.Discard(suggestion.Key), $"{id}.discard");
             discard.IsEnabled = !locked && !examples.Writing;
-            var buttons = Views.HStack(keep, discard);
-            buttons.Spacing = SourceUiLayout.ItemGap;
-            var card = Views.VStack([target, native,
-                    .. Badges(null, suggestion.Register, suggestion.DifficultyLevel, false,
-                        $"{id}.badges", style, text),
-                    buttons])
-                .WithPadding(12)
+            // The badges take the free width, so the buttons sit at the trailing edge.
+            var badges = Views.VStack(Badges(null, suggestion.Register,
+                    suggestion.DifficultyLevel, false, $"{id}.badges", style, text))
+                .WithFlexibleWidth();
+            var buttons = Views.HStack(badges, keep, discard)
                 .WithAccessibilityIdentifier(id);
-            card.Spacing = SourceUiLayout.ItemGap;
-            items.Add(style.BorderedCard(card));
+            buttons.Spacing = SourceUiLayout.ItemGap;
+            yield return buttons;
         }
-        var tray = Views.VStack(items.ToArray())
-            .WithPadding(12)
-            .WithFlexibleWidth()
-            .WithRoundedSurface(appearance.InfoAlertFill.Light, appearance.InfoAlertFill.Dark,
-                appearance.BootstrapRadius, appearance.InfoAlertBorder.Light,
-                appearance.InfoAlertBorder.Dark, 1)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.examples.suggestions");
-        tray.Spacing = SourceUiLayout.ItemGap;
-        return tray;
     }
 
-    /// <summary>A saved sentence: its text and translation, its badges, and its actions menu.</summary>
+    /// <summary>A saved sentence row: its text and translation, its badges, and its actions menu.</summary>
     private static SwiftView Sentence(
         NativeVocabularyExample sentence, bool busy, SourceUiStyle style,
         Func<string, string> text, VocabularyExampleActions actions)
@@ -160,8 +153,10 @@ internal static partial class VocabularyWordEditView
             lines.Add(style.Text(Views.Text(sentence.NativeSentence),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier($"{id}.native"));
+        lines.AddRange(Badges(sentence, sentence.Register, sentence.DifficultyLevel,
+            sentence.IsFlagged, $"{id}.badges", style, text));
         var textColumn = Views.VStack(lines.ToArray()).WithFlexibleWidth();
-        textColumn.Spacing = 2;
+        textColumn.Spacing = 4;
 
         var core = Views.Button(text(sentence.IsCore ? "RefSentences_UnsetCore"
                 : "RefSentences_SetCore"), () => actions.ToggleCore(sentence.Id))
@@ -172,54 +167,66 @@ internal static partial class VocabularyWordEditView
                 : "RefSentences_Flag"), () => actions.ToggleFlag(sentence.Id))
             .WithAccessibilityIdentifier($"{id}.flag");
         var delete = Views.Button(text("RefSentences_Delete"), () => actions.Delete(sentence.Id))
+            .WithButtonRole(SwiftButtonRole.Destructive)
             .WithAccessibilityIdentifier($"{id}.delete");
         // A Menu's label fills its width (bridge); fixed at a 44-point target, the text keeps the rest.
-        var menu = Views.Menu(Views.Image("ellipsis.circle"), core, edit, flag,
-                Views.Divider(), delete)
-            .WithFixedWidth(44)
-            .WithAccessibilityLabel(text("RefSentences_Actions"))
-            .WithAccessibilityIdentifier($"{id}.actions");
+        var menu = NativeForm.Action(style, Views.Menu(Views.Image("ellipsis.circle"), core, edit,
+                    flag, Views.Divider(), delete)
+                .WithFixedWidth(44)
+                .WithAccessibilityLabel(text("RefSentences_Actions"))
+                .WithAccessibilityIdentifier($"{id}.actions"));
         menu.IsEnabled = !busy;
-        var top = Views.HStack(textColumn, menu).WithFlexibleWidth();
-        top.Spacing = SourceUiLayout.ItemGap;
-        var content = Views.VStack([top,
-                .. Badges(sentence, sentence.Register, sentence.DifficultyLevel,
-                    sentence.IsFlagged, $"{id}.badges", style, text)])
-            .WithPadding(12)
+        var row = Views.HStack(textColumn, menu).WithFlexibleWidth()
             .WithAccessibilityIdentifier(id);
-        content.Spacing = SourceUiLayout.ItemGap;
-        return style.BorderedCard(content);
+        row.Spacing = SourceUiLayout.ItemGap;
+        return row;
     }
 
     /// <summary>Source inline edit: the sentence, its translation and register, Save and Cancel.</summary>
-    private static SwiftView EditedSentence(
+    private static IEnumerable<SwiftView> EditedSentenceRows(
         NativeVocabularyExample sentence, VocabularyExamplesState examples, bool locked,
         SourceUiStyle style, Func<string, string> text, VocabularyExampleActions actions)
     {
         var id = $"native.vocabulary.edit.example.{sentence.Id}.editor";
-        var target = SentenceField(text("RefSentences_AddTargetPlaceholder"), examples.EditTarget,
-            value => actions.ChangeEdit(VocabularyExampleField.Target, value), $"{id}.target", !locked, style);
-        var native = SentenceField(text("RefSentences_AddNativePlaceholder"), examples.EditNative,
-            value => actions.ChangeEdit(VocabularyExampleField.Native, value), $"{id}.native", !locked, style);
-        var register = RegisterPicker(examples.EditRegister, actions.SetEditRegister,
+        yield return SentenceField(text("RefSentences_AddTargetPlaceholder"), examples.EditTarget,
+            value => actions.ChangeEdit(VocabularyExampleField.Target, value), $"{id}.target",
+            !locked);
+        yield return SentenceField(text("RefSentences_AddNativePlaceholder"), examples.EditNative,
+            value => actions.ChangeEdit(VocabularyExampleField.Native, value), $"{id}.native",
+            !locked);
+        yield return RegisterPicker(examples.EditRegister, actions.SetEditRegister,
             $"{id}.register", !locked, style, text);
-        var save = style.PrimaryButton(text("RefSentences_Save"), actions.SaveEdit)
-            .WithAccessibilityIdentifier($"{id}.save");
-        SourceUiStyle.SetCustomButtonAvailability(save, style.Appearance,
-            SourceButtonRole.Primary, !locked && examples.CanSaveEdit);
+        var save = ProminentButton(style, text("RefSentences_Save"), actions.SaveEdit,
+            $"{id}.save");
+        save.IsEnabled = !locked && examples.CanSaveEdit;
         actions.RegisterButton?.Invoke(SaveEditedExampleButton, save);
-        var cancel = style.OutlineButton(Views.Text(text("RefSentences_Cancel")),
-                actions.CancelEdit)
-            .WithAccessibilityIdentifier($"{id}.cancel");
+        var cancel = BorderedButton(style, text("RefSentences_Cancel"), actions.CancelEdit,
+            $"{id}.cancel");
         cancel.IsEnabled = !locked && !examples.Writing;
-        var buttons = Views.HStack(register.WithFlexibleWidth(), save, cancel).WithFlexibleWidth();
-        buttons.Spacing = SourceUiLayout.ItemGap;
-        var content = Views.VStack(target, native, buttons)
-            .WithPadding(12)
+        // An empty flexible leading column puts the buttons at the trailing edge.
+        var buttons = Views.HStack(Views.VStack().WithFlexibleWidth(), cancel, save)
             .WithAccessibilityIdentifier(id);
-        content.Spacing = SourceUiLayout.ItemGap;
-        return style.BorderedCard(content);
+        buttons.Spacing = SourceUiLayout.ItemGap;
+        yield return buttons;
     }
+
+    /// <summary>A system prominent (filled) button in the accent color; its own target in a Form row.</summary>
+    private static SwiftView ProminentButton(
+        SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(title, action)
+            .WithButtonStyle(SwiftButtonStyle.BorderedProminent)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            // The Form's text ink would otherwise replace the prominent style's light label.
+            .WithForegroundColor(style.Appearance.OnPrimary.Light, style.Appearance.OnPrimary.Dark)
+            .WithAccessibilityIdentifier(id);
+
+    /// <summary>A system bordered button; its own target in a Form row.</summary>
+    private static SwiftView BorderedButton(
+        SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(title, action)
+            .WithButtonStyle(SwiftButtonStyle.Bordered)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier(id);
 
     /// <summary>
     /// Source badges: Core, where the sentence came from, its register, its difficulty and
@@ -264,29 +271,26 @@ internal static partial class VocabularyWordEditView
                 .WithAccessibilityIdentifier(badgeId);
     }
 
+    /// <summary>A sentence field row: the prompt names it, the row is the field.</summary>
     private static SwiftView SentenceField(
-        string placeholder, string value, Action<string> changed, string id, bool enabled,
-        SourceUiStyle style)
+        string placeholder, string value, Action<string> changed, string id, bool enabled)
     {
-        var field = style.TextInput(Views.TextField(placeholder, value, changed))
-            .WithFlexibleWidth()
+        var field = Views.TextField(placeholder, value, changed)
+            .WithAccessibilityLabel(placeholder)
             .WithAccessibilityIdentifier(id);
         field.IsEnabled = enabled;
         return field;
     }
 
+    /// <summary>The register as a system menu Picker row: the label beside the current value.</summary>
     private static SwiftView RegisterPicker(
         SpeechRegister value, Action<SpeechRegister> changed, string id, bool enabled,
         SourceUiStyle style, Func<string, string> text)
     {
-        var selected = Math.Max(0, Array.IndexOf(Registers, value));
-        var picker = style.Input(Views.Picker(text("RefSentences_Register"),
-                    Registers.Select(register => RegisterLabel(register, text)).ToArray(),
-                    selected,
-                    index => changed(Registers[Math.Clamp(index, 0, Registers.Length - 1)]))
-                .WithPickerStyle(SwiftPickerStyle.Menu)
-                .WithFlexibleWidth())
-            .WithAccessibilityIdentifier(id);
+        var picker = NativeForm.Choice(style, text("RefSentences_Register"),
+            Registers.Select(register => RegisterLabel(register, text)).ToArray(),
+            Math.Max(0, Array.IndexOf(Registers, value)), id,
+            index => changed(Registers[Math.Clamp(index, 0, Registers.Length - 1)]));
         picker.IsEnabled = enabled;
         return picker;
     }

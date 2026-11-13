@@ -389,7 +389,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
         var state = EditState;
         if (IsDisposed || _formStyle is not { } style || _formActions is not { } actions
             || state.Detail is not { } detail || state.Draft is null
-            || !_sections.TryGetValue(section, out var slot) || slot.Children.Count != 1)
+            || !_sections.TryGetValue(section, out var slot) || slot.Kind != "section")
             return false;
         SwiftView card;
         if (section == VocabularyEditSection.Examples)
@@ -402,10 +402,23 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
         }
         else
             card = VocabularyWordEditView.ResourceCard(detail, state, style, Text, actions);
-        var previous = slot.Children[0];
-        slot.RemoveAt(0);
-        previous.Dispose();
-        slot.Add(card);
+        // The card is a Section: its rows and header move into the mounted Section, which
+        // keeps its place (and the Form its scroll position).
+        while (slot.Children.Count > 0)
+        {
+            var previous = slot.Children[0];
+            slot.RemoveAt(0);
+            previous.Dispose();
+        }
+        while (card.Children.Count > 0)
+        {
+            var row = card.Children[0];
+            card.RemoveAt(0);
+            slot.Add(row);
+        }
+        if (slot.Text != card.Text)
+            slot.Text = card.Text;
+        card.Dispose();
         return true;
     }
 
@@ -488,15 +501,13 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// <summary>Add, an edit's Save and each Keep need a sentence (source), checked as the learner types.</summary>
     private void UpdateExampleButtons()
     {
-        if (IsDisposed || _formStyle is not { } style || EditState is not
-            { Examples: { } examples } state)
+        if (IsDisposed || EditState is not { Examples: { } examples } state)
             return;
         var locked = state.Saving || state.Deleting || state.HandingOff;
         void Set(string key, bool enabled)
         {
             if (_exampleButtons.TryGetValue(key, out var button))
-                SourceUiStyle.SetCustomButtonAvailability(button, style.Appearance,
-                    SourceButtonRole.Primary, enabled);
+                button.IsEnabled = enabled;
         }
         Set(VocabularyWordEditView.AddExampleButton, !locked && examples.CanAdd);
         Set(VocabularyWordEditView.SaveEditedExampleButton, !locked && examples.CanSaveEdit);

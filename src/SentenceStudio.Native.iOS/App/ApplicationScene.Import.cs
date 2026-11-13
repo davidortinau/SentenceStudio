@@ -126,8 +126,9 @@ internal sealed partial class ApplicationScene
             }
             if (_importWordDeleteConfirmation is not null)
             {
-                _importWordDeleteConfirmation.IsPresented = _app.IsImportWordDeletePresented;
-                _importWordDeleteConfirmation.DeletePending = _app.IsImportWordDeletePending;
+                var asking = _app.IsImportWordDeletePresented && !_app.IsImportWordDeletePending;
+                if (_importWordDeleteConfirmation.IsPresented != asking)
+                    _importWordDeleteConfirmation.IsPresented = asking;
             }
         }
         else if (_importWordSlot is not null)
@@ -146,15 +147,10 @@ internal sealed partial class ApplicationScene
 
     private SwiftView? ImportWordDeleteConfirmation(SwiftView content, string? message) =>
         message is null ? null
-            : Views.ResourceDeleteConfirmation(content,
-                    _app.Localize("VocabWordEdit_ConfirmDelete"), message,
-                    _app.Localize("Common_Close"),
-                    _app.Localize("Common_Cancel"),
-                    _app.Localize("Common_Delete"),
-                    _app.CancelImportWordDelete,
-                    _app.ConfirmImportWordDelete)
-                .WithTransparentDeleteBackdrop()
-                .WithAccessibilityIdentifier("native.import.content.word.delete");
+            : SystemDeleteDialog(content, message, _app.CancelImportWordDelete,
+                _app.ConfirmImportWordDelete,
+                () => _app.IsImportWordDeletePresented && !_app.IsImportWordDeletePending,
+                "native.import.content.word.delete");
 
     private void DropImportWordReferences()
     {

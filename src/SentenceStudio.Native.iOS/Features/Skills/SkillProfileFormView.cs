@@ -16,11 +16,12 @@ internal static class SkillProfileFormView
         SourceUiStyle style, Func<string, string> text,
         SkillProfileFormActions actions)
     {
-        var fields = new List<SwiftView>();
+        // Captain 2026-11-13: the native form pattern (departure 84), as the Resource form.
+        var notices = new List<SwiftView>();
         var busy = state.Phase is SkillFormPhase.Saving or SkillFormPhase.Deleting;
         if (state.Phase is SkillFormPhase.Loading or SkillFormPhase.Saving
             or SkillFormPhase.Deleting)
-            fields.Add(Views.IndeterminateProgress(text(state.Phase switch
+            notices.Add(Views.IndeterminateProgress(text(state.Phase switch
                 {
                     SkillFormPhase.Loading => "Common_Loading",
                     SkillFormPhase.Deleting => "Common_Delete",
@@ -28,85 +29,52 @@ internal static class SkillProfileFormView
                 }))
                 .WithAccessibilityIdentifier("native.skills.form.progress"));
         if (state.StatusKey is { } status && state.ErrorKey is null)
-            fields.Add(style.Alert(Views.Text(text(status)), success: true)
-                .WithAccessibilityIdentifier("native.skills.form.status"));
+            notices.Add(NativeForm.Notice(style, text(status), "native.skills.form.status",
+                error: false));
         if (state.ErrorKey is { } error)
-            fields.Add(style.Alert(Views.Text(Error(error, text)), success: false)
-                .WithAccessibilityIdentifier("native.skills.form.error"));
+            notices.Add(NativeForm.Notice(style, Error(error, text), "native.skills.form.error",
+                error: true));
 
         var editable = state.Phase is SkillFormPhase.Creating
             or SkillFormPhase.Editing or SkillFormPhase.SaveError
             or SkillFormPhase.DeleteError or SkillFormPhase.Saving
             or SkillFormPhase.Deleting;
+        if (state.Phase == SkillFormPhase.LoadError)
+            notices.Add(NativeForm.Action(style, Views.Button(text(NativeText.Retry), actions.Retry)
+                .WithAccessibilityIdentifier("native.skills.form.retry")));
+        var sections = new List<SwiftView>();
+        if (notices.Count > 0)
+            sections.Add(Views.Section(string.Empty, notices.ToArray()));
         if (editable)
         {
-            var title = style.Input(Views.TextField(
-                    state.Creating ? text("SkillAdd_TitlePlaceholder") : string.Empty,
-                    state.Title, actions.TitleChanged))
-                .WithAccessibilityLabel(text("SkillAdd_TitleLabel"))
-                .WithAccessibilityIdentifier("native.skills.form.title");
+            var title = NativeForm.Field(text("SkillAdd_TitleLabel"), state.Title,
+                "native.skills.form.title", actions.TitleChanged,
+                text(state.Creating ? "SkillAdd_TitlePlaceholder" : "Common_Required"));
+            // While a save or delete runs the inputs wait; the Form still scrolls to its notice.
             title.IsEnabled = !busy;
-            var description = Views.TextEditor(state.Description,
-                    actions.DescriptionChanged)
-                .WithTextEditorScrollBackgroundHidden();
-            if (state.Creating)
-                description.WithTextEditorPlaceholder(
-                        text("SkillAdd_DescriptionPlaceholder"))
-                    .WithPlaceholderColor(style.Appearance.TertiaryText.Light,
-                        style.Appearance.TertiaryText.Dark);
-            var editor = style.Input(description)
-                .WithMinimumHeight(DescriptionHeight(style))
-                .WithAccessibilityLabel(text("SkillAdd_DescriptionLabel"))
-                .WithAccessibilityIdentifier("native.skills.form.description");
-            editor.IsEnabled = !busy;
-            fields.Add(Card(style, "native.skills.form.fields",
-            [
-                Views.VStack(
-                    style.Text(Views.Text(text("SkillAdd_TitleLabel")),
-                        SourceTextRole.Body2, SourceTextTone.Secondary),
-                    title),
-                Views.VStack(
-                    style.Text(Views.Text(text("SkillAdd_DescriptionLabel")),
-                        SourceTextRole.Body2, SourceTextTone.Secondary),
-                    editor)
-            ]));
-
+            var basic = new List<SwiftView> { title };
             if (!state.Creating && state.CreatedAt is { } created
                 && state.UpdatedAt is { } updated)
             {
-                var dates = Views.HStack(
-                        Date(style, text("SkillEdit_Created"),
-                            NativeResourceDateFormatter.DetailCreatedDate(
-                                created, isSmartResource: false)),
-                        Date(style, text("SkillEdit_Updated"),
-                            NativeResourceDateFormatter.DetailUpdatedDate(updated)))
-                    .WithAdaptiveStack(680)
-                    .WithFlexibleWidth();
-                dates.Spacing = SourceUiLayout.ItemGap;
-                fields.Add(Card(style, "native.skills.form.details",
-                [
-                    style.Text(Views.Text(text("SkillEdit_DetailsTitle")),
-                        SourceTextRole.Title3, sourceHeading: true),
-                    dates
-                ]));
+                basic.Add(NativeForm.Value(text("SkillEdit_Created"),
+                    NativeResourceDateFormatter.DetailCreatedDate(created, isSmartResource: false),
+                    "native.skills.form.created"));
+                basic.Add(NativeForm.Value(text("SkillEdit_Updated"),
+                    NativeResourceDateFormatter.DetailUpdatedDate(updated),
+                    "native.skills.form.updated"));
             }
-
+            sections.Add(Views.Section(string.Empty, basic.ToArray()));
+            var description = NativeForm.TextSection(style, text("SkillAdd_DescriptionLabel"),
+                state.Description, "native.skills.form.description",
+                actions.DescriptionChanged, rows: 6,
+                placeholder: state.Creating ? text("SkillAdd_DescriptionPlaceholder") : null);
+            description.IsEnabled = !busy;
+            sections.Add(description);
         }
-        else if (state.Phase == SkillFormPhase.LoadError)
-            fields.Add(style.SecondaryButton(text(NativeText.Retry), actions.Retry)
-                .WithAccessibilityIdentifier("native.skills.form.retry"));
 
-        var content = Views.VStack(fields.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.skills.form.scroll.content");
-        content.Spacing = SourceUiLayout.FormGap;
-        // A drag into the keyboard puts it away: the description's Return adds a line.
-        var page = style.Page(Views.Scroll(content)
-                .WithAccessibilityIdentifier("native.skills.form.scroll")
-                .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively))
-            .WithAccessibilityIdentifier(state.Creating
-                ? "native.skills.add.screen" : "native.skills.edit.screen");
+        var form = NativeForm.Page(style, sections, "native.skills.form.scroll",
+            state.Creating ? "native.skills.add.screen" : "native.skills.edit.screen");
+        var page = form;
         if (!editable)
             return page;
 
@@ -147,31 +115,5 @@ internal static class SkillProfileFormView
             ? string.Format(CultureInfo.CurrentCulture, message,
                 text(NativeText.UnexpectedError))
             : message;
-    }
-
-    private static SwiftView Date(
-        SourceUiStyle style, string name, string value) =>
-        Views.HStack(
-                style.Text(Views.Text(name), SourceTextRole.Body2Strong),
-                style.Text(Views.Text(value), SourceTextRole.Body2))
-            .WithAccessibilityLabel($"{name}: {value}");
-
-    private static SwiftView Card(
-        SourceUiStyle style, string id, IEnumerable<SwiftView> children)
-    {
-        var card = Views.VStack(children.ToArray())
-            .WithPadding(SourceUiLayout.LargeCardInset)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier(id);
-        card.Spacing = SourceUiLayout.FormGap;
-        return style.Card(card);
-    }
-
-    private static double DescriptionHeight(SourceUiStyle style)
-    {
-        var font = SourceUiTypography.For(SourceTextRole.Input,
-            style.ViewportWidth, style.Appearance.Selection.FontScale,
-            style.Appearance.Selection.ThemeId);
-        return 6 * font.Size * font.LineHeight + 2 * SourceUiLayout.ItemGap;
     }
 }

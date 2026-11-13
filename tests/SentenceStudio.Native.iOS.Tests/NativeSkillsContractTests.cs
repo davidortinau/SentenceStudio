@@ -495,10 +495,11 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("ApplicationFormRoutes.ShouldPopSkillForm(", scene);
         Assert.Contains("_app.OnSkillsPopped()", scene);
         Assert.Contains("_app.OnSkillFormPopped()", scene);
-        Assert.Contains("Views.ResourceDeleteConfirmation(", scene);
-        // Captain 2026-11-13: native Resource form. The resource form's Delete moved to the system
-        // confirmation dialog, so only the Skill editor keeps the custom overlay.
-        Assert.Equal(1, scene.Split(".WithTransparentDeleteBackdrop()").Length - 1);
+        // Captain 2026-11-13 (the native form pattern): every editor's Delete asks in the system
+        // confirmation dialog; no custom delete overlay is left.
+        Assert.Contains("_skillDeleteConfirmation = SystemDeleteDialog(_skillFormSlot,", scene);
+        Assert.DoesNotContain("Views.ResourceDeleteConfirmation(", scene);
+        Assert.DoesNotContain(".WithTransparentDeleteBackdrop()", scene);
         Assert.Contains("\"SkillEdit_DeleteMessage\"", scene);
         Assert.Contains("ReloadChooseOwnAfterSkills()", controller);
         // The Library list's Skills row pushes the Skills page (tab shell trial).
@@ -513,8 +514,9 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("BrowserPageUpdate.Skills.TryUpdateInPlace(current, next)", scene);
         Assert.Contains("Views.ConfirmationDialog(page,", list);
         Assert.Contains("CancelSkillListDeleteLater", controller);
-        Assert.Contains("Views.TextField(", form);
-        Assert.Contains("Views.TextEditor(", form);
+        // Captain 2026-11-13 (the native form pattern): a label-beside field and a text Section.
+        Assert.Contains("NativeForm.Field(text(\"SkillAdd_TitleLabel\")", form);
+        Assert.Contains("NativeForm.TextSection(style, text(\"SkillAdd_DescriptionLabel\")", form);
         // Captain 2026-11-10: one plain toolbar Save at every width; no Save in More and no
         // Save or Cancel under the form.
         Assert.Contains("var save = Views.Button(text(\"Common_Save\"), actions.Save)", form);

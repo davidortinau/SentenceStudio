@@ -400,17 +400,11 @@ internal sealed partial class ApplicationScene : IDisposable
                 .WithNavigationTitle(_app.SkillFormTitle)
                 .WithInlineNavigationTitle();
             _renderedSkillFormVersion = _app.SkillFormVersion;
-            _skillDeleteConfirmation = Views.ResourceDeleteConfirmation(
-                    _skillFormSlot,
-                    _app.Localize("SkillEdit_ConfirmDelete"),
-                    _app.Localize("SkillEdit_DeleteMessage"),
-                    _app.Localize("Common_Close"),
-                    _app.Localize("Common_Cancel"),
-                    _app.Localize("Common_Delete"),
-                    _app.CancelSkillDelete,
-                    _app.ConfirmSkillDelete)
-                .WithTransparentDeleteBackdrop()
-                .WithAccessibilityIdentifier("native.skills.edit.delete");
+            _skillDeleteConfirmation = SystemDeleteDialog(_skillFormSlot,
+                _app.Localize("SkillEdit_DeleteMessage"), _app.CancelSkillDelete,
+                _app.ConfirmSkillDelete,
+                () => _app.IsSkillDeletePresented && !_app.IsSkillDeletePending,
+                "native.skills.edit.delete");
             stack.Push("skill-form", WithSamToolbar(stack, "skill-form",
                 _skillDeleteConfirmation.WithTabBarHidden()));
         }
@@ -432,8 +426,9 @@ internal sealed partial class ApplicationScene : IDisposable
         }
         if (_skillDeleteConfirmation is not null)
         {
-            _skillDeleteConfirmation.IsPresented = _app.IsSkillDeletePresented;
-            _skillDeleteConfirmation.DeletePending = _app.IsSkillDeletePending;
+            var asking = _app.IsSkillDeletePresented && !_app.IsSkillDeletePending;
+            if (_skillDeleteConfirmation.IsPresented != asking)
+                _skillDeleteConfirmation.IsPresented = asking;
         }
     }
 
@@ -651,6 +646,28 @@ internal sealed partial class ApplicationScene : IDisposable
         _quizProgressCancellation = null;
     }
 
+    /// <summary>
+    /// A Delete that asks first in the system confirmation dialog (Captain 2026-11-13, the
+    /// native form pattern): Delete (destructive) and Cancel. SwiftUI can report the dialog's
+    /// close before Delete's action runs, so a close cancels only on the next turn of the main
+    /// loop, and only while the request still waits (<paramref name="stillAsking"/>).
+    /// </summary>
+    private SwiftView SystemDeleteDialog(SwiftView content, string message,
+        Action cancel, Action confirm, Func<bool> stillAsking, string id) =>
+        Views.ConfirmationDialog(content, message,
+                () => DispatchQueue.MainQueue.DispatchAsync(() =>
+                {
+                    if (stillAsking())
+                        cancel();
+                }),
+                Views.Button(_app.Localize("Common_Delete"), confirm)
+                    .WithButtonRole(SwiftButtonRole.Destructive)
+                    .WithAccessibilityIdentifier($"{id}.confirm"),
+                Views.Button(_app.Localize("Common_Cancel"), cancel)
+                    .WithButtonRole(SwiftButtonRole.Cancel)
+                    .WithAccessibilityIdentifier($"{id}.cancel"))
+            .WithAccessibilityIdentifier(id);
+
     private void UpdateResourceForm(bool themeChanged = false)
     {
         if (_libraryStack is null)
@@ -820,11 +837,7 @@ internal sealed partial class ApplicationScene : IDisposable
             SourceUiLayout.PageGutter(width));
         Find(_activityLogSlot, "native.activity-log.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
-        Find(_skillFormSlot, "native.skills.form.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
         Find(_vocabularySlot, "native.vocabulary.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
-        Find(_vocabularyWordSlot, "native.vocabulary.edit.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         if (Find(_resourcesSlot, "native.resources.grid") is { } resourceGrid)
             resourceGrid.GridColumns = LearningResourcesView.GridColumns(

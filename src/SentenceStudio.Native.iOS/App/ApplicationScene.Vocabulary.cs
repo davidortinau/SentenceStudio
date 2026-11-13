@@ -157,8 +157,9 @@ internal sealed partial class ApplicationScene
             UpdateVocabularyWord();
         if (_vocabularyDeleteConfirmation is not null)
         {
-            _vocabularyDeleteConfirmation.IsPresented = _app.IsVocabularyDeletePresented;
-            _vocabularyDeleteConfirmation.DeletePending = _app.IsVocabularyDeletePending;
+            var asking = _app.IsVocabularyDeletePresented && !_app.IsVocabularyDeletePending;
+            if (_vocabularyDeleteConfirmation.IsPresented != asking)
+                _vocabularyDeleteConfirmation.IsPresented = asking;
         }
 
         UpdateRecentLookups(stack, appearanceChanged);
@@ -222,15 +223,10 @@ internal sealed partial class ApplicationScene
 
     private SwiftView? VocabularyDeleteConfirmation(SwiftView content, string? message) =>
         message is null ? null
-            : Views.ResourceDeleteConfirmation(content,
-                    _app.Localize("VocabWordEdit_ConfirmDelete"), message,
-                    _app.Localize("Common_Close"),
-                    _app.Localize("Common_Cancel"),
-                    _app.Localize("Common_Delete"),
-                    _app.CancelVocabularyDelete,
-                    _app.ConfirmVocabularyDelete)
-                .WithTransparentDeleteBackdrop()
-                .WithAccessibilityIdentifier("native.vocabulary.edit.delete");
+            : SystemDeleteDialog(content, message, _app.CancelVocabularyDelete,
+                _app.ConfirmVocabularyDelete,
+                () => _app.IsVocabularyDeletePresented && !_app.IsVocabularyDeletePending,
+                "native.vocabulary.edit.delete");
 
     private void DropVocabularyWordReferences()
     {

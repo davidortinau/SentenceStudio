@@ -74,8 +74,21 @@ The web/MAUI pages and Android lack what iOS gained in the Library:
   before tonight's change (wide hidden filter column, phone filter sheet, typing in place, layout
   remount). Probably from the Vocabulary chooser/filter-menu work (8f8487ed and earlier), whose
   view tests weren't rerun because this suite isn't part of `dotnet test`. Fix these next.
-- **Install script:** its 6-second launch check fires early on a cold first launch (seen three
-  times); lengthen it.
+  2026-11-13 (forms pass): the harness pinned bridge preview.60, which lacks `LabeledContent`, so
+  it no longer compiles against the forms; it now pins preview.65 and its word-editor cases are
+  rewritten for the Form Sections. With preview.65 the harness app is killed at launch:
+  `EXC_BAD_ACCESS / SIGKILL (Code Signature Invalid)`, namespace CODESIGNING "Invalid Page",
+  while dyld loads a framework (`codesign -vvv --deep` says the bundle is valid; an ad hoc
+  re-sign and a fresh `ditto` copy fail the same way). Before that, with the old extracted
+  shim, it spun at 100% CPU inside the shim (the stale-shim symptom). Next step: inspect the
+  macOS slice that `build-xcframework.sh` puts in preview.62+ (the iOS slices work) and the
+  harness's `Frameworks/` contents.
+- **Install script:** fixed 2026-11-13. The launch checks in `scripts/ios-sim.sh` and
+  `scripts/ios-phone.sh` piped into `grep -q` under `set -o pipefail`; grep exited at its first
+  match and the writer's SIGPIPE failed the check while the app was running (the phone install
+  check could also retry an install that had worked). `scripts/ios-build.sh`'s stale-assembly
+  check failed whenever a project had no change (MSBuild keeps the copied DLL's time); it now
+  fails only when the app's copy is older than its project's iOS output.
 
 ## Backlog worth scheduling (from `docs/native-review-backlog.md`)
 
