@@ -58,7 +58,7 @@ internal sealed partial class ApplicationController
         _profile is { IsOpen: true } profile
             ? ProfileView.Page(profile.State, style, Text,
                 new ProfileFormActions(
-                    profile.SetName, profile.SetEmail,
+                    profile.SetName,
                     profile.SetNativeLanguage, profile.SetTargetLanguage,
                     profile.SetDisplayLanguage, profile.SetSessionMinutes,
                     profile.SetTargetCefrLevel,

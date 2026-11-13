@@ -76,6 +76,41 @@ internal static class NativeForm
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityIdentifier(id);
 
+    /// <summary>
+    /// A choice by value as a system menu Picker row. A stored value outside the options (one
+    /// saved by another client) stays selectable, first, so the row never shows a blank
+    /// choice; a change <paramref name="changed"/> refuses puts the picker back.
+    /// </summary>
+    internal static SwiftView Choice(SourceUiStyle style, string label,
+        IReadOnlyList<SwiftPickerOption> options, string selected, string id,
+        Func<string, bool> changed)
+    {
+        var list = options.ToList();
+        if (!string.IsNullOrWhiteSpace(selected)
+            && !list.Any(option => string.Equals(option.Value, selected, StringComparison.Ordinal)))
+            list.Insert(0, new SwiftPickerOption(selected, selected));
+        SwiftView? picker = null;
+        var current = selected;
+        var restoring = false;
+        picker = Views.Picker(label, list, selected, next =>
+            {
+                if (restoring)
+                    return;
+                if (changed(next))
+                {
+                    current = next;
+                    return;
+                }
+                restoring = true;
+                try { picker!.SelectedValue = current; }
+                finally { restoring = false; }
+            })
+            .WithPickerStyle(SwiftPickerStyle.Menu)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier(id);
+        return picker;
+    }
+
     /// <summary>A Form action row in the accent color, as a system Form draws its buttons.</summary>
     internal static SwiftView Action(SourceUiStyle style, SwiftView button) =>
         button.WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)

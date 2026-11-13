@@ -350,8 +350,8 @@ public sealed class NativeProfileSliceTests
         {
             "native.profile.name", "native.profile.email",
             "native.profile.language.native", "native.profile.language.target",
-            "native.profile.language.display", "native.profile.minutes.",
-            "native.profile.level.", "native.profile.save",
+            "native.profile.language.display", "\"native.profile.minutes\"",
+            "\"native.profile.level\"", "native.profile.save",
             "native.profile.password.current", "native.profile.password.new",
             "native.profile.password.confirm", "native.profile.delete.request"
         })
@@ -359,13 +359,17 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("NativeOnboardingOptions.NativeLanguages", view);
         Assert.Contains("NativeOnboardingOptions.SessionMinutes", view);
         Assert.Contains("NativeOnboardingOptions.CefrLevels", view);
-        Assert.Contains("Views.Scroll(content)", view);
-        Assert.Contains("enabled: false", view);
-        // Save (decision 8d) runs the shared owner-checked save; email is read-only.
-        Assert.Contains("actions.Save, fullWidth: true", view);
-        Assert.Contains("if (!state.CanSave)", view);
+        // Captain 2026-11-13 (the native form pattern): a grouped Form; the unavailable
+        // password and account actions stay, disabled.
+        Assert.Contains("NativeForm.Page(style, sections, \"native.profile.scroll\"", view);
+        Assert.Contains("Disabled(NativeForm.Field(label, string.Empty, id,", view);
+        // Save (decision 8d) runs the shared owner-checked save, from the toolbar (as every
+        // editor); email is a read-only value row.
+        Assert.Contains("return Views.Toolbar(Page(style, sections), save);", view);
+        Assert.Contains("save.IsEnabled = state.CanSave;", view);
         Assert.Contains("\"native.profile.save.status\"", view);
-        Assert.Contains("\"native.profile.email\", actions.EmailChanged, enabled: false", view);
+        Assert.Contains("NativeForm.Value(text(\"Profile_Email\"), draft.Email, \"native.profile.email\")",
+            view);
         Assert.Contains("NativeProfile_EmailReadOnly", view);
         Assert.Contains("if (await profile.SaveAsync(_lifetime.Token))", app);
         // A saved language's smart resources make the Library's resource list stale.

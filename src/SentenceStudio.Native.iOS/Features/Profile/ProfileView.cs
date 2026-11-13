@@ -7,7 +7,6 @@ namespace SentenceStudio.Native.iOS.Features.Profile;
 
 internal sealed record ProfileFormActions(
     Func<string, bool> NameChanged,
-    Func<string, bool> EmailChanged,
     Func<string, bool> NativeLanguageChanged,
     Func<string, bool> TargetLanguageChanged,
     Func<string, bool> DisplayLanguageChanged,
@@ -17,6 +16,13 @@ internal sealed record ProfileFormActions(
     Action RequestDelete,
     Action Save);
 
+/// <summary>
+/// Profile (Captain 2026-11-13, the native form pattern of departure 84): a grouped Form.
+/// Personal Information holds Name beside its label and the read-only email as a value row;
+/// the languages and the learning preferences are system menu Pickers; Save is the toolbar's
+/// action; Change Password and Danger Zone keep their unavailable controls, disabled, with the
+/// reason.
+/// </summary>
 internal static class ProfileView
 {
     internal static SwiftView Page(
@@ -34,36 +40,37 @@ internal static class ProfileView
             };
             var message = state.Phase == ProfilePhase.Loading
                 ? Views.IndeterminateProgress(text(status))
-                : style.Alert(style.Text(Views.Text(text(status)),
-                    SourceTextRole.Body2), success: false);
-            message.WithAccessibilityIdentifier("native.profile.status");
+                    .WithAccessibilityIdentifier("native.profile.status")
+                : NativeForm.Notice(style, text(status), "native.profile.status", error: true);
             var unavailable = new List<SwiftView> { message };
             if (state.Phase is ProfilePhase.Missing or ProfilePhase.LoadError)
-                unavailable.Add(style.SecondaryButton(
+                unavailable.Add(NativeForm.Action(style, Views.Button(
                         text(NativeText.Retry), actions.Retry)
-                    .WithAccessibilityIdentifier("native.profile.retry"));
-            return Page(style, unavailable);
+                    .WithAccessibilityIdentifier("native.profile.retry")));
+            return Page(style, [Views.Section(string.Empty, unavailable.ToArray())]);
         }
 
         var draft = state.Draft;
         var editable = !state.IsSaving;
+        var sections = new List<SwiftView>();
+        if (SaveStatus(state, style, text) is { } saveStatus)
+            sections.Add(Views.Section(string.Empty, saveStatus));
+
         // Save sends only the editable fields; email is shown read-only so an edit
         // is never silently dropped.
-        var personal = Card(style, "native.profile.personal", [
-            Heading(style, text("Profile_PersonalInformation")),
-            Field(style, text("Profile_Name"), text("Profile_NamePlaceholder"),
-                draft.Name, "native.profile.name", actions.NameChanged, editable),
-            Field(style, text("Profile_Email"), text("Profile_EmailPlaceholder"),
-                draft.Email, "native.profile.email", actions.EmailChanged, enabled: false),
+        var name = NativeForm.Field(text("Profile_Name"), draft.Name, "native.profile.name",
+            next => actions.NameChanged(next), text("Profile_NamePlaceholder"));
+        name.IsEnabled = editable;
+        sections.Add(Views.Section(text("Profile_PersonalInformation"),
+            name,
+            NativeForm.Value(text("Profile_Email"), draft.Email, "native.profile.email"),
             style.Text(Views.Text(text("NativeProfile_EmailReadOnly")),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.profile.email.readonly")
-        ]);
+                .WithAccessibilityIdentifier("native.profile.email.readonly")));
 
         var languages = NativeOnboardingOptions.NativeLanguages
             .Select(language => new SwiftPickerOption(language, language)).ToArray();
-        var settings = Card(style, "native.profile.languages", [
-            Heading(style, text("Profile_LanguageSettings")),
+        sections.Add(Views.Section(text("Profile_LanguageSettings"),
             Choice(style, text("Profile_NativeLanguage"), languages,
                 draft.NativeLanguage, "native.profile.language.native",
                 actions.NativeLanguageChanged, editable),
@@ -77,247 +84,96 @@ internal static class ProfileView
                     new SwiftPickerOption("Korean",
                         text("Profile_DisplayLanguage_Korean"))
                 ], draft.DisplayLanguage, "native.profile.language.display",
-                actions.DisplayLanguageChanged, editable)
-        ]);
+                actions.DisplayLanguageChanged, editable)));
 
-        var preferences = Card(style, "native.profile.preferences", [
-            Heading(style, text("Profile_LearningPreferences")),
-            Preference(style, text("Profile_SessionDuration"),
-                NativeOnboardingOptions.SessionMinutes,
-                draft.PreferredSessionMinutes,
-                minute => minute.ToString(CultureInfo.CurrentCulture),
-                minute => $"native.profile.minutes.{minute}",
-                actions.SessionMinutesChanged, editable),
-            Preference(style, text("Profile_TargetCEFRLevel"),
-                NativeOnboardingOptions.CefrLevels,
-                draft.TargetCefrLevel, level => level,
-                level => $"native.profile.level.{level}",
-                actions.TargetCefrLevelChanged, editable)
-        ]);
+        var minutes = NativeOnboardingOptions.SessionMinutes;
+        var levels = NativeOnboardingOptions.CefrLevels;
+        sections.Add(Views.Section(text("Profile_LearningPreferences"),
+            Choice(style, text("Profile_SessionDuration"),
+                minutes.Select(minute => new SwiftPickerOption(
+                    minute.ToString(CultureInfo.InvariantCulture),
+                    minute.ToString(CultureInfo.CurrentCulture))).ToArray(),
+                draft.PreferredSessionMinutes.ToString(CultureInfo.InvariantCulture),
+                "native.profile.minutes",
+                next => int.TryParse(next, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                    out var minute) && actions.SessionMinutesChanged(minute), editable),
+            Choice(style, text("Profile_TargetCEFRLevel"),
+                levels.Select(level => new SwiftPickerOption(level, level)).ToArray(),
+                draft.TargetCefrLevel, "native.profile.level",
+                actions.TargetCefrLevelChanged, editable)));
 
-        var save = style.PrimaryButton(text("Profile_SaveProfile"),
-                actions.Save, fullWidth: true)
-            .WithAccessibilityIdentifier("native.profile.save");
-        if (!state.CanSave)
-            SourceUiStyle.SetCustomButtonAvailability(save, style.Appearance,
-                SourceButtonRole.Primary, enabled: false);
-
-        var password = Card(style, "native.profile.password", [
-            Views.HStack(
-                Views.Image("key"),
-                Heading(style, text("Profile_ChangePassword"))),
-            PasswordField(style, text("Profile_CurrentPassword"),
-                text("Profile_CurrentPasswordPlaceholder"),
-                "native.profile.password.current"),
-            PasswordField(style, text("Profile_NewPassword"),
-                text("Profile_NewPasswordPlaceholder"),
-                "native.profile.password.new"),
-            PasswordField(style, text("Profile_ConfirmNewPassword"),
-                text("Profile_ConfirmNewPasswordPlaceholder"),
-                "native.profile.password.confirm"),
-            DisabledPasswordAction(style, text),
+        // Change Password and Delete My Account are not available on this device yet; their
+        // controls stay, disabled, with the reason.
+        sections.Add(Views.Section(text("Profile_ChangePassword"),
+            PasswordField(text("Profile_CurrentPassword"),
+                text("Profile_CurrentPasswordPlaceholder"), "native.profile.password.current"),
+            PasswordField(text("Profile_NewPassword"),
+                text("Profile_NewPasswordPlaceholder"), "native.profile.password.new"),
+            PasswordField(text("Profile_ConfirmNewPassword"),
+                text("Profile_ConfirmNewPasswordPlaceholder"), "native.profile.password.confirm"),
+            Disabled(NativeForm.Action(style, text("Profile_ChangePassword"), "key",
+                static () => { }, "native.profile.password.change")),
             style.Text(Views.Text(text("NativeProfile_AccountActionUnavailable")),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.profile.password.unavailable")
-        ]);
+                .WithAccessibilityIdentifier("native.profile.password.unavailable")));
 
-        var danger = DangerCard(style, text, actions.RequestDelete);
-        var sections = new List<SwiftView> { personal, settings, preferences, save };
-        if (SaveStatus(state, style, text) is { } saveStatus)
-            sections.Add(saveStatus);
-        sections.Add(password);
-        sections.Add(danger);
-        return Page(style, sections);
+        sections.Add(Views.Section(text("Profile_DangerZone"),
+            style.Text(Views.Text(text("Profile_DangerZoneDescription")),
+                SourceTextRole.Body2, SourceTextTone.Secondary),
+            Views.Button(Views.Label(text("Profile_DeleteMyAccount"), "trash"),
+                    actions.RequestDelete)
+                .WithButtonRole(SwiftButtonRole.Destructive)
+                // Explicit: the Form's text ink would otherwise replace the role's red.
+                .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+                .WithForegroundColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+                .WithAccessibilityIdentifier("native.profile.delete.request"),
+            style.Text(Views.Text(text("NativeProfile_AccountActionUnavailable")),
+                    SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.profile.delete.unavailable")));
+
+        // Captain 2026-11-10 (every editor): one Save, the toolbar's action, as plain text.
+        var save = Views.Button(text("Common_Save"), actions.Save)
+            .WithAccessibilityLabel(text("Profile_SaveProfile"))
+            .WithAccessibilityIdentifier("native.profile.save");
+        save.IsEnabled = state.CanSave;
+        return Views.Toolbar(Page(style, sections), save);
     }
 
     /// <summary>The last save attempt: progress, the source "Profile saved" success, or an honest error.</summary>
     private static SwiftView? SaveStatus(
-        ProfileState state, SourceUiStyle style, Func<string, string> text)
-    {
-        SwiftView? status = state.SaveStatus switch
+        ProfileState state, SourceUiStyle style, Func<string, string> text) =>
+        state.SaveStatus switch
         {
-            ProfileSaveStatus.Saving => Views.IndeterminateProgress(
-                text("NativeProfile_Saving")),
+            ProfileSaveStatus.Saving => Views.IndeterminateProgress(text("NativeProfile_Saving"))
+                .WithAccessibilityIdentifier("native.profile.save.status"),
             ProfileSaveStatus.Saved or ProfileSaveStatus.Failed
-                when state.SaveMessageKey is { } key => style.Alert(
-                    style.Text(Views.Text(text(key)), SourceTextRole.Body2),
-                    success: state.SaveStatus == ProfileSaveStatus.Saved),
+                when state.SaveMessageKey is { } key => NativeForm.Notice(style, text(key),
+                    "native.profile.save.status",
+                    error: state.SaveStatus == ProfileSaveStatus.Failed),
             _ => null
         };
-        return status?.WithAccessibilityIdentifier("native.profile.save.status");
-    }
 
-    private static SwiftView Page(SourceUiStyle style, IEnumerable<SwiftView> sections)
-    {
-        var content = Views.VStack(sections.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth),
-                SourceUiLayout.PageGutter(style.ViewportWidth),
-                48, SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.profile.scroll.content");
-        content.Spacing = SourceUiLayout.FormGap;
-        return style.Page(Views.Scroll(content)
-                .WithAccessibilityIdentifier("native.profile.scroll"))
-            .WithAccessibilityIdentifier("native.profile.screen");
-    }
+    private static SwiftView Page(SourceUiStyle style, IEnumerable<SwiftView> sections) =>
+        NativeForm.Page(style, sections, "native.profile.scroll", "native.profile.screen");
 
-    private static SwiftView Heading(SourceUiStyle style, string title) =>
-        style.Text(Views.Text(title), SourceTextRole.Title3, sourceHeading: true);
-
-    private static SwiftView Card(
-        SourceUiStyle style, string id, IReadOnlyList<SwiftView> children)
-    {
-        var content = Views.VStack(children.ToArray())
-            .WithPadding(SourceUiLayout.LargeCardInset)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier(id);
-        content.Spacing = SourceUiLayout.FormGap;
-        return style.Card(content);
-    }
-
-    private static SwiftView Field(
-        SourceUiStyle style, string label, string placeholder,
-        string value, string id, Func<string, bool> changed, bool enabled)
-    {
-        var input = style.TextInput(Views.TextField(placeholder, value,
-                next => changed(next)))
-            .WithAccessibilityLabel(label)
-            .WithAccessibilityIdentifier(id);
-        input.IsEnabled = enabled;
-        var field = Views.VStack(
-            style.Text(Views.Text(label), SourceTextRole.Body2,
-                SourceTextTone.Secondary), input);
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field.WithFlexibleWidth();
-    }
-
+    /// <summary>A choice row (NativeForm.Choice); disabled while a save runs.</summary>
     private static SwiftView Choice(
         SourceUiStyle style, string label, SwiftPickerOption[] options,
         string selected, string id, Func<string, bool> changed, bool enabled)
     {
-        var picker = style.Input(Views.Picker(
-                    string.Empty, options, selected, next => changed(next))
-                .WithPickerStyle(SwiftPickerStyle.Menu)
-                .WithAccessibilityLabel(label)
-                .WithFlexibleWidth())
-            .WithAccessibilityIdentifier(id);
+        var picker = NativeForm.Choice(style, label, options, selected, id, changed);
         picker.IsEnabled = enabled;
-        var field = Views.VStack(
-            style.Text(Views.Text(label), SourceTextRole.Body2,
-                SourceTextTone.Secondary), picker);
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field.WithFlexibleWidth();
+        return picker;
     }
 
-    private static SwiftView Preference<T>(
-        SourceUiStyle style, string label, IReadOnlyList<T> options,
-        T selected, Func<T, string> display, Func<T, string> id,
-        Func<T, bool> changed, bool enabled) where T : notnull
+    /// <summary>An unavailable password field: its label beside the empty, disabled field.</summary>
+    private static SwiftView PasswordField(string label, string placeholder, string id) =>
+        Disabled(NativeForm.Field(label, string.Empty, id, static _ => { }, placeholder,
+            secure: true));
+
+    private static SwiftView Disabled(SwiftView view)
     {
-        var phone = style.ViewportWidth < 768;
-        var buttons = new SwiftView[options.Count];
-        for (var index = 0; index < options.Count; index++)
-        {
-            var value = options[index];
-            var isSelected = EqualityComparer<T>.Default.Equals(selected, value);
-            buttons[index] = (isSelected
-                    ? style.PrimaryButton(display(value), () => Select(value),
-                        fullWidth: phone)
-                    : style.SecondaryButton(display(value), () => Select(value),
-                        fullWidth: phone))
-                .WithAccessibilitySelected(isSelected)
-                .WithAccessibilityIdentifier(id(value));
-            if (!enabled)
-                SourceUiStyle.SetCustomButtonAvailability(buttons[index], style.Appearance,
-                    isSelected ? SourceButtonRole.Primary : SourceButtonRole.FilledSecondary,
-                    enabled: false);
-        }
-
-        void Select(T value)
-        {
-            if (!changed(value))
-                return;
-            for (var index = 0; index < buttons.Length; index++)
-            {
-                var active = EqualityComparer<T>.Default.Equals(options[index], value);
-                SourceUiStyle.SetCustomButtonAvailability(
-                    buttons[index], style.Appearance,
-                    active ? SourceButtonRole.Primary : SourceButtonRole.FilledSecondary,
-                    enabled: true);
-                buttons[index].WithAccessibilitySelected(active);
-            }
-        }
-
-        var choices = phone ? Views.VStack(buttons) : Views.HStack(buttons);
-        choices.Spacing = SourceUiLayout.ItemGap;
-        choices.WithFlexibleWidth();
-        var field = Views.VStack(
-            style.Text(Views.Text(label), SourceTextRole.Body2,
-                SourceTextTone.Secondary), choices);
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field.WithFlexibleWidth();
-    }
-
-    private static SwiftView PasswordField(
-        SourceUiStyle style, string label, string placeholder, string id)
-    {
-        var input = style.TextInput(Views.SecureField(placeholder))
-            .WithAccessibilityLabel(label)
-            .WithAccessibilityIdentifier(id);
-        input.IsEnabled = false;
-        var field = Views.VStack(
-            style.Text(Views.Text(label), SourceTextRole.Body2,
-                SourceTextTone.Secondary), input);
-        field.Spacing = SourceUiLayout.ItemGap;
-        return field.WithFlexibleWidth();
-    }
-
-    private static SwiftView DisabledPasswordAction(
-        SourceUiStyle style, Func<string, string> text)
-    {
-        var change = style.PrimaryButton(text("Profile_ChangePassword"),
-                static () => { }, fullWidth: true)
-            .WithAccessibilityIdentifier("native.profile.password.change");
-        SourceUiStyle.SetCustomButtonAvailability(change, style.Appearance,
-            SourceButtonRole.Primary, enabled: false);
-        return change;
-    }
-
-    private static SwiftView DangerCard(
-        SourceUiStyle style, Func<string, string> text, Action requestDelete)
-    {
-        var danger = style.Appearance.Danger;
-        var dangerFill = style.Appearance.DangerButtonFill;
-        var onDanger = style.Appearance.DangerButtonText;
-        var label = style.Text(Views.Text(text("Profile_DeleteMyAccount")),
-                SourceTextRole.Button)
-            .WithForegroundColor(onDanger.Light, onDanger.Dark)
-            .WithPadding(10, 16, 10, 16)
-            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight);
-        var delete = Views.Button(label, requestDelete)
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithButtonAppearance(dangerFill.Light, dangerFill.Dark,
-                dangerFill.Light, dangerFill.Dark, style.Appearance.BootstrapRadius)
-            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.profile.delete.request");
-        var content = Views.VStack(
-                style.Text(Views.Text(text("Profile_DangerZone")),
-                        SourceTextRole.Title3, SourceTextTone.Danger,
-                        sourceHeading: true),
-                style.Text(Views.Text(text("Profile_DangerZoneDescription")),
-                    SourceTextRole.Body2, SourceTextTone.Secondary),
-                delete,
-                style.Text(Views.Text(text("NativeProfile_AccountActionUnavailable")),
-                        SourceTextRole.Caption1, SourceTextTone.Secondary)
-                    .WithAccessibilityIdentifier("native.profile.delete.unavailable"))
-            .WithPadding(SourceUiLayout.LargeCardInset)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.profile.danger");
-        content.Spacing = SourceUiLayout.FormGap;
-        return content.WithRoundedSurface(style.Appearance.CardSurface.Light,
-            style.Appearance.CardSurface.Dark, style.Appearance.BootstrapRadius,
-            danger.Light, danger.Dark, 1);
+        view.IsEnabled = false;
+        return view;
     }
 }
