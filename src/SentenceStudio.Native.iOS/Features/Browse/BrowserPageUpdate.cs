@@ -15,6 +15,9 @@ internal sealed class BrowserPageUpdate
     /// <summary>The Resources header is its count alone, shown only while there are resources (source).</summary>
     internal static readonly BrowserPageUpdate Resources = new("native.resources", headerKeep: 0);
 
+    /// <summary>Skills: its rows (and messages) are the list's children; no header.</summary>
+    internal static readonly BrowserPageUpdate Skills = new("native.skills", headerKeep: 0);
+
     /// <summary>
     /// The parts rebuilt on each update, each with how many of its first children stay mounted:
     /// the wide page's search row keeps its field, the wide results keep

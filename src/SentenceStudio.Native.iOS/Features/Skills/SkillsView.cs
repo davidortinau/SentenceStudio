@@ -14,7 +14,7 @@ namespace SentenceStudio.Native.iOS.Features.Skills;
 internal sealed record SkillsListActions(
     Action Add, Action<string> Edit, Action Retry, Action<bool> ShowArchived,
     Action<string> ToggleArchived, Action<string> RequestDelete, Action ConfirmDelete,
-    Action CancelDelete);
+    Action CancelDelete, Action<string>? Search = null);
 
 internal static class SkillsView
 {
@@ -28,7 +28,6 @@ internal static class SkillsView
                     success: !state.FeedbackIsError)
                 .WithAccessibilityIdentifier("native.skills.feedback"));
 
-        SwiftView? list = null;
         switch (state.Phase)
         {
             case SkillsListPhase.Loading:
@@ -45,11 +44,7 @@ internal static class SkillsView
                         .WithAccessibilityIdentifier("native.skills.retry"));
                 break;
             case SkillsListPhase.Empty when state.Archived:
-                items.Add(style.Text(Views.Text(text("Skills_NoArchived")),
-                        SourceTextRole.Body1, SourceTextTone.Secondary)
-                    .WithPadding(48)
-                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier("native.skills.empty"));
+                items.Add(EmptyText(style, text("Skills_NoArchived")));
                 break;
             case SkillsListPhase.Empty:
                 var empty = Views.VStack(
@@ -63,27 +58,24 @@ internal static class SkillsView
                 empty.Spacing = SourceUiLayout.LargeCardInset;
                 items.Add(empty);
                 break;
+            case SkillsListPhase.Populated when state.Profiles.Count == 0:
+                items.Add(EmptyText(style, text("Common_NoResults")));
+                break;
             case SkillsListPhase.Populated:
                 // Captain 2026-11-12: Library lists are native Lists, icons kept, with swipe
                 // actions (Delete, and Archive or Restore for skills).
-                list = BrowserPage.NativeList("native.skills.list",
-                    items.Concat(state.Profiles.Select(profile =>
-                        Row(profile, state, style, text, actions))), style);
+                items.AddRange(state.Profiles.Select(profile =>
+                    Row(profile, state, style, text, actions)));
                 break;
         }
 
-        SwiftView body;
-        if (list is not null)
-            body = list;
-        else
-        {
-            var content = Views.VStack(items.ToArray())
-                .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier("native.skills.scroll.content");
-            content.Spacing = SourceUiLayout.FormGap;
-            body = Views.Scroll(content).WithAccessibilityIdentifier("native.skills.scroll");
-        }
+        // Captain 2026-11-13: the system search field, as the other Library lists have. One
+        // outline in every state (a native List under the field), so the page updates in place
+        // and the field keeps its focus while typing.
+        SwiftView body = BrowserPage.SingleColumn("native.skills", items, style.ViewportWidth,
+            new BrowserPage.PageSearch(text("Common_Search"), state.Search,
+                value => actions.Search?.Invoke(value), [], _ => { }),
+            style);
         body = DeleteConfirmation(body, pendingDeleteTitle, text, actions);
         var ready = state.Phase is SkillsListPhase.Empty or SkillsListPhase.Populated;
         // Captain 2026-11-10: the same plain Add (+) as every browse page, at every width (the
@@ -95,6 +87,12 @@ internal static class SkillsView
                 style.Page(body).WithAccessibilityIdentifier("native.skills.screen"),
                 ShowMenu(state, text, actions, ready), add);
     }
+
+    private static SwiftView EmptyText(SourceUiStyle style, string message) =>
+        style.Text(Views.Text(message), SourceTextRole.Body1, SourceTextTone.Secondary)
+            .WithPadding(48)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithAccessibilityIdentifier("native.skills.empty");
 
     /// <summary>
     /// Show: the learner's skill profiles or the archived ones, a checkmark on the one shown

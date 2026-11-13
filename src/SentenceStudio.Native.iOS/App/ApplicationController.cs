@@ -146,6 +146,7 @@ internal sealed partial class ApplicationController : IDisposable
         _skills?.IsDeleteConfirmationPresented == true;
     internal bool IsSkillDeletePending => _skills?.IsDeletePending == true;
     internal long SkillsListVersion => _skills?.ListVersion ?? -1;
+    internal string SkillsSearchText => _skills?.ListState.Search ?? string.Empty;
     /// <summary>The Skills title's subtitle: "Archived" while the archive shows, else none.</summary>
     internal string SkillsSubtitle => _skills?.ListState.Archived == true
         ? Text("Skills_ShowArchived") : string.Empty;
@@ -824,7 +825,8 @@ internal sealed partial class ApplicationController : IDisposable
                     id => RunSkills(() => coordinator.ToggleArchivedAsync(id)),
                     coordinator.RequestListDelete,
                     () => RunSkills(() => coordinator.ConfirmListDeleteAsync()),
-                    CancelSkillListDeleteLater),
+                    CancelSkillListDeleteLater,
+                    coordinator.SetSearch),
                 coordinator.PendingListDeleteTitle)
             : Views.Text(Text("Common_Loading"));
 
@@ -844,6 +846,8 @@ internal sealed partial class ApplicationController : IDisposable
         try
         {
             await action();
+            // Archive, Restore and Delete change the Skills row's count.
+            RefreshLibraryCounts();
         }
         catch (Exception ex)
         {
@@ -895,6 +899,7 @@ internal sealed partial class ApplicationController : IDisposable
         if (!IsSkillsOpen)
             return;
         _skills!.Close();
+        RefreshLibraryCounts();
         if (_selectedTab == NativeTabs.Study && _refreshChooseOwnAfterSkills)
             ReloadChooseOwnAfterSkills();
     }

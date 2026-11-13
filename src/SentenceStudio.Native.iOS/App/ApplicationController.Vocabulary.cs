@@ -21,9 +21,6 @@ internal sealed partial class ApplicationController
     /// <summary>The count under the Vocabulary title.</summary>
     internal string VocabularySubtitle => _vocabulary?.ListSubtitle ?? string.Empty;
 
-    /// <summary>The Vocabulary row's count in the Library list: the owner's words once read.</summary>
-    internal int? LibraryVocabularyCount => _vocabulary?.KnownWordCount;
-
     internal bool IsVocabularyFilterPresented =>
         _vocabulary?.IsFilterSheetPresented == true;
     internal long VocabularyListVersion => _vocabulary?.ListVersion ?? -1;
@@ -192,8 +189,11 @@ internal sealed partial class ApplicationController
     internal void CancelVocabularyFilters() =>
         _vocabulary?.CancelFilterSheet();
 
-    internal void OnVocabularyListPopped() =>
+    internal void OnVocabularyListPopped()
+    {
         _vocabulary?.OnListPopped();
+        RefreshLibraryCounts();
+    }
 
     internal void OnVocabularyWordPopped() =>
         _vocabulary?.OnFormPopped();

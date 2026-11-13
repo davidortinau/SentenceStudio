@@ -223,7 +223,7 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
         db.VocabularyWords.OwnedBy(owner);
 
     /// <summary>The owner's pairs whose two words are both the owner's own.</summary>
-    private static IQueryable<MinimalPair> OwnedPairs(ApplicationDbContext db, string owner)
+    internal static IQueryable<MinimalPair> OwnedPairs(ApplicationDbContext db, string owner)
     {
         var words = OwnedWords(db, owner).Select(word => word.Id);
         return db.MinimalPairs.Where(pair => pair.UserId == owner

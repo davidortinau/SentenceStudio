@@ -506,8 +506,9 @@ public sealed class NativeSkillsContractTests
         // The Resources page has no More menu; the Library list reaches Skills.
         Assert.DoesNotContain("openSkills", resources);
         // Captain 2026-11-12: a native List with swipe Delete and Archive or Restore.
-        Assert.Contains("BrowserPage.NativeList(\"native.skills.list\"", list);
         Assert.Contains("Views.SwipeRow(row, trailing)", list);
+        Assert.Contains("new BrowserPage.PageSearch(text(\"Common_Search\")", list);
+        Assert.Contains("BrowserPageUpdate.Skills.TryUpdateInPlace(current, next)", scene);
         Assert.Contains("Views.ConfirmationDialog(page,", list);
         Assert.Contains("CancelSkillListDeleteLater", controller);
         Assert.Contains("Views.TextField(", form);
@@ -735,6 +736,28 @@ public sealed class NativeSkillsContractTests
         Assert.False(await coordinator.ToggleFormArchivedAsync());
         Assert.True(coordinator.FormState.Archived);
         Assert.Null(coordinator.FormState.ErrorKey);
+    }
+
+    [Fact]
+    public async Task SearchNarrowsByTitleOrDescriptionAndEachVisitStartsClear()
+    {
+        using var fixture = await OwnersAsync();
+        await SeedSkillsAsync(fixture,
+            Skill("one", "Polite present wants", NativeSliceFixture.UserA),
+            Skill("two", "Int1.2", NativeSliceFixture.UserA));
+        using var coordinator = Create(fixture);
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        coordinator.SetSearch("polite");
+        Assert.Equal("one", Assert.Single(coordinator.ListState.Profiles).Id);
+        coordinator.SetSearch("INT1.2 desc");
+        Assert.Equal("two", Assert.Single(coordinator.ListState.Profiles).Id);
+        coordinator.SetSearch("nothing");
+        Assert.Empty(coordinator.ListState.Profiles);
+        Assert.Equal(SkillsListPhase.Populated, coordinator.ListState.Phase);
+        coordinator.Close();
+        Assert.True(await coordinator.OpenAsync(NativeSliceFixture.UserA));
+        Assert.Equal(string.Empty, coordinator.ListState.Search);
+        Assert.Equal(2, coordinator.ListState.Profiles.Count);
     }
 
     [Fact]

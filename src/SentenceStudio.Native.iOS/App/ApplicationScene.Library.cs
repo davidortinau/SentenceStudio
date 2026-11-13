@@ -112,7 +112,7 @@ internal sealed partial class ApplicationScene
     /// the quick-add grid's column count (its buttons are fixed).
     /// </summary>
     private string LibraryListKey() => string.Create(CultureInfo.InvariantCulture,
-        $"{_app.LibraryResourceCount}|{_app.LibraryVocabularyCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
+        $"{_app.LibraryResourceCount}|{_app.LibraryVocabularyCount}|{_app.LibrarySkillCount}|{_app.LibraryPairCount}|{_app.LibraryErrorText}|{_style.GetHashCode()}|{QuickAddColumns(_app.LibraryQuickAddItems.Count)}|{OpenLibrarySection}");
 
 
     private const double QuickAddTileHeight = 84;
@@ -123,7 +123,8 @@ internal sealed partial class ApplicationScene
     /// <summary>
     /// The symbols follow the source menu icons (bi-book, bi-card-text, bi-bullseye,
     /// bi-soundwave) and are about equally wide, so the titles and separators line up.
-    /// Resources and Vocabulary show a count once their lists have been read (no extra query).
+    /// Every row shows its count: Resources from its list, the others from one COUNT each
+    /// (<see cref="SentenceStudio.Native.NativeLibraryCounts"/>).
     /// </summary>
     private SwiftView LibraryList()
     {
@@ -134,9 +135,9 @@ internal sealed partial class ApplicationScene
             LibraryRow(LibrarySection.Vocabulary, "character.book.closed", "Nav_Vocabulary",
                 _app.LibraryVocabularyCount, "native.library.row.vocabulary"),
             LibraryRow(LibrarySection.Skills, "target", "Nav_Skills",
-                null, "native.library.row.skills"),
+                _app.LibrarySkillCount, "native.library.row.skills"),
             LibraryRow(LibrarySection.Pairs, "waveform", "Nav_MinimalPairs",
-                null, "native.library.row.minimal-pairs"),
+                _app.LibraryPairCount, "native.library.row.minimal-pairs"),
         };
         if (_app.LibraryErrorText is { } error)
             rows.Add(_style.Text(Views.Text(error), SourceTextRole.Body2, SourceTextTone.Danger)
@@ -215,7 +216,10 @@ internal sealed partial class ApplicationScene
                 .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark),
             _style.Text(Views.Text(title), SourceTextRole.Body1,
                 selected ? SourceTextTone.Primary : SourceTextTone.Body,
-                strongElement: selected).WithFlexibleWidth(),
+                strongElement: selected)
+                // One line beside the count (a narrow sidebar truncates, as the system's do).
+                .WithLineLimit(1)
+                .WithFlexibleWidth(),
         };
         if (count is { } total)
             items.Add(_style.Text(Views.Text(total.ToString(CultureInfo.CurrentCulture)),

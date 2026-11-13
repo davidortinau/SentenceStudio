@@ -340,6 +340,31 @@ internal sealed partial class ApplicationScene : IDisposable
         }
     }
 
+    /// <summary>
+    /// The Skills list in place (its rows swapped, the search field and toolbar kept), so the
+    /// field keeps its focus while typing; a new appearance draws it again.
+    /// </summary>
+    private void UpdateSkillsList(bool replaceAll)
+    {
+        if (_skillsSlot is null)
+            return;
+        var next = _app.RenderSkillsList(_style);
+        var current = _skillsSlot.Children.Single();
+        var oldSearch = Find(current, BrowserPageUpdate.Skills.SearchId);
+        if (replaceAll || oldSearch is null
+            || !BrowserPageUpdate.Skills.TryUpdateInPlace(current, next))
+        {
+            var focused = oldSearch?.FocusRequested == true;
+            Replace(_skillsSlot, next);
+            if (focused && Find(_skillsSlot, BrowserPageUpdate.Skills.SearchId) is { } search)
+                search.FocusRequested = true;
+            return;
+        }
+        if (!string.Equals(oldSearch.Text, _app.SkillsSearchText, StringComparison.Ordinal))
+            oldSearch.Text = _app.SkillsSearchText;
+        next.Dispose();
+    }
+
     private void UpdateSkills(bool appearanceChanged)
     {
         if (!_app.IsSkillsOpen)
@@ -362,7 +387,7 @@ internal sealed partial class ApplicationScene : IDisposable
         if (appearanceChanged
             || _renderedSkillsListVersion != _app.SkillsListVersion)
         {
-            Replace(_skillsSlot, _app.RenderSkillsList(_style));
+            UpdateSkillsList(appearanceChanged);
             _renderedSkillsListVersion = _app.SkillsListVersion;
         }
         // "Archived" under the title while the archive shows.
@@ -822,8 +847,6 @@ internal sealed partial class ApplicationScene : IDisposable
         Find(_settingsSlot, "native.settings.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         Find(_activityLogSlot, "native.activity-log.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
-        Find(_skillsSlot, "native.skills.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         Find(_skillFormSlot, "native.skills.form.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));

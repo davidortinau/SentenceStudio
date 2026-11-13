@@ -176,6 +176,7 @@ internal sealed partial class ApplicationController
         _libraryResourcesOpen = false;
         // A filter sheet left open goes with its page (its choices are dropped).
         _resources?.CancelFilterSheet();
+        RefreshLibraryCounts();
         Publish();
     }
 
@@ -213,7 +214,12 @@ internal sealed partial class ApplicationController
     /// successful read started after the latest sync. Never read, failed and pre-sync reads
     /// are read again; a fresh list is not read twice.
     /// </summary>
-    private void ReadResourcesIfStale() => _resources?.ReadListIfStale();
+    /// <summary>Library shows: its resources when stale, and the other rows' counts.</summary>
+    private void ReadResourcesIfStale()
+    {
+        _resources?.ReadListIfStale();
+        RefreshLibraryCounts();
+    }
 
     /// <summary>
     /// A Library row's action failed: Study's plan is untouched (Run's Dashboard handling is
@@ -711,6 +717,7 @@ internal sealed partial class ApplicationController
         if (_libraryPairs is null)
             return;
         ReleaseLibraryPairs();
+        RefreshLibraryCounts();
         Publish();
     }
 

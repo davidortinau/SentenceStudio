@@ -17,10 +17,12 @@ internal enum SkillFormPhase
 /// <param name="Archived">The list shows the archived skills (the toolbar's Show choice).</param>
 /// <param name="FeedbackIsError">The feedback reports a refusal or failure, not a success.</param>
 /// <param name="Busy">An archive, restore or delete from the list is running.</param>
+/// <param name="Profiles">The skills the list shows: those matching <paramref name="Search"/>.</param>
+/// <param name="Search">The search field's text (matched in titles and descriptions).</param>
 internal sealed record SkillsListState(
     SkillsListPhase Phase, IReadOnlyList<SkillProfile> Profiles,
     string? ErrorKey = null, string? FeedbackKey = null, bool Archived = false,
-    bool FeedbackIsError = false, bool Busy = false);
+    bool FeedbackIsError = false, bool Busy = false, string Search = "");
 
 /// <param name="Archived">The open skill is archived (its toolbar offers Restore, not Archive).</param>
 /// <param name="StatusKey">What the editor's last Archive or Restore did.</param>
@@ -60,6 +62,7 @@ internal sealed class SkillsCoordinator : IDisposable
     private bool _listFeedbackIsError;
     private bool _listBusy;
     private SkillProfile? _askingListDelete;
+    private string _search = string.Empty;
     private bool _formArchived;
     private string? _formStatusKey;
     private string _loadedTitle = string.Empty;
@@ -95,8 +98,32 @@ internal sealed class SkillsCoordinator : IDisposable
     internal long ListVersion { get; private set; }
     internal long FormVersion { get; private set; }
     internal SkillsListState ListState =>
-        new(_listPhase, _profiles, _listErrorKey, _listFeedbackKey, _showArchived,
-            _listFeedbackIsError, _listBusy);
+        new(_listPhase, Matching(), _listErrorKey, _listFeedbackKey, _showArchived,
+            _listFeedbackIsError, _listBusy, _search);
+
+    /// <summary>
+    /// The search field (Captain 2026-11-13: a search field like the other Library lists):
+    /// narrows the loaded skills by title or description as the learner types.
+    /// </summary>
+    internal void SetSearch(string value)
+    {
+        value ??= string.Empty;
+        if (!_open || string.Equals(value, _search, StringComparison.Ordinal))
+            return;
+        _search = value;
+        Notify(list: true);
+    }
+
+    private IReadOnlyList<SkillProfile> Matching()
+    {
+        var query = _search.Trim();
+        return query.Length == 0 ? _profiles
+            : _profiles.Where(profile =>
+                    (profile.Title ?? string.Empty).Contains(query, StringComparison.CurrentCultureIgnoreCase)
+                    || (profile.Description ?? string.Empty).Contains(query,
+                        StringComparison.CurrentCultureIgnoreCase))
+                .ToArray();
+    }
 
     /// <summary>A row's swipe Delete is asking to confirm (never while it runs).</summary>
     internal bool IsListDeletePresented => _open && _askingListDelete is not null;
@@ -141,8 +168,9 @@ internal sealed class SkillsCoordinator : IDisposable
         _listFeedbackIsError = false;
         _listErrorKey = null;
         _listPhase = SkillsListPhase.Loading;
-        // Each visit starts on the learner's skills, not the archive.
+        // Each visit starts on the learner's skills, not the archive, with no search.
         _showArchived = false;
+        _search = string.Empty;
         _askingListDelete = null;
         Interlocked.Increment(ref _formGeneration);
         Notify(list: true, form: true);
@@ -747,6 +775,7 @@ internal sealed class SkillsCoordinator : IDisposable
         _profiles = [];
         _askingListDelete = null;
         _showArchived = false;
+        _search = string.Empty;
         _listFeedbackKey = null;
         _listFeedbackIsError = false;
         _listErrorKey = null;
