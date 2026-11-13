@@ -11,8 +11,8 @@
 # moves both aside before every build (they are regenerated):
 #   obj/<cfg>/net11.0-ios/<rid>/R2R                            (an old AppLib, 2026-11-06)
 #   obj/<cfg>/net11.0-ios/<rid>/Microsoft.SwiftUI.resources.zip (an old bridge shim)
-# After the build it checks the bundle ID, the API URL, that every SentenceStudio
-# assembly in the .app is newer than the build start, that the app's shim code matches
+# After the build it checks the bundle ID, the API URL, that no SentenceStudio assembly
+# in the .app is older than its own project's output, that the app's shim code matches
 # the package's, and for Release that no Ailoha files are present.
 #
 # The last line printed is APP=<path to the .app>. Exit 0 = build and checks passed.
@@ -78,12 +78,29 @@ BUILT_API=$(sed -n -E 's/.*"SentenceStudio[^"]*ApiBaseUrl", "([^"]*)".*/\1/p' \
   "$OBJ"/SentenceStudio.Native.iOS.AssemblyInfo.cs | head -1)
 if [ "${BUILT_API%/}" = "${API%/}" ]; then ok "API $BUILT_API"; else fail "API is '$BUILT_API', expected $API"; fi
 
-OLD=$(find "$APP" -maxdepth 1 -name 'SentenceStudio*.dll' ! -newer "$MARK")
-COUNT=$(find "$APP" -maxdepth 1 -name 'SentenceStudio*.dll' | wc -l | tr -d ' ')
-if [ -z "$OLD" ] && [ "$COUNT" -gt 0 ]; then
-  ok "$COUNT SentenceStudio assemblies are from this build"
+# An assembly the build did not touch (its project had no change, so MSBuild skipped the
+# copy and kept its time) is stale only if its own project's output is newer than the app's
+# copy (the old-R2R case). An app copy older than its project's newest output fails.
+STALE=""
+COUNT=0
+for dll in "$APP"/SentenceStudio*.dll; do
+  [ -e "$dll" ] || continue
+  COUNT=$((COUNT + 1))
+  [ "$dll" -nt "$MARK" ] && continue
+  name=$(basename "$dll")
+  # The project's own output for the iOS target when it has one (a multi-targeted project's
+  # other targets build at other times), else its only target's.
+  proj=src/${name%.dll}/bin/$CFG
+  src=$(ls -t "$proj"/net11.0-ios*/"$name" "$proj"/net11.0-ios*/*/"$name" 2>/dev/null | head -1 || true)
+  [ -n "$src" ] || src=$(ls -t "$proj"/*/"$name" 2>/dev/null | head -1 || true)
+  # No output found for it (a project folder not named after its assembly): the old rule,
+  # older than this build, applies.
+  if [ -z "$src" ] || [ "$src" -nt "$dll" ]; then STALE="$STALE $name"; fi
+done
+if [ -z "$STALE" ] && [ "$COUNT" -gt 0 ]; then
+  ok "$COUNT SentenceStudio assemblies are current"
 else
-  fail "assemblies older than this build: $(echo $OLD | xargs -n1 basename 2>/dev/null | tr '\n' ' ')"
+  fail "assemblies older than their project's output:$STALE"
 fi
 rm -f "$MARK"
 

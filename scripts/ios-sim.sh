@@ -45,7 +45,10 @@ xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
 xcrun simctl install "$UDID" "$APP"
 PID=$(xcrun simctl launch "$UDID" "$BUNDLE" | awk '{print $NF}')
 sleep 5
-if xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "UIKitApplication:$BUNDLE"; then
+# Read the whole list before matching: under pipefail, grep -q exits at its first match and
+# the writer's SIGPIPE failed this check while the app ran.
+SERVICES=$(xcrun simctl spawn "$UDID" launchctl list 2>/dev/null || true)
+if [[ "$SERVICES" == *"UIKitApplication:$BUNDLE"* ]]; then
   echo "ok:   $BUNDLE running on $UDID (pid $PID)"
 else
   echo "FAIL: $BUNDLE is not running 5 s after launch; check crash logs"; exit 1

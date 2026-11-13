@@ -51,17 +51,24 @@ if [ $YES = 0 ]; then
   echo "READY: rerun with --yes --no-build after the Captain approves installing on $PHONE"; exit 2
 fi
 
-install() { xcrun devicectl device install app --device "$DEVICE" "$APP" 2>&1 | grep -E 'App installed|error|Error' | head -4; }
-if ! install | grep -q 'App installed'; then
+# Whole outputs are read before matching: under pipefail, grep -q exits at its first match
+# and the writer's SIGPIPE made these checks fail (or retry) when they had passed.
+install() { xcrun devicectl device install app --device "$DEVICE" "$APP" 2>&1 || true; }
+RESULT=$(install)
+if [[ "$RESULT" != *"App installed"* ]]; then
+  echo "$RESULT" | grep -E 'error|Error' | head -4 || true
   echo "first install attempt failed (common after deep sleep); warming the tunnel and retrying"
   xcrun devicectl device info details --device "$DEVICE" >/dev/null 2>&1 || true
-  install | grep -q 'App installed' || { echo "FAIL: install failed twice"; exit 1; }
+  RESULT=$(install)
+  [[ "$RESULT" == *"App installed"* ]] \
+    || { echo "$RESULT" | grep -E 'error|Error' | head -4 || true; echo "FAIL: install failed twice"; exit 1; }
 fi
 echo "ok:   installed on $PHONE"
 
 if xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE" >/dev/null 2>&1; then
   sleep 6
-  if xcrun devicectl device info processes --device "$DEVICE" 2>/dev/null | grep -q 'SentenceStudio.Native.iOS'; then
+  PROCESSES=$(xcrun devicectl device info processes --device "$DEVICE" 2>/dev/null || true)
+  if [[ "$PROCESSES" == *SentenceStudio.Native.iOS* ]]; then
     echo "ok:   launched and running on $PHONE"
   else
     echo "FAIL: launched but not running after 6 s"; exit 1
