@@ -147,9 +147,26 @@ internal sealed partial class ApplicationController : IDisposable
     internal bool IsSkillDeletePending => _skills?.IsDeletePending == true;
     internal long SkillsListVersion => _skills?.ListVersion ?? -1;
     internal string SkillsSearchText => _skills?.SearchText ?? string.Empty;
-    /// <summary>The Skills title's subtitle: "Archived" while the archive shows, else none.</summary>
-    internal string SkillsSubtitle => _skills?.ShowingArchived == true
-        ? Text("Skills_ShowArchived") : string.Empty;
+    /// <summary>
+    /// The Skills title's subtitle (Captain 2026-11-13, as Vocabulary and Resources): how many
+    /// skills the list shows (following the search), "N archived" in the archive; while it
+    /// loads, only "Archived" in the archive.
+    /// </summary>
+    internal string SkillsSubtitle
+    {
+        get
+        {
+            if (_skills is not { IsOpen: true } skills)
+                return string.Empty;
+            var state = skills.ListState;
+            if (state.Phase is not (global::SentenceStudio.Native.Features.Skills.SkillsListPhase.Populated
+                or global::SentenceStudio.Native.Features.Skills.SkillsListPhase.Empty))
+                return state.Archived ? Text("Skills_ShowArchived") : string.Empty;
+            return string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                Text(state.Archived ? "Skills_ArchivedCount" : "Skills_ProfileCount"),
+                state.Profiles.Count);
+        }
+    }
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
         ? "SkillAdd_Title" : "SkillEdit_Title");

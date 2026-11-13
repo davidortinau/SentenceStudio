@@ -10434,4 +10434,12 @@ For example: {0} ...</value>
     <value>Save your changes to this skill profile first, or go back to discard them.</value>
     <comment>Skills: another skill was chosen while the editor beside the list holds unsaved changes</comment>
   </data>
+  <data name="Skills_ProfileCount" xml:space="preserve">
+    <value>{0} skill profile(s)</value>
+    <comment>Under the Skill Profiles title: how many skill profiles the list shows</comment>
+  </data>
+  <data name="Skills_ArchivedCount" xml:space="preserve">
+    <value>{0} archived</value>
+    <comment>Under the Skill Profiles title in the archive: how many archived skill profiles the list shows</comment>
+  </data>
 </root>

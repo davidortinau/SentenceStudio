@@ -9771,4 +9771,12 @@
     <value>먼저 이 스킬 프로필의 변경 사항을 저장하거나, 뒤로 가서 취소하세요.</value>
     <comment>Skills: another skill was chosen while the editor beside the list holds unsaved changes</comment>
   </data>
+  <data name="Skills_ProfileCount" xml:space="preserve">
+    <value>스킬 프로필 {0}개</value>
+    <comment>Under the Skill Profiles title: how many skill profiles the list shows</comment>
+  </data>
+  <data name="Skills_ArchivedCount" xml:space="preserve">
+    <value>보관됨 {0}개</value>
+    <comment>Under the Skill Profiles title in the archive: how many archived skill profiles the list shows</comment>
+  </data>
 </root>

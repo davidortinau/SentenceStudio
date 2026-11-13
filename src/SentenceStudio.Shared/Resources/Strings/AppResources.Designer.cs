@@ -18425,6 +18425,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} archived.
+        /// </summary>
+        internal static string Skills_ArchivedCount {
+            get {
+                return ResourceManager.GetString("Skills_ArchivedCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Skill profile archived..
         /// </summary>
         internal static string Skills_ArchivedSuccess {
@@ -18466,6 +18475,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Skills_NoProfilesYet {
             get {
                 return ResourceManager.GetString("Skills_NoProfilesYet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} skill profile(s).
+        /// </summary>
+        internal static string Skills_ProfileCount {
+            get {
+                return ResourceManager.GetString("Skills_ProfileCount", resourceCulture);
             }
         }
 

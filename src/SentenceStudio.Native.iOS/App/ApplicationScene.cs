@@ -378,6 +378,7 @@ internal sealed partial class ApplicationScene : IDisposable
             // A browse page: the tab bar stays.
             _skillsSlot = Views.VStack(_app.RenderSkillsList(_style))
                 .WithNavigationTitle(_app.Localize("Skills_Title"))
+                .WithNavigationSubtitle(_app.SkillsSubtitle)
                 .WithInlineNavigationTitle();
             _renderedSkillsListVersion = _app.SkillsListVersion;
             stack.Push("skills", _skillsSlot);
