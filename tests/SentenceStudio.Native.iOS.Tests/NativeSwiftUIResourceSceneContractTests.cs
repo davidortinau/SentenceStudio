@@ -107,40 +107,41 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("Replace(_formSlot, ResourceFormContent());",
             scene);
         Assert.Contains("input.FocusRequested = true;", scene);
-        Assert.Contains("Views.QuickAddSuggestions(", scene);
+        // Captain 2026-11-13: native Resource form. No suggestion popup wraps the form; Delete
+        // asks in the system confirmation dialog, hidden while the delete runs.
+        Assert.DoesNotContain("Views.QuickAddSuggestions(", scene);
         Assert.Contains("ResourceFormContent()", scene);
-        Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
-        Assert.Contains("_deleteConfirmation.DeletePending =", scene);
+        Assert.Contains("Views.ConfirmationDialog(_fileImporter,", scene);
+        Assert.Contains("_app.IsDeleteConfirmationPresented && !_app.IsResourceDeletePending", scene);
         Assert.Contains("Views.StarterBlockingOverlay(", scene);
     }
 
+    // Captain 2026-11-13: native Resource form. Quick add is a sheet presented by the scene
+    // outside the form; its rows follow the search in place and the form is not remounted.
     [Fact]
-    public void QuickAddSearch_UpdatesDirectSuggestionChildrenWithoutRemountingForm()
+    public void QuickAddSheet_RedrawsItsRowsInPlaceWithoutRemountingForm()
     {
         var scene = Source();
         var controller = File.ReadAllText(Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(CurrentFile())!,
             "../../src/SentenceStudio.Native.iOS/App/ApplicationController.cs")));
-        var refresh = scene[scene.IndexOf(
-                "private void RefreshQuickSuggestions()", StringComparison.Ordinal)
-            ..scene.IndexOf("private void UpdateResourceTitle(",
-                StringComparison.Ordinal)];
+        var update = scene[scene.IndexOf(
+                "private void UpdateResourceForm(bool themeChanged = false)", StringComparison.Ordinal)
+            ..scene.IndexOf("private SwiftView ResourceFormContent()", StringComparison.Ordinal)];
 
-        Assert.Contains("ResourceQuickAddSuggestionsVersion =>", controller);
-        Assert.Contains("_resources?.QuickAddSuggestionsVersion ?? -1", controller);
-        Assert.Contains("_quickSuggestionSlot = _app.RenderResourceQuickAddSuggestions(_style)",
+        Assert.Contains("internal void RefreshResourceAddWords(SourceUiStyle style) =>", controller);
+        Assert.Contains("_resources?.RefreshAddWords(style);", controller);
+        Assert.Contains("internal bool IsResourceSheetPresented =>", controller);
+        Assert.Contains("_app.RefreshResourceAddWords(_style);", update);
+        // The sheet is drawn when it opens and is presented or dismissed in place.
+        Assert.Contains("var showImport = _app.IsResourceSheetPresented;", update);
+        Assert.Contains("if (showImport && !importSheet.IsPresented)", update);
+        Assert.Contains("Views.VStack(_app.RenderResourceSheet(_style)));", update);
+        Assert.Contains("importSheet.IsPresented = showImport;", update);
+        Assert.Contains("private SwiftView ResourceFormContent() => _app.RenderResourceForm(_style);",
             scene);
-        Assert.DoesNotContain("_quickSuggestionSlot = Views.VStack(", scene);
-        Assert.Contains("RefreshQuickSuggestions();", scene);
-        Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(() =>", refresh);
-        Assert.Contains("!ReferenceEquals(_quickSuggestionSlot, suggestions)",
-            refresh);
-        Assert.Contains("ReplaceContainerChildren(suggestions,", refresh);
-        Assert.Contains("var child = next.Children[0];", refresh);
-        Assert.Contains("slot.Add(child);", refresh);
-        Assert.Contains("slot.Spacing = next.Spacing;", refresh);
-        Assert.DoesNotContain("Replace(_formSlot, ResourceFormContent());",
-            refresh);
+        Assert.DoesNotContain("RefreshQuickSuggestions", scene);
+        Assert.DoesNotContain("_quickSuggestionSlot", scene);
     }
 
     [Fact]
@@ -164,8 +165,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
             scene);
         Assert.Contains("_resourcesSearch = oldSearch;", scene);
 
-        Assert.Contains("inputs.RegisterQuickSearch(input);", quickAdd);
-        Assert.Contains("_quickSearchField = view;", coordinator);
+        // The add sheet keeps its system search field; the form only opens it.
+        Assert.Contains("inputs.OpenAddWords", quickAdd);
+        Assert.Contains("_addWordsSearch = search;", coordinator);
         // Captain 2026-11-13: native Resource form. The vocabulary is a Form Section whose
         // header carries the count; the coordinator keeps the registered Section and appends a
         // quick-added word to it in place (it has no automation ID to look up).
@@ -173,7 +175,7 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
         Assert.Contains("sections.Add(section);", vocabulary);
         Assert.Contains("_vocabularySection = section", coordinator);
-        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+        Assert.Contains("section.Insert(insertAt++, LearningResourceVocabularyView.EditVocabularyRow(word,",
             coordinator);
         Assert.Contains("section.Text = LearningResourceVocabularyView.VocabularyHeader(",
             coordinator);

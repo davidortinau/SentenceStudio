@@ -21,8 +21,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private readonly NativeResourceSyncAction _syncAction = new();
     private readonly List<SwiftView> _saveButtons = [];
     private readonly List<SwiftView> _importButtons = [];
-    private readonly List<SwiftView> _quickOptionNodes = [];
-    private SourceUiAppearance? _quickOptionAppearance;
     private SourceUiStyle? _formStyle;
     private CancellationTokenSource? _quickSearch;
     private long _quickSearchVersion;
@@ -38,17 +36,22 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private string _quickNativeTerm = string.Empty;
     private string _pasteText = string.Empty;
     private string _delimiter = "comma";
-    private SwiftView? _quickSearchField;
+    // The add sheet (Captain 2026-11-13: quick add is a sheet with the system search field).
+    private SwiftView? _addWordsSearch;
+    private SwiftView? _addWordsList;
+    private string? _lastAddedTerm;
+    private bool _addWordsOpen;
+    // The vocabulary rows built so far (Load More adds the next page) and the words the
+    // form knew when it was drawn (a word added since is new, wherever it sorts).
+    private const int WordPage = 100;
+    private int _wordWindow = WordPage;
+    private HashSet<string> _knownWordIds = new(StringComparer.Ordinal);
     private SwiftView? _stagedGrid;
     private SwiftView? _importSheetButton;
     private LearningResourceActions? _formActions;
     private LearningResourceInputs? _formInputs;
     private bool _chooseFileAfterImportSheet;
     private SwiftView? _vocabularySection;
-    private int _quickHighlightedIndex = -1;
-    private bool _quickSearchFocused;
-    private bool _restoreQuickFocus;
-    private bool _quickDropdownVisible;
     private bool _bulkExpanded;
     private bool _createWordExpanded;
     private bool _formOpen;
@@ -111,8 +114,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     internal bool IsFormOpen => _formOpen;
     internal bool IsCreatingForm => _creating;
     internal long FormProjectionVersion => Interlocked.Read(ref _formProjectionVersion);
-    internal long QuickAddSuggestionsVersion =>
-        Interlocked.Read(ref _quickSuggestionsRevision);
     internal bool IsQuickAddSearching =>
         _presenter.Detail.VocabularySearch?.Phase
             == NativeResourceVocabularySearchPhase.Searching;
@@ -134,8 +135,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     internal bool IsStarterBusy => _presenter.List.StarterBusy;
     internal bool IsDeletePending =>
         _presenter.Detail.Phase == NativeResourceDetailPhase.Deleting;
-    internal string QuickAddFieldAutomationId =>
-        LearningResourceQuickAddView.QuickAddFieldAutomationId;
     internal bool HasQuickAddField
     {
         get
@@ -151,13 +150,8 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                     or NativeResourceDetailPhase.ReadOnly);
         }
     }
-    internal bool IsQuickAddOpen => HasQuickAddField
-        && !IsNavigationBlocked && _quickDropdownVisible
-        && _quickSearchFocused && !_createWordExpanded
-        && !string.IsNullOrWhiteSpace(_quickQuery)
-        && _presenter.Detail.VocabularySearch?.Phase is
-            (NativeResourceVocabularySearchPhase.Searching
-                or NativeResourceVocabularySearchPhase.Ready);
+    /// <summary>Whether the add sheet shows (quick add, Captain 2026-11-13).</summary>
+    internal bool IsAddWordsOpen => _addWordsOpen && HasQuickAddField;
 
     internal SwiftView RenderBrowser(SourceUiStyle style)
     {
@@ -231,6 +225,8 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _vocabularySection = null;
         _formStyle = style;
         var state = ProjectFormState();
+        _knownWordIds = state.Vocabulary.Select(word => word.Id)
+            .ToHashSet(StringComparer.Ordinal);
         var actions = new LearningResourceActions(
                 Change: ChangeDraft,
                 Save: () => Run(SaveAsync),
@@ -258,25 +254,14 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                     if (_bulkExpanded && !_creating)
                     {
                         _bulkExpanded = false;
+                        MarkSheetClosing();
                         Publish(formChanged: false);
                     }
                     Run(() => ImportVocabularyTextAsync(_pasteText, _delimiter));
                 });
         var form = LearningResourceView.Page(style, state, _creating, actions,
             _formInputs = new LearningResourceInputs(
-                _quickQuery, _quickNativeTerm, _pasteText, _delimiter,
-                _createWordExpanded,
-                QuickQueryChanged: query =>
-                {
-                    _quickQuery = query;
-                    _quickDropdownVisible = !string.IsNullOrWhiteSpace(query);
-                    if (_quickDropdownVisible)
-                        _quickSearchFocused = true;
-                    _quickHighlightedIndex = -1;
-                    _createWordExpanded = false;
-                    Run(() => SearchVocabularyAsync(query));
-                },
-                QuickNativeTermChanged: value => _quickNativeTerm = value,
+                _pasteText, _delimiter,
                 PasteTextChanged: value =>
                 {
                     _pasteText = value;
@@ -285,15 +270,12 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 // The segmented picker shows its own choice; Import reads _delimiter. No
                 // redraw (one would return the form, under an open sheet too, to the top).
                 DelimiterChanged: value => _delimiter = value,
-                // Captain 2026-11-13: an existing resource's bulk import is a sheet over
-                // the form (the scene presents it; RenderImportSheet draws it).
+                // Captain 2026-11-13: an existing resource's bulk import and quick add are
+                // sheets over the form (the scene presents them; RenderSheet draws them).
                 ToggleBulk: OpenImportSheet,
-                ToggleCreateWord: () =>
-                {
-                    _createWordExpanded = !_createWordExpanded;
-                    _quickDropdownVisible = !_createWordExpanded;
-                    Publish();
-                },
+                OpenAddWords: OpenAddWords,
+                WordWindow: _wordWindow,
+                ShowMoreWords: ShowMoreWords,
                 ChooseFile: () =>
                 {
                     if (!_formOpen || IsNavigationBlocked)
@@ -304,6 +286,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                     {
                         _chooseFileAfterImportSheet = true;
                         _bulkExpanded = false;
+                        MarkSheetClosing();
                         Publish(formChanged: false);
                         return;
                     }
@@ -311,15 +294,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                     _fileImporterPresented = true;
                     FileImporterChanged?.Invoke(true);
                 },
-                RegisterQuickSearch: view =>
-                {
-                    _quickSearchField = view;
-                    if (_restoreQuickFocus || _quickSearchFocused)
-                        view.FocusRequested = true;
-                    _restoreQuickFocus = false;
-                },
-                QuickFocusChanged: QuickAddFocusChanged,
-                QuickKeyPressed: HandleQuickAddKey,
                 RegisterImport: button => _importButtons.Add(button),
                 RegisterStagedGrid: table => _stagedGrid = table,
                 RegisterVocabularySection: section =>
@@ -333,12 +307,167 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         return content;
     }
 
-    /// <summary>Whether an existing resource's bulk import sheet shows.</summary>
-    internal bool IsImportSheetPresented => _formOpen && !_creating && _bulkExpanded;
+    /// <summary>Whether an existing resource's bulk import or add sheet shows.</summary>
+    /// The add sheet shows only while the resource can take words (a sync conflict or reload
+    /// closes it, as the form's own quick add was hidden).
+    internal bool IsSheetPresented => _formOpen && !_creating && (_bulkExpanded || IsAddWordsOpen);
+
+    // A sheet closed by the app (Done, Cancel, Import, Choose File) reports its dismissal
+    // later; until then neither sheet opens, so that late report cannot close the next one.
+    private bool _sheetClosing;
+
+    private void MarkSheetClosing()
+    {
+        _sheetClosing = true;
+        // A dismissal that never arrives (the form closed first) must not block the sheets.
+        CoreFoundation.DispatchQueue.MainQueue.DispatchAfter(
+            new CoreFoundation.DispatchTime(CoreFoundation.DispatchTime.Now, 1_500_000_000),
+            () => _sheetClosing = false);
+    }
+
+    /// <summary>The sheet that shows: bulk import or quick add.</summary>
+    internal SwiftView RenderSheet(SourceUiStyle style) =>
+        _addWordsOpen ? RenderAddWordsSheet(style) : RenderImportSheet(style);
+
+    private void OpenAddWords()
+    {
+        if (!HasQuickAddField || IsNavigationBlocked || _bulkExpanded || _addWordsOpen
+            || _sheetClosing || !_presenter.CanQuickAdd)
+            return;
+        _addWordsOpen = true;
+        _quickQuery = string.Empty;
+        _quickNativeTerm = string.Empty;
+        _createWordExpanded = false;
+        _lastAddedTerm = null;
+        Publish(formChanged: false);
+    }
+
+    private void CloseAddWords()
+    {
+        if (!_addWordsOpen)
+            return;
+        _addWordsOpen = false;
+        MarkSheetClosing();
+        Publish(formChanged: false);
+    }
+
+    /// <summary>
+    /// Quick add (Captain 2026-11-13): the system search field over a list of the learner's
+    /// matching words; tap one to add it, or add the typed word as a new one. Done closes.
+    /// </summary>
+    private SwiftView RenderAddWordsSheet(SourceUiStyle style)
+    {
+        _renderedAddWordsRevision = Interlocked.Read(ref _quickSuggestionsRevision);
+        var list = Views.List(AddWordsRows(style))
+            .WithAccessibilityIdentifier("native.resources.edit.quick.listbox");
+        _addWordsList = list;
+        var search = Views.Searchable(style.ThemedList(list),
+                _text("ResourceEdit_QuickAddPlaceholder"), _quickQuery, query =>
+                {
+                    if (!_addWordsOpen || query == _quickQuery)
+                        return;
+                    _quickQuery = query;
+                    _quickNativeTerm = string.Empty;
+                    _createWordExpanded = false;
+                    _lastAddedTerm = null;
+                    Run(() => SearchVocabularyAsync(query));
+                })
+            .OnSubmit(SubmitAddWords)
+            .WithAccessibilityIdentifier(LearningResourceQuickAddView.QuickAddFieldAutomationId)
+            .WithNavigationTitle(_text("ResourceEdit_QuickAddLabel"))
+            .WithInlineNavigationTitle();
+        search.FocusRequested = true;
+        _addWordsSearch = search;
+        var done = Views.Button(_text("Common_Done"), CloseAddWords)
+            .WithAccessibilityIdentifier("native.resources.edit.quick.done");
+        return Views.NavigationStack(Views.Toolbar(search, done))
+            .WithAccessibilityIdentifier("native.resources.edit.quick.sheet");
+    }
+
+    private long _renderedAddWordsRevision = -1;
+
+    /// <summary>
+    /// Return (Search) in the add sheet's field: adds the only match, or opens the new-word
+    /// step when nothing matches (the old field's Enter did the same).
+    /// </summary>
+    private void SubmitAddWords()
+    {
+        if (!IsAddWordsOpen || _quickAdding || string.IsNullOrWhiteSpace(_quickQuery)
+            || _presenter.Detail.VocabularySearch is not {
+                Phase: NativeResourceVocabularySearchPhase.Ready } search)
+            return;
+        if (search.Results.Length == 1)
+        {
+            var id = search.Results[0].Id;
+            Run(() => AttachVocabularyAsync(id));
+        }
+        else if (search.Results.Length == 0 && !_createWordExpanded)
+        {
+            _createWordExpanded = true;
+            Interlocked.Increment(ref _quickSuggestionsRevision);
+            Publish(formChanged: false);
+        }
+    }
+
+    /// <summary>
+    /// Redraws the add sheet's rows when the search, its results or the new-word step changed
+    /// (on the main thread, from the scene's update); the search field is not touched.
+    /// </summary>
+    internal void RefreshAddWords(SourceUiStyle style)
+    {
+        if (!IsAddWordsOpen || _addWordsList is not { } list)
+            return;
+        var revision = Interlocked.Read(ref _quickSuggestionsRevision);
+        if (revision == _renderedAddWordsRevision)
+            return;
+        _renderedAddWordsRevision = revision;
+        while (list.Children.Count > 0)
+        {
+            var previous = list.Children[0];
+            list.RemoveAt(0);
+            previous.Dispose();
+        }
+        foreach (var row in AddWordsRows(style))
+            list.Add(row);
+    }
+
+    /// <summary>The add sheet's rows as they are now.</summary>
+    private SwiftView[] AddWordsRows(SourceUiStyle style)
+    {
+        var state = ProjectFormState();
+        var rows = LearningResourceQuickAddView.SheetRows(state, _quickQuery, _quickAdding,
+            _createWordExpanded, _quickNativeTerm, value => _quickNativeTerm = value,
+            id => Run(() => AttachVocabularyAsync(id)),
+            () =>
+            {
+                if (!_addWordsOpen)
+                    return;
+                _createWordExpanded = true;
+                Interlocked.Increment(ref _quickSuggestionsRevision);
+                Publish(formChanged: false);
+            },
+            () => Run(() => CreateVocabularyAsync(
+                _quickQuery.Trim(), _quickNativeTerm.Trim())),
+            style, _text);
+        // A failed search, add or create says so here: the form under the sheet is hidden.
+        if (state.ErrorKey is { } error)
+            rows = [style.Text(Views.Text(LearningResourceView.FormatError(error, _text)),
+                        SourceTextRole.Body2, SourceTextTone.Danger)
+                    .WithAccessibilityIdentifier("native.resources.edit.quick.error"),
+                .. rows];
+        else if (rows.Length == 0 && _lastAddedTerm is { Length: > 0 } added)
+            return [Views.Label(string.Format(CultureInfo.CurrentCulture,
+                        _text("ResourceEdit_WordAddedNamed"), added), "checkmark.circle")
+                .WithForegroundColor(style.Appearance.Success.Light,
+                    style.Appearance.Success.Dark)
+                .WithAccessibilityIdentifier("native.resources.edit.quick.added")];
+        return rows;
+    }
 
     private void OpenImportSheet()
     {
-        if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded)
+        if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded || _addWordsOpen
+            || _sheetClosing)
             return;
         _bulkExpanded = true;
         _chooseFileAfterImportSheet = false;
@@ -350,6 +479,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         if (!_bulkExpanded)
             return;
         _bulkExpanded = false;
+        MarkSheetClosing();
         Publish(formChanged: false);
     }
 
@@ -357,11 +487,17 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     /// The sheet has gone (Cancel, Import, Choose File or a swipe down). Choose File opens the
     /// file chooser now that nothing covers the form.
     /// </summary>
-    internal void OnImportSheetDismissed()
+    internal void OnSheetDismissed()
     {
-        // Cancel, Import and Choose File already published the close; a swipe down did not.
-        var swipedAway = _bulkExpanded;
+        // Cancel, Done, Import and Choose File already published the close; a swipe down
+        // (or a sync that ends quick add) did not.
+        var closedByApp = _sheetClosing;
+        _sheetClosing = false;
+        var swipedAway = !closedByApp && (_bulkExpanded || _addWordsOpen);
         _bulkExpanded = false;
+        _addWordsOpen = false;
+        _addWordsSearch = null;
+        _addWordsList = null;
         _importSheetButton = null;
         if (!_chooseFileAfterImportSheet)
         {
@@ -395,7 +531,9 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             .WithAccessibilityIdentifier("native.resources.edit.bulk.form"))
             .WithNavigationTitle(_text("ResourceEdit_BulkImportToggle"))
             .WithInlineNavigationTitle();
+        // Cancel's role puts it at the sheet's leading edge (the system's cancellation place).
         var cancel = Views.Button(_text("Common_Cancel"), CloseImportSheet)
+            .WithButtonRole(SwiftButtonRole.Cancel)
             .WithAccessibilityIdentifier("native.resources.edit.bulk.cancel");
         var import = Views.Button(_text("ResourceEdit_Import"), actions.ImportText)
             .WithAccessibilityIdentifier("native.resources.form.vocabulary.import");
@@ -403,34 +541,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         UpdateImportButtons();
         return Views.NavigationStack(Views.Toolbar(form, cancel, import))
             .WithAccessibilityIdentifier("native.resources.edit.bulk.sheet");
-    }
-
-    internal SwiftView RenderQuickAddSuggestions(SourceUiStyle style)
-    {
-        _quickOptionNodes.Clear();
-        _quickOptionAppearance = style.Appearance;
-        return LearningResourceQuickAddView.QuickAddSuggestions(ProjectFormState(),
-            _quickQuery, _quickHighlightedIndex, style, _text,
-            id => Run(() => AttachVocabularyAsync(id)),
-            () =>
-            {
-                if (!IsQuickAddOpen)
-                    return;
-                _createWordExpanded = true;
-                _quickDropdownVisible = false;
-                Publish();
-            }, option => _quickOptionNodes.Add(option));
-    }
-
-    internal void DismissQuickAddSuggestions()
-    {
-        if (!_formOpen || !_quickDropdownVisible)
-            return;
-        _quickDropdownVisible = false;
-        _quickSearchFocused = false;
-        if (HasQuickAddField && _quickSearchField is { } field)
-            field.FocusRequested = false;
-        Publish(formChanged: false);
     }
 
     /// <summary>
@@ -617,19 +727,17 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _fileStatus = null;
         _quickQuery = string.Empty;
         _quickNativeTerm = string.Empty;
-        _quickSearchField = null;
+        _addWordsSearch = null;
+        _addWordsList = null;
         _stagedGrid = null;
         _vocabularySection = null;
         _formStyle = null;
-        _quickOptionNodes.Clear();
-        _quickOptionAppearance = null;
-        _quickSearchFocused = false;
-        _restoreQuickFocus = false;
-        _quickDropdownVisible = false;
-        _quickHighlightedIndex = -1;
         _pasteText = string.Empty;
         _delimiter = "comma";
         _bulkExpanded = false;
+        _addWordsOpen = false;
+        _lastAddedTerm = null;
+        _wordWindow = WordPage;
         _chooseFileAfterImportSheet = false;
         _importSheetButton = null;
         _createWordExpanded = false;
@@ -717,8 +825,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         {
             _quickSearch?.Cancel();
             _quickQuery = string.Empty;
-            _quickDropdownVisible = false;
-            _quickHighlightedIndex = -1;
             _createWordExpanded = false;
         }
         UpdateSaveButtons();
@@ -783,16 +889,11 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _formOpen = false;
         _selectedId = null;
         _creating = false;
-        _quickSearchField = null;
+        _addWordsSearch = null;
+        _addWordsList = null;
         _stagedGrid = null;
         _vocabularySection = null;
         _formStyle = null;
-        _quickOptionNodes.Clear();
-        _quickOptionAppearance = null;
-        _quickSearchFocused = false;
-        _restoreQuickFocus = false;
-        _quickDropdownVisible = false;
-        _quickHighlightedIndex = -1;
         _quickSearch?.Cancel();
         _quickSearch?.Dispose();
         _quickSearch = null;
@@ -953,6 +1054,24 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
 
     internal void ConfirmDelete() => Run(DeleteResourceAsync);
 
+    /// <summary>
+    /// The system dialog closed (Delete, Cancel or a tap outside it). SwiftUI can report the
+    /// close before Delete's action runs, so the request is dropped on the next turn of the
+    /// main loop, once Delete has read it (as the list's dialog does).
+    /// </summary>
+    internal void DeleteDialogClosed()
+    {
+        if (!_presenter.Detail.ShowDeleteConfirmation)
+            return;
+        CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (_disposed || !_presenter.Detail.ShowDeleteConfirmation
+                || _presenter.Detail.Phase == NativeResourceDetailPhase.Deleting)
+                return;
+            CancelDelete();
+        });
+    }
+
     /// <summary>A list row's Delete: asks first (the list's confirmation dialog).</summary>
     private void RequestListDelete(string id)
     {
@@ -1083,8 +1202,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             if (IsCurrentForm(formGeneration, selectedId)
                 && generation == Volatile.Read(ref _quickSearchVersion))
             {
-                _quickHighlightedIndex = _presenter.Detail.VocabularySearch is {
-                    Phase: NativeResourceVocabularySearchPhase.Ready } ? 0 : -1;
                 Interlocked.Increment(ref _quickSuggestionsRevision);
                 Publish(formChanged: _presenter.Detail.VocabularySearch?.Phase
                     == NativeResourceVocabularySearchPhase.Error);
@@ -1103,12 +1220,14 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private Task AttachVocabularyAsync(string id) =>
         MutateVocabularyAsync(
             token => _presenter.AttachExistingVocabularyAsync(id, token),
-            "VocabWordEdit_WordAdded", clearQuery: true);
+            "VocabWordEdit_WordAdded", clearQuery: true,
+            addedTerm: ProjectFormState().QuickAddResults
+                .FirstOrDefault(word => word.Id == id)?.TargetTerm);
 
     private Task CreateVocabularyAsync(string target, string native) =>
         MutateVocabularyAsync(
             token => _presenter.CreateNewVocabularyAsync(target, native, token),
-            "VocabWordEdit_WordAdded", clearQuery: true);
+            "VocabWordEdit_WordAdded", clearQuery: true, addedTerm: target);
 
     private void RemoveVocabulary(string id)
     {
@@ -1172,6 +1291,9 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             var row = section.Children[index];
             section.RemoveAt(index);
             row.Dispose();
+            _knownWordIds.Remove(id);
+            // The window counts the rows shown, so Load More starts after the last one.
+            _wordWindow = Math.Max(0, _wordWindow - 1);
             var count = ProjectFormState().Vocabulary.Count;
             if (count == 0)
                 section.Add(LearningResourceVocabularyView.EmptyRow(style, _text));
@@ -1183,27 +1305,29 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
 
     private async Task MutateVocabularyAsync(
         Func<CancellationToken, Task<NativeResourceMutationResult>> mutate,
-        string successKey, bool clearQuery, Func<bool>? applyInPlace = null)
+        string successKey, bool clearQuery, Func<bool>? applyInPlace = null,
+        string? addedTerm = null)
     {
         if (!_formOpen || _creating || IsNavigationBlocked)
             return;
         var formGeneration = Interlocked.Read(ref _formGeneration);
         var selectedId = _selectedId;
-        var stageOnly = _presenter.Detail is {
-            Resource: { } resource, Draft: { LanguageDirty: true } languageDraft
-        } && !string.Equals(languageDraft.Language, resource.Language,
-            StringComparison.Ordinal);
-        var staged = _presenter.Detail.Draft?.StagedVocabulary
-            ?? ImmutableArray<NativeResourceVocabularyRow>.Empty;
-        var stagedCount = staged.IsDefault ? 0 : staged.Length;
-        var appendedStagedWord = false;
+        // From the add sheet, the form under it takes the new word in place (a rebuilt Form
+        // returns to the top); the sheet confirms the word instead of a status row.
+        var fromSheet = clearQuery && _addWordsOpen;
         var appliedInPlace = false;
         _quickAdding = true;
         _formErrorKey = null;
-        // An in-place change (a swiped-away word) does not redraw the form first: a rebuilt
-        // Form returns to the top.
-        if (!stageOnly && applyInPlace is null)
+        // An in-place change (a swiped-away word, a word added from the sheet) does not redraw
+        // the form first.
+        if (applyInPlace is null && !fromSheet)
             Publish();
+        else if (fromSheet)
+        {
+            // The sheet's rows show the add is running (they disable until it ends).
+            Interlocked.Increment(ref _quickSuggestionsRevision);
+            Publish(formChanged: false);
+        }
         try
         {
             var result = await mutate(_lifetime.Token);
@@ -1214,23 +1338,26 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 appliedInPlace = true;
             else if (result == NativeResourceMutationResult.Success)
             {
-                _formStatus = _presenter.Detail.Draft is { } draft
-                    && !draft.StagedVocabulary.IsDefaultOrEmpty
-                    ? null : _text(successKey);
-                _formErrorKey = null;
                 if (clearQuery
                     && _presenter.Detail.Phase == NativeResourceDetailPhase.Ready)
                 {
                     _quickQuery = string.Empty;
                     _quickNativeTerm = string.Empty;
                     _createWordExpanded = false;
-                    _quickDropdownVisible = false;
-                    _quickHighlightedIndex = -1;
+                    _lastAddedTerm = addedTerm;
+                    if (_addWordsSearch is { } search)
+                        search.Text = string.Empty;
                     await _presenter.SearchVocabularyAsync(
                         string.Empty, _lifetime.Token);
-                    appendedStagedWord = stageOnly
-                        && TryAppendStagedQuickAdd(stagedCount);
-                    _restoreQuickFocus = !appendedStagedWord;
+                    Interlocked.Increment(ref _quickSuggestionsRevision);
+                    appliedInPlace = fromSheet && TryAppendNewWordRows();
+                }
+                if (!appliedInPlace)
+                {
+                    _formStatus = _presenter.Detail.Draft is { } draft
+                        && !draft.StagedVocabulary.IsDefaultOrEmpty
+                        ? null : _text(successKey);
+                    _formErrorKey = null;
                 }
             }
             else if (_presenter.Detail.ErrorKey is null)
@@ -1239,51 +1366,97 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         finally
         {
             _quickAdding = false;
+            if (fromSheet)
+                Interlocked.Increment(ref _quickSuggestionsRevision);
             if (IsCurrentForm(formGeneration, selectedId))
-            {
-                Publish(formChanged: !appendedStagedWord && !appliedInPlace);
-                if (appendedStagedWord && _quickSearchField is { } field)
-                    DispatchQueue.MainQueue.DispatchAsync(() =>
-                    {
-                        if (IsCurrentForm(formGeneration, selectedId)
-                            && ReferenceEquals(_quickSearchField, field))
-                            field.FocusRequested = true;
-                    });
-            }
+                Publish(formChanged: !appliedInPlace);
         }
     }
 
-    private bool TryAppendStagedQuickAdd(int previousCount)
+    /// <summary>
+    /// Adds the rows of words the vocabulary Section does not show yet (a word attached or
+    /// created from the add sheet, saved or staged while the language is unsaved), in place;
+    /// the header takes the new count. False (the caller redraws) when a shown word has gone.
+    /// </summary>
+    private bool TryAppendNewWordRows()
     {
-        if (_vocabularySection is not { } section
-            || _quickSearchField is not { } field
-            || _formStyle is not { } style
-            || _presenter.Detail.Draft is not { } draft
-            || draft.StagedVocabulary.IsDefault
-            || draft.StagedVocabulary.Length != previousCount + 1)
+        if (_vocabularySection is not { } section || _formStyle is not { } style)
             return false;
-
-        var word = AsFormWord(draft.StagedVocabulary[^1]);
-        if (section.Children.Any(child => child.AccessibilityIdentifier ==
-                $"native.resources.form.vocabulary.word.{word.Id}"))
+        var vocabulary = ProjectFormState().Vocabulary;
+        var ids = vocabulary.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
+        // A word the form knew has gone: redraw rather than guess.
+        if (!_knownWordIds.IsSubsetOf(ids))
             return false;
-        for (var index = 0; index < section.Children.Count; index++)
+        var added = vocabulary.Where(word => !_knownWordIds.Contains(word.Id)).ToList();
+        foreach (var word in added)
+            _knownWordIds.Add(word.Id);
+        if (added.Count > 0)
+            for (var index = 0; index < section.Children.Count; index++)
+            {
+                if (section.Children[index].AccessibilityIdentifier
+                    != "native.resources.form.vocabulary.empty")
+                    continue;
+                var empty = section.Children[index];
+                section.RemoveAt(index);
+                empty.Dispose();
+                break;
+            }
+        // The words are the Section's last rows, in the list's order: a new word goes in its
+        // place among the shown rows, or waits for Load More when it sorts past them.
+        var firstWord = 0;
+        while (firstWord < section.Children.Count
+            && !section.Children[firstWord].AccessibilityIdentifier.StartsWith(
+                "native.resources.form.vocabulary.word.", StringComparison.Ordinal)
+            && section.Children[firstWord].AccessibilityIdentifier
+                != LearningResourceVocabularyView.LoadMoreId)
+            firstWord++;
+        var hasMore = section.Children.Count > 0 && section.Children[^1].AccessibilityIdentifier
+            == LearningResourceVocabularyView.LoadMoreId;
+        foreach (var word in added)
         {
-            if (section.Children[index].AccessibilityIdentifier
-                != "native.resources.form.vocabulary.empty")
+            var order = IndexOfWord(vocabulary, word.Id);
+            if (hasMore && order >= _wordWindow)
                 continue;
-            var empty = section.Children[index];
-            section.RemoveAt(index);
-            empty.Dispose();
-            break;
+            section.Insert(firstWord + order, LearningResourceVocabularyView.EditVocabularyRow(
+                word, false, false, RemoveVocabulary, style, _text));
+            _wordWindow++;
         }
-        // The words are the Section's last rows: the new one goes after them.
-        section.Add(LearningResourceVocabularyView.EditVocabularyRow(word, false, false,
-            RemoveVocabulary, style, _text));
-        section.Text = LearningResourceVocabularyView.VocabularyHeader(
-            ProjectFormState().Vocabulary.Count, _text);
-        field.Text = string.Empty;
+        section.Text = LearningResourceVocabularyView.VocabularyHeader(vocabulary.Count, _text);
         return true;
+    }
+
+    private static int IndexOfWord(IReadOnlyList<LearningResourceWord> words, string id)
+    {
+        for (var index = 0; index < words.Count; index++)
+            if (words[index].Id == id)
+                return index;
+        return words.Count;
+    }
+
+    /// <summary>Load More: the next page of word rows, added in place before the button.</summary>
+    private void ShowMoreWords()
+    {
+        // Not while a save, import or change runs: its rows would draw enabled.
+        if (!_formOpen || IsNavigationBlocked
+            || _vocabularySection is not { } section || _formStyle is not { } style)
+            return;
+        var state = ProjectFormState();
+        var next = state.Vocabulary.Skip(_wordWindow).Take(WordPage).ToList();
+        var last = section.Children.Count - 1;
+        if (last < 0 || section.Children[last].AccessibilityIdentifier
+                != LearningResourceVocabularyView.LoadMoreId)
+            return;
+        var insertAt = last;
+        foreach (var word in next)
+            section.Insert(insertAt++, LearningResourceVocabularyView.EditVocabularyRow(word,
+                state.IsSmartResource, false, RemoveVocabulary, style, _text));
+        _wordWindow += next.Count;
+        if (_wordWindow >= state.Vocabulary.Count)
+        {
+            var more = section.Children[^1];
+            section.RemoveAt(section.Children.Count - 1);
+            more.Dispose();
+        }
     }
 
     private async Task ImportVocabularyTextAsync(string raw, string delimiter)
@@ -1387,118 +1560,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         Publish();
     }
 
-    private void QuickAddFocusChanged(SwiftView view, bool focused)
-    {
-        if (!ReferenceEquals(_quickSearchField, view) || !_formOpen)
-            return;
-        _quickSearchFocused = focused;
-        if (focused)
-        {
-            if (!_quickDropdownVisible && !string.IsNullOrWhiteSpace(_quickQuery)
-                && _presenter.Detail.VocabularySearch?.Phase
-                    == NativeResourceVocabularySearchPhase.Ready)
-            {
-                _quickDropdownVisible = true;
-                Publish(formChanged: false);
-            }
-            return;
-        }
-        Run(async () =>
-        {
-            await Task.Delay(150, _lifetime.Token);
-            if (!_quickSearchFocused && !_quickAdding && !_createWordExpanded
-                && _quickDropdownVisible && _formOpen)
-            {
-                _quickDropdownVisible = false;
-                Publish(formChanged: false);
-            }
-        });
-    }
-
-    private bool HandleQuickAddKey(ResourceQuickAddKey key)
-    {
-        if (!_formOpen || _creating || IsNavigationBlocked)
-            return false;
-        if (key == ResourceQuickAddKey.Escape)
-        {
-            if (!_quickDropdownVisible && string.IsNullOrWhiteSpace(_quickQuery))
-                return false;
-            _quickQuery = string.Empty;
-            _quickNativeTerm = string.Empty;
-            _quickDropdownVisible = false;
-            _quickHighlightedIndex = -1;
-            _createWordExpanded = false;
-            _quickSearch?.Cancel();
-            if (_quickSearchField is { } field)
-                field.Text = string.Empty;
-            Run(() => SearchVocabularyAsync(string.Empty));
-            Publish(formChanged: false);
-            return true;
-        }
-        if (!_quickDropdownVisible || !_quickSearchFocused || _createWordExpanded
-            || _presenter.Detail.VocabularySearch is not {
-                Phase: NativeResourceVocabularySearchPhase.Ready } search)
-            return false;
-        var count = search.Results.Length == 0
-            ? string.IsNullOrWhiteSpace(_quickQuery) ? 0 : 1
-            : search.Results.Length;
-        if (key is ResourceQuickAddKey.ArrowUp or ResourceQuickAddKey.ArrowDown)
-        {
-            if (count == 0)
-                return false;
-            _quickHighlightedIndex = ResourceQuickAddNavigation.Move(
-                _quickHighlightedIndex, count, key);
-            if (_quickOptionNodes.Count == count
-                && _quickOptionAppearance is { } appearance)
-                UpdateQuickOptionSelection(appearance);
-            else
-                Publish();
-            return true;
-        }
-        if (key == ResourceQuickAddKey.Enter
-            && _quickHighlightedIndex >= 0 && _quickHighlightedIndex < count)
-        {
-            if (search.Results.Length == 0)
-            {
-                _createWordExpanded = true;
-                _quickDropdownVisible = false;
-                Publish();
-            }
-            else
-                Run(() => AttachVocabularyAsync(
-                    search.Results[_quickHighlightedIndex].Id));
-            return true;
-        }
-        return false;
-    }
-
-    private void UpdateQuickOptionSelection(SourceUiAppearance appearance)
-    {
-        for (var index = 0; index < _quickOptionNodes.Count; index++)
-        {
-            var option = _quickOptionNodes[index];
-            var selected = index == _quickHighlightedIndex;
-            if (option.Children.Count == 1)
-            {
-                var label = option.Children[0];
-                var fill = selected ? appearance.Primary : appearance.CardSurface;
-                var foreground = selected ? appearance.OnPrimary : appearance.Text;
-                label.WithRoundedSurface(fill.Light, fill.Dark,
-                    appearance.BootstrapRadius);
-                if (label.Children.Count == 0)
-                    label.WithForegroundColor(foreground.Light, foreground.Dark);
-                else
-                    for (var row = 0; row < label.Children.Count; row++)
-                    {
-                        var color = selected ? appearance.OnPrimary
-                            : row == 0 ? appearance.Text : appearance.SecondaryText;
-                        label.Children[row].WithForegroundColor(color.Light, color.Dark);
-                    }
-            }
-            option.WithAccessibilitySelected(selected);
-        }
-    }
-
     private void Run(Func<Task> action)
     {
         if (_disposed)
@@ -1578,8 +1639,6 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _lifetime.Cancel();
         _quickSearch?.Cancel();
         _quickSearch?.Dispose();
-        _quickOptionNodes.Clear();
-        _quickOptionAppearance = null;
         _stagedGrid = null;
         _vocabularySection = null;
         _formStyle = null;

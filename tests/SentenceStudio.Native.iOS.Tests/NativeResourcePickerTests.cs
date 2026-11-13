@@ -138,18 +138,6 @@ public sealed class NativeResourcePickerTests
         Assert.DoesNotContain("Repository", select);
     }
 
-    [Theory]
-    [InlineData(-1, 3, (int)ResourceQuickAddKey.ArrowDown, 0)]
-    [InlineData(0, 3, (int)ResourceQuickAddKey.ArrowUp, 2)]
-    [InlineData(2, 3, (int)ResourceQuickAddKey.ArrowDown, 0)]
-    [InlineData(1, 3, (int)ResourceQuickAddKey.ArrowUp, 0)]
-    [InlineData(0, 0, (int)ResourceQuickAddKey.ArrowDown, -1)]
-    [InlineData(0, 0, (int)ResourceQuickAddKey.ArrowUp, -1)]
-    public void QuickAdd_KeyboardHighlightWrapsWithinOwnerSuggestions(
-        int current, int count, int key, int expected) =>
-        Assert.Equal(expected, ResourceQuickAddNavigation.Move(
-            current, count, (ResourceQuickAddKey)key));
-
     private static string HeadPath => Path.GetFullPath(Path.Combine(
         Path.GetDirectoryName(CurrentFile())!, "../../src/SentenceStudio.Native.iOS"));
 

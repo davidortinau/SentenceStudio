@@ -290,7 +290,7 @@ public sealed class NativeSwiftUIResourceContractTests
         // swipe redraws what is true.
         Assert.Contains("applyInPlace: inPlace ? () => TryRemoveWordRow(id) : null", remove);
         Assert.Contains("var inPlace = _formStatus is null && _formErrorKey is null;", remove);
-        Assert.Contains("if (!stageOnly && applyInPlace is null)", coordinator);
+        Assert.Contains("if (applyInPlace is null && !fromSheet)", coordinator);
     }
 
     [Fact]
@@ -495,25 +495,26 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Views.TextEditor(value ?? string.Empty, changed)\n            .WithTextEditorScrollBackgroundHidden();",
             fields);
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", fields);
-        Assert.Contains("input.OnKeyPress(key => key switch", quickAdd);
-        Assert.Contains(".OnFocusChanged(focused => inputs.QuickFocusChanged(input, focused))",
-            quickAdd);
-        Assert.Contains("inputs.RegisterQuickSearch(input);", quickAdd);
+        // Quick add is an "Add vocabulary" row that opens the add sheet (its system search field
+        // lives in the sheet, outside the form, so form updates never take its focus).
+        Assert.Contains("inputs.OpenAddWords", quickAdd);
+        Assert.Contains("native.resources.edit.quick.add", quickAdd);
+        Assert.Contains("search.FocusRequested = true;", coordinator);
         Assert.Contains("inputs.RegisterImport(import);", vocabulary);
         // The toolbar's plain Save is the form's only Save (Captain 2026-11-10).
         Assert.Contains("registerSave(save);", form);
 
         Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
-        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+        Assert.Contains("section.Insert(insertAt++, LearningResourceVocabularyView.EditVocabularyRow(word,",
             coordinator);
-        // The bulk import sheet sits outside the form (so a form update never redraws it), and
-        // the file chooser outside the sheet.
+        // The bulk import and add sheets sit outside the form (so a form update never redraws
+        // them), the file chooser outside the sheet, and the delete dialog outside that.
         Assert.Contains("_importSheet = Views.Sheet(_formSlot, _importSheetSlot,", scene);
+        Assert.Contains("_app.OnResourceSheetDismissed);", scene);
         Assert.Contains("Views.FileImporter(_importSheet,", scene);
-        Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
+        Assert.Contains("Views.ConfirmationDialog(_fileImporter,", scene);
         Assert.Contains("Views.Alert(_deleteConfirmation,", scene);
-        Assert.Contains("Views.QuickAddSuggestions(", scene);
-        Assert.Contains("Find(content, fieldId) is not { Kind: \"textField\" }", scene);
+        Assert.DoesNotContain("Views.QuickAddSuggestions(", scene);
     }
 
     [Fact]
@@ -665,39 +666,34 @@ public sealed class NativeSwiftUIResourceContractTests
         // existing one opens the bulk import sheet (never on a smart resource).
         Assert.Contains("ImportRows(state, creating: true, busy, actions, inputs, style, text,", form);
         Assert.Contains("inputs.ToggleBulk)", form);
-        Assert.Contains("internal bool IsImportSheetPresented => _formOpen && !_creating && _bulkExpanded;",
-            coordinator);
-        Assert.Contains("if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded)",
-            coordinator);
         Assert.Contains("state.QuickAddResults", quickAdd);
         Assert.Contains("native.resources.form.vocabulary.remove.{id}", form);
-        Assert.Contains("text(\"ResourceEdit_QuickAddPlaceholder\"),",
-            quickAdd);
-        Assert.Contains("input.OnKeyPress(key => key switch", quickAdd);
-        Assert.Contains("SwiftTextKey.Escape =>", quickAdd);
-        Assert.Contains("SwiftTextKey.Enter =>", quickAdd);
-        Assert.Contains("SwiftTextKey.ArrowUp =>", quickAdd);
-        Assert.Contains("SwiftTextKey.ArrowDown =>", quickAdd);
-        Assert.DoesNotContain("input.OnEscape(", quickAdd);
-        Assert.Contains("option.WithAccessibilitySelected();", quickAdd);
-        Assert.Contains("createOption.WithAccessibilitySelected();", quickAdd);
-        Assert.Contains("registerOption(option);", quickAdd);
-        Assert.Contains("registerOption(createOption);", quickAdd);
-        Assert.DoesNotContain("parts.Add(dropdown);", quickAdd);
-        Assert.Contains("_quickOptionNodes.Count == count", coordinator);
-        Assert.Contains("option.WithAccessibilitySelected(selected);", coordinator);
-        Assert.Contains("UpdateQuickOptionSelection(appearance);", coordinator);
-        Assert.Contains("RenderQuickAddSuggestions(SourceUiStyle style)", coordinator);
-        Assert.Contains("internal bool IsQuickAddOpen", coordinator);
+        // The add sheet (Captain 2026-11-13): the system search field over the learner's
+        // matching words; a match is added with the same owner-scoped attach, a new word with
+        // the owner-scoped create; one sheet at a time.
+        Assert.Contains("text(\"ResourceEdit_QuickAddPlaceholder\")", coordinator);
+        Assert.Contains("Views.Searchable(style.ThemedList(list),", coordinator);
+        Assert.Contains("id => Run(() => AttachVocabularyAsync(id)),", coordinator);
+        Assert.Contains("native.resources.edit.quick.option.{id}", quickAdd);
+        Assert.Contains("native.resources.edit.quick.new", quickAdd);
+        Assert.Contains("native.resources.edit.quick.listbox", coordinator);
+        Assert.Contains("internal bool IsSheetPresented => _formOpen && !_creating && (_bulkExpanded || IsAddWordsOpen);",
+            coordinator);
+        Assert.Contains("if (!_formOpen || _creating || IsNavigationBlocked || _bulkExpanded || _addWordsOpen",
+            coordinator);
+        // A sheet the app closed blocks the next until its dismissal arrives (review 2026-11-13).
+        Assert.Contains("|| _sheetClosing)", coordinator);
+        Assert.Contains("var closedByApp = _sheetClosing;", coordinator);
+        Assert.Contains("if (!HasQuickAddField || IsNavigationBlocked || _bulkExpanded || _addWordsOpen",
+            coordinator);
         Assert.Contains("internal bool HasQuickAddField", coordinator);
-        Assert.Contains("internal void DismissQuickAddSuggestions()", coordinator);
         Assert.Contains("Views.IndeterminateProgress(text(\"Common_Loading\"))",
             quickAdd);
-        Assert.Contains("inputs.RegisterQuickSearch(input)", quickAdd);
-        Assert.Contains("native.resources.edit.quick.listbox", quickAdd);
-        Assert.True(form.IndexOf("rows.AddRange(LearningResourceQuickAddView.QuickAdd(",
+        Assert.DoesNotContain("RenderQuickAddSuggestions", coordinator);
+        Assert.DoesNotContain("_quickOptionNodes", coordinator);
+        Assert.True(form.IndexOf("rows.AddRange(LearningResourceQuickAddView.FormRows(",
                 StringComparison.Ordinal)
-            < form.IndexOf("rows.AddRange(state.Vocabulary.Select(", StringComparison.Ordinal));
+            < form.IndexOf("rows.AddRange(state.Vocabulary.Take(", StringComparison.Ordinal));
         Assert.Contains("ResourceAdd_VocabWordsAdded", form);
     }
 
@@ -709,8 +705,11 @@ public sealed class NativeSwiftUIResourceContractTests
         var quickAdd = Source("Features/LearningResources/LearningResourceQuickAddView.cs");
         Assert.Contains("_quickQuery.Trim(), _quickNativeTerm.Trim()", coordinator);
         Assert.Contains("ImportVocabularyTextAsync(_pasteText, _delimiter)", coordinator);
-        // Captain 2026-11-13: native Resource form. Add is a Form action row.
-        Assert.Contains("Views.Label(label, \"plus\"), actions.CreateWord)", quickAdd);
+        // Captain 2026-11-13: native Resource form. Add (a new word) is an action row of the add
+        // sheet, which reads the current query and meaning when tapped.
+        Assert.Contains("() => Run(() => CreateVocabularyAsync(\n                _quickQuery.Trim(), _quickNativeTerm.Trim()))",
+            coordinator);
+        Assert.Contains("create)", quickAdd);
         Assert.Contains("actions.ImportText)", form);
         Assert.Contains("PasteTextChanged: value =>", coordinator);
         Assert.Contains("UpdateImportButtons();", coordinator);
@@ -719,21 +718,24 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("formInputs with { PasteText = _pasteText, Delimiter = _delimiter }",
             coordinator);
         Assert.Contains("_importSheetButton = import;", coordinator);
-        Assert.DoesNotContain("actions.CreateWord(inputs.QuickQuery", quickAdd);
+        Assert.DoesNotContain("inputs.QuickQuery", quickAdd);
         Assert.DoesNotContain("actions.ImportText(inputs.PasteText", form);
     }
 
     [Fact]
-    public void QuickAddQueryPublishesOverlayChangesWithoutRemountingFocusedForm()
+    public void QuickAddQueryRedrawsSheetRowsInPlaceWithoutRemountingTheSearchField()
     {
+        // Captain 2026-11-13: native Resource form. Quick add is a sheet with the system search
+        // field; a search bumps the suggestions revision and publishes without redrawing the
+        // form, and the scene redraws only the sheet's list rows (the field keeps its focus).
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var views = Source("Features/LearningResources/LearningResourceQuickAddView.cs");
+        var scene = Source("App/ApplicationScene.cs");
         var search = coordinator[coordinator.IndexOf(
                 "private async Task SearchVocabularyAsync(", StringComparison.Ordinal)
             ..coordinator.IndexOf("private Task AttachVocabularyAsync(",
                 StringComparison.Ordinal)];
 
-        Assert.Contains("internal long QuickAddSuggestionsVersion", coordinator);
         Assert.Contains("Interlocked.Increment(ref _quickSuggestionsRevision);", search);
         Assert.Contains("Publish(formChanged: false);", search);
         Assert.DoesNotContain("Publish();", search);
@@ -741,6 +743,17 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("state.IsQuickAddSearching", views);
         Assert.Contains("Views.IndeterminateProgress(text(\"Common_Loading\"))", views);
         Assert.Contains("NativeResourceVocabularySearchPhase.Searching", coordinator);
+
+        var refresh = coordinator[coordinator.IndexOf(
+                "internal void RefreshAddWords(SourceUiStyle style)", StringComparison.Ordinal)
+            ..coordinator.IndexOf("private SwiftView[] AddWordsRows(", StringComparison.Ordinal)];
+        Assert.Contains("if (revision == _renderedAddWordsRevision)", refresh);
+        Assert.Contains("list.RemoveAt(0);", refresh);
+        Assert.Contains("list.Add(row);", refresh);
+        Assert.DoesNotContain("_addWordsSearch", refresh);
+        Assert.Contains("_app.RefreshResourceAddWords(_style);", scene);
+        Assert.DoesNotContain("Views.QuickAddSuggestions(", scene);
+        Assert.DoesNotContain("HandleQuickAddKey", coordinator);
     }
 
     [Fact]
@@ -759,12 +772,17 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("RegisterVocabularySection: section =>", coordinator);
         Assert.Contains("LearningResourceVocabularyView.AddVocabulary(sections, state,", views);
         Assert.Contains("inputs.RegisterVocabularySection(section);", vocabulary);
-        Assert.Contains("TryAppendStagedQuickAdd(", mutation);
-        Assert.Contains("Publish(formChanged: !appendedStagedWord && !appliedInPlace);", mutation);
-        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+        // A word added from the add sheet (saved, or staged while the language is unsaved)
+        // joins the Section in place: no first redraw, then the new rows only.
+        Assert.Contains("var fromSheet = clearQuery && _addWordsOpen;", mutation);
+        Assert.Contains("if (applyInPlace is null && !fromSheet)", mutation);
+        Assert.Contains("appliedInPlace = fromSheet && TryAppendNewWordRows();", mutation);
+        Assert.Contains("Publish(formChanged: !appliedInPlace);", mutation);
+        Assert.Contains("!_knownWordIds.Contains(word.Id)", coordinator);
+        Assert.Contains("section.Insert(insertAt++, LearningResourceVocabularyView.EditVocabularyRow(word,",
             coordinator);
         Assert.Contains("\"native.resources.form.vocabulary.empty\")", coordinator);
-        Assert.Contains("field.Text = string.Empty;", coordinator);
+        Assert.Contains("search.Text = string.Empty;", mutation);
     }
 
     [Fact]
@@ -793,10 +811,19 @@ public sealed class NativeSwiftUIResourceContractTests
         var scene = Source("App/ApplicationScene.cs");
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var form = Source("Features/LearningResources/LearningResourceView.cs");
-        Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
+        // Captain 2026-11-13: native Resource form. The system confirmation dialog asks; its
+        // close drops the request one main-loop turn later, after Delete has read it.
+        Assert.Contains("Views.ConfirmationDialog(_fileImporter,", scene);
         Assert.Contains("ResourceEdit_DeleteMessage", scene);
+        Assert.Contains("_app.ResourceDeleteDialogClosed,", scene);
+        Assert.Contains(".WithButtonRole(SwiftButtonRole.Destructive)", scene);
         Assert.Contains("_app.CancelResourceDelete", scene);
         Assert.Contains("_app.ConfirmResourceDelete", scene);
+        Assert.DoesNotContain("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
+        var closed = coordinator[coordinator.IndexOf(
+                "internal void DeleteDialogClosed()", StringComparison.Ordinal)..];
+        Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(", closed[..600]);
+        Assert.Contains("NativeResourceDetailPhase.Deleting", closed[..600]);
         Assert.Contains("if (_presenter.RequestDelete())", coordinator);
         Assert.Contains("if (_presenter.RequestDelete())\n            Publish(formChanged: false);",
             coordinator);
@@ -809,96 +836,6 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("ResourceEdit_DeletedSuccess", coordinator);
         Assert.Contains("ResourceEdit_DeleteFailed", form);
     }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ResourceQuickAddEscape_ReplacesOnlyUnmodifiedInheritedEscape(
-        bool emptyBase)
-    {
-        Shortcut[]? inherited = emptyBase ? [] :
-        [
-            new("Return", 0, "textFieldReturn:"),
-            new("Escape", 0, "systemEscape:"),
-            new("Escape", 1, "modifiedEscape:"),
-            new("Return", 0, "duplicateReturn:"),
-        ];
-        var escape = new Shortcut("Escape", 0, "resourceQuickEscape:");
-        var merged = NativeResourceQuickKeyCommands.Merge(
-            inherited, [escape, escape],
-            command => (command.Input, command.Modifiers));
-        if (emptyBase)
-            Assert.Collection(merged, command => Assert.Same(escape, command));
-        else
-            Assert.Collection(merged,
-                command => Assert.Same(inherited![0], command),
-                command => Assert.Same(inherited![2], command),
-                command => Assert.Same(escape, command));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ResourceQuickAddKeyCommands_NilOrEmptyBaseRetainsEachLocalActionOnce(
-        bool emptyBase)
-    {
-        var local = QuickCommands();
-        Shortcut[]? inherited = emptyBase ? [] : null;
-        var merged = NativeResourceQuickKeyCommands.Merge(
-            inherited, local, command => (command.Input, command.Modifiers));
-        Assert.Equal(3, merged.Length);
-        for (var index = 0; index < local.Length; index++)
-            Assert.Same(local[index], merged[index]);
-    }
-
-    [Fact]
-    public void ResourceQuickAddKeyCommands_PreservesUnrelatedBaseActionsAndOwnsSearchKeys()
-    {
-        Shortcut[] inherited =
-        [
-            new("Return", 0, "textFieldReturn:"),
-            new("N", 1, "nativeNew:"),
-            new("Down", 0, "oldDown:"),
-            new("Down", 1, "modifiedDown:"),
-            new("Return", 0, "duplicateReturn:"),
-        ];
-        var local = QuickCommands();
-        Shortcut[] withDuplicateLocal = [.. local, new("Down", 0, "duplicateDown:")];
-        var merged = NativeResourceQuickKeyCommands.Merge(
-            inherited, withDuplicateLocal,
-            command => (command.Input, command.Modifiers));
-        Assert.Collection(merged,
-            command => Assert.Same(inherited[0], command),
-            command => Assert.Same(inherited[1], command),
-            command => Assert.Same(inherited[3], command),
-            command => Assert.Same(local[0], command),
-            command => Assert.Same(local[1], command),
-            command => Assert.Same(local[2], command));
-        Assert.DoesNotContain(merged, command =>
-            command.Selector is "oldDown:" or "duplicateReturn:" or "duplicateDown:");
-    }
-
-    [Fact]
-    public void ResourceQuickAddKeyCommands_InactiveDoesNotAlterBaseShortcuts()
-    {
-        Shortcut[] inherited =
-        [
-            new("Escape", 0, "systemEscape:"),
-            new("Return", 0, "textFieldReturn:"),
-        ];
-        var result = NativeResourceQuickKeyCommands.Merge(
-            inherited, null, command => (command.Input, command.Modifiers));
-        Assert.Same(inherited, result);
-    }
-
-    private static Shortcut[] QuickCommands() =>
-    [
-        new("Up", 0, "resourceQuickUp:"),
-        new("Down", 0, "resourceQuickDown:"),
-        new("Escape", 0, "resourceQuickEscape:"),
-    ];
-
-    private sealed record Shortcut(string Input, int Modifiers, string Selector);
 
     private static string HeadPath => Path.GetFullPath(Path.Combine(
         Path.GetDirectoryName(CurrentFile())!, "../../src/SentenceStudio.Native.iOS"));

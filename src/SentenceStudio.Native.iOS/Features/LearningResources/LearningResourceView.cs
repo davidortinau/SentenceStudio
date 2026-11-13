@@ -96,7 +96,8 @@ internal static class LearningResourceView
                     ? "ResourceAdd_TitleLabel" : "ResourceEdit_Title"),
                 state.Title, NativeAccess.ResourceTitle,
                 value => actions.Change(nameof(LearningResourceViewState.Title), value),
-                readOnly, creating ? text("ResourceAdd_TitlePlaceholder") : null),
+                // An empty field beside its label shows Required or Optional, as in Settings.
+                readOnly, text(creating ? "ResourceAdd_TitlePlaceholder" : "Common_Required")),
             LearningResourceFieldsView.Select(style, text(creating
                     ? "ResourceAdd_MediaTypeLabel" : "ResourceEdit_MediaType"),
                 state.MediaType, Constants.MediaTypes,
@@ -121,7 +122,7 @@ internal static class LearningResourceView
                 ? "ResourceAdd_TagsLabel" : "ResourceEdit_Tags"),
             state.Tags, NativeAccess.ResourceTags,
             value => actions.Change(nameof(LearningResourceViewState.Tags), value),
-            readOnly, creating ? text("ResourceAdd_TagsPlaceholder") : null));
+            readOnly, text(creating ? "ResourceAdd_TagsPlaceholder" : "Common_Optional")));
         if (!creating)
         {
             basic.Add(LearningResourceFieldsView.Value(text("ResourceEdit_Created"),
@@ -224,7 +225,7 @@ internal static class LearningResourceView
             .WithAccessibilityIdentifier(creating
                 ? "native.resources.add.screen" : "native.resources.edit.screen");
 
-    private static string FormatError(string key, Func<string, string> text) =>
+    internal static string FormatError(string key, Func<string, string> text) =>
         key is "ResourceEdit_DeleteFailed" or "FailedToLoadVocabularyData"
             ? string.Format(CultureInfo.CurrentCulture,
                 text(key), text("Common_Error"))

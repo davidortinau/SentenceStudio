@@ -2,23 +2,6 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.iOS.Features.LearningResources;
 
-internal enum ResourceQuickAddKey { ArrowDown, ArrowUp, Enter, Escape }
-
-internal static class ResourceQuickAddNavigation
-{
-    internal static int Move(int selected, int count, ResourceQuickAddKey key)
-    {
-        if (count <= 0)
-            return -1;
-        return key switch
-        {
-            ResourceQuickAddKey.ArrowDown => (selected + 1 + count) % count,
-            ResourceQuickAddKey.ArrowUp => (selected - 1 + count) % count,
-            _ => selected
-        };
-    }
-}
-
 internal sealed class ResourceRequiredPicker
 {
     private readonly string? _current;

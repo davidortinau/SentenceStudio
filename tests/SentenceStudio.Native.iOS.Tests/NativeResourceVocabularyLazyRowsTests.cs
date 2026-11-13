@@ -18,7 +18,9 @@ public sealed class NativeResourceVocabularyLazyRowsTests
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var add = Between(vocabulary, "internal static void AddVocabulary(",
             "internal static string VocabularyHeader(");
-        Assert.Contains("rows.AddRange(state.Vocabulary.Select(word =>", add);
+        // A long list builds its first page of rows; Load More adds the next page in place.
+        Assert.Contains("rows.AddRange(state.Vocabulary.Take(inputs.WordWindow).Select(word =>", add);
+        Assert.Contains("rows.Add(LoadMoreRow(style, text, inputs.ShowMoreWords));", add);
         Assert.Contains("Views.Section(VocabularyHeader(state.Vocabulary.Count, text)", add);
         Assert.Contains("inputs.RegisterVocabularySection(section);", add);
         Assert.DoesNotContain("LazyVGrid", vocabulary);
@@ -31,8 +33,14 @@ public sealed class NativeResourceVocabularyLazyRowsTests
             "internal static SwiftView StagedRow(");
         Assert.Contains("if (isSmartResource || busy)", row);
         Assert.Contains("Views.SwipeRow(content, [RemoveAction(", row);
-        Assert.Contains("section.Add(LearningResourceVocabularyView.EditVocabularyRow(word,",
+        // Captain 2026-11-13: native Resource form. Words added from the add sheet (or Load
+        // More's next page) are inserted into the mounted Section before Load More.
+        Assert.Contains("section.Insert(insertAt++, LearningResourceVocabularyView.EditVocabularyRow(word,",
             coordinator);
+        var more = Between(coordinator, "private void ShowMoreWords()",
+            "private async Task ImportVocabularyTextAsync(");
+        Assert.Contains("state.Vocabulary.Skip(_wordWindow).Take(WordPage)", more);
+        Assert.Contains("LearningResourceVocabularyView.LoadMoreId", more);
     }
 
     [Fact]

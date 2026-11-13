@@ -111,8 +111,8 @@ public sealed class NativeSwiftUIPresentationContractTests
         // file chooser wraps the sheet.
         Assert.Contains("Views.Sheet(_formSlot, _importSheetSlot,", scene);
         Assert.Contains("Views.FileImporter(_importSheet", scene);
-        Assert.Contains("Views.ResourceDeleteConfirmation(_fileImporter",
-            scene);
+        // ...and Delete asks in the system confirmation dialog around the file chooser.
+        Assert.Contains("Views.ConfirmationDialog(_fileImporter,", scene);
         Assert.Contains("Views.Alert(_deleteConfirmation,", scene);
         Assert.Contains("_presenter.ConfirmDeleteAsync(_lifetime.Token)", resources);
     }

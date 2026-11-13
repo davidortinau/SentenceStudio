@@ -2401,6 +2401,14 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Cancel</value>
     <comment>Common: cancel button</comment>
   </data>
+  <data name="Common_Optional" xml:space="preserve">
+    <value>Optional</value>
+    <comment>Common: prompt in an empty optional form field shown beside its label</comment>
+  </data>
+  <data name="Common_Required" xml:space="preserve">
+    <value>Required</value>
+    <comment>Common: prompt in an empty required form field shown beside its label</comment>
+  </data>
   <data name="Common_Done" xml:space="preserve">
     <value>Done</value>
     <comment>Common: done button</comment>
@@ -4072,7 +4080,9 @@ For example: {0} ...</value>
     <comment>Form label</comment>
   </data>
   <data name="ResourceAdd_VocabPlaceholder" xml:space="preserve">
-    <value>target, native\n한국어, Korean\n학교, school</value>
+    <value>target, native
+한국어, Korean
+학교, school</value>
     <comment>Textarea placeholder</comment>
   </data>
   <data name="ResourceAdd_CommaDelimiter" xml:space="preserve">
@@ -4254,6 +4264,10 @@ For example: {0} ...</value>
   <data name="ResourceEdit_ImportVocabLabel" xml:space="preserve">
     <value>Import vocabulary (one pair per line)</value>
     <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_WordAddedNamed" xml:space="preserve">
+    <value>Added {0}</value>
+    <comment>Resource edit: the add sheet's confirmation after a word was added; {0} is the word</comment>
   </data>
   <data name="ResourceEdit_VocabPlaceholder" xml:space="preserve">
     <value>target, native</value>

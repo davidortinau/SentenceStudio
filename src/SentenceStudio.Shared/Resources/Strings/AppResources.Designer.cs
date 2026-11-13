@@ -5494,6 +5494,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Optional.
+        /// </summary>
+        internal static string Common_Optional {
+            get {
+                return ResourceManager.GetString("Common_Optional", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Password.
         /// </summary>
         internal static string Common_Password {
@@ -5553,6 +5562,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Common_RememberMe {
             get {
                 return ResourceManager.GetString("Common_RememberMe", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Required.
+        /// </summary>
+        internal static string Common_Required {
+            get {
+                return ResourceManager.GetString("Common_Required", resourceCulture);
             }
         }
 
@@ -16069,7 +16087,9 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to target, native\n한국어, Korean\n학교, school.
+        ///   Looks up a localized string similar to target, native
+        ///한국어, Korean
+        ///학교, school.
         /// </summary>
         internal static string ResourceAdd_VocabPlaceholder {
             get {
@@ -16713,6 +16733,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceEdit_VocabularySection {
             get {
                 return ResourceManager.GetString("ResourceEdit_VocabularySection", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Added {0}.
+        /// </summary>
+        internal static string ResourceEdit_WordAddedNamed {
+            get {
+                return ResourceManager.GetString("ResourceEdit_WordAddedNamed", resourceCulture);
             }
         }
 

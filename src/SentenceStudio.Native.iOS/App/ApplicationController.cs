@@ -108,24 +108,16 @@ internal sealed partial class ApplicationController : IDisposable
     internal string StarterBusyTitle => Text(_dashboardStarterBusy
         ? "Dashboard_SettingUp" : "Resources_CreatingStarter");
     internal bool IsFileImporterPresented => _resources?.IsFileImporterPresented == true;
-    internal bool IsResourceImportSheetPresented =>
-        _resources?.IsImportSheetPresented == true;
-    internal SwiftView RenderResourceImportSheet(SourceUiStyle style) =>
-        _resources?.RenderImportSheet(style) ?? Views.Text(string.Empty);
-    internal void OnResourceImportSheetDismissed() =>
-        _resources?.OnImportSheetDismissed();
-    internal bool IsQuickAddSuggestionsPresented => _resources?.IsQuickAddOpen == true;
-    internal bool HasQuickAddField => _resources?.HasQuickAddField == true;
-    internal string? QuickAddFieldAutomationId => _resources?.QuickAddFieldAutomationId;
-    internal SwiftView RenderResourceQuickAddSuggestions(SourceUiStyle style) =>
-        _resources?.RenderQuickAddSuggestions(style)
-            ?? Views.VStack();
-    internal void DismissResourceQuickAddSuggestions() =>
-        _resources?.DismissQuickAddSuggestions();
+    internal bool IsResourceSheetPresented =>
+        _resources?.IsSheetPresented == true;
+    internal SwiftView RenderResourceSheet(SourceUiStyle style) =>
+        _resources?.RenderSheet(style) ?? Views.Text(string.Empty);
+    internal void OnResourceSheetDismissed() =>
+        _resources?.OnSheetDismissed();
+    internal void RefreshResourceAddWords(SourceUiStyle style) =>
+        _resources?.RefreshAddWords(style);
     internal long ResourceFormProjectionVersion =>
         _resources?.FormProjectionVersion ?? -1;
-    internal long ResourceQuickAddSuggestionsVersion =>
-        _resources?.QuickAddSuggestionsVersion ?? -1;
     internal bool IsDeleteConfirmationPresented =>
         _resources?.FormState.ShowDeleteConfirmation == true;
     internal bool IsResourceDeletePending =>
@@ -993,6 +985,8 @@ internal sealed partial class ApplicationController : IDisposable
     internal void SearchResources(string query) => _resources?.Search(query);
 
     internal void CancelResourceDelete() => _resources?.CancelDelete();
+
+    internal void ResourceDeleteDialogClosed() => _resources?.DeleteDialogClosed();
 
     internal void ConfirmResourceDelete() => _resources?.ConfirmDelete();
 

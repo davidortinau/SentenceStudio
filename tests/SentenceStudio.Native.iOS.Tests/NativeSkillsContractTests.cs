@@ -496,7 +496,9 @@ public sealed class NativeSkillsContractTests
         Assert.Contains("_app.OnSkillsPopped()", scene);
         Assert.Contains("_app.OnSkillFormPopped()", scene);
         Assert.Contains("Views.ResourceDeleteConfirmation(", scene);
-        Assert.Equal(2, scene.Split(".WithTransparentDeleteBackdrop()").Length - 1);
+        // Captain 2026-11-13: native Resource form. The resource form's Delete moved to the system
+        // confirmation dialog, so only the Skill editor keeps the custom overlay.
+        Assert.Equal(1, scene.Split(".WithTransparentDeleteBackdrop()").Length - 1);
         Assert.Contains("\"SkillEdit_DeleteMessage\"", scene);
         Assert.Contains("ReloadChooseOwnAfterSkills()", controller);
         // The Library list's Skills row pushes the Skills page (tab shell trial).

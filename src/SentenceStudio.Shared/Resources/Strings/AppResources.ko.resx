@@ -2157,6 +2157,14 @@
     <value>취소</value>
     <comment>Common: cancel button</comment>
   </data>
+  <data name="Common_Optional" xml:space="preserve">
+    <value>선택</value>
+    <comment>Common: prompt in an empty optional form field shown beside its label</comment>
+  </data>
+  <data name="Common_Required" xml:space="preserve">
+    <value>필수</value>
+    <comment>Common: prompt in an empty required form field shown beside its label</comment>
+  </data>
   <data name="Common_Done" xml:space="preserve">
     <value>완료</value>
     <comment>Common: done button</comment>
@@ -3824,7 +3832,9 @@
     <comment>Form label</comment>
   </data>
   <data name="ResourceAdd_VocabPlaceholder" xml:space="preserve">
-    <value>대상어, 모국어\n한국어, Korean\n학교, school</value>
+    <value>대상어, 모국어
+한국어, Korean
+학교, school</value>
     <comment>Textarea placeholder</comment>
   </data>
   <data name="ResourceAdd_CommaDelimiter" xml:space="preserve">
@@ -4006,6 +4016,10 @@
   <data name="ResourceEdit_ImportVocabLabel" xml:space="preserve">
     <value>어휘 가져오기 (한 줄에 한 쌍)</value>
     <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_WordAddedNamed" xml:space="preserve">
+    <value>{0} 추가됨</value>
+    <comment>Resource edit: the add sheet's confirmation after a word was added; {0} is the word</comment>
   </data>
   <data name="ResourceEdit_VocabPlaceholder" xml:space="preserve">
     <value>대상어, 모국어</value>

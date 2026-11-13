@@ -57,8 +57,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _settingsSlot;
     private int _renderedSettingsVersion = -1;
     private SwiftView? _formSlot;
-    private SwiftView? _quickSuggestions;
-    private SwiftView? _quickSuggestionSlot;
     private SwiftView? _fileImporter;
     private SwiftView? _importSheet;
     private SwiftView? _importSheetSlot;
@@ -66,7 +64,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _conflictAlert;
     private long _renderedFormVersion = -1;
     private bool _renderedResourceFormHidesTabBar = true;
-    private long _renderedQuickSuggestionsVersion = -1;
     private RootKind _kind;
     private bool _conflictAcknowledged;
     private bool _updating;
@@ -667,24 +664,27 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithNavigationTitle(_app.ResourceFormTitle)
                     .WithInlineNavigationTitle();
                 _renderedFormVersion = _app.ResourceFormProjectionVersion;
-                // An existing resource's bulk import (Captain 2026-11-13): a sheet over the
-                // form, outside it, so the form's updates never redraw the open sheet.
+                // An existing resource's bulk import and quick add (Captain 2026-11-13):
+                // sheets over the form, outside it, so the form's updates never redraw an
+                // open sheet.
                 _importSheetSlot = Views.VStack();
                 _importSheet = Views.Sheet(_formSlot, _importSheetSlot,
-                    _app.OnResourceImportSheetDismissed);
+                    _app.OnResourceSheetDismissed);
                 _fileImporter = Views.FileImporter(_importSheet,
                     _app.OnResourceFileImported,
                     _app.OnResourceFileImportError,
                     _app.OnFileImporterDismissed);
-                _deleteConfirmation = Views.ResourceDeleteConfirmation(_fileImporter,
-                    _app.Localize("ResourceEdit_ConfirmDelete"),
-                    _app.Localize("ResourceEdit_DeleteMessage"),
-                    _app.Localize("Common_Close"),
-                    _app.Localize("Common_Cancel"),
-                    _app.Localize("Common_Delete"),
-                    _app.CancelResourceDelete,
-                    _app.ConfirmResourceDelete)
-                    .WithTransparentDeleteBackdrop()
+                // Captain 2026-11-13 (the native pass): Delete asks in the system
+                // confirmation dialog, as the Library lists do, not a custom overlay.
+                _deleteConfirmation = Views.ConfirmationDialog(_fileImporter,
+                        _app.Localize("ResourceEdit_DeleteMessage"),
+                        _app.ResourceDeleteDialogClosed,
+                        Views.Button(_app.Localize("Common_Delete"), _app.ConfirmResourceDelete)
+                            .WithButtonRole(SwiftButtonRole.Destructive)
+                            .WithAccessibilityIdentifier("native.resources.edit.delete.confirm"),
+                        Views.Button(_app.Localize("Common_Cancel"), _app.CancelResourceDelete)
+                            .WithButtonRole(SwiftButtonRole.Cancel)
+                            .WithAccessibilityIdentifier("native.resources.edit.delete.cancel"))
                     .WithAccessibilityIdentifier("native.resources.edit.delete");
                 _conflictAlert = Views.Alert(_deleteConfirmation,
                     _app.Localize("NativeResources_ConflictTitle"),
@@ -724,14 +724,15 @@ internal sealed partial class ApplicationScene : IDisposable
                 _conflictAlert.WithTabBarHidden(hideTabBar);
                 _renderedResourceFormHidesTabBar = hideTabBar;
             }
-            RefreshQuickSuggestions();
+            // The add sheet's results follow the search in place (its field keeps focus).
+            _app.RefreshResourceAddWords(_style);
             if (_importSheet is { } importSheet && _importSheetSlot is { } importSlot)
             {
-                var showImport = _app.IsResourceImportSheetPresented;
+                var showImport = _app.IsResourceSheetPresented;
                 // Drawn when it opens; its fields keep what is typed until it closes.
                 if (showImport && !importSheet.IsPresented)
                     ReplaceContainerChildren(importSlot,
-                        Views.VStack(_app.RenderResourceImportSheet(_style)));
+                        Views.VStack(_app.RenderResourceSheet(_style)));
                 if (importSheet.IsPresented != showImport)
                     importSheet.IsPresented = showImport;
             }
@@ -739,10 +740,10 @@ internal sealed partial class ApplicationScene : IDisposable
                 _fileImporter.IsPresented = _app.IsFileImporterPresented;
             if (_deleteConfirmation is not null)
             {
-                _deleteConfirmation.IsPresented =
-                    _app.IsDeleteConfirmationPresented;
-                _deleteConfirmation.DeletePending =
-                    _app.IsResourceDeletePending;
+                // While the delete runs the form shows it is busy; the dialog has gone.
+                var asking = _app.IsDeleteConfirmationPresented && !_app.IsResourceDeletePending;
+                if (_deleteConfirmation.IsPresented != asking)
+                    _deleteConfirmation.IsPresented = asking;
             }
             if (_conflictAlert is not null)
             {
@@ -766,55 +767,8 @@ internal sealed partial class ApplicationScene : IDisposable
         }
     }
 
-    private SwiftView ResourceFormContent()
-    {
-        var content = _app.RenderResourceForm(_style);
-        _quickSuggestions = null;
-        _quickSuggestionSlot = null;
-        _renderedQuickSuggestionsVersion = -1;
-        var fieldId = _app.QuickAddFieldAutomationId;
-        if (!_app.HasQuickAddField || string.IsNullOrWhiteSpace(fieldId)
-            || Find(content, fieldId) is not { Kind: "textField" })
-            return content;
-        _quickSuggestionSlot = _app.RenderResourceQuickAddSuggestions(_style);
-        _renderedQuickSuggestionsVersion =
-            _app.ResourceQuickAddSuggestionsVersion;
-        _quickSuggestions = Views.QuickAddSuggestions(
-                content, fieldId, _quickSuggestionSlot,
-                _app.DismissResourceQuickAddSuggestions)
-            .WithAccessibilityIdentifier("native.resources.edit.quick.overlay");
-        _quickSuggestions.IsPresented = _app.IsQuickAddSuggestionsPresented;
-        return _quickSuggestions;
-    }
-
-    private void RefreshQuickSuggestions()
-    {
-        if (_quickSuggestions is not { } popup
-            || _quickSuggestionSlot is not { } suggestions)
-            return;
-        if (_renderedQuickSuggestionsVersion
-                == _app.ResourceQuickAddSuggestionsVersion
-            && popup.IsPresented == _app.IsQuickAddSuggestionsPresented)
-            return;
-
-        DispatchQueue.MainQueue.DispatchAsync(() =>
-        {
-            if (_disposed || !_app.IsResourcesFormOpen
-                || !ReferenceEquals(_quickSuggestions, popup)
-                || !ReferenceEquals(_quickSuggestionSlot, suggestions))
-                return;
-            var version = _app.ResourceQuickAddSuggestionsVersion;
-            if (_renderedQuickSuggestionsVersion != version)
-            {
-                ReplaceContainerChildren(suggestions,
-                    _app.RenderResourceQuickAddSuggestions(_style));
-                _renderedQuickSuggestionsVersion = version;
-            }
-            var presented = _app.IsQuickAddSuggestionsPresented;
-            if (popup.IsPresented != presented)
-                popup.IsPresented = presented;
-        });
-    }
+    // Quick add is a sheet (Captain 2026-11-13); the form needs no suggestion popup.
+    private SwiftView ResourceFormContent() => _app.RenderResourceForm(_style);
 
     private static void ReplaceContainerChildren(SwiftView slot, SwiftView next)
     {
@@ -970,8 +924,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private void DropFormReferences()
     {
         _formSlot = null;
-        _quickSuggestions = null;
-        _quickSuggestionSlot = null;
         _fileImporter = null;
         _importSheet = null;
         _importSheetSlot = null;
@@ -980,7 +932,6 @@ internal sealed partial class ApplicationScene : IDisposable
         _conflictAcknowledged = false;
         _renderedResourceFormHidesTabBar = true;
         _renderedFormVersion = -1;
-        _renderedQuickSuggestionsVersion = -1;
     }
 
     private void DropSkillFormReferences()

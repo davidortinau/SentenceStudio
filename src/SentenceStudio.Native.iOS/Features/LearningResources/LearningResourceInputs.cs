@@ -9,21 +9,15 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.LearningResources;
 
 internal sealed record LearningResourceInputs(
-    string QuickQuery,
-    string QuickNativeTerm,
     string PasteText,
     string Delimiter,
-    bool CreateWordExpanded,
-    Action<string> QuickQueryChanged,
-    Action<string> QuickNativeTermChanged,
     Action<string> PasteTextChanged,
     Action<string> DelimiterChanged,
     Action ToggleBulk,
-    Action ToggleCreateWord,
+    Action OpenAddWords,
     Action ChooseFile,
-    Action<SwiftView> RegisterQuickSearch,
-    Action<SwiftView, bool> QuickFocusChanged,
-    Func<ResourceQuickAddKey, bool> QuickKeyPressed,
+    int WordWindow,
+    Action ShowMoreWords,
     Action<SwiftView> RegisterImport,
     Action<SwiftView> RegisterStagedGrid,
     Action<SwiftView> RegisterVocabularySection);

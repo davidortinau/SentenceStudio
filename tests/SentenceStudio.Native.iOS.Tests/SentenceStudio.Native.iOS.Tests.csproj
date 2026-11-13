@@ -24,8 +24,6 @@
              Link="NativeApiEndpoint.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
              Link="NativeResourceDateFormatter.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceQuickKeyCommands.cs"
-             Link="NativeResourceQuickKeyCommands.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeLocalizedText.cs"
              Link="NativeLocalizedText.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/App/ApplicationFormRoutes.cs"

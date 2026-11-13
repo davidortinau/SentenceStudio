@@ -48,8 +48,8 @@ internal static class LearningResourceVocabularyView
                     .WithAccessibilityIdentifier("native.resources.edit.generate")));
         if (!state.IsSmartResource)
         {
-            rows.AddRange(LearningResourceQuickAddView.QuickAdd(
-                state, busy, actions, inputs, style, text));
+            rows.AddRange(LearningResourceQuickAddView.FormRows(
+                state, busy, inputs, style, text));
             rows.Add(Action(style, Views.Button(Views.Label(
                     text("ResourceEdit_BulkImportToggle"), "square.and.arrow.down"),
                     inputs.ToggleBulk)
@@ -67,9 +67,16 @@ internal static class LearningResourceVocabularyView
         if (state.Vocabulary.Count == 0)
             rows.Add(EmptyRow(style, text));
         else
-            rows.AddRange(state.Vocabulary.Select(word =>
+        {
+            // A long list builds its first rows and Load More adds the next ones in place
+            // (as the Vocabulary list does, departure 81): thousands of rows would stall a
+            // redraw.
+            rows.AddRange(state.Vocabulary.Take(inputs.WordWindow).Select(word =>
                 EditVocabularyRow(word, state.IsSmartResource, busy,
                     actions.RemoveWord, style, text)));
+            if (state.Vocabulary.Count > inputs.WordWindow)
+                rows.Add(LoadMoreRow(style, text, inputs.ShowMoreWords));
+        }
         var section = Views.Section(VocabularyHeader(state.Vocabulary.Count, text),
                 rows.ToArray());
         inputs.RegisterVocabularySection(section);
@@ -83,6 +90,13 @@ internal static class LearningResourceVocabularyView
     internal static string StagedHeader(int count, Func<string, string> text) =>
         string.Format(CultureInfo.CurrentCulture,
             text("ResourceAdd_VocabWordsAdded"), count);
+
+    internal const string LoadMoreId = "native.resources.form.vocabulary.more";
+
+    internal static SwiftView LoadMoreRow(
+        SourceUiStyle style, Func<string, string> text, Action more) =>
+        Action(style, Views.Button(text("Common_LoadMore"), more)
+            .WithAccessibilityIdentifier(LoadMoreId));
 
     internal static SwiftView EmptyRow(SourceUiStyle style, Func<string, string> text) =>
         style.Text(Views.Text(text("ResourceEdit_NoVocabYet")),
@@ -224,7 +238,9 @@ internal static class LearningResourceVocabularyView
 
     /// <summary>A Form action row in the app's accent color, as a system Form draws its buttons.</summary>
     internal static SwiftView Action(SourceUiStyle style, SwiftView button) =>
-        button.WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
+        // The page's text color would otherwise win over the tint inside a Form row.
+        button.WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
 
     /// <summary>Remove: destructive (red), so the row leaves at once; no confirmation, as before.</summary>
     private static SwiftView RemoveAction(
