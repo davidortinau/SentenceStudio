@@ -9859,15 +9859,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Remove filter.
-        /// </summary>
-        internal static string Library_RemoveFilter {
-            get {
-                return ResourceManager.GetString("Library_RemoveFilter", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Resources.
         /// </summary>
         internal static string Library_Resources {

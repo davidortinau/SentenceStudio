@@ -126,6 +126,25 @@ public sealed class VocabularyFilterStateTests
     }
 
     [Fact]
+    public void SearchFieldTokens_DeletingSeveralRemovesTheirFiltersInOneCommit()
+    {
+        var commits = new List<string>();
+        var filters = new VocabularyFilterState("tag:food status:learning type:word 사과",
+            commits.Add);
+        Assert.Equal("tag:food", VocabularyFilterState.TokenId(filters.ChipFilters[0]));
+
+        filters.KeepChips(["status:learning"]);
+
+        Assert.Equal(new FilterToken("status", "learning"), Assert.Single(filters.ChipFilters));
+        Assert.Equal("사과", filters.FieldText);
+        Assert.Equal("status:learning 사과", Assert.Single(commits));
+
+        // Ids that match nothing change nothing.
+        filters.KeepChips(["status:learning", "unknown:x"]);
+        Assert.Single(commits);
+    }
+
+    [Fact]
     public void PhoneDraft_CancelApplyAndClearRetainOnlyCommittedQueryAfterRestoration()
     {
         var persisted = "status:learning";

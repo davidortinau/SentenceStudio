@@ -23,7 +23,7 @@ internal sealed record VocabularyListActions(
     Action<double>? PageWidthChanged = null,
     Action? AddWord = null,
     Action<string>? SearchField = null,
-    Action<FilterToken>? RemoveChip = null);
+    Action<IReadOnlyList<string>>? KeepChips = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -135,21 +135,16 @@ internal static class VocabularyListView
         return items;
     }
 
-    /// <param name="bottom">The bottom search bar (its capsule draws the field's surface).</param>
+    /// <summary>The wide page's search row (the whole query as text, and clear).</summary>
     private static SwiftView SearchRow(
         VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, VocabularyListActions actions, bool bottom = false)
+        Func<string, string> text, VocabularyListActions actions)
     {
-        // The bottom bar's field holds the words; its filters are chips beside it.
-        var search = bottom
-            ? BrowserPage.SearchField(style, text("Vocabulary_SearchPlaceholder"),
-                state.Filters.FieldText, actions.SearchField ?? actions.Search,
-                "native.vocabulary.search")
-            : style.TextInput(Views.TextField(
-                    text("Vocabulary_SearchPlaceholder"),
-                    state.Filters.CommittedQuery, actions.Search))
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier("native.vocabulary.search");
+        var search = style.TextInput(Views.TextField(
+                text("Vocabulary_SearchPlaceholder"),
+                state.Filters.CommittedQuery, actions.Search))
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier("native.vocabulary.search");
         var clear = state.Filters.HasActiveFilters
             ? Views.Button(Views.Image("xmark"), actions.ClearFilters)
                 .WithAccessibilityLabel(text("Vocabulary_ClearFilters"))
@@ -180,46 +175,39 @@ internal static class VocabularyListView
         else
             AddResults(children, state, style, text, actions, width, wide: false);
         // A wide page shows this while it loads: its search stays at the top.
-        var bottom = !BrowserPage.IsWide(width);
-        return BrowserPage.SingleColumn(Prefix, style, children,
-            SearchRow(state, style, text, actions, bottom), width, bottom,
-            bottom ? SearchChips(state, style, text, actions) : null);
+        if (IsWide(width))
+            return BrowserPage.SingleColumnWithTopSearch(Prefix, children,
+                SearchRow(state, style, text, actions), width);
+        // No search while the owner is unknown.
+        if (state.Blocked)
+            return BrowserPage.SingleColumn(Prefix, children, width, search: null);
+        // The system search field: the typed words, and the filters as tokens in the field.
+        return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(
+            text("Vocabulary_SearchPlaceholder"), state.Filters.FieldText,
+            actions.SearchField ?? actions.Search, SearchTokens(state, text),
+            remaining => actions.KeepChips?.Invoke(remaining)));
     }
 
     /// <summary>
-    /// The bottom search bar's chips: the filters chosen from the menu (or restored), each
-    /// named as the menu names it.
+    /// The search field's tokens: the filters chosen from the menu (or restored), each named
+    /// with its value as the menu names it.
     /// </summary>
-    private static List<SwiftView> SearchChips(
-        VocabularyBrowserList state, SourceUiStyle style,
-        Func<string, string> text, VocabularyListActions actions)
+    private static List<SwiftSearchToken> SearchTokens(
+        VocabularyBrowserList state, Func<string, string> text)
     {
         if (state.Filters.ChipFilters.Count == 0)
             return [];
         var choices = FilterChoices(state, text);
-        var remove = text("Library_RemoveFilter");
-        var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         return state.Filters.ChipFilters.Select(filter =>
             {
-                // Two chips of one type (a restored or typed query) get distinct IDs.
-                var ordinal = seen.TryGetValue(filter.Type, out var count) ? count : 0;
-                seen[filter.Type] = ordinal + 1;
                 var choice = choices.FirstOrDefault(item =>
                     item.Type.Equals(filter.Type, StringComparison.OrdinalIgnoreCase));
-                var label = choice is null ? filter.Type : text(choice.LabelKey);
                 var known = choice?.Values.Any(value =>
                     value.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)) == true;
-                var value = known && choice!.ValueLabel is { } name ? name(filter.Value) : filter.Value;
-                return BrowserPage.SearchChip(Prefix,
-                    ordinal == 0 ? filter.Type : $"{filter.Type}.{ordinal}", label, value, remove,
-                    () =>
-                    {
-                        if (actions.RemoveChip is { } removeChip)
-                            removeChip(filter);
-                        else
-                            actions.ChangeWideFilter(filter.Type, null);
-                    }, style);
+                var title = known && choice!.ValueLabel is { } name ? name(filter.Value) : filter.Value;
+                return new SwiftSearchToken(VocabularyFilterState.TokenId(filter), title);
             })
+            .DistinctBy(token => token.Id)
             .ToList();
     }
 

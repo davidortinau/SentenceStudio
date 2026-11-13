@@ -291,75 +291,62 @@ internal static class BrowserPage
     }
 
     /// <summary>
-    /// The phone page (and the list column of the Library split view), and the wide page while
-    /// it loads or cannot show its items: one scrolling column with the search bar at the
-    /// bottom, in reach of the thumb, as in Notes and Mail (Captain 2026-11-12).
+    /// What a narrow page's system search field shows and reports: the words, and the active
+    /// filters as search tokens inside the field (Captain 2026-11-12: "I want the native way").
+    /// Its actions must not depend on the state they were built with (the page updates in place).
+    /// </summary>
+    internal sealed record PageSearch(string Placeholder, string Text, Action<string> Changed,
+        IReadOnlyList<SwiftSearchToken> Tokens, Action<IReadOnlyList<string>> TokensChanged);
+
+    /// <summary>
+    /// The phone page (and the list column of the Library split view): one scrolling column
+    /// under the system search field (SwiftUI <c>searchable</c>; the system places it, at the
+    /// bottom on a phone), its filters as tokens in the field.
     /// </summary>
     /// <param name="width">The page's own width (a split view's list column is narrow).</param>
-    /// <param name="searchAtBottom">
-    /// False for a wide page while it loads: its search stays at the top, where the loaded
-    /// wide page has it.
-    /// </param>
-    /// <param name="chips">The active filters, shown in the bottom search bar before its field.</param>
-    internal static SwiftView SingleColumn(string prefix, SourceUiStyle style,
-        IEnumerable<SwiftView> children, SwiftView searchRow, double width, bool searchAtBottom,
-        IReadOnlyList<SwiftView>? chips = null)
+    /// <param name="search">Null leaves the page without search (its list cannot be searched now).</param>
+    internal static SwiftView SingleColumn(string prefix, IEnumerable<SwiftView> children,
+        double width, PageSearch? search) =>
+        search is null
+            ? Scroll(prefix, children, width)
+            : Views.Searchable(Scroll(prefix, children, width), search.Placeholder, search.Text,
+                    search.Changed, search.Tokens, search.TokensChanged)
+                .WithAccessibilityIdentifier($"{prefix}.search");
+
+    /// <summary>
+    /// The wide page while it loads or cannot show its items: its search row stays at the top,
+    /// where the loaded wide page has it.
+    /// </summary>
+    internal static SwiftView SingleColumnWithTopSearch(string prefix,
+        IEnumerable<SwiftView> children, SwiftView searchRow, double width)
     {
         var gutter = SourceUiLayout.PageGutter(width);
+        var top = Views.VStack(searchRow.WithPadding(gutter, gutter, 0, gutter),
+                Scroll(prefix, children, width))
+            .WithFlexibleWidth();
+        top.Spacing = 0;
+        return top;
+    }
+
+    /// <summary>
+    /// The column's one scroll; its content owns the gutter. Dragging it puts the keyboard
+    /// away, as in Messages and Notes.
+    /// </summary>
+    private static SwiftView Scroll(string prefix, IEnumerable<SwiftView> children, double width)
+    {
         var content = Views.VStack(children.ToArray())
-            .WithPadding(gutter)
+            .WithPadding(SourceUiLayout.PageGutter(width))
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier($"{prefix}.scroll.content");
         content.Spacing = SourceUiLayout.PageGap;
-        // Dragging the list puts the keyboard away (Captain 2026-11-12: "I can't seem to
-        // dismiss the keyboard"), as in Messages and Notes; Return also ends the search.
-        var scroll = Views.Scroll(content)
+        return Views.Scroll(content)
             .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)
             .WithAccessibilityIdentifier($"{prefix}.scroll");
-        if (!searchAtBottom)
-        {
-            var top = Views.VStack(searchRow.WithPadding(gutter, gutter, 0, gutter), scroll)
-                .WithFlexibleWidth();
-            top.Spacing = 0;
-            return top;
-        }
-        return Views.BottomInset(scroll,
-            BottomSearchBar(prefix, style, searchRow, gutter, chips ?? []));
     }
 
     /// <summary>
-    /// A rounded search bar: a magnifying glass, the active filters as chips (Captain
-    /// 2026-11-12: "Chips, not text"), then the search row (field and clear). The chips sit in
-    /// their own slot, rebuilt on each update while the field stays mounted.
-    /// </summary>
-    private static SwiftView BottomSearchBar(string prefix, SourceUiStyle style,
-        SwiftView searchRow, double gutter, IReadOnlyList<SwiftView> chips)
-    {
-        var appearance = style.Appearance;
-        var field = Views.HStack(
-                Views.Image("magnifyingglass")
-                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
-                searchRow)
-            .WithFlexibleWidth();
-        field.Spacing = 8;
-        // The chips take their own line above the field and scroll sideways when they do not
-        // fit, so the field keeps its width; with no filter on, the line is empty and adds no
-        // height.
-        var chipLine = Views.VStack(chips.Count == 0 ? []
-                : [ChipStrip($"{prefix}.search.chips.strip", chips, 6).WithPadding(2, 0, 6, 0)])
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier($"{prefix}.search.chips");
-        var bar = Views.VStack(chipLine, field).WithFlexibleWidth();
-        bar.Spacing = 0;
-        // The capsule sets its own inner padding on its node, so the gutter goes on a host.
-        return Views.VStack(style.ComposerCapsule(bar))
-            .WithPadding(6, gutter, 10, gutter)
-            .WithAccessibilityIdentifier($"{prefix}.search.bar");
-    }
-
-    /// <summary>
-    /// Chips in one row that scrolls sideways when they do not fit: the bottom search bar's and
-    /// the wide page's filter chips. The row is <paramref name="id"/>.row.
+    /// Chips in one row that scrolls sideways when they do not fit (the wide page's filter
+    /// chips). The row is <paramref name="id"/>.row.
     /// </summary>
     internal static SwiftView ChipStrip(string id, IReadOnlyList<SwiftView> chips, double spacing)
     {
@@ -370,37 +357,6 @@ internal static class BrowserPage
         strip.Spacing = spacing;
         return strip;
     }
-
-    /// <summary>
-    /// One active filter as a chip in the search bar: its value and an x; a tap removes that
-    /// filter. VoiceOver reads "Remove filter, Type: Video".
-    /// </summary>
-    internal static SwiftView SearchChip(string prefix, string type, string label, string value,
-        string removeName, Action remove, SourceUiStyle style)
-    {
-        var appearance = style.Appearance;
-        var content = Views.HStack(
-                style.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Primary)
-                    .WithLineLimit(1),
-                Views.Image("xmark")
-                    .WithFixedSymbolSize(10)
-                    .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark))
-            .WithPadding(4, 10, 4, 8)
-            .WithRoundedSurface(appearance.BodyBackground.Light, appearance.BodyBackground.Dark,
-                12, appearance.Primary.Light, appearance.Primary.Dark, 1);
-        content.Spacing = 4;
-        return Views.Button(content, remove)
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithAccessibilityLabel($"{removeName}, {label}: {value}")
-            .WithAccessibilityIdentifier($"{prefix}.search.chip.{type}");
-    }
-
-    /// <summary>The search field in the bottom bar: the capsule draws its surface.</summary>
-    internal static SwiftView SearchField(SourceUiStyle style, string placeholder, string text,
-        Action<string> changed, string id) =>
-        style.ComposerField(Views.TextField(placeholder, text, changed))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier(id);
 
     /// <summary>
     /// The wide page: the filter column (when shown) and a divider, then the results: the search

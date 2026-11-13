@@ -137,6 +137,21 @@ internal sealed partial class LearningResourcesCoordinator
             !values.IsDefault && values.Contains(value, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Tokens were deleted in the search field (whose ids are "type" and "language"): their
+    /// filters turn off in one change. A filter turning off is always allowed (no catalog check),
+    /// and the page always redraws, so the field's tokens match the filters again.
+    /// </summary>
+    private void KeepFilterTokens(IReadOnlyList<string> remaining)
+    {
+        if (_disposed)
+            return;
+        var list = _presenter.List;
+        ListChanged(_presenter.Filter(
+            remaining.Contains("type") ? list.MediaType : null,
+            remaining.Contains("language") ? list.Language : null));
+    }
+
     private void ListChanged(NativeResourceListState _)
     {
         if (!_disposed)

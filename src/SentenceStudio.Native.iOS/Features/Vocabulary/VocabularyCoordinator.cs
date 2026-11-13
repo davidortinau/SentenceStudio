@@ -96,7 +96,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 PageWidthChanged: OnPageWidthChanged,
                 AddWord: AddWord,
                 SearchField: SearchField,
-                RemoveChip: RemoveChip),
+                KeepChips: KeepChips),
             PageWidth);
     }
 

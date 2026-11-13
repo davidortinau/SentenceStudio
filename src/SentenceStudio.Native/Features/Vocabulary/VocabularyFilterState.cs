@@ -11,11 +11,11 @@ internal sealed class VocabularyFilterState
     private string? _phoneDraft;
 
     /// <summary>
-    /// The filters shown as chips in the search bar (chosen from the filter menu, or restored),
-    /// and the bar's own text. The committed query is the chips' tokens, then the text
+    /// The filters shown as tokens in the system search field (chosen from the filter menu, or restored),
+    /// and the field's own text. The committed query is the chips' tokens, then the text
     /// (Captain 2026-11-12: filters as chips, not text). A whole-query search (the wide page's
     /// field, Android, the phone sheet) commits exactly what was typed, and its filters become
-    /// the bar's chips beside the rest of the text.
+    /// the field's tokens beside the rest of the text.
     /// </summary>
     private readonly List<FilterToken> _chips = [];
     private string _fieldText;
@@ -28,8 +28,26 @@ internal sealed class VocabularyFilterState
         SplitIntoChips(CommittedQuery);
     }
 
-    /// <summary>The search bar's chips (see <see cref="_chips"/>).</summary>
+    /// <summary>The search field's filter tokens (see <see cref="_chips"/>).</summary>
     internal IReadOnlyList<FilterToken> ChipFilters => _chips;
+
+    /// <summary>A filter token's id in the search field: its query token ("status:learning").</summary>
+    internal static string TokenId(FilterToken filter) => $"{filter.Type}:{filter.Value}";
+
+    /// <summary>
+    /// Tokens were deleted in the search field: the filters whose ids are not in
+    /// <paramref name="remaining"/> go, in one change.
+    /// </summary>
+    internal void KeepChips(IReadOnlyList<string> remaining)
+    {
+        var removed = _chips.Where(chip => !remaining.Contains(TokenId(chip), StringComparer.Ordinal))
+            .ToList();
+        if (removed.Count == 0)
+            return;
+        _chips.RemoveAll(removed.Contains);
+        _fieldText = Strip(_fieldText, removed.Contains);
+        Commit(Compose());
+    }
 
     /// <summary>The search bar's text beside its chips.</summary>
     internal string FieldText => _fieldText;

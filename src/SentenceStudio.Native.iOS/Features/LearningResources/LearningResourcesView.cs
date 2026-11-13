@@ -130,18 +130,15 @@ internal static class LearningResourcesView
         return items;
     }
 
-    /// <param name="bottom">The bottom search bar (its capsule draws the field's surface).</param>
+    /// <summary>The wide page's search row (field and clear).</summary>
     private static SwiftView SearchRow(
         NativeResourceListState state, SourceUiStyle style,
-        Func<string, string> text, LearningResourcesActions actions, bool bottom = false)
+        Func<string, string> text, LearningResourcesActions actions)
     {
-        var search = bottom
-            ? BrowserPage.SearchField(style, text("Resources_SearchPlaceholder"), state.SearchText,
-                actions.Search, "native.resources.search")
-            : style.TextInput(Views.TextField(
-                    text("Resources_SearchPlaceholder"), state.SearchText, actions.Search))
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier("native.resources.search");
+        var search = style.TextInput(Views.TextField(
+                text("Resources_SearchPlaceholder"), state.SearchText, actions.Search))
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier("native.resources.search");
         search.IsEnabled = state.Phase != NativeResourceListPhase.Blocked
             && !state.StarterBusy;
         // As on Vocabulary: one tap clears the search and the filters.
@@ -170,27 +167,28 @@ internal static class LearningResourcesView
             AddResults(children, state, feedback, style, text, actions, width);
         }
         // A wide page shows this while it loads: its search stays at the top.
-        var bottom = !BrowserPage.IsWide(width);
-        return BrowserPage.SingleColumn(Prefix, style, children,
-            SearchRow(state, style, text, actions, bottom), width, bottom,
-            bottom ? SearchChips(state, style, text, actions) : null);
+        if (BrowserPage.IsWide(width))
+            return BrowserPage.SingleColumnWithTopSearch(Prefix, children,
+                SearchRow(state, style, text, actions), width);
+        // No search while the owner is unknown (the field used to be disabled then).
+        if (state.Phase == NativeResourceListPhase.Blocked)
+            return BrowserPage.SingleColumn(Prefix, children, width, search: null);
+        return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(
+            text("Resources_SearchPlaceholder"), state.SearchText, actions.Search,
+            SearchTokens(state),
+            // A token deleted in the field turns its filter off.
+            remaining => actions.KeepFilterTokens?.Invoke(remaining)));
     }
 
-    /// <summary>The bottom search bar's chips: the Type and Language filters that are on.</summary>
-    private static List<SwiftView> SearchChips(
-        NativeResourceListState state, SourceUiStyle style,
-        Func<string, string> text, LearningResourcesActions actions)
+    /// <summary>The search field's tokens: the Type and Language filters that are on.</summary>
+    private static List<SwiftSearchToken> SearchTokens(NativeResourceListState state)
     {
-        var chips = new List<SwiftView>();
-        var remove = text("Library_RemoveFilter");
+        var tokens = new List<SwiftSearchToken>();
         if (!string.IsNullOrWhiteSpace(state.MediaType))
-            chips.Add(BrowserPage.SearchChip(Prefix, "type", text("NativeResources_TypeFilter"),
-                state.MediaType, remove, () => actions.FilterType(null), style));
+            tokens.Add(new SwiftSearchToken("type", state.MediaType));
         if (!string.IsNullOrWhiteSpace(state.Language))
-            chips.Add(BrowserPage.SearchChip(Prefix, "language",
-                text("NativeResources_LanguageFilter"), state.Language, remove,
-                () => actions.FilterLanguage(null), style));
-        return chips;
+            tokens.Add(new SwiftSearchToken("language", state.Language));
+        return tokens;
     }
 
     private static SwiftView WideLayout(

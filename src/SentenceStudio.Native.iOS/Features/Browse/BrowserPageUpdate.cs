@@ -17,7 +17,7 @@ internal sealed class BrowserPageUpdate
 
     /// <summary>
     /// The parts rebuilt on each update, each with how many of its first children stay mounted:
-    /// the search row keeps its field, the phone page keeps its search row, the wide results keep
+    /// the wide page's search row keeps its field, the wide results keep
     /// their header and the header keeps <c>headerKeep</c> rows (Vocabulary's counts: their
     /// badges and texts take the new values in place, so a counts row scrolled sideways stays
     /// where it is).
@@ -30,7 +30,6 @@ internal sealed class BrowserPageUpdate
         Regions =
         [
             ($"{prefix}.search.row", 1),
-            ($"{prefix}.search.chips", 0),
             ($"{prefix}.scroll.content", 0),
             ($"{prefix}.filters.panel.content", 0),
             ($"{prefix}.results.header", headerKeep),
@@ -86,6 +85,9 @@ internal sealed class BrowserPageUpdate
                 node.IsEnabled = nextNode.IsEnabled;
             if (nextNode.FixedWidth is { } width && node.FixedWidth != width)
                 node.WithFixedWidth(width);
+            // The system search field keeps its node (and focus); its filter tokens follow.
+            if (node.Kind == "searchable")
+                node.SearchTokens = nextNode.SearchTokens;
         }
         // A toolbar's buttons cannot be replaced: each keeps its node and takes the new symbol,
         // label and state (its action reads the state when tapped).

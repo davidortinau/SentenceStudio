@@ -18,7 +18,8 @@ internal sealed record LearningResourcesActions(
     Action ToggleFilterPanel,
     Action ClearFilters,
     Action ClearSearchAndFilters,
-    Action<double>? PageWidthChanged = null);
+    Action<double>? PageWidthChanged = null,
+    Action<IReadOnlyList<string>>? KeepFilterTokens = null);
 
 /// <summary>The phone filter sheet's actions: its choices wait for Apply.</summary>
 internal sealed record LearningResourceFilterActions(

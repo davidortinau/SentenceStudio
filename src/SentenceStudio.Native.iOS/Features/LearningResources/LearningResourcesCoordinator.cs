@@ -146,6 +146,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 Search: Search,
                 FilterType: type => FilterNow(type, _presenter.List.Language),
                 FilterLanguage: language => FilterNow(_presenter.List.MediaType, language),
+                KeepFilterTokens: KeepFilterTokens,
                 ToggleViewMode: ToggleViewMode,
                 Open: id => Run(() => OpenAsync(id)),
                 Add: OpenCreate,

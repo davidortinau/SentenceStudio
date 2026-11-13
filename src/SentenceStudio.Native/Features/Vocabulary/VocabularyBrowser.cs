@@ -805,12 +805,14 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         Notify(VocabularyChanges.List);
     }
 
-    /// <summary>A search bar chip's x: removes that one filter.</summary>
-    internal void RemoveChip(FilterToken filter)
+    /// <summary>
+    /// Tokens were deleted in the search field: their filters go. The list always redraws,
+    /// so the field's tokens match the filters again even when nothing could change.
+    /// </summary>
+    internal void KeepChips(IReadOnlyList<string> remaining)
     {
-        if (!TryOwner(out _) || _filters is null)
-            return;
-        _filters.RemoveFilter(filter);
+        if (TryOwner(out _))
+            _filters?.KeepChips(remaining);
         Notify(VocabularyChanges.List);
     }
 

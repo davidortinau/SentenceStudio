@@ -51,17 +51,20 @@ public sealed class NativeSourceStylingContractTests
         var form = Source("Features/LearningResources/LearningResourceView.cs");
         // Captain 2026-11-10: the Resources page is the shared browse layout; its scroll content
         // owns the gutter (BrowserPage.SingleColumn), as on Vocabulary.
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
         Assert.Contains("Views.LazyVGrid(1, rows.ToArray())", browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
             browser);
         var browse = Source("Features/Browse/BrowserPage.cs");
         Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))", browse);
-        Assert.Contains("var scroll = Views.Scroll(content)\n            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
+        Assert.Contains("return Views.Scroll(content)\n            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)",
             browse);
-        Assert.Contains("BottomSearchBar(prefix, style, searchRow, gutter, chips ?? []));",
+        // Captain 2026-11-12, "I want the native way": the narrow page's search is the system
+        // search field, its filters as tokens in the field.
+        Assert.Contains("Views.Searchable(Scroll(prefix, children, width), search.Placeholder, search.Text,",
             browse);
-        Assert.Contains("($\"{prefix}.search.chips\", 0),", Source("Features/Browse/BrowserPageUpdate.cs"));
+        Assert.Contains("node.SearchTokens = nextNode.SearchTokens;", Source("Features/Browse/BrowserPageUpdate.cs"));
+        Assert.DoesNotContain("ComposerCapsule", browse);
         Assert.Contains("style.Page(Views.Scroll(content)", form);
         Assert.Contains(".WithAccessibilityIdentifier(\"native.resources.form.scroll.content\")",
             form);
@@ -193,7 +196,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("group.Spacing = 0;", browser);
         Assert.Contains("style.BorderedCard(group, radius: style.Appearance.BootstrapRadius)",
             browser);
-        Assert.Contains("return BrowserPage.SingleColumn(Prefix, style, children,\n            SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
         Assert.Contains("return BrowserPage.Wide(Prefix, style,", browser);
         Assert.Contains("label.WithPadding(8, SourceUiLayout.CardInset,", row);
         Assert.DoesNotContain("Views.List(", browser);

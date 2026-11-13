@@ -151,8 +151,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         var quickAdd = Feature("LearningResourceQuickAddView.cs");
         var coordinator = Feature("LearningResourcesCoordinator.cs");
 
-        // The single column's search bar sits below its scroll; the wide page keeps it above.
-        Assert.Contains("SearchRow(state, style, text, actions, bottom), width, bottom,\n            bottom ? SearchChips(state, style, text, actions) : null);", browser);
+        // The narrow page uses the system search field; the wide page keeps its row above.
+        Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
+        Assert.Contains("SearchRow(state, style, text, actions), width);", browser);
         Assert.Contains("            SearchRow(state, style, text, actions),\n            BrowserPage.ResultsHeader(",
             browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",

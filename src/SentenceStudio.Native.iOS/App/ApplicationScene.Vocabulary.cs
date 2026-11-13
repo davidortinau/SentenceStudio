@@ -182,7 +182,7 @@ internal sealed partial class ApplicationScene
             return;
         }
         // The fresh page's field holds the text for its layout: the whole query on the wide
-        // page, the words beside the chips in the bottom bar.
+        // page, the words beside the filter tokens in the system search field.
         var text = Find(next, BrowserPageUpdate.Vocabulary.SearchId)?.Text
             ?? _app.VocabularySearchText;
         if (!string.Equals(oldSearch.Text, text, StringComparison.Ordinal))
