@@ -7,6 +7,11 @@ using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.Features.Settings;
 
+/// <summary>
+/// The Appearance Section of the Settings Form (Captain 2026-11-13, the native form pattern):
+/// the theme swatches, the System/Light/Dark segmented picker and the text size slider, each a
+/// row.
+/// </summary>
 internal static class AppearanceSettingsView
 {
     internal static SwiftView Section(
@@ -32,6 +37,7 @@ internal static class AppearanceSettingsView
                     .WithPadding(8)
                     .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight);
                 content.Spacing = SourceUiLayout.ItemGap;
+                // Plain style: each swatch is its own target inside the Form row.
                 var button = Views.Button(content, () => selectTheme(theme.Id))
                     .WithButtonStyle(SwiftButtonStyle.Plain)
                     .WithAccessibilityLabel(chosen
@@ -77,27 +83,27 @@ internal static class AppearanceSettingsView
                     setFontScale(scale);
                 })
             .WithAccessibilityIdentifier("native.settings.text-size");
-
-        var appearance = Views.VStack(
-            style.Text(Views.Text(text("Settings_AppearanceSection")),
-                SourceTextRole.Title3, sourceHeading: true),
-            style.Text(Views.Text(text("Settings_ThemeLabel")),
-                SourceTextRole.Body2Strong),
-            swatches,
-            mode,
+        // The text size row: its value above the slider and the slider's ends under it.
+        var textSize = Views.VStack(
             style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
                     text("Settings_TextSizeLabel"),
                     (int)Math.Round(selection.FontScale * 100))),
-                SourceTextRole.Body2)
+                SourceTextRole.Body1)
                 .WithAccessibilityIdentifier("native.settings.scale.label"),
             scaleSlider,
             Views.HStack(
-                style.Text(Views.Text("85%"), SourceTextRole.Caption1),
-                style.Text(Views.Text("150%"), SourceTextRole.Caption1)
+                style.Text(Views.Text("85%"), SourceTextRole.Caption1, SourceTextTone.Secondary),
+                style.Text(Views.Text("150%"), SourceTextRole.Caption1, SourceTextTone.Secondary)
                     .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing)))
-            .WithPadding(SourceUiLayout.CardInset);
-        appearance.Spacing = SourceUiLayout.PageGap;
+            .WithFlexibleWidth();
+        textSize.Spacing = SourceUiLayout.ItemGap;
 
-        return style.Card(appearance);
+        // The theme row: its label above the swatches.
+        var theme = Views.VStack(
+                style.Text(Views.Text(text("Settings_ThemeLabel")), SourceTextRole.Body1),
+                swatches)
+            .WithFlexibleWidth();
+        theme.Spacing = SourceUiLayout.ItemGap;
+        return Views.Section(text("Settings_AppearanceSection"), theme, mode, textSize);
     }
 }

@@ -124,7 +124,7 @@ internal sealed partial class ApplicationController
     internal int SamSettingsVersion => HashCode.Combine(SamState.SafeSettings,
         SamState.SafeMemory with { EditText = string.Empty });
 
-    internal SwiftView? RenderSamSettings(SourceUiStyle style) =>
+    internal IEnumerable<SwiftView>? RenderSamSettings(SourceUiStyle style) =>
         _preview || _sam is null && _services is null ? null
             : SamSettingsView.Sections(style, SamState, Text, SamSettingsActions);
 

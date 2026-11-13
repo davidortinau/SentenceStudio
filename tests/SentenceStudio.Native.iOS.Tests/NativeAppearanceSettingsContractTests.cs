@@ -32,7 +32,7 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("_scope.ScopeChanged -= OnScopeChanged", owner);
         Assert.Contains("SettingsView.OwnerUnavailable(style, Text, signOut)", app);
         Assert.Contains("return SettingsView.OwnerUnavailable", app);
-        Assert.Contains("Views.Text(text(\"NativeSettings_OwnerUnavailable\"))",
+        Assert.Contains("text(\"NativeSettings_OwnerUnavailable\"), \"native.settings.owner-unavailable\"",
             Read("Features/Settings/SettingsView.cs"));
         Assert.Contains("result = _allowVoiceDiscovery", owner);
         // Settings is its own tab (tab shell trial): the root of the Settings stack.
@@ -46,7 +46,7 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("ThemeCatalog.All.Select", appearance);
         Assert.Contains("Views.Slider(", appearance);
         Assert.Contains("Views.Slider(", quiz);
-        Assert.Contains("Views.Toggle(", quiz);
+        Assert.Contains("NativeForm.Switch(", quiz);
         Assert.Contains("native.settings.quiz.voice-language", quiz);
         Assert.Contains("native.settings.quiz.voice", quiz);
         Assert.Contains("NativeSettings_CurrentVoice", quiz);
@@ -85,18 +85,18 @@ public sealed class NativeAppearanceSettingsContractTests
     }
 
     [Fact]
-    public void SettingsFeedback_KeepsTheMountedScrollAndContentHost()
+    public void SettingsFeedback_KeepsTheMountedForm()
     {
         var scene = Read("App/ApplicationScene.cs");
         var update = scene[scene.IndexOf("private void UpdateSettings(",
             StringComparison.Ordinal)..scene.IndexOf(
             "private void StartQuizProgressIfGraded()", StringComparison.Ordinal)];
 
+        // A feedback or quiz change swaps the mounted Form's Sections (it keeps its scroll
+        // position); a theme or mode change rebuilds the page.
         Assert.Contains("!themeChanged && !modeChanged", update);
-        Assert.Contains("Find(scroll, \"native.settings.scroll.content\")", update);
-        Assert.Contains("next.RemoveAt(0)", update);
-        Assert.Contains("ReplaceContainerChildren(currentContent, content)", update);
-        Assert.Contains("next.Dispose()", update);
+        Assert.Contains("_settingsSlot.Children[0] is { Kind: \"form\" } currentForm", update);
+        Assert.Contains("ReplaceContainerChildren(currentForm, next)", update);
     }
 
     [Fact]

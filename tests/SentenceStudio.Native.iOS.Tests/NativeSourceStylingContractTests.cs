@@ -74,9 +74,11 @@ public sealed class NativeSourceStylingContractTests
         Assert.DoesNotContain("Views.Scroll(", form);
         Assert.DoesNotContain("PageGutter", form);
 
+        // Captain 2026-11-13 (the native form pattern): Settings is a grouped Form; the
+        // system sets its insets, so the viewport pass no longer pads it.
         var settings = Source("Features/Settings/SettingsView.cs");
-        Assert.Contains("Views.VStack(sections.ToArray())", settings);
-        Assert.Contains("Views.Scroll(content)", settings);
+        Assert.Contains("NativeForm.Page(style, sections, \"native.settings.form\"", settings);
+        Assert.DoesNotContain("Views.Scroll(", settings);
 
         var scene = Source("App/ApplicationScene.cs");
         var viewport = scene[scene.IndexOf("private void ViewportChanged(",
@@ -84,7 +86,7 @@ public sealed class NativeSourceStylingContractTests
             StringComparison.Ordinal)];
         Assert.Contains("native.dashboard.scroll.content", viewport);
         Assert.Contains("native.resources.scroll.content", viewport);
-        Assert.Contains("native.settings.scroll.content", viewport);
+        Assert.DoesNotContain("native.settings.scroll.content", viewport);
         Assert.DoesNotContain("Find(_dashboardSlot, NativeAccess.Plan)?.WithPadding(",
             viewport);
         Assert.DoesNotContain("Find(_resourcesSlot, \"native.resources.scroll\")?.WithPadding(",

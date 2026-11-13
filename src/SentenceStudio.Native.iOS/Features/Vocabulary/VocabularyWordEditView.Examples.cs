@@ -120,12 +120,12 @@ internal static partial class VocabularyWordEditView
                 suggestion.NativeSentence,
                 value => actions.ChangeSuggestion(suggestion.Key, VocabularyExampleField.Native, value),
                 $"{id}.native", !locked);
-            var keep = ProminentButton(style, text("RefSentences_Keep"),
+            var keep = NativeForm.Prominent(style, text("RefSentences_Keep"),
                 () => actions.Keep(suggestion.Key), $"{id}.keep");
             keep.IsEnabled = !locked
                 && VocabularyExamplesState.CanKeep(examples.Writing, suggestion);
             actions.RegisterButton?.Invoke(KeepSuggestionButton(suggestion.Key), keep);
-            var discard = BorderedButton(style, text("RefSentences_Discard"),
+            var discard = NativeForm.Bordered(style, text("RefSentences_Discard"),
                 () => actions.Discard(suggestion.Key), $"{id}.discard");
             discard.IsEnabled = !locked && !examples.Writing;
             // The badges take the free width, so the buttons sit at the trailing edge.
@@ -196,11 +196,11 @@ internal static partial class VocabularyWordEditView
             !locked);
         yield return RegisterPicker(examples.EditRegister, actions.SetEditRegister,
             $"{id}.register", !locked, style, text);
-        var save = ProminentButton(style, text("RefSentences_Save"), actions.SaveEdit,
+        var save = NativeForm.Prominent(style, text("RefSentences_Save"), actions.SaveEdit,
             $"{id}.save");
         save.IsEnabled = !locked && examples.CanSaveEdit;
         actions.RegisterButton?.Invoke(SaveEditedExampleButton, save);
-        var cancel = BorderedButton(style, text("RefSentences_Cancel"), actions.CancelEdit,
+        var cancel = NativeForm.Bordered(style, text("RefSentences_Cancel"), actions.CancelEdit,
             $"{id}.cancel");
         cancel.IsEnabled = !locked && !examples.Writing;
         // An empty flexible leading column puts the buttons at the trailing edge.
@@ -209,24 +209,6 @@ internal static partial class VocabularyWordEditView
         buttons.Spacing = SourceUiLayout.ItemGap;
         yield return buttons;
     }
-
-    /// <summary>A system prominent (filled) button in the accent color; its own target in a Form row.</summary>
-    private static SwiftView ProminentButton(
-        SourceUiStyle style, string title, Action action, string id) =>
-        Views.Button(title, action)
-            .WithButtonStyle(SwiftButtonStyle.BorderedProminent)
-            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-            // The Form's text ink would otherwise replace the prominent style's light label.
-            .WithForegroundColor(style.Appearance.OnPrimary.Light, style.Appearance.OnPrimary.Dark)
-            .WithAccessibilityIdentifier(id);
-
-    /// <summary>A system bordered button; its own target in a Form row.</summary>
-    private static SwiftView BorderedButton(
-        SourceUiStyle style, string title, Action action, string id) =>
-        Views.Button(title, action)
-            .WithButtonStyle(SwiftButtonStyle.Bordered)
-            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-            .WithAccessibilityIdentifier(id);
 
     /// <summary>
     /// Source badges: Core, where the sentence came from, its register, its difficulty and

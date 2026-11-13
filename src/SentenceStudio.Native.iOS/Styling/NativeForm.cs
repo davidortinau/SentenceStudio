@@ -122,6 +122,40 @@ internal static class NativeForm
         Action(style, Views.Button(Views.Label(title, symbol), action)
             .WithAccessibilityIdentifier(id));
 
+    /// <summary>A system bordered button in the accent color; its own target in a Form row.</summary>
+    internal static SwiftView Bordered(SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(title, action)
+            .WithButtonStyle(SwiftButtonStyle.Bordered)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            // The Form's text ink would otherwise replace the accent label.
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier(id);
+
+    /// <summary>A system prominent (filled) accent button; its own target in a Form row.</summary>
+    internal static SwiftView Prominent(SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(title, action)
+            .WithButtonStyle(SwiftButtonStyle.BorderedProminent)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            // The Form's text ink would otherwise replace the prominent style's light label.
+            .WithForegroundColor(style.Appearance.OnPrimary.Light, style.Appearance.OnPrimary.Dark)
+            .WithAccessibilityIdentifier(id);
+
+    /// <summary>A system prominent destructive button in the danger color.</summary>
+    internal static SwiftView Destructive(SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(title, action)
+            .WithButtonRole(SwiftButtonRole.Destructive)
+            .WithButtonStyle(SwiftButtonStyle.BorderedProminent)
+            .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+            .WithForegroundColor(style.Appearance.OnPrimary.Light, style.Appearance.OnPrimary.Dark)
+            .WithAccessibilityIdentifier(id);
+
+    /// <summary>A system switch row in the accent color.</summary>
+    internal static SwiftView Switch(SourceUiStyle style, string title, bool isOn,
+        Action<bool> changed, string id) =>
+        Views.Toggle(title, isOn, changed)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityIdentifier(id);
+
     /// <summary>A status or error row (red for an error), for the form's first Section.</summary>
     internal static SwiftView Notice(SourceUiStyle style, string message, string id,
         bool error) =>

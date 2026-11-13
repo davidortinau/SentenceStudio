@@ -23,21 +23,20 @@ internal sealed record SamSettingsActions(
     Action ConfirmForgetAll);
 
 /// <summary>
-/// Settings "Learning Coach" card and "What Sam remembers" card (source Settings.razor
-/// coach section + CoachMemoryPanel). SwiftUI only; confirmations render inline in the
-/// card they belong to, with the promise that Today's Plan and progress are untouched.
+/// Settings "Learning Coach" and "What Sam remembers" (source Settings.razor coach section +
+/// CoachMemoryPanel) as Form Sections (Captain 2026-11-13, the native form pattern). SwiftUI
+/// only; confirmations stay inline in the Section they belong to, with the promise that
+/// Today's Plan and progress are untouched. A row's buttons are bordered system buttons, each
+/// its own target in the row.
 /// </summary>
 internal static class SamSettingsView
 {
-    internal static SwiftView Sections(SourceUiStyle style, NativeSamState state,
+    internal static IEnumerable<SwiftView> Sections(SourceUiStyle style, NativeSamState state,
         Func<string, string> text, SamSettingsActions actions)
     {
-        var sections = new List<SwiftView> { Coach(style, state.SafeSettings, text, actions) };
+        yield return Coach(style, state.SafeSettings, text, actions);
         if (Memory(style, state.SafeMemory, text, actions) is { } memory)
-            sections.Add(memory);
-        var stack = Views.VStack(sections.ToArray()).WithFlexibleWidth();
-        stack.Spacing = SourceUiLayout.SectionGap;
-        return stack.WithAccessibilityIdentifier("native.sam.settings");
+            yield return memory;
     }
 
     private static SwiftView Coach(SourceUiStyle style, NativeSamSettingsState settings,
@@ -45,7 +44,6 @@ internal static class SamSettingsView
     {
         var rows = new List<SwiftView>
         {
-            style.Text(Views.Text(text("Coach_SettingsSection")), SourceTextRole.Title3, sourceHeading: true),
             style.Text(Views.Text(text("Coach_SettingsDescription")), SourceTextRole.Caption1,
                 SourceTextTone.Secondary),
         };
@@ -54,8 +52,9 @@ internal static class SamSettingsView
                 SourceTextTone.Tertiary).WithAccessibilityIdentifier("native.sam.settings.unavailable"));
         else
         {
-            var delete = style.SecondaryButton(text(settings.Deleting ? "Common_Loading" : "Coach_SettingsDelete"),
-                    actions.AskDelete, fullWidth: true)
+            var delete = Danger(style, Views.Button(
+                    Views.Label(text(settings.Deleting ? "Common_Loading" : "Coach_SettingsDelete"), "trash"),
+                    actions.AskDelete))
                 .WithAccessibilityIdentifier("native.sam.settings.delete");
             delete.IsEnabled = !settings.Deleting && !settings.ConfirmingDelete;
             rows.Add(delete);
@@ -63,25 +62,20 @@ internal static class SamSettingsView
                 SourceTextTone.Secondary));
             if (settings.ConfirmingDelete)
             {
-                var confirm = Views.VStack(
-                        style.Text(Views.Text(text("Coach_DeleteDialogTitle")), SourceTextRole.Body1Strong,
-                            sourceHeading: true),
-                        style.Text(Views.Text(text("Coach_DeleteDialogBody")), SourceTextRole.Body2),
-                        Row(style.SecondaryButton(text("Coach_Cancel"), actions.CancelDelete)
-                                .WithAccessibilityIdentifier("native.sam.settings.delete.cancel"),
-                            SamView.DangerButton(style, text("Coach_DeleteDialogConfirm"), actions.ConfirmDelete)
-                                .WithAccessibilityIdentifier("native.sam.settings.delete.confirm")))
-                    .WithFlexibleWidth();
-                confirm.Spacing = 8;
-                rows.Add(style.BorderedCard(confirm.WithPadding(12), radius: 10)
-                    .WithAccessibilityIdentifier("native.sam.settings.delete.dialog"));
+                rows.Add(Confirmation(style,
+                    text("Coach_DeleteDialogTitle"), text("Coach_DeleteDialogBody"), null,
+                    NativeForm.Bordered(style, text("Coach_Cancel"), actions.CancelDelete,
+                        "native.sam.settings.delete.cancel"),
+                    NativeForm.Destructive(style, text("Coach_DeleteDialogConfirm"), actions.ConfirmDelete,
+                        "native.sam.settings.delete.confirm"),
+                    "native.sam.settings.delete.dialog"));
             }
         }
         if (settings.NoticeKey is { } notice)
             rows.Add(style.Text(Views.Text(text(notice)), SourceTextRole.Body2,
                     notice == "Coach_SettingsDeleted" ? SourceTextTone.Success : SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.sam.settings.notice"));
-        return Card(style, rows, "native.sam.settings.coach");
+        return Views.Section(text("Coach_SettingsSection"), rows.ToArray());
     }
 
     private static SwiftView? Memory(SourceUiStyle style, NativeSamMemoryState memory,
@@ -90,28 +84,33 @@ internal static class SamSettingsView
         // The whole surface disappears when the feature is off or the data is not this learner's.
         if (memory.Availability != NativeSamMemoryAvailability.Available)
             return null;
-        var rows = new List<SwiftView>
-        {
-            style.Text(Views.Text(text("Coach_MemoryTitle")), SourceTextRole.Title3, sourceHeading: true),
-            style.Text(Views.Text(text("Coach_MemoryExplainer")), SourceTextRole.Body2, SourceTextTone.Secondary),
-            style.Text(Views.Text(text("Coach_MemoryVsSettings")), SourceTextRole.Caption1, SourceTextTone.Secondary),
-        };
-        // Two tabs (source role=tablist): the selected one is the filled button.
-        SwiftView Tab(NativeSamMemoryTab tab, string key, int count, string id)
-        {
-            var title = string.Format(CultureInfo.CurrentCulture, text(key), count);
-            var selected = memory.Tab == tab;
-            return (selected ? style.PrimaryButton(title, () => actions.SelectTab(tab))
-                    : style.SecondaryButton(title, () => actions.SelectTab(tab)))
-                .WithAccessibilityLabel(title)
-                .WithAccessibilitySelected(selected)
-                .WithAccessibilityIdentifier(id);
-        }
-        rows.Add(Row(
-            Tab(NativeSamMemoryTab.Active, "Coach_MemoryTabActive", memory.SafeActive.Length,
-                "native.sam.memory.tab.active"),
-            Tab(NativeSamMemoryTab.Candidates, "Coach_MemoryTabCandidates", memory.SafeCandidates.Length,
-                "native.sam.memory.tab.candidates")));
+        var explainer = Views.VStack(
+                style.Text(Views.Text(text("Coach_MemoryExplainer")), SourceTextRole.Body2,
+                    SourceTextTone.Secondary),
+                style.Text(Views.Text(text("Coach_MemoryVsSettings")), SourceTextRole.Caption1,
+                    SourceTextTone.Secondary))
+            .WithFlexibleWidth();
+        explainer.Spacing = 4;
+        var rows = new List<SwiftView> { explainer };
+        // Two tabs (source role=tablist) as the system segmented control.
+        var tabs = Views.Picker(text("Coach_MemoryTitle"),
+                [
+                    new SwiftPickerOption(nameof(NativeSamMemoryTab.Active), string.Format(
+                        CultureInfo.CurrentCulture, text("Coach_MemoryTabActive"),
+                        memory.SafeActive.Length)),
+                    new SwiftPickerOption(nameof(NativeSamMemoryTab.Candidates), string.Format(
+                        CultureInfo.CurrentCulture, text("Coach_MemoryTabCandidates"),
+                        memory.SafeCandidates.Length)),
+                ],
+                memory.Tab.ToString(),
+                value =>
+                {
+                    if (Enum.TryParse<NativeSamMemoryTab>(value, out var tab))
+                        actions.SelectTab(tab);
+                })
+            .WithPickerStyle(SwiftPickerStyle.Segmented)
+            .WithAccessibilityIdentifier("native.sam.memory.tabs");
+        rows.Add(tabs);
         if (memory.NoticeKey is { } notice)
             rows.Add(style.Text(Views.Text(text(notice)), SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.sam.memory.panel.notice"));
@@ -124,29 +123,23 @@ internal static class SamSettingsView
             {
                 for (var index = 0; index < memory.SafeActive.Length; index++)
                     rows.Add(Fact(style, memory, memory.SafeActive[index], index, isCandidate: false, text, actions));
-                var forgetAll = SamView.DangerButton(style, text("Coach_MemoryForgetAll"), actions.AskForgetAll)
+                var forgetAll = Danger(style, Views.Button(
+                        Views.Label(text("Coach_MemoryForgetAll"), "trash"), actions.AskForgetAll))
                     .WithAccessibilityIdentifier("native.sam.memory.forgetall");
                 forgetAll.IsEnabled = !memory.Busy;
                 rows.Add(forgetAll);
                 rows.Add(style.Text(Views.Text(text("Coach_MemoryForgetAllImpact")), SourceTextRole.Caption1,
                     SourceTextTone.Secondary));
                 if (memory.ConfirmingForgetAll)
-                {
-                    var confirm = Views.VStack(
-                            style.Text(Views.Text(text("Coach_MemoryForgetAllTitle")), SourceTextRole.Body1Strong,
-                                sourceHeading: true),
-                            style.Text(Views.Text(text("Coach_MemoryForgetAllBody")), SourceTextRole.Body2),
-                            style.Text(Views.Text(text("Coach_MemoryForgetAllImpact")), SourceTextRole.Caption1,
-                                SourceTextTone.Secondary),
-                            Row(SamView.DangerButton(style, text("Coach_MemoryForgetAllConfirm"), actions.ConfirmForgetAll)
-                                    .WithAccessibilityIdentifier("native.sam.memory.forgetall.confirm"),
-                                style.SecondaryButton(text("Coach_Cancel"), actions.CancelForgetAll)
-                                    .WithAccessibilityIdentifier("native.sam.memory.forgetall.cancel")))
-                        .WithFlexibleWidth();
-                    confirm.Spacing = 8;
-                    rows.Add(style.BorderedCard(confirm.WithPadding(12), radius: 10)
-                        .WithAccessibilityIdentifier("native.sam.memory.forgetall.dialog"));
-                }
+                    rows.Add(Confirmation(style,
+                        text("Coach_MemoryForgetAllTitle"), text("Coach_MemoryForgetAllBody"),
+                        text("Coach_MemoryForgetAllImpact"),
+                        // Source order: Forget all, then Cancel.
+                        NativeForm.Destructive(style, text("Coach_MemoryForgetAllConfirm"), actions.ConfirmForgetAll,
+                            "native.sam.memory.forgetall.confirm"),
+                        NativeForm.Bordered(style, text("Coach_Cancel"), actions.CancelForgetAll,
+                            "native.sam.memory.forgetall.cancel"),
+                        "native.sam.memory.forgetall.dialog"));
             }
         }
         else if (memory.SafeCandidates.IsEmpty)
@@ -157,7 +150,7 @@ internal static class SamSettingsView
                 rows.Add(Fact(style, memory, memory.SafeCandidates[index], index, isCandidate: true, text, actions));
         if (memory.Busy)
             rows.Add(Views.IndeterminateProgress(text("Common_Loading")));
-        return Card(style, rows, "native.sam.memory.panel");
+        return Views.Section(text("Coach_MemoryTitle"), rows.ToArray());
     }
 
     private static SwiftView Fact(SourceUiStyle style, NativeSamMemoryState memory, CoachMemoryFactDto fact,
@@ -177,48 +170,68 @@ internal static class SamSettingsView
             style.Text(Views.Text(fact.DisplayText), SourceTextRole.Body2).WithAccessibilityIdentifier(prefix + ".value"),
             style.Text(Views.Text(meta), SourceTextRole.Caption1, SourceTextTone.Secondary),
         };
-        SwiftView Enable(SwiftView button, string suffix)
+        SwiftView Enable(SwiftView button)
         {
             button.IsEnabled = !memory.Busy;
-            return button.WithAccessibilityIdentifier($"{prefix}.{suffix}");
+            return button;
         }
         if (memory.EditingId == fact.Id)
         {
-            rows.Add(style.TextInput(Views.TextField(text("Coach_MemoryEditLabel"), memory.EditText, actions.EditChanged)
+            // A Form row field: the prompt names it.
+            rows.Add(Views.TextField(text("Coach_MemoryEditLabel"), memory.EditText, actions.EditChanged)
                 .WithAccessibilityLabel(text("Coach_MemoryEditLabel"))
-                .WithAccessibilityIdentifier(prefix + ".editfield")));
-            var save = Enable(style.PrimaryButton(text("Coach_MemorySaveEdited"), actions.SaveEdit), "saveedited");
+                .WithAccessibilityIdentifier(prefix + ".editfield"));
+            var save = NativeForm.Prominent(style, text("Coach_MemorySaveEdited"), actions.SaveEdit, $"{prefix}.saveedited");
             save.IsEnabled = !memory.Busy && !string.IsNullOrWhiteSpace(memory.EditText);
-            rows.Add(Row(save, Enable(style.SecondaryButton(text("Coach_Cancel"), actions.CancelEdit), "canceledit")));
+            rows.Add(Row(save, Enable(NativeForm.Bordered(style, text("Coach_Cancel"), actions.CancelEdit,
+                $"{prefix}.canceledit"))));
         }
         else
         {
             var buttons = new List<SwiftView>();
             var id = fact.Id;
             if (isCandidate)
-                buttons.Add(Enable(style.PrimaryButton(text("Coach_MemorySave"), () => actions.Approve(id)), "save"));
+                buttons.Add(Enable(NativeForm.Prominent(style, text("Coach_MemorySave"), () => actions.Approve(id),
+                    $"{prefix}.save")));
             if (fact.Kind == CoachMemoryKind.PersistentStudyGoal)
-                buttons.Add(Enable(style.SecondaryButton(text("Coach_MemoryEdit"), () => actions.BeginEdit(id)), "edit"));
-            buttons.Add(Enable(style.SecondaryButton(text(isCandidate ? "Coach_MemoryNotNow" : "Coach_MemoryForget"),
-                () => (isCandidate ? actions.Reject : actions.Forget)(id)), isCandidate ? "notnow" : "forget"));
+                buttons.Add(Enable(NativeForm.Bordered(style, text("Coach_MemoryEdit"), () => actions.BeginEdit(id),
+                    $"{prefix}.edit")));
+            buttons.Add(Enable(NativeForm.Bordered(style, text(isCandidate ? "Coach_MemoryNotNow" : "Coach_MemoryForget"),
+                () => (isCandidate ? actions.Reject : actions.Forget)(id),
+                isCandidate ? $"{prefix}.notnow" : $"{prefix}.forget")));
             rows.Add(Row(buttons.ToArray()));
         }
         var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 4;
-        return style.BorderedCard(stack.WithPadding(10), radius: 10).WithAccessibilityIdentifier(prefix);
+        stack.Spacing = 6;
+        return stack.WithAccessibilityIdentifier(prefix);
     }
+
+    /// <summary>An inline confirmation row: its title, body (and impact), then its two buttons in source order.</summary>
+    private static SwiftView Confirmation(SourceUiStyle style, string title, string body,
+        string? impact, SwiftView first, SwiftView second, string id)
+    {
+        var lines = new List<SwiftView>
+        {
+            style.Text(Views.Text(title), SourceTextRole.Body1Strong, sourceHeading: true),
+            style.Text(Views.Text(body), SourceTextRole.Body2),
+        };
+        if (impact is not null)
+            lines.Add(style.Text(Views.Text(impact), SourceTextRole.Caption1, SourceTextTone.Secondary));
+        lines.Add(Row(first, second));
+        var stack = Views.VStack(lines.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 8;
+        return stack.WithAccessibilityIdentifier(id);
+    }
+
+    private static SwiftView Danger(SourceUiStyle style, SwiftView button) =>
+        button.WithButtonRole(SwiftButtonRole.Destructive)
+            .WithTintColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
+            .WithForegroundColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark);
 
     private static SwiftView Row(params SwiftView[] buttons)
     {
         var row = Views.HStack(buttons);
         row.Spacing = 8;
         return row;
-    }
-
-    private static SwiftView Card(SourceUiStyle style, List<SwiftView> rows, string id)
-    {
-        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 8;
-        return style.Card(stack.WithPadding(16)).WithAccessibilityIdentifier(id);
     }
 }

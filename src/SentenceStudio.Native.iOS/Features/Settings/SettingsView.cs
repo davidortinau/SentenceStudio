@@ -8,30 +8,31 @@ using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.Features.Settings;
 
+/// <summary>
+/// The Settings tab (Captain 2026-11-13, the native form pattern): one grouped Form, as iOS
+/// Settings is. The profile row first, Appearance, Voice &amp; Quiz and the prompt modalities,
+/// the Learning Coach and what Sam remembers, then Sign Out.
+/// </summary>
 internal static class SettingsView
 {
     internal static SwiftView OwnerUnavailable(
         SourceUiStyle style, Func<string, string> text, SwiftView? footer = null)
     {
-        var message = style.Alert(style.Text(
-                Views.Text(text("NativeSettings_OwnerUnavailable")),
-                SourceTextRole.Body2), success: false)
-            .WithAccessibilityIdentifier("native.settings.owner-unavailable");
-        var content = footer is null ? Views.VStack(message) : Views.VStack(message, footer);
-        content.Spacing = SourceUiLayout.SectionGap;
-        return style.Page(Views.Scroll(
-                content.WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth)))
-            .WithAccessibilityIdentifier("native.settings.screen"));
+        var sections = new List<SwiftView>
+        {
+            Views.Section(string.Empty, NativeForm.Notice(style,
+                text("NativeSettings_OwnerUnavailable"), "native.settings.owner-unavailable",
+                error: true))
+        };
+        if (footer is not null)
+            sections.Add(Views.Section(string.Empty, footer));
+        return Form(style, sections);
     }
 
     /// <summary>The Settings tab before its owner's settings are read.</summary>
     internal static SwiftView Loading(SourceUiStyle style, Func<string, string> text) =>
-        style.Page(Views.Scroll(
-                Views.VStack(Views.IndeterminateProgress(text("Common_Loading"))
-                        .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center))
-                    .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-                    .WithFlexibleWidth())
-            .WithAccessibilityIdentifier("native.settings.screen"));
+        Form(style, [Views.Section(string.Empty,
+            Views.IndeterminateProgress(text("Common_Loading")))]);
 
     /// <summary>
     /// The first row of the Settings tab, as iOS Settings starts with your name: the
@@ -65,11 +66,10 @@ internal static class SettingsView
                 labels,
                 Views.Image("chevron.right")
                     .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark))
-            .WithPadding(SourceUiLayout.CardInset)
             .WithFlexibleWidth();
         row.Spacing = 12;
-        return Views.Button(style.BorderedCard(row), openProfile)
-            .WithButtonStyle(SwiftButtonStyle.Plain)
+        // A Form row that opens Profile, as iOS Settings' first row opens your account.
+        return Views.Button(row, openProfile)
             .WithFlexibleWidth()
             .WithAccessibilityLabel(string.Join(", ", spoken))
             .WithAccessibilityIdentifier("native.settings.profile");
@@ -78,13 +78,14 @@ internal static class SettingsView
     /// <summary>The last row of the Settings tab (the Dashboard More menu's Sign out).</summary>
     internal static SwiftView SignOut(SourceUiStyle style, string title, bool enabled, Action signOut)
     {
-        var button = style.SecondaryButton(title, signOut, fullWidth: true)
-            .WithFlexibleWidth()
+        // The destructive row reads in the danger color, as iOS Settings' Sign Out does.
+        var button = Views.Button(Views.Text(title)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center),
+                signOut)
+            .WithButtonRole(SwiftButtonRole.Destructive)
+            .WithForegroundColor(style.Appearance.Danger.Light, style.Appearance.Danger.Dark)
             .WithAccessibilityLabel(title)
             .WithAccessibilityIdentifier("native.settings.sign-out");
-        // The destructive row reads in the danger color, as iOS Settings' Sign Out does.
-        button.Children[0].WithForegroundColor(style.Appearance.Danger.Light,
-            style.Appearance.Danger.Dark);
         button.IsEnabled = enabled;
         return button;
     }
@@ -103,36 +104,30 @@ internal static class SettingsView
         string? feedbackKey,
         bool voiceLoading,
         string? voiceErrorKey,
-        SwiftView? coach = null,
+        IEnumerable<SwiftView>? coach = null,
         SwiftView? header = null,
         SwiftView? footer = null)
     {
         var sections = new List<SwiftView>();
         if (header is not null)
-            sections.Add(header);
-        sections.AddRange(
-        [
-            AppearanceSettingsView.Section(style, selection, text,
-                selectTheme, selectMode, setFontScale),
-            QuizSettingsView.Section(style, quiz, text, selectVoiceLanguage,
-                quizChanged, saveQuiz, voiceLoading, voiceErrorKey)
-        ]);
+            sections.Add(Views.Section(string.Empty, header));
+        sections.Add(AppearanceSettingsView.Section(style, selection, text,
+            selectTheme, selectMode, setFontScale));
+        sections.AddRange(QuizSettingsView.Sections(style, quiz, text, selectVoiceLanguage,
+            quizChanged, saveQuiz, voiceLoading, voiceErrorKey));
         if (feedbackKey is not null)
-            sections.Add(style.Text(Views.Text(text(feedbackKey)),
+            sections.Add(Views.Section(string.Empty, style.Text(Views.Text(text(feedbackKey)),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.settings.quiz.feedback"));
+                .WithAccessibilityIdentifier("native.settings.quiz.feedback")));
         // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
         if (coach is not null)
-            sections.Add(coach);
+            sections.AddRange(coach);
         if (footer is not null)
-            sections.Add(footer);
-        var content = Views.VStack(sections.ToArray())
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.settings.scroll.content");
-        content.Spacing = SourceUiLayout.SectionGap;
-        var page = Views.Scroll(content)
-            .WithAccessibilityIdentifier("native.settings.screen");
-        return style.Page(page);
+            sections.Add(Views.Section(string.Empty, footer));
+        return Form(style, sections);
     }
+
+    /// <summary>The Settings Form; ApplicationScene.UpdateSettings swaps its Sections in place.</summary>
+    private static SwiftView Form(SourceUiStyle style, IEnumerable<SwiftView> sections) =>
+        NativeForm.Page(style, sections, "native.settings.form", "native.settings.screen");
 }

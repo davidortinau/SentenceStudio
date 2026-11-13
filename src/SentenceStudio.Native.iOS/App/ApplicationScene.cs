@@ -563,19 +563,12 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             var version = _app.SettingsProjectionVersion;
             var next = _app.RenderSettings(_style);
+            // The mounted Form keeps its place (and scroll position): its Sections are swapped.
             if (!themeChanged && !modeChanged
                 && _settingsSlot.Children.Count == 1
-                && _settingsSlot.Children[0] is { Kind: "scroll" } scroll
-                && Find(scroll, "native.settings.scroll.content") is { } currentContent
-                && next.Kind == "scroll" && next.Children.Count == 1
-                && next.Children[0].AccessibilityIdentifier
-                    == "native.settings.scroll.content")
-            {
-                var content = next.Children[0];
-                next.RemoveAt(0);
-                ReplaceContainerChildren(currentContent, content);
-                next.Dispose();
-            }
+                && _settingsSlot.Children[0] is { Kind: "form" } currentForm
+                && next.Kind == "form")
+                ReplaceContainerChildren(currentForm, next);
             else
                 Replace(_settingsSlot, next);
             _renderedSettingsVersion = version;
@@ -832,8 +825,6 @@ internal sealed partial class ApplicationScene : IDisposable
         Find(_dashboardSlot, "native.dashboard.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         Find(_resourcesSlot, "native.resources.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
-        Find(_settingsSlot, "native.settings.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
         Find(_activityLogSlot, "native.activity-log.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
