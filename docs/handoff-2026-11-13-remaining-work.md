@@ -105,3 +105,20 @@ The web/MAUI pages and Android lack what iOS gained in the Library:
 B41 (quiz resume), B52 (theme contrast), B58 (onboarding toast in English), B67/B68 (Find
 Duplicates manager and merge result), B71 (Import commit button hidden on phones), B73/B74
 (Import localization and AI failure reporting), B82 (Library list parity, above).
+
+## Forms pass progress (2026-11-13, afternoon, unpushed)
+
+The Captain approved the Resource form pattern for every form. Done on branch
+`library-split-view` (local commits, not pushed or installed):
+
+- `44c5114d` scripts: launch and stale-assembly checks no longer false-fail.
+- `25e8c831` Skill editor (departure 85) and word editor (86), shared `Styling/NativeForm.cs`,
+  system delete dialog for every editor.
+- `bffabd48` Profile (87).
+- `11e6c972` Settings, Learning Coach and Sam memory (88).
+
+Each was checked on the iPhone simulator (create/edit/save/delete paths, theme and dark mode for
+Settings) and code-reviewed (medium) before commit. Contract tests: the 2 long-standing failures
+only. Open: Settings switches don't flip on the simulator (pre-existing, backlog); SwiftUIViews
+harness blocked at launch (above). Remaining forms in order: Import, YouTube import, Minimal pair
+create, sign-in and onboarding; then the backlog list above.
