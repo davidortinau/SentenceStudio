@@ -116,26 +116,28 @@ public sealed class NativeSourceStylingContractTests
     }
 
     [Fact]
-    public void Onboarding_KeepsAllSixStepsAndSelectedChoicesWithinTheMobileGutter()
+    public void Onboarding_KeepsAllSixStepsAsAGroupedFormWithCheckedChoices()
     {
+        // Captain 2026-11-13 (departure 93): the native form pattern.
         var onboarding = Source("Features/Onboarding/OnboardingView.cs");
         foreach (var step in new[] { "case 0:", "case 1:", "case 2:",
                      "case 3:", "case 4:", "case 5:" })
             Assert.Contains(step, onboarding);
-        Assert.Contains("var fullWidth = groupPosition == SourceButtonGroupPosition.None;",
-            onboarding);
-        Assert.Contains("style.PrimaryButton(label, action, fullWidth: fullWidth,",
-            onboarding);
-        Assert.Contains("style.SecondaryButton(label, action, fullWidth: fullWidth,",
-            onboarding);
-        Assert.Contains("style.PrimaryButton(", onboarding);
+        Assert.Contains("NativeForm.Page(style, sections, FormId,", onboarding);
+        // A chosen language has a checkmark (not color alone) and is selected for VoiceOver.
+        Assert.Contains(".WithHidden(!selected))", onboarding);
+        Assert.Contains(".WithAccessibilitySelected(selected)", onboarding);
+        // Session length and level are menu Picker rows; a stored value is kept.
+        Assert.Contains("NativeForm.Choice(style, text(\"Onboarding_StudyDuration\"),", onboarding);
+        Assert.Contains("NativeForm.Choice(style, text(\"Onboarding_TargetLevel\"),", onboarding);
+        Assert.Contains("NativeForm.Prominent(style, text(\"Onboarding_Next\"), next,", onboarding);
+        Assert.Contains("NativeForm.Bordered(style, text(\"Onboarding_Back\"), back,", onboarding);
         Assert.Contains("dots.Spacing = 4;", onboarding);
         Assert.Contains("Views.Circle(8, color.Light, color.Dark)", onboarding);
         Assert.Contains("native.onboarding.step", onboarding);
         Assert.DoesNotContain("Views.Text($\"{step + 1} / 6\")", onboarding);
-        Assert.Contains("style.TextLinkButton(", onboarding);
-        Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))",
-            onboarding);
+        Assert.DoesNotContain("style.PrimaryButton(", onboarding);
+        Assert.DoesNotContain("Views.ButtonGroup(", onboarding);
         Assert.Contains("registerNext(nextButton)", onboarding);
     }
 
@@ -585,20 +587,12 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("Views.ButtonGroup([", feature);
         Assert.Contains("selectedIndex: state.Mode == NativeDashboardMode.TodaysPlan ? 0 : 1)",
             feature);
-        Assert.Contains("GroupPosition(index,", onboarding);
-        Assert.Contains("Views.ButtonGroup(buttons, wraps: true, selectedIndex: selectedIndex)",
-            onboarding);
-        Assert.Contains("group.SelectedIndex = selectedIndex;", onboarding);
-        Assert.Contains("SelectPreference(minutesGroup!, style.Appearance, index)", onboarding);
-        Assert.Contains("SelectPreference(levelGroup!, style.Appearance, index)", onboarding);
-        Assert.DoesNotContain("buttons.Chunk(3)", onboarding);
+        // Onboarding preferences are menu Pickers now (departure 93): no button group.
+        Assert.DoesNotContain("Views.ButtonGroup(", onboarding);
         Assert.Contains("else if (_onboardingStep != 4)", controller);
         Assert.Contains("neutralDisabled && sourceClass ? null", question);
-        Assert.Contains("SetCustomButtonAvailability(nextButton, style.Appearance,",
-            onboarding);
         Assert.Contains("SetCustomButtonAvailability(starter, style.Appearance,",
             resources);
-        Assert.Contains("SetCustomButtonAvailability(", controller);
         Assert.Contains("button.Children[0].WithForegroundColor(", style);
     }
 
@@ -637,20 +631,13 @@ public sealed class NativeSourceStylingContractTests
         // Captain 2026-11-10: Resources has no button group (its grid/list switch is a toolbar icon).
         Assert.DoesNotContain("Views.ButtonGroup(",
             Source("Features/LearningResources/LearningResourcesView.cs"));
-        var onboardingSource = Source("Features/Onboarding/OnboardingView.cs");
-        var preferences = onboardingSource[onboardingSource.IndexOf(
-            "private static SwiftView PreferenceGroup(", StringComparison.Ordinal)..
-            onboardingSource.IndexOf("private static void SelectPreference(",
-                StringComparison.Ordinal)];
 
         Assert.Contains(".WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth,",
             dashboard);
         Assert.Contains("fillAvailableWidth: true", dashboard);
-        Assert.Contains("Views.ButtonGroup(buttons, wraps: true, selectedIndex: selectedIndex)",
-            preferences);
-        Assert.Contains(".WithButtonGroupLayout(appearance.BootstrapBaseButtonBorderWidth)",
-            preferences);
-        Assert.DoesNotContain("fillAvailableWidth: true", preferences);
+        // Onboarding's preference groups became menu Pickers (departure 93).
+        Assert.DoesNotContain("Views.ButtonGroup(",
+            Source("Features/Onboarding/OnboardingView.cs"));
     }
 
     [Fact]

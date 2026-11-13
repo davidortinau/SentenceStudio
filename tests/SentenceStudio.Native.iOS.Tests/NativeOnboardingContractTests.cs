@@ -21,7 +21,8 @@ public sealed class NativeOnboardingContractTests
 
         Assert.Contains("Onboarding_GeneratingNames", view);
         Assert.Contains("Onboarding_OrChooseSuggested", view);
-        Assert.Contains("Views.LazyVGrid(2, buttons)", view);
+        // Captain 2026-11-13 (departure 93): the names are rows under their caption.
+        Assert.Contains("Views.Section(text(\"Onboarding_OrChooseSuggested\"), rows)", view);
         Assert.Contains("native.onboarding.names.", view);
         Assert.Contains("suggestions.Choose(name)", view);
         Assert.Contains("if (_onboardingStep == 2)\n            LoadOnboardingNames(_onboardingDraft.TargetLanguage);",
@@ -63,26 +64,19 @@ public sealed class NativeOnboardingContractTests
         Assert.Contains("native.onboarding.signout", view);
         Assert.DoesNotContain("native.onboarding.finish.unavailable", view);
         Assert.DoesNotContain("Coach_Hint_Unknown", view);
-        Assert.Contains("SetCustomButtonAvailability(starter, style.Appearance,",
-            view);
-        Assert.Contains("SetCustomButtonAvailability(skip, style.Appearance,",
-            view);
-        Assert.Contains("SetCustomButtonAvailability(nextButton, style.Appearance,",
-            view);
-        Assert.Contains("var fullWidth = groupPosition == SourceButtonGroupPosition.None;",
-            view);
-        Assert.Contains("style.PrimaryButton(label, action, fullWidth: fullWidth,",
-            view);
-        Assert.Contains("style.SecondaryButton(label, action, fullWidth: fullWidth,",
-            view);
+        // Captain 2026-11-13 (departure 93): a grouped Form with system buttons.
+        Assert.Contains("\"native.onboarding.finish.starter\")", view);
+        Assert.Contains("nextButton.IsEnabled = NativeOnboardingOptions.CanGoNext(step, draft, busy);", view);
+        Assert.Contains(".WithAccessibilitySelected(selected)", view);
         Assert.DoesNotContain("Views.Image(selected ? \"checkmark.circle.fill\"", view);
-        Assert.Contains("Views.Scroll(column)", view);
+        Assert.Contains("NativeForm.Page(style, sections, FormId, \"native.onboarding.screen\")",
+            view);
         Assert.Contains("Views.Circle(8, color.Light, color.Dark)", view);
         Assert.Contains("native.onboarding.step", view);
         Assert.Contains("dots.Spacing = 4;", view);
         Assert.Contains("Views.VStack(_app.RenderOnboarding(_style))", scene);
         Assert.Contains("registerNext: next => _onboardingNextButton = next", app);
-        Assert.Contains("SetCustomButtonAvailability(", app);
+        Assert.Contains("NativeOnboardingOptions.CanGoNext(3, draft, _busy)", app);
         // Profile durability is now the presenter's remote write-through,
         // not a permanently disabled finish button.
         Assert.DoesNotContain("OnboardingDurabilityAvailable", app);

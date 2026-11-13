@@ -140,6 +140,12 @@ internal static class NativeForm
             .WithForegroundColor(style.Appearance.OnPrimary.Light, style.Appearance.OnPrimary.Dark)
             .WithAccessibilityIdentifier(id);
 
+    /// <summary>A view centered in its own row, on the page (no row behind it): a page's main button.</summary>
+    internal static SwiftView CenteredRow(SwiftView view) =>
+        Views.HStack(view)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithListRowBackgroundHidden();
+
     /// <summary>A system prominent destructive button in the danger color.</summary>
     internal static SwiftView Destructive(SourceUiStyle style, string title, Action action, string id) =>
         Views.Button(title, action)

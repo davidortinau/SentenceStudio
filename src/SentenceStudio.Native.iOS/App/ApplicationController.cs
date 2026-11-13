@@ -447,9 +447,8 @@ internal sealed partial class ApplicationController : IDisposable
                 if (_onboardingStep == 3)
                 {
                     if (_onboardingNextButton is not null)
-                        SourceUiStyle.SetCustomButtonAvailability(
-                            _onboardingNextButton, Appearance, SourceButtonRole.Primary,
-                            !_busy && !string.IsNullOrWhiteSpace(draft.Name));
+                        _onboardingNextButton.IsEnabled =
+                            NativeOnboardingOptions.CanGoNext(3, draft, _busy);
                 }
                 else if (_onboardingStep != 4)
                     Publish();
@@ -473,13 +472,7 @@ internal sealed partial class ApplicationController : IDisposable
 
     private void NextOnboardingStep()
     {
-        if (_busy || (_onboardingStep switch
-            {
-                1 => string.IsNullOrWhiteSpace(_onboardingDraft.NativeLanguage),
-                2 => string.IsNullOrWhiteSpace(_onboardingDraft.TargetLanguage),
-                3 => string.IsNullOrWhiteSpace(_onboardingDraft.Name),
-                _ => false
-            }))
+        if (!NativeOnboardingOptions.CanGoNext(_onboardingStep, _onboardingDraft, _busy))
             return;
         // Source Onboarding.razor NextStep: leaving the target language step loads names.
         if (_onboardingStep == 2)

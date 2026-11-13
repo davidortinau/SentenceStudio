@@ -158,6 +158,20 @@ public static class NativeOnboardingOptions
         [.. LearnerProfileOptions.SessionMinutes];
     public static ImmutableArray<string> CefrLevels { get; } =
         [.. LearnerProfileOptions.CefrLevels];
+
+    /// <summary>
+    /// Whether onboarding may move on from <paramref name="step"/>: never while busy; the
+    /// language steps need a choice and the name step a name (source Onboarding.razor
+    /// CanProceed). The Next button's state and the step guard both read this.
+    /// </summary>
+    public static bool CanGoNext(int step, NativeOnboardingDraft draft, bool busy) =>
+        !busy && step switch
+        {
+            1 => !string.IsNullOrWhiteSpace(draft.NativeLanguage),
+            2 => !string.IsNullOrWhiteSpace(draft.TargetLanguage),
+            3 => !string.IsNullOrWhiteSpace(draft.Name),
+            _ => true,
+        };
 }
 
 public sealed record NativePlanCard(

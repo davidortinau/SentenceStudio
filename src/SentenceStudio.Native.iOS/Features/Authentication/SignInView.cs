@@ -123,10 +123,7 @@ internal static class SignInView
     }
 
     /// <summary>The filled action centered in its own row, on the page (no row behind it).</summary>
-    internal static SwiftView SubmitRow(SwiftView submit) =>
-        Views.HStack(submit)
-            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-            .WithListRowBackgroundHidden();
+    internal static SwiftView SubmitRow(SwiftView submit) => NativeForm.CenteredRow(submit);
 
     /// <summary>
     /// A password field beside its label, with the show/hide button at the row's end (its own

@@ -9,8 +9,18 @@ namespace SentenceStudio.Native.iOS.Features.Onboarding;
 internal sealed record OnboardingNameSuggestions(
     bool Loading, System.Collections.Immutable.ImmutableArray<string> Names, Action<string> Choose);
 
+/// <summary>
+/// Onboarding as a grouped Form (Captain 2026-11-13, the native form pattern; departure 93):
+/// each of the six steps keeps its source content. The heading sits on the page above the
+/// rows (the welcome step has no app mark, as in the source); a language is a checkable row (choosing it moves on, as the source does); the name
+/// is a field beside its label with the suggested names as rows under it; the session length
+/// and level are menu Picker rows; Back and Next are system buttons under the rows, with the
+/// step dots under them; Sign Out is the last action row.
+/// </summary>
 internal static class OnboardingView
 {
+    internal const string FormId = "native.onboarding.form";
+
     internal static SwiftView Page(
         SourceUiStyle style,
         int step, NativeOnboardingDraft draft, string? errorKey,
@@ -22,116 +32,118 @@ internal static class OnboardingView
         Action signOut, Action<SwiftView> registerNext,
         OnboardingNameSuggestions? suggestions = null)
     {
-        var content = new List<SwiftView>();
+        var sections = new List<SwiftView>();
+        var notices = new List<SwiftView>();
         if (pendingSync)
-            content.Add(style.Text(Views.Text(
-                    $"{text("DebugHealth_CoreSync")}: {text("DebugHealth_Pending")}"),
-                    SourceTextRole.Caption1, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.onboarding.sync.pending"));
+            notices.Add(NativeForm.Notice(style,
+                $"{text("DebugHealth_CoreSync")}: {text("DebugHealth_Pending")}",
+                "native.onboarding.sync.pending", error: false));
         if (errorKey is not null)
-            content.Add(style.Text(Views.Text(text(errorKey)),
-                    SourceTextRole.Body2, SourceTextTone.Danger)
-                .WithAccessibilityIdentifier("native.onboarding.error"));
+            notices.Add(NativeForm.Notice(style, text(errorKey), "native.onboarding.error",
+                error: true));
 
         switch (step)
         {
             case 0:
-                content.Add(Heading(style, text("Onboarding_Welcome"), welcome: true));
-                content.Add(style.Text(Views.Text(text("Onboarding_SetupJourney")),
-                        SourceTextRole.Body1, SourceTextTone.Secondary)
-                    .WithFlexibleWidth(600, SwiftHorizontalAlignment.Center));
-                var start = style.PrimaryButton(
-                        text("Onboarding_GetStarted"), next)
-                    .WithFlexibleWidth(600, SwiftHorizontalAlignment.Center)
-                    .WithAccessibilityIdentifier("native.onboarding.start");
-                SourceUiStyle.SetCustomButtonAvailability(start, style.Appearance,
-                    SourceButtonRole.Primary, !busy);
-                content.Add(start);
+                sections.Add(Heading(style, text("Onboarding_Welcome"), welcome: true));
+                AddNotices(sections, notices);
+                sections.Add(Views.Section(string.Empty,
+                    NativeForm.Notice(style, text("Onboarding_SetupJourney"),
+                        "native.onboarding.intro", error: false)));
+                var start = NativeForm.Prominent(style, text("Onboarding_GetStarted"), next,
+                    "native.onboarding.start");
+                start.IsEnabled = !busy;
+                sections.Add(Views.Section(string.Empty, NativeForm.CenteredRow(start)));
                 break;
             case 1:
-                content.Add(Heading(style, text("Onboarding_NativeLanguage")));
-                foreach (var language in NativeOnboardingOptions.NativeLanguages)
-                    content.Add(Choice(style, language,
-                        $"native.onboarding.native.{language}",
+                sections.Add(Heading(style, text("Onboarding_NativeLanguage")));
+                AddNotices(sections, notices);
+                sections.Add(Views.Section(string.Empty,
+                    NativeOnboardingOptions.NativeLanguages.Select(language => Choice(style,
+                        language, $"native.onboarding.native.{language}",
                         draft.NativeLanguage == language, !busy,
                         () =>
                         {
                             changed(draft with { NativeLanguage = language });
                             next();
-                        }));
+                        })).ToArray()));
                 break;
             case 2:
-                content.Add(Heading(style, text("Onboarding_TargetLanguage")));
-                foreach (var language in NativeOnboardingOptions.TargetLanguages)
-                    content.Add(Choice(style, language,
-                        $"native.onboarding.target.{language}",
+                sections.Add(Heading(style, text("Onboarding_TargetLanguage")));
+                AddNotices(sections, notices);
+                sections.Add(Views.Section(string.Empty,
+                    NativeOnboardingOptions.TargetLanguages.Select(language => Choice(style,
+                        language, $"native.onboarding.target.{language}",
                         draft.TargetLanguage == language, !busy,
                         () =>
                         {
                             changed(draft with { TargetLanguage = language });
                             next();
-                        }));
+                        })).ToArray()));
                 break;
             case 3:
-                content.Add(Heading(style, text("Onboarding_YourName")));
-                var nameInput = style.TextInput(Views.TextField(text("Onboarding_EnterName"),
-                        draft.Name, name => changed(draft with { Name = name })))
+                sections.Add(Heading(style, text("Onboarding_YourName")));
+                AddNotices(sections, notices);
+                // The heading names the field (source: heading and placeholder only).
+                var nameInput = Views.TextField(text("Onboarding_EnterName"), draft.Name,
+                        name => changed(draft with { Name = name }))
+                    .WithAccessibilityLabel(text("Onboarding_YourName"))
                     .WithAccessibilityIdentifier("native.onboarding.name");
                 nameInput.IsEnabled = !busy;
-                content.Add(nameInput);
-                if (suggestions is { } names)
-                    AddSuggestedNames(content, style, names, busy, text);
+                sections.Add(Views.Section(string.Empty, nameInput));
+                if (suggestions is { } names && SuggestedNames(style, names, busy, text) is { } list)
+                    sections.Add(list);
                 break;
             case 4:
-                content.Add(Heading(style, text("Onboarding_LearningPreferences")));
-                content.Add(style.Text(Views.Text(text("Onboarding_StudyDuration")),
-                    SourceTextRole.Body2, SourceTextTone.Secondary));
+                sections.Add(Heading(style, text("Onboarding_LearningPreferences")));
+                AddNotices(sections, notices);
+                // The two pickers change one draft: each keeps the other's latest choice.
                 var preferenceDraft = draft;
-                SwiftView? minutesGroup = null;
-                minutesGroup = PreferenceGroup(
-                    NativeOnboardingOptions.SessionMinutes.Select((minutes, index) =>
-                        Choice(style, $"{minutes.ToString(
-                            System.Globalization.CultureInfo.CurrentCulture)} " +
-                            text("PlanMinutesLabel"),
-                        $"native.onboarding.minutes.{minutes}",
-                        draft.PreferredSessionMinutes == minutes, !busy,
-                        () =>
-                        {
-                            preferenceDraft = preferenceDraft with {
-                                PreferredSessionMinutes = minutes
-                            };
-                            changed(preferenceDraft);
-                            SelectPreference(minutesGroup!, style.Appearance, index);
-                        }, GroupPosition(index,
-                            NativeOnboardingOptions.SessionMinutes.Length))).ToArray(),
-                    NativeOnboardingOptions.SessionMinutes.IndexOf(
-                        draft.PreferredSessionMinutes), style.Appearance);
-                content.Add(minutesGroup);
-                content.Add(style.Text(Views.Text(text("Onboarding_TargetLevel")),
-                    SourceTextRole.Body2, SourceTextTone.Secondary));
-                SwiftView? levelGroup = null;
-                levelGroup = PreferenceGroup(
-                    NativeOnboardingOptions.CefrLevels.Select((level, index) =>
-                        Choice(style, level,
-                        $"native.onboarding.level.{level}",
-                        draft.TargetCefrLevel == level, !busy,
-                        () =>
-                        {
-                            preferenceDraft = preferenceDraft with {
-                                TargetCefrLevel = level
-                            };
-                            changed(preferenceDraft);
-                            SelectPreference(levelGroup!, style.Appearance, index);
-                        }, GroupPosition(index,
-                            NativeOnboardingOptions.CefrLevels.Length))).ToArray(),
-                    NativeOnboardingOptions.CefrLevels.IndexOf(
-                        draft.TargetCefrLevel), style.Appearance);
-                content.Add(levelGroup);
+                var culture = System.Globalization.CultureInfo.CurrentCulture;
+                // A stored length outside the options (saved by another client) stays, first,
+                // with the same unit as the rest.
+                var minuteValues = NativeOnboardingOptions.SessionMinutes.ToList();
+                if (!minuteValues.Contains(draft.PreferredSessionMinutes))
+                    minuteValues.Insert(0, draft.PreferredSessionMinutes);
+                var minutes = NativeForm.Choice(style, text("Onboarding_StudyDuration"),
+                    minuteValues.Select(value => new SwiftPickerOption(
+                        value.ToString(culture),
+                        $"{value.ToString(culture)} {text("PlanMinutesLabel")}")).ToArray(),
+                    draft.PreferredSessionMinutes.ToString(culture),
+                    "native.onboarding.minutes",
+                    value =>
+                    {
+                        if (!int.TryParse(value, System.Globalization.NumberStyles.Integer,
+                                culture, out var chosen)
+                            || !minuteValues.Contains(chosen))
+                            return false;
+                        preferenceDraft = preferenceDraft with { PreferredSessionMinutes = chosen };
+                        changed(preferenceDraft);
+                        return true;
+                    });
+                minutes.IsEnabled = !busy;
+                var level = NativeForm.Choice(style, text("Onboarding_TargetLevel"),
+                    NativeOnboardingOptions.CefrLevels.Select(value =>
+                        new SwiftPickerOption(value, value)).ToArray(),
+                    draft.TargetCefrLevel,
+                    "native.onboarding.level",
+                    value =>
+                    {
+                        if (string.IsNullOrWhiteSpace(value))
+                            return false;
+                        preferenceDraft = preferenceDraft with { TargetCefrLevel = value };
+                        changed(preferenceDraft);
+                        return true;
+                    });
+                level.IsEnabled = !busy;
+                sections.Add(Views.Section(string.Empty, minutes, level));
                 break;
             case 5:
-                content.Add(Heading(style, text("Onboarding_AllSet")));
-                content.Add(style.Text(Views.Text(text("Onboarding_CreateStarterContent")),
-                    SourceTextRole.Body1, SourceTextTone.Secondary));
+                sections.Add(Heading(style, text("Onboarding_AllSet")));
+                AddNotices(sections, notices);
+                sections.Add(Views.Section(string.Empty,
+                    NativeForm.Notice(style, text("Onboarding_CreateStarterContent"),
+                        "native.onboarding.intro", error: false)));
                 if (busy)
                 {
                     var steps = creatingStarter
@@ -142,58 +154,57 @@ internal static class OnboardingView
                             "Onboarding_CreatingSkillProfile"
                         }
                         : ["Onboarding_SavingProfile"];
-                    for (var index = 0; index < steps.Length; index++)
-                        content.Add(ProgressRow(style, text(steps[index]),
-                            index < contentStepsDone, index == contentStepsDone,
-                            $"native.onboarding.progress.{index}"));
+                    sections.Add(Views.Section(string.Empty, steps.Select((key, index) =>
+                        ProgressRow(style, text(key), index < contentStepsDone,
+                            index == contentStepsDone,
+                            $"native.onboarding.progress.{index}")).ToArray()));
                 }
                 else
                 {
-                    var starter = style.PrimaryButton(
-                            text("Onboarding_CreateStarter"), () => finish(true),
-                            fullWidth: true)
-                        .WithFlexibleWidth()
-                        .WithAccessibilityIdentifier(
-                            "native.onboarding.finish.starter");
-                    SourceUiStyle.SetCustomButtonAvailability(starter, style.Appearance,
-                        SourceButtonRole.Primary, true);
-                    content.Add(starter);
-                    var skip = style.SecondaryButton(
-                            text("Onboarding_SkipSetup"), () => finish(false),
-                            fullWidth: true)
-                        .WithFlexibleWidth()
-                        .WithAccessibilityIdentifier(
-                            "native.onboarding.finish.skip");
-                    SourceUiStyle.SetCustomButtonAvailability(skip, style.Appearance,
-                        SourceButtonRole.FilledSecondary, true);
-                    content.Add(skip);
+                    sections.Add(Views.Section(string.Empty, NativeForm.CenteredRow(
+                        NativeForm.Prominent(style, text("Onboarding_CreateStarter"),
+                            () => finish(true), "native.onboarding.finish.starter"))));
+                    sections.Add(Views.Section(string.Empty, NativeForm.Action(style,
+                        Views.Button(text("Onboarding_SkipSetup"), () => finish(false))
+                            .WithAccessibilityIdentifier("native.onboarding.finish.skip"))));
                 }
                 break;
         }
 
         if (step is > 0 and < 5)
         {
-            var backButton = style.SecondaryButton(
-                    text("Onboarding_Back"), back)
-                .WithAccessibilityIdentifier("native.onboarding.back");
-            SourceUiStyle.SetCustomButtonAvailability(backButton, style.Appearance,
-                SourceButtonRole.FilledSecondary, !busy);
-            var nextButton = style.PrimaryButton(
-                    text("Onboarding_Next"), next)
-                .WithAccessibilityIdentifier("native.onboarding.next");
-            SourceUiStyle.SetCustomButtonAvailability(nextButton, style.Appearance,
-                SourceButtonRole.Primary, !busy && (step switch
-            {
-                1 => !string.IsNullOrWhiteSpace(draft.NativeLanguage),
-                2 => !string.IsNullOrWhiteSpace(draft.TargetLanguage),
-                3 => !string.IsNullOrWhiteSpace(draft.Name),
-                _ => true,
-            }));
+            var backButton = NativeForm.Bordered(style, text("Onboarding_Back"), back,
+                "native.onboarding.back");
+            backButton.IsEnabled = !busy;
+            var nextButton = NativeForm.Prominent(style, text("Onboarding_Next"), next,
+                "native.onboarding.next");
+            nextButton.IsEnabled = NativeOnboardingOptions.CanGoNext(step, draft, busy);
             registerNext(nextButton);
-            var navigation = Views.HStack(backButton, nextButton);
+            var navigation = Views.HStack(backButton, nextButton)
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                .WithListRowBackgroundHidden();
             navigation.Spacing = SourceUiLayout.ItemGap;
-            content.Add(navigation);
+            sections.Add(Views.Section(string.Empty, navigation));
         }
+        // Their own Section: two background-less rows in one Section draw a separator between.
+        sections.Add(Views.Section(string.Empty, StepDots(style, step)));
+
+        var logout = NativeForm.Action(style, text("Nav_Logout"), "arrow.left.square", signOut,
+            "native.onboarding.signout");
+        logout.IsEnabled = !busy;
+        sections.Add(Views.Section(string.Empty, logout));
+        return NativeForm.Page(style, sections, FormId, "native.onboarding.screen");
+    }
+
+    private static void AddNotices(List<SwiftView> sections, List<SwiftView> notices)
+    {
+        if (notices.Count > 0)
+            sections.Add(Views.Section(string.Empty, notices.ToArray()));
+    }
+
+    /// <summary>The six step dots, the current one in the accent color and named for VoiceOver.</summary>
+    private static SwiftView StepDots(SourceUiStyle style, int step)
+    {
         var dots = Views.HStack(Enumerable.Range(0, 6)
                 .Select(index =>
                 {
@@ -206,29 +217,17 @@ internal static class OnboardingView
                     return dot;
                 }).ToArray());
         dots.Spacing = 4;
-        content.Add(dots
+        return dots
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-            .WithAccessibilityIdentifier("native.onboarding.progress"));
-        var logout = style.TextLinkButton(
-            text("Nav_Logout"), "arrow.left.square", signOut,
-            "native.onboarding.signout");
-        logout.IsEnabled = !busy;
-        content.Add(logout);
-        var column = Views.VStack(content.ToArray())
-            .WithFlexibleWidth(600, SwiftHorizontalAlignment.Center);
-        column.Spacing = SourceUiLayout.PageGap;
-        var page = Views.Scroll(column)
-            .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth));
-        return style.Page(page)
-            .WithAccessibilityIdentifier("native.onboarding.screen");
+            .WithListRowBackgroundHidden()
+            .WithAccessibilityIdentifier("native.onboarding.progress");
     }
 
     /// <summary>
-    /// Source Onboarding.razor:59-75: while names load, a spinner with
-    /// "Generating names"; then "Or choose a suggested name" over a two-column
-    /// grid whose buttons fill the name field.
+    /// Source Onboarding.razor:59-75: while names load, a spinner with "Generating names";
+    /// then "Or choose a suggested name" over the names, each a row that fills the name field.
     /// </summary>
-    private static void AddSuggestedNames(List<SwiftView> content, SourceUiStyle style,
+    private static SwiftView? SuggestedNames(SourceUiStyle style,
         OnboardingNameSuggestions suggestions, bool busy, Func<string, string> text)
     {
         if (suggestions.Loading)
@@ -236,32 +235,21 @@ internal static class OnboardingView
             var loading = Views.HStack(
                     Views.IndeterminateProgress(text("Onboarding_GeneratingNames")),
                     style.Text(Views.Text(text("Onboarding_GeneratingNames")),
-                        SourceTextRole.Caption1, SourceTextTone.Tertiary))
+                        SourceTextRole.Body2, SourceTextTone.Secondary))
                 .WithAccessibilityIdentifier("native.onboarding.names.loading");
-            loading.Spacing = 4;
-            content.Add(loading);
-            return;
+            loading.Spacing = SourceUiLayout.ItemGap;
+            return Views.Section(string.Empty, loading);
         }
         if (suggestions.Names.IsDefaultOrEmpty)
-            return;
-        content.Add(style.Text(Views.Text(text("Onboarding_OrChooseSuggested")),
-                SourceTextRole.Caption1, SourceTextTone.Tertiary)
-            .WithAccessibilityIdentifier("native.onboarding.names.caption"));
-        var buttons = suggestions.Names.Select((name, index) =>
+            return null;
+        var rows = suggestions.Names.Select((name, index) =>
         {
-            var choice = style.SecondaryButton(name, () => suggestions.Choose(name),
-                    fullWidth: true)
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier($"native.onboarding.names.{index}");
-            SourceUiStyle.SetCustomButtonAvailability(choice, style.Appearance,
-                SourceButtonRole.FilledSecondary, !busy);
+            var choice = NativeForm.Action(style, Views.Button(name, () => suggestions.Choose(name))
+                .WithAccessibilityIdentifier($"native.onboarding.names.{index}"));
+            choice.IsEnabled = !busy;
             return choice;
         }).ToArray();
-        var grid = Views.LazyVGrid(2, buttons)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.onboarding.names");
-        grid.Spacing = SourceUiLayout.ItemGap;
-        content.Add(grid);
+        return Views.Section(text("Onboarding_OrChooseSuggested"), rows);
     }
 
     /// <summary>Source Onboarding.razor:119-165: done, in progress, or waiting.</summary>
@@ -282,57 +270,39 @@ internal static class OnboardingView
         return row;
     }
 
-    private static SwiftView Heading(
-        SourceUiStyle style, string title, bool welcome = false)
-    {
-        var heading = style.Text(Views.Text(title),
-            welcome ? SourceTextRole.Display : SourceTextRole.Title1,
-            sourceHeading: true);
-        if (welcome)
-            heading.WithFlexibleWidth(600, SwiftHorizontalAlignment.Center);
-        return heading.WithAccessibilityIdentifier("native.onboarding.heading");
-    }
+    /// <summary>The step heading on the page above the rows (the welcome one centered and larger).</summary>
+    private static SwiftView Heading(SourceUiStyle style, string title, bool welcome = false) =>
+        Views.Section(string.Empty, style.Text(Views.Text(title),
+                welcome ? SourceTextRole.Display : SourceTextRole.Title1, sourceHeading: true)
+            .WithFlexibleWidth(alignment: welcome
+                ? SwiftHorizontalAlignment.Center : SwiftHorizontalAlignment.Leading)
+            .WithListRowBackgroundHidden()
+            .WithAccessibilityIdentifier("native.onboarding.heading"));
 
+    /// <summary>
+    /// A language as a row: its name, and a checkmark on the chosen one (not color alone),
+    /// selected for VoiceOver.
+    /// </summary>
     private static SwiftView Choice(
-        SourceUiStyle style, string label, string id, bool selected,
-        bool enabled, Action action,
-        SourceButtonGroupPosition groupPosition = SourceButtonGroupPosition.None)
+        SourceUiStyle style, string label, string id, bool selected, bool enabled,
+        Action action)
     {
-        var fullWidth = groupPosition == SourceButtonGroupPosition.None;
-        var choice = (selected
-                ? style.PrimaryButton(label, action, fullWidth: fullWidth,
-                    groupPosition: groupPosition)
-                : style.SecondaryButton(label, action, fullWidth: fullWidth,
-                    groupPosition: groupPosition))
-            .WithAccessibilityIdentifier(id);
-        SourceUiStyle.SetCustomButtonAvailability(choice, style.Appearance,
-            selected ? SourceButtonRole.Primary : SourceButtonRole.FilledSecondary,
-            enabled, groupPosition);
-        return choice;
-    }
-
-    private static SourceButtonGroupPosition GroupPosition(int index, int count) =>
-        index == 0 ? SourceButtonGroupPosition.First
-        : index == count - 1 ? SourceButtonGroupPosition.Last
-        : SourceButtonGroupPosition.Middle;
-
-    private static SwiftView PreferenceGroup(
-        SwiftView[] buttons, int selectedIndex, SourceUiAppearance appearance) =>
-        Views.ButtonGroup(buttons, wraps: true, selectedIndex: selectedIndex)
-            .WithButtonGroupLayout(appearance.BootstrapBaseButtonBorderWidth)
+        var appearance = style.Appearance;
+        var line = Views.HStack(
+                style.Text(Views.Text(label), SourceTextRole.Body1).WithFlexibleWidth(),
+                Views.Image("checkmark")
+                    .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+                    .WithHidden(!selected))
             .WithFlexibleWidth();
-
-    private static void SelectPreference(
-        SwiftView group, SourceUiAppearance appearance, int selectedIndex)
-    {
-        group.SelectedIndex = selectedIndex;
-        for (var index = 0; index < group.Children.Count; index++)
-        {
-            SourceUiStyle.SetCustomButtonAvailability(
-                group.Children[index], appearance,
-                index == selectedIndex
-                    ? SourceButtonRole.Primary : SourceButtonRole.FilledSecondary,
-                enabled: true, GroupPosition(index, group.Children.Count));
-        }
+        // The row's ink is set (a Form button is otherwise accent), so a disabled row dims itself.
+        var ink = enabled ? appearance.Text : appearance.SecondaryText;
+        var choice = Views.Button(line, action)
+            .WithForegroundColor(ink.Light, ink.Dark)
+            .WithFlexibleWidth()
+            .WithAccessibilityLabel(label)
+            .WithAccessibilitySelected(selected)
+            .WithAccessibilityIdentifier(id);
+        choice.IsEnabled = enabled;
+        return choice;
     }
 }

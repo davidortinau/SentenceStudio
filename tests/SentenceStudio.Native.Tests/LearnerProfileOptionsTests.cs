@@ -23,6 +23,22 @@ public sealed class LearnerProfileOptionsTests
     }
 
     [Theory]
+    [InlineData(0, "", "", "", false, true)]
+    [InlineData(1, "", "", "", false, false)]
+    [InlineData(1, "", "English", "", false, true)]
+    [InlineData(2, "", "English", "", false, false)]
+    [InlineData(2, "", "English", "Korean", false, true)]
+    [InlineData(3, " ", "English", "Korean", false, false)]
+    [InlineData(3, "Min", "English", "Korean", false, true)]
+    [InlineData(4, "Min", "English", "Korean", false, true)]
+    [InlineData(4, "Min", "English", "Korean", true, false)]
+    [InlineData(3, "Min", "English", "Korean", true, false)]
+    public void OnboardingNext_NeedsTheStepsChoiceAndNeverRunsWhileBusy(
+        int step, string name, string native, string target, bool busy, bool expected) =>
+        Assert.Equal(expected, NativeOnboardingOptions.CanGoNext(step,
+            new NativeOnboardingDraft(name, native, target), busy));
+
+    [Theory]
     [InlineData("src/SentenceStudio.UI/Pages/Profile.razor")]
     [InlineData("src/SentenceStudio.UI/Pages/Onboarding.razor")]
     [InlineData("src/SentenceStudio.Api/ProfileEndpoints.cs")]
