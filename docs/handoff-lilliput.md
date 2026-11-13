@@ -72,9 +72,19 @@ Ailoha branches with SwiftUI fixes (PRs #140-#143 upstream): `fix/swiftui-access
 - The bridge checkout `~/work/Microsoft.SwiftUI` is on Lilliput's own branch
   `fix-versioned-platform-target-validation` with an uncommitted verifier change (packing under
   the GA SDK); it was left as is. Bridge work for this branch continues on `split-view`.
-- **Still needed (the Captain's hands):** Docker Desktop (the AppHost runs Postgres, Redis and
-  Azurite in containers), `az login`, `gh auth login`, and the `MaxProWildDev` signing identity
-  for phone builds. Local test accounts need seeding once the backend runs.
+- Also installed: .NET SDK 10.0.101 (the server projects target `net10.0`; the iOS head builds
+  with 11.0.100, the newest SDK, since there is no `global.json`), Docker Desktop 29.9.3; `gh` and
+  `az` are signed in. The HTTPS dev certificate is trusted (`~/.aspnet` had been created by root
+  on 2026-11-11 and was handed back to the user).
+- **Starting the backend:** `~/start-sentencestudio-apphost.command` (open it, or `open` it over
+  SSH). It runs the AppHost in the desktop session, where the login keychain holds the dev
+  certificate; an AppHost started from an SSH shell can't read the keychain and stops with
+  "Unable to configure HTTPS endpoint". Log: `~/apphost.log`. Over SSH, `docker` is at
+  `~/.docker/bin`.
+- Proven on 2026-11-13: API health 200 on `http://localhost:5081`, Postgres/Redis/Azurite
+  containers up, and the seeded `testsailor` and `e2e` accounts sign in through
+  `/api/auth/login`. Not yet done: signing in from the app on "SS iPad", and the
+  `MaxProWildDev` signing identity for phone builds.
 
 ## Secrets
 
