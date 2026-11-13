@@ -10094,6 +10094,10 @@ For example: {0} ...</value>
     <value>Exit full screen</value>
     <comment>Library split view: the same button while the item fills the window; brings the list back</comment>
   </data>
+  <data name="ResourceEdit_SaveBeforeOpeningAnother" xml:space="preserve">
+    <value>Save or undo your changes to this resource before opening another.</value>
+    <comment>Resource form beside the list (iPad, iPhone Duo): another resource was chosen while this one has unsaved changes; nothing is lost</comment>
+  </data>
   <data name="VocabWordEdit_SaveBeforeOpeningAnother" xml:space="preserve">
     <value>Save or undo your changes to this word before opening another.</value>
     <comment>Word editor beside the list (iPad, iPhone Duo): another word was chosen while this one has unsaved changes; nothing is lost</comment>

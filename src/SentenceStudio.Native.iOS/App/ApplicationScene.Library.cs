@@ -290,6 +290,7 @@ internal sealed partial class ApplicationScene
                 return;
             _resourcesSlot = Views.VStack(_app.RenderResources(_style))
                 .WithNavigationTitle(_app.Localize("Resources_Title"))
+                .WithNavigationSubtitle(_app.ResourcesSubtitle)
                 .WithInlineNavigationTitle();
             _resourcesSearch = Find(_resourcesSlot, BrowserPageUpdate.Resources.SearchId);
             _renderedResourcesArrangement = _app.ResourcesArrangement;

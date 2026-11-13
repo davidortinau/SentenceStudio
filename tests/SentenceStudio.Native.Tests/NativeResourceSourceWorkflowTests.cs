@@ -633,6 +633,29 @@ public sealed class NativeResourceSourceWorkflowTests
     }
 
     [Fact]
+    public async Task HasUnsavedEdits_ComparesValuesSoATypedAndDeletedCharacterIsNoEdit()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var presenter = fixture.Resources;
+        presenter.BeginCreate();
+        Assert.False(presenter.HasUnsavedEdits);
+        presenter.ChangeDraft(NativeResourceField.Title, "Glossary");
+        Assert.True(presenter.HasUnsavedEdits);
+        Assert.True(await presenter.SaveAsync());
+        var id = presenter.Detail.Resource!.Id;
+
+        await presenter.OpenAsync(id);
+        presenter.BeginEdit();
+        Assert.False(presenter.HasUnsavedEdits);
+        presenter.ChangeDraft(NativeResourceField.Title, "Glossaryx");
+        Assert.True(presenter.HasUnsavedEdits);
+        presenter.ChangeDraft(NativeResourceField.Title, "Glossary");
+        Assert.False(presenter.HasUnsavedEdits);
+    }
+
+    [Fact]
     public async Task DeleteListed_RemovesOnlyTheOwnersListedNonSmartResource()
     {
         using var fixture = new NativeSliceFixture();

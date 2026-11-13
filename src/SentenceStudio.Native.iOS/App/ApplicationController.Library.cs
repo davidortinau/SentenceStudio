@@ -183,6 +183,9 @@ internal sealed partial class ApplicationController
     internal bool IsResourceFilterPresented => _resources?.IsFilterSheetPresented == true;
     internal string ResourcesArrangement => _resources?.Arrangement ?? string.Empty;
     internal object? ResourcesRenderKey => _resources?.RenderKey;
+
+    /// <summary>The count under the Resources title.</summary>
+    internal string ResourcesSubtitle => _resources?.ListSubtitle ?? string.Empty;
     internal string ResourceFilterSheetKey => _resources?.FilterSheetKey ?? string.Empty;
     internal double? ResourcesPageWidth => _resources?.PageWidth;
     internal bool ResourcesFilterPanelShown => _resources?.ListState.FilterPanelHidden == false;

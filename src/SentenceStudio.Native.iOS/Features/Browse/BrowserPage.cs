@@ -317,6 +317,8 @@ internal static class BrowserPage
         return search is null ? content
             : Views.Searchable(content, search.Placeholder, search.Text,
                     search.Changed, search.Tokens, search.TokensChanged)
+                // In the bottom toolbar, as in Notes; it rises above the keyboard while typing.
+                .WithSearchPlacement(SwiftSearchPlacement.BottomBar)
                 .WithAccessibilityIdentifier($"{prefix}.search");
     }
 
@@ -384,8 +386,10 @@ internal static class BrowserPage
     /// </summary>
     /// <param name="asList">The results as a native List (the header is its first row).</param>
     internal static SwiftView Wide(string prefix, SourceUiStyle style, SwiftView? filterPanel,
-        SwiftView searchRow, SwiftView header, IEnumerable<SwiftView> results, bool asList = false)
+        SwiftView searchRow, SwiftView? header, IEnumerable<SwiftView> results, bool asList = false)
     {
+        // No header (nothing above the results): the list or column starts with the results.
+        SwiftView[] rows = header is null ? [.. results] : [header, .. results];
         var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
         var columns = new List<SwiftView>();
         if (filterPanel is not null)
@@ -395,10 +399,10 @@ internal static class BrowserPage
         }
         SwiftView scroll;
         if (asList)
-            scroll = NativeList($"{prefix}.results.content", [header, .. results], style);
+            scroll = NativeList($"{prefix}.results.content", rows, style);
         else
         {
-            var content = Views.VStack([header, .. results])
+            var content = Views.VStack(rows)
                 .WithPadding(0, gutter, gutter, gutter)
                 .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"{prefix}.results.content");

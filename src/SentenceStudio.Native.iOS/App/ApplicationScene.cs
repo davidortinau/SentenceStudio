@@ -419,6 +419,7 @@ internal sealed partial class ApplicationScene : IDisposable
         if (_resourcesSlot is null)
             return;
         _renderedResourcesKey = _app.ResourcesRenderKey;
+        _resourcesSlot.WithNavigationSubtitle(_app.ResourcesSubtitle);
         var next = _app.RenderResources(_style);
         var current = _resourcesSlot.Children.Single();
         var oldSearch = Find(current, BrowserPageUpdate.Resources.SearchId);

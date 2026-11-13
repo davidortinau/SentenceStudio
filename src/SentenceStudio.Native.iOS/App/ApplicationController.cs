@@ -346,7 +346,8 @@ internal sealed partial class ApplicationController : IDisposable
         _resources.Changed += Publish;
         _resources.FormOpenChanged += open =>
         {
-            if (!open)
+            // Switching to another resource beside the list is not a return.
+            if (!open && !_resources.IsSwitchingForm)
                 ReturnToDashboardAfterResourceForm();
             Publish();
         };

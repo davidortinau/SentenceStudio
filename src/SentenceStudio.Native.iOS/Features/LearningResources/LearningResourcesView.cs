@@ -186,8 +186,6 @@ internal static class LearningResourcesView
                 .WithAccessibilityIdentifier("native.resources.status"));
         else
         {
-            if (Count(state, style, text) is { } count)
-                children.Add(count);
             AddResults(children, state, feedback, style, text, actions, width);
         }
         // A wide page shows this while it loads: its search stays at the top.
@@ -225,15 +223,12 @@ internal static class LearningResourcesView
         NativeResourceListState state, string? feedback, SourceUiStyle style,
         Func<string, string> text, LearningResourcesActions actions, double width)
     {
-        var header = new List<SwiftView>();
-        if (Count(state, style, text) is { } count)
-            header.Add(count);
         var results = new List<SwiftView>();
         AddResults(results, state, feedback, style, text, actions, width);
         return BrowserPage.Wide(Prefix, style,
             state.FilterPanelHidden ? null : FilterPanel(state, style, text, actions, width),
             SearchRow(state, style, text, actions),
-            BrowserPage.ResultsHeader(Prefix, header), results, asList: AsNativeList(state));
+            header: null, results, asList: AsNativeList(state));
     }
 
     /// <summary>The wide filter column: sort, type and language (applied at once), Clear All Filters.</summary>
@@ -268,13 +263,14 @@ internal static class LearningResourcesView
     }
 
     /// <summary>Source: the count above the resources, shown while there are some.</summary>
-    private static SwiftView? Count(
-        NativeResourceListState state, SourceUiStyle style, Func<string, string> text) =>
-        state.Phase != NativeResourceListPhase.Populated ? null
-            : style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
-                    text("Resources_ResourcesCount"), Items(state).Length)),
-                    SourceTextRole.Small, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.resources.count");
+    /// <summary>
+    /// The count under the page title (Captain 2026-11-12: "Put the count with the title like
+    /// Notes"); empty until resources are shown.
+    /// </summary>
+    internal static string CountText(NativeResourceListState state, Func<string, string> text) =>
+        state.Phase != NativeResourceListPhase.Populated ? string.Empty
+            : string.Format(CultureInfo.CurrentCulture, text("Resources_ResourcesCount"),
+                Items(state).Length);
 
     private static ImmutableArray<NativeResourceItem> Items(NativeResourceListState state) =>
         state.Items.IsDefault ? ImmutableArray<NativeResourceItem>.Empty : state.Items;

@@ -156,7 +156,7 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         // The narrow page uses the system search field; the wide page keeps its row above.
         Assert.Contains("return BrowserPage.SingleColumn(Prefix, children, width, new BrowserPage.PageSearch(", browser);
         Assert.Contains("SearchRow(state, style, text, actions), width);", browser);
-        Assert.Contains("            SearchRow(state, style, text, actions),\n            BrowserPage.ResultsHeader(",
+        Assert.Contains("            SearchRow(state, style, text, actions),\n            header: null, results,",
             browser);
         Assert.Contains("return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,",
             browser);

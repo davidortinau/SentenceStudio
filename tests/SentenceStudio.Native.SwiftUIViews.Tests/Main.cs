@@ -501,11 +501,12 @@ var cases = new (string Name, Action Test)[]
         using var page = VocabularyListView.Page(ListState(), style, key => key, ListActions());
         Assert(page.Children.Skip(1).Select(action => action.AccessibilityIdentifier)
             .SequenceEqual(["native.vocabulary.filters.open"]));
-        Assert(!Find(page, "native.vocabulary.filters.open")!.AccessibilitySelected);
+        // Filters is a native menu on a phone; search is the system field in the bottom bar.
+        Assert(Find(page, "native.vocabulary.filters.open")!.Kind == "menu");
         Assert(Find(page, "native.vocabulary.wide.layout") is null);
         Assert(Find(page, "native.vocabulary.stats") is null);
+        Assert(Find(page, "native.vocabulary.search")!.Kind == "searchable");
         var content = Find(page, "native.vocabulary.scroll.content")!;
-        Assert(content.Children[0].AccessibilityIdentifier == "native.vocabulary.search.row");
         Assert(Find(content, "native.vocabulary.cards")!.GridColumns == 1);
         var state = ListState() with { SheetSortField = "updated", SheetSortDescending = false };
         using var sheet = VocabularyListView.PhoneFilterSheet(state, style, key => key,
@@ -625,15 +626,18 @@ var cases = new (string Name, Action Test)[]
         var add = Find(page, "native.resources.add")!;
         Assert(add.AccessibilityLabel == "Resources_AddResource" && add.Children[0].SystemImageName == "plus");
         Assert(Find(page, "native.resources.view.toggle")!.Children[0].SystemImageName == "list.bullet");
-        var content = Find(page, "native.resources.scroll.content")!;
-        Assert(content.Children[0].AccessibilityIdentifier == "native.resources.search.row");
-        Assert(Find(page, "native.resources.count") is not null);
+        // The system search field wraps the page (bottom toolbar); the count is the title's
+        // subtitle, not a row.
+        Assert(Find(page, "native.resources.search")!.Kind == "searchable");
+        Assert(Find(page, "native.resources.count") is null);
         Assert(Find(page, "native.resources.grid")!.GridColumns == 1);
         Assert(Find(page, "native.resources.view.mode") is null);
         Assert(Find(page, "native.resources.filters.panel") is null);
         using var list = LearningResourcesView.Page(Resources() with { ViewMode = NativeResourceViewMode.List },
             null, style, key => key, ResourceActions());
-        Assert(Find(list, "native.resources.list") is not null);
+        // List mode is a native List of swipe rows.
+        var listContent = Find(list, "native.resources.scroll.content")!;
+        Assert(listContent.Kind == "list" && listContent.Children.Any(row => row.Kind == "swipeRow"));
         Assert(Find(list, "native.resources.view.toggle")!.Children[0].SystemImageName == "square.grid.3x3");
     }),
     ("Resources wide: the Vocabulary filter column, sort first, beside the results", () =>
@@ -653,8 +657,7 @@ var cases = new (string Name, Action Test)[]
         var results = layout.Children[2];
         Assert(results.Children.Select(child => child.AccessibilityIdentifier).SequenceEqual([
             "native.resources.search.row", "native.resources.results.scroll"]));
-        Assert(Find(results, "native.resources.results.header")!.Children[0].AccessibilityIdentifier
-            == "native.resources.count");
+        Assert(Find(results, "native.resources.results.header") is null);
         Assert(Find(results, "native.resources.grid")!.GridColumns == 2);
         using var filtered = LearningResourcesView.Page(Resources() with { MediaType = "Video", FilterPanelHidden = true },
             null, wideStyle, key => key, ResourceActions());
@@ -677,7 +680,7 @@ var cases = new (string Name, Action Test)[]
         Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, next));
         next.Dispose();
         Assert(ReferenceEquals(Find(page, BrowserPageUpdate.Resources.SearchId), search));
-        Assert(Find(page, "native.resources.search.clear") is not null);
+        Assert(search.Kind == "searchable");
         // No matches: the count leaves and the empty page shows, still in place.
         var none = LearningResourcesView.Page(Resources() with { Phase = NativeResourceListPhase.NoMatches, Items = [] },
             null, style, key => key, ResourceActions());
@@ -689,7 +692,8 @@ var cases = new (string Name, Action Test)[]
         var busy = LearningResourcesView.Page(Resources() with { StarterBusy = true }, null, style, key => key, ResourceActions());
         Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, busy));
         busy.Dispose();
-        Assert(!Find(page, "native.resources.scroll")!.IsEnabled && !search.IsEnabled);
+        // The page's root (the system search field over the list) is disabled, so all of it is.
+        Assert(!search.IsEnabled);
         Assert(!Find(page, "native.resources.add")!.IsEnabled && !Find(page, "native.resources.filters.open")!.IsEnabled);
 
         var sheetState = Resources() with { Sheet = new NativeResourceFilterDraft("Video", null, NativeResourceSort.Added, false) };

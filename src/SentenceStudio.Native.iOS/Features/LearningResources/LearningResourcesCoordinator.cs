@@ -83,6 +83,9 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     internal event Action<string>? FormTitleChanged;
     internal event Action<bool>? FileImporterChanged;
 
+    /// <summary>The count under the Resources title.</summary>
+    internal string ListSubtitle => LearningResourcesView.CountText(_presenter.List, _text);
+
     /// <summary>A list row's Study: the app opens Study > Choose My Own with this resource.</summary>
     internal event Action<string>? StudyRequested;
 
@@ -462,10 +465,45 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         }
     }
 
+    /// <summary>
+    /// The open form has edits that are not saved: the shared rule (fields, staged words), and
+    /// text this form holds itself until Save (the pasted word list, the quick-add query).
+    /// </summary>
+    private bool FormHasUnsavedChanges => _presenter.HasUnsavedEdits
+        || !string.IsNullOrWhiteSpace(_pasteText) || !string.IsNullOrWhiteSpace(_quickQuery);
+
+    /// <summary>True while one resource closes so another opens (not a return to the list).</summary>
+    internal bool IsSwitchingForm { get; private set; }
+
     private async Task OpenAsync(string id)
     {
-        if (_disposed || _formOpen || IsNavigationBlocked)
+        if (_disposed || IsNavigationBlocked)
             return;
+        // Beside the list (split view) another resource can be chosen while one is open: the
+        // open one closes first, unless it has unsaved edits (nothing is lost; it says so).
+        if (_formOpen)
+        {
+            if (!_creating && _selectedId == id)
+                return;
+            if (FormHasUnsavedChanges)
+            {
+                // An error, as Vocabulary's: the tap did nothing, and this says why.
+                _formErrorKey = "ResourceEdit_SaveBeforeOpeningAnother";
+                Publish();
+                return;
+            }
+            IsSwitchingForm = true;
+            try
+            {
+                CloseForm(publish: false);
+            }
+            finally
+            {
+                IsSwitchingForm = false;
+            }
+            if (_formOpen)
+                return;
+        }
         ResetForm(creating: false);
         var formGeneration = Interlocked.Read(ref _formGeneration);
         _selectedId = id;

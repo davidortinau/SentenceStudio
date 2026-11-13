@@ -9441,6 +9441,10 @@
     <value>전체 화면 종료</value>
     <comment>Library split view: brings the list back. Draft translation, needs review.</comment>
   </data>
+  <data name="ResourceEdit_SaveBeforeOpeningAnother" xml:space="preserve">
+    <value>다른 리소스를 열기 전에 이 리소스의 변경 사항을 저장하거나 되돌리세요.</value>
+    <comment>Resource form beside the list: another resource was chosen while this one has unsaved changes. Draft translation, needs review.</comment>
+  </data>
   <data name="VocabWordEdit_SaveBeforeOpeningAnother" xml:space="preserve">
     <value>다른 단어를 열기 전에 이 단어의 변경 사항을 저장하거나 되돌리세요.</value>
     <comment>Word editor beside the list: another word was chosen while this one has unsaved changes. Draft translation, needs review.</comment>

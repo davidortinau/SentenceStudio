@@ -253,3 +253,9 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   name. Pull the options and index into one helper and rename the toolbar menu.
 - On Vocabulary, typing a filter token whose value the catalog lacks (`tag:f`) appends that value
   to its submenu, which changes the toolbar outline once and remounts the page at that keystroke.
+- Switching to another resource beside the list closes the form and opens the next (the detail
+  page pops and pushes, the columns redraw twice). Swapping the form's content in place, as
+  Vocabulary's OpenWordAsync does, would avoid the flicker.
+- On the iPhone Duo's outer screen the bottom-bar search item lands in the side toolbar rail and
+  collapses with other items into a "…" overflow (Add moved there too). Confirm on the phone and
+  decide whether narrow-and-tall layouts keep the system placement.

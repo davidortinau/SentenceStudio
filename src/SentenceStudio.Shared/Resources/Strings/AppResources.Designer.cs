@@ -16528,6 +16528,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Save or undo your changes to this resource before opening another..
+        /// </summary>
+        internal static string ResourceEdit_SaveBeforeOpeningAnother {
+            get {
+                return ResourceManager.GetString("ResourceEdit_SaveBeforeOpeningAnother", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Resource saved..
         /// </summary>
         internal static string ResourceEdit_SavedSuccess {
