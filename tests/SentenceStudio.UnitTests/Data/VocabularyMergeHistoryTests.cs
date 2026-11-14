@@ -472,6 +472,80 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         (await repo.GetDuplicateGroupsForAiAsync(userProfileId: UserB)).Should().BeEmpty();
     }
 
+    // docs/duplicate-merge-ai-plan.md: copies kept apart (달 "moon" and "month") leave the scan
+    // until a new copy of the term arrives, and come back when the decision is undone.
+    [Fact]
+    public async Task KeepDuplicatesApart_HidesTheCopies_UntilANewCopyArrivesOrItIsUndone()
+    {
+        var month = SeedWord("달", "month");
+        var moon = SeedWord(" 달 ", "moon");
+        EnsureWordsMappedToUser(UserA, month, moon);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        (await repo.KeepDuplicatesApartAsync([month, moon], VocabularyDuplicateDecider.Ai, "different words"))
+            .Should().BeTrue();
+
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(0);
+        (await repo.GetDuplicateGroupsForAiAsync()).Should().BeEmpty();
+        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(0);
+        using (var check = _fixture.ServiceProvider.CreateScope())
+        {
+            var decision = check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                .VocabularyDuplicateDecisions.AsNoTracking().Single();
+            decision.Id.Should().Be(SyncIds.VocabularyDuplicateDecision(UserA, VocabularyDuplicateDecisionKind.KeptApart,
+                "달", [moon, month]));
+            decision.TermKey.Should().Be("달");
+            decision.CopyIdList.Should().BeEquivalentTo([month, moon]);
+            decision.Reason.Should().Be("different words");
+        }
+
+        // A new copy of 달 reopens the group with all three.
+        var another = SeedWord("달", "moon (in the sky)");
+        EnsureWordsMappedToUser(UserA, another);
+        (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().Words.Should().HaveCount(3);
+
+        // Undone: the two kept apart show again.
+        using (var undo = _fixture.ServiceProvider.CreateScope())
+        {
+            var db = undo.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Remove(db.VocabularyWords.Single(word => word.Id == another));
+            db.VocabularyDuplicateDecisions.Single().UndoneAt = DateTime.UtcNow;
+            db.SaveChanges();
+        }
+        (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().Words.Select(info => info.Word.Id)
+            .Should().BeEquivalentTo([month, moon]);
+
+        // Keeping them apart again restores the decision.
+        (await repo.KeepDuplicatesApartAsync([moon, month], VocabularyDuplicateDecider.Learner, null)).Should().BeTrue();
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task KeepDuplicatesApart_RefusesAnotherLearnersCopies_AndCopiesOfDifferentTerms()
+    {
+        SeedUserProfile(UserB);
+        var mine = SeedWord("눈", "eye");
+        var mineToo = SeedWord("눈", "snow");
+        var theirs = SeedWord("눈", "snow", owner: UserB);
+        var other = SeedWord("말", "horse");
+        EnsureWordsMappedToUser(UserA, mine, mineToo, other);
+        EnsureWordsMappedToUser(UserB, theirs);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        (await repo.KeepDuplicatesApartAsync([mine, theirs], VocabularyDuplicateDecider.Learner, null)).Should().BeFalse();
+        (await repo.KeepDuplicatesApartAsync([mine, other], VocabularyDuplicateDecider.Learner, null)).Should().BeFalse();
+        (await repo.KeepDuplicatesApartAsync([mine], VocabularyDuplicateDecider.Learner, null)).Should().BeFalse();
+        // Another learner cannot keep the learner's copies apart for them.
+        (await repo.KeepDuplicatesApartAsync([mine, mineToo], VocabularyDuplicateDecider.Learner, null, userProfileId: UserB))
+            .Should().BeFalse();
+
+        using var check = _fixture.ServiceProvider.CreateScope();
+        check.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyDuplicateDecisions.Should().BeEmpty();
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(1);
+    }
+
     [Fact]
     public async Task FindDuplicateVocabularyGroups_FlagsALanguageOrKindConflictForReview()
     {

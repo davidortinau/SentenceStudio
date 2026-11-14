@@ -564,6 +564,41 @@ API refuses uploads containing it.
 **Not built yet.** Deleting a lookup in the apps. The server side exists: owner-checked
 deletes and the deletion log cover `VocabularyLookup` like every synced table.
 
+
+## Duplicate decisions (2026-11-14)
+
+Captain, 2026-11-14, approving the decision table in `docs/duplicate-merge-ai-plan.md`
+("Remembering decisions"). What the learner or the AI decided about duplicate copies of a
+target term lives in its own synced table, `VocabularyDuplicateDecision` (migration
+`20261114203658_AddVocabularyDuplicateDecision`, PostgreSQL scaffolded, SQLite hand-written).
+
+**Columns.** `Id` (text), `UserProfileId` (owner, required), `TermKey` (the group's
+normalized target term: `VocabularyDuplicatePolicy.NormalizeTargetTerm`, that is Unicode NFKC,
+trimmed, every run of white space made one space, lower-cased invariant), `Kind` (`Merged` or
+`KeptApart`), `CopyIds` (the decided word IDs, distinct, trimmed, ordinal-sorted, joined with
+`,`), `KeeperId` (the copy a merge kept; null when kept apart), `DecidedBy` (`Ai` or `Learner`),
+`Reason` (optional), `Before` (a merge's undo record as JSON; null when kept apart),
+`DecidedAt` and `UndoneAt` (UTC instants; `UndoneAt` null while the decision stands). Word
+IDs are plain references with no constraint, since a merge removes copies. Index: owner + term.
+
+**One row per learner, kind, term and copies.** The ID is
+`"dd:" + hex(first 16 bytes of SHA-256(UTF-8(owner U+001F kind U+001F term U+001F copies)))`,
+lower-case hex, with `term` and `copies` as above (`SyncIds.VocabularyDuplicateDecision`).
+Test vectors (checked in `VocabularyDuplicateResolverTests`): owner `owner-1`, `KeptApart`,
+`달`, copies `word-b`, `word-a` is `dd:3ed9d4f0bba69544346fa2c557bdab74`; owner `owner-1`,
+`Merged`, `소리`, copies `word-a`, `word-b` is `dd:9fdcc6f4069260e2ed9bbdf609451f24`. Two
+offline devices that keep the same copies apart make the same row.
+
+**What it does.** The duplicate scan hides a group while a standing `KeptApart` decision of
+the learner for that term holds every current copy; a new copy of the term shows the group
+again, and an undone decision no longer hides it. Keeping the same copies apart again clears
+`UndoneAt`.
+
+**Owner rule (server).** A device downloads and uploads only its owner's rows; an upload that
+names another owner or reuses another learner's ID is refused; a row with no owner is left
+out and stays on the device (`NativeOwnerSyncProvider`; MAUI's `OwnerCheckedSyncProvider`
+reads owners from `SyncRowOwners`). It is a late table (`SyncLateTables`), so a device that
+synced with an older app asks for decisions made elsewhere.
 ## Owner-checked sync for every client (decisions 1 and 2, 2026-11-04)
 
 Captain, 2026-11-04: "do A, and you should also do what is necessary to make the MAUI app

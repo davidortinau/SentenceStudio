@@ -56,7 +56,9 @@ public static class SharedSyncRegistration
             .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload)
             // Lookup history (decision 4 B, migration 20261104153858_AddVocabularyLookup).
-            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload)
+            // Duplicate decisions (docs/duplicate-merge-ai-plan.md, migration 20261114203658).
+            .Table<VocabularyDuplicateDecision>("VocabularyDuplicateDecision", syncDirection: SyncDirection.UploadAndDownload);
     }
 
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
@@ -99,7 +101,9 @@ public static class SharedSyncRegistration
             .Table<ConversationScenario>("ConversationScenario", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ExampleSentence>("ExampleSentence", syncDirection: SyncDirection.UploadAndDownload)
             // Lookup history (decision 4 B, migration 20261104153858_AddVocabularyLookup).
-            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload);
+            .Table<VocabularyLookup>("VocabularyLookup", syncDirection: SyncDirection.UploadAndDownload)
+            // Duplicate decisions (docs/duplicate-merge-ai-plan.md, migration 20261114203658).
+            .Table<VocabularyDuplicateDecision>("VocabularyDuplicateDecision", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif
 }

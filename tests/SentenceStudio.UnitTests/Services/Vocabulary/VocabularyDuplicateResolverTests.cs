@@ -283,6 +283,20 @@ public class VocabularyDuplicateResolverTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    // The contract every client builds the same way (docs/sync-all-tables-plan.md, "Duplicate
+    // decisions"); the vectors were computed independently with Python's hashlib.
+    [Fact]
+    public void Decision_ids_follow_the_written_contract()
+    {
+        SyncIds.VocabularyDuplicateDecision("owner-1", SentenceStudio.Shared.Models.VocabularyDuplicateDecisionKind.KeptApart,
+                "달", ["word-b", " word-a", "word-b"])
+            .Should().Be("dd:3ed9d4f0bba69544346fa2c557bdab74");
+        SyncIds.VocabularyDuplicateDecision("owner-1", SentenceStudio.Shared.Models.VocabularyDuplicateDecisionKind.Merged,
+                "소리", ["word-a", "word-b"])
+            .Should().Be("dd:9fdcc6f4069260e2ed9bbdf609451f24");
+        SyncIds.DuplicateDecisionCopies(["b", "a", " a ", ""]).Should().Be("a,b");
+    }
+
     private static VocabularyDuplicateAiCall Single(IReadOnlyList<VocabularyDuplicateAiGroup> groups,
         DuplicateGroupDecision decision) =>
         VocabularyDuplicateResolver.Interpret(groups,

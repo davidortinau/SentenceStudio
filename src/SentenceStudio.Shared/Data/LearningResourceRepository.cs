@@ -1878,6 +1878,61 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
+    /// Keeps the learner's copies of one term apart (docs/duplicate-merge-ai-plan.md): records a
+    /// kept-apart decision, so the duplicate scan stops showing them until a new copy of the term
+    /// arrives. Every copy must be the learner's own word, all with one target term; otherwise
+    /// nothing is recorded (logged) and it returns false. Keeping the same copies apart again
+    /// restores a decision that was undone.
+    /// </summary>
+    public async Task<bool> KeepDuplicatesApartAsync(IReadOnlyCollection<string> copyIds,
+        VocabularyDuplicateDecider decidedBy, string? reason, CancellationToken ct = default,
+        string? userProfileId = null)
+    {
+        var userId = ResolveUserId(userProfileId);
+        var ids = copyIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (string.IsNullOrEmpty(userId) || ids.Length < 2)
+        {
+            _logger.LogWarning("KeepDuplicatesApartAsync needs an active user and two copies; nothing recorded.");
+            return false;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var terms = await db.VocabularyWords.AsNoTracking().OwnedBy(userId)
+            .Where(word => ids.Contains(word.Id))
+            .Select(word => word.TargetLanguageTerm)
+            .ToListAsync(ct);
+        var keys = terms.Select(VocabularyDuplicatePolicy.NormalizeTargetTerm).Distinct(StringComparer.Ordinal).ToList();
+        if (terms.Count != ids.Length || keys.Count != 1 || keys[0].Length == 0)
+        {
+            _logger.LogWarning(
+                "KeepDuplicatesApartAsync: the {Count} copies are not all the learner's words of one term; nothing recorded.",
+                ids.Length);
+            return false;
+        }
+
+        var id = SyncIds.VocabularyDuplicateDecision(userId, VocabularyDuplicateDecisionKind.KeptApart, keys[0], ids);
+        var decision = await db.VocabularyDuplicateDecisions.SingleOrDefaultAsync(row => row.Id == id, ct);
+        if (decision is null)
+        {
+            decision = new VocabularyDuplicateDecision
+            {
+                Id = id, UserProfileId = userId, TermKey = keys[0], Kind = VocabularyDuplicateDecisionKind.KeptApart,
+                CopyIds = SyncIds.DuplicateDecisionCopies(ids),
+            };
+            db.VocabularyDuplicateDecisions.Add(decision);
+        }
+        decision.DecidedBy = decidedBy;
+        decision.Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        decision.DecidedAt = DateTime.UtcNow;
+        decision.UndoneAt = null;
+        await db.SaveChangesAsync(ct);
+        _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+        _logger.LogInformation("Kept {Count} copies of a term apart ({DecidedBy}).", ids.Length, decidedBy);
+        return true;
+    }
+
+    /// <summary>
     /// The learner's duplicate groups to review, as the AI sees them (docs/duplicate-merge-ai-plan.md):
     /// each copy's fields plus its sense clues, the titles of the learner's resources that hold it
     /// and one of the learner's example sentences for it. Groups are keyed by their normalized term.
@@ -1962,6 +2017,22 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .Where(item => string.IsNullOrWhiteSpace(focusKey) || item.Key == focusKey)
             .GroupBy(item => item.Key, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
+            .ToList();
+        if (candidateGroups.Count == 0)
+            return [];
+        // Copies the learner (or the AI) kept apart stay hidden until a new copy of the term
+        // arrives (docs/duplicate-merge-ai-plan.md); an undone decision no longer hides them.
+        var keptApart = (await db.VocabularyDuplicateDecisions.AsNoTracking()
+                .Where(decision => decision.UserProfileId == userId
+                    && decision.Kind == VocabularyDuplicateDecisionKind.KeptApart && decision.UndoneAt == null)
+                .Select(decision => new { decision.TermKey, decision.CopyIds })
+                .ToListAsync(ct))
+            .Select(decision => (decision.TermKey, Copies: decision.CopyIds
+                .Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal)))
+            .ToList();
+        candidateGroups = candidateGroups
+            .Where(group => !keptApart.Any(decision => decision.TermKey == group.Key
+                && group.All(item => decision.Copies.Contains(item.Word.Id))))
             .ToList();
         if (candidateGroups.Count == 0)
             return [];

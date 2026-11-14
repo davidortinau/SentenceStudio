@@ -140,6 +140,15 @@ seconds. Escalations use the Reasoning tier for only the uncertain few. The pass
 background with progress, can be cancelled (merges already made stay and are reported), and
 syncs once at the end.
 
+## Status (2026-11-14)
+
+- Phases 0 and 1 done (`09c0c04e`): resolver, checks, prompt rule from the dry run, dry-run tool.
+- Phase 2 done: `VocabularyDuplicateDecision` (migration `20261114203658`, PostgreSQL and SQLite),
+  synced with the owner rule on every client, contract in `docs/sync-all-tables-plan.md`
+  ("Duplicate decisions"). The scan hides copies kept apart; `KeepDuplicatesApartAsync` records
+  a decision for the learner's own copies of one term only.
+- Next: phase 3 (apply by confidence, Merged records with the undo record, report, Undo).
+
 ## Phases
 
 | # | Work | Needs |

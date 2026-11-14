@@ -1614,6 +1614,53 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.ToTable("VideoImport", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyDuplicateDecision", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CopyIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DecidedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeeperId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TermKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UndoneAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "TermKey");
+
+                    b.ToTable("VocabularyDuplicateDecision", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyLearningContext", b =>
                 {
                     b.Property<string>("Id")
