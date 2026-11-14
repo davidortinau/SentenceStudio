@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api.Tests.AppOperations;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Tests.Data;
@@ -194,6 +195,59 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         Assert.Equal("melon-2", (await check.PhraseConstituents.AsNoTracking()
             .SingleAsync(link => link.Id == "pc-b-melon")).ConstituentWordId);
         Assert.Equal(2, await check.VocabularyWords.CountAsync(word => word.Id.StartsWith("b-mango-")));
+        Assert.Equal(before, await SnapshotOfBAsync(database));
+    }
+
+    // AI duplicate decisions (docs/duplicate-merge-ai-plan.md) on both providers: A's confident
+    // calls merge and keep apart only A's copies, each in its serializable transaction with its
+    // record; Undo brings the merged copy back; B's rows, decisions and same-term words are untouched.
+    protected async Task AiDecisions_ApplyAndUndoOnlyTheLearnersOwn()
+    {
+        var database = await SeedAsync();
+        await using (var db = Context(database))
+        {
+            Word(db, "sori-1", "소리", UserA, ResourceA).NativeLanguageTerm = "sound";
+            Word(db, "sori-2", "소리", UserA, ResourceA).NativeLanguageTerm = "sound / noise";
+            Word(db, "dal-1", "달", UserA, ResourceA).NativeLanguageTerm = "month";
+            Word(db, "dal-2", "달", UserA, ResourceA).NativeLanguageTerm = "moon";
+            Word(db, "b-dal-1", "달", UserB, ResourceB).NativeLanguageTerm = "month";
+            Word(db, "b-dal-2", "달", UserB, ResourceB).NativeLanguageTerm = "moon";
+            await db.SaveChangesAsync();
+        }
+        var before = await SnapshotOfBAsync(database);
+        var repository = Repository(database, UserA);
+        var asked = await repository.GetDuplicateGroupsForAiAsync();
+        Assert.DoesNotContain(asked.SelectMany(group => group.Copies), copy => copy.Id.StartsWith("b-"));
+        VocabularyDuplicateAiResult Sure(string term, VocabularyDuplicateAiVerdict verdict,
+            params (string Meaning, string[] Ids)[] sets) =>
+            new(new VocabularyDuplicateAiCall(asked.Single(group => group.Term == term).GroupId, verdict,
+                sets.Select(set => new VocabularyDuplicateAiSet(set.Ids, set.Meaning, null)).ToArray(),
+                0.95, "test", null), AiTier.Fast);
+
+        Assert.Equal(VocabularyDuplicateApplyResult.None,
+            await Repository(database, null).ApplyDuplicateResolutionAsync(asked,
+                [Sure("소리", VocabularyDuplicateAiVerdict.SameWord, ("sound; noise", ["sori-1", "sori-2"]))]));
+        var result = await repository.ApplyDuplicateResolutionAsync(asked, [
+            Sure("소리", VocabularyDuplicateAiVerdict.SameWord, ("sound; noise", ["sori-1", "sori-2"])),
+            Sure("달", VocabularyDuplicateAiVerdict.DifferentWords, ("month", ["dal-1"]), ("moon (in the sky)", ["dal-2"]))]);
+
+        Assert.Equal((1, 1, 1), (result.MergedGroups, result.KeptApartGroups, result.RemovedCopies));
+        Assert.Empty(result.Refused);
+        Assert.DoesNotContain((await repository.FindDuplicateVocabularyGroupsAsync()).Groups,
+            group => group.NormalizedTerm is "소리" or "달");
+        Assert.Contains((await Repository(database, UserB).FindDuplicateVocabularyGroupsAsync()).Groups,
+            group => group.NormalizedTerm == "달");
+        Assert.Equal(before, await SnapshotOfBAsync(database));
+
+        var merge = (await repository.GetDuplicateDecisionsAsync())
+            .Single(decision => decision.Kind == VocabularyDuplicateDecisionKind.Merged);
+        Assert.False(await Repository(database, UserB).UndoDuplicateDecisionAsync(merge.Id));
+        Assert.True(await repository.UndoDuplicateDecisionAsync(merge.Id));
+        await using var check = Context(database);
+        var sori = await check.VocabularyWords.AsNoTracking()
+            .Where(word => word.TargetLanguageTerm == "소리").Select(word => word.NativeLanguageTerm).ToListAsync();
+        Assert.Equal(["sound", "sound / noise"], sori.Order());
+        Assert.Empty(await check.VocabularyDuplicateDecisions.Where(decision => decision.UserProfileId == UserB).ToListAsync());
         Assert.Equal(before, await SnapshotOfBAsync(database));
     }
 
@@ -890,6 +944,7 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task Duplicates() => Duplicates_ShowAndMergeOnlyTheLearnersOwnCopies();
     [Fact] public Task MergeSentenceOwners() => Merge_DecidesSentenceOwnersByTheirRecordedOwner();
     [Fact] public Task MergeAll() => MergeAll_MergesOnlyTheLearnersSafeGroups_AndPhraseLinksFollowTheirOwner();
+    [Fact] public Task AiDecisions() => AiDecisions_ApplyAndUndoOnlyTheLearnersOwn();
     [Fact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [Fact] public Task Editor() => Editor_OpensOnlyTheLearnersOwnWord_AndNeverSavesAnother();
     [Fact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
@@ -941,6 +996,7 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task Duplicates() => Duplicates_ShowAndMergeOnlyTheLearnersOwnCopies();
     [ApplicationOperationPostgresFact] public Task MergeSentenceOwners() => Merge_DecidesSentenceOwnersByTheirRecordedOwner();
     [ApplicationOperationPostgresFact] public Task MergeAll() => MergeAll_MergesOnlyTheLearnersSafeGroups_AndPhraseLinksFollowTheirOwner();
+    [ApplicationOperationPostgresFact] public Task AiDecisions() => AiDecisions_ApplyAndUndoOnlyTheLearnersOwn();
     [ApplicationOperationPostgresFact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [ApplicationOperationPostgresFact] public Task Editor() => Editor_OpensOnlyTheLearnersOwnWord_AndNeverSavesAnother();
     [ApplicationOperationPostgresFact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using FluentAssertions;
 using SentenceStudio.Data;
@@ -544,6 +545,219 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         using var check = _fixture.ServiceProvider.CreateScope();
         check.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyDuplicateDecisions.Should().BeEmpty();
         (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(1);
+    }
+
+    // docs/duplicate-merge-ai-plan.md, phase 3: the AI's confident calls apply with a record.
+    [Fact]
+    public async Task ApplyAi_SameWord_MergesIntoTheKeeper_WithTheAiMeaning_AndUndoBringsTheCopyBack()
+    {
+        var sound = SeedWord("소리", "sound");
+        var noise = SeedWord(" 소리 ", "sound / noise");
+        EnsureWordsMappedToUser(UserA, sound, noise);
+        EnsureAdditionalResourceMapping(UserA, noise);
+        UpdateWord(noise, word => word.Language = "German");
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        var keeper = (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().RecommendedKeeperId;
+        var removed = keeper == sound ? noise : sound;
+        var keeperResources = ResourcesOf(keeper);
+
+        var result = await repo.ApplyDuplicateResolutionAsync(asked,
+            [Sure(asked[0], VocabularyDuplicateAiVerdict.SameWord, ("sound; noise", "Korean", [sound, noise]))]);
+
+        result.MergedGroups.Should().Be(1);
+        result.RemovedCopies.Should().Be(1);
+        WordExists(removed).Should().BeFalse();
+        GetWord(keeper)!.NativeLanguageTerm.Should().Be("sound; noise");
+        GetWord(keeper)!.Language.Should().Be("Korean");
+        var decision = Decisions().Single();
+        decision.Kind.Should().Be(VocabularyDuplicateDecisionKind.Merged);
+        decision.KeeperId.Should().Be(keeper);
+        decision.DecidedBy.Should().Be(VocabularyDuplicateDecider.Ai);
+        result.Applied.Single().DecisionIds.Should().Equal(decision.Id);
+        VocabularyDuplicateUndoRecord.FromJson(decision.Before)!.Words.Select(word => word.NativeLanguageTerm)
+            .Should().BeEquivalentTo(["sound", "sound / noise"]);
+
+        (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeTrue();
+
+        var back = GetWord(keeper)!;
+        back.NativeLanguageTerm.Should().Be(keeper == sound ? "sound" : "sound / noise");
+        ResourcesOf(keeper).Should().BeEquivalentTo(keeperResources, "the kept word leaves the resources it only gained");
+        var groups = (await repo.FindDuplicateVocabularyGroupsAsync()).Groups;
+        var restored = groups.Single().Words.Single(info => info.Word.Id != keeper).Word;
+        restored.Id.Should().NotBe(removed, "a merged-away copy comes back as a new word");
+        restored.NativeLanguageTerm.Should().Be(keeper == sound ? "sound / noise" : "sound");
+        ResourcesOf(restored.Id).Should().HaveCount(keeper == sound ? 2 : 1);
+        Decisions().Single().UndoneAt.Should().NotBeNull();
+        (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeFalse("it is undone already");
+    }
+
+    [Fact]
+    public async Task ApplyAi_DifferentWords_KeepsThemApart_WithClarifiedMeanings_AndUndoPutsThemBack()
+    {
+        var month = SeedWord("달", "month");
+        var moon = SeedWord(" 달 ", "moon");
+        EnsureWordsMappedToUser(UserA, month, moon);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+
+        var result = await repo.ApplyDuplicateResolutionAsync(asked, [Sure(asked[0], VocabularyDuplicateAiVerdict.DifferentWords,
+            ("month", null, [month]), ("moon (in the sky)", null, [moon]))]);
+
+        result.KeptApartGroups.Should().Be(1);
+        GetWord(moon)!.NativeLanguageTerm.Should().Be("moon (in the sky)");
+        GetWord(month)!.NativeLanguageTerm.Should().Be("month");
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(0);
+        var decision = Decisions().Single();
+        decision.Kind.Should().Be(VocabularyDuplicateDecisionKind.KeptApart);
+        VocabularyDuplicateUndoRecord.FromJson(decision.Before)!.Words.Select(word => word.Id).Should().Equal(moon);
+
+        UpdateWord(moon, word => word.MnemonicText = "edited after");
+        (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeTrue();
+
+        GetWord(moon)!.NativeLanguageTerm.Should().Be("moon");
+        GetWord(moon)!.MnemonicText.Should().Be("edited after", "undo puts back only what the decision changed");
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ApplyAi_Mixed_MergesTheSameMeaning_AndKeepsTheRestApart()
+    {
+        var medicine = SeedWord("약", "medicine");
+        var drug = SeedWord("약", "drug; medicine");
+        var about = SeedWord("약", "approximately");
+        EnsureWordsMappedToUser(UserA, medicine, drug, about);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+
+        var result = await repo.ApplyDuplicateResolutionAsync(asked, [Sure(asked[0], VocabularyDuplicateAiVerdict.Mixed,
+            ("medicine; drug", null, [medicine, drug]), ("approximately", null, [about]))]);
+
+        result.Applied.Single().DecisionIds.Should().HaveCount(2);
+        result.RemovedCopies.Should().Be(1);
+        var kept = new[] { medicine, drug }.Single(WordExists);
+        GetWord(kept)!.NativeLanguageTerm.Should().Be("medicine; drug");
+        Decisions().Select(decision => decision.Kind).Should().BeEquivalentTo(
+            [VocabularyDuplicateDecisionKind.Merged, VocabularyDuplicateDecisionKind.KeptApart]);
+        Decisions().Single(decision => decision.Kind == VocabularyDuplicateDecisionKind.KeptApart).CopyIdList
+            .Should().BeEquivalentTo([kept, about]);
+        (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ApplyAi_LeavesUnsureCalls_AndGroupsThatChanged_Untouched()
+    {
+        var dad = SeedWord("아빠", "dad");
+        var father = SeedWord("아빠", "father");
+        var eye = SeedWord("눈", "eye");
+        var snow = SeedWord("눈", "snow");
+        EnsureWordsMappedToUser(UserA, dad, father, eye, snow);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        var appa = asked.Single(group => group.Term == "아빠");
+        var nun = asked.Single(group => group.Term == "눈");
+        // A third 눈 arrives after the AI was asked.
+        var another = SeedWord("눈", "snow (weather)");
+        EnsureWordsMappedToUser(UserA, another);
+        var unsure = Sure(appa, VocabularyDuplicateAiVerdict.SameWord, ("dad; father", null, [dad, father]));
+        unsure = unsure with { Call = unsure.Call with { Confidence = 0.6 } };
+
+        var result = await repo.ApplyDuplicateResolutionAsync(asked, [unsure,
+            Sure(nun, VocabularyDuplicateAiVerdict.DifferentWords, ("eye", null, [eye]), ("snow", null, [snow]))]);
+
+        result.Applied.Should().BeEmpty();
+        result.NeedsYou.Single().Call.GroupId.Should().Be(appa.GroupId);
+        result.Refused.Should().Equal([("눈", "Vocabulary_DuplicatesChangedSinceAi")]);
+        Decisions().Should().BeEmpty();
+        WordExists(dad).Should().BeTrue();
+        WordExists(father).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ApplyAndUndo_AreTheLearnersOwn()
+    {
+        SeedUserProfile(UserB);
+        var month = SeedWord("달", "month");
+        var moon = SeedWord("달", "moon");
+        EnsureWordsMappedToUser(UserA, month, moon);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        var call = Sure(asked[0], VocabularyDuplicateAiVerdict.SameWord, ("moon; month", null, [month, moon]));
+
+        // Another learner applying the call changes nothing: the group is not theirs.
+        var theirs = await repo.ApplyDuplicateResolutionAsync(asked, [call], userProfileId: UserB);
+        theirs.Applied.Should().BeEmpty();
+        WordExists(month).Should().BeTrue();
+        WordExists(moon).Should().BeTrue();
+
+        var mine = await repo.ApplyDuplicateResolutionAsync(asked, [call]);
+        var decision = mine.Applied.Single().DecisionIds.Single();
+        (await repo.UndoDuplicateDecisionAsync(decision, userProfileId: UserB)).Should().BeFalse();
+        (await repo.GetDuplicateDecisionsAsync(userProfileId: UserB)).Should().BeEmpty();
+        (await repo.GetDuplicateDecisionsAsync()).Single().Id.Should().Be(decision);
+        Decisions().Single().UndoneAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AiCleanup_MergesBySafeRulesFirst_ThenAsksTheAi_AndNeverSendsALeftOutCopy()
+    {
+        var hand = SeedWord("손", "hand");
+        var handCopy = SeedWord("손", "hand");
+        var dad = SeedWord("아빠", "dad");
+        var father = SeedWord("아빠", "father");
+        var eye = SeedWord("눈", "eye");
+        var snow = SeedWord("눈", "snow");
+        EnsureWordsMappedToUser(UserA, hand, handCopy, dad, father, eye, snow);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var cleanup = new VocabularyDuplicateAiCleanup(repo, NullLogger<VocabularyDuplicateAiCleanup>.Instance);
+        var prompts = new List<string>();
+        Task<SentenceStudio.Services.DTOs.DuplicateResolutionResponse?> Ask(string prompt, AiTier tier, CancellationToken ct)
+        {
+            prompts.Add(prompt);
+            return Task.FromResult<SentenceStudio.Services.DTOs.DuplicateResolutionResponse?>(new()
+            {
+                Groups = [new() { GroupId = "g1", Verdict = "SameWord", Confidence = 0.95, Reason = "synonyms",
+                    Sets = [new() { CopyIds = ["g1c1", "g1c2"], Meaning = "dad; father" }] }]
+            });
+        }
+
+        var result = await cleanup.RunAsync(UserA, "English", "Korean", Ask, leaveOut: [snow], CancellationToken.None);
+
+        result.Rules.MergedGroups.Should().Be(1, "손's identical copies merge by the rules");
+        result.Ai.MergedGroups.Should().Be(1);
+        prompts.Should().ContainSingle();
+        prompts[0].Should().Contain("아빠").And.NotContain("\"눈\"", "a group with a left-out copy is not sent");
+        new[] { dad, father }.Count(WordExists).Should().Be(1);
+        WordExists(eye).Should().BeTrue();
+        WordExists(snow).Should().BeTrue();
+        (await cleanup.RunAsync("", "English", "Korean", Ask, null, CancellationToken.None))
+            .Should().Be(VocabularyDuplicateAiCleanupResult.None);
+    }
+
+    private static VocabularyDuplicateAiResult Sure(VocabularyDuplicateAiGroup group, VocabularyDuplicateAiVerdict verdict,
+        params (string Meaning, string? Language, string[] Ids)[] sets) =>
+        new(new VocabularyDuplicateAiCall(group.GroupId, verdict,
+            sets.Select(set => new VocabularyDuplicateAiSet(set.Ids, set.Meaning, set.Language)).ToArray(),
+            0.95, "test", null), AiTier.Fast);
+
+    private List<VocabularyDuplicateDecision> Decisions()
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .VocabularyDuplicateDecisions.AsNoTracking().ToList();
+    }
+
+    private List<string> ResourcesOf(string wordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ResourceVocabularyMappings
+            .AsNoTracking().Where(mapping => mapping.VocabularyWordId == wordId).Select(mapping => mapping.ResourceId).ToList();
     }
 
     [Fact]
