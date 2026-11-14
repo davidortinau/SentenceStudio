@@ -390,7 +390,7 @@ internal sealed class NativeOwnerSyncProvider(
                 break;
             writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
         }
-        var deletes = await OwnDeletesAsync(db, items, owner, ct);
+        var deletes = await OwnDeletesAsync(db, items, owner, logger, ct);
 
         var kept = new HashSet<SyncItem>(writes.Concat(deletes), ReferenceEqualityComparer.Instance);
         var leftOut = items.Where(item => !kept.Contains(item)).ToArray();
@@ -407,14 +407,16 @@ internal sealed class NativeOwnerSyncProvider(
     /// The deletes this upload applies (Captain 2026-11-04, decision 2): a device deletes only a
     /// row the server stores for this owner, looked up by its ID before the delete. A delete of a
     /// row this upload also writes is older history of a row the device has again. A learner
-    /// profile is never deleted from a device, and a word only when nothing of another learner's
-    /// depends on it (its links, progress, examples and pairs go with it). Any other delete is
+    /// profile is never deleted from a device, a word only when nothing of another learner's
+    /// depends on it (its links, progress, examples and pairs go with it), and an answer only with
+    /// its stored progress row (a cascade logged on a device is not a delete). Any other delete is
     /// left out and the row stays: a device cannot know the owner of a row it already deleted, so
     /// such a delete never refuses the upload. The deletion log records each applied delete for
     /// the owner's other devices (migration AddSyncDeletionLog).
     /// </summary>
-    private static async Task<IReadOnlyList<SyncItem>> OwnDeletesAsync(
-        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, CancellationToken ct)
+    internal static async Task<IReadOnlyList<SyncItem>> OwnDeletesAsync(
+        ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, ILogger logger,
+        CancellationToken ct)
     {
         var written = items.Where(item => item.ChangeType != ChangeType.Delete)
             .Select(item => (item.TableName, Value(item, "Id")))
@@ -425,15 +427,46 @@ internal sealed class NativeOwnerSyncProvider(
             .ToArray();
         var accepted = new List<SyncItem>();
         var deletedIds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        // Words last: whether a word can go depends on the answers this upload deletes.
+        // Progress before its answers, words last: whether an answer can go depends on the
+        // progress rows this upload deletes, and whether a word can go on the answers.
         foreach (var table in deletes.GroupBy(item => item.TableName, StringComparer.Ordinal)
-            .OrderBy(group => group.Key == "VocabularyWord"))
+            .OrderBy(group => group.Key switch
+            {
+                "VocabularyWord" => 2,
+                "VocabularyLearningContext" => 1,
+                _ => 0
+            }))
         {
             var ids = table.Select(item => Value(item, "Id")!)
                 .Distinct(StringComparer.Ordinal).ToArray();
             var stored = await SyncRowOwners.GetStoredOwnersAsync(db, table.Key, ids, ct);
             var owned = stored.Where(row => row.Value == owner)
                 .Select(row => row.Key).ToHashSet(StringComparer.Ordinal);
+            // No client deletes an answer on its own: one goes only with its progress row (a word
+            // or progress deleted on the device). A device that applied a downloaded delete has
+            // also logged the cascade as its own, and an older build uploads it: a duplicate merge
+            // had moved those answers to the kept word, and on 2026-11-13 such deletes removed 527
+            // of them (docs/progress-count-repair-2026-11-13.md). The server keeps an answer
+            // whose stored progress row this upload does not delete.
+            if (table.Key == "VocabularyLearningContext" && owned.Count > 0)
+            {
+                var progressDeleted = deletedIds.GetValueOrDefault("VocabularyProgress") ?? [];
+                var parents = await db.VocabularyLearningContexts.AsNoTracking()
+                    .Where(context => owned.Contains(context.Id))
+                    .Select(context => new { context.Id, context.VocabularyProgressId })
+                    .ToListAsync(ct);
+                var echoes = parents
+                    .Where(context => !progressDeleted.Contains(context.VocabularyProgressId))
+                    .Select(context => context.Id)
+                    .ToArray();
+                if (echoes.Length > 0)
+                {
+                    owned.ExceptWith(echoes);
+                    logger.LogWarning(
+                        "Native CoreSync upload kept {Count} answers whose progress row stays on the server: deletes a device logged from a downloaded delete.",
+                        echoes.Length);
+                }
+            }
             if (table.Key == "VocabularyWord" && owned.Count > 0)
             {
                 owned.ExceptWith(await VocabularyWordDependents.OthersDependOnAsync(

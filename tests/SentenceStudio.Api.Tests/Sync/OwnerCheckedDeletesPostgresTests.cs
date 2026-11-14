@@ -4,7 +4,9 @@ using CoreSync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using SentenceStudio.Api.Sync;
 using SentenceStudio.Api.Tests.AppOperations;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
@@ -73,6 +75,72 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         Assert.DoesNotContain(await phone.DownloadAsync(), item => item.ChangeType == ChangeType.Delete
             && graph.Ids.Contains(Id(item)));
     }
+
+    /// <summary>
+    /// No client deletes an answer on its own; one that arrives without its progress row is a
+    /// cascade a device logged as its own (an older build, after a downloaded delete). Duotopia
+    /// 2026-11-13: after a web merge moved the answers to the kept word, such deletes removed 527.
+    /// </summary>
+    [ApplicationOperationPostgresFact]
+    public async Task AnswerDelete_IsAppliedOnlyWithItsProgressRow()
+    {
+        var (owner, _) = await _fixture.SeedOwnersAsync();
+        var graph = await SeedOwnedGraphAsync(owner);
+        var (kept, removed) = (Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
+        var keptAnswers = new[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString() };
+        var removedAnswer = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+        await using (var db = _fixture.NewContext())
+        {
+            db.VocabularyProgresses.AddRange(
+                new VocabularyProgress { Id = kept, UserId = owner, VocabularyWordId = graph.Word,
+                    FirstSeenAt = now, LastPracticedAt = now, CreatedAt = now, UpdatedAt = now },
+                new VocabularyProgress { Id = removed, UserId = owner, VocabularyWordId = graph.SecondWord,
+                    FirstSeenAt = now, LastPracticedAt = now, CreatedAt = now, UpdatedAt = now });
+            db.VocabularyLearningContexts.AddRange(keptAnswers.Select(id => Answer(id, kept, now))
+                .Append(Answer(removedAnswer, removed, now)));
+            await db.SaveChangesAsync();
+        }
+        // The filter itself (the database's own cascade would hide a refused delete below).
+        await using (var db = _fixture.NewContext())
+        {
+            var withProgress = await NativeOwnerSyncProvider.OwnDeletesAsync(db,
+                [Delete("VocabularyLearningContext", removedAnswer), Delete("VocabularyProgress", removed)],
+                owner, NullLogger.Instance, CancellationToken.None);
+            Assert.Contains(withProgress, item => Id(item) == removedAnswer);
+            var echo = await NativeOwnerSyncProvider.OwnDeletesAsync(db,
+                [Delete("VocabularyProgress", Guid.NewGuid().ToString()), Delete("VocabularyLearningContext", keptAnswers[0])],
+                owner, NullLogger.Instance, CancellationToken.None);
+            Assert.DoesNotContain(echo, item => Id(item) == keptAnswers[0]);
+        }
+
+        using var client = _fixture.CreateClient();
+        var phone = new Device(_fixture, client, owner);
+        await phone.DownloadAsync();
+        // A cascade logged on a device: answers, with a progress row the server no longer has.
+        using (var response = await phone.UploadAsync(
+            Delete("VocabularyProgress", Guid.NewGuid().ToString()),
+            Delete("VocabularyLearningContext", keptAnswers[0]),
+            Delete("VocabularyLearningContext", keptAnswers[1])))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // A word's progress removed on the device: its answer goes with it.
+        using (var response = await phone.UploadAsync(
+            Delete("VocabularyLearningContext", removedAnswer),
+            Delete("VocabularyProgress", removed)))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.Equal(2, await verified.VocabularyLearningContexts.CountAsync(row => keptAnswers.Contains(row.Id)));
+        Assert.False(await verified.VocabularyLearningContexts.AnyAsync(row => row.Id == removedAnswer));
+        Assert.False(await verified.VocabularyProgresses.AnyAsync(row => row.Id == removed));
+        Assert.True(await verified.VocabularyProgresses.AnyAsync(row => row.Id == kept));
+    }
+
+    private static VocabularyLearningContext Answer(string id, string progress, DateTime at) => new()
+    {
+        Id = id, VocabularyProgressId = progress, Activity = "VocabularyQuiz", InputMode = "MultipleChoice",
+        WasCorrect = true, LearnedAt = at, CreatedAt = at, UpdatedAt = at
+    };
 
     [ApplicationOperationPostgresFact]
     public async Task WebDelete_AndItsCascade_ReachTheOwnersDevices_AndNoOneElses()

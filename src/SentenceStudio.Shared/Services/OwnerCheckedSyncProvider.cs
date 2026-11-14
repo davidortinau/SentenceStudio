@@ -1,4 +1,5 @@
 using CoreSync;
+using CoreSync.Sqlite;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 
@@ -10,8 +11,9 @@ namespace SentenceStudio.Services;
 /// <see cref="SyncUploadRules"/> keeps on the device (device-only rows, and rows that are another
 /// learner's, which an installed MAUI app downloaded before owner checks); the server leaves out
 /// the rest it cannot place, and applies deletes only of the learner's own rows. Nothing is
-/// deleted or re-owned here. Without a verified owner nothing is uploaded. Downloads and every
-/// other call pass through.
+/// deleted or re-owned here. Without a verified owner nothing is uploaded. Downloads apply with
+/// their foreign-key cascades kept out of the next upload (<see cref="SyncDownloadCascades"/>);
+/// every other call passes through.
 /// </summary>
 public sealed class OwnerCheckedSyncProvider(
     ISyncProvider local,
@@ -26,6 +28,9 @@ public sealed class OwnerCheckedSyncProvider(
         SyncDirection syncDirection = SyncDirection.UploadAndDownload,
         string[]? tables = null, CancellationToken cancellationToken = default)
     {
+        // A download the app stopped during leaves its cascade list behind; empty it first.
+        if (syncDirection != SyncDirection.DownloadOnly)
+            await SyncDownloadCascades.ClearAsync(ConnectionString(), cancellationToken);
         var changes = await local.GetChangesAsync(
             otherStoreId, syncFilterParameters, syncDirection, tables, cancellationToken);
         if (syncDirection == SyncDirection.DownloadOnly || changes.Items.Count == 0)
@@ -47,10 +52,21 @@ public sealed class OwnerCheckedSyncProvider(
         return new SyncChangeSet(changes.SourceAnchor, changes.TargetAnchor, kept);
     }
 
+    /// <summary>
+    /// The download, with the rows its deletes remove or clear through foreign keys kept out of
+    /// the next upload (<see cref="SyncDownloadCascades"/>).
+    /// </summary>
     public Task<SyncAnchor> ApplyChangesAsync(
         SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc = null,
         CancellationToken cancellationToken = default) =>
-        local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+        SyncDownloadCascades.ApplyAsync(ConnectionString(), changeSet,
+            () => local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken),
+            logger, cancellationToken);
+
+    /// <summary>The local store's connection (AddOwnerCheckedSync wraps the SQLite provider).</summary>
+    private string ConnectionString() =>
+        (local as SqliteSyncProvider)?.Configuration.ConnectionString
+            ?? throw new InvalidOperationException("Owner-checked sync needs the local SQLite store.");
 
     public Task<Guid> GetStoreIdAsync(CancellationToken cancellationToken = default) =>
         local.GetStoreIdAsync(cancellationToken);

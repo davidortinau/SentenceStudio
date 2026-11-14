@@ -124,6 +124,68 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
             Assert.True(await local.LearningResources.AnyAsync(row => row.Title == "Second account"));
     }
 
+    /// <summary>
+    /// Duotopia 2026-11-13: a duplicate merge on the web moved a word's answers to the kept word;
+    /// an install that applied the downloaded delete logged the answers' cascade as its own and
+    /// uploaded it, deleting them on the server (docs/progress-count-repair-2026-11-13.md).
+    /// </summary>
+    [ApplicationOperationPostgresFact]
+    public async Task MergeOnTheWeb_DeletesNoMovedAnswer_WhenAnInstallDownloadsIt()
+    {
+        var (owner, _) = await _fixture.SeedOwnersAsync();
+        var resource = Guid.NewGuid().ToString();
+        var (kept, duplicate) = (Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
+        var (keptProgress, duplicateProgress) = (Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
+        var moved = new[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString() };
+        var now = DateTime.UtcNow;
+        await using (var server = _fixture.NewContext())
+        {
+            server.LearningResources.Add(new LearningResource { Id = resource, UserProfileId = owner, Title = "Mine" });
+            foreach (var (word, progress) in new[] { (kept, keptProgress), (duplicate, duplicateProgress) })
+            {
+                server.VocabularyWords.Add(new VocabularyWord { Id = word, UserProfileId = owner, TargetLanguageTerm = "먹다" });
+                server.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                    { Id = Guid.NewGuid().ToString(), ResourceId = resource, VocabularyWordId = word });
+                server.VocabularyProgresses.Add(new VocabularyProgress
+                {
+                    Id = progress, UserId = owner, VocabularyWordId = word, TotalAttempts = 1,
+                    FirstSeenAt = now, LastPracticedAt = now, CreatedAt = now, UpdatedAt = now
+                });
+            }
+            server.VocabularyLearningContexts.AddRange(moved.Select(id => new VocabularyLearningContext
+            {
+                Id = id, VocabularyProgressId = duplicateProgress, Activity = "VocabularyQuiz",
+                InputMode = "MultipleChoice", WasCorrect = true, LearnedAt = now, CreatedAt = now, UpdatedAt = now
+            }));
+            await server.SaveChangesAsync();
+        }
+        await using var mac = await MauiDevice.CreateAsync(_fixture);
+        await mac.SyncAsync(owner);
+
+        // The web merge's history move (LearningResourceRepository): answers to the kept word's
+        // progress, then the duplicate's progress and word removed.
+        await using (var server = _fixture.NewContext())
+        {
+            foreach (var context in await server.VocabularyLearningContexts
+                         .Where(context => moved.Contains(context.Id)).ToListAsync())
+                context.VocabularyProgressId = keptProgress;
+            await server.SaveChangesAsync();
+            server.VocabularyProgresses.Remove(await server.VocabularyProgresses.SingleAsync(row => row.Id == duplicateProgress));
+            server.VocabularyWords.Remove(await server.VocabularyWords.SingleAsync(row => row.Id == duplicate));
+            await server.SaveChangesAsync();
+        }
+        await mac.SyncAsync(owner);
+        await mac.SyncAsync(owner);
+
+        await using (var server = _fixture.NewContext())
+            Assert.Equal(2, await server.VocabularyLearningContexts
+                .CountAsync(context => moved.Contains(context.Id) && context.VocabularyProgressId == keptProgress));
+        // The install logged the download's cascade as the server's: nothing of it waits to upload.
+        await using (var local = mac.OpenContext())
+            Assert.Equal(0, await local.Database.SqlQueryRaw<int>(
+                "SELECT COUNT(*) AS \"Value\" FROM __CORE_SYNC_CT WHERE OP = 'D' AND SRC IS NULL").SingleAsync());
+    }
+
     [ApplicationOperationPostgresFact]
     public async Task DeleteOnOneInstall_ReachesTheLearnersOtherInstall()
     {

@@ -143,12 +143,18 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         return ConflictResolution.Skip;
     }
 
+    /// <summary>
+    /// The CoreSync apply, with the rows its deletes remove or clear through foreign keys kept
+    /// out of the next upload (<see cref="SyncDownloadCascades"/>).
+    /// </summary>
     private Task<SyncAnchor> ApplyLocalAsync(
         SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc,
         CancellationToken cancellationToken) =>
-        applyLocalOverride is null
-            ? local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken)
-            : applyLocalOverride(changeSet, onConflictFunc, cancellationToken);
+        SyncDownloadCascades.ApplyAsync(local.Configuration.ConnectionString, changeSet,
+            () => applyLocalOverride is null
+                ? local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken)
+                : applyLocalOverride(changeSet, onConflictFunc, cancellationToken),
+            logger, cancellationToken);
 
     public Task ApplyProvisionAsync(CancellationToken cancellationToken = default) =>
         local.ApplyProvisionAsync(cancellationToken);
@@ -176,6 +182,9 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         SyncDirection syncDirection = SyncDirection.UploadAndDownload,
         string[]? tables = null, CancellationToken cancellationToken = default)
     {
+        // A download the app stopped during leaves its cascade list behind; empty it first.
+        if (syncDirection != SyncDirection.DownloadOnly)
+            await SyncDownloadCascades.ClearAsync(local.Configuration.ConnectionString, cancellationToken);
         var changes = await local.GetChangesAsync(
             otherStoreId, syncFilterParameters, syncDirection, tables, cancellationToken);
         if (syncDirection != SyncDirection.DownloadOnly)

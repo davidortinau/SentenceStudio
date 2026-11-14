@@ -91,12 +91,12 @@ public sealed class NativeConcurrentProgressMergeTests
             await AssertProgressAsync(store, total: 4, correct: 3, contexts: 4);
     }
 
-    private static NativeLocalOnlyMappingExportProvider Native(Store store, ISyncProviderBase remote) =>
+    internal static NativeLocalOnlyMappingExportProvider Native(Store store, ISyncProviderBase remote) =>
         new(store.Provider, remote, () => Owner,
             NullLogger<NativeLocalOnlyMappingExportProvider>.Instance);
 
     // Mirrors SyncService: skip insert conflicts, force updates and deletes.
-    private static Task SyncLikeAppAsync(ISyncProvider native, ISyncProviderBase remote) =>
+    internal static Task SyncLikeAppAsync(ISyncProvider native, ISyncProviderBase remote) =>
         new SyncAgent(native, remote).SynchronizeAsync(
             remoteConflictResolutionFunc: item => item.ChangeType == ChangeType.Insert
                 ? ConflictResolution.Skip : ConflictResolution.ForceWrite,
@@ -200,7 +200,7 @@ public sealed class NativeConcurrentProgressMergeTests
         }
     }
 
-    private sealed class Store(
+    internal sealed class Store(
         SqliteConnection keepAlive, DbContextOptions<ApplicationDbContext> options,
         SqliteSyncProvider provider) : IAsyncDisposable
     {
