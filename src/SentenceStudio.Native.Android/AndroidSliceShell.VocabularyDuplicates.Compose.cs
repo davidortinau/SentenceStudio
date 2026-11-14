@@ -331,7 +331,22 @@ internal sealed partial class AndroidSliceShell
                     .Semantics(semantics => semantics.ContentDescription($"{editLabel}, {spoken}")),
             };
             edit.Add(new Text(editLabel) { Color = palette.Primary });
-            row.Add(edit);
+            var actions = new Column(Arrangement.SpacedBy(2)) { edit };
+            // Keep This (Captain 2026-11-14, 빠르다): any other copy no one else uses can be the keeper.
+            if (wordId != keeper && !word.UsedByOthers)
+            {
+                var keepLabel = Localize("Vocabulary_DuplicatesKeepThis");
+                var keep = new TextButton(() => vocabulary.ChooseDuplicateKeeper(term, wordId),
+                    enabled: !panel.Running)
+                {
+                    Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                        .TestTag($"native.vocabulary.duplicates.word.{wordId}.makekeeper")
+                        .Semantics(semantics => semantics.ContentDescription($"{keepLabel}, {spoken}")),
+                };
+                keep.Add(new Text(keepLabel) { Color = palette.Primary });
+                actions.Add(keep);
+            }
+            row.Add(actions);
             column.Add(row);
         }
         column.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)

@@ -8,9 +8,11 @@ namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 
 /// <param name="ToggleCopy">A copy (term, word ID) goes into, or out of, its group's Merge.</param>
 /// <param name="EditCopy">Opens a copy (word ID) in the word editor, above the page.</param>
+/// <param name="ChooseKeeper">Keep This: the copy (term, word ID) the group's Merge keeps.</param>
 internal sealed record VocabularyDuplicateActions(
     Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip,
-    Action<string, string>? ToggleCopy = null, Action<string>? EditCopy = null);
+    Action<string, string>? ToggleCopy = null, Action<string>? EditCopy = null,
+    Action<string, string>? ChooseKeeper = null);
 
 /// <summary>
 /// The duplicate page (docs/duplicate-merge-plan.md), pushed beside the Vocabulary list (the
@@ -133,7 +135,7 @@ internal static class VocabularyDuplicatesView
             rows.Add(WithEdit(choice
                     ? ChoiceRow(panel, group, word, keeper, position, style, text, actions.ToggleCopy!)
                     : CopyRow(panel, group, word, keeper, style, text),
-                panel, word, position, style, text, actions.EditCopy));
+                panel, group, word, keeper, position, style, text, actions));
         }
         var merge = NativeForm.Bordered(style, text("Vocabulary_DuplicatesMerge"),
             () => actions.Merge(group.NormalizedTerm), $"{id}.merge");
@@ -150,26 +152,46 @@ internal static class VocabularyDuplicatesView
 
     /// <summary>
     /// A copy's row with Edit beside it (Captain 2026-11-14: "go directly to a vocabulary word so
-    /// that I can modify the entry"): the word editor opens above the page. Edit is its own
-    /// borderless button, so a tap on the copy itself still chooses it.
+    /// that I can modify the entry"; the word editor opens above the page) and, on every copy but
+    /// the keeper, Keep This. Each is its own bordered button, so a tap on the copy itself still
+    /// chooses it.
     /// </summary>
     private static SwiftView WithEdit(SwiftView copy, VocabularyDuplicatePanel panel,
-        NativeVocabularyDuplicateWord word, string position, SourceUiStyle style,
-        Func<string, string> text, Action<string>? editCopy)
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word, string keeperId,
+        string position, SourceUiStyle style, Func<string, string> text,
+        VocabularyDuplicateActions actions)
     {
-        if (editCopy is null)
+        var buttons = new List<SwiftView>();
+        if (actions.EditCopy is { } editCopy)
+            buttons.Add(TrailingButton(style, text("Vocabulary_DuplicatesEdit"), "pencil",
+                () => editCopy(word.Id), word, position, $"{Prefix}.word.{word.Id}.edit", panel));
+        // Keep This (Captain 2026-11-14, 빠르다): any other copy no one else uses can be the keeper.
+        if (actions.ChooseKeeper is { } chooseKeeper && word.Id != keeperId && !word.UsedByOthers)
+            buttons.Add(TrailingButton(style, text("Vocabulary_DuplicatesKeepThis"), "checkmark.circle",
+                () => chooseKeeper(group.NormalizedTerm, word.Id), word, position,
+                $"{Prefix}.word.{word.Id}.makekeeper", panel));
+        if (buttons.Count == 0)
             return copy;
-        var label = text("Vocabulary_DuplicatesEdit");
-        var edit = Views.Button(Views.Label(label, "pencil"), () => editCopy(word.Id))
+        var column = Views.VStack(buttons.ToArray());
+        column.Spacing = SourceUiLayout.ItemGap;
+        var row = Views.HStack(copy.WithFlexibleWidth(), column).WithFlexibleWidth();
+        row.Spacing = SourceUiLayout.ItemGap;
+        return row;
+    }
+
+    /// <summary>A copy's own bordered action, named with the copy so identical ones differ.</summary>
+    private static SwiftView TrailingButton(SourceUiStyle style, string label, string symbol,
+        Action action, NativeVocabularyDuplicateWord word, string position, string id,
+        VocabularyDuplicatePanel panel)
+    {
+        var button = Views.Button(Views.Label(label, symbol), action)
             .WithButtonStyle(SwiftButtonStyle.Bordered)
             .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
             .WithAccessibilityLabel($"{label}, {word.NativeTerm}, {position}")
-            .WithAccessibilityIdentifier($"{Prefix}.word.{word.Id}.edit");
-        edit.IsEnabled = !panel.Running;
-        var row = Views.HStack(copy.WithFlexibleWidth(), edit).WithFlexibleWidth();
-        row.Spacing = SourceUiLayout.ItemGap;
-        return row;
+            .WithAccessibilityIdentifier(id);
+        button.IsEnabled = !panel.Running;
+        return button;
     }
 
     /// <summary>

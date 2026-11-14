@@ -150,7 +150,7 @@ public sealed partial class NativeResourceStore
     /// </summary>
     public async Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
         string owner, string? focusTerm, IReadOnlyCollection<string> leaveOut,
-        CancellationToken cancellationToken)
+        IReadOnlyCollection<string> keepers, CancellationToken cancellationToken)
     {
         if (!IsActiveOwner(owner))
             return NativeVocabularyMergeAllResult.None;
@@ -159,7 +159,7 @@ public sealed partial class NativeResourceStore
         // The merges are the owner's even if the account changes while they run, so their sync
         // is recorded for that owner (TryMarkPending is keyed by owner).
         var merged = await WithResourcesAsync(resources =>
-            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm, leaveOut));
+            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm, leaveOut, keepers));
         var refused = merged.Refused
             .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey))
             .ToArray();
@@ -199,6 +199,6 @@ public sealed partial class NativeResourceStore
             !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
             !string.IsNullOrWhiteSpace(word.AudioPronunciationUri),
             string.IsNullOrWhiteSpace(word.Lemma) ? null : word.Lemma.Trim(),
-            info.UsedByOthers);
+            info.UsedByOthers, info.Mastery, info.Attempts);
     }
 }

@@ -694,6 +694,41 @@ public sealed class VocabularyWordCleanupTests
         Assert.True(browser.ListState.Duplicates!.IsIncluded(rest.Words[0]));
     }
 
+    // Captain 2026-11-14, 빠르다: "give me the option to switch them". Keep This makes another
+    // copy the keeper; Merge keeps it (its meaning stays) and folds the scan's keeper into it.
+    [Fact]
+    public async Task KeepThis_MakesAnotherCopyTheKeeper_AndMergeKeepsIt()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "fast-1", "빠르다", "fast", 3);
+            AddWord(db, fixture, UserA, "fast-2", "빠르다", "to be fast", 1);
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenAllDuplicatesAsync();
+        var group = Assert.Single(browser.ListState.Duplicates!.ReviewGroups);
+        Assert.Equal("fast-1", browser.ListState.Duplicates!.KeeperOf(group));
+        Assert.Contains("Vocabulary_DuplicatesNoHistory",
+            VocabularyDuplicateFinder.CopyDetails(group, group.Words[0], key => key));
+
+        browser.ChooseDuplicateKeeper(group.NormalizedTerm, "fast-2");
+        Assert.Equal("fast-2", browser.ListState.Duplicates!.KeeperOf(group));
+        Assert.Equal("fast-2", VocabularyDuplicateFinder.KeeperFirst(group,
+            browser.ListState.Duplicates!.KeeperOf(group))[0].Id);
+
+        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
+
+        Assert.Equal(0, (await RowsAsync(fixture, "fast-1")).Words);
+        Assert.Equal("to be fast", await NativeTermAsync(fixture, "fast-2"));
+        Assert.Null(browser.ListState.Duplicates!.ChosenKeepers?.GetValueOrDefault(group.NormalizedTerm));
+    }
+
     // Review 2026-11-14 (third pass): Merge all also folds identical copies inside a group to
     // review, so it must not take a copy the learner left out or a group they skipped; and a group
     // that shrank to two copies merges whole again.
@@ -808,10 +843,10 @@ public sealed class VocabularyWordCleanupTests
 
         // Not the active owner: nothing merges.
         Assert.Equal(NativeVocabularyMergeAllResult.None,
-            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserB, null, [], default));
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserB, null, [], [], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
 
-        var merged = await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], default);
+        var merged = await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], [], default);
         Assert.Equal((1, 1, 0, false), (merged.MergedGroups, merged.RemovedCopies,
             merged.Refused.Count, merged.SyncUnconfirmed));
         Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
@@ -820,7 +855,7 @@ public sealed class VocabularyWordCleanupTests
 
         fixture.LoseOwner();
         Assert.Equal(NativeVocabularyMergeAllResult.None,
-            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], default));
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], [], default));
     }
 
     private static void AddWord(ApplicationDbContext db, NativeSliceFixture fixture, string owner,

@@ -530,11 +530,22 @@ else
                                                         @DuplicateCopyDetails(group, wordInfo)
                                                     </div>
                                                     @* Captain 2026-11-14: go straight to the word to change it; the editor returns here. *@
-                                                    <button class="btn btn-sm btn-link px-0 mt-1" disabled="@isCleanupRunning"
+                                                    <button class="btn btn-sm btn-link px-0 mt-1 me-3" disabled="@isCleanupRunning"
+                                                            id="@($"vocabulary-duplicates-edit-{wordInfo.Word.Id}")"
                                                             aria-label="@($"{Localize["Vocabulary_DuplicatesEdit"]}, {spoken}")"
                                                             @onclick="() => EditDuplicateCopy(wordInfo.Word.Id)">
                                                         <i class="bi bi-pencil me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesEdit"]
                                                     </button>
+                                                    @if (wordInfo.Word.Id != keeperId && !wordInfo.UsedByOthers)
+                                                    {
+                                                        @* Keep This (빠르다): any other copy no one else uses can be the keeper. *@
+                                                        <button class="btn btn-sm btn-link px-0 mt-1" disabled="@isCleanupRunning"
+                                                                id="@($"vocabulary-duplicates-makekeeper-{wordInfo.Word.Id}")"
+                                                                aria-label="@($"{Localize["Vocabulary_DuplicatesKeepThis"]}, {spoken}")"
+                                                                @onclick="() => ChooseDuplicateKeeper(group, wordInfo.Word.Id)">
+                                                            <i class="bi bi-check-circle me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesKeepThis"]
+                                                        </button>
+                                                    }
                                                 </div>
                                             }
                                         </div>
@@ -763,6 +774,10 @@ else
     [SupplyParameterFromQuery(Name = "leftOut")]
     public string? LeftOutFromUrl { get; set; }
 
+    /// <summary>The duplicate panel's chosen keepers ("term=wordId"), back from a copy's Edit.</summary>
+    [SupplyParameterFromQuery(Name = "keepers")]
+    public string? KeepersFromUrl { get; set; }
+
     /// <summary>A list in one query value: each item escaped, so a comma inside one stays its own.</summary>
     private static string JoinIds(IEnumerable<string> ids) => string.Join(",", ids.Select(Uri.EscapeDataString));
 
@@ -827,6 +842,8 @@ else
     // Copies the learner left out of their group's Merge (Captain 2026-11-14: "merge some
     // matching duplicates but not all").
     private readonly HashSet<string> excludedDuplicateWordIds = new(StringComparer.Ordinal);
+    // The copy the learner chose to keep, by group term (Keep This).
+    private readonly Dictionary<string, string> chosenDuplicateKeepers = new(StringComparer.Ordinal);
     private bool pendingCleanupScroll;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
@@ -868,6 +885,9 @@ else
             // Back from a copy's Edit: the panel keeps what the learner skipped and left out.
             skippedDuplicateTerms.UnionWith(SplitIds(SkippedFromUrl));
             excludedDuplicateWordIds.UnionWith(SplitIds(LeftOutFromUrl));
+            // "term=wordId": a word ID has no '=', so the last one splits them.
+            foreach (var item in SplitIds(KeepersFromUrl).Where(item => item.LastIndexOf('=') > 0))
+                chosenDuplicateKeepers[item[..item.LastIndexOf('=')]] = item[(item.LastIndexOf('=') + 1)..];
         }
     }
 
@@ -1603,6 +1623,7 @@ else
         focusedDuplicateWordId = null;
         skippedDuplicateTerms.Clear();
         excludedDuplicateWordIds.Clear();
+        chosenDuplicateKeepers.Clear();
         pendingCleanupScroll = false;
         SyncUrlWithFilters();
     }
@@ -1649,6 +1670,7 @@ else
         duplicateBlockedGroupCount = 0;
         skippedDuplicateTerms.Clear();
         excludedDuplicateWordIds.Clear();
+        chosenDuplicateKeepers.Clear();
         cleanupTotal = 0;
         cleanupProgress = 0;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
@@ -1728,6 +1750,7 @@ else
             {
                 // What is left of the group starts with every copy chosen.
                 excludedDuplicateWordIds.ExceptWith(group.Words.Select(w => w.Word.Id));
+                chosenDuplicateKeepers.Remove(group.NormalizedTerm);
                 cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {result.Deleted}");
                 CacheService.InvalidateVocabSummary();
                 await LoadData();
@@ -1751,8 +1774,12 @@ else
 
     private void ToggleDuplicateCopy(string wordId)
     {
-        if (!excludedDuplicateWordIds.Remove(wordId))
-            excludedDuplicateWordIds.Add(wordId);
+        if (excludedDuplicateWordIds.Remove(wordId))
+            return;
+        excludedDuplicateWordIds.Add(wordId);
+        // A copy left out is no longer the chosen keeper.
+        foreach (var term in chosenDuplicateKeepers.Where(pair => pair.Value == wordId).Select(pair => pair.Key).ToList())
+            chosenDuplicateKeepers.Remove(term);
     }
 
     /// <summary>The copies Merge all must not take: skipped groups and left-out copies (shared rule).</summary>
@@ -1763,7 +1790,13 @@ else
     /// <summary>The copies Merge all will remove: the scan's count less the ones left out here.</summary>
     private int DuplicateMergeAllCopyCount => Math.Max(0, duplicateSafeCopyCount
         - VocabularyDuplicatePolicy.CopiesLeftOut(duplicateGroups.SelectMany(group => group.MergeParts),
-            DuplicateLeftOut));
+            DuplicateLeftOut, DuplicateKeepers));
+
+    /// <summary>The chosen keepers, each only in its own loaded group (a stale choice is ignored).</summary>
+    private IReadOnlyCollection<string> DuplicateKeepers => duplicateGroups
+        .Where(group => chosenDuplicateKeepers.TryGetValue(group.NormalizedTerm, out var id)
+            && group.Words.Any(info => info.Word.Id == id))
+        .Select(group => chosenDuplicateKeepers[group.NormalizedTerm]).ToArray();
 
     /// <summary>The copies the group's Merge takes (shared rule: the chosen ones in a group of three or more).</summary>
     private IReadOnlyList<VocabularyDuplicateWordInfo> ChosenDuplicateCopies(VocabularyDuplicateGroup group) =>
@@ -1772,8 +1805,19 @@ else
     /// <summary>The copy Merge keeps (shared rule); empty when none can be kept.</summary>
     private string DuplicateKeeperOf(VocabularyDuplicateGroup group) =>
         VocabularyDuplicatePolicy.KeeperOf(group.Words, info => IsDuplicateCopyIncluded(info.Word.Id),
-            info => info.UsedByOthers, info => info.Word.Id == group.RecommendedKeeperId)?.Word.Id
+            info => info.UsedByOthers, info => info.Word.Id == group.RecommendedKeeperId,
+            info => chosenDuplicateKeepers.GetValueOrDefault(group.NormalizedTerm) == info.Word.Id)?.Word.Id
             ?? string.Empty;
+
+    /// <summary>
+    /// Keep This (Captain 2026-11-14, 빠르다: "to be fast" has the better meaning and the history):
+    /// the copy the group's Merge keeps; a copy chosen to keep is in the merge.
+    /// </summary>
+    private void ChooseDuplicateKeeper(VocabularyDuplicateGroup group, string wordId)
+    {
+        chosenDuplicateKeepers[group.NormalizedTerm] = wordId;
+        excludedDuplicateWordIds.Remove(wordId);
+    }
 
     /// <summary>
     /// Edit on a copy (Captain 2026-11-14: "go directly to a vocabulary word so that I can modify
@@ -1806,7 +1850,9 @@ else
             // A panel focused on one word merges only that word's group.
             // Never the copies left out or skipped here.
             var merged = await ResourceRepo.MergeSafeDuplicateGroupsAsync(default, ActiveUserId,
-                duplicateFocusLabel, DuplicateLeftOut);
+                duplicateFocusLabel, DuplicateLeftOut, DuplicateKeepers);
+            // The choices went with this Merge all; what is left starts from the scan's keepers.
+            chosenDuplicateKeepers.Clear();
             var message = merged.Refused.Count > 0
                 ? string.Format(Localize["Vocabulary_DuplicatesMergedAllWithRefusals"],
                     merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
@@ -1904,6 +1950,8 @@ else
         var lines = new List<string>();
         if (differences.Contains(VocabularyDuplicateDifference.BaseForm))
             lines.Add($"{Localize["VocabWordEdit_Lemma"]}: {(string.IsNullOrWhiteSpace(word.Lemma) ? Localize["VocabWordEdit_NotSet"] : word.Lemma.Trim())}");
+        // The learner's own history on this copy (the keeper is the copy they have learned).
+        lines.Add(VocabularyDuplicatePolicy.HistoryText(wordInfo.Mastery, wordInfo.Attempts, key => Localize[key]));
         // Every copy's language and kind (Captain 2026-11-14: "I need to see language too").
         lines.Insert(0, $"{(string.IsNullOrWhiteSpace(word.Language) ? Localize["VocabWordEdit_NotSet"] : word.Language)} | {Localize[LexicalTypeKey(word.LexicalUnitType)]}");
         lines.Add(GetMemoryAidSummary(wordInfo));
@@ -2263,6 +2311,8 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             queryParts.Add($"returnSkipped={Uri.EscapeDataString(JoinIds(skippedDuplicateTerms))}");
         if (showDuplicatePanel && excludedDuplicateWordIds.Count > 0)
             queryParts.Add($"returnLeftOut={Uri.EscapeDataString(JoinIds(excludedDuplicateWordIds))}");
+        if (showDuplicatePanel && chosenDuplicateKeepers.Count > 0)
+            queryParts.Add($"returnKeepers={Uri.EscapeDataString(JoinIds(chosenDuplicateKeepers.Select(pair => $"{pair.Key}={pair.Value}")))}");
 
         if (!string.IsNullOrWhiteSpace(initialTargetTerm))
             queryParts.Add($"initialTargetTerm={Uri.EscapeDataString(initialTargetTerm)}");

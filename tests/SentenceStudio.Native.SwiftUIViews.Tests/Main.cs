@@ -247,8 +247,9 @@ var cases = new (string Name, Action Test)[]
             false, null, "y-1", VocabularyDuplicateRisk.Review, [VocabularyDuplicateDifference.Meaning]);
         var edited = new List<string>();
         var toggled = new List<(string, string)>();
+        var kept = new List<(string, string)>();
         var actions = new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { },
-            (term, id) => toggled.Add((term, id)), id => edited.Add(id));
+            (term, id) => toggled.Add((term, id)), id => edited.Add(id), (term, id) => kept.Add((term, id)));
         var panel = new VocabularyDuplicatePanel(false, "Duplicates", "Found", null, null, null,
             [group], 1, 2, [], ReviewGroupCount: 1);
         var id = VocabularyDuplicatesView.GroupId(group);
@@ -265,6 +266,15 @@ var cases = new (string Name, Action Test)[]
         Find(page, "native.vocabulary.duplicates.word.y-2.edit")!.InvokeAction();
         Assert(edited.SequenceEqual(new[] { "y-2" }));
         Assert(Find(page, "native.vocabulary.duplicates.word.y-1.keeper") is not null);
+        // Keep This on every copy but the keeper (Captain 2026-11-14, 빠르다).
+        Assert(Find(page, "native.vocabulary.duplicates.word.y-1.makekeeper") is null);
+        Find(page, "native.vocabulary.duplicates.word.y-3.makekeeper")!.InvokeAction();
+        Assert(kept.SequenceEqual(new[] { ("약", "y-3") }));
+        using var chosen = VocabularyDuplicatesView.Page(panel with {
+                ChosenKeepers = new Dictionary<string, string> { ["약"] = "y-3" } },
+            style, key => key, actions);
+        Assert(Find(chosen, "native.vocabulary.duplicates.word.y-3.keeper") is not null);
+        Assert(Find(chosen, "native.vocabulary.duplicates.word.y-1.makekeeper") is not null);
 
         // The keeper left out: the first chosen copy keeps; one copy chosen cannot merge.
         using var without = VocabularyDuplicatesView.Page(panel with { Excluded = new HashSet<string> { "y-1" } },

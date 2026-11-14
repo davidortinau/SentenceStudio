@@ -61,7 +61,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     Merge: term => Run(() => MergeDuplicatesAsync(term)),
                     Skip: SkipDuplicates,
                     ToggleCopy: ToggleDuplicateCopy,
-                    EditCopy: EditDuplicateCopy))
+                    EditCopy: EditDuplicateCopy,
+                    ChooseKeeper: ChooseDuplicateKeeper))
             : Microsoft.SwiftUI.SwiftUI.Text(Text("Common_Loading"));
 
     /// <summary>The person's Back left the duplicate page.</summary>

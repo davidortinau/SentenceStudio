@@ -768,6 +768,10 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal void ToggleDuplicateCopy(string normalizedTerm, string wordId) =>
         _cleanup.ToggleDuplicateCopy(normalizedTerm, wordId);
 
+    /// <summary>Keep This: the copy a review group's Merge keeps.</summary>
+    internal void ChooseDuplicateKeeper(string normalizedTerm, string wordId) =>
+        _cleanup.ChooseDuplicateKeeper(normalizedTerm, wordId);
+
     /// <summary>Source CloseCleanupPanel.</summary>
     internal void CloseDuplicates() => _cleanup.CloseDuplicates();
 

@@ -20894,11 +20894,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Mastery {0}% · attempts: {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesHistory {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesHistory", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Keeps this copy.
         /// </summary>
         internal static string Vocabulary_DuplicatesKeep {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesKeep", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep This.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeepThis {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeepThis", resourceCulture);
             }
         }
 
@@ -21007,6 +21025,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesNeedReviewNote {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesNeedReviewNote", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not practised yet.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNoHistory {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNoHistory", resourceCulture);
             }
         }
 

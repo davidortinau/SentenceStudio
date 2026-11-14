@@ -94,6 +94,21 @@ public static partial class VocabularyDuplicatePolicy
     }
 
     /// <summary>
+    /// <paramref name="part"/> kept by the copy the learner chose (Keep This) when it is one the
+    /// part would remove; the old keeper is then removed in its place.
+    /// </summary>
+    public static VocabularyDuplicateMergePart WithKeeper(VocabularyDuplicateMergePart part,
+        IReadOnlyCollection<string>? keepers)
+    {
+        var chosen = keepers?.FirstOrDefault(part.RemovableIds.Contains);
+        return chosen is null ? part : part with {
+            KeeperId = chosen,
+            OtherIds = part.OtherIds.Where(id => id != chosen).Append(part.KeeperId).ToArray(),
+            RemovableIds = part.RemovableIds.Where(id => id != chosen).Append(part.KeeperId).ToArray()
+        };
+    }
+
+    /// <summary>
     /// <paramref name="part"/> without the copies the learner left out or skipped; null when its
     /// keeper is left out or no copy it would remove is left (it is then not made at all).
     /// </summary>
@@ -128,8 +143,32 @@ public static partial class VocabularyDuplicatePolicy
     /// from the scan's count so its "Merge N Copies" matches what will merge.
     /// </summary>
     public static int CopiesLeftOut(IEnumerable<VocabularyDuplicateMergePart> loaded,
-        IReadOnlyCollection<string> leaveOut) =>
-        loaded.Sum(part => part.RemovableCount - (WithoutLeftOut(part, leaveOut)?.RemovableCount ?? 0));
+        IReadOnlyCollection<string> leaveOut, IReadOnlyCollection<string>? keepers = null) =>
+        loaded.Sum(part => part.RemovableCount - (ForPage(part, leaveOut, keepers)?.RemovableCount ?? 0));
+
+    /// <summary>
+    /// The one rule for what Merge all does with a part given the page's choices (the count and
+    /// the merge both use it): a chosen keeper that is not left out keeps it, then the left-out
+    /// copies (the old keeper among them, if left out) come out.
+    /// </summary>
+    public static VocabularyDuplicateMergePart? ForPage(VocabularyDuplicateMergePart part,
+        IReadOnlyCollection<string>? leaveOut, IReadOnlyCollection<string>? keepers) =>
+        WithoutLeftOut(WithKeeper(part, keepers?.Where(id => leaveOut?.Contains(id) != true).ToArray()),
+            leaveOut);
+
+    /// <summary>
+    /// How much the learner has learned a copy, for choosing the keeper: mastery weighted by
+    /// practice, so one lucky attempt does not outrank a copy practised many times.
+    /// </summary>
+    public static double LearnedWeight(double mastery, int attempts) =>
+        mastery * Math.Min(attempts, 10) / 10.0;
+
+    /// <summary>The copy's history line: "Mastery 100% · attempts: 1", or "Not practised yet".</summary>
+    public static string HistoryText(double mastery, int attempts, Func<string, string> text) =>
+        attempts > 0 || mastery > 0
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                text("Vocabulary_DuplicatesHistory"), Math.Round(mastery * 100), attempts)
+            : text("Vocabulary_DuplicatesNoHistory");
 
     /// <summary>
     /// A group of three or more copies lets the learner choose which ones merge (Captain
@@ -146,10 +185,15 @@ public static partial class VocabularyDuplicatePolicy
     /// while every copy is chosen, else the first chosen copy no one else uses; null when none
     /// can be kept. Every client asks this, so they keep the same copy.
     /// </summary>
+    /// <param name="isChosenKeeper">The copy the learner chose to keep (Keep This), if any.</param>
     public static T? KeeperOf<T>(IReadOnlyList<T> copies, Func<T, bool> included,
-        Func<T, bool> usedByOthers, Func<T, bool> isScanKeeper) where T : class
+        Func<T, bool> usedByOthers, Func<T, bool> isScanKeeper,
+        Func<T, bool>? isChosenKeeper = null) where T : class
     {
         var chosen = ChosenCopies(copies, included);
+        if (isChosenKeeper is not null
+            && chosen.FirstOrDefault(copy => isChosenKeeper(copy) && !usedByOthers(copy)) is { } keeper)
+            return keeper;
         return chosen.Count == copies.Count
             ? copies.FirstOrDefault(isScanKeeper)
             : chosen.FirstOrDefault(copy => !usedByOthers(copy));

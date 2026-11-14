@@ -10060,4 +10060,13 @@
   <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
     <value>{1}개 중 {0}번째 사본</value>
   </data>
+  <data name="Vocabulary_DuplicatesKeepThis" xml:space="preserve">
+    <value>이것 남기기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesHistory" xml:space="preserve">
+    <value>숙련도 {0}% · 시도 {1}회</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNoHistory" xml:space="preserve">
+    <value>아직 연습하지 않음</value>
+  </data>
 </root>

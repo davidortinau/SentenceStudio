@@ -1913,6 +1913,16 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             .ToDictionary(group => group.Key, group => group.Select(mapping => mapping.ResourceId).Distinct().Count(),
                 StringComparer.Ordinal);
         var shared = await GetDeleteWordIdsWithOtherUserReferencesAsync(db, ids, userId, userResourceIds, ct);
+        // The learner's own history on each copy (the keeper is the copy they have learned).
+        var history = (await db.VocabularyProgresses.AsNoTracking()
+                .Where(progress => progress.UserId == userId && ids.Contains(progress.VocabularyWordId))
+                .Select(progress => new { progress.VocabularyWordId, progress.MasteryScore, progress.TotalAttempts })
+                .ToListAsync(ct))
+            .GroupBy(progress => progress.VocabularyWordId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key,
+                group => (Mastery: (double)group.Max(progress => progress.MasteryScore),
+                    Attempts: group.Sum(progress => progress.TotalAttempts)),
+                StringComparer.Ordinal);
 
         var groups = new List<VocabularyDuplicateGroup>();
         foreach (var candidate in candidateGroups)
@@ -1920,7 +1930,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             var copies = VocabularyDuplicateGroup.OrderWordsByMergePreference(candidate.Select(item =>
                 new VocabularyDuplicateWordInfo(item.Word, resourceCounts.GetValueOrDefault(item.Word.Id),
                     EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score,
-                    shared.Contains(item.Word.Id))));
+                    shared.Contains(item.Word.Id),
+                    history.GetValueOrDefault(item.Word.Id).Mastery,
+                    history.GetValueOrDefault(item.Word.Id).Attempts)));
             var keeper = copies.FirstOrDefault(info => !shared.Contains(info.Word.Id));
             var removable = keeper is null ? [] : copies
                 .Where(info => info != keeper && !shared.Contains(info.Word.Id))
@@ -1986,9 +1998,10 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// Copies the learner left out or skipped on the page: a merge never takes them (one whose
     /// keeper is left out is not made).
     /// </param>
+    /// <param name="keepers">Copies the learner chose to keep: a merge that holds one keeps it.</param>
     public async Task<VocabularyMergeAllResult> MergeSafeDuplicateGroupsAsync(
         CancellationToken ct = default, string? userProfileId = null, string? focusTerm = null,
-        IReadOnlyCollection<string>? leaveOut = null)
+        IReadOnlyCollection<string>? leaveOut = null, IReadOnlyCollection<string>? keepers = null)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
@@ -2004,7 +2017,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             safe = (await ScanDuplicateGroupsAsync(db, userId,
                     VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm), ct))
                 .SelectMany(group => group.MergeParts
-                    .Select(part => VocabularyDuplicatePolicy.WithoutLeftOut(part, leaveOut))
+                    .Select(part => VocabularyDuplicatePolicy.ForPage(part, leaveOut, keepers))
                     .OfType<VocabularyDuplicateMergePart>()
                     .Select(part => (Group: group, Part: part)))
                 .ToList();

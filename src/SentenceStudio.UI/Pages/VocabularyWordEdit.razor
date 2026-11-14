@@ -444,6 +444,9 @@ else
     [SupplyParameterFromQuery(Name = "returnLeftOut")]
     public string? ReturnLeftOut { get; set; }
 
+    [SupplyParameterFromQuery(Name = "returnKeepers")]
+    public string? ReturnKeepers { get; set; }
+
     [SupplyParameterFromQuery(Name = "initialTargetTerm")]
     public string? InitialTargetTerm { get; set; }
 
@@ -1053,6 +1056,8 @@ else
             queryParts.Add($"skipped={Uri.EscapeDataString(ReturnSkipped)}");
         if (!string.IsNullOrWhiteSpace(ReturnLeftOut))
             queryParts.Add($"leftOut={Uri.EscapeDataString(ReturnLeftOut)}");
+        if (!string.IsNullOrWhiteSpace(ReturnKeepers))
+            queryParts.Add($"keepers={Uri.EscapeDataString(ReturnKeepers)}");
 
         var url = queryParts.Count == 0
             ? "/vocabulary"

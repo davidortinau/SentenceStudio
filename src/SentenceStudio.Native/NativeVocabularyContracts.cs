@@ -167,7 +167,7 @@ public sealed record NativeVocabularyDuplicateWord(
     string? Language, LexicalUnitType LexicalUnitType,
     int ResourceCount, double EncodingScore, string EncodingLabel,
     string? MnemonicText, bool HasImageAid, bool HasAudio, string? Lemma = null,
-    bool UsedByOthers = false);
+    bool UsedByOthers = false, double Mastery = 0, int Attempts = 0);
 
 /// <summary>
 /// Source VocabularyDuplicateGroup of the owner's own words; <see cref="Words"/> is in

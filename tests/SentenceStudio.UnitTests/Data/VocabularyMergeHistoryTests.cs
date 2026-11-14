@@ -796,6 +796,112 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         WordExists(removable).Should().BeTrue();
     }
 
+    // Captain 2026-11-14, 빠르다: "to be fast" (mastery 1.0) lost the keeper to a newer "fast"
+    // (0.17). The copy the learner has learned is kept.
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_KeepsTheCopyTheLearnerHasLearned()
+    {
+        var learned = SeedWord("빠르다", "to be fast");
+        var newer = SeedWord("빠르다 ", "fast");
+        EnsureWordsMappedToUser(UserA, learned, newer);
+        UpdateWord(newer, word => word.UpdatedAt = DateTime.UtcNow.AddDays(1));
+        SeedAggregateOnlyProgress(learned, UserA, masteryScore: 1.0f, totalAttempts: 1,
+            correctAttempts: 1, currentStreak: 7, productionInStreak: 0);
+        SeedAggregateOnlyProgress(newer, UserA, masteryScore: 0.17f, totalAttempts: 2,
+            correctAttempts: 1, currentStreak: 2, productionInStreak: 0);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("빠르다")).Groups.Single();
+
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        group.RecommendedKeeperId.Should().Be(learned);
+        group.Words.Single(info => info.Word.Id == learned).Mastery.Should().BeApproximately(1.0, 0.001);
+    }
+
+    // Review 2026-11-14 (fifth pass): one lucky attempt does not outrank a copy practised many times.
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_WeighsMasteryByPractice()
+    {
+        var lucky = SeedWord("가다", "to go");
+        var practised = SeedWord("가다 ", "go");
+        EnsureWordsMappedToUser(UserA, lucky, practised);
+        SeedAggregateOnlyProgress(lucky, UserA, masteryScore: 1.0f, totalAttempts: 1,
+            correctAttempts: 1, currentStreak: 1, productionInStreak: 0);
+        SeedAggregateOnlyProgress(practised, UserA, masteryScore: 0.9f, totalAttempts: 200,
+            correctAttempts: 180, currentStreak: 5, productionInStreak: 0);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        (await repo.FindDuplicateVocabularyGroupsAsync("가다")).Groups.Single().RecommendedKeeperId
+            .Should().Be(practised);
+    }
+
+    // Review 2026-11-14 (fifth pass): a chosen keeper that is then left out does not drop the
+    // merge; the count and Merge all follow one rule.
+    [Fact]
+    public async Task MergeSafe_AChosenKeeperLeftOut_StillMergesTheRest()
+    {
+        var a = SeedWord("물", "water");
+        var b = SeedWord("물 ", "water");
+        var c = SeedWord(" 물", "water");
+        AddEncodingAids(a);
+        EnsureWordsMappedToUser(UserA, a, b, c);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var part = (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().MergeParts.Single();
+        part.KeeperId.Should().Be(a);
+        VocabularyDuplicatePolicy.CopiesLeftOut([part], [c], [c]).Should().Be(1);
+
+        var merged = await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [c], keepers: [c]);
+
+        merged.RemovedCopies.Should().Be(1);
+        WordExists(a).Should().BeTrue();
+        WordExists(b).Should().BeFalse();
+        WordExists(c).Should().BeTrue();
+    }
+
+    // Review 2026-11-14 (sixth pass): the scan's keeper left out and another copy chosen to keep:
+    // Merge all still folds the rest into the chosen copy.
+    [Fact]
+    public async Task MergeSafe_TheScanKeeperLeftOut_KeepsTheChosenCopy()
+    {
+        var a = SeedWord("물", "water");
+        var b = SeedWord("물 ", "water");
+        var c = SeedWord(" 물", "water");
+        AddEncodingAids(a);
+        EnsureWordsMappedToUser(UserA, a, b, c);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var merged = await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [a], keepers: [b]);
+
+        merged.RemovedCopies.Should().Be(1);
+        WordExists(a).Should().BeTrue();
+        WordExists(b).Should().BeTrue();
+        WordExists(c).Should().BeFalse();
+    }
+
+    // Keep This: Merge all keeps the copy the learner chose inside a set of identical copies.
+    [Fact]
+    public async Task MergeSafe_KeepsTheCopyTheLearnerChose()
+    {
+        var first = SeedWord("물", "water");
+        var chosen = SeedWord("물 ", "water");
+        AddEncodingAids(first);
+        EnsureWordsMappedToUser(UserA, first, chosen);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().RecommendedKeeperId.Should().Be(first);
+
+        (await repo.MergeSafeDuplicateGroupsAsync(keepers: [chosen])).RemovedCopies.Should().Be(1);
+
+        WordExists(chosen).Should().BeTrue();
+        WordExists(first).Should().BeFalse();
+    }
+
     [Fact]
     public async Task MergeSafe_WithAFocusTerm_MergesOnlyThatTermsGroup()
     {

@@ -93,10 +93,18 @@ public sealed record VocabularyDuplicateGroup(
         ? Words.FirstOrDefault(info => info.Word.Id == keeper)
         : Risk is not null ? null : OrderWordsByMergePreference(Words).FirstOrDefault();
 
+    /// <summary>
+    /// Which copy a merge prefers to keep: the one the learner has learned (Captain 2026-11-14,
+    /// 빠르다: "to be fast" with mastery 1.0 lost to a newer "fast" with 0.17), then the better
+    /// encoded, then the one with memory aids, then the most recently edited. The history and
+    /// aids move to the keeper anyway; this decides whose meaning and ID stay.
+    /// </summary>
     public static IReadOnlyList<VocabularyDuplicateWordInfo> OrderWordsByMergePreference(IEnumerable<VocabularyDuplicateWordInfo> words)
     {
         return words
-            .OrderByDescending(info => info.EncodingScore)
+            .OrderByDescending(info => SentenceStudio.Services.VocabularyDuplicatePolicy.LearnedWeight(info.Mastery, info.Attempts))
+            .ThenByDescending(info => info.Attempts)
+            .ThenByDescending(info => info.EncodingScore)
             .ThenByDescending(info => HasText(info.Word.MnemonicText))
             .ThenByDescending(info => HasText(info.Word.MnemonicImageUri))
             .ThenByDescending(info => HasText(info.Word.AudioPronunciationUri))
@@ -111,11 +119,15 @@ public sealed record VocabularyDuplicateGroup(
 
 /// <summary>One copy in a duplicate group: always one of the learner's own words.</summary>
 /// <param name="UsedByOthers">Another learner's (or no one's) data uses it: a merge keeps it.</param>
+/// <param name="Mastery">The learner's own mastery of this copy (0 to 1; 0 when never practised).</param>
+/// <param name="Attempts">The learner's own practice attempts on this copy.</param>
 public sealed record VocabularyDuplicateWordInfo(
     VocabularyWord Word,
     int ResourceCount,
     double EncodingScore,
-    bool UsedByOthers = false);
+    bool UsedByOthers = false,
+    double Mastery = 0,
+    int Attempts = 0);
 
 /// <summary>
 /// One merge that loses nothing: <paramref name="OtherIds"/> fold into <paramref name="KeeperId"/>

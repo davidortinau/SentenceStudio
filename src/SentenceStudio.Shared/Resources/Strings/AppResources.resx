@@ -10540,4 +10540,13 @@ For example: {0} ...</value>
   <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
     <value>copy {0} of {1}</value>
   </data>
+  <data name="Vocabulary_DuplicatesKeepThis" xml:space="preserve">
+    <value>Keep This</value>
+  </data>
+  <data name="Vocabulary_DuplicatesHistory" xml:space="preserve">
+    <value>Mastery {0}% · attempts: {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNoHistory" xml:space="preserve">
+    <value>Not practised yet</value>
+  </data>
 </root>

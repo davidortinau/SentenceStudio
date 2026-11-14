@@ -22,6 +22,7 @@ namespace SentenceStudio.Native.Features.Vocabulary;
 /// </param>
 /// <param name="Skipped">Review groups the learner skipped while the page is open.</param>
 /// <param name="Excluded">Copies the learner left out of their group's Merge (while the page is open).</param>
+/// <param name="ChosenKeepers">The copy the learner chose to keep, by group term (Keep This).</param>
 internal sealed record VocabularyDuplicatePanel(
     bool Running, string Title, string Status,
     string? FocusLabel, string? FocusNormalizedTerm, string? FocusedWordId,
@@ -31,7 +32,8 @@ internal sealed record VocabularyDuplicatePanel(
     int SafeGroupCount = 0, int SafeCopyCount = 0,
     int ReviewGroupCount = 0, int BlockedGroupCount = 0,
     IReadOnlySet<string>? Skipped = null,
-    IReadOnlySet<string>? Excluded = null)
+    IReadOnlySet<string>? Excluded = null,
+    IReadOnlyDictionary<string, string>? ChosenKeepers = null)
 {
     /// <summary>The copy is chosen for its group's Merge (Captain 2026-11-14: "merge some ... but not all").</summary>
     internal bool IsIncluded(NativeVocabularyDuplicateWord word) => Excluded?.Contains(word.Id) != true;
@@ -43,10 +45,20 @@ internal sealed record VocabularyDuplicatePanel(
     internal IReadOnlyList<NativeVocabularyDuplicateWord> Chosen(NativeVocabularyDuplicateGroup group) =>
         VocabularyDuplicatePolicy.ChosenCopies(group.Words, IsIncluded);
 
-    /// <summary>The copy Merge keeps (shared rule); empty when none can be kept.</summary>
+    /// <summary>
+    /// The copy Merge keeps (shared rule): the one the learner chose with Keep This, else the
+    /// scan's; empty when none can be kept.
+    /// </summary>
     internal string KeeperOf(NativeVocabularyDuplicateGroup group) =>
         VocabularyDuplicatePolicy.KeeperOf(group.Words, IsIncluded, word => word.UsedByOthers,
-            word => word.Id == group.RecommendedKeeperId)?.Id ?? string.Empty;
+            word => word.Id == group.RecommendedKeeperId,
+            word => ChosenKeepers?.GetValueOrDefault(group.NormalizedTerm) == word.Id)?.Id ?? string.Empty;
+
+    /// <summary>The copies chosen with Keep This, for Merge all (a merge that holds one keeps it).</summary>
+    internal IReadOnlyCollection<string> Keepers => ChosenKeepers is null ? []
+        : Groups.Where(group => ChosenKeepers.TryGetValue(group.NormalizedTerm, out var id)
+                && group.Words.Any(word => word.Id == id))
+            .Select(group => ChosenKeepers[group.NormalizedTerm]).ToArray();
 
     /// <summary>A group of three or more copies: the learner chooses which ones merge.</summary>
     internal static bool OffersChoice(NativeVocabularyDuplicateGroup group) =>
@@ -79,7 +91,7 @@ internal sealed record VocabularyDuplicatePanel(
     /// skipped here (the shared rule), so the button says what will happen.
     /// </summary>
     internal int MergeAllCopyCount => Math.Max(0, SafeCopyCount - VocabularyDuplicatePolicy.CopiesLeftOut(
-        Groups.SelectMany(group => group.MergePartList), LeftOut));
+        Groups.SelectMany(group => group.MergePartList), LeftOut, Keepers));
 
     /// <summary>Merge all is offered: something would merge and nothing is running.</summary>
     internal bool CanMergeAll => !Running && MergeAllCopyCount > 0;
@@ -263,6 +275,13 @@ internal sealed class VocabularyWordCleanup
     {
         if (_host.TryOpenOwner(out _))
             _duplicates.ToggleCopy(normalizedTerm, wordId);
+    }
+
+    /// <summary>Keep This: the copy the group's Merge keeps; nothing changes yet.</summary>
+    internal void ChooseDuplicateKeeper(string normalizedTerm, string wordId)
+    {
+        if (_host.TryOpenOwner(out _))
+            _duplicates.ChooseKeeper(normalizedTerm, wordId);
     }
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
@@ -542,6 +561,10 @@ internal sealed class VocabularyDuplicateFinder
                     _panel = _panel with { Excluded = excluded
                         .Except(group.Words.Select(word => word.Id), StringComparer.Ordinal)
                         .ToHashSet(StringComparer.Ordinal) };
+                if (_panel is { ChosenKeepers: { } keepers })
+                    _panel = _panel with { ChosenKeepers = keepers
+                        .Where(pair => pair.Key != group.NormalizedTerm)
+                        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal) };
                 results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, merge.Removed));
                 // Links and history can move while every copy is kept (other data still uses
                 // it); that is a change, not a no-op.
@@ -581,7 +604,9 @@ internal sealed class VocabularyDuplicateFinder
         if (_panel is not { } panel || !panel.CanMergeAll)
             return null;
         var generation = Volatile.Read(ref _generation);
-        _panel = panel with { Running = true, Status = _text("Vocabulary_DuplicatesMerging") };
+        // The choices go with this Merge all; what is left starts from the scan's keepers.
+        _panel = panel with { Running = true, Status = _text("Vocabulary_DuplicatesMerging"),
+            ChosenKeepers = null };
         Changed();
         var results = panel.Results.ToList();
         VocabularyDuplicateMergeOutcome outcome;
@@ -589,8 +614,9 @@ internal sealed class VocabularyDuplicateFinder
         {
             var focus = panel.IsFocusedScan ? panel.FocusLabel : null;
             var leftOut = panel.LeftOut;
+            var keepers = panel.Keepers;
             var merged = await _host.OffUiAsync(() =>
-                _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, leftOut, cancellationToken));
+                _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, leftOut, keepers, cancellationToken));
             var message = merged.Refused.Count > 0
                 ? Format("Vocabulary_DuplicatesMergedAllWithRefusals",
                     merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
@@ -635,9 +661,39 @@ internal sealed class VocabularyDuplicateFinder
             || group.Words.All(word => word.Id != wordId))
             return;
         var excluded = new HashSet<string>(panel.Excluded ?? new HashSet<string>(), StringComparer.Ordinal);
+        var keepers = panel.ChosenKeepers;
         if (!excluded.Remove(wordId))
+        {
             excluded.Add(wordId);
-        _panel = panel with { Excluded = excluded };
+            // A copy left out is no longer the chosen keeper.
+            if (keepers?.GetValueOrDefault(normalizedTerm) == wordId)
+                keepers = keepers.Where(pair => pair.Key != normalizedTerm)
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        }
+        _panel = panel with { Excluded = excluded, ChosenKeepers = keepers };
+        Changed();
+    }
+
+    /// <summary>
+    /// Keep This (Captain 2026-11-14, 빠르다): the learner chooses which copy a Merge keeps; its
+    /// meaning and ID stay, the others' history moves to it.
+    /// </summary>
+    internal void ChooseKeeper(string normalizedTerm, string wordId)
+    {
+        if (_panel is not { Running: false } panel
+            || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm)
+                is not { } group
+            || group.Words.FirstOrDefault(word => word.Id == wordId) is not { UsedByOthers: false })
+            return;
+        var keepers = new Dictionary<string, string>(
+            panel.ChosenKeepers ?? new Dictionary<string, string>(), StringComparer.Ordinal)
+        {
+            [normalizedTerm] = wordId
+        };
+        // A copy chosen to keep is in the merge.
+        var excluded = panel.Excluded is { } current && current.Contains(wordId)
+            ? current.Where(id => id != wordId).ToHashSet(StringComparer.Ordinal) : panel.Excluded;
+        _panel = panel with { ChosenKeepers = keepers, Excluded = excluded };
         Changed();
     }
 
@@ -788,6 +844,8 @@ internal sealed class VocabularyDuplicateFinder
         };
         if (group.DifferenceList.Contains(VocabularyDuplicateDifference.BaseForm))
             lines.Add($"{text("VocabWordEdit_Lemma")}: {word.Lemma ?? text("VocabWordEdit_NotSet")}");
+        // The learner's own history on this copy (the keeper is the copy they have learned).
+        lines.Add(VocabularyDuplicatePolicy.HistoryText(word.Mastery, word.Attempts, text));
         lines.Add(MemoryAidSummary(word, text));
         return string.Join("\n", lines);
     }
