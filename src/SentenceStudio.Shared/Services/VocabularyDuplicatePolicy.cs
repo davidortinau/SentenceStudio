@@ -50,7 +50,7 @@ public static partial class VocabularyDuplicatePolicy
             differences.Add(VocabularyDuplicateDifference.MemoryAid);
         if (DistinctValues(copies, word => NormalizeKeyPart(word.Lemma)) > 1)
             differences.Add(VocabularyDuplicateDifference.BaseForm);
-        if (DistinctValues(copies, word => NormalizeKeyPart(word.Language)) > 1
+        if (DistinctValues(copies, word => LanguageKey(word.Language)) > 1
             || copies.Select(word => word.LexicalUnitType)
                 .Where(kind => kind != LexicalUnitType.Unknown).Distinct().Count() > 1
             || copies.Where(word => word.PartOfSpeech is not (null or VocabularyPartOfSpeech.Unknown))
@@ -198,6 +198,17 @@ public static partial class VocabularyDuplicatePolicy
             ? copies.FirstOrDefault(isScanKeeper)
             : chosen.FirstOrDefault(copy => !usedByOthers(copy));
     }
+
+    /// <summary>
+    /// No language: blank or "Unknown" (Captain 2026-11-14: a merge kept "Unknown" beside a
+    /// Korean copy). It never differs from another copy, and a merge fills it.
+    /// </summary>
+    public static bool IsUnknownLanguage(string? language) =>
+        string.IsNullOrWhiteSpace(language) || NormalizeKeyPart(language) == "unknown";
+
+    /// <summary>A language as merging compares it: empty when unknown (see <see cref="IsUnknownLanguage"/>).</summary>
+    public static string LanguageKey(string? language) =>
+        IsUnknownLanguage(language) ? string.Empty : NormalizeKeyPart(language);
 
     private static int DistinctValues(IEnumerable<VocabularyWord> copies, Func<VocabularyWord, string> value) =>
         copies.Select(value).Where(text => text.Length > 0).Distinct(StringComparer.Ordinal).Count();

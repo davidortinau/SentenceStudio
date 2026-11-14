@@ -2614,9 +2614,12 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             return false;
 
         var ownDuplicates = deleteWordIds.Where(learnersWords.Contains).ToArray();
-        var duplicates = await db.VocabularyWords
-            .Where(w => ownDuplicates.Contains(w.Id))
-            .ToListAsync(ct);
+        // In the caller's (merge preference) order, so a field comes from the same copy everywhere.
+        var duplicates = (await db.VocabularyWords
+                .Where(w => ownDuplicates.Contains(w.Id))
+                .ToListAsync(ct))
+            .OrderBy(w => Array.IndexOf(ownDuplicates, w.Id))
+            .ToList();
 
         var changed = false;
         foreach (var duplicate in duplicates)
@@ -2654,7 +2657,13 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 changed = true;
             }
 
-            changed |= CopyIfMissing(() => keeper.Language, value => keeper.Language = value, duplicate.Language);
+            // "Unknown" is no language: the copy that names one fills it.
+            if (VocabularyDuplicatePolicy.IsUnknownLanguage(keeper.Language)
+                && !VocabularyDuplicatePolicy.IsUnknownLanguage(duplicate.Language))
+            {
+                keeper.Language = duplicate.Language;
+                changed = true;
+            }
         }
 
         if (changed)

@@ -32,7 +32,9 @@ A group is the learner's own copies of one target term (normalized as today).
 - **Removable copies:** copies with no outside reference. A copy another learner's data uses stays,
   but its own links and history still move to the keeper (as today).
 - **Safe** (merged by "Merge all" without review), when nothing is lost:
-  - same language and kind (lexical type);
+  - same language and kind (lexical type); a blank or "Unknown" language is no language (it never
+    differs, and the merge takes the other copy's), while real variants such as
+    "Chinese (Simplified)" and "Chinese (Traditional)" still differ;
   - one meaning: the copies' native terms are equal after normalizing (case, spacing, line
     endings, trailing punctuation, a leading "to ");
   - at most one distinct memory aid text, memory aid image and base form (lemma) among the copies;

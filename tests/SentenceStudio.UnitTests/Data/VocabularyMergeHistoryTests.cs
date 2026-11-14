@@ -883,6 +883,32 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         WordExists(c).Should().BeFalse();
     }
 
+    // Captain 2026-11-14: a merge kept "Unknown" beside a Korean copy. Unknown is no language:
+    // it never differs, and the merge takes the copy's Korean. Real variants still differ.
+    [Fact]
+    public async Task Merge_ReplacesAnUnknownLanguage_AndRealVariantsStillDiffer()
+    {
+        var keeper = SeedWord("사과", "apple");
+        var korean = SeedWord("사과 ", "apple");
+        AddEncodingAids(keeper);
+        UpdateWord(keeper, word => word.Language = "Unknown");
+        UpdateWord(korean, word => word.Language = "Korean");
+        var noted = SeedWord("배", "pear");
+        var plain = SeedWord("배 ", "pear");
+        UpdateWord(noted, word => word.Language = "Chinese (Simplified)");
+        UpdateWord(plain, word => word.Language = "Chinese (Traditional)");
+        EnsureWordsMappedToUser(UserA, keeper, korean, noted, plain);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var scan = await repo.FindDuplicateVocabularyGroupsAsync();
+        scan.Groups.Single(group => group.NormalizedTerm == "사과").EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Safe);
+        scan.Groups.Single(group => group.NormalizedTerm == "배").EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+
+        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(1);
+        GetWord(keeper)!.Language.Should().Be("Korean");
+    }
+
     // Keep This: Merge all keeps the copy the learner chose inside a set of identical copies.
     [Fact]
     public async Task MergeSafe_KeepsTheCopyTheLearnerChose()
