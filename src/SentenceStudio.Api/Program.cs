@@ -62,7 +62,8 @@ using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults("SentenceStudio.Api");
+// AzureMonitor:Authentication=ManagedIdentity sends telemetry with this identity (#168).
+builder.AddServiceDefaults("SentenceStudio.Api", azureMonitorCredential: () => new Azure.Identity.DefaultAzureCredential());
 
 // ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
 // `OpenTelemetry.Instrumentation.AspNetCore` package references `Microsoft.AspNetCore.App`,

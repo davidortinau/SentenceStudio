@@ -13,7 +13,8 @@ using SentenceStudio.Workers.Platform;
 using SentenceStudio.Workers.Startup;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.AddServiceDefaults("SentenceStudio.Workers");
+// AzureMonitor:Authentication=ManagedIdentity sends telemetry with this identity (#168).
+builder.AddServiceDefaults("SentenceStudio.Workers", azureMonitorCredential: () => new Azure.Identity.DefaultAzureCredential());
 
 // PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);

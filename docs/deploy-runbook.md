@@ -499,6 +499,61 @@ the text. Clips are small and no lifecycle rule deletes them yet. A changed key 
 
 ---
 
+## App Insights through managed identity (#168): Azure step awaiting approval
+
+Prepared 2026-11-14. **Nothing below has been run against Azure.** The Captain approves the
+Azure step.
+
+**What changed.** The API and Workers can send telemetry to `appi-sstudio-biz` with Entra tokens
+from their managed identity instead of the instrumentation key alone. It is off until the setting
+`AzureMonitor:Authentication=ManagedIdentity` is present (`ResolveAzureMonitorCredential` in
+`src/SentenceStudio.ServiceDefaults/Extensions.cs`); the hosts pass a `DefaultAzureCredential`,
+which in Container Apps uses the UAMI named by `AZURE_CLIENT_ID`. The connection string stays: it
+names the resource and its ingestion endpoint, and the instrumentation key in it is an
+identifier, not a credential. The client apps (MAUI, native) are unchanged.
+
+**Order matters.** Grant the role first and confirm it, then turn the setting on. With the
+setting on and no role, ingestion refuses every batch and telemetry stops silently.
+
+```bash
+S=66f9fa8f-604f-4688-bec1-16ff9a86a8e5
+RG=rg-sstudio-prod-biz
+PRINCIPAL=$(az identity show -g $RG -n mi-rsn72awybem6s --subscription $S --query principalId -o tsv)
+APPI=$(az monitor app-insights component show -g $RG -a appi-sstudio-biz --subscription $S --query id -o tsv)
+
+# 1. Read-only: does the UAMI already hold the role? Is local auth still allowed?
+az role assignment list --assignee "$PRINCIPAL" --scope "$APPI" --include-inherited \
+  --subscription $S --query "[].roleDefinitionName" -o tsv
+az monitor app-insights component show --ids "$APPI" --query disableLocalAuth -o tsv
+
+# 2. The Azure change to approve: the ingestion role, scoped to the one component.
+az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal \
+  --role "Monitoring Metrics Publisher" --scope "$APPI" --subscription $S
+```
+
+Wait 5 to 10 minutes, then turn it on for both hosts (a new revision of each):
+
+```bash
+for app in api workers; do
+  az containerapp update -g $RG -n $app --subscription $S \
+    --set-env-vars AzureMonitor__Authentication=ManagedIdentity
+done
+```
+
+`azd deploy` keeps container env vars it did not set, but confirm after the next deploy that
+both apps still have the variable.
+
+**Verify** within 15 minutes, in `appi-sstudio-biz`: `requests | where cloud_RoleName ==
+"SentenceStudio.Api" and timestamp > ago(15m) | count` is above zero after you use the app,
+and the same for `traces` from `SentenceStudio.Workers`. If both stay at zero, remove the
+variable (`--remove-env-vars AzureMonitor__Authentication`) and check the role.
+
+**Do not turn off local auth** (`disableLocalAuth=true`) on `appi-sstudio-biz`. The MAUI apps
+send to this same component (`src/SentenceStudio.AppLib/appsettings.Production.json` has the
+same ApplicationId) with the instrumentation key, and a device has no managed identity, so mobile
+telemetry would stop. Server traffic gains Entra authentication; key ingestion stays for the
+apps until they send to a component of their own.
+
 ## MANDATORY Pre-Deploy Safety Checklist
 
 **Every step below MUST pass before ANY production deploy command is executed.**  
