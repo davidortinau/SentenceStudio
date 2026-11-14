@@ -23,11 +23,21 @@ public static class SqlWriter
             sql.AppendLine(
                 $"UPDATE \"VocabularyProgress\" SET {set} WHERE \"Id\" = {Literal(change.Before.Id)}"
                 + $" AND \"UserId\" = {Literal(owner)}"
-                + $" AND \"UpdatedAt\" = {Literal(rawUpdatedAt[change.Before.Id])}::timestamptz"
+                + $" AND \"UpdatedAt\" = {Stamp(change, rawUpdatedAt)}::timestamptz"
                 + $" AND \"TotalAttempts\" = {Literal(change.Before.TotalAttempts)};");
         }
         return sql.ToString();
     }
+
+    /// <summary>
+    /// The exported UpdatedAt as PostgreSQL wrote it (exact, with its offset); a timestamp without
+    /// an offset (a SQLite export, stored as UTC) is written as UTC, never read in the session zone.
+    /// </summary>
+    private static string Stamp(RepairChange change, IReadOnlyDictionary<string, string> rawUpdatedAt) =>
+        rawUpdatedAt.TryGetValue(change.Before.Id, out var raw)
+            && System.Text.RegularExpressions.Regex.IsMatch(raw, @"(Z|[+-]\d{2}(:?\d{2})?)$")
+            ? Literal(raw)
+            : Literal(change.Before.UpdatedAt);
 
     public static string Literal(object? value) => value switch
     {

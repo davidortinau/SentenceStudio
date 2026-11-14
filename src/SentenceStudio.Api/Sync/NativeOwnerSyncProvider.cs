@@ -138,6 +138,7 @@ internal sealed class NativeOwnerSyncProvider(
         var items = owner is null ? changes.Items : CollapseRepeatedRows(changes.Items);
 
         IReadOnlySet<string> mergedProgress = new HashSet<string>();
+        var keptAnswers = new List<string>();
         var mastery = NumberMasteryUploadMerge.Empty;
         var runs = ActivitySessionUploadMerge.RunPlan.Empty;
         var lookups = VocabularyLookupUploadMerge.Empty;
@@ -161,7 +162,7 @@ internal sealed class NativeOwnerSyncProvider(
 
             // Every other row the server cannot place for this owner stays on the device.
             var visible = await GetVisibleKeysAsync(db, owner, ct);
-            items = await PlaceableItemsAsync(db, items, owner, visible, wordsNamingOthers, ct);
+            items = await PlaceableItemsAsync(db, items, owner, visible, wordsNamingOthers, keptAnswers, ct);
 
             // Last-writer-wins would drop attempts another device or the web app counted
             // since this device's copy. Merge them while the upload lock is held; the merged
@@ -212,6 +213,18 @@ internal sealed class NativeOwnerSyncProvider(
             await using var scope = scopes.CreateAsyncScope();
             await VocabularyLookupUploadMerge.FinishAsync(
                 scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), lookups, owner!, ct);
+        }
+
+        if (keptAnswers.Count > 0)
+        {
+            // The device removed these answers through its own cascade (a build without the
+            // CoreSync.Sqlite fix) and uploaded their deletes; the server kept them. A server-origin
+            // touch sends them back to it, and to any other device that lost them the same way.
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+            await db.VocabularyLearningContexts.Where(context => keptAnswers.Contains(context.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(context => context.UpdatedAt, now), ct);
         }
 
         if (mergedProgress.Count > 0)
@@ -377,7 +390,8 @@ internal sealed class NativeOwnerSyncProvider(
     /// </summary>
     private async Task<IReadOnlyList<SyncItem>> PlaceableItemsAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner,
-        VisibleKeys visibleBeforeUpload, IReadOnlySet<string> wordsNamingOthers, CancellationToken ct)
+        VisibleKeys visibleBeforeUpload, IReadOnlySet<string> wordsNamingOthers,
+        ICollection<string> keptAnswers, CancellationToken ct)
     {
         IReadOnlyList<SyncItem> writes = WithoutUnreachableExamples(
             items.Where(item => item.ChangeType != ChangeType.Delete).ToArray(),
@@ -390,7 +404,7 @@ internal sealed class NativeOwnerSyncProvider(
                 break;
             writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
         }
-        var deletes = await OwnDeletesAsync(db, items, owner, logger, ct);
+        var deletes = await OwnDeletesAsync(db, items, owner, logger, ct, keptAnswers);
 
         var kept = new HashSet<SyncItem>(writes.Concat(deletes), ReferenceEqualityComparer.Instance);
         var leftOut = items.Where(item => !kept.Contains(item)).ToArray();
@@ -414,9 +428,10 @@ internal sealed class NativeOwnerSyncProvider(
     /// such a delete never refuses the upload. The deletion log records each applied delete for
     /// the owner's other devices (migration AddSyncDeletionLog).
     /// </summary>
+    /// <param name="keptAnswers">Receives the answers kept because their progress row stays.</param>
     internal static async Task<IReadOnlyList<SyncItem>> OwnDeletesAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, ILogger logger,
-        CancellationToken ct)
+        CancellationToken ct, ICollection<string>? keptAnswers = null)
     {
         var written = items.Where(item => item.ChangeType != ChangeType.Delete)
             .Select(item => (item.TableName, Value(item, "Id")))
@@ -462,6 +477,8 @@ internal sealed class NativeOwnerSyncProvider(
                 if (echoes.Length > 0)
                 {
                     owned.ExceptWith(echoes);
+                    foreach (var echo in echoes)
+                        keptAnswers?.Add(echo);
                     logger.LogWarning(
                         "Native CoreSync upload kept {Count} answers whose progress row stays on the server: deletes a device logged from a downloaded delete.",
                         echoes.Length);

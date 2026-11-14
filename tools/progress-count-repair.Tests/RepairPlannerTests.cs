@@ -143,6 +143,9 @@ public class RepairPlannerTests
             + " AND \"UpdatedAt\" = '2026-03-07T11:00:00.123456+00:00'::timestamptz AND \"TotalAttempts\" = 0;", sql);
         Assert.DoesNotContain("\"VocabularyWordId\" =", sql);
         Assert.DoesNotContain("\"FirstSeenAt\" =", sql);
+        // A SQLite export's timestamp has no offset: the guard writes it as UTC.
+        var fromSqlite = SqlWriter.Write(Owner, [change], new Dictionary<string, string> { ["p1"] = "2026-03-07 11:00:00" });
+        Assert.Contains(" AND \"UpdatedAt\" = '2026-03-07T11:00:00.000000+00:00'::timestamptz", fromSqlite);
         Assert.Equal("'o''k'", SqlWriter.Literal("o'k"));
         Assert.Equal("'-infinity'", SqlWriter.Literal(DateTime.MinValue));
         Assert.Equal("1.5", SqlWriter.Literal(1.5f));

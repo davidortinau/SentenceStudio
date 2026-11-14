@@ -123,6 +123,11 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
             Delete("VocabularyLearningContext", keptAnswers[0]),
             Delete("VocabularyLearningContext", keptAnswers[1])))
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The device already removed them: the kept answers come back in its next download.
+        var back = await phone.DownloadAsync();
+        foreach (var answer in keptAnswers)
+            Assert.Contains(back, item => item.TableName == "VocabularyLearningContext"
+                && item.ChangeType != ChangeType.Delete && Id(item) == answer);
         // A word's progress removed on the device: its answer goes with it.
         using (var response = await phone.UploadAsync(
             Delete("VocabularyLearningContext", removedAnswer),

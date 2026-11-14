@@ -156,9 +156,14 @@
     <!-- CoreSync -->
     <PackageVersion Include="CoreSync.Http.Client" Version="0.1.129" />
     <PackageVersion Include="CoreSync.Http.Server" Version="0.1.129" />
-    <!-- Only the provider is local3; Http/Sqlite require the stable CoreSync base. -->
+    <!-- Only the providers are local builds; Http requires the stable CoreSync base, which the
+         local packages' CoreSync >= 0.1.129-localN dependency resolves to. -->
     <PackageVersion Include="CoreSync.PostgreSQL" Version="[0.1.129-local3]" />
-    <PackageVersion Include="CoreSync.Sqlite" Version="0.1.129" />
+    <!-- 0.1.129 plus upstream 429c330 (v0.1.132): an apply marks every change-log entry it writes
+         as the server's, so a downloaded delete's foreign-key cascade no longer uploads as the
+         device's own (B87, docs/progress-count-repair-2026-11-13.md). Built from
+         davidortinau/CoreSync fix/sqlite-cascade-src; without 0.1.132's dependency upgrades. -->
+    <PackageVersion Include="CoreSync.Sqlite" Version="[0.1.129-local4]" />
 
     <!-- Audio / Media -->
     <PackageVersion Include="Plugin.Maui.Audio" Version="4.0.0" />

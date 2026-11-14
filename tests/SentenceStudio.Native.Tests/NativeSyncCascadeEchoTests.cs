@@ -1,21 +1,20 @@
 using CoreSync;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Native.Adapters;
-using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 using static SentenceStudio.Native.Tests.NativeConcurrentProgressMergeTests;
 
 namespace SentenceStudio.Native.Tests;
 
 /// <summary>
-/// A delete a device downloads must not come back as the device's own. CoreSync's SQLite
-/// provider marks only the newest change-log entry of an applied row as the server's, and SQLite
-/// logs a delete's foreign-key cascade before it, so the cascade uploaded as this device's
-/// deletes. Duotopia 2026-11-13: a duplicate merge on the web moved a word's answers to the kept
-/// word and deleted the duplicate; the phone's next syncs deleted those answers on the server
-/// (docs/progress-count-repair-2026-11-13.md). SQLite to SQLite, as the app syncs.
+/// A delete a device downloads must not come back as the device's own. CoreSync.Sqlite 0.1.129
+/// marked only the newest change-log entry of an applied row as the server's, and SQLite logs a
+/// delete's foreign-key cascade before it, so the cascade uploaded as this device's deletes.
+/// Duotopia 2026-11-13: a duplicate merge on the web moved a word's answers to the kept word and
+/// deleted the duplicate; the phone's next sync deleted those answers on the server
+/// (docs/progress-count-repair-2026-11-13.md). CoreSync.Sqlite 0.1.129-local4 (upstream 429c330)
+/// marks every entry an apply writes. SQLite to SQLite, as the app syncs.
 /// </summary>
 public sealed class NativeSyncCascadeEchoTests
 {
@@ -73,9 +72,9 @@ public sealed class NativeSyncCascadeEchoTests
         var device = NativeConcurrentProgressMergeTests.Native(phone, server.Provider);
         await SyncLikeAppAsync(device, server.Provider);
 
-        // Only a download's own cascades are marked: after it, the cascade of a word the learner
-        // removes is the learner's and uploads (the server's cascade would hide a lost upload, so
-        // the device's pending upload is checked first).
+        // Only a download's own writes are marked: the cascade of a word the learner removes
+        // afterwards is the learner's and uploads (the server's cascade would hide a lost upload,
+        // so the device's pending upload is checked first).
         await MergeOnServerAsync(server);
         await SyncLikeAppAsync(device, server.Provider);
         await using (var db = phone.OpenContext())
@@ -99,46 +98,9 @@ public sealed class NativeSyncCascadeEchoTests
     }
 
     [Fact]
-    public async Task APlan_ReachesCascadesAndSetNulls_OfTheDownloadsDeletesOnly()
-    {
-        await using var server = await Store.CreateAsync(ProviderMode.Remote);
-        await SeedServerAsync(server);
-        await using var phone = await Store.CreateAsync(ProviderMode.Local, downloadOnlyProfile: true);
-        await SyncLikeAppAsync(NativeConcurrentProgressMergeTests.Native(phone, server.Provider), server.Provider);
-        var connectionString = phone.Provider.Configuration.ConnectionString;
-
-        // A word: its link, its progress and that progress's answers, through cascades.
-        var word = await SyncDownloadCascades.ReachAsync(connectionString, Download("VocabularyWord", Duplicate));
-        Assert.True(word["VocabularyProgress"].SetEquals([DuplicateProgress]));
-        Assert.True(word["VocabularyLearningContext"].SetEquals(MovedAnswers));
-        Assert.Single(word["ResourceVocabularyMapping"]);
-
-        // A resource: its links go (cascade); the answers that named it stay, cleared (SET NULL),
-        // and nothing under them is reached.
-        var resource = await SyncDownloadCascades.ReachAsync(connectionString, Download("LearningResource", Resource));
-        Assert.Equal(3, resource["ResourceVocabularyMapping"].Count);
-        Assert.Equal(4, resource["VocabularyLearningContext"].Count);
-        Assert.False(resource.ContainsKey("VocabularyProgress"));
-
-        // Both at once: answers reached first through the resource's SET NULL are still followed
-        // as removed through the word's cascade.
-        var both = new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 1), SyncAnchor.Null,
-        [
-            new SyncItem("LearningResource", ChangeType.Delete, new Dictionary<string, object?> { ["Id"] = Resource }),
-            new SyncItem("VocabularyWord", ChangeType.Delete, new Dictionary<string, object?> { ["Id"] = Duplicate }),
-        ]);
-        Assert.True((await SyncDownloadCascades.ReachAsync(connectionString, both))["VocabularyProgress"]
-            .SetEquals([DuplicateProgress]));
-
-        // A download without deletes reaches nothing.
-        Assert.Empty(await SyncDownloadCascades.ReachAsync(connectionString,
-            new SyncChangeSet(new SyncAnchor(Guid.NewGuid(), 1), SyncAnchor.Null, [])));
-    }
-
-    [Fact]
     public async Task ASyncStoppedRightAfterTheDownload_StillUploadsNoCascade()
     {
-        // The marks are written inside CoreSync's transaction: a sync cancelled (or an app
+        // The marks are written inside CoreSync's apply transaction: a sync cancelled (or an app
         // stopped) after the download committed leaves nothing for the next upload.
         await using var server = await Store.CreateAsync(ProviderMode.Remote);
         await SeedServerAsync(server);
@@ -165,17 +127,7 @@ public sealed class NativeSyncCascadeEchoTests
         await SyncLikeAppAsync(device, server.Provider);
         await using (var db = server.OpenContext())
             Assert.Equal(2, await db.VocabularyLearningContexts.CountAsync(context => MovedAnswers.Contains(context.Id)));
-        // The list is empty after the apply: nothing marks the learner's later changes.
-        await using var connection = new SqliteConnection(phone.Provider.Configuration.ConnectionString);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM __SS_DOWNLOAD_CASCADE";
-        Assert.Equal(0L, (long)(await command.ExecuteScalarAsync())!);
     }
-
-    private static SyncChangeSet Download(string table, string id) =>
-        new(new SyncAnchor(Guid.NewGuid(), 1), SyncAnchor.Null,
-            [new SyncItem(table, ChangeType.Delete, new Dictionary<string, object?> { ["Id"] = id })]);
 
     private static async Task<int> AnswersAsync(Store store)
     {

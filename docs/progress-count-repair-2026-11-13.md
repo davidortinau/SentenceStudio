@@ -69,24 +69,25 @@ the 23:07 sync: 257 downloaded `VocabularyWord` deletes interleaved with local d
 the answers still existed on the server (the merge had re-parented them), so only they were lost.
 
 **Fix (B87, 2026-11-14, pending deploy and installs).**
-- Clients: `SyncDownloadCascades.ApplyAsync` (Shared) lists, before a download applies, the rows its
-  deletes reach through foreign keys (`pragma_foreign_key_list`; cascades followed, SET NULL rows
-  included) in `__SS_DOWNLOAD_CASCADE`, and a trigger on `__CORE_SYNC_CT` marks those rows' entries
-  with the server's store ID as they are written, inside CoreSync's transaction: the marks commit or
-  roll back with the download, so no cancellation or app stop separates them. The list is emptied
-  when the apply returns and before every upload. Used by `OwnerCheckedSyncProvider` (MAUI) and
-  `NativeLocalOnlyMappingExportProvider` (native).
+- Clients: CoreSync.Sqlite `0.1.129-local4` (`lib/coresync`), built from tag v0.1.129 plus upstream
+  commit 429c330 (first released in v0.1.132; davidortinau/CoreSync branch
+  `fix/sqlite-cascade-src`): an apply marks every change-log entry it writes (`ID > pre-apply
+  version AND SRC IS NULL`) as the source store's, inside its own transaction, so cascades, SET NULL
+  rows and anything else the apply causes stay out of the next upload. 0.1.132 itself was not taken:
+  it also moves Microsoft.Data.Sqlite to 10.0.9, pins SQLitePCLRaw 3.0.3 and moves MessagePack to 3.
+  Every MAUI and native client gets it through the package.
 - Server: `NativeOwnerSyncProvider.OwnDeletesAsync` applies an answer delete only when the same
-  upload deletes its stored progress row (no client deletes an answer on its own), and logs the
-  ones it keeps. This protects answers only: example sentences, minimal pairs and phrase links a
-  merge moves can be deleted on their own, so the server cannot tell an older build's echo from a
-  learner's delete for them.
+  upload deletes its stored progress row (no client deletes an answer on its own), logs the ones it
+  keeps, and touches them after the upload so the device that removed them downloads them again.
+  This protects answers only: example sentences, minimal pairs and phrase links a merge moves can be
+  deleted on their own, so the server cannot tell an older build's echo from a learner's delete.
 - Tests: `NativeSyncCascadeEchoTests` (SQLite to SQLite: a merge on the server, the device's syncs
   delete nothing; a sync stopped right after the download commits uploads no cascade; a word the
-  learner deletes still uploads its progress and answer deletes; what a download reaches),
+  learner deletes still uploads its progress and answer deletes),
   `MauiOwnerCheckedSyncPostgresTests.MergeOnTheWeb_DeletesNoMovedAnswer_WhenAnInstallDownloadsIt`
-  (real API, PostgreSQL) and `OwnerCheckedDeletesPostgresTests.AnswerDelete_IsAppliedOnlyWithItsProgressRow`.
-  Without the client marking the native echo tests fail; with both fixes off the PostgreSQL tests
+  (real API, PostgreSQL) and `OwnerCheckedDeletesPostgresTests.AnswerDelete_IsAppliedOnlyWithItsProgressRow`
+  (the filter, the kept answers sent back). On stock CoreSync.Sqlite 0.1.129 the echo tests fail
+  and the MAUI install holds 4 cascade deletes to upload; with both fixes off the PostgreSQL tests
   keep 0 of 2 moved answers.
 
 **Open.**
