@@ -5953,6 +5953,10 @@ For example: {0} ...</value>
     <value>An unexpected error occurred. Please try again.</value>
     <comment>Generic error</comment>
   </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>Too many sign-in attempts. Wait a few minutes and try again.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
+  </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>Create Account</value>
     <comment>Register page title</comment>

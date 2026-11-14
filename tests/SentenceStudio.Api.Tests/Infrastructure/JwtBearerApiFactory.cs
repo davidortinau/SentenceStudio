@@ -29,6 +29,8 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
         builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
         builder.UseSetting("ElevenLabsKey", "test-elevenlabs-key");
+        // Every test request shares one client address; the limits under test live in AuthRateLimitTests.
+        TestApiHostConfigurator.RelaxAuthRateLimits(builder);
 
         builder.ConfigureServices((context, services) =>
         {

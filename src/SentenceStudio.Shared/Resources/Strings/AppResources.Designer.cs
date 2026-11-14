@@ -10048,6 +10048,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Too many sign-in attempts. Wait a few minutes and try again..
+        /// </summary>
+        internal static string Login_TooManyAttempts {
+            get {
+                return ResourceManager.GetString("Login_TooManyAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to An unexpected error occurred. Please try again..
         /// </summary>
         internal static string Login_UnexpectedError {

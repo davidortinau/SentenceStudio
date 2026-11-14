@@ -5705,6 +5705,10 @@
     <value>예기치 않은 오류가 발생했습니다. 다시 시도하세요.</value>
     <comment>Generic error</comment>
   </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>로그인 시도가 너무 많습니다. 몇 분 후에 다시 시도하세요.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
+  </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>계정 만들기</value>
     <comment>Register page title</comment>

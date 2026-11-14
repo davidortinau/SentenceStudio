@@ -94,6 +94,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// Per-client limits on the anonymous auth endpoints (#89); see AuthRateLimiting.
+builder.Services.AddAuthRateLimiting(builder.Configuration);
+
 const string JwtOrDevAuthScheme = "JwtOrDev";
 
 // JWT Bearer authentication for Identity-issued tokens
@@ -741,6 +744,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseSecurityHeaders();
 app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();

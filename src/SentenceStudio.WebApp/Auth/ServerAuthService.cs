@@ -125,11 +125,31 @@ public class ServerAuthService : IAuthService
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var user = await userManager.FindByEmailAsync(email);
-        if (user is null || !await userManager.CheckPasswordAsync(user, password))
+        if (user is null)
         {
             _logger.LogWarning("Sign-in failed for {Email}", AuthLogRedaction.MaskEmail(email));
             return null;
         }
+
+        // Account lockout (#89), the same rule as the API's login: Identity's defaults, 5 failed
+        // passwords lock the account for 5 minutes. Web sign-in runs in the circuit, where the
+        // API's per-address rate limits cannot see it.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            _logger.LogWarning("Sign-in refused for user {UserId}: account locked out", user.Id);
+            // The same signal the API's 429 gives every other client, so LoginPage says why.
+            throw new HttpRequestException("The account is locked out after failed sign-ins.",
+                inner: null, System.Net.HttpStatusCode.TooManyRequests);
+        }
+
+        if (!await userManager.CheckPasswordAsync(user, password))
+        {
+            await userManager.AccessFailedAsync(user);
+            _logger.LogWarning("Sign-in failed for {Email}", AuthLogRedaction.MaskEmail(email));
+            return null;
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         // Generate a one-time auto-sign-in token
         var token = await userManager.GenerateUserTokenAsync(

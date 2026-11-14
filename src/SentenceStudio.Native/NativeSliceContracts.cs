@@ -28,6 +28,7 @@ public static class NativeText
     public const string InvalidCredentials = "Login_InvalidCredentials";
     public const string ConnectionError = "Login_ConnectionError";
     public const string UnexpectedError = "Login_UnexpectedError";
+    public const string TooManySignInAttempts = "Login_TooManyAttempts";
     public const string SignInUnavailable = "Login_NotAvailable";
     public const string Email = "Common_Email";
     public const string Password = "Common_Password";
