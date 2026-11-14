@@ -366,6 +366,33 @@ public sealed class NativeMinimalPairsPresenterTests
     }
 
     [Fact]
+    public async Task ChoosingAPairOrModeDuringASession_ChangesOnlyTheList_TheSessionGoesOn()
+    {
+        using var fixture = await SignedInAsync();
+        using var audio = new ScratchAudioCache(fixture);
+        var first = await InsertPairAsync(fixture, UserA, 0, 1);
+        var second = await InsertPairAsync(fixture, UserA, 2, 3);
+        var test = Create(fixture);
+        await using var _ = test;
+        await test.Presenter.OpenAsync(Launch());
+        await test.Presenter.SelectPairAsync(first);
+        await test.Presenter.StartSessionAsync();
+        var trial = (await WaitAsync(test.Presenter, s => s.Session is { HasTrial: true })).Session!;
+
+        // The iPad split view shows the list beside the session.
+        var chosen = await test.Presenter.SelectPairAsync(second);
+        Assert.Equal(NativeMinimalPairsPage.Session, chosen.Page);
+        Assert.Equal(second, chosen.List!.SelectedPairId);
+        Assert.Equal(trial.TrialNumber, chosen.Session!.TrialNumber);
+        var mixed = await test.Presenter.SetModeAsync(NativeMinimalPairsMode.Mixed);
+        Assert.Equal(NativeMinimalPairsPage.Session, mixed.Page);
+        Assert.Equal(NativeMinimalPairsMode.Mixed, mixed.List!.Mode);
+        Assert.Equal(NativeMinimalPairsMode.Focus, mixed.Session!.Mode);
+        // Opening another page still needs the list (the iOS list goes back to it first).
+        Assert.Equal(NativeMinimalPairsPage.Session, (await test.Presenter.OpenCreateAsync()).Page);
+    }
+
+    [Fact]
     public async Task StudyPair_FromMixed_StartsAFocusSessionOnThatPairOnly_AnUnknownPairStaysOnTheList()
     {
         using var fixture = await SignedInAsync();

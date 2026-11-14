@@ -370,21 +370,8 @@ internal sealed partial class ApplicationScene : IDisposable
     {
         if (_skillsSlot is null)
             return;
-        var next = _app.RenderSkillsList(_style);
-        var current = _skillsSlot.Children.Single();
-        var oldSearch = Find(current, BrowserPageUpdate.Skills.SearchId);
-        if (replaceAll || oldSearch is null
-            || !BrowserPageUpdate.Skills.TryUpdateInPlace(current, next))
-        {
-            var focused = oldSearch?.FocusRequested == true;
-            Replace(_skillsSlot, next);
-            if (focused && Find(_skillsSlot, BrowserPageUpdate.Skills.SearchId) is { } search)
-                search.FocusRequested = true;
-            return;
-        }
-        if (!string.Equals(oldSearch.Text, _app.SkillsSearchText, StringComparison.Ordinal))
-            oldSearch.Text = _app.SkillsSearchText;
-        next.Dispose();
+        UpdateBrowsePage(_skillsSlot, _app.RenderSkillsList(_style), BrowserPageUpdate.Skills, replaceAll,
+            _app.SkillsSearchText);
     }
 
     private void UpdateSkills(bool appearanceChanged)

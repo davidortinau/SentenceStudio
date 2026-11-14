@@ -47,9 +47,9 @@ public sealed class NativeMinimalPairsListContractTests
         Assert.Contains("_renderedActivityPageVersion != _app.ActivityPageVersion", activity);
         Assert.Contains("UpdateBrowsePage(_activitySlot, _app.RenderActivity(_style), browse, reshaped,", activity);
         Assert.Contains(".WithNavigationSubtitle(_app.LibraryPairsSubtitle)", library);
-        Assert.Contains("_pairsPage?.WithNavigationSubtitle(_app.LibraryPairsSubtitle);", library);
+        Assert.Contains("_pairsPage.WithNavigationSubtitle(_renderedPairsSubtitle);", library);
         Assert.Contains(".WithNavigationSubtitle(_app.ActivitySubtitle)", activity);
-        Assert.Contains("_activityPage?.WithNavigationSubtitle(_app.ActivitySubtitle);", activity);
+        Assert.Contains("_activityPage.WithNavigationSubtitle(_renderedActivitySubtitle);", activity);
         Assert.Contains("NativeMinimalPairsText.PairCount", screen);
     }
 

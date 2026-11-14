@@ -511,7 +511,7 @@ public sealed class NativeSkillsContractTests
         // Captain 2026-11-12: a native List with swipe Delete and Archive or Restore.
         Assert.Contains("Views.SwipeRow(row, trailing)", list);
         Assert.Contains("new BrowserPage.PageSearch(text(\"Common_Search\")", list);
-        Assert.Contains("BrowserPageUpdate.Skills.TryUpdateInPlace(current, next)", scene);
+        Assert.Contains("UpdateBrowsePage(_skillsSlot, _app.RenderSkillsList(_style), BrowserPageUpdate.Skills,", scene);
         Assert.Contains("Views.ConfirmationDialog(page,", list);
         Assert.Contains("CancelSkillListDeleteLater", controller);
         // Captain 2026-11-13 (the native form pattern): a label-beside field and a text Section.

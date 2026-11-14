@@ -123,23 +123,27 @@ public sealed class NativeMinimalPairsPresenter(
 
     // ---- List ----
 
-    /// <summary>Source SetMode: Mixed clears the Focus selection.</summary>
+    /// <summary>
+    /// Source SetMode: Mixed clears the Focus selection. It changes only the list, so it is taken
+    /// on any page (the iPad split view shows the list beside a session or the create page,
+    /// which it leaves alone).
+    /// </summary>
     public Task<NativeMinimalPairsState> SetModeAsync(NativeMinimalPairsMode mode,
         CancellationToken cancellationToken = default) =>
         ListCommandAsync(() => _list = _list with
         {
             Mode = mode,
             SelectedPairId = mode == NativeMinimalPairsMode.Mixed ? null : _list.SelectedPairId,
-        }, cancellationToken);
+        }, cancellationToken, anyPage: true);
 
-    /// <summary>Source SelectPair: only Focus mode selects a card.</summary>
+    /// <summary>Source SelectPair: only Focus mode selects a card. Taken on any page, as SetMode.</summary>
     public Task<NativeMinimalPairsState> SelectPairAsync(string pairId,
         CancellationToken cancellationToken = default) =>
         ListCommandAsync(() =>
         {
             if (_list.Mode == NativeMinimalPairsMode.Focus && _list.Pairs.Any(pair => pair.Id == pairId))
                 _list = _list with { SelectedPairId = pairId };
-        }, cancellationToken);
+        }, cancellationToken, anyPage: true);
 
     /// <summary>Source RequestDelete: opens the "Delete A vs B?" confirmation.</summary>
     public Task<NativeMinimalPairsState> RequestDeleteAsync(string pairId,
@@ -632,18 +636,24 @@ public sealed class NativeMinimalPairsPresenter(
 
     // ---- Internals ----
 
+    /// <param name="anyPage">
+    /// The command changes only the list's mode or selection, so it is also taken while the
+    /// create page or a session shows (beside the list in the split view) and leaves that page
+    /// and its messages alone.
+    /// </param>
     private async Task<NativeMinimalPairsState> ListCommandAsync(Action command,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool anyPage = false)
     {
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (!CanCommand(NativeMinimalPairsPage.List, out var refused))
+            if (!CanCommand(anyPage ? _page : NativeMinimalPairsPage.List, out var refused))
                 return refused;
             if (_list.IsLoading)
                 return State;
             // A message stays until the learner's next action (Captain, 2026-11-02).
-            _notices = [];
+            if (_page == NativeMinimalPairsPage.List)
+                _notices = [];
             command();
             return PublishReady();
         }

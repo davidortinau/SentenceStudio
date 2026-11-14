@@ -13,6 +13,7 @@ internal sealed partial class ApplicationScene
     private long _renderedActivityPageVersion = -1;
     private SourceUiStyle? _renderedActivityStyle;
     private double _renderedActivityWidth;
+    private string _renderedActivitySubtitle = string.Empty;
     private SwiftView? _activityToastLayer;
     private SwiftView? _activityChildToastLayer;
     private SwiftView? _renderedActivityToastLayer;
@@ -72,6 +73,7 @@ internal sealed partial class ApplicationScene
                     .WithInlineNavigationTitle()
                     .WithTabBarHidden();
                 _activityPage = page;
+                _renderedActivitySubtitle = _app.ActivitySubtitle;
                 if (_app.ActivityHasSheet)
                 {
                     // One stable sheet node: re-rendering replaces only its slots.
@@ -105,7 +107,11 @@ internal sealed partial class ApplicationScene
                 }
                 else if (!_app.TryUpdateActivityInPlace(_style))
                     Replace(_activitySlot, _app.RenderActivity(_style));
-                _activityPage?.WithNavigationSubtitle(_app.ActivitySubtitle);
+                if (_activityPage is not null && _renderedActivitySubtitle != _app.ActivitySubtitle)
+                {
+                    _renderedActivitySubtitle = _app.ActivitySubtitle;
+                    _activityPage.WithNavigationSubtitle(_renderedActivitySubtitle);
+                }
                 if (_activitySheet is not null && _activitySheetSlot is not null)
                 {
                     if (_app.IsActivitySheetPresented)

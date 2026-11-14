@@ -33,8 +33,10 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     private SwiftView? _deleteAlert;
     private const string ListPrefix = "native.minimalpairs";
     private string _search = string.Empty;
-    // The pairs the last list render showed (after the search), for the count under the title.
+    // The count under the title, for the list and search it was worked out for.
     private int _shownCount;
+    private NativeMinimalPairsListState? _countedList;
+    private string? _countedSearch;
     private SourceUiStyle? _style;
     // Mounted create-page result slots (valid until the next RenderChild).
     private SwiftView? _rowsA;
@@ -152,10 +154,12 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     }
 
     /// <summary>
-    /// A list command. In the split view the list stays beside the create page or a session,
-    /// which take no list commands: the command first goes back to the list (as system Back
-    /// does, so a session's progress is kept), then runs. <paramref name="keepCreate"/> leaves
-    /// an open create page alone (Create Pair while creating keeps the draft).
+    /// A list command that opens another page (Create Pair, Start Session, Study, Delete). In the
+    /// split view the list stays beside the create page or a session, which take no such command:
+    /// it first goes back to the list (as system Back does: the answered trials stay recorded),
+    /// then runs. <paramref name="keepCreate"/> leaves an open create page alone (Create Pair
+    /// while creating keeps the draft). Choosing a pair or a mode never leaves the page (the
+    /// presenter takes them on any page).
     /// </summary>
     private void FireFromList(Func<CancellationToken, Task<NativeMinimalPairsState>> action, bool keepCreate = false)
     {
@@ -174,14 +178,21 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         });
     }
 
-    /// <summary>Commands bypass the controller's busy gate so speech never disables Back; the presenter serializes them.</summary>
-    private void Fire(Func<CancellationToken, Task<NativeMinimalPairsState>> action) => _ = FireAsync(action);
+    /// <summary>
+    /// Commands bypass the controller's busy gate so speech never disables Back; the presenter
+    /// serializes them. <paramref name="redrawList"/> redraws the list page even when the state
+    /// did not change (a segmented control shows the tapped segment until it is redrawn).
+    /// </summary>
+    private void Fire(Func<CancellationToken, Task<NativeMinimalPairsState>> action, bool redrawList = false) =>
+        _ = FireAsync(action, redrawList);
 
-    private async Task FireAsync(Func<CancellationToken, Task<NativeMinimalPairsState>> action)
+    private async Task FireAsync(Func<CancellationToken, Task<NativeMinimalPairsState>> action, bool redrawList)
     {
         try
         {
             Apply(await action(_host.Lifetime));
+            if (redrawList)
+                _pageVersion++;
         }
         catch (OperationCanceledException) when (_host.Lifetime.IsCancellationRequested)
         {
@@ -214,7 +225,6 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         var state = _state;
         var list = state.List;
         var rows = new List<SwiftView>();
-        _shownCount = 0;
         if (state.Page == NativeMinimalPairsPage.List && !state.Notices.IsDefaultOrEmpty
             && Notices(state, style) is { } notices)
             rows.Add(notices);
@@ -234,7 +244,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
                     style.Text(Views.Text(text(NativeMinimalPairsText.NoPairs)), SourceTextRole.Body1,
                         SourceTextTone.Secondary),
                     style.PrimaryButton(text(NativeMinimalPairsText.CreateFirstPair),
-                            () => Fire(_presenter.OpenCreateAsync))
+                            () => FireFromList(_presenter.OpenCreateAsync, keepCreate: true))
                         .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreateFirstPair))
                 .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                 .WithPadding(24)
@@ -250,7 +260,6 @@ internal sealed class MinimalPairsScreen : IActivityScreen
                 rows.Add(Spinner(text(NativeMinimalPairsText.Delete))
                     .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Deleting));
             var shown = ShownPairs(list);
-            _shownCount = shown.Count;
             if (shown.Count == 0)
                 rows.Add(style.Text(Views.Text(text(NativeMinimalPairsText.NoResults)), SourceTextRole.Body1,
                         SourceTextTone.Secondary)
@@ -278,9 +287,21 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     public string SearchText => _search;
 
     /// <summary>"{n} pair(s)" under the title, following the search, once the list has loaded.</summary>
-    public string Subtitle => _state is { Phase: NativePhase.Ready, List: { IsLoading: false, IsEmpty: false } }
-        ? string.Format(CultureInfo.CurrentCulture, _host.Text(NativeMinimalPairsText.PairCount), _shownCount)
+    public string Subtitle => _state is { Phase: NativePhase.Ready, List: { IsLoading: false, IsEmpty: false } list }
+        ? string.Format(CultureInfo.CurrentCulture, _host.Text(NativeMinimalPairsText.PairCount), ShownCount(list))
         : string.Empty;
+
+    /// <summary>How many pairs the search shows, worked out once per list and search.</summary>
+    private int ShownCount(NativeMinimalPairsListState list)
+    {
+        if (!ReferenceEquals(_countedList, list) || !string.Equals(_countedSearch, _search, StringComparison.Ordinal))
+        {
+            _countedList = list;
+            _countedSearch = _search;
+            _shownCount = ShownPairs(list).Count;
+        }
+        return _shownCount;
+    }
 
     /// <summary>Typing narrows the pairs in the view; the presenter's state is not involved.</summary>
     private void OnSearch(string value)
@@ -309,8 +330,9 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         return Views.Picker(text(NativeMinimalPairsText.Mode),
                 [text(NativeMinimalPairsText.Focus), text(NativeMinimalPairsText.Mixed)],
                 list.Mode == NativeMinimalPairsMode.Focus ? 0 : 1,
-                index => FireFromList(token => _presenter.SetModeAsync(
-                    index == 0 ? NativeMinimalPairsMode.Focus : NativeMinimalPairsMode.Mixed, token)))
+                index => Fire(token => _presenter.SetModeAsync(
+                    index == 0 ? NativeMinimalPairsMode.Focus : NativeMinimalPairsMode.Mixed, token),
+                    redrawList: true))
             .WithPickerStyle(SwiftPickerStyle.Segmented)
             .WithAccessibilityIdentifier(NativeMinimalPairsAccess.ModeLabel);
     }
@@ -375,7 +397,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         content.Spacing = SourceUiLayout.ItemGap;
         var label = string.IsNullOrEmpty(pair.ContrastLabel)
             ? $"{pair.WordA} {vs} {pair.WordB}" : $"{pair.WordA} {vs} {pair.WordB}. {pair.ContrastLabel}";
-        var row = Views.Button(content, () => FireFromList(token => _presenter.SelectPairAsync(pair.Id, token)))
+        var row = Views.Button(content, () => Fire(token => _presenter.SelectPairAsync(pair.Id, token)))
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
             .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
@@ -390,6 +412,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             Views.Button(Views.Label(text(NativeMinimalPairsText.Delete), "trash"),
                     () => FireFromList(token => _presenter.RequestDeleteAsync(pair.Id, token)))
                 .WithTintColor(appearance.Danger.Light, appearance.Danger.Dark)
+                .WithAccessibilityLabel($"{text(NativeMinimalPairsText.Delete)} {label}")
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairDelete(pair.Id)),
         };
         var leading = new[]
@@ -397,6 +420,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             Views.Button(Views.Label(text(NativeMinimalPairsText.Study), "graduationcap"),
                     () => FireFromList(token => _presenter.StudyPairAsync(pair.Id, token)))
                 .WithTintColor(appearance.Primary.Light, appearance.Primary.Dark)
+                .WithAccessibilityLabel($"{text(NativeMinimalPairsText.Study)} {label}")
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairStudy(pair.Id)),
         };
         return Views.SwipeRow(row, trailing, leading)

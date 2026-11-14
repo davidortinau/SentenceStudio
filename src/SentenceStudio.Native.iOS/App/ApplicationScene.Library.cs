@@ -25,6 +25,7 @@ internal sealed partial class ApplicationScene
     private SwiftView? _pairsToastLayer;
     // The list page's overlay, which carries the title and the count under it.
     private SwiftView? _pairsPage;
+    private string _renderedPairsSubtitle = string.Empty;
     private SwiftView? _pairsChildSlot;
     private SwiftView? _pairsChildToastLayer;
     private long _renderedPairsVersion = -1;
@@ -391,6 +392,7 @@ internal sealed partial class ApplicationScene
                 .WithNavigationSubtitle(_app.LibraryPairsSubtitle)
                 .WithInlineNavigationTitle();
             _pairsPage = page;
+            _renderedPairsSubtitle = _app.LibraryPairsSubtitle;
             // A browse page: the list keeps the tab bar (its alert is wrapped around it once).
             stack.Push(ApplicationFormRoutes.MinimalPairs,
                 _app.PresentLibraryPairsOver(page).WithTabBarHidden(false));
@@ -409,7 +411,11 @@ internal sealed partial class ApplicationScene
                     reshaped, _app.LibraryPairsSearchText);
                 RecordPairs();
             }
-            _pairsPage?.WithNavigationSubtitle(_app.LibraryPairsSubtitle);
+            if (_pairsPage is not null && _renderedPairsSubtitle != _app.LibraryPairsSubtitle)
+            {
+                _renderedPairsSubtitle = _app.LibraryPairsSubtitle;
+                _pairsPage.WithNavigationSubtitle(_renderedPairsSubtitle);
+            }
         }
 
         if (_app.LibraryPairsHasChildPage)
