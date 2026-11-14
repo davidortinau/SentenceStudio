@@ -25,18 +25,24 @@ VAULT=dbkv-rsn72awybem6s
 PG=postgres:16
 STATE="$HOME/.sstudio-prod-db-access"
 # Newer az CLIs (2.92 on Lilliput) name the server --server-name and the rule --name; older
-# ones used --name for the server and --rule-name for the rule.
-# Read the help first: under pipefail, grep -q closing the pipe early could fail the test.
-FW_HELP=$(az postgres flexible-server firewall-rule list -h 2>/dev/null || true)
-if grep -q -- '--server-name' <<<"$FW_HELP"; then
-  FW_SERVER=(--server-name "$SERVER"); FW_RULE=--name
-else
-  FW_SERVER=(--name "$SERVER"); FW_RULE=--rule-name
-fi
+# ones used --name for the server and --rule-name for the rule. Read once, by the commands that
+# touch firewall rules; the help is read before grep, which under pipefail could fail the test.
+firewall_args() {
+  [ -n "${FW_RULE:-}" ] && return
+  local help
+  help=$(az postgres flexible-server firewall-rule list -h 2>/dev/null) \
+    || { echo "FAIL: cannot read az firewall-rule help; is az installed and signed in?"; exit 1; }
+  if grep -q -- '--server-name' <<<"$help"; then
+    FW_SERVER=(--server-name "$SERVER"); FW_RULE=--name
+  else
+    FW_SERVER=(--name "$SERVER"); FW_RULE=--rule-name
+  fi
+}
 LOCK_ARGS=(-n do-not-delete-postgres -g "$RG" --resource "$SERVER"
   --resource-type Microsoft.DBforPostgreSQL/flexibleServers --subscription "$S")
 
 status() {
+  firewall_args
   echo "## firewall rules"
   az postgres flexible-server firewall-rule list -g "$RG" "${FW_SERVER[@]}" --subscription "$S" \
     --query '[].name' -o tsv
@@ -45,6 +51,7 @@ status() {
 }
 
 open_access() {
+  firewall_args
   if [ -f "$STATE/rule" ]; then
     echo "STOP: access is already open (rule $(cat "$STATE/rule")); run close first"; exit 1
   fi
@@ -72,6 +79,7 @@ PY
 }
 
 close_access() {
+  firewall_args
   if [ -f "$STATE/rule" ]; then
     local rule; rule=$(cat "$STATE/rule")
     # The CanNotDelete lock also blocks deleting firewall rules: lift it, delete the rule,

@@ -184,6 +184,21 @@ public sealed class MauiOwnerCheckedSyncPostgresTests : IClassFixture<NativeOwne
         await using (var local = mac.OpenContext())
             Assert.Equal(0, await local.Database.SqlQueryRaw<int>(
                 "SELECT COUNT(*) AS \"Value\" FROM __CORE_SYNC_CT WHERE OP = 'D' AND SRC IS NULL").SingleAsync());
+
+        // An older build's echo: the install deletes a moved answer while its progress row stays.
+        // The server keeps it and sends it back, so the install has it again after one sync.
+        await using (var local = mac.OpenContext())
+        {
+            local.VocabularyLearningContexts.Remove(
+                await local.VocabularyLearningContexts.SingleAsync(context => context.Id == moved[0]));
+            await local.SaveChangesAsync();
+        }
+        await mac.SyncAsync(owner);
+        await using (var server = _fixture.NewContext())
+            Assert.True(await server.VocabularyLearningContexts.AnyAsync(context => context.Id == moved[0]));
+        await using (var local = mac.OpenContext())
+            Assert.Equal(keptProgress, (await local.VocabularyLearningContexts.AsNoTracking()
+                .SingleAsync(context => context.Id == moved[0])).VocabularyProgressId);
     }
 
     [ApplicationOperationPostgresFact]

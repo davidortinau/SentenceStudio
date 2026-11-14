@@ -12,7 +12,7 @@ internal sealed class BrowserPageUpdate
 {
     internal static readonly BrowserPageUpdate Vocabulary = new("native.vocabulary", headerKeep: 1);
 
-    /// <summary>The Resources header is its count alone, shown only while there are resources (source).</summary>
+    /// <summary>Resources: no results header (its wide results start with the first resource).</summary>
     internal static readonly BrowserPageUpdate Resources = new("native.resources", headerKeep: 0);
 
     /// <summary>Skills: its rows (and messages) are the list's children; no header.</summary>

@@ -112,6 +112,11 @@ LOCAL3_VERSION = "0.1.129-local3"
 PROVIDER_ID = "coresync.postgresql"
 PROVIDER_ARCHIVE = "CoreSync.PostgreSQL.0.1.129-local3.nupkg"
 PROVIDER_SHA256 = "c301f31bb4c7415242b545835230d566499f6805fd3bc74cd51098e10c0a05f9"
+# CoreSync.Sqlite 0.1.129 plus upstream 429c330 (B87): every client applies downloads with it.
+SQLITE_ID = "coresync.sqlite"
+SQLITE_VERSION = "0.1.129-local4"
+SQLITE_ARCHIVE = "CoreSync.Sqlite.0.1.129-local4.nupkg"
+SQLITE_SHA256 = "3bd49674c1fed083890f2ccb7077bc943fbb6b09eb7ff4dd31d4583ad9275564"
 MIN_FREE_BYTES = 512 * 1024 * 1024
 PACKAGE_CACHE_HEADROOM_BYTES = 3 * 1024 * 1024 * 1024
 COMMAND_TIMEOUT_SECONDS = 300
@@ -444,6 +449,18 @@ def validate_local3_feed(root: Path, sources: ET.Element, mapping: ET.Element) -
         raise GuardFailure("reviewed feed must contain only the CoreSync.PostgreSQL archive")
     if hashlib.sha256(package.read_bytes()).hexdigest() != PROVIDER_SHA256:
         raise GuardFailure(f"reviewed repo-local package {PROVIDER_ARCHIVE} has unexpected SHA-256")
+
+    sqlite_pins = [
+        item.get("Version") or "" for item in versions.iter("PackageVersion")
+        if item.get("Include", "").casefold() == SQLITE_ID
+    ]
+    if sqlite_pins == [f"[{SQLITE_VERSION}]"]:
+        archive = root / "lib/coresync" / SQLITE_ARCHIVE
+        if (not archive.is_file() or archive.is_symlink()
+                or hashlib.sha256(archive.read_bytes()).hexdigest() != SQLITE_SHA256):
+            raise GuardFailure(f"reviewed repo-local package {SQLITE_ARCHIVE} is missing or has unexpected SHA-256")
+    elif any("local" in pin.casefold() for pin in sqlite_pins):
+        raise GuardFailure(f"a local CoreSync.Sqlite must be the reviewed [{SQLITE_VERSION}]")
 
 
 def restore_environment(runtime: Path) -> dict[str, str]:
@@ -1143,6 +1160,14 @@ def inspect_assets(
                 raise GuardFailure(f"{project}: missing restored provider archive: {error}") from error
             if actual_sha != PROVIDER_SHA256:
                 raise GuardFailure(f"{project}: restored CoreSync.PostgreSQL SHA-256 differs")
+        if dependency.casefold() == f"{SQLITE_ID}/{SQLITE_VERSION}":
+            archive = packages / SQLITE_ID / SQLITE_VERSION / SQLITE_ARCHIVE.lower()
+            try:
+                actual_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+            except OSError as error:
+                raise GuardFailure(f"{project}: missing restored CoreSync.Sqlite archive: {error}") from error
+            if actual_sha != SQLITE_SHA256:
+                raise GuardFailure(f"{project}: restored CoreSync.Sqlite SHA-256 differs")
     if (project == root / "src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
             and ("net10.0" in targets or "net10.0/linux-x64" in targets)
             and (PROVIDER_ID not in resolved_ids or "coresync" not in resolved_ids)):

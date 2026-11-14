@@ -176,8 +176,9 @@ internal sealed partial class ApplicationScene
         var oldSearch = Find(current, BrowserPageUpdate.Vocabulary.SearchId);
         if (replaceAll || oldSearch is null || !BrowserPageUpdate.Vocabulary.TryUpdateInPlace(current, next))
         {
-            // Another layout (phone or wide, the filter column shown or hidden, loading or
-            // loaded): a new page, with focus handed to its search field.
+            // Another layout (phone or wide, the filter column shown or hidden, the wide page
+            // loading, the duplicate manager opened): a new page, with focus handed to its search
+            // field. One column keeps its List through loading, errors and no matches.
             var focused = oldSearch?.FocusRequested == true;
             Replace(_vocabularySlot, next);
             _vocabularySearch = Find(_vocabularySlot, BrowserPageUpdate.Vocabulary.SearchId);

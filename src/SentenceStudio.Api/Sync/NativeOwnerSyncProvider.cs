@@ -220,11 +220,14 @@ internal sealed class NativeOwnerSyncProvider(
             // The device removed these answers through its own cascade (a build without the
             // CoreSync.Sqlite fix) and uploaded their deletes; the server kept them. A server-origin
             // touch sends them back to it, and to any other device that lost them the same way.
+            // A no-op write (as TouchStoredWinnersAsync), of the owner's answers only.
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var now = DateTime.UtcNow;
-            await db.VocabularyLearningContexts.Where(context => keptAnswers.Contains(context.Id))
-                .ExecuteUpdateAsync(setters => setters.SetProperty(context => context.UpdatedAt, now), ct);
+            await db.VocabularyLearningContexts
+                .Where(context => keptAnswers.Contains(context.Id)
+                    && db.VocabularyProgresses.Any(progress => progress.Id == context.VocabularyProgressId
+                        && progress.UserId == owner))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(context => context.UpdatedAt, context => context.UpdatedAt), ct);
         }
 
         if (mergedProgress.Count > 0)
@@ -404,7 +407,7 @@ internal sealed class NativeOwnerSyncProvider(
                 break;
             writes = writes.Where(item => !unplaceable.Contains(item)).ToArray();
         }
-        var deletes = await OwnDeletesAsync(db, items, owner, logger, ct, keptAnswers);
+        var deletes = await OwnDeletesAsync(db, items, owner, logger, keptAnswers, ct);
 
         var kept = new HashSet<SyncItem>(writes.Concat(deletes), ReferenceEqualityComparer.Instance);
         var leftOut = items.Where(item => !kept.Contains(item)).ToArray();
@@ -431,7 +434,7 @@ internal sealed class NativeOwnerSyncProvider(
     /// <param name="keptAnswers">Receives the answers kept because their progress row stays.</param>
     internal static async Task<IReadOnlyList<SyncItem>> OwnDeletesAsync(
         ApplicationDbContext db, IReadOnlyList<SyncItem> items, string owner, ILogger logger,
-        CancellationToken ct, ICollection<string>? keptAnswers = null)
+        ICollection<string>? keptAnswers, CancellationToken ct)
     {
         var written = items.Where(item => item.ChangeType != ChangeType.Delete)
             .Select(item => (item.TableName, Value(item, "Id")))

@@ -106,11 +106,11 @@ public sealed class OwnerCheckedDeletesPostgresTests : IClassFixture<NativeOwner
         {
             var withProgress = await NativeOwnerSyncProvider.OwnDeletesAsync(db,
                 [Delete("VocabularyLearningContext", removedAnswer), Delete("VocabularyProgress", removed)],
-                owner, NullLogger.Instance, CancellationToken.None);
+                owner, NullLogger.Instance, null, CancellationToken.None);
             Assert.Contains(withProgress, item => Id(item) == removedAnswer);
             var echo = await NativeOwnerSyncProvider.OwnDeletesAsync(db,
                 [Delete("VocabularyProgress", Guid.NewGuid().ToString()), Delete("VocabularyLearningContext", keptAnswers[0])],
-                owner, NullLogger.Instance, CancellationToken.None);
+                owner, NullLogger.Instance, null, CancellationToken.None);
             Assert.DoesNotContain(echo, item => Id(item) == keptAnswers[0]);
         }
 
