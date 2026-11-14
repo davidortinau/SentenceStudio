@@ -315,9 +315,12 @@ public interface INativeResourceStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate resolution with AI is not available from this store.");
 
-    /// <summary>The owner's standing duplicate decisions, newest first, for the page's list.</summary>
+    /// <summary>
+    /// The owner's standing duplicate decisions, newest first, for the page's list (only
+    /// <paramref name="focusTerm"/>'s on a page focused on one word).
+    /// </summary>
     Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
-        string owner, CancellationToken cancellationToken) =>
+        string owner, string? focusTerm, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<NativeVocabularyDuplicateDecision>>([]);
 
     /// <summary>Undoes one of the owner's duplicate decisions.</summary>

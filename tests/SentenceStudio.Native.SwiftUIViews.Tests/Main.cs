@@ -337,6 +337,20 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(report, $"{second}.undo") is not null);
         Assert(AllText(Find(report, $"{review}.suggestion")!).Contains("Vocabulary_DuplicatesAiSuggestsMerge"));
 
+        // A copy left out of a three-copy group: Keep Apart waits until every copy is back in.
+        static NativeVocabularyDuplicateWord Yak(string id, string meaning) =>
+            new(id, "약", meaning, "Korean", LexicalUnitType.Word, 1, 1, "Basic", null, false, false);
+        var three = new NativeVocabularyDuplicateGroup("약", "약", [Yak("y-1", "approximately"), Yak("y-2", "medicine"),
+            Yak("y-3", "drug")], false, null, "y-1", VocabularyDuplicateRisk.Review, [VocabularyDuplicateDifference.Meaning]);
+        var threePanel = new VocabularyDuplicatePanel(false, "Duplicates", "Found", null, null, null, [three], 1, 2, [],
+            ReviewGroupCount: 1);
+        var threeId = VocabularyDuplicatesView.GroupId(three);
+        using var allIn = VocabularyDuplicatesView.Page(threePanel, style, key => key, actions);
+        Assert(Find(allIn, $"{threeId}.keepapart") is { IsEnabled: true });
+        using var oneOut = VocabularyDuplicatesView.Page(threePanel with { Excluded = new HashSet<string> { "y-3" } },
+            style, key => key, actions);
+        Assert(Find(oneOut, $"{threeId}.keepapart") is { IsEnabled: false });
+
         // Nothing to review, or a page focused on one word: no Resolve with AI.
         using var focused = VocabularyDuplicatesView.Page(panel with { FocusLabel = "병" }, style, key => key, actions);
         Assert(Find(focused, "native.vocabulary.duplicates.resolveai") is null);

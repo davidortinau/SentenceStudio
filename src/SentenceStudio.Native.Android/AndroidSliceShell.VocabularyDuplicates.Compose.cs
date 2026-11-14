@@ -422,7 +422,7 @@ internal sealed partial class AndroidSliceShell
                 Modifier.Weight(1f),
                 Action(Localize("Vocabulary_DuplicatesKeepApart"), $"{id}.keepapart",
                     () => RunMoreOnUi(() => vocabulary.KeepDuplicatesApartAsync(term)),
-                    !panel.Running && panel.Chosen(group).Count >= 2, primary: false),
+                    VocabularyDuplicatePanel.CanKeepApart(panel, group), primary: false),
             },
             new Box
             {

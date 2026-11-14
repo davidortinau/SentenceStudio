@@ -210,12 +210,12 @@ public sealed partial class NativeResourceStore
 
     /// <summary>The owner's standing duplicate decisions (shared GetStandingDuplicateDecisionsAsync).</summary>
     public async Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
-        string owner, CancellationToken cancellationToken)
+        string owner, string? focusTerm, CancellationToken cancellationToken)
     {
         if (!IsActiveOwner(owner))
             return [];
         var decisions = await WithResourcesAsync(resources =>
-            resources.GetStandingDuplicateDecisionsAsync(cancellationToken, owner));
+            resources.GetStandingDuplicateDecisionsAsync(cancellationToken, owner, focusTerm));
         return decisions.Select(decision => new NativeVocabularyDuplicateDecision(decision.Id, decision.Kind,
                 decision.DisplayTerm, decision.Meanings, decision.DecidedBy, decision.Reason))
             .ToArray();

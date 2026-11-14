@@ -47,6 +47,14 @@ internal sealed record VocabularyDuplicatePanel(
 
     internal IReadOnlyList<NativeVocabularyDuplicateDecision> DecisionList => Decisions ?? [];
 
+    /// <summary>
+    /// Keep Apart is offered: every copy of the group is in it (a kept-apart decision hides the
+    /// group only when it holds all of them; a copy left out has to be put back, or the group
+    /// skipped), and nothing is running.
+    /// </summary>
+    internal static bool CanKeepApart(VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group) =>
+        !panel.Running && panel.Chosen(group).Count == group.Words.Count;
+
     /// <summary>The AI's call on a group it left for the learner, or null.</summary>
     internal NativeVocabularyDuplicateAiSuggestion? SuggestionFor(NativeVocabularyDuplicateGroup group) =>
         AiSuggestions?.GetValueOrDefault(group.NormalizedTerm);
@@ -797,7 +805,7 @@ internal sealed class VocabularyDuplicateFinder
         if (_panel is not { Running: false } panel
             || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm
                 && group.Risk == VocabularyDuplicateRisk.Review) is not { } group
-            || panel.Chosen(group).Count < 2)
+            || !VocabularyDuplicatePanel.CanKeepApart(panel, group))
             return null;
         var generation = Volatile.Read(ref _generation);
         _panel = panel with { Running = true };
@@ -806,8 +814,8 @@ internal sealed class VocabularyDuplicateFinder
         VocabularyDuplicateMergeOutcome outcome;
         try
         {
-            // The copies chosen for the group (a copy left out of it is not decided on).
-            var ids = panel.Chosen(group).Select(word => word.Id).ToArray();
+            // Every copy of the group: a kept-apart decision hides the group only when it holds all.
+            var ids = group.Words.Select(word => word.Id).ToArray();
             var result = await _host.OffUiAsync(() =>
                 _store.KeepOwnedVocabularyDuplicatesApartAsync(owner, ids, cancellationToken));
             var message = result.Changed
@@ -937,10 +945,11 @@ internal sealed class VocabularyDuplicateFinder
         {
             var scan = await _host.OffUiAsync(() => _store.FindOwnedVocabularyDuplicatesAsync(
                 owner, label, skip, PageSize, cancellationToken));
-            // The page over every word lists the owner's standing decisions (each with Undo); a
-            // page focused on one word, and Show more, keep the list they have.
-            var decisions = !append && label is null
-                ? await _host.OffUiAsync(() => _store.GetOwnedVocabularyDuplicateDecisionsAsync(owner, cancellationToken))
+            // The owner's standing decisions, each with Undo (only the focused term's on a page
+            // focused on one word); Show more keeps the list it has.
+            var decisions = !append
+                ? await _host.OffUiAsync(() => _store.GetOwnedVocabularyDuplicateDecisionsAsync(owner, label,
+                    cancellationToken))
                 : null;
             if (generation != Volatile.Read(ref _generation) || _panel is not { } panel)
                 return;

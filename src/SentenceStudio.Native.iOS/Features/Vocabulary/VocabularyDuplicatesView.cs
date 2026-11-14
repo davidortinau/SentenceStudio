@@ -210,7 +210,7 @@ internal static class VocabularyDuplicatesView
         {
             var apart = NativeForm.Bordered(style, text("Vocabulary_DuplicatesKeepApart"),
                 () => keepApart(group.NormalizedTerm), $"{id}.keepapart");
-            apart.IsEnabled = !panel.Running && panel.Chosen(group).Count >= 2;
+            apart.IsEnabled = VocabularyDuplicatePanel.CanKeepApart(panel, group);
             groupButtons.Add(apart);
         }
         groupButtons.Add(skip);

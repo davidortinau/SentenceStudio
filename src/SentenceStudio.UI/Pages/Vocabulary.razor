@@ -486,6 +486,7 @@ else
                                         }
                                     </div>
                                     <button class="btn btn-sm btn-link vocabulary-duplicates-decision-undo" disabled="@isCleanupRunning"
+                                            id="@($"vocabulary-duplicates-decision-{Uri.EscapeDataString(decision.Id)}-undo")"
                                             aria-label="@($"{Localize["Vocabulary_DuplicatesUndo"]}, {decision.DisplayTerm}")"
                                             @onclick="() => UndoDuplicateDecision(decision)">
                                         <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesUndo"]
@@ -594,8 +595,9 @@ else
                                             @Localize["Vocabulary_DuplicatesMerge"]
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary me-2"
+                                                id="@($"vocabulary-duplicates-keepapart-{Uri.EscapeDataString(group.NormalizedTerm)}")"
                                                 @onclick="() => KeepDuplicateGroupApart(group)"
-                                                disabled="@(isCleanupRunning || ChosenDuplicateCopies(group).Count < 2)">
+                                                disabled="@(isCleanupRunning || ChosenDuplicateCopies(group).Count != group.Words.Count)">
                                             @Localize["Vocabulary_DuplicatesKeepApart"]
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary"
@@ -875,6 +877,7 @@ else
     // The learner's standing duplicate decisions (each with Undo), and the last Resolve with AI's
     // call on each group it left to review.
     private List<VocabularyDuplicateDecisionSummary> duplicateDecisions = new();
+    private readonly CancellationTokenSource pageLifetime = new();
     private Dictionary<string, VocabularyDuplicateAiCall> duplicateAiSuggestions = new(StringComparer.Ordinal);
     private List<string> cleanupResults = new();
     private string? duplicateFocusLabel;
@@ -1903,7 +1906,9 @@ else
             var cleanup = new VocabularyDuplicateAiCleanup(ResourceRepo, LoggerFactory.CreateLogger<VocabularyDuplicateAiCleanup>());
             var result = await cleanup.RunAsync(owner, profile?.NativeLanguage ?? "English", profile?.TargetLanguage ?? "Korean",
                 async (prompt, tier, ct) => await AiSvc.SendPrompt<SentenceStudio.Services.DTOs.DuplicateResolutionResponse>(prompt, ct, tier),
-                DuplicateLeftOut, DuplicateKeepers, default);
+                DuplicateLeftOut, DuplicateKeepers, pageLifetime.Token);
+            if (pageLifetime.IsCancellationRequested)
+                return;
             // The choices went with this pass; what is left starts from the scan's keepers.
             chosenDuplicateKeepers.Clear();
             if (result.Rules.RemovedCopies > 0)
@@ -1930,6 +1935,10 @@ else
             else
                 Toast.ShowSuccess(message);
         }
+        catch (OperationCanceledException) when (pageLifetime.IsCancellationRequested)
+        {
+            // The page went away; what was merged before is already saved.
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error resolving duplicates with AI");
@@ -1939,7 +1948,8 @@ else
         finally
         {
             isCleanupRunning = false;
-            StateHasChanged();
+            if (!pageLifetime.IsCancellationRequested)
+                StateHasChanged();
         }
     }
 
@@ -1982,15 +1992,15 @@ else
     /// <summary>Keep Apart: the group's copies mean different things; they stop showing.</summary>
     private async Task KeepDuplicateGroupApart(VocabularyDuplicateGroup group)
     {
-        if (isCleanupRunning)
+        // Every copy of the group: a kept-apart decision hides the group only when it holds all.
+        if (isCleanupRunning || ChosenDuplicateCopies(group).Count != group.Words.Count)
             return;
         isCleanupRunning = true;
         StateHasChanged();
         try
         {
-            // The copies chosen for the group (a copy left out of it is not decided on).
             var kept = await ResourceRepo.KeepDuplicatesApartAsync(
-                ChosenDuplicateCopies(group).Select(info => info.Word.Id).ToArray(),
+                group.Words.Select(info => info.Word.Id).ToArray(),
                 VocabularyDuplicateDecider.Learner, null, default, ActiveUserId);
             var message = kept ? string.Format(Localize["Vocabulary_DuplicatesKeptApart"], group.DisplayTerm)
                 : MergeRefusal(group.DisplayTerm, "Vocabulary_DuplicatesKeepApartFailed");
@@ -2527,9 +2537,11 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         duplicateSafeCopyCount = result.SafeCopyCount;
         duplicateReviewGroupCount = result.ReviewGroupCount;
         duplicateBlockedGroupCount = result.BlockedGroupCount;
-        // The panel over every word lists the standing decisions; a focused one, and Show more, keep theirs.
-        if (!append && string.IsNullOrWhiteSpace(duplicateFocusLabel))
-            duplicateDecisions = (await ResourceRepo.GetStandingDuplicateDecisionsAsync(default, ActiveUserId)).ToList();
+        // The standing decisions, each with Undo (only the focused term's on a panel focused on
+        // one word); Show more keeps the list it has.
+        if (!append)
+            duplicateDecisions = (await ResourceRepo.GetStandingDuplicateDecisionsAsync(default, ActiveUserId,
+                duplicateFocusLabel)).ToList();
 
         // Safe groups merge together and are not listed, so a count of the loaded ones would mislead.
         cleanupStatus = duplicateTotalGroupCount > 0
@@ -2560,5 +2572,8 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
     public void Dispose()
     {
         Localize.CultureChanged -= OnCultureChanged;
+        // Resolve with AI stops between batches and merges when the page goes away.
+        pageLifetime.Cancel();
+        pageLifetime.Dispose();
     }
 }

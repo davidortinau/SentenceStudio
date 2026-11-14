@@ -1970,14 +1970,11 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var keptApart = (await db.VocabularyDuplicateDecisions.AsNoTracking()
                 .Where(decision => decision.UserProfileId == userId
                     && decision.Kind == VocabularyDuplicateDecisionKind.KeptApart && decision.UndoneAt == null)
-                .Select(decision => new { decision.TermKey, decision.CopyIds })
                 .ToListAsync(ct))
-            .Select(decision => (decision.TermKey, Copies: decision.CopyIds
-                .Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal)))
-            .ToList();
+            .ToLookup(decision => decision.TermKey, decision => decision.CopyIdList.ToHashSet(StringComparer.Ordinal),
+                StringComparer.Ordinal);
         candidateGroups = candidateGroups
-            .Where(group => !keptApart.Any(decision => decision.TermKey == group.Key
-                && group.All(item => decision.Copies.Contains(item.Word.Id))))
+            .Where(group => !keptApart[group.Key].Any(copies => group.All(item => copies.Contains(item.Word.Id))))
             .ToList();
         if (candidateGroups.Count == 0)
             return [];

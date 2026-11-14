@@ -156,6 +156,19 @@ syncs once at the end.
 - Phase 4 done (`b3bbf761`), pending review and the running-app checks: Resolve with AI, the
   Done by AI list with Undo, the AI's suggestion on a group left for the learner, and Keep Apart
   on iOS (SwiftUI), Android (Compose) and web/MAUI (shared Razor).
+- Review fixes (`af9e6120`): partial groups stay undoable, Keep This is honoured, an unreachable
+  AI is an error, Undo keeps edits made since, the page lists stored decisions (newest first)
+  with Undo, Keep Apart takes the chosen copies.
+- Checked running (2026-11-14, iPad simulator "SS iPad" on the local API, test account
+  testsailor@test.local, real AI): Resolve with AI merged the 2 identical copies by the rules,
+  then merged 의자, 기억 (a copy labelled Japanese), 소리 ("sound; noise"), 아빠 ("dad;
+  father"), 어렵다 ("to be difficult"), kept 약 and 배 apart, and left 뭐 for the learner with
+  the suggestion "keep them apart as "what (question word)", "something (indefinite)"". Undo on
+  소리 put "sound" back on the kept word and brought "sound / noise" back as a new word; Keep
+  Apart on 뭐 recorded a learner decision; all 8 decisions reached the local server (the undone
+  one marked); after a restart the page listed the 7 standing decisions.
+- Not yet checked running: the web/MAUI page (the local stack's WebApp waits on an API health
+  check that fails on Lilliput's untrusted dev certificate) and Android (no emulator on Lilliput).
 - Before release: the API deploy (the AI allow-list entry and the decision table migration),
   then the app installs.
 

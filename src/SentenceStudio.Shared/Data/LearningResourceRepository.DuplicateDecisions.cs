@@ -42,10 +42,11 @@ public partial class LearningResourceRepository
     /// <summary>
     /// The learner's standing duplicate decisions, newest first (at most
     /// <see cref="DuplicateDecisionListSize"/>), as the duplicate page lists them with their Undo:
-    /// the term, and the meanings the copies have now (the kept word's for a merge).
+    /// the term, and the meanings the copies have now (the kept word's for a merge). A page
+    /// focused on one word (<paramref name="focusTerm"/>) lists only that term's.
     /// </summary>
     public async Task<IReadOnlyList<VocabularyDuplicateDecisionSummary>> GetStandingDuplicateDecisionsAsync(
-        CancellationToken ct = default, string? userProfileId = null)
+        CancellationToken ct = default, string? userProfileId = null, string? focusTerm = null)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
@@ -55,8 +56,10 @@ public partial class LearningResourceRepository
         }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var termKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm);
         var decisions = await db.VocabularyDuplicateDecisions.AsNoTracking()
             .Where(decision => decision.UserProfileId == userId && decision.UndoneAt == null)
+            .Where(decision => termKey.Length == 0 || decision.TermKey == termKey)
             .OrderByDescending(decision => decision.DecidedAt)
             .Take(DuplicateDecisionListSize)
             .ToListAsync(ct);
@@ -121,9 +124,7 @@ public partial class LearningResourceRepository
                 needsYou.Add(result);
                 continue;
             }
-            if (seen is null || !current.TryGetValue(call.GroupId, out var group)
-                || !group.Words.Select(info => info.Word.Id).Order(StringComparer.Ordinal)
-                    .SequenceEqual(seen.Copies.Select(copy => copy.Id).Order(StringComparer.Ordinal)))
+            if (seen is null || !current.TryGetValue(call.GroupId, out var group) || Changed(group, seen))
             {
                 refused.Add((seen?.Term ?? call.GroupId, "Vocabulary_DuplicatesChangedSinceAi"));
                 continue;
@@ -141,6 +142,19 @@ public partial class LearningResourceRepository
             "AI duplicate resolution: {Applied} groups applied ({Removed} copies removed), {NeedsYou} for the learner, {Refused} refused, cancelled {Cancelled}.",
             applied.Count, applied.Sum(item => item.RemovedCopies), needsYou.Count, refused.Count, ct.IsCancellationRequested);
         return new VocabularyDuplicateApplyResult(applied, needsYou, refused);
+    }
+
+    /// <summary>
+    /// The group is not as the AI saw it: a copy came or went, or a copy's meaning or language was
+    /// edited meanwhile (an AI pass can take minutes; its meaning must not replace the edit).
+    /// </summary>
+    private static bool Changed(VocabularyDuplicateGroup group, VocabularyDuplicateAiGroup seen)
+    {
+        static string Key(string id, string? meaning, string? language) =>
+            $"{id}\u001f{meaning?.Trim()}\u001f{language?.Trim()}";
+        return !group.Words.Select(info => Key(info.Word.Id, info.Word.NativeLanguageTerm, info.Word.Language))
+            .Order(StringComparer.Ordinal)
+            .SequenceEqual(seen.Copies.Select(copy => Key(copy.Id, copy.Meaning, copy.Language)).Order(StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -212,6 +226,9 @@ public partial class LearningResourceRepository
         // the learner chose one with Keep This.
         var order = group.Words.Select((info, index) => (info, index))
             .ToDictionary(item => item.info.Word.Id, item => item, StringComparer.Ordinal);
+        // A copy another learner's data uses is never rewritten: it stays as it is (no clarified
+        // meaning), but it is still one of the copies kept apart.
+        VocabularyDuplicateAiSet Unchanged(string id) => new([id], string.Empty, null);
         var remaining = new List<VocabularyDuplicateAiSet>();
         try
         {
@@ -220,7 +237,7 @@ public partial class LearningResourceRepository
                 ct.ThrowIfCancellationRequested();
                 if (set.CopyIds.Count < 2)
                 {
-                    remaining.Add(set);
+                    remaining.Add(order[set.CopyIds[0]].info.UsedByOthers ? Unchanged(set.CopyIds[0]) : set);
                     continue;
                 }
                 var copies = set.CopyIds.Select(id => order[id]).OrderBy(item => item.index).Select(item => item.info).ToList();
@@ -236,6 +253,9 @@ public partial class LearningResourceRepository
                 decisions.Add(decisionId);
                 removed += merged.Deleted;
                 remaining.Add(new VocabularyDuplicateAiSet([keeper.Word.Id], set.Meaning, set.Language));
+                // A copy the merge could not remove (another learner's data uses it) is still in
+                // the group, so it is one of the copies kept apart, as it is.
+                remaining.AddRange((await ExistingOwnedIdsAsync(userId, others, ct)).Select(Unchanged));
             }
             // What is left means different things: kept apart, each with its clarified meaning.
             if (remaining.Count > 1)
@@ -258,6 +278,17 @@ public partial class LearningResourceRepository
                 group.NormalizedTerm, decisions.Count);
             return Done("Vocabulary_MergeFailed");
         }
+    }
+
+    /// <summary>The learner's words among <paramref name="ids"/> that still exist.</summary>
+    private async Task<IReadOnlyList<string>> ExistingOwnedIdsAsync(string userId, IReadOnlyList<string> ids,
+        CancellationToken ct)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existing = await db.VocabularyWords.AsNoTracking().OwnedBy(userId).Where(word => ids.Contains(word.Id))
+            .Select(word => word.Id).ToListAsync(ct);
+        return ids.Where(existing.Contains).ToArray();
     }
 
     /// <summary>
@@ -499,7 +530,9 @@ public partial class LearningResourceRepository
         var removedIds = removed.Select(snapshot => snapshot.Id).ToArray();
         var stayed = await db.VocabularyWords.OwnedBy(userId).Where(word => removedIds.Contains(word.Id))
             .ToDictionaryAsync(word => word.Id, StringComparer.Ordinal, ct);
-        var ownResources = (await db.LearningResources.Where(resource => resource.UserProfileId == userId)
+        var snapshotResources = removed.SelectMany(snapshot => snapshot.ResourceIds).Distinct(StringComparer.Ordinal).ToArray();
+        var ownResources = (await db.LearningResources
+            .Where(resource => resource.UserProfileId == userId && snapshotResources.Contains(resource.Id))
             .Select(resource => resource.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         var restored = new List<(VocabularyWord Word, IReadOnlyList<string> Resources)>();
         foreach (var snapshot in removed)
@@ -521,12 +554,17 @@ public partial class LearningResourceRepository
         db.ResourceVocabularyMappings.RemoveRange(await db.ResourceVocabularyMappings
             .Where(mapping => mapping.VocabularyWordId == keeper.Id && moved.Contains(mapping.ResourceId))
             .ToListAsync(ct));
+        var restoredIds = restored.Select(item => item.Word.Id).ToArray();
+        var linked = (await db.ResourceVocabularyMappings.AsNoTracking()
+                .Where(mapping => restoredIds.Contains(mapping.VocabularyWordId))
+                .Select(mapping => new { mapping.VocabularyWordId, mapping.ResourceId })
+                .ToListAsync(ct))
+            .Select(mapping => (mapping.VocabularyWordId, mapping.ResourceId)).ToHashSet();
         foreach (var (word, resources) in restored)
         {
             foreach (var resource in resources.Where(ownResources.Contains))
             {
-                if (!await db.ResourceVocabularyMappings.AnyAsync(
-                        mapping => mapping.VocabularyWordId == word.Id && mapping.ResourceId == resource, ct))
+                if (linked.Add((word.Id, resource)))
                     db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
                     {
                         Id = Guid.NewGuid().ToString(), ResourceId = resource, VocabularyWordId = word.Id
