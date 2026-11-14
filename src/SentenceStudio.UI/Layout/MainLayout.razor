@@ -118,6 +118,7 @@
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private IJSObjectReference? jsModule;
+    private DotNetObjectReference<SentenceStudio.WebUI.Services.WebViewErrorReceiver>? webViewErrorReceiver;
     private bool sidebarCollapsed;
     private bool isOnboarding;
     private bool isAuthenticated;
@@ -271,6 +272,7 @@
     {
         if (firstRender)
         {
+            await AttachWebViewErrorsAsync();
             jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
 
             // On the web the appearance cookie is read synchronously during SSR, but this render
@@ -470,6 +472,28 @@
         catch (TaskCanceledException) { }
     }
 
+    /// <summary>
+    /// In a WebView host (MAUI) forwards unhandled JavaScript errors to the host's sink (#169).
+    /// The WebApp registers no sink, so nothing is attached there.
+    /// </summary>
+    private async Task AttachWebViewErrorsAsync()
+    {
+        if (ServiceProvider.GetService<SentenceStudio.Abstractions.IWebViewErrorSink>() is not { } sink)
+            return;
+        try
+        {
+            webViewErrorReceiver = DotNetObjectReference.Create(
+                new SentenceStudio.WebUI.Services.WebViewErrorReceiver(sink));
+            await JS.InvokeVoidAsync("ssWebViewErrors.attach", webViewErrorReceiver);
+        }
+        catch (JSException ex)
+        {
+            // The host page did not load webview-errors.js; the layout still works without it.
+            ServiceProvider.GetService<ILogger<MainLayout>>()?.LogWarning(ex,
+                "WebView error capture is unavailable; the host page lacks webview-errors.js");
+        }
+    }
+
     public void Dispose()
     {
         // Set before unsubscribing: a handler already executing on another thread observes this
@@ -485,6 +509,7 @@
         CoachBoundary.Crossed -= OnCoachAccountCrossed;
         SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
         jsModule?.DisposeAsync();
+        webViewErrorReceiver?.Dispose();
     }
 
     private void OnCultureChanged() => RequestRender();
