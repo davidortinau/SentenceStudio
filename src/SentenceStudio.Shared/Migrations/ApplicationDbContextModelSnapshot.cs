@@ -1985,6 +1985,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("IanaTimeZoneId")
                         .HasColumnType("text");
 
+                    b.Property<string>("LearningMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("LearnerLed");
+
                     b.Property<string>("Name")
                         .HasColumnType("text");
 

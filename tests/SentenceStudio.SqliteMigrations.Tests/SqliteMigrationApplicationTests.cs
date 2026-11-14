@@ -25,6 +25,7 @@ public sealed class SqliteMigrationApplicationTests
     private const string Phase3Migration = "20261103230000_SyncOwnersPhase3";
     private const string LookupMigration = "20261104153858_AddVocabularyLookup";
     private const string DuplicateDecisionMigration = "20261114203658_AddVocabularyDuplicateDecision";
+    private const string LearningModeMigration = "20261114233928_AddUserProfileLearningMode";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -803,7 +804,7 @@ public sealed class SqliteMigrationApplicationTests
         await using (var upgraded = CreateContext(scratch.ConnectionString))
         {
             await upgraded.Database.MigrateAsync();
-            Assert.Equal(DuplicateDecisionMigration, (await upgraded.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Contains(DuplicateDecisionMigration, await upgraded.Database.GetAppliedMigrationsAsync());
             Assert.False(upgraded.Database.HasPendingModelChanges());
             Assert.Equal(1, await upgraded.VocabularyLookups.CountAsync());
             upgraded.VocabularyDuplicateDecisions.Add(new VocabularyDuplicateDecision
@@ -848,6 +849,52 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Equal("1", await Scalar("SELECT count(*) FROM \"VocabularyLookup\""));
         Assert.Equal(LookupMigration, await Scalar(
             "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
+    }
+
+    /// <summary>
+    /// Learning mode (docs/known-words-plan.md, Captain 2026-11-14): one profile column. Up keeps
+    /// every profile and gives it Learner-led, the mode round-trips as its name, and Down drops
+    /// only the column.
+    /// </summary>
+    [Fact]
+    public async Task AddUserProfileLearningMode_DefaultsExistingProfilesToLearnerLed_AndStoresTheName()
+    {
+        using var scratch = new ScratchDatabase();
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(DuplicateDecisionMigration);
+            await previous.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"UserProfile\" (\"Id\", \"Name\", \"NativeLanguage\", \"TargetLanguage\", \"PreferredSessionMinutes\", \"VocabQuizShowTextWithPhoto\", \"CreatedAt\") VALUES ('owner-a', 'A', 'English', 'Korean', 20, 0, '2026-11-01 00:00:00')");
+        }
+
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.Equal(LearningModeMigration, (await upgraded.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+            var profile = await upgraded.UserProfiles.SingleAsync();
+            Assert.Equal(LearningMode.LearnerLed, profile.LearningMode);
+            profile.LearningMode = LearningMode.PracticeLed;
+            upgraded.UserProfiles.Add(new UserProfile { Id = "owner-b", Name = "B", CreatedAt = DateTime.UtcNow });
+            await upgraded.SaveChangesAsync();
+        }
+
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("PracticeLed", await Scalar("SELECT \"LearningMode\" FROM \"UserProfile\" WHERE \"Id\" = 'owner-a'"));
+        Assert.Equal("LearnerLed", await Scalar("SELECT \"LearningMode\" FROM \"UserProfile\" WHERE \"Id\" = 'owner-b'"));
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(DuplicateDecisionMigration);
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM pragma_table_info('UserProfile') WHERE name = 'LearningMode'"));
+        Assert.Equal("2", await Scalar("SELECT count(*) FROM \"UserProfile\""));
     }
 
     private static ApplicationDbContext CreateContext(string connectionString) =>

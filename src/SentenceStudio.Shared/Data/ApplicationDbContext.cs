@@ -96,6 +96,9 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         modelBuilder.Entity<UserProfile>().ToTable("UserProfile").HasKey(e => e.Id);
         modelBuilder.Entity<UserProfile>().Property(e => e.Id).ValueGeneratedNever();
+        // The Learning mode is stored as its name, so every client reads it (docs/known-words-plan.md).
+        modelBuilder.Entity<UserProfile>().Property(e => e.LearningMode)
+            .HasConversion<string>().HasDefaultValue(LearningMode.LearnerLed);
         
         modelBuilder.Entity<Challenge>().ToTable("Challenge").HasKey(e => e.Id);
         modelBuilder.Entity<Challenge>().Property(e => e.Id).ValueGeneratedNever();

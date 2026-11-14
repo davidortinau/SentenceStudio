@@ -1525,6 +1525,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<string>("Email")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LearningMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("LearnerLed");
+
                     b.Property<string>("Name")
                         .HasColumnType("TEXT");
 
