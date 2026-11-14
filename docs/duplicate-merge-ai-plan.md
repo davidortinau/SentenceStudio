@@ -169,8 +169,11 @@ syncs once at the end.
   one marked); after a restart the page listed the 7 standing decisions.
 - Not yet checked running: the web/MAUI page (the local stack's WebApp waits on an API health
   check that fails on Lilliput's untrusted dev certificate) and Android (no emulator on Lilliput).
-- Before release: the API deploy (the AI allow-list entry and the decision table migration),
-  then the app installs.
+- Shipped 2026-11-14 (`6e234a35`, after a second review's fixes): production backup verified
+  (71 of 71 tables; VocabularyWord 4697, VocabularyProgress 2563, UserProfile 24), `main`
+  fast-forwarded, `azd deploy` to api--0000041 / webapp--0000036 (the live API reports
+  migration `20261114203658_AddVocabularyDuplicateDecision`), native and MAUI apps installed on
+  Duotopia; the native database there migrated (4,028 words, no decisions yet).
 
 ## Phases
 
