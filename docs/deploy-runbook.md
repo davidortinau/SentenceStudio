@@ -992,6 +992,12 @@ services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainer
   -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64
 ```
 
+> **Signing on a Mac that also holds `MaxProWildDev`** (Lilliput): automatic selection picks that
+> wildcard, which lacks the app-groups entitlement (MT7140). Set `CodesignProvision` per project
+> (the app to `SentenceStudioiOS`, the share extension to `SentenceStudioShareExtension`, by UUID
+> when stale copies share the name) in local, git-ignored `.csproj.user` files: one command-line
+> property would give both projects the same profile. See `docs/handoff-lilliput.md`.
+
 > The committed `src/SentenceStudio.AppLib/appsettings.Production.json` already points
 > `Services:api`/`Services:web` at the westus3 URLs, so Release device builds resolve the
 > correct API even without the env var. Passing `services__api__https__0` at build time is

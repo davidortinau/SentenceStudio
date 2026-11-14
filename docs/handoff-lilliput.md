@@ -163,6 +163,22 @@ The Workers project has an ID but no secrets file.
 - **Git:** one branch at a time from `native-platform-heads`, merged before switching. Push only
   after the Captain approves. Never rewrite history, force-push, amend or use a bare `git stash`.
 
+- **Deploys and MAUI signing (2026-11-14).** The azd environment (`.azure/sstudio-prod-biz`,
+  with `config.json` deploy parameters) was copied from the old machine into the main checkout and
+  the worktree; `az`'s default subscription is the production one. The first production deploy
+  from Lilliput (`scripts/prod-deploy.sh deploy`, `ecd922b7`) passed. `scripts/prod-db-access.sh`
+  handles az 2.92's firewall-rule parameters (`--server-name`, `--name`). The MAUI profiles
+  `SentenceStudioiOS` / `SentenceStudioShareExtension` were regenerated with Lilliput's
+  certificate; the old ones with the same names are still installed, and automatic selection
+  otherwise picks `MaxProWildDev` (no app groups, MT7140). Local git-ignored
+  `src/SentenceStudio.iOS/SentenceStudio.iOS.csproj.user` and
+  `src/SentenceStudio.ShareExtension/SentenceStudio.ShareExtension.csproj.user` set
+  `CodesignProvision` to the new profiles' UUIDs for Release. The Android SDK platform 37 is not
+  installed, so Shared's `net11.0-android` target does not build here.
+- **Restores outside `src/`:** projects under `tests/` and `tools/` restore through their own
+  NuGet configs, which name api.nuget.org; on Lilliput pass a mirror config that also lists
+  `lib/coresync` and `lib/coresync-postgresql-local3` (`--configfile`).
+
 ## Tooling notes that cost time before
 
 - **Simulators:** iPhone 18 Pro Max simulators (iOS 27.0) ignore mobile-canvas taps on text
@@ -183,15 +199,20 @@ The Workers project has an ID but no secrets file.
 
 ## State of the work
 
-- **Done:** the native forms pass (departures 84-93), the Library split view, native lists for
-  Resources, Vocabulary and Skills. See `docs/native-port-departures.md`.
-- **Next:** the Minimal Pairs native list (plan in `docs/handoff-2026-11-13-forms-pass.md`), then
-  `docs/native-review-backlog.md` and the open backports in `docs/native-port-backports.md`.
-- **Tests:** iOS contract tests 469/471 (two long-standing failures:
+- **Done (on `main`, `ecd922b7`, 2026-11-14):** the native forms pass, the Library split view,
+  native lists for Resources, Vocabulary, Skills and Minimal Pairs (departure 94), the search
+  keyboard fix (95), the progress count repair and the sync cascade-echo fix (B87,
+  `docs/progress-count-repair-2026-11-13.md`). API deployed; Duotopia has the native app and the
+  MAUI app (1.1.0 (3)).
+- **Next:** DX24 and any other MAUI installs need builds with CoreSync.Sqlite 0.1.129-local4; no
+  duplicate merges until then. Then the duplicate-merge keeper fix (먹다: the recommended keeper is
+  linked from the ownerless Starter Vocabulary resource, so the merge refuses), and
+  `docs/native-review-backlog.md`.
+- **Tests:** iOS contract tests 472/474 (two long-standing failures:
   `SourceButtons_KeepNativeHit...`, `SamPresentationUsesOnlyTheSwiftUIFacade`). The SwiftUIViews
-  harness (a macOS app run by hand) is killed at launch with "Code Signature Invalid" (backlog).
-- **Waiting on the Captain:** merging `library-split-view`; a Duotopia install of the forms pass;
-  the Korean wording of new strings (listed in `docs/handoff-2026-11-13-remaining-work.md`).
+  harness runs here (27/29; two Word editor cases fail, backlog).
+- **Waiting on the Captain:** the Korean wording of new strings (listed in
+  `docs/handoff-2026-11-13-remaining-work.md`).
 
 ## Local-only work not yet on GitHub
 

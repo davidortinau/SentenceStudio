@@ -90,10 +90,14 @@ the answers still existed on the server (the merge had re-parented them), so onl
   and the MAUI install holds 4 cascade deletes to upload; with both fixes off the PostgreSQL tests
   keep 0 of 2 moved answers.
 
+**Shipped (2026-11-14).** `main` at `ecd922b7`; API deployed (api--0000036, post-deploy
+validation 17 pass, 0 fail); Duotopia runs the native build `04cd3ce1` (app code equal to
+`ecd922b7` but for two comments) and the MAUI app 1.1.0 (3), both with CoreSync.Sqlite 0.1.129.4.
+
 **Open.**
-- Until the API is deployed and every app updated, a device that still holds pre-merge copies can
-  repeat the loss when it next syncs (DX24, a MAUI or Mac app): answers are protected by the server
-  guard once deployed, moved example sentences, minimal pairs and phrase links are not. No
+- Until every app is updated, a device that still holds pre-merge copies can
+  repeat the loss when it next syncs (DX24, a MAUI or Mac app): answers are protected by the
+  deployed server guard, moved example sentences, minimal pairs and phrase links are not. No
   duplicate merges until all of them are updated.
 - A download applies the duplicate's delete before the updates that move its children, so the
   device removes the moved rows and relies on CoreSync's forced write to put them back. In the
