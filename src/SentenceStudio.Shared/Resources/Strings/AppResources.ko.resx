@@ -10069,4 +10069,55 @@
   <data name="Vocabulary_DuplicatesNoHistory" xml:space="preserve">
     <value>아직 연습하지 않음</value>
   </data>
+  <data name="Vocabulary_DuplicatesResolveWithAi" xml:space="preserve">
+    <value>AI로 정리</value>
+  </data>
+  <data name="Vocabulary_DuplicatesResolvingWithAi" xml:space="preserve">
+    <value>AI가 같은 뜻의 사본인지 확인하는 중...</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSummary" xml:space="preserve">
+    <value>AI 병합: {0}개. 따로 유지: {1}개. 제거한 사본: {2}개. 직접 결정할 항목: {3}개</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiReport" xml:space="preserve">
+    <value>AI가 처리한 항목</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiMerged" xml:space="preserve">
+    <value>{0}: "{1}"(으)로 병합</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiKeptApart" xml:space="preserve">
+    <value>{0}: {1}(으)로 따로 유지</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiMixed" xml:space="preserve">
+    <value>{0}: 병합 후 {1}(으)로 따로 유지</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndo" xml:space="preserve">
+    <value>되돌리기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndone" xml:space="preserve">
+    <value>되돌림: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndoFailed" xml:space="preserve">
+    <value>되돌리지 못함: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMerge" xml:space="preserve">
+    <value>AI 제안: "{0}"(으)로 병합. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsApart" xml:space="preserve">
+    <value>AI 제안: {0}(으)로 따로 유지. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMixed" xml:space="preserve">
+    <value>AI 제안: {0}. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnsure" xml:space="preserve">
+    <value>AI가 이 항목을 판단하지 못했습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApart" xml:space="preserve">
+    <value>따로 유지</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeptApart" xml:space="preserve">
+    <value>따로 유지함: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChangedSinceAi" xml:space="preserve">
+    <value>AI가 판단하는 동안 바뀌었습니다. 다시 확인하세요.</value>
+  </data>
 </root>

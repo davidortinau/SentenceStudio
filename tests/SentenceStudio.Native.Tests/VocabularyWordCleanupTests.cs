@@ -11,6 +11,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Native.Features.Settings;
 using SentenceStudio.Native.Features.Vocabulary;
 using SentenceStudio.Services;
+using SentenceStudio.Services.DTOs;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Tests;
@@ -565,6 +566,108 @@ public sealed class VocabularyWordCleanupTests
             .AsNoTracking().Where(word => word.Id == wordId)
             .Select(word => word.Language).SingleAsync();
     }
+
+    // docs/duplicate-merge-ai-plan.md (Captain 2026-11-14: "I shouldn't have to make most of
+    // these decisions"): Resolve with AI merges what the AI is sure means the same, keeps sure
+    // homonyms apart, leaves the unsure for the learner with its suggestion, and each can be undone.
+    [Fact]
+    public async Task ResolveWithAi_AppliesSureCalls_SuggestsTheRest_AndUndoBringsAGroupBack()
+    {
+        using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
+        await fixture.SeedAsync(UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "sori-1", "소리", "sound", 1);
+            AddWord(db, fixture, UserA, "sori-2", "소리", "sound / noise", 2);
+            AddWord(db, fixture, UserA, "dal-1", "달", "month", 3);
+            AddWord(db, fixture, UserA, "dal-2", "달", "moon", 4);
+            AddWord(db, fixture, UserA, "mwo-1", "뭐", "what", 5);
+            AddWord(db, fixture, UserA, "mwo-2", "뭐", "something", 6);
+            await db.SaveChangesAsync();
+        }
+        // Answers by term, whatever alias order the prompt used.
+        fixture.ResourceAi.DuplicateResponder = prompt =>
+        {
+            var groups = JsonGroups(prompt);
+            return new DuplicateResolutionResponse
+            {
+                Groups = groups.Select(group => group.Term switch
+                {
+                    "소리" => Decision(group.Id, "SameWord", 0.95, ("sound; noise", group.Copies.Keys.ToArray())),
+                    "달" => Decision(group.Id, "DifferentWords", 0.95,
+                        ("month", [group.Alias("month")]), ("moon (in the sky)", [group.Alias("moon")])),
+                    _ => Decision(group.Id, "DifferentWords", 0.6,
+                        ("what", [group.Alias("what")]), ("something", [group.Alias("something")])),
+                }).ToList()
+            };
+        };
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenAllDuplicatesAsync();
+        Assert.True(browser.ListState.Duplicates!.CanResolveWithAi);
+
+        await browser.ResolveDuplicatesWithAiAsync();
+
+        var panel = browser.ListState.Duplicates!;
+        Assert.False(panel.Running);
+        Assert.Equal("Vocabulary_DuplicatesAiSummary", browser.ListState.Feedback);
+        Assert.Equal(2, panel.AiReport.Count);
+        Assert.Equal(["소리", "달"], panel.AiReport.Select(item => item.Applied.DisplayTerm).Order().Reverse());
+        var mwo = Assert.Single(panel.ReviewGroups);
+        Assert.Equal("뭐", mwo.DisplayTerm);
+        var suggestion = panel.SuggestionFor(mwo)!;
+        Assert.Equal(VocabularyDuplicateAiVerdict.DifferentWords, suggestion.Verdict);
+        Assert.Equal("Vocabulary_DuplicatesAiSuggestsApart",
+            VocabularyDuplicateFinder.AiSuggestionText(suggestion, key => key));
+        Assert.Equal(1, (await RowsAsync(fixture, "sori-1")).Words + (await RowsAsync(fixture, "sori-2")).Words);
+        Assert.Equal("moon (in the sky)", await MeaningAsync(fixture, "dal-2"));
+
+        // Undo 달: the meanings go back and the group is shown again.
+        var dal = panel.AiReport.Select((item, index) => (item, index)).Single(entry => entry.item.Applied.DisplayTerm == "달").index;
+        await browser.UndoAiDuplicatesAsync(dal);
+        var undone = browser.ListState.Duplicates!;
+        Assert.True(undone.AiReport[dal].Undone);
+        Assert.Equal("Vocabulary_DuplicatesUndone", browser.ListState.Feedback);
+        Assert.Equal("moon", await MeaningAsync(fixture, "dal-2"));
+        Assert.Contains(undone.ReviewGroups, group => group.DisplayTerm == "달");
+
+        // Keep Apart on 뭐 (the learner agrees with the suggestion): it leaves the page.
+        await browser.KeepDuplicatesApartAsync(mwo.NormalizedTerm);
+        Assert.Equal("Vocabulary_DuplicatesKeptApart", browser.ListState.Feedback);
+        Assert.DoesNotContain(browser.ListState.Duplicates!.ReviewGroups, group => group.DisplayTerm == "뭐");
+        Assert.Contains("\"term\":\"뭐\"", fixture.ResourceAi.LastPrompt);
+        Assert.Equal(UserA, fixture.ResourceAi.LastOwner);
+    }
+
+    private static async Task<string?> MeaningAsync(NativeSliceFixture fixture, string wordId)
+    {
+        using var scope = fixture.Scope();
+        return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyWords
+            .AsNoTracking().Where(word => word.Id == wordId).Select(word => word.NativeLanguageTerm).SingleAsync();
+    }
+
+    /// <summary>The prompt's groups: alias, term and each copy's alias with its meaning.</summary>
+    private static IReadOnlyList<PromptGroup> JsonGroups(string prompt)
+    {
+        using var json = System.Text.Json.JsonDocument.Parse(prompt[(prompt.IndexOf("GROUPS:", StringComparison.Ordinal) + 7)..]);
+        return json.RootElement.EnumerateArray().Select(group => new PromptGroup(group.GetProperty("id").GetString()!,
+                group.GetProperty("term").GetString()!,
+                group.GetProperty("copies").EnumerateArray().ToDictionary(copy => copy.GetProperty("id").GetString()!,
+                    copy => copy.GetProperty("meaning").GetString()!)))
+            .ToArray();
+    }
+
+    private sealed record PromptGroup(string Id, string Term, IReadOnlyDictionary<string, string> Copies)
+    {
+        internal string Alias(string meaning) => Copies.Single(copy => copy.Value == meaning).Key;
+    }
+
+    private static DuplicateGroupDecision Decision(string id, string verdict, double confidence,
+        params (string Meaning, string[] Copies)[] sets) =>
+        new() { GroupId = id, Verdict = verdict, Confidence = confidence, Reason = "test",
+            Sets = sets.Select(set => new DuplicateWordSet { Meaning = set.Meaning, CopyIds = set.Copies.ToList() }).ToList() };
 
     // Captain 2026-11-14: "I almost always do all of them at once with no review." Clean Up
     // Duplicates merges every safe group in one step, keeps a copy another learner uses (its

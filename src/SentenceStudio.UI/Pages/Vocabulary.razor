@@ -461,7 +461,48 @@ else
                         {
                             <p class="mb-2" id="vocabulary-duplicates-summary">@Localize["Vocabulary_DuplicatesNothingSafe"]</p>
                         }
+                        @* docs/duplicate-merge-ai-plan.md: the AI judges the groups to review. *@
+                        @if (CanResolveDuplicatesWithAi)
+                        {
+                            <button class="btn @(DuplicateMergeAllCopyCount > 0 ? "btn-outline-primary ms-2" : "btn-primary") btn-sm"
+                                    id="vocabulary-duplicates-resolve-ai" @onclick="ResolveDuplicatesWithAi">
+                                <i class="bi bi-stars me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesResolveWithAi"]
+                            </button>
+                        }
                     </div>
+
+                    @if (duplicateAiReport.Count > 0)
+                    {
+                        <h6 class="mt-3 mb-1">@Localize["Vocabulary_DuplicatesAiReport"]</h6>
+                        <div class="list-group mb-3" id="vocabulary-duplicates-ai-report">
+                            @for (var index = 0; index < duplicateAiReport.Count; index++)
+                            {
+                                var at = index;
+                                var (applied, undone) = duplicateAiReport[index];
+                                <div class="list-group-item d-flex justify-content-between align-items-start gap-2" id="vocabulary-duplicates-ai-@at">
+                                    <div>
+                                        <div>@VocabularyDuplicateAiText.Applied(applied.Verdict, applied.DisplayTerm, applied.Meanings, key => Localize[key])</div>
+                                        @if (undone)
+                                        {
+                                            <div class="small text-secondary-ss">@string.Format(Localize["Vocabulary_DuplicatesUndone"], applied.DisplayTerm)</div>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(applied.Reason))
+                                        {
+                                            <div class="small text-secondary-ss">@applied.Reason</div>
+                                        }
+                                    </div>
+                                    @if (!undone)
+                                    {
+                                        <button class="btn btn-sm btn-link" id="vocabulary-duplicates-ai-@at-undo" disabled="@isCleanupRunning"
+                                                aria-label="@($"{Localize["Vocabulary_DuplicatesUndo"]}, {applied.DisplayTerm}")"
+                                                @onclick="() => UndoAiDuplicate(at)">
+                                            <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesUndo"]
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
 
                     @if (!isCleanupRunning && duplicateGroups.Count == 0)
                     {
@@ -494,6 +535,13 @@ else
                                         <div class="small fw-semibold text-warning-emphasis mt-1">
                                             <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>@DuplicateDifferences(group)
                                         </div>
+                                        @if (duplicateAiSuggestions.TryGetValue(group.NormalizedTerm, out var suggestion))
+                                        {
+                                            <div class="small text-secondary-ss mt-1 vocabulary-duplicates-suggestion">
+                                                <i class="bi bi-stars me-1" aria-hidden="true"></i>@(VocabularyDuplicateAiText.Suggestion(suggestion.Usable,
+                                                    suggestion.Verdict, suggestion.Sets.Select(set => set.Meaning).ToArray(), suggestion.Reason, key => Localize[key]))
+                                            </div>
+                                        }
                                         @{ var keeperId = DuplicateKeeperOf(group); var choice = VocabularyDuplicatePolicy.OffersChoice(group.Words.Count); }
                                         @if (choice)
                                         {
@@ -553,6 +601,10 @@ else
                                                 @onclick="() => MergeDuplicateGroup(group)"
                                                 disabled="@(isCleanupRunning || ChosenDuplicateCopies(group).Count < 2)">
                                             @Localize["Vocabulary_DuplicatesMerge"]
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary me-2"
+                                                @onclick="() => KeepDuplicateGroupApart(group)" disabled="@isCleanupRunning">
+                                            @Localize["Vocabulary_DuplicatesKeepApart"]
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary"
                                                 @onclick="() => SkipDuplicateGroup(group)" disabled="@isCleanupRunning">
@@ -750,6 +802,8 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Vocabulary> Logger { get; set; } = default!;
     [Inject] private AiService AiSvc { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     // Passed to every owner-scoped call (AGENTS.md: always pass the active user ID).
@@ -826,6 +880,9 @@ else
     private int cleanupProgress;
     private int cleanupTotal;
     private List<VocabularyDuplicateGroup> duplicateGroups = new();
+    // The last Resolve with AI: what it did (with Undo) and its call on each group left to review.
+    private List<(VocabularyDuplicateApplied Applied, bool Undone)> duplicateAiReport = new();
+    private Dictionary<string, VocabularyDuplicateAiCall> duplicateAiSuggestions = new(StringComparer.Ordinal);
     private List<string> cleanupResults = new();
     private string? duplicateFocusLabel;
     private string? duplicateFocusNormalizedTerm;
@@ -1669,6 +1726,8 @@ else
         skippedDuplicateTerms.Clear();
         excludedDuplicateWordIds.Clear();
         chosenDuplicateKeepers.Clear();
+        duplicateAiReport.Clear();
+        duplicateAiSuggestions.Clear();
         cleanupTotal = 0;
         cleanupProgress = 0;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
@@ -1826,6 +1885,142 @@ else
     /// <summary>Skip: the review group leaves the panel until it is opened again; nothing changes.</summary>
     private void SkipDuplicateGroup(VocabularyDuplicateGroup group) =>
         skippedDuplicateTerms.Add(group.NormalizedTerm);
+
+    /// <summary>Resolve with AI is offered: groups wait for review on the panel over every word.</summary>
+    private bool CanResolveDuplicatesWithAi => !isCleanupRunning
+        && string.IsNullOrWhiteSpace(duplicateFocusLabel) && duplicateReviewGroupCount > 0;
+
+    /// <summary>
+    /// Resolve with AI (docs/duplicate-merge-ai-plan.md, Captain 2026-11-14: "I shouldn't have to
+    /// make most of these decisions"): the safe merges, then the AI's confident calls apply, each
+    /// with its Undo; the groups it was not sure of stay with its suggestion.
+    /// </summary>
+    private async Task ResolveDuplicatesWithAi()
+    {
+        if (!CanResolveDuplicatesWithAi)
+            return;
+        isCleanupRunning = true;
+        cleanupStatus = Localize["Vocabulary_DuplicatesResolvingWithAi"];
+        cleanupResults.Clear();
+        StateHasChanged();
+        try
+        {
+            var owner = ActiveUserId;
+            var profile = await ProfileRepo.GetByIdAsync(owner);
+            var cleanup = new VocabularyDuplicateAiCleanup(ResourceRepo, LoggerFactory.CreateLogger<VocabularyDuplicateAiCleanup>());
+            var result = await cleanup.RunAsync(owner, profile?.NativeLanguage ?? "English", profile?.TargetLanguage ?? "Korean",
+                async (prompt, tier, ct) => await AiSvc.SendPrompt<SentenceStudio.Services.DTOs.DuplicateResolutionResponse>(prompt, ct, tier),
+                DuplicateLeftOut, default);
+            chosenDuplicateKeepers.Clear();
+            if (result.Rules.RemovedCopies > 0)
+                cleanupResults.Add(string.Format(Localize["Vocabulary_DuplicatesMergedAll"], result.Rules.RemovedCopies));
+            var message = string.Format(Localize["Vocabulary_DuplicatesAiSummary"], result.Ai.MergedGroups,
+                result.Ai.KeptApartGroups, result.Rules.RemovedCopies + result.Ai.RemovedCopies, result.Ai.NeedsYou.Count);
+            cleanupResults.Add(message);
+            foreach (var (term, key) in result.Rules.Refused.Concat(result.Ai.Refused))
+                cleanupResults.Add(MergeRefusal(term, key));
+            duplicateAiReport = result.Ai.Applied.Select(applied => (applied, false)).ToList();
+            duplicateAiSuggestions = result.Ai.NeedsYou.GroupBy(open => open.Call.GroupId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().Call, StringComparer.Ordinal);
+            if (result.Rules.MergedGroups > 0 || result.Ai.Applied.Count > 0)
+            {
+                CacheService.InvalidateVocabSummary();
+                await LoadData();
+            }
+            await LoadDuplicateGroupsAsync(append: false);
+            if (result.Rules.Refused.Count + result.Ai.Refused.Count > 0)
+                Toast.ShowWarning(message);
+            else
+                Toast.ShowSuccess(message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error resolving duplicates with AI");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_CleanupError"], ex.Message));
+            await ReloadAfterFailedMergeAsync();
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Undo one group the AI resolved: its decisions, the last one first.</summary>
+    private async Task UndoAiDuplicate(int index)
+    {
+        if (isCleanupRunning || index < 0 || index >= duplicateAiReport.Count || duplicateAiReport[index].Undone)
+            return;
+        var (applied, _) = duplicateAiReport[index];
+        isCleanupRunning = true;
+        StateHasChanged();
+        try
+        {
+            var undone = 0;
+            foreach (var id in applied.DecisionIds.Reverse())
+                if (await ResourceRepo.UndoDuplicateDecisionAsync(id, default, ActiveUserId))
+                    undone++;
+            var message = string.Format(Localize[undone == applied.DecisionIds.Count
+                ? "Vocabulary_DuplicatesUndone" : "Vocabulary_DuplicatesUndoFailed"], applied.DisplayTerm);
+            cleanupResults.Add(message);
+            if (undone > 0)
+            {
+                duplicateAiReport[index] = (applied, true);
+                CacheService.InvalidateVocabSummary();
+                await LoadData();
+                await LoadDuplicateGroupsAsync(append: false);
+            }
+            if (undone == applied.DecisionIds.Count)
+                Toast.ShowSuccess(message);
+            else
+                Toast.ShowWarning(message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error undoing an AI duplicate decision");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_CleanupError"], ex.Message));
+            await ReloadAfterFailedMergeAsync();
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Keep Apart: the group's copies mean different things; they stop showing.</summary>
+    private async Task KeepDuplicateGroupApart(VocabularyDuplicateGroup group)
+    {
+        if (isCleanupRunning)
+            return;
+        isCleanupRunning = true;
+        StateHasChanged();
+        try
+        {
+            var kept = await ResourceRepo.KeepDuplicatesApartAsync(group.Words.Select(info => info.Word.Id).ToArray(),
+                VocabularyDuplicateDecider.Learner, null, default, ActiveUserId);
+            var message = kept ? string.Format(Localize["Vocabulary_DuplicatesKeptApart"], group.DisplayTerm)
+                : MergeRefusal(group.DisplayTerm, "Vocabulary_MergeRefusedNotYours");
+            cleanupResults.Add(message);
+            if (kept)
+            {
+                await LoadDuplicateGroupsAsync(append: false);
+                Toast.ShowSuccess(message);
+            }
+            else
+                Toast.ShowWarning(message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error keeping duplicates apart");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_CleanupError"], ex.Message));
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
+    }
 
     /// <summary>
     /// Merge all (Captain 2026-11-14: "I almost always do all of them at once with no review"):

@@ -179,6 +179,8 @@ internal sealed partial class AndroidSliceShell
         {
             new("summary", () => VocabularyDuplicatesSummary(vocabulary, panel, palette)),
         };
+        if (panel.AiReport.Count > 0)
+            rows.Add(new("ai", () => VocabularyDuplicatesAiReport(vocabulary, panel, palette)));
         var review = panel.ReviewGroups;
         if (review.Count > 0)
         {
@@ -258,11 +260,67 @@ internal sealed partial class AndroidSliceShell
         else if (!panel.Running && panel.Groups.Count > 0)
             items.Add(Body(Localize("Vocabulary_DuplicatesNothingSafe"), palette,
                 modifier: Modifier.TestTag("native.vocabulary.duplicates.summary")));
+        // Resolve with AI (docs/duplicate-merge-ai-plan.md): primary unless Merge all already is.
+        if (panel.CanResolveWithAi)
+            items.Add(Action(Localize("Vocabulary_DuplicatesResolveWithAi"),
+                "native.vocabulary.duplicates.resolveai",
+                () => RunMoreOnUi(vocabulary.ResolveDuplicatesWithAiAsync), true, primary: !panel.CanMergeAll));
         if (!panel.Running)
             for (var index = 0; index < panel.Results.Count; index++)
                 items.Add(StatusAlert(panel.Results[index], palette,
                     automationId: $"native.vocabulary.duplicates.result.{index}"));
         return Card(palette, "native.vocabulary.duplicates.top", items.ToArray());
+    }
+
+    /// <summary>
+    /// What the last Resolve with AI did: one row per group (what it decided and why) with its
+    /// Undo; an undone row says so instead.
+    /// </summary>
+    private ComposableNode VocabularyDuplicatesAiReport(VocabularyBrowser vocabulary,
+        VocabularyDuplicatePanel panel, AndroidVisualPalette palette)
+    {
+        var items = new List<ComposableNode>
+        {
+            Heading(Localize("Vocabulary_DuplicatesAiReport"), palette, 18,
+                Modifier.Semantics(semantics => semantics.Heading())),
+        };
+        for (var index = 0; index < panel.AiReport.Count; index++)
+        {
+            var item = panel.AiReport[index];
+            var id = $"native.vocabulary.duplicates.ai.{index}";
+            var lines = new Column(Arrangement.SpacedBy(2))
+            {
+                Modifier.Weight(1f),
+                Body(VocabularyDuplicateFinder.AiAppliedText(item.Applied, Localize), palette,
+                    modifier: Modifier.TestTag($"{id}.text")),
+            };
+            if (item.Undone)
+                lines.Add(Caption(string.Format(CultureInfo.CurrentCulture, Localize("Vocabulary_DuplicatesUndone"),
+                    item.Applied.DisplayTerm), palette, $"{id}.undone"));
+            else if (!string.IsNullOrWhiteSpace(item.Applied.Reason))
+                lines.Add(Caption(item.Applied.Reason, palette, $"{id}.reason"));
+            var row = new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth(),
+                lines,
+            };
+            if (!item.Undone)
+            {
+                var at = index;
+                var label = Localize("Vocabulary_DuplicatesUndo");
+                var undo = new TextButton(() => RunMoreOnUi(() => vocabulary.UndoAiDuplicatesAsync(at)),
+                    enabled: !panel.Running)
+                {
+                    Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                        .TestTag($"{id}.undo")
+                        .Semantics(semantics => semantics.ContentDescription($"{label}, {item.Applied.DisplayTerm}")),
+                };
+                undo.Add(new Text(label) { Color = palette.Primary });
+                row.Add(undo);
+            }
+            items.Add(row);
+        }
+        return Card(palette, "native.vocabulary.duplicates.ai", items.ToArray());
     }
 
     /// <summary>
@@ -295,6 +353,14 @@ internal sealed partial class AndroidSliceShell
             },
         };
         var term = group.NormalizedTerm;
+        // The AI's call on a group it was not sure of: the learner decides.
+        if (panel.SuggestionFor(group) is { } suggestion)
+            column.Add(new Row(Arrangement.SpacedBy(6), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().TestTag($"{id}.suggestion"),
+                new Icon(Icons.Default.Info, null) { Modifier = Modifier.Size(18), Tint = palette.Primary },
+                Caption(VocabularyDuplicateFinder.AiSuggestionText(suggestion, Localize), palette),
+            });
         var choice = VocabularyDuplicatePanel.OffersChoice(group);
         if (choice)
             column.Add(Caption(Localize("Vocabulary_DuplicatesChooseHint"), palette, $"{id}.hint"));
@@ -358,6 +424,13 @@ internal sealed partial class AndroidSliceShell
                 Action(Localize("Vocabulary_DuplicatesMerge"), $"{id}.merge",
                     () => RunMoreOnUi(() => vocabulary.MergeDuplicatesAsync(term)),
                     !panel.Running && panel.Chosen(group).Count >= 2, primary: false),
+            },
+            new Box
+            {
+                Modifier.Weight(1f),
+                Action(Localize("Vocabulary_DuplicatesKeepApart"), $"{id}.keepapart",
+                    () => RunMoreOnUi(() => vocabulary.KeepDuplicatesApartAsync(term)), !panel.Running,
+                    primary: false),
             },
             new Box
             {

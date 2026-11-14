@@ -283,6 +283,27 @@ public class VocabularyDuplicateResolverTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    [Fact]
+    public void Report_and_suggestion_text_quote_the_meanings_and_say_when_the_AI_could_not_decide()
+    {
+        string Text(string key) => key switch
+        {
+            "Vocabulary_DuplicatesAiMerged" => "{0}: merged as \"{1}\"",
+            "Vocabulary_DuplicatesAiKeptApart" => "{0}: kept apart as {1}",
+            "Vocabulary_DuplicatesAiSuggestsMerge" => "AI suggests merging as \"{0}\". {1}",
+            _ => key,
+        };
+
+        VocabularyDuplicateAiText.Applied(VocabularyDuplicateAiVerdict.SameWord, "소리", ["sound; noise"], Text)
+            .Should().Be("소리: merged as \"sound; noise\"");
+        VocabularyDuplicateAiText.Applied(VocabularyDuplicateAiVerdict.DifferentWords, "달", ["month", "moon"], Text)
+            .Should().Be("달: kept apart as \"month\", \"moon\"");
+        VocabularyDuplicateAiText.Suggestion(true, VocabularyDuplicateAiVerdict.SameWord, ["dad; father"], "synonyms", Text)
+            .Should().Be("AI suggests merging as \"dad; father\". synonyms");
+        VocabularyDuplicateAiText.Suggestion(false, VocabularyDuplicateAiVerdict.SameWord, [], "", Text)
+            .Should().Be("Vocabulary_DuplicatesAiUnsure");
+    }
+
     // The contract every client builds the same way (docs/sync-all-tables-plan.md, "Duplicate
     // decisions"); the vectors were computed independently with Python's hashlib.
     [Fact]

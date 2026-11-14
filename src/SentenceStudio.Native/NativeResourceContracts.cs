@@ -304,6 +304,25 @@ public interface INativeResourceStore
         IReadOnlyCollection<string> keepers, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate merge is not available from this store.");
 
+    /// <summary>
+    /// Resolve with AI for the active owner (shared VocabularyDuplicateAiCleanup): the safe
+    /// merges, then the AI on the groups left to review, never one holding a copy in
+    /// <paramref name="leaveOut"/>; its confident calls apply, the rest come back as suggestions.
+    /// </summary>
+    Task<NativeVocabularyDuplicateAiResult> ResolveOwnedVocabularyDuplicatesWithAiAsync(
+        string owner, IReadOnlyCollection<string> leaveOut, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate resolution with AI is not available from this store.");
+
+    /// <summary>Undoes the owner's duplicate decisions, the last one first (one group's Undo).</summary>
+    Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionsAsync(
+        string owner, IReadOnlyList<string> decisionIds, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate undo is not available from this store.");
+
+    /// <summary>Keep Apart: the owner's copies of one term stop showing as duplicates.</summary>
+    Task<NativeVocabularyMergeResult> KeepOwnedVocabularyDuplicatesApartAsync(
+        string owner, IReadOnlyCollection<string> wordIds, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Keeping duplicates apart is not available from this store.");
+
     Task<IReadOnlyList<NativeResourceItem>> ListAsync(
         string owner, CancellationToken cancellationToken);
 

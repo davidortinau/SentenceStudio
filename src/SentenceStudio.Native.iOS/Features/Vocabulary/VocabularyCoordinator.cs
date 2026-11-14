@@ -62,7 +62,10 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     Skip: SkipDuplicates,
                     ToggleCopy: ToggleDuplicateCopy,
                     EditCopy: EditDuplicateCopy,
-                    ChooseKeeper: ChooseDuplicateKeeper))
+                    ChooseKeeper: ChooseDuplicateKeeper,
+                    ResolveWithAi: () => Run(ResolveDuplicatesWithAiAsync),
+                    UndoAi: index => Run(() => UndoAiDuplicatesAsync(index)),
+                    KeepApart: term => Run(() => KeepDuplicatesApartAsync(term))))
             : Microsoft.SwiftUI.SwiftUI.Text(Text("Common_Loading"));
 
     /// <summary>The person's Back left the duplicate page.</summary>

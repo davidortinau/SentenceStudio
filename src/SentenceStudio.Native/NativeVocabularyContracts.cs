@@ -159,6 +159,36 @@ public sealed record NativeVocabularyMergeAllResult(
 }
 
 /// <summary>
+/// "Resolve with AI" for the active owner (docs/duplicate-merge-ai-plan.md): what the rules merged,
+/// the groups the AI applied (each undoable), the calls left for the learner and the refusals.
+/// </summary>
+public sealed record NativeVocabularyDuplicateAiResult(
+    int RulesRemovedCopies,
+    IReadOnlyList<NativeVocabularyDuplicateAiApplied> Applied,
+    IReadOnlyList<NativeVocabularyDuplicateAiSuggestion> NeedsYou,
+    IReadOnlyList<NativeVocabularyMergeRefusal> Refused,
+    bool SyncUnconfirmed)
+{
+    public static NativeVocabularyDuplicateAiResult None { get; } = new(0, [], [], [], false);
+}
+
+/// <summary>
+/// A group the AI resolved: merged (<see cref="Meanings"/> holds the kept meaning) or kept apart
+/// (one clarified meaning per copy); <see cref="DecisionIds"/> undo it.
+/// </summary>
+public sealed record NativeVocabularyDuplicateAiApplied(
+    string DisplayTerm, SentenceStudio.Services.VocabularyDuplicateAiVerdict Verdict, IReadOnlyList<string> Meanings,
+    IReadOnlyList<string> DecisionIds, int RemovedCopies, string Reason);
+
+/// <summary>
+/// The AI's call on a group it was not sure of, shown on the group for the learner to decide.
+/// Not <see cref="Usable"/> when the AI gave no answer that passed the checks.
+/// </summary>
+public sealed record NativeVocabularyDuplicateAiSuggestion(
+    string NormalizedTerm, bool Usable, SentenceStudio.Services.VocabularyDuplicateAiVerdict Verdict,
+    IReadOnlyList<string> Meanings, string Reason);
+
+/// <summary>
 /// One copy in a duplicate group (source VocabularyDuplicateWordInfo): always one of the
 /// owner's own words, shown with its memory aids.
 /// </summary>

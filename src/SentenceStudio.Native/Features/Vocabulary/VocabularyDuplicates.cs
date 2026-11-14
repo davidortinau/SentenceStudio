@@ -23,6 +23,8 @@ namespace SentenceStudio.Native.Features.Vocabulary;
 /// <param name="Skipped">Review groups the learner skipped while the page is open.</param>
 /// <param name="Excluded">Copies the learner left out of their group's Merge (while the page is open).</param>
 /// <param name="ChosenKeepers">The copy the learner chose to keep, by group term (Keep This).</param>
+/// <param name="AiApplied">What the last Resolve with AI did, each with its Undo.</param>
+/// <param name="AiSuggestions">The AI's call on each group it left for the learner, by group term.</param>
 internal sealed record VocabularyDuplicatePanel(
     bool Running, string Title, string Status,
     string? FocusLabel, string? FocusNormalizedTerm, string? FocusedWordId,
@@ -33,8 +35,22 @@ internal sealed record VocabularyDuplicatePanel(
     int ReviewGroupCount = 0, int BlockedGroupCount = 0,
     IReadOnlySet<string>? Skipped = null,
     IReadOnlySet<string>? Excluded = null,
-    IReadOnlyDictionary<string, string>? ChosenKeepers = null)
+    IReadOnlyDictionary<string, string>? ChosenKeepers = null,
+    IReadOnlyList<VocabularyDuplicateAiReportItem>? AiApplied = null,
+    IReadOnlyDictionary<string, NativeVocabularyDuplicateAiSuggestion>? AiSuggestions = null)
 {
+    /// <summary>
+    /// Resolve with AI is offered (docs/duplicate-merge-ai-plan.md): groups wait for review on the
+    /// page over all of the owner's words, and nothing is running.
+    /// </summary>
+    internal bool CanResolveWithAi => !Running && !IsFocusedScan && ReviewGroupCount > 0;
+
+    internal IReadOnlyList<VocabularyDuplicateAiReportItem> AiReport => AiApplied ?? [];
+
+    /// <summary>The AI's call on a group it left for the learner, or null.</summary>
+    internal NativeVocabularyDuplicateAiSuggestion? SuggestionFor(NativeVocabularyDuplicateGroup group) =>
+        AiSuggestions?.GetValueOrDefault(group.NormalizedTerm);
+
     /// <summary>The copy is chosen for its group's Merge (Captain 2026-11-14: "merge some ... but not all").</summary>
     internal bool IsIncluded(NativeVocabularyDuplicateWord word) => Excluded?.Contains(word.Id) != true;
 
@@ -105,6 +121,9 @@ internal sealed record VocabularyDuplicatePanel(
         !string.IsNullOrWhiteSpace(FocusNormalizedTerm)
         && group.NormalizedTerm == FocusNormalizedTerm;
 }
+
+/// <summary>A group the AI resolved, and whether the learner undid it.</summary>
+internal sealed record VocabularyDuplicateAiReportItem(NativeVocabularyDuplicateAiApplied Applied, bool Undone);
 
 /// <summary>What a merge did, for the list feedback (source toasts).</summary>
 internal sealed record VocabularyDuplicateMergeOutcome(
@@ -260,6 +279,33 @@ internal sealed class VocabularyWordCleanup
         if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
             return;
         var outcome = await _duplicates.MergeAllAsync(owner, _host.Lifetime);
+        await ReportMergeAsync(outcome);
+    }
+
+    /// <summary>Resolve with AI: the rules, then the AI's confident calls, then the list reloads.</summary>
+    internal async Task ResolveDuplicatesWithAiAsync()
+    {
+        if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        var outcome = await _duplicates.ResolveWithAiAsync(owner, _host.Lifetime);
+        await ReportMergeAsync(outcome);
+    }
+
+    /// <summary>Undo one group the AI resolved, then the list reloads.</summary>
+    internal async Task UndoAiDuplicatesAsync(int index)
+    {
+        if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        var outcome = await _duplicates.UndoAiAsync(owner, index, _host.Lifetime);
+        await ReportMergeAsync(outcome);
+    }
+
+    /// <summary>Keep Apart: the group's copies stop showing as duplicates.</summary>
+    internal async Task KeepDuplicatesApartAsync(string normalizedTerm)
+    {
+        if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        var outcome = await _duplicates.KeepApartAsync(owner, normalizedTerm, _host.Lifetime);
         await ReportMergeAsync(outcome);
     }
 
@@ -647,6 +693,161 @@ internal sealed class VocabularyDuplicateFinder
         await LoadAsync(owner, append: false, results, cancellationToken);
         return outcome;
     }
+
+    /// <summary>
+    /// Resolve with AI (docs/duplicate-merge-ai-plan.md, Captain 2026-11-14: "I shouldn't have to
+    /// make most of these decisions"): the safe merges, then the AI's confident calls apply, each
+    /// with its Undo; the groups it was not sure of stay with its suggestion. Then scans again.
+    /// </summary>
+    internal async Task<VocabularyDuplicateMergeOutcome?> ResolveWithAiAsync(
+        string owner, CancellationToken cancellationToken)
+    {
+        if (_panel is not { } panel || !panel.CanResolveWithAi)
+            return null;
+        var generation = Volatile.Read(ref _generation);
+        _panel = panel with { Running = true, Status = _text("Vocabulary_DuplicatesResolvingWithAi"),
+            ChosenKeepers = null };
+        Changed();
+        var results = panel.Results.ToList();
+        VocabularyDuplicateMergeOutcome outcome;
+        IReadOnlyList<VocabularyDuplicateAiReportItem>? report = panel.AiApplied;
+        IReadOnlyDictionary<string, NativeVocabularyDuplicateAiSuggestion>? suggestions = panel.AiSuggestions;
+        try
+        {
+            var leftOut = panel.LeftOut;
+            var resolved = await _host.OffUiAsync(() =>
+                _store.ResolveOwnedVocabularyDuplicatesWithAiAsync(owner, leftOut, cancellationToken));
+            if (resolved.RulesRemovedCopies > 0)
+                results.Add(Format("Vocabulary_DuplicatesMergedAll", resolved.RulesRemovedCopies));
+            var message = Format("Vocabulary_DuplicatesAiSummary",
+                resolved.Applied.Count(applied => applied.Verdict != VocabularyDuplicateAiVerdict.DifferentWords),
+                resolved.Applied.Count(applied => applied.Verdict == VocabularyDuplicateAiVerdict.DifferentWords),
+                resolved.RulesRemovedCopies + resolved.Applied.Sum(applied => applied.RemovedCopies),
+                resolved.NeedsYou.Count);
+            results.Add(message);
+            results.AddRange(resolved.Refused.Select(refusal => Refusal(refusal.DisplayTerm, refusal.RefusalKey)));
+            report = resolved.Applied.Select(applied => new VocabularyDuplicateAiReportItem(applied, false)).ToArray();
+            suggestions = resolved.NeedsYou.GroupBy(open => open.NormalizedTerm, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var changed = resolved.RulesRemovedCopies > 0 || resolved.Applied.Count > 0;
+            outcome = resolved.SyncUnconfirmed
+                ? new(true, $"{message} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                : new(changed, message, Warning: resolved.Refused.Count > 0);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native duplicate resolution with AI failed.");
+            var message = Format("Vocabulary_CleanupError", ex.Message);
+            results.Add(message);
+            // The safe merges may have run before the failure: the list reloads to show them.
+            outcome = new(true, message, Warning: true);
+        }
+        if (generation != Volatile.Read(ref _generation) || _panel is not { } current)
+            return outcome;
+        _panel = current with { AiApplied = report, AiSuggestions = suggestions };
+        await LoadAsync(owner, append: false, results, cancellationToken);
+        return outcome;
+    }
+
+    /// <summary>Undo one group the AI resolved: its decisions are undone, then the page scans again.</summary>
+    internal async Task<VocabularyDuplicateMergeOutcome?> UndoAiAsync(
+        string owner, int index, CancellationToken cancellationToken)
+    {
+        if (_panel is not { Running: false } panel || index < 0 || index >= panel.AiReport.Count
+            || panel.AiReport[index] is not { Undone: false } item)
+            return null;
+        var generation = Volatile.Read(ref _generation);
+        _panel = panel with { Running = true };
+        Changed();
+        var results = panel.Results.ToList();
+        VocabularyDuplicateMergeOutcome outcome;
+        var undone = false;
+        try
+        {
+            var result = await _host.OffUiAsync(() => _store.UndoOwnedVocabularyDuplicateDecisionsAsync(
+                owner, item.Applied.DecisionIds, cancellationToken));
+            undone = result.Changed;
+            var message = Format(result.Changed && result.RefusalKey is null
+                ? "Vocabulary_DuplicatesUndone" : "Vocabulary_DuplicatesUndoFailed", item.Applied.DisplayTerm);
+            results.Add(message);
+            outcome = result.SyncUnconfirmed
+                ? new(true, $"{message} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                : new(result.Changed, message, Warning: !result.Changed || result.RefusalKey is not null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native duplicate undo failed.");
+            var message = Format("Vocabulary_CleanupError", ex.Message);
+            results.Add(message);
+            outcome = new(true, message, Warning: true);
+        }
+        if (generation != Volatile.Read(ref _generation) || _panel is not { } current)
+            return outcome;
+        if (undone && current.AiApplied is { } report && index < report.Count)
+            _panel = current with { AiApplied = report.Select((entry, at) => at == index ? entry with { Undone = true } : entry).ToArray() };
+        await LoadAsync(owner, append: false, results, cancellationToken);
+        return outcome;
+    }
+
+    /// <summary>Keep Apart: the review group's copies mean different things; they stop showing.</summary>
+    internal async Task<VocabularyDuplicateMergeOutcome?> KeepApartAsync(
+        string owner, string normalizedTerm, CancellationToken cancellationToken)
+    {
+        if (_panel is not { Running: false } panel
+            || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm
+                && group.Risk == VocabularyDuplicateRisk.Review) is not { } group)
+            return null;
+        var generation = Volatile.Read(ref _generation);
+        _panel = panel with { Running = true };
+        Changed();
+        var results = panel.Results.ToList();
+        VocabularyDuplicateMergeOutcome outcome;
+        try
+        {
+            var ids = group.Words.Select(word => word.Id).ToArray();
+            var result = await _host.OffUiAsync(() =>
+                _store.KeepOwnedVocabularyDuplicatesApartAsync(owner, ids, cancellationToken));
+            var message = result.Changed
+                ? Format("Vocabulary_DuplicatesKeptApart", group.DisplayTerm)
+                : Refusal(group.DisplayTerm, result.RefusalKey);
+            results.Add(message);
+            outcome = result.SyncUnconfirmed
+                ? new(true, $"{message} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                : new(result.Changed, message, Warning: !result.Changed);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native keep duplicates apart failed.");
+            var message = Format("Vocabulary_CleanupError", ex.Message);
+            results.Add(message);
+            outcome = new(false, message, Warning: true);
+        }
+        if (generation != Volatile.Read(ref _generation) || _panel is null)
+            return outcome;
+        await LoadAsync(owner, append: false, results, cancellationToken);
+        return outcome;
+    }
+
+    /// <summary>What the AI did with one group, for its report row (shared wording).</summary>
+    internal static string AiAppliedText(NativeVocabularyDuplicateAiApplied applied, Func<string, string> text) =>
+        VocabularyDuplicateAiText.Applied(applied.Verdict, applied.DisplayTerm, applied.Meanings, text);
+
+    /// <summary>The AI's suggestion on a group left for the learner (shared wording).</summary>
+    internal static string AiSuggestionText(NativeVocabularyDuplicateAiSuggestion suggestion, Func<string, string> text) =>
+        VocabularyDuplicateAiText.Suggestion(suggestion.Usable, suggestion.Verdict, suggestion.Meanings,
+            suggestion.Reason, text);
 
     /// <summary>
     /// A copy goes into, or is left out of, its group's Merge (a review group of three or more:

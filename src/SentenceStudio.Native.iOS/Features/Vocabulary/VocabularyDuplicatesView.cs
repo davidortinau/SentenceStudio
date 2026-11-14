@@ -9,10 +9,14 @@ namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 /// <param name="ToggleCopy">A copy (term, word ID) goes into, or out of, its group's Merge.</param>
 /// <param name="EditCopy">Opens a copy (word ID) in the word editor, above the page.</param>
 /// <param name="ChooseKeeper">Keep This: the copy (term, word ID) the group's Merge keeps.</param>
+/// <param name="ResolveWithAi">Resolve with AI (docs/duplicate-merge-ai-plan.md).</param>
+/// <param name="UndoAi">Undo one group the AI resolved (its index in the report).</param>
+/// <param name="KeepApart">Keep Apart: a review group's copies (by term) stop showing.</param>
 internal sealed record VocabularyDuplicateActions(
     Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip,
     Action<string, string>? ToggleCopy = null, Action<string>? EditCopy = null,
-    Action<string, string>? ChooseKeeper = null);
+    Action<string, string>? ChooseKeeper = null, Action? ResolveWithAi = null,
+    Action<int>? UndoAi = null, Action<string>? KeepApart = null);
 
 /// <summary>
 /// The duplicate page (docs/duplicate-merge-plan.md), pushed beside the Vocabulary list (the
@@ -35,6 +39,8 @@ internal static class VocabularyDuplicatesView
         Func<string, string> text, VocabularyDuplicateActions actions)
     {
         var sections = new List<SwiftView> { Summary(panel, style, text, actions) };
+        if (panel.AiReport.Count > 0)
+            sections.Add(AiReport(panel, style, text, actions));
         var review = panel.ReviewGroups;
         if (review.Count > 0)
         {
@@ -91,11 +97,64 @@ internal static class VocabularyDuplicatesView
                     SourceTextRole.Body1)
                 .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"{Prefix}.summary"));
+        // Resolve with AI: prominent unless Merge all already is.
+        if (panel.CanResolveWithAi && actions.ResolveWithAi is { } resolve)
+            rows.Add(NativeForm.CenteredRow(panel.CanMergeAll
+                ? NativeForm.Bordered(style, text("Vocabulary_DuplicatesResolveWithAi"), resolve, $"{Prefix}.resolveai")
+                : NativeForm.Prominent(style, text("Vocabulary_DuplicatesResolveWithAi"), resolve, $"{Prefix}.resolveai")));
         if (!panel.Running)
             for (var index = 0; index < panel.Results.Count; index++)
                 rows.Add(NativeForm.Notice(style, panel.Results[index],
                     $"{Prefix}.result.{index}", error: false));
         return Views.Section(string.Empty, rows.ToArray());
+    }
+
+    /// <summary>
+    /// What the last Resolve with AI did: one row per group (what it decided and why) with its
+    /// Undo; an undone row says so instead.
+    /// </summary>
+    private static SwiftView AiReport(VocabularyDuplicatePanel panel, SourceUiStyle style,
+        Func<string, string> text, VocabularyDuplicateActions actions)
+    {
+        var rows = new List<SwiftView>();
+        for (var index = 0; index < panel.AiReport.Count; index++)
+        {
+            var item = panel.AiReport[index];
+            var id = $"{Prefix}.ai.{index}";
+            var lines = new List<SwiftView>
+            {
+                style.Text(Views.Text(VocabularyDuplicateFinder.AiAppliedText(item.Applied, text)),
+                        SourceTextRole.Body1)
+                    .WithFlexibleWidth()
+                    .WithAccessibilityIdentifier($"{id}.text")
+            };
+            if (item.Undone)
+                lines.Add(Marker(style, "arrow.uturn.backward", Format(text, "Vocabulary_DuplicatesUndone",
+                    item.Applied.DisplayTerm), style.Appearance.SecondaryText, SourceTextTone.Secondary, $"{id}.undone"));
+            else if (!string.IsNullOrWhiteSpace(item.Applied.Reason))
+                lines.Add(style.Text(Views.Text(item.Applied.Reason), SourceTextRole.Small, SourceTextTone.Secondary)
+                    .WithFlexibleWidth()
+                    .WithAccessibilityIdentifier($"{id}.reason"));
+            var column = Views.VStack(lines.ToArray()).WithFlexibleWidth();
+            column.Spacing = 2;
+            if (item.Undone || actions.UndoAi is not { } undo)
+            {
+                rows.Add(column);
+                continue;
+            }
+            var at = index;
+            var button = Views.Button(Views.Label(text("Vocabulary_DuplicatesUndo"), "arrow.uturn.backward"), () => undo(at))
+                .WithButtonStyle(SwiftButtonStyle.Bordered)
+                .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+                .WithAccessibilityLabel($"{text("Vocabulary_DuplicatesUndo")}, {item.Applied.DisplayTerm}")
+                .WithAccessibilityIdentifier($"{id}.undo");
+            button.IsEnabled = !panel.Running;
+            var row = Views.HStack(column, button).WithFlexibleWidth();
+            row.Spacing = SourceUiLayout.ItemGap;
+            rows.Add(row);
+        }
+        return Views.Section(text("Vocabulary_DuplicatesAiReport"), rows.ToArray());
     }
 
     /// <summary>
@@ -119,6 +178,10 @@ internal static class VocabularyDuplicatesView
             .WithFlexibleWidth();
         warning.Spacing = SourceUiLayout.ItemGap;
         var rows = new List<SwiftView> { warning };
+        // The AI's call on a group it was not sure of: the learner decides.
+        if (panel.SuggestionFor(group) is { } suggestion)
+            rows.Add(Marker(style, "sparkles", VocabularyDuplicateFinder.AiSuggestionText(suggestion, text),
+                style.Appearance.Primary, SourceTextTone.Secondary, $"{id}.suggestion"));
         var choice = VocabularyDuplicatePanel.OffersChoice(group) && actions.ToggleCopy is not null;
         if (choice)
             rows.Add(style.Text(Views.Text(text("Vocabulary_DuplicatesChooseHint")),
@@ -143,7 +206,16 @@ internal static class VocabularyDuplicatesView
             () => actions.Skip(group.NormalizedTerm), $"{id}.skip");
         merge.IsEnabled = !panel.Running && panel.Chosen(group).Count >= 2;
         skip.IsEnabled = !panel.Running;
-        var buttons = Views.HStack(merge, skip).WithFlexibleWidth();
+        var groupButtons = new List<SwiftView> { merge };
+        if (actions.KeepApart is { } keepApart)
+        {
+            var apart = NativeForm.Bordered(style, text("Vocabulary_DuplicatesKeepApart"),
+                () => keepApart(group.NormalizedTerm), $"{id}.keepapart");
+            apart.IsEnabled = !panel.Running;
+            groupButtons.Add(apart);
+        }
+        groupButtons.Add(skip);
+        var buttons = Views.HStack(groupButtons.ToArray()).WithFlexibleWidth();
         buttons.Spacing = SourceUiLayout.ItemGap;
         rows.Add(buttons);
         // No ID on the Section: SwiftUI gives a Section's ID to every row in it, over the rows' own.

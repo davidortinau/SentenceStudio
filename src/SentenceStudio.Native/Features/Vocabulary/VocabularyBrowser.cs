@@ -761,6 +761,16 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Merge all: every safe group in one step, then the list reloads.</summary>
     internal Task MergeAllDuplicatesAsync() => Guard(_cleanup.MergeAllDuplicatesAsync);
 
+    /// <summary>Resolve with AI: the rules, then the AI's confident calls, then the list reloads.</summary>
+    internal Task ResolveDuplicatesWithAiAsync() => Guard(_cleanup.ResolveDuplicatesWithAiAsync);
+
+    /// <summary>Undo one group the AI resolved.</summary>
+    internal Task UndoAiDuplicatesAsync(int index) => Guard(() => _cleanup.UndoAiDuplicatesAsync(index));
+
+    /// <summary>Keep Apart: a review group's copies stop showing as duplicates.</summary>
+    internal Task KeepDuplicatesApartAsync(string normalizedTerm) =>
+        Guard(() => _cleanup.KeepDuplicatesApartAsync(normalizedTerm));
+
     /// <summary>Skip: a review group leaves the duplicate page while it is open.</summary>
     internal void SkipDuplicates(string normalizedTerm) => _cleanup.SkipDuplicates(normalizedTerm);
 
