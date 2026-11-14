@@ -764,8 +764,9 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Resolve with AI: the rules, then the AI's confident calls, then the list reloads.</summary>
     internal Task ResolveDuplicatesWithAiAsync() => Guard(_cleanup.ResolveDuplicatesWithAiAsync);
 
-    /// <summary>Undo one group the AI resolved.</summary>
-    internal Task UndoAiDuplicatesAsync(int index) => Guard(() => _cleanup.UndoAiDuplicatesAsync(index));
+    /// <summary>Undo one standing duplicate decision.</summary>
+    internal Task UndoDuplicateDecisionAsync(string decisionId) =>
+        Guard(() => _cleanup.UndoDuplicateDecisionAsync(decisionId));
 
     /// <summary>Keep Apart: a review group's copies stop showing as duplicates.</summary>
     internal Task KeepDuplicatesApartAsync(string normalizedTerm) =>

@@ -10,13 +10,13 @@ namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 /// <param name="EditCopy">Opens a copy (word ID) in the word editor, above the page.</param>
 /// <param name="ChooseKeeper">Keep This: the copy (term, word ID) the group's Merge keeps.</param>
 /// <param name="ResolveWithAi">Resolve with AI (docs/duplicate-merge-ai-plan.md).</param>
-/// <param name="UndoAi">Undo one group the AI resolved (its index in the report).</param>
+/// <param name="UndoDecision">Undo one standing duplicate decision (its ID).</param>
 /// <param name="KeepApart">Keep Apart: a review group's copies (by term) stop showing.</param>
 internal sealed record VocabularyDuplicateActions(
     Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip,
     Action<string, string>? ToggleCopy = null, Action<string>? EditCopy = null,
     Action<string, string>? ChooseKeeper = null, Action? ResolveWithAi = null,
-    Action<int>? UndoAi = null, Action<string>? KeepApart = null);
+    Action<string>? UndoDecision = null, Action<string>? KeepApart = null);
 
 /// <summary>
 /// The duplicate page (docs/duplicate-merge-plan.md), pushed beside the Vocabulary list (the
@@ -39,8 +39,8 @@ internal static class VocabularyDuplicatesView
         Func<string, string> text, VocabularyDuplicateActions actions)
     {
         var sections = new List<SwiftView> { Summary(panel, style, text, actions) };
-        if (panel.AiReport.Count > 0)
-            sections.Add(AiReport(panel, style, text, actions));
+        if (panel.DecisionList.Count > 0)
+            sections.Add(Decisions(panel, style, text, actions));
         var review = panel.ReviewGroups;
         if (review.Count > 0)
         {
@@ -110,44 +110,39 @@ internal static class VocabularyDuplicatesView
     }
 
     /// <summary>
-    /// What the last Resolve with AI did: one row per group (what it decided and why) with its
-    /// Undo; an undone row says so instead.
+    /// The owner's standing duplicate decisions, newest first (the AI's merges and kept-apart
+    /// groups, and Keep Apart): what each decided, why, and its Undo.
     /// </summary>
-    private static SwiftView AiReport(VocabularyDuplicatePanel panel, SourceUiStyle style,
+    private static SwiftView Decisions(VocabularyDuplicatePanel panel, SourceUiStyle style,
         Func<string, string> text, VocabularyDuplicateActions actions)
     {
         var rows = new List<SwiftView>();
-        for (var index = 0; index < panel.AiReport.Count; index++)
+        foreach (var decision in panel.DecisionList)
         {
-            var item = panel.AiReport[index];
-            var id = $"{Prefix}.ai.{index}";
+            var id = DecisionId(decision);
             var lines = new List<SwiftView>
             {
-                style.Text(Views.Text(VocabularyDuplicateFinder.AiAppliedText(item.Applied, text)),
-                        SourceTextRole.Body1)
+                style.Text(Views.Text(VocabularyDuplicateFinder.DecisionText(decision, text)), SourceTextRole.Body1)
                     .WithFlexibleWidth()
                     .WithAccessibilityIdentifier($"{id}.text")
             };
-            if (item.Undone)
-                lines.Add(Marker(style, "arrow.uturn.backward", Format(text, "Vocabulary_DuplicatesUndone",
-                    item.Applied.DisplayTerm), style.Appearance.SecondaryText, SourceTextTone.Secondary, $"{id}.undone"));
-            else if (!string.IsNullOrWhiteSpace(item.Applied.Reason))
-                lines.Add(style.Text(Views.Text(item.Applied.Reason), SourceTextRole.Small, SourceTextTone.Secondary)
+            if (!string.IsNullOrWhiteSpace(decision.Reason))
+                lines.Add(style.Text(Views.Text(decision.Reason), SourceTextRole.Small, SourceTextTone.Secondary)
                     .WithFlexibleWidth()
                     .WithAccessibilityIdentifier($"{id}.reason"));
             var column = Views.VStack(lines.ToArray()).WithFlexibleWidth();
             column.Spacing = 2;
-            if (item.Undone || actions.UndoAi is not { } undo)
+            if (actions.UndoDecision is not { } undo)
             {
                 rows.Add(column);
                 continue;
             }
-            var at = index;
-            var button = Views.Button(Views.Label(text("Vocabulary_DuplicatesUndo"), "arrow.uturn.backward"), () => undo(at))
+            var decided = decision.Id;
+            var button = Views.Button(Views.Label(text("Vocabulary_DuplicatesUndo"), "arrow.uturn.backward"), () => undo(decided))
                 .WithButtonStyle(SwiftButtonStyle.Bordered)
                 .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
                 .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
-                .WithAccessibilityLabel($"{text("Vocabulary_DuplicatesUndo")}, {item.Applied.DisplayTerm}")
+                .WithAccessibilityLabel($"{text("Vocabulary_DuplicatesUndo")}, {decision.DisplayTerm}")
                 .WithAccessibilityIdentifier($"{id}.undo");
             button.IsEnabled = !panel.Running;
             var row = Views.HStack(column, button).WithFlexibleWidth();
@@ -156,6 +151,10 @@ internal static class VocabularyDuplicatesView
         }
         return Views.Section(text("Vocabulary_DuplicatesAiReport"), rows.ToArray());
     }
+
+    /// <summary>A decision's automation ID, by its synced ID (stable while others are undone).</summary>
+    internal static string DecisionId(NativeVocabularyDuplicateDecision decision) =>
+        $"{Prefix}.decision.{Uri.EscapeDataString(decision.Id)}";
 
     /// <summary>
     /// A group to review, titled by its term: what merging would lose (a warning symbol and
@@ -211,7 +210,7 @@ internal static class VocabularyDuplicatesView
         {
             var apart = NativeForm.Bordered(style, text("Vocabulary_DuplicatesKeepApart"),
                 () => keepApart(group.NormalizedTerm), $"{id}.keepapart");
-            apart.IsEnabled = !panel.Running;
+            apart.IsEnabled = !panel.Running && panel.Chosen(group).Count >= 2;
             groupButtons.Add(apart);
         }
         groupButtons.Add(skip);

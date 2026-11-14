@@ -614,12 +614,105 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         decision.Kind.Should().Be(VocabularyDuplicateDecisionKind.KeptApart);
         VocabularyDuplicateUndoRecord.FromJson(decision.Before)!.Words.Select(word => word.Id).Should().Equal(moon);
 
+        var listed = (await repo.GetStandingDuplicateDecisionsAsync()).Single();
+        (listed.Id, listed.Kind, listed.DisplayTerm).Should().Be((decision.Id, VocabularyDuplicateDecisionKind.KeptApart, "달"));
+        listed.Meanings.Should().BeEquivalentTo(["month", "moon (in the sky)"]);
+
         UpdateWord(moon, word => word.MnemonicText = "edited after");
         (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeTrue();
 
         GetWord(moon)!.NativeLanguageTerm.Should().Be("moon");
         GetWord(moon)!.MnemonicText.Should().Be("edited after", "undo puts back only what the decision changed");
         (await repo.FindDuplicateVocabularyGroupsAsync()).TotalGroupCount.Should().Be(1);
+        (await repo.GetStandingDuplicateDecisionsAsync()).Should().BeEmpty("an undone decision is not listed");
+    }
+
+    // Review: Undo keeps an edit the learner made since the decision.
+    [Fact]
+    public async Task Undo_KeepsAMeaningTheLearnerEditedSince_AndReKeepingApartTakesANewRecord()
+    {
+        var eye = SeedWord("눈", "eye");
+        var snow = SeedWord("눈", "snow");
+        EnsureWordsMappedToUser(UserA, eye, snow);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        await repo.ApplyDuplicateResolutionAsync(asked, [Sure(asked[0], VocabularyDuplicateAiVerdict.DifferentWords,
+            ("eye (body part)", null, [eye]), ("snow (weather)", null, [snow]))]);
+        UpdateWord(eye, word => word.NativeLanguageTerm = "eye; eyeball");
+        var decision = Decisions().Single();
+
+        (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeTrue();
+
+        GetWord(eye)!.NativeLanguageTerm.Should().Be("eye; eyeball", "the learner changed it after the decision");
+        GetWord(snow)!.NativeLanguageTerm.Should().Be("snow");
+
+        // Kept apart again by the learner (nothing clarified): the old record is not reused.
+        (await repo.KeepDuplicatesApartAsync([eye, snow], VocabularyDuplicateDecider.Learner, null)).Should().BeTrue();
+        Decisions().Single().Before.Should().BeNull();
+        UpdateWord(snow, word => word.NativeLanguageTerm = "snow; snowfall");
+        (await repo.UndoDuplicateDecisionAsync(decision.Id)).Should().BeTrue();
+        GetWord(snow)!.NativeLanguageTerm.Should().Be("snow; snowfall");
+    }
+
+    // Review: a group that stops partway keeps what it made reported (and undoable).
+    [Fact]
+    public async Task ApplyAi_AGroupThatStopsPartway_ReportsTheMergeItMade()
+    {
+        var medicine = SeedWord("약", "medicine");
+        var drug = SeedWord("약", "drug; medicine");
+        var about = SeedWord("약", "approximately");
+        var aboutCopy = SeedWord("약", "about");
+        EnsureWordsMappedToUser(UserA, medicine, drug, about, aboutCopy);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        // The second set cannot merge: one of its copies is gone by the time it is reached.
+        var call = Sure(asked[0], VocabularyDuplicateAiVerdict.Mixed,
+            ("medicine; drug", null, [medicine, drug]), ("approximately; about", null, [about, aboutCopy]));
+        var ordered = call.Call.Sets;
+        var firstSetIsMedicine = ordered[0].CopyIds.Contains(medicine);
+        firstSetIsMedicine.Should().BeTrue();
+        using (var gone = _fixture.ServiceProvider.CreateScope())
+        {
+            // Another learner's progress on a copy of the second set: it can no longer be removed or kept.
+            SeedUserProfile(UserB);
+            var db = gone.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyProgresses.AddRange(
+                new VocabularyProgress { Id = Guid.NewGuid().ToString(), VocabularyWordId = about, UserId = UserB },
+                new VocabularyProgress { Id = Guid.NewGuid().ToString(), VocabularyWordId = aboutCopy, UserId = UserB });
+            db.SaveChanges();
+        }
+        var stale = await repo.GetDuplicateGroupsForAiAsync();
+
+        var result = await repo.ApplyDuplicateResolutionAsync(stale, [call with { Call = call.Call with { GroupId = stale[0].GroupId } }]);
+
+        var applied = result.Applied.Single();
+        applied.DecisionIds.Should().ContainSingle("the merge it made is reported, so it can be undone");
+        applied.RemovedCopies.Should().Be(1);
+        result.Refused.Should().Equal([("약", "Vocabulary_DuplicatesAllShared")]);
+        (await repo.UndoDuplicateDecisionAsync(applied.DecisionIds[0])).Should().BeTrue();
+    }
+
+    // Review: Resolve with AI keeps the copy chosen with Keep This.
+    [Fact]
+    public async Task ApplyAi_KeepsTheCopyChosenWithKeepThis()
+    {
+        var sound = SeedWord("소리", "sound");
+        var noise = SeedWord("소리", "sound / noise");
+        EnsureWordsMappedToUser(UserA, sound, noise);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var asked = await repo.GetDuplicateGroupsForAiAsync();
+        var scanKeeper = (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().RecommendedKeeperId;
+        var chosen = scanKeeper == sound ? noise : sound;
+
+        await repo.ApplyDuplicateResolutionAsync(asked,
+            [Sure(asked[0], VocabularyDuplicateAiVerdict.SameWord, ("sound; noise", null, [sound, noise]))], keepers: [chosen]);
+
+        WordExists(chosen).Should().BeTrue();
+        WordExists(scanKeeper).Should().BeFalse();
+        GetWord(chosen)!.NativeLanguageTerm.Should().Be("sound; noise");
     }
 
     [Fact]
@@ -698,8 +791,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         var mine = await repo.ApplyDuplicateResolutionAsync(asked, [call]);
         var decision = mine.Applied.Single().DecisionIds.Single();
         (await repo.UndoDuplicateDecisionAsync(decision, userProfileId: UserB)).Should().BeFalse();
-        (await repo.GetDuplicateDecisionsAsync(userProfileId: UserB)).Should().BeEmpty();
-        (await repo.GetDuplicateDecisionsAsync()).Single().Id.Should().Be(decision);
+        (await repo.GetStandingDuplicateDecisionsAsync(userProfileId: UserB)).Should().BeEmpty();
+        (await repo.GetStandingDuplicateDecisionsAsync()).Single().Id.Should().Be(decision);
         Decisions().Single().UndoneAt.Should().BeNull();
     }
 
@@ -727,7 +820,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             });
         }
 
-        var result = await cleanup.RunAsync(UserA, "English", "Korean", Ask, leaveOut: [snow], CancellationToken.None);
+        var result = await cleanup.RunAsync(UserA, "English", "Korean", Ask, leaveOut: [snow], keepers: null,
+            CancellationToken.None);
 
         result.Rules.MergedGroups.Should().Be(1, "손's identical copies merge by the rules");
         result.Ai.MergedGroups.Should().Be(1);
@@ -736,8 +830,30 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         new[] { dad, father }.Count(WordExists).Should().Be(1);
         WordExists(eye).Should().BeTrue();
         WordExists(snow).Should().BeTrue();
-        (await cleanup.RunAsync("", "English", "Korean", Ask, null, CancellationToken.None))
+        (await cleanup.RunAsync("", "English", "Korean", Ask, null, null, CancellationToken.None))
             .Should().Be(VocabularyDuplicateAiCleanupResult.None);
+    }
+
+    [Fact]
+    public async Task AiCleanup_WhenTheAiAnswersNothing_SaysSo_AndTheSafeMergesStillHappen()
+    {
+        var hand = SeedWord("손", "hand");
+        var handCopy = SeedWord("손", "hand");
+        var dad = SeedWord("아빠", "dad");
+        var father = SeedWord("아빠", "father");
+        EnsureWordsMappedToUser(UserA, hand, handCopy, dad, father);
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var cleanup = new VocabularyDuplicateAiCleanup(repo, NullLogger<VocabularyDuplicateAiCleanup>.Instance);
+
+        var result = await cleanup.RunAsync(UserA, "English", "Korean",
+            (_, _, _) => throw new HttpRequestException("offline"), null, null, CancellationToken.None);
+
+        result.AiUnavailable.Should().BeTrue();
+        result.Rules.MergedGroups.Should().Be(1);
+        result.Ai.Applied.Should().BeEmpty();
+        WordExists(dad).Should().BeTrue();
+        WordExists(father).Should().BeTrue();
     }
 
     private static VocabularyDuplicateAiResult Sure(VocabularyDuplicateAiGroup group, VocabularyDuplicateAiVerdict verdict,

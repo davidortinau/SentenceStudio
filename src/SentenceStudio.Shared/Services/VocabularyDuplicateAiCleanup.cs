@@ -16,9 +16,14 @@ public sealed class VocabularyDuplicateAiCleanup(
     /// Copies the learner left out or skipped on the page: the rules never merge them and the AI
     /// never sees a group that holds one.
     /// </param>
+    /// <param name="keepers">Copies the learner chose with Keep This: a merge that holds one keeps it.</param>
+    /// <returns>
+    /// What the rules merged and what the AI did; <see cref="VocabularyDuplicateAiCleanupResult.AiUnavailable"/>
+    /// when the AI answered nothing (the rules' merges are still made), for the client to say so.
+    /// </returns>
     public async Task<VocabularyDuplicateAiCleanupResult> RunAsync(string owner, string nativeLanguage,
         string targetLanguage, VocabularyDuplicateAiAsk ask, IReadOnlyCollection<string>? leaveOut,
-        CancellationToken cancellationToken)
+        IReadOnlyCollection<string>? keepers, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(owner))
         {
@@ -26,7 +31,8 @@ public sealed class VocabularyDuplicateAiCleanup(
             return VocabularyDuplicateAiCleanupResult.None;
         }
 
-        var rules = await repository.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, leaveOut: leaveOut);
+        var rules = await repository.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, leaveOut: leaveOut,
+            keepers: keepers);
         cancellationToken.ThrowIfCancellationRequested();
         var left = leaveOut?.ToHashSet(StringComparer.Ordinal) ?? [];
         var groups = (await repository.GetDuplicateGroupsForAiAsync(cancellationToken, owner))
@@ -35,16 +41,28 @@ public sealed class VocabularyDuplicateAiCleanup(
         if (groups.Count == 0)
             return new VocabularyDuplicateAiCleanupResult(rules, VocabularyDuplicateApplyResult.None);
 
-        var results = await VocabularyDuplicateResolver.ResolveAsync(groups, nativeLanguage, targetLanguage, ask,
-            logger, cancellationToken);
-        var applied = await repository.ApplyDuplicateResolutionAsync(groups, results, cancellationToken, owner);
+        IReadOnlyList<VocabularyDuplicateAiResult> results;
+        try
+        {
+            results = await VocabularyDuplicateResolver.ResolveAsync(groups, nativeLanguage, targetLanguage, ask,
+                logger, cancellationToken);
+        }
+        catch (VocabularyDuplicateAiUnavailableException ex)
+        {
+            logger.LogError(ex, "Duplicate cleanup with AI: the AI answered none of {Count} groups.", groups.Count);
+            return new VocabularyDuplicateAiCleanupResult(rules, VocabularyDuplicateApplyResult.None, AiUnavailable: true);
+        }
+        var applied = await repository.ApplyDuplicateResolutionAsync(groups, results, cancellationToken, owner, keepers);
         return new VocabularyDuplicateAiCleanupResult(rules, applied);
     }
 }
 
-/// <summary>What the rules merged and what the AI pass did.</summary>
+/// <summary>
+/// What the rules merged and what the AI pass did. <paramref name="AiUnavailable"/>: the AI
+/// answered nothing, so it decided nothing; the client tells the learner (an error, not "0 merged").
+/// </summary>
 public sealed record VocabularyDuplicateAiCleanupResult(
-    VocabularyMergeAllResult Rules, VocabularyDuplicateApplyResult Ai)
+    VocabularyMergeAllResult Rules, VocabularyDuplicateApplyResult Ai, bool AiUnavailable = false)
 {
     public static VocabularyDuplicateAiCleanupResult None { get; } =
         new(VocabularyMergeAllResult.None, VocabularyDuplicateApplyResult.None);

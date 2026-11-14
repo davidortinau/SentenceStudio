@@ -613,8 +613,12 @@ public sealed class VocabularyWordCleanupTests
         var panel = browser.ListState.Duplicates!;
         Assert.False(panel.Running);
         Assert.Equal("Vocabulary_DuplicatesAiSummary", browser.ListState.Feedback);
-        Assert.Equal(2, panel.AiReport.Count);
-        Assert.Equal(["소리", "달"], panel.AiReport.Select(item => item.Applied.DisplayTerm).Order().Reverse());
+        // The page lists the stored decisions (each with Undo): the 소리 merge and 달 kept apart.
+        Assert.Equal(2, panel.DecisionList.Count);
+        Assert.Equal(["소리", "달"], panel.DecisionList.Select(decision => decision.DisplayTerm).Order().Reverse());
+        var merged = Assert.Single(panel.DecisionList, decision => decision.Kind == VocabularyDuplicateDecisionKind.Merged);
+        Assert.Equal(["sound; noise"], merged.Meanings);
+        Assert.Equal("Vocabulary_DuplicatesAiMerged", VocabularyDuplicateFinder.DecisionText(merged, key => key));
         var mwo = Assert.Single(panel.ReviewGroups);
         Assert.Equal("뭐", mwo.DisplayTerm);
         var suggestion = panel.SuggestionFor(mwo)!;
@@ -624,11 +628,11 @@ public sealed class VocabularyWordCleanupTests
         Assert.Equal(1, (await RowsAsync(fixture, "sori-1")).Words + (await RowsAsync(fixture, "sori-2")).Words);
         Assert.Equal("moon (in the sky)", await MeaningAsync(fixture, "dal-2"));
 
-        // Undo 달: the meanings go back and the group is shown again.
-        var dal = panel.AiReport.Select((item, index) => (item, index)).Single(entry => entry.item.Applied.DisplayTerm == "달").index;
-        await browser.UndoAiDuplicatesAsync(dal);
+        // Undo 달: the meanings go back, the group is shown again and the decision leaves the list.
+        var dal = Assert.Single(panel.DecisionList, decision => decision.DisplayTerm == "달");
+        await browser.UndoDuplicateDecisionAsync(dal.Id);
         var undone = browser.ListState.Duplicates!;
-        Assert.True(undone.AiReport[dal].Undone);
+        Assert.DoesNotContain(undone.DecisionList, decision => decision.Id == dal.Id);
         Assert.Equal("Vocabulary_DuplicatesUndone", browser.ListState.Feedback);
         Assert.Equal("moon", await MeaningAsync(fixture, "dal-2"));
         Assert.Contains(undone.ReviewGroups, group => group.DisplayTerm == "달");
@@ -637,8 +641,39 @@ public sealed class VocabularyWordCleanupTests
         await browser.KeepDuplicatesApartAsync(mwo.NormalizedTerm);
         Assert.Equal("Vocabulary_DuplicatesKeptApart", browser.ListState.Feedback);
         Assert.DoesNotContain(browser.ListState.Duplicates!.ReviewGroups, group => group.DisplayTerm == "뭐");
+        // The learner's Keep Apart is listed too, so it can be undone later.
+        Assert.Contains(browser.ListState.Duplicates!.DecisionList, decision => decision.DisplayTerm == "뭐"
+            && decision.DecidedBy == VocabularyDuplicateDecider.Learner);
         Assert.Contains("\"term\":\"뭐\"", fixture.ResourceAi.LastPrompt);
         Assert.Equal(UserA, fixture.ResourceAi.LastOwner);
+    }
+
+    // Review: an unreachable AI is said as an error, the safe merges still happen.
+    [Fact]
+    public async Task ResolveWithAi_WhenTheAiAnswersNothing_SaysSo()
+    {
+        using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
+        await fixture.SeedAsync(UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "dal-1", "달", "month", 1);
+            AddWord(db, fixture, UserA, "dal-2", "달", "moon", 2);
+            await db.SaveChangesAsync();
+        }
+        fixture.ResourceAi.DuplicateResponder = _ => null;
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenAllDuplicatesAsync();
+
+        await browser.ResolveDuplicatesWithAiAsync();
+
+        Assert.Equal("Vocabulary_DuplicatesAiUnavailable", browser.ListState.Feedback);
+        Assert.True(browser.ListState.FeedbackWarning);
+        var panel = browser.ListState.Duplicates!;
+        Assert.Null(panel.SuggestionFor(Assert.Single(panel.ReviewGroups)));
+        Assert.Empty(panel.DecisionList);
     }
 
     private static async Task<string?> MeaningAsync(NativeSliceFixture fixture, string wordId)

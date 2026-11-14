@@ -20759,16 +20759,16 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0}: merged and kept apart as {1}.
+        ///   Looks up a localized string similar to The AI did not answer for this one. Try Resolve with AI again..
         /// </summary>
-        internal static string Vocabulary_DuplicatesAiMixed {
+        internal static string Vocabulary_DuplicatesAiNoAnswer {
             get {
-                return ResourceManager.GetString("Vocabulary_DuplicatesAiMixed", resourceCulture);
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiNoAnswer", resourceCulture);
             }
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Done by AI.
+        ///   Looks up a localized string similar to Decisions.
         /// </summary>
         internal static string Vocabulary_DuplicatesAiReport {
             get {
@@ -20809,6 +20809,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesAiSummary {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesAiSummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The AI could not be reached, so it decided nothing. Try again when you are online..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiUnavailable {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiUnavailable", resourceCulture);
             }
         }
 
@@ -21007,6 +21016,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesKeepApart {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesKeepApart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to these copies could not be kept apart. Check them again..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeepApartFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeepApartFailed", resourceCulture);
             }
         }
 

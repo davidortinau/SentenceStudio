@@ -10,11 +10,15 @@ namespace SentenceStudio.Data;
 /// </summary>
 public partial class LearningResourceRepository
 {
+    /// <summary>How many standing decisions the duplicate page lists (newest first).</summary>
+    public const int DuplicateDecisionListSize = 50;
+
     /// <summary>
     /// Keeps the learner's copies of one term apart: records a kept-apart decision, so the
-    /// duplicate scan stops showing them until a new copy of the term arrives. Every copy must be
-    /// the learner's own word, all with one target term; otherwise nothing is recorded (logged)
-    /// and it returns false. Keeping the same copies apart again restores a decision that was undone.
+    /// duplicate scan stops showing them until a new copy of the term arrives or it is undone.
+    /// Every copy must be the learner's own word, all with one target term; otherwise nothing is
+    /// recorded (logged) and it returns false. Keeping the same copies apart again restores a
+    /// decision that was undone.
     /// </summary>
     public async Task<bool> KeepDuplicatesApartAsync(IReadOnlyCollection<string> copyIds,
         VocabularyDuplicateDecider decidedBy, string? reason, CancellationToken ct = default,
@@ -35,36 +39,58 @@ public partial class LearningResourceRepository
         return kept;
     }
 
-    /// <summary>The learner's duplicate decisions, newest first (the report and its Undo).</summary>
-    public async Task<IReadOnlyList<VocabularyDuplicateDecision>> GetDuplicateDecisionsAsync(
+    /// <summary>
+    /// The learner's standing duplicate decisions, newest first (at most
+    /// <see cref="DuplicateDecisionListSize"/>), as the duplicate page lists them with their Undo:
+    /// the term, and the meanings the copies have now (the kept word's for a merge).
+    /// </summary>
+    public async Task<IReadOnlyList<VocabularyDuplicateDecisionSummary>> GetStandingDuplicateDecisionsAsync(
         CancellationToken ct = default, string? userProfileId = null)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
         {
-            _logger.LogWarning("GetDuplicateDecisionsAsync called without an active user; returning none.");
+            _logger.LogWarning("GetStandingDuplicateDecisionsAsync called without an active user; returning none.");
             return [];
         }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VocabularyDuplicateDecisions.AsNoTracking()
-            .Where(decision => decision.UserProfileId == userId)
+        var decisions = await db.VocabularyDuplicateDecisions.AsNoTracking()
+            .Where(decision => decision.UserProfileId == userId && decision.UndoneAt == null)
             .OrderByDescending(decision => decision.DecidedAt)
+            .Take(DuplicateDecisionListSize)
             .ToListAsync(ct);
+        var ids = decisions.SelectMany(decision => decision.KeeperId is { } keeper
+                ? [keeper] : decision.CopyIdList).Distinct(StringComparer.Ordinal).ToArray();
+        var words = await db.VocabularyWords.AsNoTracking().OwnedBy(userId).Where(word => ids.Contains(word.Id))
+            .Select(word => new { word.Id, word.TargetLanguageTerm, word.NativeLanguageTerm })
+            .ToDictionaryAsync(word => word.Id, StringComparer.Ordinal, ct);
+        return decisions.Select(decision =>
+            {
+                var shown = (decision.KeeperId is { } keeper ? [keeper] : decision.CopyIdList)
+                    .Where(words.ContainsKey).Select(id => words[id]).ToList();
+                var term = shown.Select(word => word.TargetLanguageTerm?.Trim()).FirstOrDefault(text => !string.IsNullOrEmpty(text));
+                return new VocabularyDuplicateDecisionSummary(decision.Id, decision.Kind, term ?? decision.TermKey,
+                    shown.Select(word => word.NativeLanguageTerm?.Trim() ?? string.Empty).ToArray(),
+                    decision.DecidedBy, decision.Reason, decision.DecidedAt);
+            })
+            .ToArray();
     }
 
     /// <summary>
     /// Applies the AI's confident calls (Captain 2026-11-14: they apply without asking, with a
     /// report and Undo). <paramref name="asked"/> are the groups as the AI saw them; a group whose
-    /// copies changed since is not touched. A same-meaning set merges into its copy the learner
-    /// has learned (as everywhere), which takes the AI's meaning and language; copies that mean
-    /// different things are kept apart with their clarified meanings. Each merge runs in its own
-    /// transaction with its decision record; a group that fails is reported and the rest still
-    /// apply. Calls that are not sure are returned for the learner, untouched.
+    /// copies changed since is not touched. A same-meaning set merges into the copy the learner
+    /// chose with Keep This (<paramref name="keepers"/>), else the one they have learned (as
+    /// everywhere), which takes the AI's meaning and language; copies that mean different things
+    /// are kept apart with their clarified meanings. Each merge runs in its own transaction with
+    /// its decision record; a group that fails partway is reported with what it did (so it can be
+    /// undone) and why it stopped, and the rest still apply. Calls that are not sure are returned
+    /// for the learner, untouched.
     /// </summary>
     public async Task<VocabularyDuplicateApplyResult> ApplyDuplicateResolutionAsync(
         IReadOnlyList<VocabularyDuplicateAiGroup> asked, IReadOnlyList<VocabularyDuplicateAiResult> results,
-        CancellationToken ct = default, string? userProfileId = null)
+        CancellationToken ct = default, string? userProfileId = null, IReadOnlyCollection<string>? keepers = null)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
@@ -79,6 +105,7 @@ public partial class LearningResourceRepository
                     scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), userId, null, ct))
                 .ToDictionary(group => group.NormalizedTerm, StringComparer.Ordinal);
         var askedById = asked.ToDictionary(group => group.GroupId, StringComparer.Ordinal);
+        var chosen = keepers?.ToHashSet(StringComparer.Ordinal) ?? [];
 
         var applied = new List<VocabularyDuplicateApplied>();
         var needsYou = new List<VocabularyDuplicateAiResult>();
@@ -101,23 +128,11 @@ public partial class LearningResourceRepository
                 refused.Add((seen?.Term ?? call.GroupId, "Vocabulary_DuplicatesChangedSinceAi"));
                 continue;
             }
-            try
-            {
-                var outcome = await ApplyCallAsync(group, call, userId, ct);
-                if (outcome.Applied is { } done)
-                    applied.Add(done);
-                else
-                    refused.Add((group.DisplayTerm, outcome.RefusalKey ?? "Vocabulary_MergeFailed"));
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "AI duplicate resolution: the group {Term} was not applied.", group.NormalizedTerm);
-                refused.Add((group.DisplayTerm, "Vocabulary_MergeFailed"));
-            }
+            var (done, refusal) = await ApplyCallAsync(group, call, userId, chosen, ct);
+            if (done is not null)
+                applied.Add(done);
+            if (refusal is not null)
+                refused.Add((group.DisplayTerm, refusal));
         }
 
         if (applied.Count > 0)
@@ -129,11 +144,13 @@ public partial class LearningResourceRepository
     }
 
     /// <summary>
-    /// Undoes one of the learner's decisions. A kept-apart decision stops hiding its copies and
-    /// their meanings go back. A merge brings the merged-away copies back as new words with their
-    /// own fields and resource links, and the kept word gets its own fields and resources back;
-    /// the practice history stays on the kept word (it cannot be split exactly). Returns false
-    /// (logged) when the decision is not the learner's, is already undone, or its kept word is gone.
+    /// Undoes one of the learner's decisions: it puts back what the decision changed, field by
+    /// field, unless the learner changed that field since. A kept-apart decision stops hiding its
+    /// copies and their clarified meanings go back. A merge brings the merged-away copies back as
+    /// new words with their own fields and resource links, and the kept word gets its own fields
+    /// and resources back; the practice history stays on the kept word (it cannot be split
+    /// exactly). Returns false (logged) when the decision is not the learner's, is already undone,
+    /// or its kept word is gone.
     /// </summary>
     public async Task<bool> UndoDuplicateDecisionAsync(string decisionId, CancellationToken ct = default,
         string? userProfileId = null)
@@ -156,12 +173,12 @@ public partial class LearningResourceRepository
                 .SingleOrDefaultAsync(row => row.Id == decisionId && row.UserProfileId == userId, ct);
             if (decision is null || decision.UndoneAt is not null)
                 return false;
-            var before = VocabularyDuplicateUndoRecord.FromJson(decision.Before);
+            var record = VocabularyDuplicateUndoRecord.FromJson(decision.Before);
             if (decision.Kind == VocabularyDuplicateDecisionKind.Merged
-                && !await UndoMergeAsync(db, decision, before, userId, ct))
+                && !await UndoMergeAsync(db, decision, record, userId, ct))
                 return false;
-            if (decision.Kind == VocabularyDuplicateDecisionKind.KeptApart && before is not null)
-                await RestoreMeaningsAsync(db, before.Words, userId, ct);
+            if (decision.Kind == VocabularyDuplicateDecisionKind.KeptApart && record is not null)
+                await RestoreUnchangedAsync(db, record, userId, ct);
             decision.UndoneAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -174,53 +191,79 @@ public partial class LearningResourceRepository
         return undone;
     }
 
+    /// <summary>
+    /// One sure call on one group: each same-meaning set merges, then what is left is kept apart.
+    /// Returns what was done (null when nothing was) and, when it stopped before the end, why;
+    /// a merge already made stays reported with its decision, so it can be undone.
+    /// </summary>
     private async Task<(VocabularyDuplicateApplied? Applied, string? RefusalKey)> ApplyCallAsync(
-        VocabularyDuplicateGroup group, VocabularyDuplicateAiCall call, string userId, CancellationToken ct)
+        VocabularyDuplicateGroup group, VocabularyDuplicateAiCall call, string userId,
+        IReadOnlySet<string> keepers, CancellationToken ct)
     {
-        if (group.EffectiveRisk == VocabularyDuplicateRisk.Blocked)
-            return (null, group.MergeBlockedReason ?? "Vocabulary_MergeRefusedNothingToMove");
-        // Merge order (the copy the learner has learned first) decides each set's keeper.
-        var order = group.Words.Select((info, index) => (info, index))
-            .ToDictionary(item => item.info.Word.Id, item => item, StringComparer.Ordinal);
         var decisions = new List<string>();
         var removed = 0;
+        (VocabularyDuplicateApplied?, string?) Done(string? refusal) =>
+            (decisions.Count == 0 ? null : new VocabularyDuplicateApplied(group.DisplayTerm, call.Verdict, decisions,
+                call.Sets.Select(set => set.Meaning).ToArray(), removed, call.Reason), refusal);
+
+        if (group.EffectiveRisk == VocabularyDuplicateRisk.Blocked)
+            return Done(group.MergeBlockedReason ?? "Vocabulary_MergeRefusedNothingToMove");
+        // Merge order (the copy the learner has learned first) decides each set's keeper, unless
+        // the learner chose one with Keep This.
+        var order = group.Words.Select((info, index) => (info, index))
+            .ToDictionary(item => item.info.Word.Id, item => item, StringComparer.Ordinal);
         var remaining = new List<VocabularyDuplicateAiSet>();
-        foreach (var set in call.Sets)
+        try
         {
-            if (set.CopyIds.Count < 2)
+            foreach (var set in call.Sets)
             {
-                remaining.Add(set);
-                continue;
+                ct.ThrowIfCancellationRequested();
+                if (set.CopyIds.Count < 2)
+                {
+                    remaining.Add(set);
+                    continue;
+                }
+                var copies = set.CopyIds.Select(id => order[id]).OrderBy(item => item.index).Select(item => item.info).ToList();
+                var keeper = copies.FirstOrDefault(info => keepers.Contains(info.Word.Id) && !info.UsedByOthers)
+                    ?? copies.FirstOrDefault(info => !info.UsedByOthers);
+                if (keeper is null)
+                    return Done("Vocabulary_DuplicatesAllShared");
+                var others = copies.Where(info => info != keeper).Select(info => info.Word.Id).ToList();
+                var (merged, decisionId) = await MergeAndRecordAsync(keeper.Word.Id, others, userId, group.NormalizedTerm,
+                    set.Meaning, set.Language, VocabularyDuplicateDecider.Ai, call.Reason, ct);
+                if (!merged.Changed)
+                    return Done(merged.RefusalKey ?? "Vocabulary_MergeRefusedNothingToMove");
+                decisions.Add(decisionId);
+                removed += merged.Deleted;
+                remaining.Add(new VocabularyDuplicateAiSet([keeper.Word.Id], set.Meaning, set.Language));
             }
-            var copies = set.CopyIds.Select(id => order[id]).OrderBy(item => item.index).Select(item => item.info).ToList();
-            var keeper = copies.FirstOrDefault(info => !info.UsedByOthers);
-            if (keeper is null)
-                return (null, "Vocabulary_DuplicatesAllShared");
-            var others = copies.Where(info => info != keeper).Select(info => info.Word.Id).ToList();
-            var (merged, decisionId) = await MergeAndRecordAsync(keeper.Word.Id, others, userId, group.NormalizedTerm,
-                set.Meaning, set.Language, VocabularyDuplicateDecider.Ai, call.Reason, ct);
-            if (!merged.Changed)
-                return (null, merged.RefusalKey ?? "Vocabulary_MergeRefusedNothingToMove");
-            decisions.Add(decisionId);
-            removed += merged.Deleted;
-            remaining.Add(new VocabularyDuplicateAiSet([keeper.Word.Id], set.Meaning, set.Language));
+            // What is left means different things: kept apart, each with its clarified meaning.
+            if (remaining.Count > 1)
+            {
+                if (!await KeepApartAsync(userId, remaining, VocabularyDuplicateDecider.Ai, call.Reason, ct))
+                    return Done("Vocabulary_DuplicatesKeepApartFailed");
+                decisions.Add(SyncIds.VocabularyDuplicateDecision(userId, VocabularyDuplicateDecisionKind.KeptApart,
+                    group.NormalizedTerm, remaining.Select(set => set.CopyIds[0])));
+            }
+            return Done(null);
         }
-        // What is left means different things: kept apart, each with its clarified meaning.
-        if (remaining.Count > 1)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            if (!await KeepApartAsync(userId, remaining, VocabularyDuplicateDecider.Ai, call.Reason, ct))
-                return (null, "Vocabulary_MergeFailed");
-            decisions.Add(SyncIds.VocabularyDuplicateDecision(userId, VocabularyDuplicateDecisionKind.KeptApart,
-                group.NormalizedTerm, remaining.Select(set => set.CopyIds[0])));
+            // What was already made stays reported; the caller stops.
+            return Done(decisions.Count == 0 ? null : "Vocabulary_MergeFailed");
         }
-        return (new VocabularyDuplicateApplied(group.DisplayTerm, call.Verdict, decisions,
-            call.Sets.Select(set => set.Meaning).ToArray(), removed, call.Reason), null);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI duplicate resolution: the group {Term} stopped after {Made} decisions.",
+                group.NormalizedTerm, decisions.Count);
+            return Done("Vocabulary_MergeFailed");
+        }
     }
 
     /// <summary>
     /// Merges <paramref name="otherIds"/> into <paramref name="keeperId"/> and records it, in one
     /// serializable transaction: the copies' fields before the merge, then the merge, then the
-    /// kept meaning and language, then the decision.
+    /// kept meaning and language, then the decision with the kept word as it is after.
     /// </summary>
     private async Task<(VocabularyMergeResult Result, string DecisionId)> MergeAndRecordAsync(string keeperId,
         IReadOnlyList<string> otherIds, string userId, string termKey, string? meaning, string? language,
@@ -241,8 +284,10 @@ public partial class LearningResourceRepository
                 return merged;
             var keeper = await db.VocabularyWords.OwnedBy(userId).SingleAsync(word => word.Id == keeperId, ct);
             Clarify(keeper, meaning, language);
+            await db.SaveChangesAsync(ct);
+            var after = await SnapshotAsync(db, [keeperId], userId, ct);
             await RecordAsync(db, decisionId, userId, termKey, VocabularyDuplicateDecisionKind.Merged, copyIds,
-                keeperId, decidedBy, reason, new VocabularyDuplicateUndoRecord(before).ToJson(), ct);
+                keeperId, decidedBy, reason, new VocabularyDuplicateUndoRecord(before, after).ToJson(), ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return merged;
@@ -252,8 +297,9 @@ public partial class LearningResourceRepository
 
     /// <summary>
     /// Records <paramref name="sets"/> (one copy each) as kept apart, giving each copy its set's
-    /// meaning and language when they are given and differ (the old values go in the undo record).
-    /// Every copy must be the learner's own word, all of one term; otherwise nothing is written.
+    /// meaning and language when they are given and differ (the values before and after go in the
+    /// undo record). Every copy must be the learner's own word, all of one term; otherwise nothing
+    /// is written.
     /// </summary>
     private async Task<bool> KeepApartAsync(string userId, IReadOnlyList<VocabularyDuplicateAiSet> sets,
         VocabularyDuplicateDecider decidedBy, string? reason, CancellationToken ct)
@@ -286,13 +332,15 @@ public partial class LearningResourceRepository
             var byId = words.ToDictionary(word => word.Id, StringComparer.Ordinal);
             var changing = sets.Where(set => Changes(byId[set.CopyIds[0]], set.Meaning, set.Language))
                 .Select(set => set.CopyIds[0]).ToArray();
-            var before = changing.Length == 0 ? null
-                : new VocabularyDuplicateUndoRecord(await SnapshotAsync(db, changing, userId, ct)).ToJson();
+            var before = changing.Length == 0 ? null : await SnapshotAsync(db, changing, userId, ct);
             foreach (var set in sets)
                 Clarify(byId[set.CopyIds[0]], set.Meaning, set.Language);
+            await db.SaveChangesAsync(ct);
+            var record = before is null ? null
+                : new VocabularyDuplicateUndoRecord(before, await SnapshotAsync(db, changing, userId, ct)).ToJson();
             await RecordAsync(db, SyncIds.VocabularyDuplicateDecision(userId, VocabularyDuplicateDecisionKind.KeptApart,
                     keys[0], ids), userId, keys[0], VocabularyDuplicateDecisionKind.KeptApart, ids, null, decidedBy,
-                reason, before, ct);
+                reason, record, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             _logger.LogInformation("Kept {Count} copies of a term apart ({DecidedBy}), {Clarified} meanings clarified.",
@@ -301,9 +349,10 @@ public partial class LearningResourceRepository
         });
     }
 
+    /// <summary>Adds or refreshes a decision; its undo record is always this decision's own.</summary>
     private static async Task RecordAsync(ApplicationDbContext db, string id, string userId, string termKey,
         VocabularyDuplicateDecisionKind kind, IReadOnlyCollection<string> copyIds, string? keeperId,
-        VocabularyDuplicateDecider decidedBy, string? reason, string? before, CancellationToken ct)
+        VocabularyDuplicateDecider decidedBy, string? reason, string? record, CancellationToken ct)
     {
         var decision = await db.VocabularyDuplicateDecisions.SingleOrDefaultAsync(row => row.Id == id, ct);
         if (decision is null)
@@ -318,8 +367,7 @@ public partial class LearningResourceRepository
         decision.KeeperId = keeperId;
         decision.DecidedBy = decidedBy;
         decision.Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
-        // Keeping copies apart again (with no new clarification) keeps the first undo record.
-        decision.Before = before ?? decision.Before;
+        decision.Before = record;
         decision.DecidedAt = DateTime.UtcNow;
         decision.UndoneAt = null;
     }
@@ -362,26 +410,57 @@ public partial class LearningResourceRepository
     }
 
     /// <summary>
-    /// Puts back the meaning and language a kept-apart decision clarified, on each of the learner's
-    /// words that still exists (other edits since are kept).
+    /// Puts back, on each of the learner's words in the record that still exists, every field the
+    /// decision changed and the learner has not changed since (its value is still the one the
+    /// decision left). A record without the after values changes no field.
     /// </summary>
-    private static async Task RestoreMeaningsAsync(ApplicationDbContext db,
-        IReadOnlyList<VocabularyDuplicateWordSnapshot> snapshots, string userId, CancellationToken ct)
+    private static async Task RestoreUnchangedAsync(ApplicationDbContext db, VocabularyDuplicateUndoRecord record,
+        string userId, CancellationToken ct)
     {
-        var ids = snapshots.Select(snapshot => snapshot.Id).ToArray();
+        if (record.After is not { } after)
+            return;
+        var ids = after.Select(snapshot => snapshot.Id).ToArray();
         var words = await db.VocabularyWords.OwnedBy(userId).Where(word => ids.Contains(word.Id))
             .ToDictionaryAsync(word => word.Id, StringComparer.Ordinal, ct);
-        foreach (var snapshot in snapshots)
+        foreach (var then in after)
         {
-            if (!words.TryGetValue(snapshot.Id, out var word))
-                continue;
-            word.NativeLanguageTerm = snapshot.NativeLanguageTerm;
-            word.Language = snapshot.Language;
-            word.UpdatedAt = DateTime.UtcNow;
+            if (words.TryGetValue(then.Id, out var word)
+                && record.Words.FirstOrDefault(snapshot => snapshot.Id == then.Id) is { } before)
+                RestoreUnchanged(word, before, then);
         }
     }
 
-    private static void Restore(VocabularyWord word, VocabularyDuplicateWordSnapshot snapshot)
+    private static void RestoreUnchanged(VocabularyWord word, VocabularyDuplicateWordSnapshot before,
+        VocabularyDuplicateWordSnapshot after)
+    {
+        var changed = false;
+        void Put<T>(T current, T decided, T original, Action<T> set)
+        {
+            if (EqualityComparer<T>.Default.Equals(current, decided) && !EqualityComparer<T>.Default.Equals(current, original))
+            {
+                set(original);
+                changed = true;
+            }
+        }
+        Put(word.TargetLanguageTerm, after.TargetLanguageTerm, before.TargetLanguageTerm, value => word.TargetLanguageTerm = value);
+        Put(word.NativeLanguageTerm, after.NativeLanguageTerm, before.NativeLanguageTerm, value => word.NativeLanguageTerm = value);
+        Put(word.Lemma, after.Lemma, before.Lemma, value => word.Lemma = value);
+        Put(word.Language, after.Language, before.Language, value => word.Language = value);
+        Put(word.Tags, after.Tags, before.Tags, value => word.Tags = value);
+        Put(word.MnemonicText, after.MnemonicText, before.MnemonicText, value => word.MnemonicText = value);
+        Put(word.MnemonicImageUri, after.MnemonicImageUri, before.MnemonicImageUri, value => word.MnemonicImageUri = value);
+        Put(word.AudioPronunciationUri, after.AudioPronunciationUri, before.AudioPronunciationUri,
+            value => word.AudioPronunciationUri = value);
+        Put(word.LexicalUnitType.ToString(), after.LexicalUnitType, before.LexicalUnitType,
+            value => word.LexicalUnitType = Enum.TryParse<LexicalUnitType>(value, out var kind) ? kind : LexicalUnitType.Unknown);
+        Put(word.PartOfSpeech is { } partOfSpeech ? VocabularyPartOfSpeechTokens.ToToken(partOfSpeech) : null,
+            after.PartOfSpeech, before.PartOfSpeech, value => word.PartOfSpeech = VocabularyPartOfSpeechTokens.FromToken(value));
+        if (changed)
+            word.UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>A word made again from its snapshot (an undone merge's removed copy).</summary>
+    private static void Fill(VocabularyWord word, VocabularyDuplicateWordSnapshot snapshot)
     {
         word.TargetLanguageTerm = snapshot.TargetLanguageTerm;
         word.NativeLanguageTerm = snapshot.NativeLanguageTerm;
@@ -397,15 +476,16 @@ public partial class LearningResourceRepository
     }
 
     /// <summary>
-    /// A merge undone: the kept word gets its fields and its own resources back, and each copy the
-    /// merge removed comes back as a new word (a new ID, so no device mistakes it for the deleted
-    /// row) with its fields and the learner's resources that still exist.
+    /// A merge undone: the kept word gets back the fields the merge changed (those not edited
+    /// since) and its own resources, and each copy the merge removed comes back as a new word (a
+    /// new ID, so no device mistakes it for the deleted row) with its fields and the learner's
+    /// resources that still exist. A copy another learner used stayed; only its links come back.
     /// </summary>
     private async Task<bool> UndoMergeAsync(ApplicationDbContext db, VocabularyDuplicateDecision decision,
-        VocabularyDuplicateUndoRecord? before, string userId, CancellationToken ct)
+        VocabularyDuplicateUndoRecord? record, string userId, CancellationToken ct)
     {
-        var keeperSnapshot = before?.Words.FirstOrDefault(snapshot => snapshot.Id == decision.KeeperId);
-        if (before is null || keeperSnapshot is null
+        var keeperBefore = record?.Words.FirstOrDefault(snapshot => snapshot.Id == decision.KeeperId);
+        if (record is null || keeperBefore is null
             || await db.VocabularyWords.OwnedBy(userId).SingleOrDefaultAsync(word => word.Id == decision.KeeperId, ct)
                 is not { } keeper)
         {
@@ -413,10 +493,10 @@ public partial class LearningResourceRepository
             return false;
         }
 
-        Restore(keeper, keeperSnapshot);
-        var removed = before.Words.Where(snapshot => snapshot.Id != decision.KeeperId).ToList();
+        if (record.After?.FirstOrDefault(snapshot => snapshot.Id == keeper.Id) is { } keeperAfter)
+            RestoreUnchanged(keeper, keeperBefore, keeperAfter);
+        var removed = record.Words.Where(snapshot => snapshot.Id != decision.KeeperId).ToList();
         var removedIds = removed.Select(snapshot => snapshot.Id).ToArray();
-        // A copy another learner used stayed (the merge moved only the learner's links from it).
         var stayed = await db.VocabularyWords.OwnedBy(userId).Where(word => removedIds.Contains(word.Id))
             .ToDictionaryAsync(word => word.Id, StringComparer.Ordinal, ct);
         var ownResources = (await db.LearningResources.Where(resource => resource.UserProfileId == userId)
@@ -427,15 +507,15 @@ public partial class LearningResourceRepository
             if (!stayed.TryGetValue(snapshot.Id, out var word))
             {
                 word = new VocabularyWord { Id = Guid.NewGuid().ToString(), UserProfileId = userId, CreatedAt = snapshot.CreatedAt };
+                Fill(word, snapshot);
                 db.VocabularyWords.Add(word);
             }
-            Restore(word, snapshot);
             restored.Add((word, snapshot.ResourceIds));
         }
 
         // The learner's resources go back to the copies that held them; the kept word leaves the
         // ones it only gained in the merge.
-        var keeperOwn = keeperSnapshot.ResourceIds.ToHashSet(StringComparer.Ordinal);
+        var keeperOwn = keeperBefore.ResourceIds.ToHashSet(StringComparer.Ordinal);
         var moved = restored.SelectMany(item => item.Resources).Where(ownResources.Contains)
             .Where(resource => !keeperOwn.Contains(resource)).ToHashSet(StringComparer.Ordinal);
         db.ResourceVocabularyMappings.RemoveRange(await db.ResourceVocabularyMappings
@@ -464,8 +544,9 @@ public sealed record VocabularyDuplicateApplied(
     IReadOnlyList<string> Meanings, int RemovedCopies, string Reason);
 
 /// <summary>
-/// What an AI duplicate pass did: the groups it applied, the calls left for the learner (not
-/// sure enough, or unusable), and the groups it could not apply with their reasons.
+/// What an AI duplicate pass did: the groups it applied (a group that stopped partway is here
+/// with what it made, and in <see cref="Refused"/> with why it stopped), the calls left for the
+/// learner (not sure enough, or unusable), and the groups it could not apply.
 /// </summary>
 public sealed record VocabularyDuplicateApplyResult(
     IReadOnlyList<VocabularyDuplicateApplied> Applied,
@@ -480,3 +561,11 @@ public sealed record VocabularyDuplicateApplyResult(
 
     public int RemovedCopies => Applied.Sum(item => item.RemovedCopies);
 }
+
+/// <summary>
+/// A standing duplicate decision as the page lists it: the term and the meanings its copies have
+/// now (the kept word's for a merge), who decided and why.
+/// </summary>
+public sealed record VocabularyDuplicateDecisionSummary(
+    string Id, VocabularyDuplicateDecisionKind Kind, string DisplayTerm, IReadOnlyList<string> Meanings,
+    VocabularyDuplicateDecider DecidedBy, string? Reason, DateTime DecidedAt);

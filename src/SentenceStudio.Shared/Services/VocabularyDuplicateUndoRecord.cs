@@ -6,11 +6,15 @@ namespace SentenceStudio.Services;
 /// <summary>
 /// What a duplicate decision changed, kept so the learner can undo it (stored as JSON in
 /// <see cref="SentenceStudio.Shared.Models.VocabularyDuplicateDecision.Before"/>; contract in
-/// docs/sync-all-tables-plan.md, "Duplicate decisions"). A merge holds every copy it took (the
-/// keeper and the copies merged into it) as they were before; a kept-apart decision holds the
-/// copies whose meaning or language it clarified.
+/// docs/sync-all-tables-plan.md, "Duplicate decisions"). <see cref="Words"/> are the copies as
+/// they were before: for a merge every copy it took (the keeper and the copies merged into it),
+/// for a kept-apart decision the copies whose meaning or language it clarified.
+/// <see cref="After"/> are the changed words as the decision left them (the keeper of a merge,
+/// the clarified copies): Undo puts a field back only while it still has that value, so an edit
+/// the learner made since is kept.
 /// </summary>
-public sealed record VocabularyDuplicateUndoRecord(IReadOnlyList<VocabularyDuplicateWordSnapshot> Words)
+public sealed record VocabularyDuplicateUndoRecord(IReadOnlyList<VocabularyDuplicateWordSnapshot> Words,
+    IReadOnlyList<VocabularyDuplicateWordSnapshot>? After = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {

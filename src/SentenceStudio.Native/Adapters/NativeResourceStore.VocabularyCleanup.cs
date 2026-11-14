@@ -176,7 +176,8 @@ public sealed partial class NativeResourceStore
     /// rules, so they sync like any other.
     /// </summary>
     public async Task<NativeVocabularyDuplicateAiResult> ResolveOwnedVocabularyDuplicatesWithAiAsync(
-        string owner, IReadOnlyCollection<string> leaveOut, CancellationToken cancellationToken)
+        string owner, IReadOnlyCollection<string> leaveOut, IReadOnlyCollection<string> keepers,
+        CancellationToken cancellationToken)
     {
         if (!IsActiveOwner(owner))
             return NativeVocabularyDuplicateAiResult.None;
@@ -194,41 +195,43 @@ public sealed partial class NativeResourceStore
             languages?.TargetLanguage ?? "Korean",
             (prompt, tier, ct) => gateway.SendPromptAsync<SentenceStudio.Services.DTOs.DuplicateResolutionResponse>(
                 owner, prompt, tier, ct),
-            leaveOut, cancellationToken);
+            leaveOut, keepers, cancellationToken);
 
         var changed = result.Rules.MergedGroups > 0 || result.Ai.Applied.Count > 0;
         return new NativeVocabularyDuplicateAiResult(
-            result.Rules.RemovedCopies,
-            result.Ai.Applied.Select(applied => new NativeVocabularyDuplicateAiApplied(applied.DisplayTerm,
-                applied.Verdict, applied.Meanings, applied.DecisionIds, applied.RemovedCopies, applied.Reason)).ToArray(),
+            result.Rules.RemovedCopies, result.Ai.MergedGroups, result.Ai.KeptApartGroups, result.Ai.RemovedCopies,
             result.Ai.NeedsYou.Select(open => new NativeVocabularyDuplicateAiSuggestion(open.Call.GroupId,
                 open.Call.Usable, open.Call.Verdict, open.Call.Sets.Select(set => set.Meaning).ToArray(),
-                open.Call.Reason)).ToArray(),
+                open.Call.Reason, open.Call.Unanswered)).ToArray(),
             result.Rules.Refused.Concat(result.Ai.Refused)
                 .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey)).ToArray(),
-            changed && !TryMarkPending(owner, "Duplicate resolution with AI"));
+            changed && !TryMarkPending(owner, "Duplicate resolution with AI"), result.AiUnavailable);
     }
 
-    /// <summary>
-    /// One group's Undo (shared <see cref="LearningResourceRepository.UndoDuplicateDecisionAsync"/>):
-    /// its decisions, the last one first, so a group merged and then kept apart comes back whole.
-    /// </summary>
-    public async Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionsAsync(
-        string owner, IReadOnlyList<string> decisionIds, CancellationToken cancellationToken)
+    /// <summary>The owner's standing duplicate decisions (shared GetStandingDuplicateDecisionsAsync).</summary>
+    public async Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
+        string owner, CancellationToken cancellationToken)
     {
-        if (!IsActiveOwner(owner) || decisionIds.Count == 0)
+        if (!IsActiveOwner(owner))
+            return [];
+        var decisions = await WithResourcesAsync(resources =>
+            resources.GetStandingDuplicateDecisionsAsync(cancellationToken, owner));
+        return decisions.Select(decision => new NativeVocabularyDuplicateDecision(decision.Id, decision.Kind,
+                decision.DisplayTerm, decision.Meanings, decision.DecidedBy, decision.Reason))
+            .ToArray();
+    }
+
+    /// <summary>Undo (shared <see cref="LearningResourceRepository.UndoDuplicateDecisionAsync"/>).</summary>
+    public async Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionAsync(
+        string owner, string decisionId, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner) || string.IsNullOrWhiteSpace(decisionId))
             return NativeVocabularyMergeResult.None;
-        var undone = 0;
-        foreach (var id in decisionIds.Reverse())
-        {
-            if (await WithResourcesAsync(resources =>
-                    resources.UndoDuplicateDecisionAsync(id, cancellationToken, owner)))
-                undone++;
-        }
-        if (undone == 0)
-            return NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_DuplicatesUndoFailed" };
-        return new(0, true, !TryMarkPending(owner, "Duplicate undo"),
-            undone == decisionIds.Count ? null : "Vocabulary_DuplicatesUndoFailed");
+        var undone = await WithResourcesAsync(resources =>
+            resources.UndoDuplicateDecisionAsync(decisionId, cancellationToken, owner));
+        return undone
+            ? new(0, true, !TryMarkPending(owner, "Duplicate undo"))
+            : NativeVocabularyMergeResult.None;
     }
 
     /// <summary>Keep Apart (shared <see cref="LearningResourceRepository.KeepDuplicatesApartAsync"/>).</summary>
@@ -241,7 +244,7 @@ public sealed partial class NativeResourceStore
             wordIds, VocabularyDuplicateDecider.Learner, null, cancellationToken, owner));
         return kept
             ? new(0, true, !TryMarkPending(owner, "Keep duplicates apart"))
-            : NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_MergeRefusedNotYours" };
+            : NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_DuplicatesKeepApartFailed" };
     }
 
     /// <summary>

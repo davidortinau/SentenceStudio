@@ -10559,16 +10559,13 @@ For example: {0} ...</value>
     <value>AI merged: {0}. Kept apart: {1}. Copies removed: {2}. For you to decide: {3}.</value>
   </data>
   <data name="Vocabulary_DuplicatesAiReport" xml:space="preserve">
-    <value>Done by AI</value>
+    <value>Decisions</value>
   </data>
   <data name="Vocabulary_DuplicatesAiMerged" xml:space="preserve">
     <value>{0}: merged as "{1}"</value>
   </data>
   <data name="Vocabulary_DuplicatesAiKeptApart" xml:space="preserve">
     <value>{0}: kept apart as {1}</value>
-  </data>
-  <data name="Vocabulary_DuplicatesAiMixed" xml:space="preserve">
-    <value>{0}: merged and kept apart as {1}</value>
   </data>
   <data name="Vocabulary_DuplicatesUndo" xml:space="preserve">
     <value>Undo</value>
@@ -10599,5 +10596,14 @@ For example: {0} ...</value>
   </data>
   <data name="Vocabulary_DuplicatesChangedSinceAi" xml:space="preserve">
     <value>it changed while the AI was deciding. Check it again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnavailable" xml:space="preserve">
+    <value>The AI could not be reached, so it decided nothing. Try again when you are online.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiNoAnswer" xml:space="preserve">
+    <value>The AI did not answer for this one. Try Resolve with AI again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApartFailed" xml:space="preserve">
+    <value>these copies could not be kept apart. Check them again.</value>
   </data>
 </root>

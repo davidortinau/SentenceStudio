@@ -64,7 +64,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                     EditCopy: EditDuplicateCopy,
                     ChooseKeeper: ChooseDuplicateKeeper,
                     ResolveWithAi: () => Run(ResolveDuplicatesWithAiAsync),
-                    UndoAi: index => Run(() => UndoAiDuplicatesAsync(index)),
+                    UndoDecision: id => Run(() => UndoDuplicateDecisionAsync(id)),
                     KeepApart: term => Run(() => KeepDuplicatesApartAsync(term))))
             : Microsoft.SwiftUI.SwiftUI.Text(Text("Common_Loading"));
 

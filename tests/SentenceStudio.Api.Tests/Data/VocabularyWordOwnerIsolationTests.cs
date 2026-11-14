@@ -239,8 +239,10 @@ public abstract class VocabularyWordOwnerIsolationScenarios
             group => group.NormalizedTerm == "달");
         Assert.Equal(before, await SnapshotOfBAsync(database));
 
-        var merge = (await repository.GetDuplicateDecisionsAsync())
+        var merge = (await repository.GetStandingDuplicateDecisionsAsync())
             .Single(decision => decision.Kind == VocabularyDuplicateDecisionKind.Merged);
+        Assert.Equal("sound; noise", Assert.Single(merge.Meanings));
+        Assert.Empty(await Repository(database, UserB).GetStandingDuplicateDecisionsAsync());
         Assert.False(await Repository(database, UserB).UndoDuplicateDecisionAsync(merge.Id));
         Assert.True(await repository.UndoDuplicateDecisionAsync(merge.Id));
         await using var check = Context(database);

@@ -69,8 +69,10 @@ fields before the merge (for Undo), created at.
 
 - The scan skips a group whose copies match a `KeptApart` decision; a new copy of that term
   reopens it.
-- Undo restores the removed words (same IDs, original fields) and the keeper's meaning. Their
-  practice history stays on the keeper; it cannot be split back exactly, and the Undo note says so.
+- Undo restores the removed words (as new words with their original fields and resources, so no
+  device mistakes them for the deleted rows) and the keeper's own fields and resources. Their
+  practice history stays on the keeper; it cannot be split back exactly. Undoing a kept-apart
+  decision shows the copies again and puts back only the meanings it clarified.
 - Work: PostgreSQL and SQLite migrations (`.squad/skills/ef-dual-provider-migrations`),
   CoreSync registration, owner checks in both sync providers (native and MAUI), two-learner
   isolation tests, migration proofs on scratch databases.
@@ -147,7 +149,15 @@ syncs once at the end.
   synced with the owner rule on every client, contract in `docs/sync-all-tables-plan.md`
   ("Duplicate decisions"). The scan hides copies kept apart; `KeepDuplicatesApartAsync` records
   a decision for the learner's own copies of one term only.
-- Next: phase 3 (apply by confidence, Merged records with the undo record, report, Undo).
+- Phase 3 done (`d9db09e2`): `ApplyDuplicateResolutionAsync` (each merge, its undo record and its
+  decision in one serializable transaction; a group that changed since the AI saw it is
+  refused), `UndoDuplicateDecisionAsync`, and `VocabularyDuplicateAiCleanup` (rules, then AI,
+  then apply). Two-learner tests on SQLite and PostgreSQL.
+- Phase 4 done (`b3bbf761`), pending review and the running-app checks: Resolve with AI, the
+  Done by AI list with Undo, the AI's suggestion on a group left for the learner, and Keep Apart
+  on iOS (SwiftUI), Android (Compose) and web/MAUI (shared Razor).
+- Before release: the API deploy (the AI allow-list entry and the decision table migration),
+  then the app installs.
 
 ## Phases
 

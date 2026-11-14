@@ -297,10 +297,10 @@ var cases = new (string Name, Action Test)[]
     ("Duplicate page: Resolve with AI, the AI report with Undo, a suggestion and Keep Apart", () =>
     {
         var resolved = 0;
-        var undone = new List<int>();
+        var undone = new List<string>();
         var apart = new List<string>();
         var actions = new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { },
-            ResolveWithAi: () => resolved++, UndoAi: undone.Add, KeepApart: apart.Add);
+            ResolveWithAi: () => resolved++, UndoDecision: undone.Add, KeepApart: apart.Add);
         var panel = DuplicatePanel();
         using var page = VocabularyDuplicatesView.Page(panel, style, key => key, actions);
         // Merge all is the prominent button, so Resolve with AI is bordered beside it.
@@ -310,27 +310,31 @@ var cases = new (string Name, Action Test)[]
         var review = VocabularyDuplicatesView.GroupId(panel.Groups[0]);
         Find(page, $"{review}.keepapart")!.InvokeAction();
         Assert(apart.SequenceEqual(new[] { "병" }));
-        Assert(Find(page, "native.vocabulary.duplicates.ai.0.text") is null);
+        Assert(SectionTitled(page, "Vocabulary_DuplicatesAiReport") is null);
 
-        var applied = new NativeVocabularyDuplicateAiApplied("소리", SentenceStudio.Services.VocabularyDuplicateAiVerdict.SameWord,
-            ["sound; noise"], ["dd:1"], 1, "same meaning");
-        var apartCall = new NativeVocabularyDuplicateAiApplied("달", SentenceStudio.Services.VocabularyDuplicateAiVerdict.DifferentWords,
-            ["month", "moon (in the sky)"], ["dd:2"], 0, "different words");
+        var merged = new NativeVocabularyDuplicateDecision("dd:1", VocabularyDuplicateDecisionKind.Merged, "소리",
+            ["sound; noise"], VocabularyDuplicateDecider.Ai, "same meaning");
+        var apartDecision = new NativeVocabularyDuplicateDecision("dd:2", VocabularyDuplicateDecisionKind.KeptApart, "달",
+            ["month", "moon (in the sky)"], VocabularyDuplicateDecider.Learner, null);
         using var report = VocabularyDuplicatesView.Page(panel with {
-                AiApplied = [new(applied, false), new(apartCall, true)],
+                Decisions = [merged, apartDecision],
                 AiSuggestions = new Dictionary<string, NativeVocabularyDuplicateAiSuggestion> {
                     ["병"] = new("병", true, SentenceStudio.Services.VocabularyDuplicateAiVerdict.SameWord, ["bottle"], "same") } },
             style, key => key, actions);
         Assert(SectionTitled(report, "Vocabulary_DuplicatesAiReport") is not null);
-        Assert(Find(report, "native.vocabulary.duplicates.ai.0.text")?.Text == "Vocabulary_DuplicatesAiMerged");
-        Assert(Find(report, "native.vocabulary.duplicates.ai.0.reason")?.Text == "same meaning");
-        var undo = Find(report, "native.vocabulary.duplicates.ai.0.undo")!;
+        var first = VocabularyDuplicatesView.DecisionId(merged);
+        Assert(first == "native.vocabulary.duplicates.decision.dd%3A1");
+        Assert(Find(report, $"{first}.text")?.Text == "Vocabulary_DuplicatesAiMerged");
+        Assert(Find(report, $"{first}.reason")?.Text == "same meaning");
+        var undo = Find(report, $"{first}.undo")!;
         Assert(undo.Kind == "button" && undo.AccessibilityLabel!.Contains("소리"));
         undo.InvokeAction();
-        Assert(undone.SequenceEqual(new[] { 0 }));
-        // An undone group says so and has no Undo.
-        Assert(Find(report, "native.vocabulary.duplicates.ai.1.undo") is null);
-        Assert(AllText(Find(report, "native.vocabulary.duplicates.ai.1.undone")!).Contains("Vocabulary_DuplicatesUndone"));
+        Assert(undone.SequenceEqual(new[] { "dd:1" }));
+        // The learner's own Keep Apart is listed with its Undo, and has no reason.
+        var second = VocabularyDuplicatesView.DecisionId(apartDecision);
+        Assert(Find(report, $"{second}.text")?.Text == "Vocabulary_DuplicatesAiKeptApart");
+        Assert(Find(report, $"{second}.reason") is null);
+        Assert(Find(report, $"{second}.undo") is not null);
         Assert(AllText(Find(report, $"{review}.suggestion")!).Contains("Vocabulary_DuplicatesAiSuggestsMerge"));
 
         // Nothing to review, or a page focused on one word: no Resolve with AI.

@@ -265,7 +265,47 @@ public class VocabularyDuplicateResolverTests
             CancellationToken.None);
 
         results.Take(25).Should().OnlyContain(result => result.Call.IsSure);
-        results[25].Call.Problem.Should().Be("the AI did not answer");
+        results[25].Call.Unanswered.Should().BeTrue();
+    }
+
+    // Review: an unreachable AI (every batch fails, or offline returns nothing) is an error, not
+    // "the AI could not decide" on every group; and an unanswered group is not asked again.
+    [Fact]
+    public async Task Resolve_throws_when_the_AI_answers_no_batch()
+    {
+        var asked = new List<AiTier>();
+        Task<DuplicateResolutionResponse?> Failing(string prompt, AiTier tier, CancellationToken ct)
+        {
+            asked.Add(tier);
+            throw new HttpRequestException("401");
+        }
+        Task<DuplicateResolutionResponse?> Offline(string prompt, AiTier tier, CancellationToken ct) =>
+            Task.FromResult<DuplicateResolutionResponse?>(null);
+
+        var failing = () => VocabularyDuplicateResolver.ResolveAsync([Dal, Sori], "English", "Korean", Failing, null,
+            CancellationToken.None);
+        var offline = () => VocabularyDuplicateResolver.ResolveAsync([Dal], "English", "Korean", Offline, null,
+            CancellationToken.None);
+
+        (await failing.Should().ThrowAsync<VocabularyDuplicateAiUnavailableException>())
+            .Which.InnerException.Should().BeOfType<HttpRequestException>();
+        await offline.Should().ThrowAsync<VocabularyDuplicateAiUnavailableException>();
+        asked.Should().Equal([AiTier.Fast], "the reasoning tier is not asked about groups the AI did not answer");
+    }
+
+    [Theory]
+    [InlineData("a", "to; at")]
+    [InlineData("sol", "sun (solar)")]
+    [InlineData("Hand", "hand; palm")]
+    public void A_Latin_script_term_inside_a_gloss_is_allowed(string term, string meaning)
+    {
+        var group = Group(term, ("w-1", "one"), ("w-2", "two"));
+
+        var call = Single([group], Decision("g1", "SameWord", 0.95, Set(meaning, "g1c1", "g1c2")));
+
+        call.Usable.Should().BeTrue();
+        Single([group], Decision("g1", "SameWord", 0.95, Set(term.ToUpperInvariant(), "g1c1", "g1c2")))
+            .Problem.Should().Be("a meaning that holds the term", "a meaning that is the term itself is refused");
     }
 
     [Fact]
@@ -294,14 +334,18 @@ public class VocabularyDuplicateResolverTests
             _ => key,
         };
 
-        VocabularyDuplicateAiText.Applied(VocabularyDuplicateAiVerdict.SameWord, "소리", ["sound; noise"], Text)
+        VocabularyDuplicateAiText.Decision(SentenceStudio.Shared.Models.VocabularyDuplicateDecisionKind.Merged, "소리",
+                ["sound; noise"], Text)
             .Should().Be("소리: merged as \"sound; noise\"");
-        VocabularyDuplicateAiText.Applied(VocabularyDuplicateAiVerdict.DifferentWords, "달", ["month", "moon"], Text)
+        VocabularyDuplicateAiText.Decision(SentenceStudio.Shared.Models.VocabularyDuplicateDecisionKind.KeptApart, "달",
+                ["month", "moon"], Text)
             .Should().Be("달: kept apart as \"month\", \"moon\"");
-        VocabularyDuplicateAiText.Suggestion(true, VocabularyDuplicateAiVerdict.SameWord, ["dad; father"], "synonyms", Text)
+        VocabularyDuplicateAiText.Suggestion(true, false, VocabularyDuplicateAiVerdict.SameWord, ["dad; father"], "synonyms", Text)
             .Should().Be("AI suggests merging as \"dad; father\". synonyms");
-        VocabularyDuplicateAiText.Suggestion(false, VocabularyDuplicateAiVerdict.SameWord, [], "", Text)
+        VocabularyDuplicateAiText.Suggestion(false, false, VocabularyDuplicateAiVerdict.SameWord, [], "", Text)
             .Should().Be("Vocabulary_DuplicatesAiUnsure");
+        VocabularyDuplicateAiText.Suggestion(false, true, VocabularyDuplicateAiVerdict.SameWord, [], "", Text)
+            .Should().Be("Vocabulary_DuplicatesAiNoAnswer");
     }
 
     // The contract every client builds the same way (docs/sync-all-tables-plan.md, "Duplicate

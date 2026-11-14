@@ -40,7 +40,13 @@ public sealed record VocabularyDuplicateAiCall(
     string GroupId, VocabularyDuplicateAiVerdict Verdict, IReadOnlyList<VocabularyDuplicateAiSet> Sets,
     double Confidence, string Reason, string? Problem)
 {
+    /// <summary>The <see cref="Problem"/> of a group whose batch the AI did not answer.</summary>
+    public const string NoAnswer = "the AI did not answer";
+
     public bool Usable => Problem is null;
+
+    /// <summary>The AI did not answer this group's batch (unreachable, failed or offline).</summary>
+    public bool Unanswered => Problem == NoAnswer;
 
     /// <summary>Sure enough to apply without asking (Captain 2026-11-14: confident calls apply).</summary>
     public bool IsSure => Usable && Confidence >= (Verdict == VocabularyDuplicateAiVerdict.Mixed
@@ -56,6 +62,13 @@ public sealed record VocabularyDuplicateAiCall(
 /// </summary>
 public sealed record VocabularyDuplicateAiResult(
     VocabularyDuplicateAiCall Call, AiTier DecidedBy, VocabularyDuplicateAiCall? FastCall = null);
+
+/// <summary>
+/// The AI answered none of the batches (unreachable, failing or offline), so it decided nothing.
+/// The learner is told, not shown every group as one the AI could not decide.
+/// </summary>
+public sealed class VocabularyDuplicateAiUnavailableException(Exception? inner)
+    : Exception("The AI did not answer any duplicate group.", inner);
 
 /// <summary>Sends one prompt on a tier and returns the AI's typed answer (null when none).</summary>
 public delegate Task<DuplicateResolutionResponse?> VocabularyDuplicateAiAsk(
@@ -159,17 +172,24 @@ public static class VocabularyDuplicateResolver
     }
 
     /// <summary>
-    /// Every group's call: the fast tier first, in batches; a group it is not sure of is asked once
-    /// more on the reasoning tier, whose usable answer decides (the fast one stays when the second
-    /// is unusable). A batch the AI does not answer leaves its groups unusable, for the learner, and
-    /// the others still resolve. Cancellation stops between batches and throws.
+    /// Every group's call: the fast tier first, in batches; a group it answered but is not sure of
+    /// is asked once more on the reasoning tier, whose usable answer decides (the fast one stays
+    /// when the second is unusable). A batch the AI does not answer (a failure or no answer)
+    /// leaves its groups <see cref="VocabularyDuplicateAiCall.Unanswered"/>, for the learner, and
+    /// the others still resolve; when the fast tier answers no batch at all it throws
+    /// <see cref="VocabularyDuplicateAiUnavailableException"/>. Cancellation stops between batches
+    /// and throws.
     /// </summary>
     public static async Task<IReadOnlyList<VocabularyDuplicateAiResult>> ResolveAsync(
         IReadOnlyList<VocabularyDuplicateAiGroup> groups, string nativeLanguage, string targetLanguage,
         VocabularyDuplicateAiAsk ask, ILogger? logger, CancellationToken cancellationToken)
     {
+        Exception? firstFailure = null;
+        var answered = 0;
         var fast = await AskAsync(groups, AiTier.Fast);
-        var unsure = groups.Where(group => !fast[group.GroupId].IsSure).ToList();
+        if (groups.Count > 0 && answered == 0)
+            throw new VocabularyDuplicateAiUnavailableException(firstFailure);
+        var unsure = groups.Where(group => fast[group.GroupId] is { IsSure: false, Unanswered: false }).ToList();
         var second = unsure.Count == 0
             ? new Dictionary<string, VocabularyDuplicateAiCall>(StringComparer.Ordinal)
             : await AskAsync(unsure, AiTier.Reasoning);
@@ -200,10 +220,17 @@ public static class VocabularyDuplicateResolver
                 {
                     logger?.LogError(ex, "Duplicate resolution: the {Tier} AI did not answer a batch of {Count} groups.",
                         tier, batch.Count);
+                    firstFailure ??= ex;
+                    response = null;
+                }
+                if (response is null)
+                {
                     foreach (var group in batch)
-                        calls[group.GroupId] = VocabularyDuplicateAiCall.Unusable(group.GroupId, "the AI did not answer");
+                        calls[group.GroupId] = VocabularyDuplicateAiCall.Unusable(group.GroupId, VocabularyDuplicateAiCall.NoAnswer);
                     continue;
                 }
+                if (tier == AiTier.Fast)
+                    answered++;
                 foreach (var call in Interpret(batch, response, targetLanguage))
                     calls[call.GroupId] = call;
             }
@@ -270,7 +297,7 @@ public static class VocabularyDuplicateResolver
                 problem ??= "a set without a meaning";
             else if (meaning.Length > MaxMeaningLength)
                 problem ??= "a meaning that is too long";
-            else if (term.Length > 0 && meaning.Contains(term, StringComparison.OrdinalIgnoreCase))
+            else if (HoldsTerm(meaning, term))
                 problem ??= "a meaning that holds the term";
             var language = set?.Language?.Trim();
             sets.Add(new VocabularyDuplicateAiSet(ids, meaning,
@@ -294,6 +321,16 @@ public static class VocabularyDuplicateResolver
             reason = reason[..MaxReasonLength];
         return new VocabularyDuplicateAiCall(group.GroupId, verdict, sets, answer.Confidence, reason, problem);
     }
+
+    /// <summary>
+    /// The meaning is the term, or (for a term not in Latin script, such as Korean) shows it: a
+    /// target-language meaning. A Latin-script term inside a gloss is often a cognate or a letter
+    /// ("sol" in "solar", "a" in "at"), so only the term itself is refused there.
+    /// </summary>
+    private static bool HoldsTerm(string meaning, string term) =>
+        term.Length > 0 && (string.Equals(meaning, term, StringComparison.OrdinalIgnoreCase)
+            || (term.Any(character => char.IsLetter(character) && character > '\u024F')
+                && meaning.Contains(term, StringComparison.Ordinal)));
 
     private static string GroupAlias(int index) => $"g{index + 1}";
 

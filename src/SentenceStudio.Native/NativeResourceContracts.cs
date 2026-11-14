@@ -307,15 +307,22 @@ public interface INativeResourceStore
     /// <summary>
     /// Resolve with AI for the active owner (shared VocabularyDuplicateAiCleanup): the safe
     /// merges, then the AI on the groups left to review, never one holding a copy in
-    /// <paramref name="leaveOut"/>; its confident calls apply, the rest come back as suggestions.
+    /// <paramref name="leaveOut"/>, keeping the copies in <paramref name="keepers"/> (Keep This);
+    /// its confident calls apply, the rest come back as suggestions.
     /// </summary>
     Task<NativeVocabularyDuplicateAiResult> ResolveOwnedVocabularyDuplicatesWithAiAsync(
-        string owner, IReadOnlyCollection<string> leaveOut, CancellationToken cancellationToken) =>
+        string owner, IReadOnlyCollection<string> leaveOut, IReadOnlyCollection<string> keepers,
+        CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate resolution with AI is not available from this store.");
 
-    /// <summary>Undoes the owner's duplicate decisions, the last one first (one group's Undo).</summary>
-    Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionsAsync(
-        string owner, IReadOnlyList<string> decisionIds, CancellationToken cancellationToken) =>
+    /// <summary>The owner's standing duplicate decisions, newest first, for the page's list.</summary>
+    Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
+        string owner, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<NativeVocabularyDuplicateDecision>>([]);
+
+    /// <summary>Undoes one of the owner's duplicate decisions.</summary>
+    Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionAsync(
+        string owner, string decisionId, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate undo is not available from this store.");
 
     /// <summary>Keep Apart: the owner's copies of one term stop showing as duplicates.</summary>

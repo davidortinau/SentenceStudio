@@ -179,8 +179,8 @@ internal sealed partial class AndroidSliceShell
         {
             new("summary", () => VocabularyDuplicatesSummary(vocabulary, panel, palette)),
         };
-        if (panel.AiReport.Count > 0)
-            rows.Add(new("ai", () => VocabularyDuplicatesAiReport(vocabulary, panel, palette)));
+        if (panel.DecisionList.Count > 0)
+            rows.Add(new("decisions", () => VocabularyDuplicateDecisions(vocabulary, panel, palette)));
         var review = panel.ReviewGroups;
         if (review.Count > 0)
         {
@@ -273,10 +273,10 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>
-    /// What the last Resolve with AI did: one row per group (what it decided and why) with its
-    /// Undo; an undone row says so instead.
+    /// The owner's standing duplicate decisions, newest first (the AI's merges and kept-apart
+    /// groups, and Keep Apart): what each decided, why, and its Undo.
     /// </summary>
-    private ComposableNode VocabularyDuplicatesAiReport(VocabularyBrowser vocabulary,
+    private ComposableNode VocabularyDuplicateDecisions(VocabularyBrowser vocabulary,
         VocabularyDuplicatePanel panel, AndroidVisualPalette palette)
     {
         var items = new List<ComposableNode>
@@ -284,43 +284,35 @@ internal sealed partial class AndroidSliceShell
             Heading(Localize("Vocabulary_DuplicatesAiReport"), palette, 18,
                 Modifier.Semantics(semantics => semantics.Heading())),
         };
-        for (var index = 0; index < panel.AiReport.Count; index++)
+        foreach (var decision in panel.DecisionList)
         {
-            var item = panel.AiReport[index];
-            var id = $"native.vocabulary.duplicates.ai.{index}";
+            var id = $"native.vocabulary.duplicates.decision.{Uri.EscapeDataString(decision.Id)}";
             var lines = new Column(Arrangement.SpacedBy(2))
             {
                 Modifier.Weight(1f),
-                Body(VocabularyDuplicateFinder.AiAppliedText(item.Applied, Localize), palette,
+                Body(VocabularyDuplicateFinder.DecisionText(decision, Localize), palette,
                     modifier: Modifier.TestTag($"{id}.text")),
             };
-            if (item.Undone)
-                lines.Add(Caption(string.Format(CultureInfo.CurrentCulture, Localize("Vocabulary_DuplicatesUndone"),
-                    item.Applied.DisplayTerm), palette, $"{id}.undone"));
-            else if (!string.IsNullOrWhiteSpace(item.Applied.Reason))
-                lines.Add(Caption(item.Applied.Reason, palette, $"{id}.reason"));
-            var row = new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            if (!string.IsNullOrWhiteSpace(decision.Reason))
+                lines.Add(Caption(decision.Reason, palette, $"{id}.reason"));
+            var decided = decision.Id;
+            var label = Localize("Vocabulary_DuplicatesUndo");
+            var undo = new TextButton(() => RunMoreOnUi(() => vocabulary.UndoDuplicateDecisionAsync(decided)),
+                enabled: !panel.Running)
+            {
+                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag($"{id}.undo")
+                    .Semantics(semantics => semantics.ContentDescription($"{label}, {decision.DisplayTerm}")),
+            };
+            undo.Add(new Text(label) { Color = palette.Primary });
+            items.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
             {
                 Modifier.FillMaxWidth(),
                 lines,
-            };
-            if (!item.Undone)
-            {
-                var at = index;
-                var label = Localize("Vocabulary_DuplicatesUndo");
-                var undo = new TextButton(() => RunMoreOnUi(() => vocabulary.UndoAiDuplicatesAsync(at)),
-                    enabled: !panel.Running)
-                {
-                    Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                        .TestTag($"{id}.undo")
-                        .Semantics(semantics => semantics.ContentDescription($"{label}, {item.Applied.DisplayTerm}")),
-                };
-                undo.Add(new Text(label) { Color = palette.Primary });
-                row.Add(undo);
-            }
-            items.Add(row);
+                undo,
+            });
         }
-        return Card(palette, "native.vocabulary.duplicates.ai", items.ToArray());
+        return Card(palette, "native.vocabulary.duplicates.decisions", items.ToArray());
     }
 
     /// <summary>
@@ -429,8 +421,8 @@ internal sealed partial class AndroidSliceShell
             {
                 Modifier.Weight(1f),
                 Action(Localize("Vocabulary_DuplicatesKeepApart"), $"{id}.keepapart",
-                    () => RunMoreOnUi(() => vocabulary.KeepDuplicatesApartAsync(term)), !panel.Running,
-                    primary: false),
+                    () => RunMoreOnUi(() => vocabulary.KeepDuplicatesApartAsync(term)),
+                    !panel.Running && panel.Chosen(group).Count >= 2, primary: false),
             },
             new Box
             {

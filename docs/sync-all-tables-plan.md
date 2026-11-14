@@ -592,7 +592,18 @@ offline devices that keep the same copies apart make the same row.
 **What it does.** The duplicate scan hides a group while a standing `KeptApart` decision of
 the learner for that term holds every current copy; a new copy of the term shows the group
 again, and an undone decision no longer hides it. Keeping the same copies apart again clears
-`UndoneAt`.
+`UndoneAt` and replaces `Before`. Every client lists the learner's standing decisions (newest
+first, at most 50) on the duplicate page, each with Undo.
+
+**Undo record (`Before`, JSON, camelCase).** `{ "words": [snapshot...], "after": [snapshot...] }`.
+`words` are the copies as they were before (for a merge every copy it took, keeper included; for
+a kept-apart decision the copies whose meaning or language it clarified). `after` are the changed
+words as the decision left them (a merge's keeper; the clarified copies). A snapshot is `id`,
+`targetLanguageTerm`, `nativeLanguageTerm`, `lemma`, `language`, `tags`, `mnemonicText`,
+`mnemonicImageUri`, `audioPronunciationUri`, `lexicalUnitType` (enum name), `partOfSpeech`
+(canonical token or null), `createdAt`, `resourceIds` (the learner's resources that held it).
+Undo puts a field back only while the word still has the `after` value, so an edit made since is
+kept; a merge's removed copies come back as new words (new IDs) with their fields and resources.
 
 **Owner rule (server).** A device downloads and uploads only its owner's rows; an upload that
 names another owner or reuses another learner's ID is refused; a row with no owner is left
