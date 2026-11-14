@@ -90,8 +90,17 @@ Ailoha branches with SwiftUI fixes (PRs #140-#143 upstream): `fix/swiftui-access
   `~/.docker/bin`.
 - Proven on 2026-11-13: API health 200 on `http://localhost:5081`, Postgres/Redis/Azurite
   containers up, and the seeded `testsailor` and `e2e` accounts sign in through
-  `/api/auth/login`. Not yet done: signing in from the app on "SS iPad", and the
-  `MaxProWildDev` signing identity for phone builds.
+  `/api/auth/login`; the Captain signed in from the app on "SS iPad" (the Study tab shows the
+  getting-started choices: fixture accounts have no learning data).
+- **Phone signing:** Lilliput has its own "Apple Development: Dave Ortinau (W4L3MZPMK9)"
+  certificate (team NYHGX6KCDG, valid to 2027-11-13) and the regenerated `MaxProWildDev`
+  profile (`com.simplyprofound.*`, 4 devices, valid to 2027-11-14) carrying it and the old
+  machine's certificate. Apple's WWDR **G3** intermediate had to be added to the login keychain
+  (only G5 and the expired 2023 one were there), or the identity counts as invalid. Signing reads
+  the keychain, so run device builds from the desktop session (`~/devicebuild.command` runs
+  `scripts/ios-build.sh device`, log `~/devicebuild.log`). Proven 2026-11-13: a Release build
+  signed and verified (`codesign --verify --deep --strict`); Duotopia shows as connected.
+  `scripts/ios-phone.sh` installs only after the Captain's go.
 
 ## Secrets
 
