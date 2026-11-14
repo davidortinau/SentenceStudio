@@ -749,11 +749,13 @@ internal static class VocabularyListView
     /// <summary>The card's details line: encoding, resources (or orphaned), lemma and up to three tags.</summary>
     private static string Details(NativeVocabularyEntry word, Func<string, string> text)
     {
-        var metadata = new List<string> {
-            word.AssociatedResources.Count == 0 ? text("Vocabulary_OrphanedBadge")
-                : string.Format(CultureInfo.CurrentCulture, text("Vocabulary_ResourcesCount"),
-                    word.AssociatedResources.Count)
-        };
+        var metadata = new List<string>();
+        // Captain 2026-11-14: "I need to see language too" (copies of one term in two languages).
+        if (!string.IsNullOrWhiteSpace(word.Language))
+            metadata.Add(word.Language.Trim());
+        metadata.Add(word.AssociatedResources.Count == 0 ? text("Vocabulary_OrphanedBadge")
+            : string.Format(CultureInfo.CurrentCulture, text("Vocabulary_ResourcesCount"),
+                word.AssociatedResources.Count));
         if (!string.IsNullOrWhiteSpace(word.Lemma))
             metadata.Add(word.Lemma);
         if (!string.IsNullOrWhiteSpace(word.Tags))

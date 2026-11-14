@@ -294,11 +294,13 @@ public interface INativeResourceStore
         throw new NotSupportedException("Duplicate merge is not available from this store.");
 
     /// <summary>
-    /// Source MergeSafeDuplicateGroupsAsync for the active owner: every safe group at once, or
-    /// only <paramref name="focusTerm"/>'s (a page focused on one word).
+    /// Source MergeSafeDuplicateGroupsAsync for the active owner: every merge that loses nothing,
+    /// or only <paramref name="focusTerm"/>'s (a page focused on one word), never taking the
+    /// copies in <paramref name="leaveOut"/> (left out or skipped on the page).
     /// </summary>
     Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
-        string owner, string? focusTerm, CancellationToken cancellationToken) =>
+        string owner, string? focusTerm, IReadOnlyCollection<string> leaveOut,
+        CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate merge is not available from this store.");
 
     Task<IReadOnlyList<NativeResourceItem>> ListAsync(

@@ -177,11 +177,6 @@ internal sealed partial class AndroidSliceShell
                     return true;
                 if (vocabulary.IsNavigationBlocked)
                     return true;
-                if (vocabulary.DuplicatePanel is not null)
-                {
-                    vocabulary.CloseDuplicates();
-                    return true;
-                }
                 if (vocabulary.IsDeleteConfirmationPresented)
                 {
                     vocabulary.CancelDelete();
@@ -195,6 +190,12 @@ internal sealed partial class AndroidSliceShell
                 if (vocabulary.IsFormOpen)
                 {
                     vocabulary.CloseWord();
+                    return true;
+                }
+                // The duplicate page sits under a word its Edit opened, so it closes after the word.
+                if (vocabulary.DuplicatePanel is not null)
+                {
+                    vocabulary.CloseDuplicates();
                     return true;
                 }
                 break;

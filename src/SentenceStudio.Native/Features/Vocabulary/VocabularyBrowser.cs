@@ -764,6 +764,10 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>Skip: a review group leaves the duplicate page while it is open.</summary>
     internal void SkipDuplicates(string normalizedTerm) => _cleanup.SkipDuplicates(normalizedTerm);
 
+    /// <summary>A copy goes into, or is left out of, its review group's Merge.</summary>
+    internal void ToggleDuplicateCopy(string normalizedTerm, string wordId) =>
+        _cleanup.ToggleDuplicateCopy(normalizedTerm, wordId);
+
     /// <summary>Source CloseCleanupPanel.</summary>
     internal void CloseDuplicates() => _cleanup.CloseDuplicates();
 

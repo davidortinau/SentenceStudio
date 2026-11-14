@@ -20786,6 +20786,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Choose the copies to merge. The others stay as they are..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesChooseHint {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesChooseHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose at least two copies to merge..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesChooseTwo {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesChooseTwo", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Clean Up Duplicates.
         /// </summary>
         internal static string Vocabulary_DuplicatesCleanUp {
@@ -20800,6 +20818,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesCopies {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesCopies", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to copy {0} of {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesCopyPosition {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesCopyPosition", resourceCulture);
             }
         }
 
@@ -20885,7 +20912,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Merge {0} Group(s).
+        ///   Looks up a localized string similar to Merge Matching Copies ({0}).
         /// </summary>
         internal static string Vocabulary_DuplicatesMergeAll {
             get {
@@ -20894,7 +20921,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Merged {0} group(s) and removed {1} copies..
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {1}..
         /// </summary>
         internal static string Vocabulary_DuplicatesMergedAll {
             get {
@@ -20903,7 +20930,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Merged {0} group(s) and removed {1} copies. {2} group(s) could not merge..
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {1}. Could not merge: {2}..
         /// </summary>
         internal static string Vocabulary_DuplicatesMergedAllWithRefusals {
             get {
@@ -21056,7 +21083,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} group(s) can merge without losing anything ({1} extra copies)..
+        ///   Looks up a localized string similar to Matching copies that can merge without losing anything: {1}..
         /// </summary>
         internal static string Vocabulary_DuplicatesSafeSummary {
             get {

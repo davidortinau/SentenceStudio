@@ -97,3 +97,19 @@ focused term in the repository (no client loops); the web reloads after a failed
   "Edit record" is gone (no group is blocked by its fields any more).
 - Web and MAUI (`Vocabulary.razor`) and Android (a full page like Recent lookups, opened from the
   list's overflow menu): the same sections.
+
+## Follow-up (2026-11-14, Captain: "merge some matching duplicates but not all", "go directly to a vocabulary word", "I need to see language too")
+
+- Merge all also folds identical copies inside a group to review (`VocabularyDuplicateGroup.MergeParts`,
+  `VocabularyDuplicatePolicy.SameWordSets`): 약's two "medicine" copies merge, "approximately" stays.
+  It never takes a copy the learner left out or a group they skipped (`leaveOut`). The texts count
+  copies ("Merge N Copies").
+- A group of three or more copies is a choice: tap a copy to leave it out; Merge folds the chosen
+  copies into the first chosen one (`VocabularyDuplicatePolicy.ChosenCopies`, `KeeperOf`). A group
+  that shrinks to two merges whole.
+- Every copy has Edit: iOS opens the editor above the page (Back and Save return to it), Android
+  over the page, the web editor returns to the panel.
+- Every copy shows its language and kind; Vocabulary list rows show the language on every client.
+- Simulator run (Test Sailor): leaving out "pear" moved the keeper to "ship"; Merge folded "stomach"
+  into "ship"; Merge all folded 약's and 의자's identical copies; Edit opened above the page and Back
+  returned to it.

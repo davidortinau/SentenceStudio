@@ -166,7 +166,8 @@ public sealed record NativeVocabularyDuplicateWord(
     string Id, string TargetTerm, string NativeTerm,
     string? Language, LexicalUnitType LexicalUnitType,
     int ResourceCount, double EncodingScore, string EncodingLabel,
-    string? MnemonicText, bool HasImageAid, bool HasAudio, string? Lemma = null);
+    string? MnemonicText, bool HasImageAid, bool HasAudio, string? Lemma = null,
+    bool UsedByOthers = false);
 
 /// <summary>
 /// Source VocabularyDuplicateGroup of the owner's own words; <see cref="Words"/> is in
@@ -181,9 +182,13 @@ public sealed record NativeVocabularyDuplicateGroup(
     bool CanMergeAutomatically, string? MergeBlockedReason,
     string RecommendedKeeperId,
     VocabularyDuplicateRisk Risk = VocabularyDuplicateRisk.Safe,
-    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null)
+    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null,
+    IReadOnlyList<VocabularyDuplicateMergePart>? MergeParts = null)
 {
     public IReadOnlyList<VocabularyDuplicateDifference> DifferenceList => Differences ?? [];
+
+    /// <summary>What Merge all merges in this group (the shared scan's parts; none for a test double).</summary>
+    public IReadOnlyList<VocabularyDuplicateMergePart> MergePartList => MergeParts ?? [];
 }
 
 /// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
@@ -192,3 +197,5 @@ public sealed record NativeVocabularyDuplicateScan(
     IReadOnlyList<NativeVocabularyDuplicateGroup> Groups,
     int TotalGroupCount, int ExtraRecordCount,
     int SafeGroupCount = 0, int SafeCopyCount = 0, int ReviewGroupCount = 0, int BlockedGroupCount = 0);
+// SafeGroupCount counts merges, not groups: a safe group is one, and each set of identical copies
+// inside a group to review is one more (VocabularyDuplicateScanResult).

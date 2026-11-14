@@ -88,7 +88,8 @@ public sealed partial class NativeResourceStore
                     shown.Select(info => DuplicateWord(info)).ToArray(),
                     group.CanMergeAutomatically, group.MergeBlockedReason,
                     // Empty when no copy can be kept (nothing to merge into).
-                    group.RecommendedKeeperId, group.EffectiveRisk, group.Differences);
+                    group.RecommendedKeeperId, group.EffectiveRisk, group.Differences,
+                    group.MergeParts);
             })
             .ToArray();
         return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount,
@@ -148,7 +149,8 @@ public sealed partial class NativeResourceStore
     /// words recorded to the owner, the same rule as <see cref="OwnedVocabularyIds"/>.
     /// </summary>
     public async Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
-        string owner, string? focusTerm, CancellationToken cancellationToken)
+        string owner, string? focusTerm, IReadOnlyCollection<string> leaveOut,
+        CancellationToken cancellationToken)
     {
         if (!IsActiveOwner(owner))
             return NativeVocabularyMergeAllResult.None;
@@ -157,7 +159,7 @@ public sealed partial class NativeResourceStore
         // The merges are the owner's even if the account changes while they run, so their sync
         // is recorded for that owner (TryMarkPending is keyed by owner).
         var merged = await WithResourcesAsync(resources =>
-            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm));
+            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm, leaveOut));
         var refused = merged.Refused
             .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey))
             .ToArray();
@@ -196,6 +198,7 @@ public sealed partial class NativeResourceStore
             string.IsNullOrWhiteSpace(word.MnemonicText) ? null : word.MnemonicText,
             !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
             !string.IsNullOrWhiteSpace(word.AudioPronunciationUri),
-            string.IsNullOrWhiteSpace(word.Lemma) ? null : word.Lemma.Trim());
+            string.IsNullOrWhiteSpace(word.Lemma) ? null : word.Lemma.Trim(),
+            info.UsedByOthers);
     }
 }

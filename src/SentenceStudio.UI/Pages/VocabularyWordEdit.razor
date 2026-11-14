@@ -433,6 +433,17 @@ else
     [SupplyParameterFromQuery(Name = "returnFocusWordId")]
     public string? ReturnFocusWordId { get; set; }
 
+    /// <summary>"all": opened from the duplicate panel over all words, which Back reopens.</summary>
+    [SupplyParameterFromQuery(Name = "returnDuplicates")]
+    public string? ReturnDuplicates { get; set; }
+
+    /// <summary>The duplicate panel's skipped groups and left-out copies, handed back on return.</summary>
+    [SupplyParameterFromQuery(Name = "returnSkipped")]
+    public string? ReturnSkipped { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnLeftOut")]
+    public string? ReturnLeftOut { get; set; }
+
     [SupplyParameterFromQuery(Name = "initialTargetTerm")]
     public string? InitialTargetTerm { get; set; }
 
@@ -1034,6 +1045,14 @@ else
 
         if (!string.IsNullOrWhiteSpace(ReturnFocusWordId))
             queryParts.Add($"focusWordId={Uri.EscapeDataString(ReturnFocusWordId)}");
+
+        if (string.IsNullOrWhiteSpace(ReturnDuplicateTerm)
+            && string.Equals(ReturnDuplicates, "all", StringComparison.Ordinal))
+            queryParts.Add("duplicates=all");
+        if (!string.IsNullOrWhiteSpace(ReturnSkipped))
+            queryParts.Add($"skipped={Uri.EscapeDataString(ReturnSkipped)}");
+        if (!string.IsNullOrWhiteSpace(ReturnLeftOut))
+            queryParts.Add($"leftOut={Uri.EscapeDataString(ReturnLeftOut)}");
 
         var url = queryParts.Count == 0
             ? "/vocabulary"

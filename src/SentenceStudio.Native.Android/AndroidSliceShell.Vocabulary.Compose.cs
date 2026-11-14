@@ -287,13 +287,14 @@ internal sealed partial class AndroidSliceShell
         AndroidVisualPalette palette)
     {
         var status = Localize(VocabularyStatusKey(word));
-        var metadata = new List<string>
-        {
-            word.AssociatedResources.Count == 0
-                ? Localize("Vocabulary_OrphanedBadge")
-                : string.Format(CultureInfo.CurrentCulture, Localize("Vocabulary_ResourcesCount"),
-                    word.AssociatedResources.Count),
-        };
+        var metadata = new List<string>();
+        // Captain 2026-11-14 (as iOS): the word's language before its resources.
+        if (!string.IsNullOrWhiteSpace(word.Language))
+            metadata.Add(word.Language.Trim());
+        metadata.Add(word.AssociatedResources.Count == 0
+            ? Localize("Vocabulary_OrphanedBadge")
+            : string.Format(CultureInfo.CurrentCulture, Localize("Vocabulary_ResourcesCount"),
+                word.AssociatedResources.Count));
         if (!string.IsNullOrWhiteSpace(word.Lemma))
             metadata.Add(word.Lemma);
         if (!string.IsNullOrWhiteSpace(word.Tags))

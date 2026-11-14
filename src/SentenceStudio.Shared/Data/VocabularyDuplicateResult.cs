@@ -2,7 +2,10 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
-/// <param name="SafeGroupCount">Groups "Merge all" merges without review (every page).</param>
+/// <param name="SafeGroupCount">
+/// Merges "Merge all" makes without review (every page): each safe group, and each set of
+/// identical copies inside a group to review (<see cref="VocabularyDuplicateGroup.MergeParts"/>).
+/// </param>
 /// <param name="SafeCopyCount">The copies those merges remove.</param>
 /// <param name="ReviewGroupCount">Groups whose merge would lose something, for the learner to decide.</param>
 /// <param name="BlockedGroupCount">Groups the merge cannot change.</param>
@@ -48,6 +51,7 @@ public enum VocabularyDuplicateDifference
 /// <param name="KeeperId">The copy the merge keeps: the first in merge order it can keep.</param>
 /// <param name="RemovableIds">The copies the merge removes (no other learner's data uses them).</param>
 /// <param name="Differences">What a merge would drop, when <paramref name="Risk"/> is review.</param>
+/// <param name="SafeParts">The finder's merges that lose nothing (see <see cref="MergeParts"/>).</param>
 public sealed record VocabularyDuplicateGroup(
     string NormalizedTerm,
     string DisplayTerm,
@@ -57,8 +61,21 @@ public sealed record VocabularyDuplicateGroup(
     VocabularyDuplicateRisk? Risk = null,
     string? KeeperId = null,
     IReadOnlyList<string>? RemovableIds = null,
-    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null)
+    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null,
+    IReadOnlyList<VocabularyDuplicateMergePart>? SafeParts = null)
 {
+    /// <summary>
+    /// What "Merge all" merges in this group without review: the whole group when it is safe, or
+    /// each set of identical copies in a group to review (약's two "medicine" copies beside
+    /// "approximately"); none when the group cannot merge.
+    /// </summary>
+    public IReadOnlyList<VocabularyDuplicateMergePart> MergeParts => SafeParts
+        ?? (EffectiveRisk == VocabularyDuplicateRisk.Safe && RecommendedKeeperId.Length > 0
+            ? [new VocabularyDuplicateMergePart(RecommendedKeeperId,
+                Words.Select(info => info.Word.Id).Where(id => id != RecommendedKeeperId).ToArray(),
+                MergeRemovableIds)]
+            : []);
+
     public VocabularyDuplicateRisk EffectiveRisk => Risk
         ?? (CanMergeAutomatically ? VocabularyDuplicateRisk.Safe : VocabularyDuplicateRisk.Blocked);
 
@@ -93,10 +110,23 @@ public sealed record VocabularyDuplicateGroup(
 }
 
 /// <summary>One copy in a duplicate group: always one of the learner's own words.</summary>
+/// <param name="UsedByOthers">Another learner's (or no one's) data uses it: a merge keeps it.</param>
 public sealed record VocabularyDuplicateWordInfo(
     VocabularyWord Word,
     int ResourceCount,
-    double EncodingScore);
+    double EncodingScore,
+    bool UsedByOthers = false);
+
+/// <summary>
+/// One merge that loses nothing: <paramref name="OtherIds"/> fold into <paramref name="KeeperId"/>
+/// (copies someone else uses stay, but the learner's links and history on them move).
+/// </summary>
+/// <param name="RemovableIds">The ones among <paramref name="OtherIds"/> the merge removes.</param>
+public sealed record VocabularyDuplicateMergePart(
+    string KeeperId, IReadOnlyList<string> OtherIds, IReadOnlyList<string> RemovableIds)
+{
+    public int RemovableCount => RemovableIds.Count;
+}
 
 /// <summary>
 /// What a merge did: the duplicate copies removed, and whether anything was saved (links and

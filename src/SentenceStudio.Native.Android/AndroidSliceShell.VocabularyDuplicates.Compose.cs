@@ -244,14 +244,14 @@ internal sealed partial class AndroidSliceShell
         if (!string.IsNullOrWhiteSpace(panel.FocusLabel))
             items.Add(Caption(VocabularyDuplicateFinder.FocusNote(panel.FocusLabel, Localize),
                 palette, "native.vocabulary.duplicates.focus"));
-        if (!panel.Running && panel.SafeGroupCount > 0)
+        if (panel.CanMergeAll)
         {
             items.Add(Body(string.Format(CultureInfo.CurrentCulture,
                     Localize("Vocabulary_DuplicatesSafeSummary"), panel.SafeGroupCount,
-                    panel.SafeCopyCount), palette,
+                    panel.MergeAllCopyCount), palette,
                 modifier: Modifier.TestTag("native.vocabulary.duplicates.summary")));
             items.Add(Action(string.Format(CultureInfo.CurrentCulture,
-                    Localize("Vocabulary_DuplicatesMergeAll"), panel.SafeGroupCount),
+                    Localize("Vocabulary_DuplicatesMergeAll"), panel.MergeAllCopyCount),
                 "native.vocabulary.duplicates.mergeall",
                 () => RunMoreOnUi(vocabulary.MergeAllDuplicatesAsync), true));
         }
@@ -267,7 +267,9 @@ internal sealed partial class AndroidSliceShell
 
     /// <summary>
     /// A group to review: its term, what merging would lose (a warning icon and words, not color
-    /// alone), its copies with the keeper first, then Merge and Skip.
+    /// alone), its copies with the keeper first, then Merge and Skip. With three or more copies
+    /// each copy has a checkbox (Captain 2026-11-14: "merge some matching duplicates but not
+    /// all"): Merge folds the checked ones into the first checked copy.
     /// </summary>
     private ComposableNode VocabularyDuplicateReview(VocabularyBrowser vocabulary,
         VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group,
@@ -292,9 +294,46 @@ internal sealed partial class AndroidSliceShell
                 lost,
             },
         };
-        foreach (var word in VocabularyDuplicateFinder.KeeperFirst(group))
-            column.Add(VocabularyDuplicateCopy(panel, group, word, palette));
         var term = group.NormalizedTerm;
+        var choice = VocabularyDuplicatePanel.OffersChoice(group);
+        if (choice)
+            column.Add(Caption(Localize("Vocabulary_DuplicatesChooseHint"), palette, $"{id}.hint"));
+        var keeper = panel.KeeperOf(group);
+        var copies = VocabularyDuplicateFinder.KeeperFirst(group, keeper);
+        for (var index = 0; index < copies.Count; index++)
+        {
+            var word = copies[index];
+            var wordId = word.Id;
+            // Identical copies read the same, so TalkBack also says which one (copy 2 of 3).
+            var spoken = $"{word.NativeTerm}, {string.Format(CultureInfo.CurrentCulture,
+                Localize("Vocabulary_DuplicatesCopyPosition"), index + 1, copies.Count)}";
+            var row = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth(),
+            };
+            if (choice)
+                row.Add(new Checkbox(@checked: panel.IsIncluded(word),
+                    onCheckedChange: _ => vocabulary.ToggleDuplicateCopy(term, wordId),
+                    enabled: !panel.Running)
+                {
+                    Modifier = Modifier.TestTag($"native.vocabulary.duplicates.word.{wordId}.choose")
+                        .Semantics(semantics => semantics.ContentDescription(spoken)),
+                });
+            row.Add(new Box { Modifier.Weight(1f), VocabularyDuplicateCopy(panel, group, word, keeper, palette) });
+            // Captain 2026-11-14: "go directly to a vocabulary word so that I can modify the
+            // entry". The editor opens over this page; Back or Save returns to it.
+            var editLabel = Localize("Vocabulary_DuplicatesEdit");
+            var edit = new TextButton(() => RunMoreOnUi(() => vocabulary.OpenWordAsync(wordId)),
+                enabled: !panel.Running)
+            {
+                Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag($"native.vocabulary.duplicates.word.{wordId}.edit")
+                    .Semantics(semantics => semantics.ContentDescription($"{editLabel}, {spoken}")),
+            };
+            edit.Add(new Text(editLabel) { Color = palette.Primary });
+            row.Add(edit);
+            column.Add(row);
+        }
         column.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
         {
             Modifier.FillMaxWidth(),
@@ -303,7 +342,7 @@ internal sealed partial class AndroidSliceShell
                 Modifier.Weight(1f),
                 Action(Localize("Vocabulary_DuplicatesMerge"), $"{id}.merge",
                     () => RunMoreOnUi(() => vocabulary.MergeDuplicatesAsync(term)),
-                    !panel.Running, primary: false),
+                    !panel.Running && panel.Chosen(group).Count >= 2, primary: false),
             },
             new Box
             {
@@ -317,11 +356,11 @@ internal sealed partial class AndroidSliceShell
 
     /// <summary>A copy: its meaning, what differs and its memory aids, and which copy Merge keeps.</summary>
     private ComposableNode VocabularyDuplicateCopy(VocabularyDuplicatePanel panel,
-        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word,
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word, string keeperId,
         AndroidVisualPalette palette)
     {
         var id = $"native.vocabulary.duplicates.word.{word.Id}";
-        var keeper = word.Id == group.RecommendedKeeperId;
+        var keeper = word.Id == keeperId;
         var native = Body(word.NativeTerm, palette, modifier: Modifier.TestTag($"{id}.native"));
         if (keeper)
             native.FontWeight = FontWeight.SemiBold;

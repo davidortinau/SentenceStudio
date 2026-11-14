@@ -45,6 +45,9 @@ internal sealed partial class ApplicationController
     /// <summary>The open duplicate page's state (a new one after every change), or null.</summary>
     internal VocabularyDuplicatePanel? VocabularyDuplicates => _vocabulary?.DuplicatePanel;
     internal bool IsVocabularyDuplicatesOpen => VocabularyDuplicates is not null;
+
+    /// <summary>The open word came from the duplicate page's Edit: it sits above that page.</summary>
+    internal bool IsVocabularyWordFromDuplicates => _vocabulary?.WordFromDuplicates == true;
     internal string VocabularyDuplicatesTitle => _vocabulary?.DuplicatesTitle ?? string.Empty;
 
     internal SwiftView RenderVocabularyDuplicates(SourceUiStyle style) =>

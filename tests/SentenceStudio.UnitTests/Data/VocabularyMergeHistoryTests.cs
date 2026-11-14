@@ -644,7 +644,42 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
 
         group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
         group.Differences.Should().Contain(VocabularyDuplicateDifference.Meaning);
-        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(0);
+        // Merge all folds the two "to fit" copies together and leaves the shared one alone.
+        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(1);
+        WordExists(keeper).Should().BeTrue();
+        WordExists(removable).Should().BeFalse();
+        WordExists(shared).Should().BeTrue();
+    }
+
+    // Captain 2026-11-14: "I need to be able to merge some matching duplicates but not all.
+    // Example 약 has 2 meanings." Merge all folds the two "medicine" copies together and leaves
+    // "approximately"; the group stays for review with its two meanings.
+    [Fact]
+    public async Task MergeSafe_MergesTheIdenticalCopiesInsideAGroupToReview()
+    {
+        var approximately = SeedWord("약", "approximately");
+        var medicine = SeedWord("약 ", "medicine");
+        var medicineCopy = SeedWord(" 약", "Medicine.");
+        EnsureWordsMappedToUser(UserA, approximately, medicine, medicineCopy);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var scan = await repo.FindDuplicateVocabularyGroupsAsync();
+        var group = scan.Groups.Single();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        (scan.SafeGroupCount, scan.SafeCopyCount, scan.ReviewGroupCount).Should().Be((1, 1, 1));
+        var part = group.MergeParts.Single();
+        new[] { part.KeeperId }.Concat(part.OtherIds).Should().BeEquivalentTo([medicine, medicineCopy]);
+
+        var merged = await repo.MergeSafeDuplicateGroupsAsync();
+
+        (merged.MergedGroups, merged.RemovedCopies).Should().Be((1, 1));
+        WordExists(approximately).Should().BeTrue();
+        (WordExists(medicine) ^ WordExists(medicineCopy)).Should().BeTrue("one medicine copy stays");
+        var after = await repo.FindDuplicateVocabularyGroupsAsync();
+        after.Groups.Single().Words.Should().HaveCount(2);
+        after.Groups.Single().EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        after.SafeGroupCount.Should().Be(0);
     }
 
     // Review 2026-11-14 (second pass): an unclassified part of speech is filled from another copy;
@@ -692,6 +727,73 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         group.MergeBlockedReason.Should().Be("Vocabulary_DuplicatesAllShared");
         group.RecommendedKeeper.Should().BeNull();
         group.RecommendedKeeperId.Should().BeEmpty();
+    }
+
+    // Review 2026-11-14 (third pass): Merge all never takes a copy the learner left out (or a
+    // group they skipped, sent as all its copies).
+    [Fact]
+    public async Task MergeSafe_LeavesOutTheCopiesTheLearnerKept()
+    {
+        var approximately = SeedWord("약", "approximately");
+        var medicine = SeedWord("약 ", "medicine");
+        var medicineCopy = SeedWord(" 약", "medicine");
+        EnsureWordsMappedToUser(UserA, approximately, medicine, medicineCopy);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        (await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [medicineCopy])).MergedGroups.Should().Be(0);
+        (await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [medicine])).MergedGroups.Should().Be(0);
+        WordExists(medicine).Should().BeTrue();
+        WordExists(medicineCopy).Should().BeTrue();
+
+        (await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [approximately])).RemovedCopies.Should().Be(1);
+        WordExists(approximately).Should().BeTrue();
+    }
+
+    // Review 2026-11-14 (fourth pass): beside two meanings, a copy with no meaning could be
+    // either; Merge all never merges it by guess.
+    [Fact]
+    public async Task MergeSafe_NeverGuessesWhereACopyWithNoMeaningBelongs()
+    {
+        var blank = SeedWord("약", "");
+        var medicine = SeedWord("약 ", "medicine");
+        var medicineCopy = SeedWord(" 약", "medicine");
+        var approximately = SeedWord("약  ", "approximately");
+        AddEncodingAids(blank);
+        EnsureWordsMappedToUser(UserA, blank, medicine, medicineCopy, approximately);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var merged = await repo.MergeSafeDuplicateGroupsAsync();
+
+        (merged.MergedGroups, merged.RemovedCopies).Should().Be((1, 1));
+        WordExists(blank).Should().BeTrue("it could be either meaning");
+        WordExists(approximately).Should().BeTrue();
+        (WordExists(medicine) ^ WordExists(medicineCopy)).Should().BeTrue();
+    }
+
+    // Review 2026-11-14 (fourth pass): with the only copy it would remove left out, a merge is
+    // not made (it would only move links off a copy someone else uses).
+    [Fact]
+    public async Task MergeSafe_LeavingOutTheOnlyRemovableCopy_MakesNoMerge()
+    {
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("물", "water");
+        var removable = SeedWord("물 ", "water");
+        var shared = SeedWord(" 물", "water");
+        AddEncodingAids(keeper);
+        EnsureWordsMappedToUser(UserA, keeper, removable, shared);
+        EnsureWordsMappedToUser(UserB, shared);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var part = (await repo.FindDuplicateVocabularyGroupsAsync()).Groups.Single().MergeParts.Single();
+        part.RemovableIds.Should().Equal([removable]);
+        VocabularyDuplicatePolicy.WithoutLeftOut(part, [removable]).Should().BeNull();
+
+        (await repo.MergeSafeDuplicateGroupsAsync(leaveOut: [removable])).MergedGroups.Should().Be(0);
+        WordExists(removable).Should().BeTrue();
     }
 
     [Fact]

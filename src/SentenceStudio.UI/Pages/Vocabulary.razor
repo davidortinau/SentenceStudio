@@ -447,14 +447,14 @@ else
                                 Focused on <strong>@duplicateFocusLabel</strong> so you can manage this word's copies faster.
                             </div>
                         }
-                        @if (!isCleanupRunning && duplicateSafeGroupCount > 0)
+                        @if (!isCleanupRunning && DuplicateMergeAllCopyCount > 0)
                         {
                             <p class="mb-2" id="vocabulary-duplicates-summary">
-                                @string.Format(Localize["Vocabulary_DuplicatesSafeSummary"], duplicateSafeGroupCount, duplicateSafeCopyCount)
+                                @string.Format(Localize["Vocabulary_DuplicatesSafeSummary"], duplicateSafeGroupCount, DuplicateMergeAllCopyCount)
                             </p>
                             <button class="btn btn-primary btn-sm" id="vocabulary-duplicates-merge-all"
                                     @onclick="MergeAllSafeDuplicates" disabled="@isCleanupRunning">
-                                @string.Format(Localize["Vocabulary_DuplicatesMergeAll"], duplicateSafeGroupCount)
+                                @string.Format(Localize["Vocabulary_DuplicatesMergeAll"], DuplicateMergeAllCopyCount)
                             </button>
                         }
                         else if (!isCleanupRunning && duplicateGroups.Count > 0)
@@ -494,13 +494,30 @@ else
                                         <div class="small fw-semibold text-warning-emphasis mt-1">
                                             <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>@DuplicateDifferences(group)
                                         </div>
+                                        @{ var keeperId = DuplicateKeeperOf(group); var choice = VocabularyDuplicatePolicy.OffersChoice(group.Words.Count); }
+                                        @if (choice)
+                                        {
+                                            <div class="small text-secondary-ss mt-1">@Localize["Vocabulary_DuplicatesChooseHint"]</div>
+                                        }
                                         <div class="mt-2">
-                                            @foreach (var wordInfo in group.Words.OrderBy(info => info.Word.Id == group.RecommendedKeeperId ? 0 : 1))
+                                            @{ var copies = group.Words.OrderBy(info => info.Word.Id == keeperId ? 0 : 1).ToList(); }
+                                            @foreach (var wordInfo in copies)
                                             {
+                                                @* Identical copies read the same, so screen readers also hear which one. *@
+                                                var spoken = $"{wordInfo.Word.NativeLanguageTerm}, {string.Format(Localize["Vocabulary_DuplicatesCopyPosition"], copies.IndexOf(wordInfo) + 1, copies.Count)}";
                                                 <div class="border rounded p-2 mb-2">
                                                     <div class="d-flex flex-wrap align-items-center gap-2">
+                                                        @if (choice)
+                                                        {
+                                                            <input class="form-check-input mt-0" type="checkbox"
+                                                                   id="@($"vocabulary-duplicates-choose-{wordInfo.Word.Id}")"
+                                                                   checked="@IsDuplicateCopyIncluded(wordInfo.Word.Id)"
+                                                                   disabled="@isCleanupRunning"
+                                                                   aria-label="@spoken"
+                                                                   @onchange="() => ToggleDuplicateCopy(wordInfo.Word.Id)" />
+                                                        }
                                                         <strong>@wordInfo.Word.NativeLanguageTerm</strong>
-                                                        @if (wordInfo.Word.Id == group.RecommendedKeeperId)
+                                                        @if (wordInfo.Word.Id == keeperId)
                                                         {
                                                             <span class="badge bg-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesKeep"]</span>
                                                         }
@@ -512,11 +529,18 @@ else
                                                     <div class="small text-secondary-ss mt-1" style="white-space: pre-line;">
                                                         @DuplicateCopyDetails(group, wordInfo)
                                                     </div>
+                                                    @* Captain 2026-11-14: go straight to the word to change it; the editor returns here. *@
+                                                    <button class="btn btn-sm btn-link px-0 mt-1" disabled="@isCleanupRunning"
+                                                            aria-label="@($"{Localize["Vocabulary_DuplicatesEdit"]}, {spoken}")"
+                                                            @onclick="() => EditDuplicateCopy(wordInfo.Word.Id)">
+                                                        <i class="bi bi-pencil me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesEdit"]
+                                                    </button>
                                                 </div>
                                             }
                                         </div>
                                         <button class="btn btn-sm btn-outline-primary me-2"
-                                                @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                                @onclick="() => MergeDuplicateGroup(group)"
+                                                disabled="@(isCleanupRunning || ChosenDuplicateCopies(group).Count < 2)">
                                             @Localize["Vocabulary_DuplicatesMerge"]
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary"
@@ -616,6 +640,10 @@ else
                             </div>
                         </div>
                         <div class="mt-2 d-flex gap-2 flex-wrap">
+                            @if (!string.IsNullOrWhiteSpace(item.Word.Language))
+                            {
+                                <small class="text-secondary-ss"><i class="bi bi-translate me-1" aria-hidden="true"></i>@item.Word.Language</small>
+                            }
                             @if (item.IsOrphaned)
                             {
                                 <small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Orphaned</small>
@@ -652,6 +680,10 @@ else
                         }
                         <span class="fw-semibold" style="min-width:140px;">@(item.Word.TargetLanguageTerm ?? "")</span>
                         <span class="text-secondary-ss flex-grow-1">@(item.Word.NativeLanguageTerm ?? "")</span>
+                        @if (!string.IsNullOrWhiteSpace(item.Word.Language))
+                        {
+                            <small class="text-secondary-ss">@item.Word.Language</small>
+                        }
                         <span class="badge @GetEncodingBadgeClass(item)">@item.EncodingLabel</span>
                         @if (item.IsKnown)
                         {
@@ -719,6 +751,24 @@ else
     [SupplyParameterFromQuery(Name = "duplicateTerm")]
     public string? DuplicateTermFromUrl { get; set; }
 
+    /// <summary>"all": the duplicate panel over all words opens (back from a copy's Edit).</summary>
+    [SupplyParameterFromQuery(Name = "duplicates")]
+    public string? DuplicatesFromUrl { get; set; }
+
+    /// <summary>The duplicate panel's skipped groups, back from a copy's Edit (JoinIds).</summary>
+    [SupplyParameterFromQuery(Name = "skipped")]
+    public string? SkippedFromUrl { get; set; }
+
+    /// <summary>The duplicate panel's left-out copies, back from a copy's Edit (JoinIds).</summary>
+    [SupplyParameterFromQuery(Name = "leftOut")]
+    public string? LeftOutFromUrl { get; set; }
+
+    /// <summary>A list in one query value: each item escaped, so a comma inside one stays its own.</summary>
+    private static string JoinIds(IEnumerable<string> ids) => string.Join(",", ids.Select(Uri.EscapeDataString));
+
+    private static IEnumerable<string> SplitIds(string? value) => string.IsNullOrWhiteSpace(value) ? []
+        : value.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(Uri.UnescapeDataString);
+
     [SupplyParameterFromQuery(Name = "focusWordId")]
     public string? FocusWordIdFromUrl { get; set; }
 
@@ -774,6 +824,9 @@ else
     private int duplicateBlockedGroupCount;
     // Review groups the learner skipped while the panel is open.
     private readonly HashSet<string> skippedDuplicateTerms = new(StringComparer.Ordinal);
+    // Copies the learner left out of their group's Merge (Captain 2026-11-14: "merge some
+    // matching duplicates but not all").
+    private readonly HashSet<string> excludedDuplicateWordIds = new(StringComparer.Ordinal);
     private bool pendingCleanupScroll;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
@@ -805,6 +858,16 @@ else
         if (!string.IsNullOrWhiteSpace(DuplicateTermFromUrl))
         {
             await OpenDuplicateManagerAsync(DuplicateTermFromUrl, FocusWordIdFromUrl);
+        }
+        else if (string.Equals(DuplicatesFromUrl, "all", StringComparison.Ordinal))
+        {
+            await OpenDuplicateManagerAsync();
+        }
+        if (showDuplicatePanel)
+        {
+            // Back from a copy's Edit: the panel keeps what the learner skipped and left out.
+            skippedDuplicateTerms.UnionWith(SplitIds(SkippedFromUrl));
+            excludedDuplicateWordIds.UnionWith(SplitIds(LeftOutFromUrl));
         }
     }
 
@@ -1539,6 +1602,7 @@ else
         duplicateFocusNormalizedTerm = null;
         focusedDuplicateWordId = null;
         skippedDuplicateTerms.Clear();
+        excludedDuplicateWordIds.Clear();
         pendingCleanupScroll = false;
         SyncUrlWithFilters();
     }
@@ -1584,6 +1648,7 @@ else
         duplicateReviewGroupCount = 0;
         duplicateBlockedGroupCount = 0;
         skippedDuplicateTerms.Clear();
+        excludedDuplicateWordIds.Clear();
         cleanupTotal = 0;
         cleanupProgress = 0;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
@@ -1636,14 +1701,22 @@ else
             return;
         }
 
+        var chosen = ChosenDuplicateCopies(group).Select(w => w.Word.Id).ToList();
+        var keeperId = DuplicateKeeperOf(group);
+        if (chosen.Count < 2 || string.IsNullOrEmpty(keeperId))
+        {
+            Toast.ShowInfo(Localize[chosen.Count < 2 ? "Vocabulary_DuplicatesChooseTwo"
+                : group.MergeBlockedReason ?? "Vocabulary_DuplicatesAllShared"]);
+            return;
+        }
+
         isCleanupRunning = true;
         cleanupStatus = $"Merging group: {group.NormalizedTerm}...";
         StateHasChanged();
 
         try
         {
-            var keeperId = group.RecommendedKeeperId;
-            var deleteIds = group.Words.Select(w => w.Word.Id).Where(id => id != keeperId).ToList();
+            var deleteIds = chosen.Where(id => id != keeperId).ToList();
             var result = await ResourceRepo.MergeVocabularyWordsWithResultAsync(keeperId, deleteIds, default, ActiveUserId);
             if (!result.Changed)
             {
@@ -1653,6 +1726,8 @@ else
             }
             else
             {
+                // What is left of the group starts with every copy chosen.
+                excludedDuplicateWordIds.ExceptWith(group.Words.Select(w => w.Word.Id));
                 cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {result.Deleted}");
                 CacheService.InvalidateVocabSummary();
                 await LoadData();
@@ -1672,6 +1747,40 @@ else
         }
     }
 
+    private bool IsDuplicateCopyIncluded(string wordId) => !excludedDuplicateWordIds.Contains(wordId);
+
+    private void ToggleDuplicateCopy(string wordId)
+    {
+        if (!excludedDuplicateWordIds.Remove(wordId))
+            excludedDuplicateWordIds.Add(wordId);
+    }
+
+    /// <summary>The copies Merge all must not take: skipped groups and left-out copies (shared rule).</summary>
+    private IReadOnlySet<string> DuplicateLeftOut => VocabularyDuplicatePolicy.LeftOut(duplicateGroups,
+        group => group.Words, group => skippedDuplicateTerms.Contains(group.NormalizedTerm),
+        info => IsDuplicateCopyIncluded(info.Word.Id), info => info.Word.Id);
+
+    /// <summary>The copies Merge all will remove: the scan's count less the ones left out here.</summary>
+    private int DuplicateMergeAllCopyCount => Math.Max(0, duplicateSafeCopyCount
+        - VocabularyDuplicatePolicy.CopiesLeftOut(duplicateGroups.SelectMany(group => group.MergeParts),
+            DuplicateLeftOut));
+
+    /// <summary>The copies the group's Merge takes (shared rule: the chosen ones in a group of three or more).</summary>
+    private IReadOnlyList<VocabularyDuplicateWordInfo> ChosenDuplicateCopies(VocabularyDuplicateGroup group) =>
+        VocabularyDuplicatePolicy.ChosenCopies(group.Words, info => IsDuplicateCopyIncluded(info.Word.Id));
+
+    /// <summary>The copy Merge keeps (shared rule); empty when none can be kept.</summary>
+    private string DuplicateKeeperOf(VocabularyDuplicateGroup group) =>
+        VocabularyDuplicatePolicy.KeeperOf(group.Words, info => IsDuplicateCopyIncluded(info.Word.Id),
+            info => info.UsedByOthers, info => info.Word.Id == group.RecommendedKeeperId)?.Word.Id
+            ?? string.Empty;
+
+    /// <summary>
+    /// Edit on a copy (Captain 2026-11-14: "go directly to a vocabulary word so that I can modify
+    /// the entry"): the word editor opens and returns to this panel (BuildEditUrl).
+    /// </summary>
+    private void EditDuplicateCopy(string wordId) => NavManager.NavigateTo(BuildEditUrl(wordId));
+
     /// <summary>Skip: the review group leaves the panel until it is opened again; nothing changes.</summary>
     private void SkipDuplicateGroup(VocabularyDuplicateGroup group) =>
         skippedDuplicateTerms.Add(group.NormalizedTerm);
@@ -1683,7 +1792,7 @@ else
     /// </summary>
     private async Task MergeAllSafeDuplicates()
     {
-        if (isCleanupRunning || duplicateSafeGroupCount == 0)
+        if (isCleanupRunning || DuplicateMergeAllCopyCount == 0)
             return;
         isCleanupRunning = true;
         cleanupTotal = 0;
@@ -1695,7 +1804,9 @@ else
         try
         {
             // A panel focused on one word merges only that word's group.
-            var merged = await ResourceRepo.MergeSafeDuplicateGroupsAsync(default, ActiveUserId, duplicateFocusLabel);
+            // Never the copies left out or skipped here.
+            var merged = await ResourceRepo.MergeSafeDuplicateGroupsAsync(default, ActiveUserId,
+                duplicateFocusLabel, DuplicateLeftOut);
             var message = merged.Refused.Count > 0
                 ? string.Format(Localize["Vocabulary_DuplicatesMergedAllWithRefusals"],
                     merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
@@ -1783,8 +1894,8 @@ else
         (group.Differences ?? []).Select(difference => Localize[$"Vocabulary_DuplicateDifference{difference}"]));
 
     /// <summary>
-    /// What a copy shows under its meaning: the other fields that differ (base form; language
-    /// and kind), then its memory aids, so the learner sees what a merge keeps.
+    /// What a copy shows under its meaning: its language and kind, its base form when the copies'
+    /// differ, then its memory aids, so the learner sees what a merge keeps.
     /// </summary>
     private string DuplicateCopyDetails(VocabularyDuplicateGroup group, VocabularyDuplicateWordInfo wordInfo)
     {
@@ -1793,8 +1904,8 @@ else
         var lines = new List<string>();
         if (differences.Contains(VocabularyDuplicateDifference.BaseForm))
             lines.Add($"{Localize["VocabWordEdit_Lemma"]}: {(string.IsNullOrWhiteSpace(word.Lemma) ? Localize["VocabWordEdit_NotSet"] : word.Lemma.Trim())}");
-        if (differences.Contains(VocabularyDuplicateDifference.LanguageOrKind))
-            lines.Add($"{(string.IsNullOrWhiteSpace(word.Language) ? Localize["VocabWordEdit_NotSet"] : word.Language)} | {Localize[LexicalTypeKey(word.LexicalUnitType)]}");
+        // Every copy's language and kind (Captain 2026-11-14: "I need to see language too").
+        lines.Insert(0, $"{(string.IsNullOrWhiteSpace(word.Language) ? Localize["VocabWordEdit_NotSet"] : word.Language)} | {Localize[LexicalTypeKey(word.LexicalUnitType)]}");
         lines.Add(GetMemoryAidSummary(wordInfo));
         return string.Join("\n", lines);
     }
@@ -2143,6 +2254,15 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
         if (!string.IsNullOrWhiteSpace(focusedDuplicateWordId))
             queryParts.Add($"returnFocusWordId={Uri.EscapeDataString(focusedDuplicateWordId)}");
+
+        // The duplicate panel over all words comes back too (Edit on one of its copies), with the
+        // groups skipped and the copies left out, so Merge all still leaves them alone.
+        if (showDuplicatePanel && string.IsNullOrWhiteSpace(duplicateFocusLabel))
+            queryParts.Add("returnDuplicates=all");
+        if (showDuplicatePanel && skippedDuplicateTerms.Count > 0)
+            queryParts.Add($"returnSkipped={Uri.EscapeDataString(JoinIds(skippedDuplicateTerms))}");
+        if (showDuplicatePanel && excludedDuplicateWordIds.Count > 0)
+            queryParts.Add($"returnLeftOut={Uri.EscapeDataString(JoinIds(excludedDuplicateWordIds))}");
 
         if (!string.IsNullOrWhiteSpace(initialTargetTerm))
             queryParts.Add($"initialTargetTerm={Uri.EscapeDataString(initialTargetTerm)}");

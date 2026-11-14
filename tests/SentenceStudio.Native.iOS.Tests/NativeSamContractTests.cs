@@ -69,6 +69,7 @@ public sealed class NativeSamContractTests
         {
             "\"activity-log\"", "\"profile\"", "\"skills\"", "ApplicationFormRoutes.LibraryResources",
             "ApplicationFormRoutes.MinimalPairs", "ApplicationFormRoutes.RecentLookups",
+            "ApplicationFormRoutes.VocabularyDuplicates",
             "ApplicationFormRoutes.Vocabulary", "ApplicationImportRoutes.ImportContent",
             "ApplicationYouTubeRoutes.YouTubeImport",
         };

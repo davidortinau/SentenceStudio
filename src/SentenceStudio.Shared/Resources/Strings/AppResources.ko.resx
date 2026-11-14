@@ -9998,19 +9998,19 @@
     <value>중복 단어 정리</value>
   </data>
   <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
-    <value>{0}개 그룹은 잃는 것 없이 병합할 수 있습니다(추가 사본 {1}개).</value>
+    <value>아무것도 잃지 않고 병합할 수 있는 똑같은 사본: {1}개</value>
   </data>
   <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
-    <value>{0}개 그룹 병합</value>
+    <value>똑같은 사본 병합({0}개)</value>
   </data>
   <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
     <value>병합하는 중…</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
-    <value>{0}개 그룹을 병합하고 사본 {1}개를 삭제했습니다.</value>
+    <value>남긴 사본에 병합한 똑같은 사본: {1}개</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
-    <value>{0}개 그룹을 병합하고 사본 {1}개를 삭제했습니다. {2}개 그룹은 병합할 수 없었습니다.</value>
+    <value>남긴 사본에 병합한 똑같은 사본: {1}개. 병합하지 못한 항목: {2}개</value>
   </data>
   <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
     <value>자동으로 병합할 그룹이 남아 있지 않습니다.</value>
@@ -10050,5 +10050,14 @@
   </data>
   <data name="Vocabulary_MergeFailed" xml:space="preserve">
     <value>병합을 완료하지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseHint" xml:space="preserve">
+    <value>병합할 사본을 고르세요. 고르지 않은 사본은 그대로 남습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseTwo" xml:space="preserve">
+    <value>병합할 사본을 두 개 이상 고르세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
+    <value>{1}개 중 {0}번째 사본</value>
   </data>
 </root>

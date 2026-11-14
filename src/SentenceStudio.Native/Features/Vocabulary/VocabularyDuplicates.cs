@@ -16,8 +16,12 @@ namespace SentenceStudio.Native.Features.Vocabulary;
 /// on that word's term.
 /// </summary>
 /// <param name="Groups">The groups loaded so far: review, then blocked, then safe (page order).</param>
-/// <param name="SafeGroupCount">Safe groups of the whole scan, merged by Merge all.</param>
+/// <param name="SafeGroupCount">
+/// Merges Merge all makes over the whole scan: each safe group, and each set of identical copies
+/// inside a group to review (so a group can count here and under review).
+/// </param>
 /// <param name="Skipped">Review groups the learner skipped while the page is open.</param>
+/// <param name="Excluded">Copies the learner left out of their group's Merge (while the page is open).</param>
 internal sealed record VocabularyDuplicatePanel(
     bool Running, string Title, string Status,
     string? FocusLabel, string? FocusNormalizedTerm, string? FocusedWordId,
@@ -26,8 +30,35 @@ internal sealed record VocabularyDuplicatePanel(
     IReadOnlyList<string> Results,
     int SafeGroupCount = 0, int SafeCopyCount = 0,
     int ReviewGroupCount = 0, int BlockedGroupCount = 0,
-    IReadOnlySet<string>? Skipped = null)
+    IReadOnlySet<string>? Skipped = null,
+    IReadOnlySet<string>? Excluded = null)
 {
+    /// <summary>The copy is chosen for its group's Merge (Captain 2026-11-14: "merge some ... but not all").</summary>
+    internal bool IsIncluded(NativeVocabularyDuplicateWord word) => Excluded?.Contains(word.Id) != true;
+
+    /// <summary>
+    /// The copies the group's Merge takes (shared rule): the chosen ones in a group of three or
+    /// more, else every copy (a group that shrank to two offers no choice, so it merges whole).
+    /// </summary>
+    internal IReadOnlyList<NativeVocabularyDuplicateWord> Chosen(NativeVocabularyDuplicateGroup group) =>
+        VocabularyDuplicatePolicy.ChosenCopies(group.Words, IsIncluded);
+
+    /// <summary>The copy Merge keeps (shared rule); empty when none can be kept.</summary>
+    internal string KeeperOf(NativeVocabularyDuplicateGroup group) =>
+        VocabularyDuplicatePolicy.KeeperOf(group.Words, IsIncluded, word => word.UsedByOthers,
+            word => word.Id == group.RecommendedKeeperId)?.Id ?? string.Empty;
+
+    /// <summary>A group of three or more copies: the learner chooses which ones merge.</summary>
+    internal static bool OffersChoice(NativeVocabularyDuplicateGroup group) =>
+        VocabularyDuplicatePolicy.OffersChoice(group.Words.Count);
+
+    /// <summary>
+    /// The copies Merge all must not take: every copy of a skipped group, and the copies left out
+    /// of a group that offers a choice.
+    /// </summary>
+    internal IReadOnlySet<string> LeftOut => VocabularyDuplicatePolicy.LeftOut(Groups,
+        group => group.Words, IsSkipped, IsIncluded, word => word.Id);
+
     /// <summary>The review groups to show (loaded, not skipped).</summary>
     internal IReadOnlyList<NativeVocabularyDuplicateGroup> ReviewGroups =>
         Groups.Where(group => group.Risk == VocabularyDuplicateRisk.Review && !IsSkipped(group))
@@ -43,8 +74,15 @@ internal sealed record VocabularyDuplicatePanel(
     internal int RemainingGroupCount => Math.Max(0, ReviewGroupCount + BlockedGroupCount
         - Groups.Count(group => group.Risk != VocabularyDuplicateRisk.Safe));
 
-    /// <summary>Merge all is offered: safe groups remain and nothing is running.</summary>
-    internal bool CanMergeAll => !Running && SafeGroupCount > 0;
+    /// <summary>
+    /// The copies Merge all will remove: the scan's count less the ones the learner left out or
+    /// skipped here (the shared rule), so the button says what will happen.
+    /// </summary>
+    internal int MergeAllCopyCount => Math.Max(0, SafeCopyCount - VocabularyDuplicatePolicy.CopiesLeftOut(
+        Groups.SelectMany(group => group.MergePartList), LeftOut));
+
+    /// <summary>Merge all is offered: something would merge and nothing is running.</summary>
+    internal bool CanMergeAll => !Running && MergeAllCopyCount > 0;
 
     internal bool IsFocusedScan => !string.IsNullOrWhiteSpace(FocusLabel);
 
@@ -218,6 +256,13 @@ internal sealed class VocabularyWordCleanup
     {
         if (_host.TryOpenOwner(out _))
             _duplicates.Skip(normalizedTerm);
+    }
+
+    /// <summary>A copy goes into, or is left out of, its review group's Merge; nothing changes yet.</summary>
+    internal void ToggleDuplicateCopy(string normalizedTerm, string wordId)
+    {
+        if (_host.TryOpenOwner(out _))
+            _duplicates.ToggleCopy(normalizedTerm, wordId);
     }
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
@@ -459,7 +504,13 @@ internal sealed class VocabularyDuplicateFinder
             || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm)
                 is not { } group)
             return null;
-        if (group.Words.Count < 2 || string.IsNullOrWhiteSpace(group.RecommendedKeeperId))
+        // Only the copies the learner chose (all of them unless some were left out).
+        var chosen = panel.Chosen(group).Select(word => word.Id).ToArray();
+        if (chosen.Length < 2)
+            return new(false, group.Words.Count < 2 ? BlockedReason(group, _text)
+                : _text("Vocabulary_DuplicatesChooseTwo"), Warning: true);
+        var keeper = panel.KeeperOf(group);
+        if (string.IsNullOrWhiteSpace(keeper))
             return new(false, BlockedReason(group, _text), Warning: true);
 
         var generation = Volatile.Read(ref _generation);
@@ -472,11 +523,9 @@ internal sealed class VocabularyDuplicateFinder
         VocabularyDuplicateMergeOutcome outcome;
         try
         {
-            var keeper = group.RecommendedKeeperId;
-            // Every other copy goes in: one another learner uses stays, but the learner's own
-            // links and history on it still move to the keeper.
-            var duplicates = group.Words.Select(word => word.Id)
-                .Where(id => id != keeper).ToArray();
+            // Every other chosen copy goes in: one another learner uses stays, but the learner's
+            // own links and history on it still move to the keeper.
+            var duplicates = chosen.Where(id => id != keeper).ToArray();
             var merge = await _host.OffUiAsync(() => _store.MergeOwnedVocabularyDuplicatesAsync(
                 owner, keeper, duplicates, cancellationToken));
             if (!merge.Changed)
@@ -488,6 +537,11 @@ internal sealed class VocabularyDuplicateFinder
             }
             else
             {
+                // The group's choices are done with; what is left of it starts with every copy chosen.
+                if (_panel is { Excluded: { } excluded })
+                    _panel = _panel with { Excluded = excluded
+                        .Except(group.Words.Select(word => word.Id), StringComparer.Ordinal)
+                        .ToHashSet(StringComparer.Ordinal) };
                 results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, merge.Removed));
                 // Links and history can move while every copy is kept (other data still uses
                 // it); that is a change, not a no-op.
@@ -534,8 +588,9 @@ internal sealed class VocabularyDuplicateFinder
         try
         {
             var focus = panel.IsFocusedScan ? panel.FocusLabel : null;
+            var leftOut = panel.LeftOut;
             var merged = await _host.OffUiAsync(() =>
-                _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, cancellationToken));
+                _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, leftOut, cancellationToken));
             var message = merged.Refused.Count > 0
                 ? Format("Vocabulary_DuplicatesMergedAllWithRefusals",
                     merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
@@ -565,6 +620,25 @@ internal sealed class VocabularyDuplicateFinder
             return outcome;
         await LoadAsync(owner, append: false, results, cancellationToken);
         return outcome;
+    }
+
+    /// <summary>
+    /// A copy goes into, or is left out of, its group's Merge (a review group of three or more:
+    /// 약's two "medicine" copies merge, "approximately" stays).
+    /// </summary>
+    internal void ToggleCopy(string normalizedTerm, string wordId)
+    {
+        if (_panel is not { Running: false } panel
+            || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm)
+                is not { } group
+            || !VocabularyDuplicatePanel.OffersChoice(group)
+            || group.Words.All(word => word.Id != wordId))
+            return;
+        var excluded = new HashSet<string>(panel.Excluded ?? new HashSet<string>(), StringComparer.Ordinal);
+        if (!excluded.Remove(wordId))
+            excluded.Add(wordId);
+        _panel = panel with { Excluded = excluded };
+        Changed();
     }
 
     /// <summary>Skip: the review group leaves the page while it is open.</summary>
@@ -701,18 +775,19 @@ internal sealed class VocabularyDuplicateFinder
             .ToArray();
 
     /// <summary>
-    /// What a copy shows under its meaning: on a review group the other fields that differ (base
-    /// form; language and kind), then its memory aids, so the learner sees what a merge keeps.
+    /// What a copy shows under its meaning: its language and kind (Captain 2026-11-14: "I need to
+    /// see language too"), its base form when the copies' differ, then its memory aids, so the
+    /// learner sees what a merge keeps.
     /// </summary>
     internal static string CopyDetails(NativeVocabularyDuplicateGroup group,
         NativeVocabularyDuplicateWord word, Func<string, string> text)
     {
-        var lines = new List<string>();
+        var lines = new List<string> {
+            $"{(string.IsNullOrWhiteSpace(word.Language) ? text("VocabWordEdit_NotSet") : word.Language)}"
+                + $" | {text(LexicalTypeKey(word.LexicalUnitType))}"
+        };
         if (group.DifferenceList.Contains(VocabularyDuplicateDifference.BaseForm))
             lines.Add($"{text("VocabWordEdit_Lemma")}: {word.Lemma ?? text("VocabWordEdit_NotSet")}");
-        if (group.DifferenceList.Contains(VocabularyDuplicateDifference.LanguageOrKind))
-            lines.Add($"{(string.IsNullOrWhiteSpace(word.Language) ? text("VocabWordEdit_NotSet") : word.Language)}"
-                + $" | {text(LexicalTypeKey(word.LexicalUnitType))}");
         lines.Add(MemoryAidSummary(word, text));
         return string.Join("\n", lines);
     }
@@ -729,8 +804,8 @@ internal sealed class VocabularyDuplicateFinder
 
     /// <summary>The group's copies with the keeper first (Merge keeps the first copy's meaning).</summary>
     internal static IReadOnlyList<NativeVocabularyDuplicateWord> KeeperFirst(
-        NativeVocabularyDuplicateGroup group) =>
-        group.Words.OrderBy(word => word.Id == group.RecommendedKeeperId ? 0 : 1).ToArray();
+        NativeVocabularyDuplicateGroup group, string keeperId) =>
+        group.Words.OrderBy(word => word.Id == keeperId ? 0 : 1).ToArray();
 
     private string Refusal(string term, string? key) =>
         Format("Vocabulary_DuplicatesMergeRefused", term,

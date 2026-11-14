@@ -641,6 +641,128 @@ public sealed class VocabularyWordCleanupTests
         Assert.DoesNotContain(list.FilteredWords, word => word.Id is "dup-a-1" or "dup-c-1");
     }
 
+    // Captain 2026-11-14: "I need to be able to merge some matching duplicates but not all."
+    // In a review group of three or more, the learner leaves copies out; Merge folds the chosen
+    // ones into the first chosen copy and the others stay.
+    [Fact]
+    public async Task Merge_OfTheChosenCopies_LeavesTheOthers()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "yak-1", "약", "approximately", 3);
+            AddWord(db, fixture, UserA, "yak-2", "약", "medicine", 2);
+            AddWord(db, fixture, UserA, "yak-3", "약", "drug", 1);
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenAllDuplicatesAsync();
+        var group = Assert.Single(browser.ListState.Duplicates!.ReviewGroups);
+        Assert.True(VocabularyDuplicatePanel.OffersChoice(group));
+        Assert.Equal("yak-1", browser.ListState.Duplicates!.KeeperOf(group));
+
+        // Leaving out the keeper makes the first chosen copy the keeper.
+        browser.ToggleDuplicateCopy(group.NormalizedTerm, "yak-1");
+        var panel = browser.ListState.Duplicates!;
+        Assert.False(panel.IsIncluded(group.Words.Single(word => word.Id == "yak-1")));
+        Assert.Equal("yak-2", panel.KeeperOf(group));
+
+        // One chosen copy is nothing to merge.
+        browser.ToggleDuplicateCopy(group.NormalizedTerm, "yak-3");
+        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
+        Assert.Equal("Vocabulary_DuplicatesChooseTwo", browser.ListState.Feedback);
+        Assert.Equal(1, (await RowsAsync(fixture, "yak-3")).Words);
+        browser.ToggleDuplicateCopy(group.NormalizedTerm, "yak-3");
+
+        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
+
+        Assert.Equal("Vocabulary_DuplicatesMergedSuccess", browser.ListState.Feedback);
+        Assert.Equal(1, (await RowsAsync(fixture, "yak-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "yak-2")).Words);
+        Assert.Equal(0, (await RowsAsync(fixture, "yak-3")).Words);
+        // What is left of the group starts with every copy chosen.
+        var after = browser.ListState.Duplicates!;
+        var rest = Assert.Single(after.ReviewGroups);
+        Assert.All(rest.Words, word => Assert.True(after.IsIncluded(word)));
+        Assert.False(VocabularyDuplicatePanel.OffersChoice(rest));
+        // Two copies offer no choice: a toggle there changes nothing.
+        browser.ToggleDuplicateCopy(rest.NormalizedTerm, "yak-1");
+        Assert.True(browser.ListState.Duplicates!.IsIncluded(rest.Words[0]));
+    }
+
+    // Review 2026-11-14 (third pass): Merge all also folds identical copies inside a group to
+    // review, so it must not take a copy the learner left out or a group they skipped; and a group
+    // that shrank to two copies merges whole again.
+    [Fact]
+    public async Task MergeAll_HonoursTheCopiesLeftOutAndTheGroupsSkipped()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "yak-1", "약", "approximately", 3);
+            AddWord(db, fixture, UserA, "yak-2", "약", "medicine", 2);
+            AddWord(db, fixture, UserA, "yak-3", "약", "medicine", 1);
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenAllDuplicatesAsync();
+        var panel = browser.ListState.Duplicates!;
+        // 사과's pair and 약's two "medicine" copies lose nothing; 약 is still for review.
+        Assert.Equal((2, 2), (panel.SafeGroupCount, panel.SafeCopyCount));
+        var yak = Assert.Single(panel.ReviewGroups);
+
+        browser.ToggleDuplicateCopy(yak.NormalizedTerm, "yak-1");
+        Assert.Equal(2, browser.ListState.Duplicates!.MergeAllCopyCount);
+        browser.ToggleDuplicateCopy(yak.NormalizedTerm, "yak-3");
+        // The button counts only what will merge: 사과's copy, not 약's left-out one.
+        Assert.Equal(1, browser.ListState.Duplicates!.MergeAllCopyCount);
+        await browser.MergeAllDuplicatesAsync();
+
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        foreach (var id in new[] { "yak-1", "yak-2", "yak-3" })
+            Assert.Equal(1, (await RowsAsync(fixture, id)).Words);
+
+        browser.ToggleDuplicateCopy(yak.NormalizedTerm, "yak-3");
+        await browser.MergeAllDuplicatesAsync();
+
+        Assert.Equal(0, (await RowsAsync(fixture, "yak-3")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "yak-1")).Words);
+        // Two copies are left with "approximately" still left out: no choice now, so both merge.
+        panel = browser.ListState.Duplicates!;
+        var rest = Assert.Single(panel.ReviewGroups);
+        Assert.False(VocabularyDuplicatePanel.OffersChoice(rest));
+        Assert.Equal(2, panel.Chosen(rest).Count);
+
+        // A skipped group is never merged by Merge all.
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "bae-1", "배", "pear", 3);
+            AddWord(db, fixture, UserA, "bae-2", "배", "pear", 2);
+            AddWord(db, fixture, UserA, "bae-3", "배", "ship", 1);
+            await db.SaveChangesAsync();
+        }
+        browser.CloseDuplicates();
+        await browser.OpenAllDuplicatesAsync();
+        var bae = browser.ListState.Duplicates!.ReviewGroups.Single(group => group.DisplayTerm == "배");
+        browser.SkipDuplicates(bae.NormalizedTerm);
+        // Skipped, its pear pair is not counted, and Merge all is not offered for it.
+        Assert.Equal(0, browser.ListState.Duplicates!.MergeAllCopyCount);
+        Assert.False(browser.ListState.Duplicates!.CanMergeAll);
+        await browser.MergeAllDuplicatesAsync();
+        foreach (var id in new[] { "bae-1", "bae-2", "bae-3" })
+            Assert.Equal(1, (await RowsAsync(fixture, id)).Words);
+    }
+
     // A page focused on one word (the editor's Find Duplicates) merges only that word's group.
     [Fact]
     public async Task MergeAll_OnAFocusedPage_MergesOnlyItsOwnTerm()
@@ -686,10 +808,10 @@ public sealed class VocabularyWordCleanupTests
 
         // Not the active owner: nothing merges.
         Assert.Equal(NativeVocabularyMergeAllResult.None,
-            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserB, null, default));
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserB, null, [], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
 
-        var merged = await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, default);
+        var merged = await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], default);
         Assert.Equal((1, 1, 0, false), (merged.MergedGroups, merged.RemovedCopies,
             merged.Refused.Count, merged.SyncUnconfirmed));
         Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
@@ -698,7 +820,7 @@ public sealed class VocabularyWordCleanupTests
 
         fixture.LoseOwner();
         Assert.Equal(NativeVocabularyMergeAllResult.None,
-            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, default));
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, [], default));
     }
 
     private static void AddWord(ApplicationDbContext db, NativeSliceFixture fixture, string owner,
@@ -1509,7 +1631,7 @@ public sealed class VocabularyWordCleanupTests
         };
         Assert.Equal(["text:Vocabulary_DuplicateDifferenceMeaning", "text:Vocabulary_DuplicateDifferenceMemoryAid"],
             VocabularyDuplicateFinder.Differences(review, key => "text:" + key));
-        Assert.Equal(["b", "a"], VocabularyDuplicateFinder.KeeperFirst(review).Select(word => word.Id));
+        Assert.Equal(["b", "a"], VocabularyDuplicateFinder.KeeperFirst(review, review.RecommendedKeeperId).Select(word => word.Id));
         Assert.Empty(blocked.DifferenceList);
     }
 

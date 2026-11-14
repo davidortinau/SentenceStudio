@@ -1866,13 +1866,13 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var groups = await ScanDuplicateGroupsAsync(db, userId, VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm), ct);
 
-        var safe = groups.Where(group => group.EffectiveRisk == VocabularyDuplicateRisk.Safe).ToList();
+        var parts = groups.SelectMany(group => group.MergeParts).ToList();
         return new VocabularyDuplicateScanResult(
             groups.Skip(skip).Take(take).ToList(),
             groups.Count,
             groups.Sum(group => group.Words.Count - 1),
-            safe.Count,
-            safe.Sum(group => group.MergeRemovableIds.Count),
+            parts.Count,
+            parts.Sum(part => part.RemovableCount),
             groups.Count(group => group.EffectiveRisk == VocabularyDuplicateRisk.Review),
             groups.Count(group => group.EffectiveRisk == VocabularyDuplicateRisk.Blocked));
     }
@@ -1919,7 +1919,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         {
             var copies = VocabularyDuplicateGroup.OrderWordsByMergePreference(candidate.Select(item =>
                 new VocabularyDuplicateWordInfo(item.Word, resourceCounts.GetValueOrDefault(item.Word.Id),
-                    EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score)));
+                    EncodingScoreHelper.CalculateWithLabel(item.Word, 0).Score,
+                    shared.Contains(item.Word.Id))));
             var keeper = copies.FirstOrDefault(info => !shared.Contains(info.Word.Id));
             var removable = keeper is null ? [] : copies
                 .Where(info => info != keeper && !shared.Contains(info.Word.Id))
@@ -1937,6 +1938,18 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                     : differences.Count > 0
                         ? (VocabularyDuplicateRisk.Review, (string?)null)
                         : (VocabularyDuplicateRisk.Safe, (string?)null);
+            // The merges that lose nothing: each set of identical copies with one to keep and one
+            // to remove (the whole group when it is safe).
+            var parts = risk == VocabularyDuplicateRisk.Blocked ? Array.Empty<VocabularyDuplicateMergePart>()
+                : VocabularyDuplicatePolicy.SameWordSets(copies, info => info.Word)
+                    .Select(set => (Keeper: set.FirstOrDefault(info => !info.UsedByOthers), Set: set))
+                    .Where(part => part.Keeper is not null
+                        && part.Set.Any(info => info != part.Keeper && !info.UsedByOthers))
+                    .Select(part => new VocabularyDuplicateMergePart(part.Keeper!.Word.Id,
+                        part.Set.Where(info => info != part.Keeper).Select(info => info.Word.Id).ToArray(),
+                        part.Set.Where(info => info != part.Keeper && !info.UsedByOthers)
+                            .Select(info => info.Word.Id).ToArray()))
+                    .ToArray();
             groups.Add(new VocabularyDuplicateGroup(
                 candidate.Key,
                 copies.First().Word.TargetLanguageTerm?.Trim() ?? candidate.Key,
@@ -1946,7 +1959,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 risk,
                 keeper?.Word.Id,
                 removable,
-                differences));
+                differences,
+                parts));
         }
 
         return groups
@@ -1962,13 +1976,19 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
-    /// "Merge all": every safe group of the learner's (all pages, docs/duplicate-merge-plan.md),
-    /// each in its own transaction into its keeper; sync runs once at the end. A group the merge
-    /// refuses is reported with its reason and left as it was.
+    /// "Merge all": every merge that loses nothing (all pages, docs/duplicate-merge-plan.md): each
+    /// safe group, and each set of identical copies inside a group to review
+    /// (<see cref="VocabularyDuplicateGroup.MergeParts"/>), each in its own transaction into its
+    /// keeper; sync runs once at the end. A merge that is refused is reported with its reason.
     /// </summary>
     /// <param name="focusTerm">Only this term's group (a page focused on one word), or every group.</param>
+    /// <param name="leaveOut">
+    /// Copies the learner left out or skipped on the page: a merge never takes them (one whose
+    /// keeper is left out is not made).
+    /// </param>
     public async Task<VocabularyMergeAllResult> MergeSafeDuplicateGroupsAsync(
-        CancellationToken ct = default, string? userProfileId = null, string? focusTerm = null)
+        CancellationToken ct = default, string? userProfileId = null, string? focusTerm = null,
+        IReadOnlyCollection<string>? leaveOut = null)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
@@ -1977,32 +1997,33 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             return VocabularyMergeAllResult.None;
         }
 
-        List<VocabularyDuplicateGroup> safe;
+        List<(VocabularyDuplicateGroup Group, VocabularyDuplicateMergePart Part)> safe;
         using (var scope = _serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             safe = (await ScanDuplicateGroupsAsync(db, userId,
                     VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm), ct))
-                .Where(group => group.EffectiveRisk == VocabularyDuplicateRisk.Safe)
+                .SelectMany(group => group.MergeParts
+                    .Select(part => VocabularyDuplicatePolicy.WithoutLeftOut(part, leaveOut))
+                    .OfType<VocabularyDuplicateMergePart>()
+                    .Select(part => (Group: group, Part: part)))
                 .ToList();
         }
 
         var merged = 0;
         var removed = 0;
         var refused = new List<(string DisplayTerm, string RefusalKey)>();
-        foreach (var group in safe)
+        foreach (var (group, part) in safe)
         {
-            // Cancelled: stop between groups and still report (and sync) the groups already merged.
+            // Cancelled: stop between merges and still report (and sync) the ones already made.
             if (ct.IsCancellationRequested)
                 break;
-            // Every other copy goes in: a copy another learner uses stays, but the learner's own
-            // links and history on it still move to the keeper.
-            var others = group.Words.Select(info => info.Word.Id)
-                .Where(id => id != group.RecommendedKeeperId).ToList();
+            // A copy another learner uses stays, but the learner's own links and history on it
+            // still move to the keeper.
             VocabularyMergeResult result;
             try
             {
-                result = await MergeWithoutSyncAsync(group.RecommendedKeeperId, others, userId, ct);
+                result = await MergeWithoutSyncAsync(part.KeeperId, part.OtherIds.ToList(), userId, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -2030,7 +2051,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         if (merged > 0)
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         _logger.LogInformation(
-            "Merge all: {Merged} of {Safe} safe duplicate groups merged, {Removed} copies removed, {Refused} refused, cancelled {Cancelled}.",
+            "Merge all: {Merged} of {Safe} safe duplicate merges made, {Removed} copies removed, {Refused} refused, cancelled {Cancelled}.",
             merged, safe.Count, removed, refused.Count, ct.IsCancellationRequested);
         return new VocabularyMergeAllResult(merged, removed, refused);
     }

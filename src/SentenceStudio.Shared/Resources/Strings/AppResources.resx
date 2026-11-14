@@ -10478,19 +10478,19 @@ For example: {0} ...</value>
     <value>Clean Up Duplicates</value>
   </data>
   <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
-    <value>{0} group(s) can merge without losing anything ({1} extra copies).</value>
+    <value>Matching copies that can merge without losing anything: {1}.</value>
   </data>
   <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
-    <value>Merge {0} Group(s)</value>
+    <value>Merge Matching Copies ({0})</value>
   </data>
   <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
     <value>Merging…</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
-    <value>Merged {0} group(s) and removed {1} copies.</value>
+    <value>Matching copies merged into the copies kept: {1}.</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
-    <value>Merged {0} group(s) and removed {1} copies. {2} group(s) could not merge.</value>
+    <value>Matching copies merged into the copies kept: {1}. Could not merge: {2}.</value>
   </data>
   <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
     <value>Nothing left to merge automatically.</value>
@@ -10530,5 +10530,14 @@ For example: {0} ...</value>
   </data>
   <data name="Vocabulary_MergeFailed" xml:space="preserve">
     <value>The merge did not complete. Try again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseHint" xml:space="preserve">
+    <value>Choose the copies to merge. The others stay as they are.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseTwo" xml:space="preserve">
+    <value>Choose at least two copies to merge.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
+    <value>copy {0} of {1}</value>
   </data>
 </root>

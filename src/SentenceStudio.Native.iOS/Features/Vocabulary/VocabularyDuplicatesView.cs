@@ -6,8 +6,11 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 
 namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 
+/// <param name="ToggleCopy">A copy (term, word ID) goes into, or out of, its group's Merge.</param>
+/// <param name="EditCopy">Opens a copy (word ID) in the word editor, above the page.</param>
 internal sealed record VocabularyDuplicateActions(
-    Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip);
+    Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip,
+    Action<string, string>? ToggleCopy = null, Action<string>? EditCopy = null);
 
 /// <summary>
 /// The duplicate page (docs/duplicate-merge-plan.md), pushed beside the Vocabulary list (the
@@ -71,14 +74,14 @@ internal static class VocabularyDuplicatesView
                     SourceTextRole.Small, SourceTextTone.Secondary)
                 .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"{Prefix}.focus"));
-        if (!panel.Running && panel.SafeGroupCount > 0)
+        if (panel.CanMergeAll)
         {
             rows.Add(style.Text(Views.Text(Format(text, "Vocabulary_DuplicatesSafeSummary",
-                        panel.SafeGroupCount, panel.SafeCopyCount)), SourceTextRole.Body1)
+                        panel.SafeGroupCount, panel.MergeAllCopyCount)), SourceTextRole.Body1)
                 .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"{Prefix}.summary"));
             rows.Add(NativeForm.CenteredRow(NativeForm.Prominent(style,
-                Format(text, "Vocabulary_DuplicatesMergeAll", panel.SafeGroupCount),
+                Format(text, "Vocabulary_DuplicatesMergeAll", panel.MergeAllCopyCount),
                 actions.MergeAll, $"{Prefix}.mergeall")));
         }
         else if (!panel.Running && panel.Groups.Count > 0)
@@ -95,7 +98,9 @@ internal static class VocabularyDuplicatesView
 
     /// <summary>
     /// A group to review, titled by its term: what merging would lose (a warning symbol and
-    /// words, not color alone), its copies with the keeper first, then Merge and Skip.
+    /// words, not color alone), its copies with the keeper first, then Merge and Skip. With three
+    /// or more copies each copy is a choice (Captain 2026-11-14: "merge some matching duplicates
+    /// but not all"): Merge folds the chosen ones into the first chosen copy.
     /// </summary>
     private static SwiftView ReviewGroup(VocabularyDuplicatePanel panel,
         NativeVocabularyDuplicateGroup group, SourceUiStyle style, Func<string, string> text,
@@ -112,13 +117,30 @@ internal static class VocabularyDuplicatesView
             .WithFlexibleWidth();
         warning.Spacing = SourceUiLayout.ItemGap;
         var rows = new List<SwiftView> { warning };
-        foreach (var word in VocabularyDuplicateFinder.KeeperFirst(group))
-            rows.Add(CopyRow(panel, group, word, style, text));
+        var choice = VocabularyDuplicatePanel.OffersChoice(group) && actions.ToggleCopy is not null;
+        if (choice)
+            rows.Add(style.Text(Views.Text(text("Vocabulary_DuplicatesChooseHint")),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{id}.hint"));
+        var keeper = panel.KeeperOf(group);
+        var copies = VocabularyDuplicateFinder.KeeperFirst(group, keeper);
+        for (var index = 0; index < copies.Count; index++)
+        {
+            var word = copies[index];
+            // Identical copies read the same, so VoiceOver also says which one (copy 2 of 3).
+            var position = Format(text, "Vocabulary_DuplicatesCopyPosition", index + 1, copies.Count);
+            rows.Add(WithEdit(choice
+                    ? ChoiceRow(panel, group, word, keeper, position, style, text, actions.ToggleCopy!)
+                    : CopyRow(panel, group, word, keeper, style, text),
+                panel, word, position, style, text, actions.EditCopy));
+        }
         var merge = NativeForm.Bordered(style, text("Vocabulary_DuplicatesMerge"),
             () => actions.Merge(group.NormalizedTerm), $"{id}.merge");
         var skip = NativeForm.Bordered(style, text("Vocabulary_DuplicatesSkip"),
             () => actions.Skip(group.NormalizedTerm), $"{id}.skip");
-        merge.IsEnabled = skip.IsEnabled = !panel.Running;
+        merge.IsEnabled = !panel.Running && panel.Chosen(group).Count >= 2;
+        skip.IsEnabled = !panel.Running;
         var buttons = Views.HStack(merge, skip).WithFlexibleWidth();
         buttons.Spacing = SourceUiLayout.ItemGap;
         rows.Add(buttons);
@@ -126,13 +148,68 @@ internal static class VocabularyDuplicatesView
         return Views.Section(group.DisplayTerm, rows.ToArray());
     }
 
+    /// <summary>
+    /// A copy's row with Edit beside it (Captain 2026-11-14: "go directly to a vocabulary word so
+    /// that I can modify the entry"): the word editor opens above the page. Edit is its own
+    /// borderless button, so a tap on the copy itself still chooses it.
+    /// </summary>
+    private static SwiftView WithEdit(SwiftView copy, VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateWord word, string position, SourceUiStyle style,
+        Func<string, string> text, Action<string>? editCopy)
+    {
+        if (editCopy is null)
+            return copy;
+        var label = text("Vocabulary_DuplicatesEdit");
+        var edit = Views.Button(Views.Label(label, "pencil"), () => editCopy(word.Id))
+            .WithButtonStyle(SwiftButtonStyle.Bordered)
+            .WithTintColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithAccessibilityLabel($"{label}, {word.NativeTerm}, {position}")
+            .WithAccessibilityIdentifier($"{Prefix}.word.{word.Id}.edit");
+        edit.IsEnabled = !panel.Running;
+        var row = Views.HStack(copy.WithFlexibleWidth(), edit).WithFlexibleWidth();
+        row.Spacing = SourceUiLayout.ItemGap;
+        return row;
+    }
+
+    /// <summary>
+    /// A copy the learner can leave out of the Merge: the whole row is one button with a checkmark
+    /// circle (chosen) or an empty circle (left out), selected for VoiceOver when chosen.
+    /// </summary>
+    private static SwiftView ChoiceRow(VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word, string keeperId,
+        string position, SourceUiStyle style, Func<string, string> text, Action<string, string> toggle)
+    {
+        var included = panel.IsIncluded(word);
+        var mark = (included ? style.Appearance.Primary : style.Appearance.SecondaryText);
+        var label = Views.HStack(
+                Views.Image(included ? "checkmark.circle.fill" : "circle")
+                    .WithFixedSymbolSize(22)
+                    .WithForegroundColor(mark.Light, mark.Dark),
+                CopyRow(panel, group, word, keeperId, style, text))
+            .WithFlexibleWidth();
+        label.Spacing = SourceUiLayout.ItemGap;
+        var spoken = new List<string> { word.NativeTerm, position,
+            VocabularyDuplicateFinder.CopyDetails(group, word, text).Replace('\n', ' ') };
+        if (word.Id == keeperId)
+            spoken.Add(text("Vocabulary_DuplicatesKeep"));
+        var button = Views.Button(label, () => toggle(group.NormalizedTerm, word.Id))
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithFlexibleWidth()
+            .WithAccessibilitySelected(included)
+            .WithAccessibilityLabel(string.Join(", ", spoken))
+            .WithAccessibilityIdentifier($"{Prefix}.word.{word.Id}.choose");
+        button.IsEnabled = !panel.Running;
+        return button;
+    }
+
     /// <summary>A copy: its meaning, what differs and its memory aids, and which copy Merge keeps.</summary>
     private static SwiftView CopyRow(VocabularyDuplicatePanel panel,
-        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word,
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word, string keeperId,
         SourceUiStyle style, Func<string, string> text)
     {
         var id = $"{Prefix}.word.{word.Id}";
-        var keeper = word.Id == group.RecommendedKeeperId;
+        var keeper = word.Id == keeperId;
         var rows = new List<SwiftView>
         {
             style.Text(Views.Text(word.NativeTerm), SourceTextRole.Body1,
