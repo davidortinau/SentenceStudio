@@ -24,12 +24,21 @@ SERVER=db-rsn72awybem6s
 VAULT=dbkv-rsn72awybem6s
 PG=postgres:16
 STATE="$HOME/.sstudio-prod-db-access"
+# Newer az CLIs (2.92 on Lilliput) name the server --server-name and the rule --name; older
+# ones used --name for the server and --rule-name for the rule.
+# Read the help first: under pipefail, grep -q closing the pipe early could fail the test.
+FW_HELP=$(az postgres flexible-server firewall-rule list -h 2>/dev/null || true)
+if grep -q -- '--server-name' <<<"$FW_HELP"; then
+  FW_SERVER=(--server-name "$SERVER"); FW_RULE=--name
+else
+  FW_SERVER=(--name "$SERVER"); FW_RULE=--rule-name
+fi
 LOCK_ARGS=(-n do-not-delete-postgres -g "$RG" --resource "$SERVER"
   --resource-type Microsoft.DBforPostgreSQL/flexibleServers --subscription "$S")
 
 status() {
   echo "## firewall rules"
-  az postgres flexible-server firewall-rule list -g "$RG" --name "$SERVER" --subscription "$S" \
+  az postgres flexible-server firewall-rule list -g "$RG" "${FW_SERVER[@]}" --subscription "$S" \
     --query '[].name' -o tsv
   echo "## locks"
   az lock list -g "$RG" --subscription "$S" --query '[].{name:name, level:level}' -o tsv
@@ -57,8 +66,8 @@ PY
   rule=deploy-access-$(date +%Y%m%d-%H%M)
   ip=$(curl -s https://api.ipify.org)
   echo "$rule" > "$STATE/rule"
-  az postgres flexible-server firewall-rule create -g "$RG" --name "$SERVER" --subscription "$S" \
-    --rule-name "$rule" --start-ip-address "$ip" --end-ip-address "$ip" -o none
+  az postgres flexible-server firewall-rule create -g "$RG" "${FW_SERVER[@]}" --subscription "$S" \
+    "$FW_RULE" "$rule" --start-ip-address "$ip" --end-ip-address "$ip" -o none
   echo "open: rule $rule for this IP; credentials in $STATE/pg.env. Run close when done."
 }
 
@@ -71,8 +80,8 @@ close_access() {
       trap 'az lock create "${LOCK_ARGS[@]}" -t CanNotDelete \
         --notes "Protect production managed PostgreSQL from accidental deletion" -o none' EXIT
       az lock delete "${LOCK_ARGS[@]}" &&
-      az postgres flexible-server firewall-rule delete -g "$RG" --name "$SERVER" --subscription "$S" \
-        --rule-name "$rule" --yes
+      az postgres flexible-server firewall-rule delete -g "$RG" "${FW_SERVER[@]}" --subscription "$S" \
+        "$FW_RULE" "$rule" --yes
     ) || true
   fi
   rm -f "$STATE/pg.env" "$STATE/conn.txt"
@@ -84,7 +93,7 @@ close_access() {
     az lock create "${LOCK_ARGS[@]}" -t CanNotDelete \
       --notes "Protect production managed PostgreSQL from accidental deletion" -o none
   fi
-  rules=$(az postgres flexible-server firewall-rule list -g "$RG" --name "$SERVER" --subscription "$S" \
+  rules=$(az postgres flexible-server firewall-rule list -g "$RG" "${FW_SERVER[@]}" --subscription "$S" \
     --query '[].name' -o tsv)
   if [ "$rules" = AllowAllAzureIps ]; then
     rm -f "$STATE/rule"

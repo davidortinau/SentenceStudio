@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    One-off repair (2026-11-13): progress counts that lost answers to sync conflicts before the
+    concurrent progress merge (2026-10-31) are rebuilt from their own learning history with the
+    shared VocabularyProgressFold. Plans from JSON exports and writes guarded SQL; it never
+    connects to a database. See docs/progress-count-repair-2026-11-13.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SentenceStudio.Tools.ProgressCountRepair</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
