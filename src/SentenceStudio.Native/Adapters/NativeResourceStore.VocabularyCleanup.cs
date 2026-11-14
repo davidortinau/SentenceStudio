@@ -87,10 +87,12 @@ public sealed partial class NativeResourceStore
                     string.IsNullOrEmpty(title) ? group.DisplayTerm : title,
                     shown.Select(info => DuplicateWord(info)).ToArray(),
                     group.CanMergeAutomatically, group.MergeBlockedReason,
-                    group.RecommendedKeeperId);
+                    // Empty when no copy can be kept (nothing to merge into).
+                    group.RecommendedKeeperId, group.EffectiveRisk, group.Differences);
             })
             .ToArray();
-        return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount);
+        return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount,
+            scan.SafeGroupCount, scan.SafeCopyCount, scan.ReviewGroupCount, scan.BlockedGroupCount);
     }
 
     /// <summary>
@@ -125,7 +127,7 @@ public sealed partial class NativeResourceStore
             if (inVocabulary != requested.Length)
             {
                 logger.LogWarning("Native duplicate merge refused words the owner does not hold.");
-                return NativeVocabularyMergeResult.None;
+                return NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_MergeRefusedNotYours" };
             }
         }
 
@@ -136,8 +138,33 @@ public sealed partial class NativeResourceStore
             resources.MergeVocabularyWordsWithResultAsync(
                 keeperWordId, duplicates, cancellationToken, owner));
         if (!merge.Changed)
-            return new(merge.Deleted, false, false);
+            return new(merge.Deleted, false, false, merge.RefusalKey);
         return new(merge.Deleted, true, !TryMarkPending(owner, "Duplicate merge"));
+    }
+
+    /// <summary>
+    /// Source MergeSafeDuplicateGroupsAsync for the active owner: every group the shared rules
+    /// rate safe (nothing is lost), across all pages, in one step. The shared scan reads only the
+    /// words recorded to the owner, the same rule as <see cref="OwnedVocabularyIds"/>.
+    /// </summary>
+    public async Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
+        string owner, string? focusTerm, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return NativeVocabularyMergeAllResult.None;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // The merges are the owner's even if the account changes while they run, so their sync
+        // is recorded for that owner (TryMarkPending is keyed by owner).
+        var merged = await WithResourcesAsync(resources =>
+            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm));
+        var refused = merged.Refused
+            .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey))
+            .ToArray();
+        if (merged.MergedGroups == 0)
+            return new(0, 0, refused, false);
+        return new(merged.MergedGroups, merged.RemovedCopies, refused,
+            !TryMarkPending(owner, "Duplicate merge all"));
     }
 
     /// <summary>
@@ -168,6 +195,7 @@ public sealed partial class NativeResourceStore
             info.EncodingScore, EncodingScoreHelper.GetLabel(info.EncodingScore),
             string.IsNullOrWhiteSpace(word.MnemonicText) ? null : word.MnemonicText,
             !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
-            !string.IsNullOrWhiteSpace(word.AudioPronunciationUri));
+            !string.IsNullOrWhiteSpace(word.AudioPronunciationUri),
+            string.IsNullOrWhiteSpace(word.Lemma) ? null : word.Lemma.Trim());
     }
 }

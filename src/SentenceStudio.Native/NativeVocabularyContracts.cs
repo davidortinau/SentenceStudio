@@ -1,3 +1,4 @@
+using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native;
@@ -138,9 +139,23 @@ public enum NativeVocabularyDeleteStatus
 /// can move to the keeper while a copy other data references is kept), and whether the change
 /// was saved but its sync tracking could not be recorded.
 /// </summary>
-public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool SyncUnconfirmed)
+/// <param name="RefusalKey">The resource key of why nothing changed, or null.</param>
+public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool SyncUnconfirmed,
+    string? RefusalKey = null)
 {
     public static NativeVocabularyMergeResult None { get; } = new(0, false, false);
+}
+
+/// <summary>A group a merge refused: its display term and the resource key of why.</summary>
+public sealed record NativeVocabularyMergeRefusal(string DisplayTerm, string RefusalKey);
+
+/// <summary>Source MergeSafeDuplicateGroupsAsync for the active owner ("Merge all").</summary>
+/// <param name="Refused">Safe groups the merge still refused (changed since the scan).</param>
+public sealed record NativeVocabularyMergeAllResult(
+    int MergedGroups, int RemovedCopies, IReadOnlyList<NativeVocabularyMergeRefusal> Refused,
+    bool SyncUnconfirmed)
+{
+    public static NativeVocabularyMergeAllResult None { get; } = new(0, 0, [], false);
 }
 
 /// <summary>
@@ -151,20 +166,29 @@ public sealed record NativeVocabularyDuplicateWord(
     string Id, string TargetTerm, string NativeTerm,
     string? Language, LexicalUnitType LexicalUnitType,
     int ResourceCount, double EncodingScore, string EncodingLabel,
-    string? MnemonicText, bool HasImageAid, bool HasAudio);
+    string? MnemonicText, bool HasImageAid, bool HasAudio, string? Lemma = null);
 
 /// <summary>
 /// Source VocabularyDuplicateGroup of the owner's own words; <see cref="Words"/> is in
 /// merge-preference order.
 /// </summary>
+/// <param name="MergeBlockedReason">The resource key of why it cannot merge, or null.</param>
+/// <param name="Risk">Safe (merged by Merge all), review (the learner decides) or blocked.</param>
+/// <param name="Differences">What merging would drop, when <paramref name="Risk"/> is review.</param>
 public sealed record NativeVocabularyDuplicateGroup(
     string NormalizedTerm, string DisplayTerm,
     IReadOnlyList<NativeVocabularyDuplicateWord> Words,
     bool CanMergeAutomatically, string? MergeBlockedReason,
-    string RecommendedKeeperId);
+    string RecommendedKeeperId,
+    VocabularyDuplicateRisk Risk = VocabularyDuplicateRisk.Safe,
+    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null)
+{
+    public IReadOnlyList<VocabularyDuplicateDifference> DifferenceList => Differences ?? [];
+}
 
 /// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
 public sealed record NativeVocabularyDuplicateScan(
     bool OwnerValid,
     IReadOnlyList<NativeVocabularyDuplicateGroup> Groups,
-    int TotalGroupCount, int ExtraRecordCount);
+    int TotalGroupCount, int ExtraRecordCount,
+    int SafeGroupCount = 0, int SafeCopyCount = 0, int ReviewGroupCount = 0, int BlockedGroupCount = 0);

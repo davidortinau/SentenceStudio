@@ -510,8 +510,11 @@ public sealed class VocabularyWordCleanupTests
             .Select(word => word.NativeLanguageTerm).SingleAsync();
     }
 
+    // Captain 2026-11-14: only a merge that would lose something is listed for review. Skip
+    // leaves it alone while the page is open; Merge still works (the learner chose it) and keeps
+    // the keeper's fields.
     [Fact]
-    public async Task FindDuplicates_BlockedGroupExplainsAndMergesNothing()
+    public async Task FindDuplicates_AGroupThatWouldLoseSomething_IsForReview_SkipLeavesIt_MergeKeepsTheKeeper()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -522,20 +525,195 @@ public sealed class VocabularyWordCleanupTests
         await browser.OpenWordAsync("dup-a-1");
         await browser.FindDuplicatesAsync();
 
-        var group = Assert.Single(browser.ListState.Duplicates!.Groups);
-        Assert.False(group.CanMergeAutomatically);
-        Assert.Contains("language", group.MergeBlockedReason);
+        var panel = browser.ListState.Duplicates!;
+        var group = Assert.Single(panel.ReviewGroups);
+        Assert.Equal(VocabularyDuplicateRisk.Review, group.Risk);
+        Assert.Equal([VocabularyDuplicateDifference.LanguageOrKind], group.DifferenceList);
+        Assert.Equal(["Vocabulary_DuplicateDifferenceLanguageOrKind"],
+            VocabularyDuplicateFinder.Differences(group, key => key));
+        Assert.Equal((0, 1, 0), (panel.SafeGroupCount, panel.ReviewGroupCount, panel.BlockedGroupCount));
+        Assert.False(panel.CanMergeAll);
+        Assert.Empty(panel.BlockedGroups);
 
-        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
-        Assert.Equal(group.MergeBlockedReason, browser.ListState.Feedback);
-        Assert.True(browser.ListState.FeedbackWarning);
+        browser.SkipDuplicates(group.NormalizedTerm);
+        Assert.Empty(browser.ListState.Duplicates!.ReviewGroups);
         Assert.Equal(1, (await RowsAsync(fixture, "dup-a-1")).Words);
         Assert.Equal(1, (await RowsAsync(fixture, "dup-a-2")).Words);
 
-        // Source "Edit record": the copy opens in the editor, and the manager stays open.
-        await browser.OpenWordAsync("dup-a-2");
-        Assert.True(browser.IsFormOpen);
-        Assert.NotNull(browser.ListState.Duplicates);
+        // Skip lasts while the page is open: opened again, the group is back.
+        browser.CloseDuplicates();
+        await browser.OpenDuplicatesAsync("사과", null);
+        Assert.Equal(group.NormalizedTerm, Assert.Single(browser.ListState.Duplicates!.ReviewGroups).NormalizedTerm);
+
+        await browser.MergeDuplicatesAsync(group.NormalizedTerm);
+        Assert.Equal("Vocabulary_DuplicatesMergedSuccess", browser.ListState.Feedback);
+        Assert.False(browser.ListState.FeedbackWarning);
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        // dup-a-2 has the memory aid, so it is the keeper and keeps its own language.
+        Assert.Equal("Japanese", await LanguageAsync(fixture, "dup-a-2"));
+        Assert.Empty(browser.ListState.Duplicates!.Groups);
+    }
+
+    /// <summary>The store's refusal of a word not recorded to the owner.</summary>
+    private static readonly NativeVocabularyMergeResult NotYours =
+        NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_MergeRefusedNotYours" };
+
+    private static async Task<string?> LanguageAsync(NativeSliceFixture fixture, string wordId)
+    {
+        using var scope = fixture.Scope();
+        return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().VocabularyWords
+            .AsNoTracking().Where(word => word.Id == wordId)
+            .Select(word => word.Language).SingleAsync();
+    }
+
+    // Captain 2026-11-14: "I almost always do all of them at once with no review." Clean Up
+    // Duplicates merges every safe group in one step, keeps a copy another learner uses (its
+    // owner's links still move to the keeper) and leaves the group to review.
+    [Fact]
+    public async Task MergeAll_MergesEverySafeGroupInOneStep_AndLeavesTheGroupToReview()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        await AddCopiesAsync(fixture, UserB, "dup-b", "Korean", "Korean");
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            // 바나나: three copies; the newest is in another learner's resource too.
+            foreach (var index in new[] { 1, 2, 3 })
+                AddWord(db, fixture, UserA, $"dup-c-{index}", "바나나", "banana", index);
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+                Id = "mapping-dup-c-3-by-b", ResourceId = fixture.ResourceId(UserB),
+                VocabularyWordId = "dup-c-3"
+            });
+            // 맞다: two meanings, so merging would lose one.
+            AddWord(db, fixture, UserA, "dup-r-1", "맞다", "to fit", 1);
+            AddWord(db, fixture, UserA, "dup-r-2", "맞다", "to be right", 2);
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        var pending = fixture.Provider.GetRequiredService<NativePendingWrites>();
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+
+        await browser.OpenAllDuplicatesAsync();
+
+        var panel = browser.ListState.Duplicates!;
+        Assert.Equal("Vocabulary_DuplicatesCleanUp", panel.Title);
+        Assert.False(panel.IsFocusedScan);
+        // Two copies go (one of 사과, one of 바나나); the shared 바나나 copy stays.
+        Assert.Equal((2, 2, 1, 0), (panel.SafeGroupCount, panel.SafeCopyCount,
+            panel.ReviewGroupCount, panel.BlockedGroupCount));
+        Assert.True(panel.CanMergeAll);
+        var review = Assert.Single(panel.ReviewGroups);
+        Assert.Equal("맞다", review.DisplayTerm);
+        Assert.Equal([VocabularyDuplicateDifference.Meaning], review.DifferenceList);
+        Assert.Equal(0, panel.RemainingGroupCount);
+        var bananas = Assert.Single(panel.Groups, group => group.DisplayTerm == "바나나");
+        Assert.Equal("dup-c-2", bananas.RecommendedKeeperId);
+
+        await browser.MergeAllDuplicatesAsync();
+
+        var list = browser.ListState;
+        Assert.Equal("Vocabulary_DuplicatesMergedAll", list.Feedback);
+        Assert.False(list.FeedbackWarning);
+        var after = list.Duplicates!;
+        Assert.False(after.Running);
+        Assert.Equal(0, after.SafeGroupCount);
+        Assert.False(after.CanMergeAll);
+        Assert.Equal("맞다", Assert.Single(after.ReviewGroups).DisplayTerm);
+        Assert.Equal(["Vocabulary_DuplicatesMergedAll"], after.Results);
+        Assert.True(pending.IsPending(UserA));
+        Assert.False(pending.IsPending(UserB));
+        // 사과: one copy left. 바나나: the keeper and the shared copy, which now has only the
+        // other learner's link (the owner's moved to the keeper).
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-a-2")).Words);
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-c-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-c-2")).Mappings);
+        Assert.Equal(new WordRows(1, 1, 0, 0, 0), await RowsAsync(fixture, "dup-c-3"));
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-r-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-r-2")).Words);
+        // The other learner's own copies are not theirs to merge.
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-b-2")).Words);
+        Assert.DoesNotContain(list.FilteredWords, word => word.Id is "dup-a-1" or "dup-c-1");
+    }
+
+    // A page focused on one word (the editor's Find Duplicates) merges only that word's group.
+    [Fact]
+    public async Task MergeAll_OnAFocusedPage_MergesOnlyItsOwnTerm()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            AddWord(db, fixture, UserA, "dup-c-1", "바나나", "banana", 1);
+            AddWord(db, fixture, UserA, "dup-c-2", "바나나", "banana", 2);
+            await db.SaveChangesAsync();
+        }
+        fixture.Activate(UserA);
+        using var browser = Create(fixture);
+        Assert.True(await browser.OpenAsync(UserA));
+        await browser.OpenWordAsync("dup-a-1");
+        await browser.FindDuplicatesAsync();
+        var panel = browser.ListState.Duplicates!;
+        Assert.True(panel.IsFocusedScan);
+        Assert.Equal((1, 1), (panel.SafeGroupCount, panel.SafeCopyCount));
+
+        await browser.MergeAllDuplicatesAsync();
+
+        Assert.Equal("Vocabulary_DuplicatesMergedAll", browser.ListState.Feedback);
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-c-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-c-2")).Words);
+        Assert.Equal(0, browser.ListState.Duplicates!.SafeGroupCount);
+    }
+
+    [Fact]
+    public async Task DuplicateStore_MergeAll_IsOwnerScoped()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        await AddCopiesAsync(fixture, UserA, "dup-a", "Korean", "Korean");
+        await AddCopiesAsync(fixture, UserB, "dup-b", "Korean", "Korean");
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+
+        // Not the active owner: nothing merges.
+        Assert.Equal(NativeVocabularyMergeAllResult.None,
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserB, null, default));
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
+
+        var merged = await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, default);
+        Assert.Equal((1, 1, 0, false), (merged.MergedGroups, merged.RemovedCopies,
+            merged.Refused.Count, merged.SyncUnconfirmed));
+        Assert.Equal(0, (await RowsAsync(fixture, "dup-a-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-b-2")).Words);
+
+        fixture.LoseOwner();
+        Assert.Equal(NativeVocabularyMergeAllResult.None,
+            await store.MergeSafeOwnedVocabularyDuplicatesAsync(UserA, null, default));
+    }
+
+    private static void AddWord(ApplicationDbContext db, NativeSliceFixture fixture, string owner,
+        string id, string term, string meaning, int minute)
+    {
+        db.VocabularyWords.Add(new VocabularyWord {
+            Id = id, UserProfileId = owner, TargetLanguageTerm = term,
+            NativeLanguageTerm = meaning, Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = new DateTime(2026, 11, 1, 9, minute, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2026, 11, 1, 9, minute, 0, DateTimeKind.Utc)
+        });
+        db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
+            Id = $"mapping-{id}", ResourceId = fixture.ResourceId(owner), VocabularyWordId = id
+        });
     }
 
     [Fact]
@@ -556,9 +734,9 @@ public sealed class VocabularyWordCleanupTests
         Assert.False((await store.FindOwnedVocabularyDuplicatesAsync(
             UserB, null, 0, 20, default)).OwnerValid);
 
-        // A merge naming another owner's word merges nothing.
-        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
-            UserA, "dup-a-2", ["dup-b-1"], default));
+        // A merge naming another owner's word merges nothing, and says why.
+        Assert.Equal(NotYours,
+            await store.MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-a-2", ["dup-b-1"], default));
         Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserB, "dup-b-2", ["dup-b-1"], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-b-1")).Words);
@@ -717,10 +895,12 @@ public sealed class VocabularyWordCleanupTests
         Assert.DoesNotContain(browser.ListState.FilteredWords, word => word.Id == "dup-a-1");
     }
 
-    // Review 2026-11-05: a merge can keep every copy (another account still uses it) and still
-    // move this owner's links: that is a saved change, not "no merge needed".
+    // docs/duplicate-merge-plan.md: when another learner uses the only other copy, nothing can
+    // be removed, so Merge all leaves the group and says why. Merge on it still moves the
+    // learner's own links and history onto the keeper (review 2026-11-14, as the source merge
+    // did), and a second Merge says there is nothing left to move.
     [Fact]
-    public async Task Merge_ThatMovesLinksButKeepsASharedCopy_IsASavedChange()
+    public async Task Merge_OfAGroupWhoseOtherCopyAnotherLearnerUses_KeepsTheCopy_AndMovesTheLearnersLinks()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -737,34 +917,34 @@ public sealed class VocabularyWordCleanupTests
         }
         fixture.Activate(UserA);
         var pending = fixture.Provider.GetRequiredService<NativePendingWrites>();
-        Assert.False(pending.IsPending(UserA));
         using var browser = Create(fixture);
         Assert.True(await browser.OpenAsync(UserA));
         await browser.OpenWordAsync("dup-a-2");
         await browser.FindDuplicatesAsync();
-        var group = Assert.Single(browser.ListState.Duplicates!.Groups);
+        var panel = browser.ListState.Duplicates!;
+        var group = Assert.Single(panel.BlockedGroups);
         Assert.Equal("dup-a-2", group.RecommendedKeeperId);
+        Assert.Equal("Vocabulary_DuplicatesOthersShared", group.MergeBlockedReason);
+        Assert.False(panel.CanMergeAll);
+        Assert.Empty(panel.ReviewGroups);
 
         await browser.MergeDuplicatesAsync(group.NormalizedTerm);
 
         var list = browser.ListState;
         Assert.Equal("Vocabulary_DuplicatesMergedCount", list.Feedback);
         Assert.False(list.FeedbackWarning);
-        // The list reloaded: the kept copy is still recorded to this owner (only the other
-        // account's link holds it), so it stays in their list, now in none of their resources.
+        Assert.True(pending.IsPending(UserA));
+        // The copy stays (only the other account's link holds it); the owner's link moved.
+        var kept = await RowsAsync(fixture, "dup-a-1");
+        Assert.Equal((1, 1), (kept.Words, kept.Mappings));
+        Assert.Equal(1, (await RowsAsync(fixture, "dup-a-2")).Mappings);
         Assert.Contains(list.FilteredWords, word => word.Id == "dup-a-1"
             && word.AssociatedResources.Count == 0);
-        Assert.Contains(list.FilteredWords, word => word.Id == "dup-a-2");
-        Assert.True(pending.IsPending(UserA));
-        var kept = await RowsAsync(fixture, "dup-a-1");
-        Assert.Equal(1, kept.Words);
-        Assert.Equal(1, kept.Mappings);
-        Assert.Equal(1, (await RowsAsync(fixture, "dup-a-2")).Mappings);
-        Assert.False(pending.IsPending(UserB));
-        // Nothing is left to move.
-        Assert.Equal(NativeVocabularyMergeResult.None, await fixture.Provider
-            .GetRequiredService<INativeResourceStore>()
-            .MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-a-2", ["dup-a-1"], default));
+
+        // Nothing is left to move: the merge is refused and says why.
+        await browser.MergeDuplicatesAsync(Assert.Single(browser.ListState.Duplicates!.BlockedGroups).NormalizedTerm);
+        Assert.Equal("Vocabulary_DuplicatesMergeRefused", browser.ListState.Feedback);
+        Assert.True(browser.ListState.FeedbackWarning);
     }
 
     // One ownership rule (Captain 2026-11-06): a copy recorded to another owner sits in the
@@ -807,7 +987,7 @@ public sealed class VocabularyWordCleanupTests
         Assert.Equal(0, scan.TotalGroupCount);
         Assert.DoesNotContain("Their private story", System.Text.Json.JsonSerializer.Serialize(scan));
         // A merge naming the other owner's copy changes nothing.
-        Assert.Equal(NativeVocabularyMergeResult.None,
+        Assert.Equal(NotYours,
             await store.MergeOwnedVocabularyDuplicatesAsync(UserA, "dup-own", ["dup-legacy"], default));
         Assert.Equal(1, (await RowsAsync(fixture, "dup-legacy")).Words);
     }
@@ -903,7 +1083,7 @@ public sealed class VocabularyWordCleanupTests
 
     // Source: "Found N group(s) of duplicate words with M extra record(s). Showing K."
     [Fact]
-    public async Task Status_SaysHowManyGroupsAreShown()
+    public async Task Status_SaysHowManyGroupsWereFound()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(UserA);
@@ -913,7 +1093,6 @@ public sealed class VocabularyWordCleanupTests
         {
             "Vocabulary_DuplicatesFoundCount" =>
                 "Found {0} group(s) of duplicate words with {1} extra record(s).",
-            "NativeVocabulary_DuplicatesShowing" => "Showing {0}.",
             _ => key
         };
         var finder = new VocabularyDuplicateFinder(
@@ -922,7 +1101,8 @@ public sealed class VocabularyWordCleanupTests
 
         await finder.OpenAsync(UserA, null, null, default);
 
-        Assert.Equal("Found 1 group(s) of duplicate words with 1 extra record(s). Showing 1.",
+        // Safe groups are merged together, not listed, so a count of the loaded groups would mislead.
+        Assert.Equal("Found 1 group(s) of duplicate words with 1 extra record(s).",
             finder.Panel!.Status);
     }
 
@@ -1055,9 +1235,9 @@ public sealed class VocabularyWordCleanupTests
         Assert.DoesNotContain(browser.ListState.FilteredWords, word => word.Id == "dup-legacy");
 
         // Asked directly, the store refuses either keeper.
-        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
+        Assert.Equal(NotYours, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserA, "dup-own", ["dup-legacy"], default));
-        Assert.Equal(NativeVocabularyMergeResult.None, await store.MergeOwnedVocabularyDuplicatesAsync(
+        Assert.Equal(NotYours, await store.MergeOwnedVocabularyDuplicatesAsync(
             UserA, "dup-legacy", ["dup-own"], default));
 
         // No field of the other row reached the owner's row, and that row is untouched.
@@ -1309,20 +1489,28 @@ public sealed class VocabularyWordCleanupTests
         Assert.Equal(1, (await RowsAsync(fixture, wordId)).Words);
     }
 
-    // A group blocked by the source's own check keeps the source's "Edit before merge" advice:
-    // every copy is the learner's, so editing the records unblocks it.
+    // The scan names its reasons by resource key; the page reads them, and lists the keeper first
+    // (Merge keeps the first copy's meaning and memory aid).
     [Fact]
-    public void BlockedGroup_ShowsTheSourceReasonAndEditAdvice()
+    public void DuplicateGroupText_ReadsTheScansKeys_AndListsTheKeeperFirst()
     {
-        var blocked = new NativeVocabularyDuplicateGroup("사과", "사과", [], false,
-            "Language differs", "keeper");
-        Assert.Equal("Language differs", VocabularyDuplicateFinder.BlockedReason(blocked, key => key));
-        Assert.Equal(new VocabularyDuplicateBlock("NativeVocabulary_DuplicatesEditBeforeMerge",
-                "NativeVocabulary_DuplicatesMergeUnavailable", "Language differs",
-                "NativeVocabulary_DuplicatesMergeUnavailableHelp"),
-            VocabularyDuplicateFinder.Blocked(blocked, key => key));
-        Assert.Equal("NativeVocabulary_DuplicatesBlockedFallback", VocabularyDuplicateFinder
-            .BlockedReason(blocked with { MergeBlockedReason = null }, key => key));
+        static NativeVocabularyDuplicateWord Word(string id) =>
+            new(id, "사과", "apple", "Korean", LexicalUnitType.Word, 1, 1, "Basic", null, false, false);
+        var blocked = new NativeVocabularyDuplicateGroup("사과", "사과", [Word("a"), Word("b")], false,
+            "Vocabulary_DuplicatesOthersShared", "a", VocabularyDuplicateRisk.Blocked);
+        Assert.Equal("text:Vocabulary_DuplicatesOthersShared",
+            VocabularyDuplicateFinder.BlockedReason(blocked, key => "text:" + key));
+        Assert.Equal("text:Vocabulary_DuplicatesAllShared", VocabularyDuplicateFinder
+            .BlockedReason(blocked with { MergeBlockedReason = null }, key => "text:" + key));
+
+        var review = blocked with {
+            Risk = VocabularyDuplicateRisk.Review, MergeBlockedReason = null, RecommendedKeeperId = "b",
+            Differences = [VocabularyDuplicateDifference.Meaning, VocabularyDuplicateDifference.MemoryAid]
+        };
+        Assert.Equal(["text:Vocabulary_DuplicateDifferenceMeaning", "text:Vocabulary_DuplicateDifferenceMemoryAid"],
+            VocabularyDuplicateFinder.Differences(review, key => "text:" + key));
+        Assert.Equal(["b", "a"], VocabularyDuplicateFinder.KeeperFirst(review).Select(word => word.Id));
+        Assert.Empty(blocked.DifferenceList);
     }
 
     // Review 2026-11-05 (third pass): with no owner, `x.Owner != owner` stops matching rows that

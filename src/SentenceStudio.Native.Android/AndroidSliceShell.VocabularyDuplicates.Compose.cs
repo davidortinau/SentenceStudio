@@ -137,31 +137,100 @@ internal sealed partial class AndroidSliceShell
         };
     }
 
-    /// <summary>Source Vocabulary.razor duplicate manager (vocabulary-cleanup-panel).</summary>
-    private ComposableNode VocabularyDuplicatesPanel(VocabularyBrowser vocabulary,
-        VocabularyDuplicatePanel panel, AndroidVisualPalette palette)
+    private const string VocabularyListMenuKey = "vocabulary.list.more";
+
+    /// <summary>The list's overflow menu: Clean Up Duplicates (Captain 2026-11-14).</summary>
+    private ComposableNode VocabularyListMenu(VocabularyBrowser vocabulary,
+        AndroidVisualPalette palette, bool enabled)
     {
-        var close = new IconButton(vocabulary.CloseDuplicates, enabled: true)
+        var more = new IconButton(() => ToggleMoreMenu(VocabularyListMenuKey), enabled: enabled)
         {
-            Modifier = Modifier.TestTag("native.vocabulary.duplicates.close")
-                .Semantics(semantics => semantics.ContentDescription(Localize("Common_Close"))),
+            Modifier = Modifier.TestTag("native.vocabulary.more")
+                .Semantics(semantics => semantics.ContentDescription(Localize("More"))),
         };
-        close.Add(new Icon(Icons.Default.Close, Localize("Common_Close"))
+        more.Add(new Icon(Icons.Default.MoreVert, Localize("More"))
         {
-            Modifier = Modifier.Size(22),
+            Modifier = Modifier.Size(24),
             Tint = palette.Text,
         });
-        var items = new List<ComposableNode>
+        var menu = PopupMenu(expanded: _moreMenu == VocabularyListMenuKey,
+            onDismissRequest: CloseMoreMenu);
+        menu.Add(VocabularyMenuItem(Localize("Vocabulary_DuplicatesCleanUp"),
+            "native.vocabulary.duplicates.open", enabled,
+            () => RunMoreOnUi(vocabulary.OpenAllDuplicatesAsync)));
+        return new Box { more, menu };
+    }
+
+    /// <summary>
+    /// The duplicate page (docs/duplicate-merge-plan.md, as on iOS): one Merge for every safe
+    /// group, then the groups that need review (what merging would lose, Merge or Skip) and the
+    /// ones that cannot merge (why), in one lazy column.
+    /// </summary>
+    private ComposableNode VocabularyDuplicatesPage(VocabularyBrowser vocabulary,
+        VocabularyDuplicatePanel panel, AndroidVisualPalette palette)
+    {
+        var page = new Column
         {
-            new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
-            {
-                Modifier.FillMaxWidth(),
-                Heading(panel.Title, palette, 18, Modifier.Weight(1f)
-                    .TestTag("native.vocabulary.duplicates.title")
-                    .Semantics(semantics => semantics.Heading())),
-                close,
-            },
+            Modifier.FillMaxSize().TestTag("native.vocabulary.duplicates"),
+            ScreenHeader(panel.Title, palette, back: true,
+                backAutomationId: "native.vocabulary.duplicates.back"),
         };
+        var rows = new List<VocabularyRow>
+        {
+            new("summary", () => VocabularyDuplicatesSummary(vocabulary, panel, palette)),
+        };
+        var review = panel.ReviewGroups;
+        if (review.Count > 0)
+        {
+            rows.Add(new("review", () => new Column(Arrangement.SpacedBy(4))
+            {
+                Modifier.FillMaxWidth().TestTag("native.vocabulary.duplicates.review"),
+                Heading(Localize("Vocabulary_DuplicatesNeedReview"), palette, 18,
+                    Modifier.Semantics(semantics => semantics.Heading())),
+                Caption(Localize("Vocabulary_DuplicatesNeedReviewNote"), palette,
+                    "native.vocabulary.duplicates.review.note"),
+            }));
+            foreach (var group in review)
+            {
+                var item = group;
+                rows.Add(new($"review.{item.NormalizedTerm}",
+                    () => VocabularyDuplicateReview(vocabulary, panel, item, palette)));
+            }
+        }
+        var blocked = panel.BlockedGroups;
+        if (blocked.Count > 0)
+        {
+            rows.Add(new("blocked", () => Heading(Localize("Vocabulary_DuplicatesCantMerge"),
+                palette, 18, Modifier.TestTag("native.vocabulary.duplicates.blocked")
+                    .Semantics(semantics => semantics.Heading()))));
+            foreach (var group in blocked)
+            {
+                var item = group;
+                rows.Add(new($"blocked.{item.NormalizedTerm}",
+                    () => VocabularyDuplicateBlocked(vocabulary, panel, item, palette)));
+            }
+        }
+        if (!panel.Running && panel.RemainingGroupCount > 0)
+            rows.Add(new("more", () => Action(string.Format(CultureInfo.CurrentCulture,
+                    Localize("Vocabulary_DuplicatesShowMore"), panel.RemainingGroupCount),
+                "native.vocabulary.duplicates.more",
+                () => RunMoreOnUi(vocabulary.ShowMoreDuplicatesAsync), true, primary: false)));
+        page.Add(new LazyColumn<VocabularyRow>(rows, row => row.Content())
+        {
+            Key = row => row.Key,
+            Modifier = Modifier.FillMaxWidth().Weight(1f)
+                .Padding(horizontal: AndroidVisualTheme.PagePadding)
+                .TestTag("native.vocabulary.duplicates.list"),
+            VerticalArrangement = Arrangement.SpacedBy(12),
+        });
+        return page;
+    }
+
+    /// <summary>The scan's status, the safe groups' count and the one Merge for all of them, then the results.</summary>
+    private ComposableNode VocabularyDuplicatesSummary(VocabularyBrowser vocabulary,
+        VocabularyDuplicatePanel panel, AndroidVisualPalette palette)
+    {
+        var items = new List<ComposableNode>();
         if (panel.Running)
             items.Add(new Row(Arrangement.SpacedBy(10), Alignment.Vertical.CenterVertically)
             {
@@ -170,143 +239,105 @@ internal sealed partial class AndroidSliceShell
                 Body(panel.Status, palette, secondary: true),
             });
         else
-        {
             items.Add(Body(panel.Status, palette,
                 modifier: Modifier.TestTag("native.vocabulary.duplicates.status")));
-            if (!string.IsNullOrWhiteSpace(panel.FocusLabel))
-                items.Add(Caption(VocabularyDuplicateFinder.FocusNote(panel.FocusLabel, Localize),
-                    palette, "native.vocabulary.duplicates.focus"));
-            items.Add(Caption(Localize("NativeVocabulary_DuplicatesCombinedNote"), palette));
-            if (panel.Groups.Count == 0)
-                items.Add(StatusAlert(Localize("Vocabulary_DuplicatesNoRecords"), palette,
-                    automationId: "native.vocabulary.duplicates.empty"));
-            for (var index = 0; index < panel.Groups.Count; index++)
-                items.Add(VocabularyDuplicateGroup(vocabulary, panel, panel.Groups[index], index,
-                    palette));
-            if (panel.Groups.Count > 0 && panel.RemainingGroupCount > 0)
-                items.Add(Action(string.Format(CultureInfo.CurrentCulture,
-                        Localize("Vocabulary_DuplicatesShowMore"), panel.RemainingGroupCount),
-                    "native.vocabulary.duplicates.more",
-                    () => RunMoreOnUi(vocabulary.ShowMoreDuplicatesAsync), true, primary: false));
+        if (!string.IsNullOrWhiteSpace(panel.FocusLabel))
+            items.Add(Caption(VocabularyDuplicateFinder.FocusNote(panel.FocusLabel, Localize),
+                palette, "native.vocabulary.duplicates.focus"));
+        if (!panel.Running && panel.SafeGroupCount > 0)
+        {
+            items.Add(Body(string.Format(CultureInfo.CurrentCulture,
+                    Localize("Vocabulary_DuplicatesSafeSummary"), panel.SafeGroupCount,
+                    panel.SafeCopyCount), palette,
+                modifier: Modifier.TestTag("native.vocabulary.duplicates.summary")));
+            items.Add(Action(string.Format(CultureInfo.CurrentCulture,
+                    Localize("Vocabulary_DuplicatesMergeAll"), panel.SafeGroupCount),
+                "native.vocabulary.duplicates.mergeall",
+                () => RunMoreOnUi(vocabulary.MergeAllDuplicatesAsync), true));
+        }
+        else if (!panel.Running && panel.Groups.Count > 0)
+            items.Add(Body(Localize("Vocabulary_DuplicatesNothingSafe"), palette,
+                modifier: Modifier.TestTag("native.vocabulary.duplicates.summary")));
+        if (!panel.Running)
             for (var index = 0; index < panel.Results.Count; index++)
                 items.Add(StatusAlert(panel.Results[index], palette,
                     automationId: $"native.vocabulary.duplicates.result.{index}"));
-        }
-        return Card(palette, "native.vocabulary.duplicates", items.ToArray());
+        return Card(palette, "native.vocabulary.duplicates.top", items.ToArray());
     }
 
-    private ComposableNode VocabularyDuplicateGroup(VocabularyBrowser vocabulary,
-        VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group, int index,
+    /// <summary>
+    /// A group to review: its term, what merging would lose (a warning icon and words, not color
+    /// alone), its copies with the keeper first, then Merge and Skip.
+    /// </summary>
+    private ComposableNode VocabularyDuplicateReview(VocabularyBrowser vocabulary,
+        VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group,
         AndroidVisualPalette palette)
     {
-        var id = $"native.vocabulary.duplicates.group.{index}";
-        var badges = new FlowRow { Modifier.FillMaxWidth() };
-        badges.Add(new Box
+        var id = DuplicateGroupTag(group);
+        var differences = string.Join(", ", VocabularyDuplicateFinder.Differences(group, Localize));
+        var lost = Body(differences, palette);
+        lost.FontWeight = FontWeight.SemiBold;
+        var column = new List<ComposableNode>
         {
-            Modifier.Padding(end: 8, bottom: 6),
-            Heading(group.DisplayTerm, palette, 17, Modifier.TestTag($"{id}.term")),
+            Heading(group.DisplayTerm, palette, 17, Modifier.TestTag($"{id}.term")
+                .Semantics(semantics => semantics.Heading())),
+            new Row(Arrangement.SpacedBy(6), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().TestTag($"{id}.differences"),
+                new Icon(Icons.Default.Warning, null)
+                {
+                    Modifier = Modifier.Size(18),
+                    Tint = palette.WarningText,
+                },
+                lost,
+            },
+        };
+        foreach (var word in VocabularyDuplicateFinder.KeeperFirst(group))
+            column.Add(VocabularyDuplicateCopy(panel, group, word, palette));
+        var term = group.NormalizedTerm;
+        column.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth(),
+            new Box
+            {
+                Modifier.Weight(1f),
+                Action(Localize("Vocabulary_DuplicatesMerge"), $"{id}.merge",
+                    () => RunMoreOnUi(() => vocabulary.MergeDuplicatesAsync(term)),
+                    !panel.Running, primary: false),
+            },
+            new Box
+            {
+                Modifier.Weight(1f),
+                Action(Localize("Vocabulary_DuplicatesSkip"), $"{id}.skip",
+                    () => vocabulary.SkipDuplicates(term), !panel.Running, primary: false),
+            },
         });
-        AddBadge(badges, string.Format(CultureInfo.CurrentCulture,
-                Localize("Vocabulary_DuplicatesCopies"), group.Words.Count),
-            palette.Elevated, palette.Text, $"{id}.copies");
-        var blocked = group.CanMergeAutomatically ? null
-            : VocabularyDuplicateFinder.Blocked(group, Localize);
-        if (blocked is not null)
-            AddBadge(badges, blocked.Badge,
-                palette.Warning, Color.FromHex("#212529"), $"{id}.blocked");
-        if (panel.IsFocused(group))
-            AddBadge(badges, Localize("Vocabulary_DuplicatesFocusedBadge"),
-                palette.Primary, palette.OnPrimary, $"{id}.focused");
-        var column = new Column(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth().Padding(12),
-            badges,
-        };
-        foreach (var word in group.Words)
-            column.Add(VocabularyDuplicateWordRow(vocabulary, panel, group, word, palette));
-        if (blocked is not null)
-        {
-            var warning = new Surface
-            {
-                Modifier = Modifier.FillMaxWidth().TestTag($"{id}.unavailable")
-                    .Border(1, palette.WarningText, AndroidVisualTheme.ControlRadius),
-                Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-                Color = palette.Elevated,
-            };
-            var header = Body(blocked.Title, palette);
-            header.Color = palette.WarningText;
-            header.FontWeight = FontWeight.SemiBold;
-            var lines = new Column(Arrangement.SpacedBy(4))
-            {
-                Modifier.FillMaxWidth().Padding(12),
-                header,
-                Caption(blocked.Reason, palette, $"{id}.reason"),
-            };
-            if (blocked.Help is { } help)
-                lines.Add(Caption(help, palette, $"{id}.help"));
-            warning.Add(lines);
-            column.Add(warning);
-        }
-        else
-        {
-            var term = group.NormalizedTerm;
-            column.Add(Action(Localize("NativeVocabulary_DuplicatesMergeKeepRecommended"),
-                $"{id}.merge", () => RunMoreOnUi(() => vocabulary.MergeDuplicatesAsync(term)),
-                !panel.Running, primary: false));
-        }
-        var surface = new Surface
-        {
-            Modifier = Modifier.FillMaxWidth().TestTag(id)
-                .Border(panel.IsFocused(group) ? 2 : 1,
-                    panel.IsFocused(group) ? palette.Primary : palette.Border,
-                    AndroidVisualTheme.ControlRadius),
-            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-            Color = palette.Card,
-        };
-        surface.Add(column);
-        return surface;
+        return Card(palette, id, column.ToArray());
     }
 
-    private ComposableNode VocabularyDuplicateWordRow(VocabularyBrowser vocabulary,
-        VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group,
-        NativeVocabularyDuplicateWord word, AndroidVisualPalette palette)
+    /// <summary>A copy: its meaning, what differs and its memory aids, and which copy Merge keeps.</summary>
+    private ComposableNode VocabularyDuplicateCopy(VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word,
+        AndroidVisualPalette palette)
     {
         var id = $"native.vocabulary.duplicates.word.{word.Id}";
         var keeper = word.Id == group.RecommendedKeeperId;
-        var badges = new FlowRow { Modifier.FillMaxWidth() };
         var native = Body(word.NativeTerm, palette, modifier: Modifier.TestTag($"{id}.native"));
-        native.FontWeight = FontWeight.SemiBold;
-        badges.Add(new Box { Modifier.Padding(end: 8, bottom: 6), native });
-        var (encodingFill, encodingText) = EncodingColors(palette, word.EncodingLabel);
-        AddBadge(badges, Localize(VocabularyDuplicateFinder.EncodingKey(word.EncodingLabel)),
-            encodingFill, encodingText, $"{id}.encoding");
         if (keeper)
-            AddBadge(badges, Localize("Vocabulary_DuplicatesRecommendedKeeper"),
-                palette.Success, Color.White, $"{id}.keeper");
-        if (word.Id == panel.FocusedWordId)
-            AddBadge(badges, Localize("Vocabulary_DuplicatesCurrentWord"),
-                palette.Primary, palette.OnPrimary, $"{id}.current");
+            native.FontWeight = FontWeight.SemiBold;
         var column = new Column(Arrangement.SpacedBy(4))
         {
             Modifier.FillMaxWidth().Padding(10),
-            badges,
-            Caption(VocabularyDuplicateFinder.MemoryAidSummary(word, Localize), palette,
-                $"{id}.aids"),
+            native,
+            Caption(VocabularyDuplicateFinder.CopyDetails(group, word, Localize), palette,
+                $"{id}.details"),
         };
         if (keeper)
-        {
-            var note = Caption(Localize("NativeVocabulary_DuplicatesKeeperNote"), palette);
-            if (note is Text text)
-                text.Color = palette.Success;
-            column.Add(note);
-        }
-        if (!group.CanMergeAutomatically)
-        {
-            var wordId = word.Id;
-            column.Add(Action(Localize("NativeVocabulary_DuplicatesEditRecord"), $"{id}.edit",
-                () => RunMoreOnUi(() => vocabulary.OpenWordAsync(wordId)), !panel.Running,
-                primary: false));
-        }
+            column.Add(DuplicateMarker(Icons.Default.CheckCircle,
+                Localize("Vocabulary_DuplicatesKeep"), palette.Success, palette, $"{id}.keeper"));
+        if (word.Id == panel.FocusedWordId)
+            column.Add(DuplicateMarker(Icons.Default.Info,
+                Localize("Vocabulary_DuplicatesCurrentWord"), palette.Primary, palette, $"{id}.current"));
         var surface = new Surface
         {
             Modifier = Modifier.FillMaxWidth().TestTag(id)
@@ -319,32 +350,46 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>
-    /// Source GetEncodingBadgeClass on the row's card surface, the same rule as iOS
-    /// (<see cref="VocabularyEncodingBadge"/>).
+    /// A group whose copies cannot all merge: its term and copies, and why. With a copy to keep,
+    /// Merge still moves the learner's history and resources onto it (the shared copies stay).
     /// </summary>
-    private static (Color Fill, Color Text) EncodingColors(AndroidVisualPalette palette,
-        string encodingLabel)
+    private ComposableNode VocabularyDuplicateBlocked(VocabularyBrowser vocabulary,
+        VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group,
+        AndroidVisualPalette palette)
     {
-        var (fill, text) = VocabularyEncodingBadge.Colors(
-            VocabularyWordCommands.EncodingTone(encodingLabel), palette.Theme,
-            palette.Theme.CardSurface);
-        return (Color.FromHex(fill), Color.FromHex(text));
+        var id = DuplicateGroupTag(group);
+        var copies = string.Format(CultureInfo.CurrentCulture,
+            Localize("Vocabulary_DuplicatesCopies"), group.Words.Count);
+        var term = Body($"{group.DisplayTerm} ({copies})", palette,
+            modifier: Modifier.TestTag($"{id}.term"));
+        term.FontWeight = FontWeight.SemiBold;
+        var reason = Caption(VocabularyDuplicateFinder.BlockedReason(group, Localize), palette,
+            $"{id}.reason");
+        if (string.IsNullOrWhiteSpace(group.RecommendedKeeperId))
+            return Card(palette, id, term, reason);
+        var normalized = group.NormalizedTerm;
+        return Card(palette, id, term, reason,
+            Action(Localize("Vocabulary_DuplicatesMerge"), $"{id}.merge",
+                () => RunMoreOnUi(() => vocabulary.MergeDuplicatesAsync(normalized)),
+                !panel.Running, primary: false));
     }
 
-    private static void AddBadge(FlowRow row, string value, Color fill, Color text, string tag)
+    /// <summary>An icon and its words (the state is never told by color alone).</summary>
+    private static ComposableNode DuplicateMarker(AndroidX.Compose.UI.Graphics.Vector.ImageVector icon,
+        string label, Color color, AndroidVisualPalette palette, string tag)
     {
-        var badge = new Surface
+        var text = Caption(label, palette);
+        if (text is Text words)
+            words.Color = color;
+        return new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
         {
-            Modifier = Modifier.TestTag(tag),
-            Shape = Shape.RoundedCorners(12),
-            Color = fill,
+            Modifier.FillMaxWidth().TestTag(tag),
+            new Icon(icon, null) { Modifier = Modifier.Size(16), Tint = color },
+            text,
         };
-        badge.Add(new Text(value)
-        {
-            Modifier = Modifier.Padding(horizontal: 10, vertical: 4),
-            Color = text,
-            FontSize = new Sp(AndroidVisualTheme.CaptionSize),
-        });
-        row.Add(new Box { Modifier.Padding(end: 6, bottom: 6), badge });
     }
+
+    /// <summary>A group's test tag, by its term (stable while other groups merge).</summary>
+    private static string DuplicateGroupTag(NativeVocabularyDuplicateGroup group) =>
+        $"native.vocabulary.duplicates.group.{Uri.EscapeDataString(group.NormalizedTerm)}";
 }

@@ -2,32 +2,59 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Contracts.Theme;
+using SentenceStudio.Data;
 using SentenceStudio.Native.Features.Settings;
 using SentenceStudio.Services;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Features.Vocabulary;
 
 /// <summary>
-/// The open duplicate manager (source Vocabulary.razor cleanup panel with showDuplicatePanel):
-/// what it shows after Find Duplicates, focused on the word the editor came from.
+/// The open duplicate page (docs/duplicate-merge-plan.md; source Vocabulary.razor cleanup
+/// panel): every safe group merges in one step, and only the groups that would lose something
+/// (review) or cannot merge (blocked) are listed. Find Duplicates in the editor opens it focused
+/// on that word's term.
 /// </summary>
+/// <param name="Groups">The groups loaded so far: review, then blocked, then safe (page order).</param>
+/// <param name="SafeGroupCount">Safe groups of the whole scan, merged by Merge all.</param>
+/// <param name="Skipped">Review groups the learner skipped while the page is open.</param>
 internal sealed record VocabularyDuplicatePanel(
     bool Running, string Title, string Status,
     string? FocusLabel, string? FocusNormalizedTerm, string? FocusedWordId,
     IReadOnlyList<NativeVocabularyDuplicateGroup> Groups,
     int TotalGroupCount, int ExtraRecordCount,
-    IReadOnlyList<string> Results)
+    IReadOnlyList<string> Results,
+    int SafeGroupCount = 0, int SafeCopyCount = 0,
+    int ReviewGroupCount = 0, int BlockedGroupCount = 0,
+    IReadOnlySet<string>? Skipped = null)
 {
-    internal int RemainingGroupCount => Math.Max(0, TotalGroupCount - Groups.Count);
+    /// <summary>The review groups to show (loaded, not skipped).</summary>
+    internal IReadOnlyList<NativeVocabularyDuplicateGroup> ReviewGroups =>
+        Groups.Where(group => group.Risk == VocabularyDuplicateRisk.Review && !IsSkipped(group))
+            .ToArray();
+
+    internal IReadOnlyList<NativeVocabularyDuplicateGroup> BlockedGroups =>
+        Groups.Where(group => group.Risk == VocabularyDuplicateRisk.Blocked).ToArray();
+
+    /// <summary>
+    /// Review and blocked groups not loaded yet. They come before the safe ones, which are never
+    /// listed, so Show more stops once they are all in.
+    /// </summary>
+    internal int RemainingGroupCount => Math.Max(0, ReviewGroupCount + BlockedGroupCount
+        - Groups.Count(group => group.Risk != VocabularyDuplicateRisk.Safe));
+
+    /// <summary>Merge all is offered: safe groups remain and nothing is running.</summary>
+    internal bool CanMergeAll => !Running && SafeGroupCount > 0;
+
+    internal bool IsFocusedScan => !string.IsNullOrWhiteSpace(FocusLabel);
+
+    internal bool IsSkipped(NativeVocabularyDuplicateGroup group) =>
+        Skipped?.Contains(group.NormalizedTerm) == true;
 
     internal bool IsFocused(NativeVocabularyDuplicateGroup group) =>
         !string.IsNullOrWhiteSpace(FocusNormalizedTerm)
         && group.NormalizedTerm == FocusNormalizedTerm;
 }
-
-/// <summary>A group that cannot merge: its badge, warning title, reasons and optional help.</summary>
-internal sealed record VocabularyDuplicateBlock(
-    string Badge, string Title, string Reason, string? Help);
 
 /// <summary>What a merge did, for the list feedback (source toasts).</summary>
 internal sealed record VocabularyDuplicateMergeOutcome(
@@ -163,11 +190,35 @@ internal sealed class VocabularyWordCleanup
         await _duplicates.OpenAsync(owner, term.Trim(), wordId, _host.Lifetime);
     }
 
+    /// <summary>The list's Clean Up Duplicates: the duplicate page over all of the owner's words.</summary>
+    internal async Task OpenAllDuplicatesAsync()
+    {
+        if (_host.IsFormOpen || _duplicates.IsOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        await _duplicates.OpenAsync(owner, null, null, _host.Lifetime);
+    }
+
     /// <summary>Source ShowMoreDuplicates.</summary>
     internal Task ShowMoreDuplicatesAsync() =>
         _host.TryOpenOwner(out var owner)
             ? _duplicates.ShowMoreAsync(owner, _host.Lifetime)
             : Task.CompletedTask;
+
+    /// <summary>Merge all: every safe group in one step, then the list reloads.</summary>
+    internal async Task MergeAllDuplicatesAsync()
+    {
+        if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
+            return;
+        var outcome = await _duplicates.MergeAllAsync(owner, _host.Lifetime);
+        await ReportMergeAsync(outcome);
+    }
+
+    /// <summary>Skip: the review group leaves the page until it is opened again; nothing changes.</summary>
+    internal void SkipDuplicates(string normalizedTerm)
+    {
+        if (_host.TryOpenOwner(out _))
+            _duplicates.Skip(normalizedTerm);
+    }
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
     internal async Task MergeDuplicatesAsync(string normalizedTerm)
@@ -175,6 +226,11 @@ internal sealed class VocabularyWordCleanup
         if (_host.IsFormOpen || !_host.TryOpenOwner(out var owner))
             return;
         var outcome = await _duplicates.MergeAsync(owner, normalizedTerm, _host.Lifetime);
+        await ReportMergeAsync(outcome);
+    }
+
+    private async Task ReportMergeAsync(VocabularyDuplicateMergeOutcome? outcome)
+    {
         if (outcome is null || !_host.TryOpenOwner(out _))
             return;
         _host.ShowListFeedback(outcome.Feedback, outcome.Warning);
@@ -349,7 +405,7 @@ internal sealed class VocabularyDuplicateFinder
     {
         var label = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
         _panel = new VocabularyDuplicatePanel(true,
-            label is null ? _text("Vocabulary_DuplicatesTitle")
+            label is null ? _text("Vocabulary_DuplicatesCleanUp")
                 : Format("Vocabulary_DuplicatesFor", label),
             label is null ? _text("Vocabulary_DuplicatesScanning")
                 : Format("Vocabulary_DuplicatesScanningForTerm", label),
@@ -389,9 +445,12 @@ internal sealed class VocabularyDuplicateFinder
     }
 
     /// <summary>
-    /// Source MergeDuplicateGroup: keeps the recommended copy (first by merge preference) and
-    /// folds the others into it, then scans again. Null when the group cannot merge or a scan
-    /// or merge is already running.
+    /// Source MergeDuplicateGroup: keeps the group's keeper (the first copy by merge preference
+    /// that no one else uses) and folds the others into it, then scans again. A review group
+    /// merges the same way (the learner chose to). A group whose other copies someone else uses
+    /// keeps them, but the learner's own history and links on them move to the keeper (as the
+    /// source merge did); one with no keeper only says why. Null when a scan or merge is already
+    /// running.
     /// </summary>
     internal async Task<VocabularyDuplicateMergeOutcome?> MergeAsync(
         string owner, string normalizedTerm, CancellationToken cancellationToken)
@@ -400,7 +459,7 @@ internal sealed class VocabularyDuplicateFinder
             || panel.Groups.FirstOrDefault(group => group.NormalizedTerm == normalizedTerm)
                 is not { } group)
             return null;
-        if (!group.CanMergeAutomatically || group.Words.Count < 2)
+        if (group.Words.Count < 2 || string.IsNullOrWhiteSpace(group.RecommendedKeeperId))
             return new(false, BlockedReason(group, _text), Warning: true);
 
         var generation = Volatile.Read(ref _generation);
@@ -413,21 +472,32 @@ internal sealed class VocabularyDuplicateFinder
         VocabularyDuplicateMergeOutcome outcome;
         try
         {
-            var keeper = group.Words[0];
-            var duplicates = group.Words.Skip(1).Select(word => word.Id).ToArray();
+            var keeper = group.RecommendedKeeperId;
+            // Every other copy goes in: one another learner uses stays, but the learner's own
+            // links and history on it still move to the keeper.
+            var duplicates = group.Words.Select(word => word.Id)
+                .Where(id => id != keeper).ToArray();
             var merge = await _host.OffUiAsync(() => _store.MergeOwnedVocabularyDuplicatesAsync(
-                owner, keeper.Id, duplicates, cancellationToken));
-            results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, merge.Removed));
-            // Source: removed copies, else "no merge was needed". Links and history can move
-            // while every copy is kept (other data still uses it); that is a change, not a no-op.
-            var feedback = merge.Removed > 0
-                ? Format("Vocabulary_DuplicatesMergedSuccess", merge.Removed, group.DisplayTerm)
-                : merge.Changed
-                    ? Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, 0)
-                    : Format("Vocabulary_DuplicatesNoMergeNeeded", group.DisplayTerm);
-            outcome = merge.SyncUnconfirmed
-                ? new(true, $"{feedback} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
-                : new(merge.Changed, feedback, Warning: false);
+                owner, keeper, duplicates, cancellationToken));
+            if (!merge.Changed)
+            {
+                // A refusal says why (2026-11-14: 먹다 said "No merge was needed" when it was refused).
+                var refused = Refusal(group.DisplayTerm, merge.RefusalKey);
+                results.Add(refused);
+                outcome = new(false, refused, Warning: true);
+            }
+            else
+            {
+                results.Add(Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, merge.Removed));
+                // Links and history can move while every copy is kept (other data still uses
+                // it); that is a change, not a no-op.
+                var feedback = merge.Removed > 0
+                    ? Format("Vocabulary_DuplicatesMergedSuccess", merge.Removed, group.DisplayTerm)
+                    : Format("Vocabulary_DuplicatesMergedCount", group.DisplayTerm, 0);
+                outcome = merge.SyncUnconfirmed
+                    ? new(true, $"{feedback} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                    : new(true, feedback, Warning: false);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -444,6 +514,70 @@ internal sealed class VocabularyDuplicateFinder
             return outcome;
         await LoadAsync(owner, append: false, results, cancellationToken);
         return outcome;
+    }
+
+    /// <summary>
+    /// Merge all: every safe group in one step (Captain 2026-11-14: "I almost always do all of
+    /// them at once with no review"), then scans again. A page focused on one term merges only
+    /// its own safe group. Null when there is nothing safe or something is already running.
+    /// </summary>
+    internal async Task<VocabularyDuplicateMergeOutcome?> MergeAllAsync(
+        string owner, CancellationToken cancellationToken)
+    {
+        if (_panel is not { } panel || !panel.CanMergeAll)
+            return null;
+        var generation = Volatile.Read(ref _generation);
+        _panel = panel with { Running = true, Status = _text("Vocabulary_DuplicatesMerging") };
+        Changed();
+        var results = panel.Results.ToList();
+        VocabularyDuplicateMergeOutcome outcome;
+        try
+        {
+            var focus = panel.IsFocusedScan ? panel.FocusLabel : null;
+            var merged = await _host.OffUiAsync(() =>
+                _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, cancellationToken));
+            var message = merged.Refused.Count > 0
+                ? Format("Vocabulary_DuplicatesMergedAllWithRefusals",
+                    merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
+                : merged.MergedGroups > 0
+                    ? Format("Vocabulary_DuplicatesMergedAll", merged.MergedGroups, merged.RemovedCopies)
+                    : _text("Vocabulary_DuplicatesNothingSafe");
+            results.Add(message);
+            results.AddRange(merged.Refused.Select(refusal =>
+                Refusal(refusal.DisplayTerm, refusal.RefusalKey)));
+            outcome = merged.SyncUnconfirmed
+                ? new(true, $"{message} {_text("NativeResources_SyncUnconfirmed")}", Warning: true)
+                : new(merged.MergedGroups > 0, message, Warning: merged.Refused.Count > 0);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Native duplicate merge all failed.");
+            var message = Format("Vocabulary_CleanupError", ex.Message);
+            results.Add(message);
+            // Some groups may have merged before the failure: the list reloads to show them.
+            outcome = new(true, message, Warning: true);
+        }
+        if (generation != Volatile.Read(ref _generation) || _panel is null)
+            return outcome;
+        await LoadAsync(owner, append: false, results, cancellationToken);
+        return outcome;
+    }
+
+    /// <summary>Skip: the review group leaves the page while it is open.</summary>
+    internal void Skip(string normalizedTerm)
+    {
+        if (_panel is not { Running: false } panel
+            || !panel.Groups.Any(group => group.NormalizedTerm == normalizedTerm
+                && group.Risk == VocabularyDuplicateRisk.Review))
+            return;
+        var skipped = new HashSet<string>(panel.Skipped ?? new HashSet<string>(), StringComparer.Ordinal)
+            { normalizedTerm };
+        _panel = panel with { Skipped = skipped };
+        Changed();
     }
 
     /// <summary>Source CloseCleanupPanel.</summary>
@@ -490,10 +624,13 @@ internal sealed class VocabularyDuplicateFinder
                 Groups = groups,
                 TotalGroupCount = scan.TotalGroupCount,
                 ExtraRecordCount = scan.ExtraRecordCount,
+                SafeGroupCount = scan.SafeGroupCount,
+                SafeCopyCount = scan.SafeCopyCount,
+                ReviewGroupCount = scan.ReviewGroupCount,
+                BlockedGroupCount = scan.BlockedGroupCount,
                 Results = results,
                 Status = scan.TotalGroupCount > 0
-                    ? $"{Format("Vocabulary_DuplicatesFoundCount", scan.TotalGroupCount, scan.ExtraRecordCount)} "
-                        + Format("NativeVocabulary_DuplicatesShowing", groups.Count)
+                    ? Format("Vocabulary_DuplicatesFoundCount", scan.TotalGroupCount, scan.ExtraRecordCount)
                     : label is null ? _text("Vocabulary_DuplicatesNone")
                         : Format("Vocabulary_DuplicatesNoneForTerm", label)
             };
@@ -550,19 +687,54 @@ internal sealed class VocabularyDuplicateFinder
     }
 
     /// <summary>
-    /// Why a group cannot merge: the source's reason (its copies' fields differ). Every copy is
-    /// the learner's own (only their words are shown), so editing the records unblocks it.
+    /// Why a group cannot merge (a resource key from the shared scan): another learner's data
+    /// uses every copy, or every copy but the keeper.
     /// </summary>
     internal static string BlockedReason(NativeVocabularyDuplicateGroup group,
         Func<string, string> text) =>
-        group.MergeBlockedReason ?? text("NativeVocabulary_DuplicatesBlockedFallback");
+        text(group.MergeBlockedReason ?? "Vocabulary_DuplicatesAllShared");
 
-    /// <summary>The blocked group's badge, warning title, reason and "Edit record" help.</summary>
-    internal static VocabularyDuplicateBlock Blocked(NativeVocabularyDuplicateGroup group,
+    /// <summary>What merging a review group would drop (its copies' differences).</summary>
+    internal static IReadOnlyList<string> Differences(NativeVocabularyDuplicateGroup group,
         Func<string, string> text) =>
-        new(text("NativeVocabulary_DuplicatesEditBeforeMerge"),
-            text("NativeVocabulary_DuplicatesMergeUnavailable"), BlockedReason(group, text),
-            text("NativeVocabulary_DuplicatesMergeUnavailableHelp"));
+        group.DifferenceList.Select(difference => text($"Vocabulary_DuplicateDifference{difference}"))
+            .ToArray();
+
+    /// <summary>
+    /// What a copy shows under its meaning: on a review group the other fields that differ (base
+    /// form; language and kind), then its memory aids, so the learner sees what a merge keeps.
+    /// </summary>
+    internal static string CopyDetails(NativeVocabularyDuplicateGroup group,
+        NativeVocabularyDuplicateWord word, Func<string, string> text)
+    {
+        var lines = new List<string>();
+        if (group.DifferenceList.Contains(VocabularyDuplicateDifference.BaseForm))
+            lines.Add($"{text("VocabWordEdit_Lemma")}: {word.Lemma ?? text("VocabWordEdit_NotSet")}");
+        if (group.DifferenceList.Contains(VocabularyDuplicateDifference.LanguageOrKind))
+            lines.Add($"{(string.IsNullOrWhiteSpace(word.Language) ? text("VocabWordEdit_NotSet") : word.Language)}"
+                + $" | {text(LexicalTypeKey(word.LexicalUnitType))}");
+        lines.Add(MemoryAidSummary(word, text));
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>The word editor's names for the lexical types.</summary>
+    internal static string LexicalTypeKey(LexicalUnitType type) => type switch
+    {
+        LexicalUnitType.Phrase => "Vocabulary_FilterTypePhrase",
+        LexicalUnitType.Sentence => "Vocabulary_FilterTypeSentence",
+        LexicalUnitType.Unknown => "VocabWordEdit_Unknown",
+        LexicalUnitType.Idiom => "NativeResources_LexicalIdiom",
+        _ => "Vocabulary_FilterTypeWord"
+    };
+
+    /// <summary>The group's copies with the keeper first (Merge keeps the first copy's meaning).</summary>
+    internal static IReadOnlyList<NativeVocabularyDuplicateWord> KeeperFirst(
+        NativeVocabularyDuplicateGroup group) =>
+        group.Words.OrderBy(word => word.Id == group.RecommendedKeeperId ? 0 : 1).ToArray();
+
+    private string Refusal(string term, string? key) =>
+        Format("Vocabulary_DuplicatesMergeRefused", term,
+            _text(key ?? "Vocabulary_MergeRefusedNothingToMove"));
 
     /// <summary>Source focus note (the resource carries the web's &lt;strong&gt; markup).</summary>
     internal static string FocusNote(string label, Func<string, string> text) =>
@@ -571,14 +743,6 @@ internal sealed class VocabularyDuplicateFinder
                 .Replace("<strong>", string.Empty, StringComparison.Ordinal)
                 .Replace("</strong>", string.Empty, StringComparison.Ordinal),
             label);
-
-    /// <summary>Source GetEncodingLabel keys.</summary>
-    internal static string EncodingKey(string label) => label switch
-    {
-        "Strong" => "Vocabulary_Strong",
-        "Good" => "Vocabulary_Good",
-        _ => "Vocabulary_Basic"
-    };
 
     private string Format(string key, params object[] values) =>
         string.Format(CultureInfo.CurrentCulture, _text(key), values);

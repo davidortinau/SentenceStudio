@@ -42,6 +42,31 @@ internal sealed partial class ApplicationController
     internal bool IsVocabularyDeletePending => _vocabulary?.IsDeletePending == true;
     internal string? VocabularyDeleteMessage => _vocabulary?.DeleteMessage;
 
+    /// <summary>The open duplicate page's state (a new one after every change), or null.</summary>
+    internal VocabularyDuplicatePanel? VocabularyDuplicates => _vocabulary?.DuplicatePanel;
+    internal bool IsVocabularyDuplicatesOpen => VocabularyDuplicates is not null;
+    internal string VocabularyDuplicatesTitle => _vocabulary?.DuplicatesTitle ?? string.Empty;
+
+    internal SwiftView RenderVocabularyDuplicates(SourceUiStyle style) =>
+        _vocabulary?.RenderDuplicates(style) ?? Views.Text(Text("Common_Loading"));
+
+    internal void OnVocabularyDuplicatesPopped() => _vocabulary?.OnDuplicatesPopped();
+
+    /// <summary>A word opened from the list beside the duplicate page: the page closes for it.</summary>
+    internal void CloseVocabularyDuplicates() => _vocabulary?.CloseDuplicates();
+
+    /// <summary>
+    /// The list toolbar's Clean Up Duplicates. Not while Recent lookups holds the place beside
+    /// the list (as Recent lookups waits for an open word).
+    /// </summary>
+    private void OpenVocabularyDuplicates()
+    {
+        if (!IsVocabularyOpen || IsVocabularyWordOpen || IsRecentLookupsOpen
+            || _vocabulary?.IsNavigationBlocked == true)
+            return;
+        _vocabulary?.OpenAllDuplicates();
+    }
+
     internal void CancelVocabularyDelete() => _vocabulary?.CancelDelete();
 
     internal void ConfirmVocabularyDelete() => _vocabulary?.ConfirmDelete();
@@ -59,7 +84,8 @@ internal sealed partial class ApplicationController
             provider.GetRequiredService<ILogger<VocabularyBrowser>>(),
             Text)
         {
-            OpenLookups = OpenRecentLookups
+            OpenLookups = OpenRecentLookups,
+            OpenDuplicates = OpenVocabularyDuplicates
         };
         _vocabulary.Changed += Publish;
         _vocabulary.StudyRequested += StudyResources;

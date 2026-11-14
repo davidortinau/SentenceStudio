@@ -196,51 +196,61 @@ var cases = new (string Name, Action Test)[]
         using var withHistory = VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions());
         Assert(Parent(withHistory, "native.vocabulary.edit.history.count")?.Text == "VocabWordEdit_HistoryTitle");
     }),
-    ("Duplicate manager: encoding badges use the shared rule on the page surface, light and dark", () =>
+    // Captain 2026-11-14: one Merge for every safe group; only the groups that would lose
+    // something are listed (with Merge and Skip), and the ones that cannot merge say why.
+    ("Duplicate page: Merge all, review groups with Merge and Skip, blocked groups with the reason", () =>
     {
-        var appearance = style.Appearance;
-        var light = NativeThemeColorTable.For(appearance.Selection.ThemeId, dark: false);
-        var dark = NativeThemeColorTable.For(appearance.Selection.ThemeId, dark: true);
-        foreach (var (label, tone) in new[] {
-                     ("Strong", VocabularyEncodingTone.Strong), ("Good", VocabularyEncodingTone.Good),
-                     ("Basic", VocabularyEncodingTone.Basic), ("Unknown", VocabularyEncodingTone.Basic) })
-        {
-            var shown = VocabularyDuplicatesView.EncodingColors(appearance, label);
-            var l = VocabularyEncodingBadge.Colors(tone, light, light.Body);
-            var d = VocabularyEncodingBadge.Colors(tone, dark, dark.Body);
-            Assert(shown.Fill == new SourceColorPair(l.Fill, d.Fill));
-            Assert(shown.Text == new SourceColorPair(l.Text, d.Text));
-        }
-        var strong = VocabularyDuplicatesView.EncodingColors(appearance, "Strong");
-        var good = VocabularyDuplicatesView.EncodingColors(appearance, "Good");
-        var basic = VocabularyDuplicatesView.EncodingColors(appearance, "Basic");
-        // Seoul Pop sets --bs-secondary to its success green, so on the web Strong and Basic
-        // share a fill there and differ by text colour (text-success, text-secondary-ss).
-        Assert(strong.Fill != good.Fill && good.Fill != basic.Fill && strong.Text != basic.Text);
-        using var panel = VocabularyDuplicatesView.Panel(DuplicatePanel(), style, key => key,
+        var panel = DuplicatePanel();
+        using var page = VocabularyDuplicatesView.Page(panel, style, key => key,
             new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
-        foreach (var id in new[] { "w-strong", "w-good", "w-basic" })
-            Assert(Find(panel, $"native.vocabulary.duplicates.word.{id}.encoding") is not null);
+        // The scene swaps the Sections of this Form in place (TrySwapFormSections finds it by ID).
+        Assert(page is { Kind: "form", AccessibilityIdentifier: VocabularyDuplicatesView.FormId });
+        Assert(Find(page, "native.vocabulary.duplicates.mergeall")?.Text == "Vocabulary_DuplicatesMergeAll");
+        Assert(Find(page, "native.vocabulary.duplicates.summary")?.Text == "Vocabulary_DuplicatesSafeSummary");
+        var review = VocabularyDuplicatesView.GroupId(panel.Groups[0]);
+        // The group is a Section titled by its term; the Section has no ID (SwiftUI would give it
+        // to every row in it), so its rows keep their own.
+        var section = SectionTitled(page, "병")!;
+        Assert(string.IsNullOrEmpty(section.AccessibilityIdentifier));
+        Assert(Find(section, $"{review}.differences")?.Text == "Vocabulary_DuplicateDifferenceMeaning");
+        Assert(Find(page, $"{review}.merge") is { IsEnabled: true });
+        Assert(Find(page, $"{review}.skip") is { IsEnabled: true });
+        // The keeper is listed first and marked in words, not color alone.
+        var copies = section.Children
+            .Where(child => child.AccessibilityIdentifier?.StartsWith("native.vocabulary.duplicates.word.") == true)
+            .Select(child => child.AccessibilityIdentifier).ToArray();
+        Assert(copies.SequenceEqual(new[] {
+            "native.vocabulary.duplicates.word.w-good", "native.vocabulary.duplicates.word.w-strong" }));
+        Assert(AllText(Find(page, "native.vocabulary.duplicates.word.w-good.keeper")!).Contains("Vocabulary_DuplicatesKeep"));
+        Assert(Find(page, "native.vocabulary.duplicates.word.w-strong.keeper") is null);
+        var blocked = VocabularyDuplicatesView.GroupId(panel.Groups[1]);
+        Assert(Find(page, $"{blocked}.reason")?.Text == "Vocabulary_DuplicatesOthersShared");
+        // With a copy to keep, Merge still moves the learner's history; with none it is not offered.
+        Assert(Find(page, $"{blocked}.merge") is { IsEnabled: true });
+        using var noKeeper = VocabularyDuplicatesView.Page(panel with { Groups = [panel.Groups[1] with {
+                RecommendedKeeperId = "", MergeBlockedReason = "Vocabulary_DuplicatesAllShared" }] },
+            style, key => key, new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(noKeeper, $"{blocked}.reason")?.Text == "Vocabulary_DuplicatesAllShared");
+        Assert(Find(noKeeper, $"{blocked}.merge") is null);
+        // A safe group loaded with the others is merged by Merge all, not listed.
+        Assert(SectionTitled(page, "물") is null);
+        Assert(Find(page, $"{VocabularyDuplicatesView.GroupId(panel.Groups[2])}.term") is null);
     }),
-    // One ownership rule (Captain 2026-11-06): every copy in a group is the learner's own, so a
-    // blocked group always shows the source's reason and its "Edit before merge" advice.
-    ("Duplicate manager: a blocked group shows the source's reason and edit advice", () =>
+    ("Duplicate page: while a merge runs it shows progress and its buttons wait", () =>
     {
-        var sourceOnly = DuplicatePanel() with
-        {
-            Groups = [DuplicatePanel().Groups[0] with
-                { CanMergeAutomatically = false, MergeBlockedReason = "Language differs" }]
-        };
-        using var sourcePanel = VocabularyDuplicatesView.Panel(sourceOnly, style, key => key,
+        var running = DuplicatePanel() with { Running = true, Status = "Vocabulary_DuplicatesMerging" };
+        using var page = VocabularyDuplicatesView.Page(running, style, key => key,
             new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
-        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.merge") is null);
-        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.reason")?.Text
-            == "Language differs");
-        Assert(Find(sourcePanel, "native.vocabulary.duplicates.word.w-good.edit") is not null);
-        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.blocked")?.Text
-            == "NativeVocabulary_DuplicatesEditBeforeMerge");
-        Assert(Find(sourcePanel, "native.vocabulary.duplicates.group.0.help")?.Text
-            == "NativeVocabulary_DuplicatesMergeUnavailableHelp");
+        Assert(Find(page, "native.vocabulary.duplicates.mergeall") is null);
+        var review = VocabularyDuplicatesView.GroupId(running.Groups[0]);
+        Assert(Find(page, $"{review}.merge") is { IsEnabled: false });
+        Assert(Find(page, $"{review}.skip") is { IsEnabled: false });
+        // Skipped, the group leaves the page.
+        using var skipped = VocabularyDuplicatesView.Page(DuplicatePanel() with
+            { Skipped = new HashSet<string> { "병" } }, style, key => key,
+            new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { }));
+        Assert(Find(skipped, $"{review}.skip") is null);
+        Assert(Find(skipped, "native.vocabulary.duplicates.review.note") is null);
     }),
     // Review 2026-11-05 (third pass): Delete is not offered for a word the server would keep,
     // and the editor says why; an editable word with nothing blocking shows no note.
@@ -860,13 +870,29 @@ static VocabularyEditActions WordActions(
 
 static VocabularyDuplicatePanel DuplicatePanel()
 {
-    static NativeVocabularyDuplicateWord Word(string id, string label) =>
-        new(id, "병", "bottle", "Korean", LexicalUnitType.Word, 1, 1, label, null, false, false);
-    var group = new NativeVocabularyDuplicateGroup("병", "병",
-        [Word("w-strong", "Strong"), Word("w-good", "Good"), Word("w-basic", "Basic")],
-        true, null, "w-strong");
+    static NativeVocabularyDuplicateWord Word(string id, string meaning, string label) =>
+        new(id, "병", meaning, "Korean", LexicalUnitType.Word, 1, 1, label, null, false, false);
+    var review = new NativeVocabularyDuplicateGroup("병", "병",
+        [Word("w-strong", "bottle", "Strong"), Word("w-good", "illness", "Good")],
+        false, null, "w-good", VocabularyDuplicateRisk.Review, [VocabularyDuplicateDifference.Meaning]);
+    var blocked = new NativeVocabularyDuplicateGroup("사과", "사과",
+        [Word("w-a", "apple", "Basic"), Word("w-b", "apple", "Basic")],
+        false, "Vocabulary_DuplicatesOthersShared", "w-a", VocabularyDuplicateRisk.Blocked);
+    var safe = new NativeVocabularyDuplicateGroup("물", "물",
+        [Word("w-c", "water", "Basic"), Word("w-d", "water", "Basic")], true, null, "w-c");
     return new VocabularyDuplicatePanel(false, "Duplicates", "Found", null, null, null,
-        [group], 1, 2, []);
+        [review, blocked, safe], 3, 3, [], SafeGroupCount: 1, SafeCopyCount: 1,
+        ReviewGroupCount: 1, BlockedGroupCount: 1);
+}
+
+static SwiftView? SectionTitled(SwiftView node, string title)
+{
+    if (node.Kind == "section" && node.Text == title)
+        return node;
+    foreach (var child in node.Children)
+        if (SectionTitled(child, title) is { } match)
+            return match;
+    return null;
 }
 
 static SwiftView? Parent(SwiftView node, string id)

@@ -7,198 +7,203 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.Vocabulary;
 
 internal sealed record VocabularyDuplicateActions(
-    Action Close, Action ShowMore, Action<string> Merge, Action<string> EditRecord);
+    Action MergeAll, Action ShowMore, Action<string> Merge, Action<string> Skip);
 
 /// <summary>
-/// The Vocabulary list's duplicate manager (source Vocabulary.razor
-/// "vocabulary-cleanup-panel" with showDuplicatePanel), in SwiftUI.
+/// The duplicate page (docs/duplicate-merge-plan.md), pushed beside the Vocabulary list (the
+/// Library split view's detail column, full width on a phone): one Merge button for every safe
+/// group, then the groups that need review (what merging would lose, Merge or Skip) and the
+/// ones that cannot merge (why). A grouped Form of system rows and buttons.
 /// </summary>
 internal static class VocabularyDuplicatesView
 {
-    internal static SwiftView Panel(
+    internal const string Prefix = "native.vocabulary.duplicates";
+
+    /// <summary>
+    /// The page's Form, whose Sections the scene swaps in place: NativeForm.Page gives the Form
+    /// the screen's ID (as Import's ScrollId).
+    /// </summary>
+    internal const string FormId = Prefix;
+
+    internal static SwiftView Page(
         VocabularyDuplicatePanel panel, SourceUiStyle style,
         Func<string, string> text, VocabularyDuplicateActions actions)
     {
-        var close = Views.Button(Views.Image("xmark"), actions.Close)
-            .WithAccessibilityLabel(text("Common_Close"))
-            .WithAccessibilityIdentifier("native.vocabulary.duplicates.close");
-        var header = Views.HStack(
-                style.Text(Views.Text(panel.Title), SourceTextRole.Title3,
-                        sourceHeading: true)
-                    .WithFlexibleWidth()
-                    .WithAccessibilityIdentifier("native.vocabulary.duplicates.title"),
-                close)
-            .WithFlexibleWidth();
-        header.Spacing = SourceUiLayout.ItemGap;
-        var items = new List<SwiftView> { header };
-
-        if (panel.Running)
-            items.Add(Views.IndeterminateProgress(panel.Status)
-                .WithAccessibilityIdentifier("native.vocabulary.duplicates.status"));
-        else
+        var sections = new List<SwiftView> { Summary(panel, style, text, actions) };
+        var review = panel.ReviewGroups;
+        if (review.Count > 0)
         {
-            items.Add(style.Text(Views.Text(panel.Status), SourceTextRole.Body2)
-                .WithAccessibilityIdentifier("native.vocabulary.duplicates.status"));
-            if (!string.IsNullOrWhiteSpace(panel.FocusLabel))
-                items.Add(style.Text(Views.Text(
-                        VocabularyDuplicateFinder.FocusNote(panel.FocusLabel, text)),
-                        SourceTextRole.Small, SourceTextTone.Secondary)
-                    .WithAccessibilityIdentifier("native.vocabulary.duplicates.focus"));
-            items.Add(style.Text(Views.Text(text("NativeVocabulary_DuplicatesCombinedNote")),
-                    SourceTextRole.Small, SourceTextTone.Secondary));
-            if (panel.Groups.Count == 0)
-                items.Add(style.InfoAlert(style.Text(
-                        Views.Text(text("Vocabulary_DuplicatesNoRecords")),
-                        SourceTextRole.Body2), compact: true)
-                    .WithAccessibilityIdentifier("native.vocabulary.duplicates.empty"));
-            else
-            {
-                for (var index = 0; index < panel.Groups.Count; index++)
-                    items.Add(Group(panel, panel.Groups[index], index, style, text, actions));
-                if (panel.RemainingGroupCount > 0)
-                    items.Add(style.OutlineButton(Views.Text(string.Format(
-                            CultureInfo.CurrentCulture, text("Vocabulary_DuplicatesShowMore"),
-                            panel.RemainingGroupCount)), actions.ShowMore)
-                        .WithAccessibilityIdentifier("native.vocabulary.duplicates.more"));
-            }
+            sections.Add(Views.Section(text("Vocabulary_DuplicatesNeedReview"),
+                    style.Text(Views.Text(text("Vocabulary_DuplicatesNeedReviewNote")),
+                            SourceTextRole.Small, SourceTextTone.Secondary)
+                        .WithFlexibleWidth()
+                        .WithAccessibilityIdentifier($"{Prefix}.review.note")));
+            foreach (var group in review)
+                sections.Add(ReviewGroup(panel, group, style, text, actions));
         }
+        var blocked = panel.BlockedGroups;
+        if (blocked.Count > 0)
+            sections.Add(Views.Section(text("Vocabulary_DuplicatesCantMerge"),
+                    blocked.Select(group => BlockedRow(panel, group, style, text, actions)).ToArray()));
+        if (!panel.Running && panel.RemainingGroupCount > 0)
+            sections.Add(Views.Section(string.Empty,
+                NativeForm.Bordered(style, string.Format(CultureInfo.CurrentCulture,
+                        text("Vocabulary_DuplicatesShowMore"), panel.RemainingGroupCount),
+                    actions.ShowMore, $"{Prefix}.more")));
+        return NativeForm.Page(style, sections, FormId, Prefix);
+    }
+
+    /// <summary>
+    /// The scan's status, the focus note, the safe groups' count and the one Merge button for
+    /// all of them, then what the merges did.
+    /// </summary>
+    private static SwiftView Summary(VocabularyDuplicatePanel panel, SourceUiStyle style,
+        Func<string, string> text, VocabularyDuplicateActions actions)
+    {
+        var rows = new List<SwiftView>();
+        if (panel.Running)
+            rows.Add(Views.IndeterminateProgress(panel.Status)
+                .WithAccessibilityIdentifier($"{Prefix}.status"));
+        else
+            rows.Add(NativeForm.Notice(style, panel.Status, $"{Prefix}.status", error: false));
+        if (!string.IsNullOrWhiteSpace(panel.FocusLabel))
+            rows.Add(style.Text(Views.Text(VocabularyDuplicateFinder.FocusNote(panel.FocusLabel, text)),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{Prefix}.focus"));
+        if (!panel.Running && panel.SafeGroupCount > 0)
+        {
+            rows.Add(style.Text(Views.Text(Format(text, "Vocabulary_DuplicatesSafeSummary",
+                        panel.SafeGroupCount, panel.SafeCopyCount)), SourceTextRole.Body1)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{Prefix}.summary"));
+            rows.Add(NativeForm.CenteredRow(NativeForm.Prominent(style,
+                Format(text, "Vocabulary_DuplicatesMergeAll", panel.SafeGroupCount),
+                actions.MergeAll, $"{Prefix}.mergeall")));
+        }
+        else if (!panel.Running && panel.Groups.Count > 0)
+            rows.Add(style.Text(Views.Text(text("Vocabulary_DuplicatesNothingSafe")),
+                    SourceTextRole.Body1)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{Prefix}.summary"));
         if (!panel.Running)
             for (var index = 0; index < panel.Results.Count; index++)
-                items.Add(style.InfoAlert(style.Text(Views.Text(panel.Results[index]),
-                        SourceTextRole.Body2), compact: true)
-                    .WithAccessibilityIdentifier($"native.vocabulary.duplicates.result.{index}"));
-
-        var content = Views.VStack(items.ToArray())
-            .WithPadding(SourceUiLayout.CardInset)
-            .WithFlexibleWidth();
-        content.Spacing = SourceUiLayout.FormGap;
-        return style.Card(content)
-            .WithAccessibilityIdentifier("native.vocabulary.duplicates");
+                rows.Add(NativeForm.Notice(style, panel.Results[index],
+                    $"{Prefix}.result.{index}", error: false));
+        return Views.Section(string.Empty, rows.ToArray());
     }
 
-    private static SwiftView Group(
-        VocabularyDuplicatePanel panel, NativeVocabularyDuplicateGroup group, int index,
-        SourceUiStyle style, Func<string, string> text, VocabularyDuplicateActions actions)
-    {
-        var id = $"native.vocabulary.duplicates.group.{index}";
-        var badges = new List<SwiftView> {
-            style.Text(Views.Text(group.DisplayTerm), SourceTextRole.Body1Bold)
-                .WithAccessibilityIdentifier($"{id}.term"),
-            Badge(style, string.Format(CultureInfo.CurrentCulture,
-                    text("Vocabulary_DuplicatesCopies"), group.Words.Count),
-                style.Appearance.BootstrapSecondary, style.Appearance.OnBootstrapSecondary,
-                $"{id}.copies")
-        };
-        var blocked = group.CanMergeAutomatically ? null
-            : VocabularyDuplicateFinder.Blocked(group, text);
-        if (blocked is not null)
-            badges.Add(Badge(style, blocked.Badge,
-                style.Appearance.Warning, new("#212529", "#212529"), $"{id}.blocked"));
-        if (panel.IsFocused(group))
-            badges.Add(Badge(style, text("Vocabulary_DuplicatesFocusedBadge"),
-                style.Appearance.Primary, style.Appearance.OnPrimary, $"{id}.focused"));
-        var heading = Views.HStack(badges.ToArray())
-            .WithAdaptiveStack(420)
-            .WithFlexibleWidth();
-        heading.Spacing = SourceUiLayout.ItemGap;
-        var rows = new List<SwiftView> { heading };
-        foreach (var word in group.Words)
-            rows.Add(WordRow(group, word, panel.FocusedWordId, style, text, actions));
-        if (blocked is not null)
-        {
-            var warning = new List<SwiftView> {
-                style.Text(Views.Text(blocked.Title), SourceTextRole.Body2Strong),
-                style.Text(Views.Text(blocked.Reason), SourceTextRole.Small)
-                    .WithAccessibilityIdentifier($"{id}.reason")
-            };
-            if (blocked.Help is { } help)
-                warning.Add(style.Text(Views.Text(help), SourceTextRole.Small)
-                    .WithAccessibilityIdentifier($"{id}.help"));
-            rows.Add(WarningAlert(style, Views.VStack(warning.ToArray()))
-                .WithAccessibilityIdentifier($"{id}.unavailable"));
-        }
-        else
-            rows.Add(style.OutlineButton(
-                    Views.Text(text("NativeVocabulary_DuplicatesMergeKeepRecommended")),
-                    () => actions.Merge(group.NormalizedTerm))
-                .WithAccessibilityIdentifier($"{id}.merge"));
-        var column = Views.VStack(rows.ToArray())
-            .WithPadding(SourceUiLayout.CardInset)
-            .WithFlexibleWidth();
-        column.Spacing = SourceUiLayout.ItemGap;
-        return style.BorderedCard(column, radius: 8)
-            .WithAccessibilityIdentifier(id);
-    }
-
-    private static SwiftView WordRow(
-        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word,
-        string? focusedWordId, SourceUiStyle style, Func<string, string> text,
+    /// <summary>
+    /// A group to review, titled by its term: what merging would lose (a warning symbol and
+    /// words, not color alone), its copies with the keeper first, then Merge and Skip.
+    /// </summary>
+    private static SwiftView ReviewGroup(VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateGroup group, SourceUiStyle style, Func<string, string> text,
         VocabularyDuplicateActions actions)
     {
-        var id = $"native.vocabulary.duplicates.word.{word.Id}";
-        var keeper = word.Id == group.RecommendedKeeperId;
-        var (encodingFill, encodingText) = EncodingColors(style.Appearance, word.EncodingLabel);
-        var badges = new List<SwiftView> {
-            style.Text(Views.Text(word.NativeTerm), SourceTextRole.Body2Strong)
-                .WithAccessibilityIdentifier($"{id}.native"),
-            Badge(style, text(VocabularyDuplicateFinder.EncodingKey(word.EncodingLabel)),
-                encodingFill, encodingText, $"{id}.encoding")
-        };
-        if (keeper)
-            badges.Add(Badge(style, text("Vocabulary_DuplicatesRecommendedKeeper"),
-                style.Appearance.Success, style.Appearance.OnPrimary, $"{id}.keeper"));
-        if (word.Id == focusedWordId)
-            badges.Add(Badge(style, text("Vocabulary_DuplicatesCurrentWord"),
-                style.Appearance.Primary, style.Appearance.OnPrimary, $"{id}.current"));
-        var heading = Views.HStack(badges.ToArray())
-            .WithAdaptiveStack(420)
+        var id = GroupId(group);
+        var differences = string.Join(", ", VocabularyDuplicateFinder.Differences(group, text));
+        var warning = Views.HStack(
+                Views.Image("exclamationmark.triangle.fill")
+                    .WithForegroundColor(style.Appearance.Warning.Light, style.Appearance.Warning.Dark),
+                style.Text(Views.Text(differences), SourceTextRole.Body2Strong)
+                    .WithFlexibleWidth()
+                    .WithAccessibilityIdentifier($"{id}.differences"))
             .WithFlexibleWidth();
-        heading.Spacing = SourceUiLayout.ItemGap;
-        var rows = new List<SwiftView> {
-            heading,
-            style.Text(Views.Text(VocabularyDuplicateFinder.MemoryAidSummary(word, text)),
-                    SourceTextRole.Small, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier($"{id}.aids")
-        };
-        if (keeper)
-            rows.Add(style.Text(Views.Text(text("NativeVocabulary_DuplicatesKeeperNote")),
-                SourceTextRole.Small, SourceTextTone.Success));
-        if (!group.CanMergeAutomatically)
-            rows.Add(style.OutlineButton(
-                    Views.Text(text("NativeVocabulary_DuplicatesEditRecord")),
-                    () => actions.EditRecord(word.Id))
-                .WithAccessibilityIdentifier($"{id}.edit"));
-        var column = Views.VStack(rows.ToArray())
-            .WithPadding(8)
-            .WithFlexibleWidth();
-        column.Spacing = 4;
-        return style.BorderedCard(column, radius: 6)
-            .WithAccessibilityIdentifier(id);
+        warning.Spacing = SourceUiLayout.ItemGap;
+        var rows = new List<SwiftView> { warning };
+        foreach (var word in VocabularyDuplicateFinder.KeeperFirst(group))
+            rows.Add(CopyRow(panel, group, word, style, text));
+        var merge = NativeForm.Bordered(style, text("Vocabulary_DuplicatesMerge"),
+            () => actions.Merge(group.NormalizedTerm), $"{id}.merge");
+        var skip = NativeForm.Bordered(style, text("Vocabulary_DuplicatesSkip"),
+            () => actions.Skip(group.NormalizedTerm), $"{id}.skip");
+        merge.IsEnabled = skip.IsEnabled = !panel.Running;
+        var buttons = Views.HStack(merge, skip).WithFlexibleWidth();
+        buttons.Spacing = SourceUiLayout.ItemGap;
+        rows.Add(buttons);
+        // No ID on the Section: SwiftUI gives a Section's ID to every row in it, over the rows' own.
+        return Views.Section(group.DisplayTerm, rows.ToArray());
     }
 
-    /// <summary>Source GetEncodingBadgeClass (see <see cref="VocabularyEncodingBadge"/>).</summary>
-    internal static (SourceColorPair Fill, SourceColorPair Text) EncodingColors(
-        SourceUiAppearance appearance, string encodingLabel) =>
-        appearance.EncodingBadge(VocabularyWordCommands.EncodingTone(encodingLabel));
-
-    /// <summary>Bootstrap 5.3 warning emphasis text, as in the warning alert.</summary>
-    private static readonly SourceColorPair WarningText = new("#664D03", "#FFDA6A");
-
-    /// <summary>Source "alert alert-warning py-2" (Bootstrap 5.3 warning alert tokens).</summary>
-    private static SwiftView WarningAlert(SourceUiStyle style, SwiftView content)
+    /// <summary>A copy: its meaning, what differs and its memory aids, and which copy Merge keeps.</summary>
+    private static SwiftView CopyRow(VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateGroup group, NativeVocabularyDuplicateWord word,
+        SourceUiStyle style, Func<string, string> text)
     {
-        var column = content.WithForegroundColor(WarningText.Light, WarningText.Dark)
-            .WithPadding(8, 16, 8, 16)
-            .WithFlexibleWidth();
-        return column.WithRoundedSurface("#FFF3CD", "#332701",
-            style.Appearance.BootstrapRadius, "#FFE69C", "#997404", 1);
+        var id = $"{Prefix}.word.{word.Id}";
+        var keeper = word.Id == group.RecommendedKeeperId;
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(word.NativeTerm), SourceTextRole.Body1,
+                    strongElement: keeper)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{id}.native"),
+            style.Text(Views.Text(VocabularyDuplicateFinder.CopyDetails(group, word, text)),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{id}.details")
+        };
+        if (keeper)
+            rows.Add(Marker(style, "checkmark.circle.fill", text("Vocabulary_DuplicatesKeep"),
+                style.Appearance.Success, SourceTextTone.Success, $"{id}.keeper"));
+        if (word.Id == panel.FocusedWordId)
+            rows.Add(Marker(style, "scope", text("Vocabulary_DuplicatesCurrentWord"),
+                style.Appearance.Primary, SourceTextTone.Primary, $"{id}.current"));
+        var column = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        column.Spacing = 2;
+        return column.WithAccessibilityIdentifier(id);
     }
 
-    private static SwiftView Badge(SourceUiStyle style, string value, SourceColorPair fill,
-        SourceColorPair foreground, string id) =>
-        style.Text(Views.Text(value), SourceTextRole.BadgeSmall)
-            .WithPadding(5, 10, 5, 10)
-            .WithRoundedSurface(fill.Light, fill.Dark, 12)
-            .WithForegroundColor(foreground.Light, foreground.Dark)
-            .WithAccessibilityIdentifier(id);
+    /// <summary>
+    /// A group whose copies cannot all merge: its term and copies, and why. With a copy to keep,
+    /// Merge still moves the learner's history and resources onto it (the shared copies stay).
+    /// </summary>
+    private static SwiftView BlockedRow(VocabularyDuplicatePanel panel,
+        NativeVocabularyDuplicateGroup group, SourceUiStyle style, Func<string, string> text,
+        VocabularyDuplicateActions actions)
+    {
+        var id = GroupId(group);
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text($"{group.DisplayTerm} ({Format(text, "Vocabulary_DuplicatesCopies", group.Words.Count)})"),
+                    SourceTextRole.Body1Strong)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{id}.term"),
+            style.Text(Views.Text(VocabularyDuplicateFinder.BlockedReason(group, text)),
+                    SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithFlexibleWidth()
+                .WithAccessibilityIdentifier($"{id}.reason")
+        };
+        if (!string.IsNullOrWhiteSpace(group.RecommendedKeeperId))
+        {
+            var merge = NativeForm.Bordered(style, text("Vocabulary_DuplicatesMerge"),
+                () => actions.Merge(group.NormalizedTerm), $"{id}.merge");
+            merge.IsEnabled = !panel.Running;
+            rows.Add(merge);
+        }
+        var column = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        column.Spacing = 4;
+        return column.WithAccessibilityIdentifier(id);
+    }
+
+    /// <summary>A symbol and its words (the state is never told by color alone).</summary>
+    private static SwiftView Marker(SourceUiStyle style, string symbol, string label,
+        SourceColorPair color, SourceTextTone tone, string id)
+    {
+        var row = Views.HStack(
+                Views.Image(symbol).WithForegroundColor(color.Light, color.Dark),
+                style.Text(Views.Text(label), SourceTextRole.Small, tone)
+                    .WithAccessibilityIdentifier(id))
+            .WithFlexibleWidth();
+        row.Spacing = 4;
+        return row;
+    }
+
+    /// <summary>A group's automation ID, by its term (stable while other groups merge).</summary>
+    internal static string GroupId(NativeVocabularyDuplicateGroup group) =>
+        $"{Prefix}.group.{Uri.EscapeDataString(group.NormalizedTerm)}";
+
+    private static string Format(Func<string, string> text, string key, params object[] values) =>
+        string.Format(CultureInfo.CurrentCulture, text(key), values);
 }

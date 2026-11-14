@@ -437,22 +437,29 @@ else
 
                 @if (showDuplicatePanel)
                 {
+                    @* docs/duplicate-merge-plan.md: one Merge for every safe group; only the groups that
+                       would lose something (review) or cannot merge are listed. *@
                     <div class="mb-3">
-                        <p class="mb-2">@cleanupStatus</p>
+                        <p class="mb-2" id="vocabulary-duplicates-status">@cleanupStatus</p>
                         @if (!string.IsNullOrWhiteSpace(duplicateFocusLabel))
                         {
                             <div class="small text-secondary-ss mb-2">
                                 Focused on <strong>@duplicateFocusLabel</strong> so you can manage this word's copies faster.
                             </div>
                         }
-                        <div class="small text-secondary-ss mb-2">
-                            Learning progress and resource associations are combined automatically. The keeper is chosen by encoding strength and memory aids.
-                        </div>
-                        @if (string.IsNullOrWhiteSpace(duplicateFocusLabel) && duplicateGroups.Count > 1)
+                        @if (!isCleanupRunning && duplicateSafeGroupCount > 0)
                         {
-                            <button class="btn btn-primary btn-sm me-2" @onclick="AutoMergeAllDuplicates" disabled="@(isCleanupRunning || !duplicateGroups.Any(g => g.CanMergeAutomatically))">
-                                Merge all safe groups using recommendations
+                            <p class="mb-2" id="vocabulary-duplicates-summary">
+                                @string.Format(Localize["Vocabulary_DuplicatesSafeSummary"], duplicateSafeGroupCount, duplicateSafeCopyCount)
+                            </p>
+                            <button class="btn btn-primary btn-sm" id="vocabulary-duplicates-merge-all"
+                                    @onclick="MergeAllSafeDuplicates" disabled="@isCleanupRunning">
+                                @string.Format(Localize["Vocabulary_DuplicatesMergeAll"], duplicateSafeGroupCount)
                             </button>
+                        }
+                        else if (!isCleanupRunning && duplicateGroups.Count > 0)
+                        {
+                            <p class="mb-2" id="vocabulary-duplicates-summary">@Localize["Vocabulary_DuplicatesNothingSafe"]</p>
                         }
                     </div>
 
@@ -464,84 +471,88 @@ else
                     }
                     else if (!isCleanupRunning)
                     {
-                        <div class="list-group" style="max-height: 60vh; overflow-y: auto;">
-                            @foreach (var group in duplicateGroups)
-                            {
-                                <div class="list-group-item @(IsFocusedDuplicateGroup(group) ? "border border-primary-subtle bg-primary-subtle" : "")">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
-                                        <div>
-                                            <strong>@group.DisplayTerm</strong>
-                                            <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
-                                            @if (!group.CanMergeAutomatically)
+                        var reviewGroups = ReviewDuplicateGroups;
+                        var blockedGroups = BlockedDuplicateGroups;
+                        @if (reviewGroups.Count > 0)
+                        {
+                            <h6 class="mt-3 mb-1">@Localize["Vocabulary_DuplicatesNeedReview"]</h6>
+                            <p class="small text-secondary-ss mb-2">@Localize["Vocabulary_DuplicatesNeedReviewNote"]</p>
+                            <div class="list-group mb-3" id="vocabulary-duplicates-review">
+                                @foreach (var group in reviewGroups)
+                                {
+                                    <div class="list-group-item @(IsFocusedDuplicateGroup(group) ? "border border-primary-subtle bg-primary-subtle" : "")">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <strong>@group.DisplayTerm</strong>
+                                                <span class="badge bg-secondary ms-2">@string.Format(Localize["Vocabulary_DuplicatesCopies"], group.Words.Count)</span>
+                                            </div>
+                                            @if (IsFocusedDuplicateGroup(group))
                                             {
-                                                <span class="badge bg-warning text-dark ms-2">Edit before merge</span>
+                                                <span class="badge bg-primary">Focused</span>
                                             }
                                         </div>
-                                        @if (IsFocusedDuplicateGroup(group))
+                                        <div class="small fw-semibold text-warning-emphasis mt-1">
+                                            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>@DuplicateDifferences(group)
+                                        </div>
+                                        <div class="mt-2">
+                                            @foreach (var wordInfo in group.Words.OrderBy(info => info.Word.Id == group.RecommendedKeeperId ? 0 : 1))
+                                            {
+                                                <div class="border rounded p-2 mb-2">
+                                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                                        <strong>@wordInfo.Word.NativeLanguageTerm</strong>
+                                                        @if (wordInfo.Word.Id == group.RecommendedKeeperId)
+                                                        {
+                                                            <span class="badge bg-success"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>@Localize["Vocabulary_DuplicatesKeep"]</span>
+                                                        }
+                                                        @if (wordInfo.Word.Id == focusedDuplicateWordId)
+                                                        {
+                                                            <span class="badge bg-primary">Current word</span>
+                                                        }
+                                                    </div>
+                                                    <div class="small text-secondary-ss mt-1" style="white-space: pre-line;">
+                                                        @DuplicateCopyDetails(group, wordInfo)
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary me-2"
+                                                @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                            @Localize["Vocabulary_DuplicatesMerge"]
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => SkipDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                            @Localize["Vocabulary_DuplicatesSkip"]
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (blockedGroups.Count > 0)
+                        {
+                            <h6 class="mt-3 mb-1">@Localize["Vocabulary_DuplicatesCantMerge"]</h6>
+                            <div class="list-group mb-3" id="vocabulary-duplicates-blocked">
+                                @foreach (var group in blockedGroups)
+                                {
+                                    <div class="list-group-item">
+                                        <strong>@group.DisplayTerm</strong>
+                                        <span class="badge bg-secondary ms-2">@string.Format(Localize["Vocabulary_DuplicatesCopies"], group.Words.Count)</span>
+                                        <div class="small text-secondary-ss mt-1">@Localize[group.MergeBlockedReason ?? "Vocabulary_DuplicatesAllShared"]</div>
+                                        @if (group.KeeperId is not null)
                                         {
-                                            <span class="badge bg-primary">Focused</span>
+                                            <button class="btn btn-sm btn-outline-primary mt-2"
+                                                    @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                                @Localize["Vocabulary_DuplicatesMerge"]
+                                            </button>
                                         }
                                     </div>
-                                    <div class="mt-2">
-                                       @foreach (var wordInfo in VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words))
-                                        {
-                                           <div class="border rounded p-2 mb-2">
-                                               <div class="d-flex flex-wrap align-items-center gap-2">
-                                                   <strong>@wordInfo.Word.NativeLanguageTerm</strong>
-                                                   <span class="badge @GetEncodingBadgeClass(wordInfo.EncodingScore)">@GetEncodingLabel(wordInfo.EncodingScore)</span>
-                                                   @if (wordInfo.Word.Id == group.RecommendedKeeperId)
-                                                   {
-                                                       <span class="badge bg-success">Recommended keeper</span>
-                                                   }
-                                                   @if (wordInfo.Word.Id == focusedDuplicateWordId)
-                                                   {
-                                                       <span class="badge bg-primary">Current word</span>
-                                                   }
-                                               </div>
-                                               <div class="small text-secondary-ss mt-1">
-                                                   @GetMemoryAidSummary(wordInfo)
-                                               </div>
-                                               @if (wordInfo.Word.Id == group.RecommendedKeeperId)
-                                               {
-                                                   <div class="small text-success mt-1">Best retained version based on encoding strength and memory aids.</div>
-                                               }
-                                               @if (!group.CanMergeAutomatically)
-                                               {
-                                                   <button class="btn btn-sm btn-outline-secondary mt-2"
-                                                           @onclick="() => EditWord(wordInfo.Word.Id)" disabled="@isCleanupRunning">
-                                                       <i class="bi bi-pencil-square me-1"></i>Edit record
-                                                   </button>
-                                               }
-                                           </div>
-                                       }
-                                    </div>
-                                    @if (!group.CanMergeAutomatically)
-                                    {
-                                        <div class="alert alert-warning py-2 mt-2 mb-2">
-                                            <div class="fw-semibold">Merge is not available yet.</div>
-                                            <div class="small">
-                                                @(group.MergeBlockedReason ?? "Edit these records so language and lexical type match before merging.")
-                                            </div>
-                                            <div class="small mt-1">
-                                                Use <strong>Edit record</strong> above to align the fields, then run <strong>Find Duplicates</strong> again.
-                                            </div>
-                                        </div>
-                                    }
-                                    @if (group.CanMergeAutomatically)
-                                    {
-                                        <button class="btn btn-sm btn-outline-primary mt-1"
-                                                @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
-                                            Merge duplicates, keeping recommended
-                                        </button>
-                                    }
-                                </div>
-                            }
-                        </div>
-                        @if (duplicateGroups.Count < duplicateTotalGroupCount)
+                                }
+                            </div>
+                        }
+                        @if (RemainingDuplicateGroupCount > 0)
                         {
                             <div class="text-center mt-2">
                                 <button class="btn btn-sm btn-outline-secondary" @onclick="ShowMoreDuplicates" disabled="@isCleanupRunning">
-                                    Show more (@(duplicateTotalGroupCount - duplicateGroups.Count) remaining)
+                                    Show more (@RemainingDuplicateGroupCount remaining)
                                 </button>
                             </div>
                         }
@@ -757,6 +768,12 @@ else
     private int duplicatePageSize = 20;
     private int duplicateTotalGroupCount;
     private int duplicateExtraRecordCount;
+    private int duplicateSafeGroupCount;
+    private int duplicateSafeCopyCount;
+    private int duplicateReviewGroupCount;
+    private int duplicateBlockedGroupCount;
+    // Review groups the learner skipped while the panel is open.
+    private readonly HashSet<string> skippedDuplicateTerms = new(StringComparer.Ordinal);
     private bool pendingCleanupScroll;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
@@ -1458,15 +1475,6 @@ else
         _ => "bg-secondary bg-opacity-25 text-secondary-ss"
     };
 
-    private static string GetEncodingLabel(double score) => EncodingScoreHelper.GetLabel(score);
-
-    private static string GetEncodingBadgeClass(double score) => GetEncodingLabel(score) switch
-    {
-        "Strong" => "bg-success bg-opacity-25 text-success",
-        "Good" => "bg-warning bg-opacity-25 text-warning",
-        _ => "bg-secondary bg-opacity-25 text-secondary-ss"
-    };
-
     private static string GetMemoryAidSummary(VocabularyDuplicateWordInfo wordInfo)
     {
         var word = wordInfo.Word;
@@ -1530,6 +1538,7 @@ else
         duplicateFocusLabel = null;
         duplicateFocusNormalizedTerm = null;
         focusedDuplicateWordId = null;
+        skippedDuplicateTerms.Clear();
         pendingCleanupScroll = false;
         SyncUrlWithFilters();
     }
@@ -1570,6 +1579,11 @@ else
         duplicateGroups.Clear();
         duplicateTotalGroupCount = 0;
         duplicateExtraRecordCount = 0;
+        duplicateSafeGroupCount = 0;
+        duplicateSafeCopyCount = 0;
+        duplicateReviewGroupCount = 0;
+        duplicateBlockedGroupCount = 0;
+        skippedDuplicateTerms.Clear();
         cleanupTotal = 0;
         cleanupProgress = 0;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
@@ -1607,11 +1621,18 @@ else
         }
     }
 
+    /// <summary>
+    /// Merge for one group: folds the other copies into its keeper (the first copy by merge
+    /// preference that no one else uses). A review group merges the same way (the learner chose
+    /// to). Copies someone else uses stay, but the learner's history and links on them move to
+    /// the keeper; a group with no keeper only says why. A refused merge says why (2026-11-14:
+    /// 먹다 said "No merge was needed" when refused).
+    /// </summary>
     private async Task MergeDuplicateGroup(VocabularyDuplicateGroup group)
     {
-        if (!group.CanMergeAutomatically)
+        if (group.EffectiveRisk == VocabularyDuplicateRisk.Blocked && group.KeeperId is null)
         {
-            Toast.ShowInfo(group.MergeBlockedReason ?? "This duplicate group needs review before merging.");
+            Toast.ShowInfo(Localize[group.MergeBlockedReason ?? "Vocabulary_DuplicatesAllShared"]);
             return;
         }
 
@@ -1621,20 +1642,23 @@ else
 
         try
         {
-            var sorted = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words);
-
-            var keeper = sorted.First();
-            var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
-
-            int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds, default, ActiveUserId);
-            cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {deleted}");
-            CacheService.InvalidateVocabSummary();
-            await LoadData();
-            await LoadDuplicateGroupsAsync(append: false);
-            if (deleted > 0)
-                Toast.ShowSuccess($"Merged {deleted} duplicate record(s) for '{group.DisplayTerm}'.");
+            var keeperId = group.RecommendedKeeperId;
+            var deleteIds = group.Words.Select(w => w.Word.Id).Where(id => id != keeperId).ToList();
+            var result = await ResourceRepo.MergeVocabularyWordsWithResultAsync(keeperId, deleteIds, default, ActiveUserId);
+            if (!result.Changed)
+            {
+                var refused = MergeRefusal(group.DisplayTerm, result.RefusalKey);
+                cleanupResults.Add(refused);
+                Toast.ShowWarning(refused);
+            }
             else
-                Toast.ShowInfo($"No merge was needed for '{group.DisplayTerm}'.");
+            {
+                cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {result.Deleted}");
+                CacheService.InvalidateVocabSummary();
+                await LoadData();
+                Toast.ShowSuccess($"Merged {result.Deleted} duplicate record(s) for '{group.DisplayTerm}'.");
+            }
+            await LoadDuplicateGroupsAsync(append: false);
         }
         catch (Exception ex)
         {
@@ -1648,50 +1672,131 @@ else
         }
     }
 
-    private async Task AutoMergeAllDuplicates()
+    /// <summary>Skip: the review group leaves the panel until it is opened again; nothing changes.</summary>
+    private void SkipDuplicateGroup(VocabularyDuplicateGroup group) =>
+        skippedDuplicateTerms.Add(group.NormalizedTerm);
+
+    /// <summary>
+    /// Merge all (Captain 2026-11-14: "I almost always do all of them at once with no review"):
+    /// every safe group on every page in one step. A panel focused on one word merges only its
+    /// own safe group.
+    /// </summary>
+    private async Task MergeAllSafeDuplicates()
     {
+        if (isCleanupRunning || duplicateSafeGroupCount == 0)
+            return;
         isCleanupRunning = true;
-        var groupsToProcess = duplicateGroups.Where(g => g.CanMergeAutomatically).ToList();
-        cleanupTotal = groupsToProcess.Count;
+        cleanupTotal = 0;
         cleanupProgress = 0;
-        cleanupStatus = "Merging safe duplicate groups using recommendations...";
+        cleanupStatus = Localize["Vocabulary_DuplicatesMerging"];
         cleanupResults.Clear();
         StateHasChanged();
 
-        int totalMerged = 0;
-        int errors = 0;
-
-        foreach (var group in groupsToProcess)
+        try
         {
-            try
+            // A panel focused on one word merges only that word's group.
+            var merged = await ResourceRepo.MergeSafeDuplicateGroupsAsync(default, ActiveUserId, duplicateFocusLabel);
+            var message = merged.Refused.Count > 0
+                ? string.Format(Localize["Vocabulary_DuplicatesMergedAllWithRefusals"],
+                    merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
+                : merged.MergedGroups > 0
+                    ? string.Format(Localize["Vocabulary_DuplicatesMergedAll"], merged.MergedGroups, merged.RemovedCopies)
+                    : Localize["Vocabulary_DuplicatesNothingSafe"];
+            cleanupResults.Add(message);
+            foreach (var (term, key) in merged.Refused)
+                cleanupResults.Add(MergeRefusal(term, key));
+            if (merged.MergedGroups > 0)
             {
-                var sorted = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words);
-
-                var keeper = sorted.First();
-                var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
-
-                int deleted = await ResourceRepo.MergeVocabularyWordsAsync(keeper.Word.Id, deleteIds, default, ActiveUserId);
-                totalMerged += deleted;
+                CacheService.InvalidateVocabSummary();
+                await LoadData();
             }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error merging duplicate group {Term}", group.NormalizedTerm);
-                errors++;
-            }
-
-            cleanupProgress++;
+            await LoadDuplicateGroupsAsync(append: false);
+            if (merged.Refused.Count > 0)
+                Toast.ShowWarning(message);
+            else
+                Toast.ShowSuccess(message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error merging all safe duplicate groups");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_CleanupError"], ex.Message));
+            await ReloadAfterFailedMergeAsync();
+        }
+        finally
+        {
+            isCleanupRunning = false;
             StateHasChanged();
         }
+    }
 
-        duplicateGroups.Clear();
-        cleanupResults.Add($"Merge complete: removed {totalMerged} duplicate(s)" + (errors > 0 ? $", {errors} error(s)" : ""));
-        isCleanupRunning = false;
+    /// <summary>
+    /// After a merge failed partway: the words and the duplicate counts are read again, so the
+    /// panel does not offer groups that already merged. A failure here is logged and shown.
+    /// </summary>
+    private async Task ReloadAfterFailedMergeAsync()
+    {
+        try
+        {
+            CacheService.InvalidateVocabSummary();
+            await LoadData();
+            await LoadDuplicateGroupsAsync(append: false);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error reloading vocabulary after a failed duplicate merge");
+            cleanupResults.Add(string.Format(Localize["Vocabulary_CleanupError"], ex.Message));
+        }
+    }
 
-        CacheService.InvalidateVocabSummary();
-        await LoadData();
-        await LoadDuplicateGroupsAsync(append: false);
-        Toast.ShowSuccess($"Merge complete: removed {totalMerged} duplicate(s).");
-        StateHasChanged();
+    private string MergeRefusal(string term, string? key) =>
+        string.Format(Localize["Vocabulary_DuplicatesMergeRefused"], term,
+            Localize[key ?? "Vocabulary_MergeRefusedNothingToMove"]);
+
+    /// <summary>The review groups to show (loaded, not skipped).</summary>
+    private List<VocabularyDuplicateGroup> ReviewDuplicateGroups => duplicateGroups
+        .Where(g => g.EffectiveRisk == VocabularyDuplicateRisk.Review && !skippedDuplicateTerms.Contains(g.NormalizedTerm))
+        .ToList();
+
+    private List<VocabularyDuplicateGroup> BlockedDuplicateGroups => duplicateGroups
+        .Where(g => g.EffectiveRisk == VocabularyDuplicateRisk.Blocked)
+        .ToList();
+
+    /// <summary>
+    /// Review and blocked groups not loaded yet: they come before the safe ones, which are never
+    /// listed, so Show more stops once they are all in.
+    /// </summary>
+    private int RemainingDuplicateGroupCount => Math.Max(0, duplicateReviewGroupCount + duplicateBlockedGroupCount
+        - duplicateGroups.Count(g => g.EffectiveRisk != VocabularyDuplicateRisk.Safe));
+
+    /// <summary>The word editor's names for the lexical types.</summary>
+    private static string LexicalTypeKey(LexicalUnitType type) => type switch
+    {
+        LexicalUnitType.Phrase => "Vocabulary_FilterTypePhrase",
+        LexicalUnitType.Sentence => "Vocabulary_FilterTypeSentence",
+        LexicalUnitType.Unknown => "VocabWordEdit_Unknown",
+        LexicalUnitType.Idiom => "NativeResources_LexicalIdiom",
+        _ => "Vocabulary_FilterTypeWord"
+    };
+
+    /// <summary>What merging a review group would drop.</summary>
+    private string DuplicateDifferences(VocabularyDuplicateGroup group) => string.Join(", ",
+        (group.Differences ?? []).Select(difference => Localize[$"Vocabulary_DuplicateDifference{difference}"]));
+
+    /// <summary>
+    /// What a copy shows under its meaning: the other fields that differ (base form; language
+    /// and kind), then its memory aids, so the learner sees what a merge keeps.
+    /// </summary>
+    private string DuplicateCopyDetails(VocabularyDuplicateGroup group, VocabularyDuplicateWordInfo wordInfo)
+    {
+        var word = wordInfo.Word;
+        var differences = group.Differences ?? [];
+        var lines = new List<string>();
+        if (differences.Contains(VocabularyDuplicateDifference.BaseForm))
+            lines.Add($"{Localize["VocabWordEdit_Lemma"]}: {(string.IsNullOrWhiteSpace(word.Lemma) ? Localize["VocabWordEdit_NotSet"] : word.Lemma.Trim())}");
+        if (differences.Contains(VocabularyDuplicateDifference.LanguageOrKind))
+            lines.Add($"{(string.IsNullOrWhiteSpace(word.Language) ? Localize["VocabWordEdit_NotSet"] : word.Language)} | {Localize[LexicalTypeKey(word.LexicalUnitType)]}");
+        lines.Add(GetMemoryAidSummary(wordInfo));
+        return string.Join("\n", lines);
     }
 
     // ===== POPULATE LEMMAS =====
@@ -2063,9 +2168,14 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
         duplicateTotalGroupCount = result.TotalGroupCount;
         duplicateExtraRecordCount = result.ExtraRecordCount;
+        duplicateSafeGroupCount = result.SafeGroupCount;
+        duplicateSafeCopyCount = result.SafeCopyCount;
+        duplicateReviewGroupCount = result.ReviewGroupCount;
+        duplicateBlockedGroupCount = result.BlockedGroupCount;
 
+        // Safe groups merge together and are not listed, so a count of the loaded ones would mislead.
         cleanupStatus = duplicateTotalGroupCount > 0
-            ? $"Found {duplicateTotalGroupCount} group(s) of duplicate words with {duplicateExtraRecordCount} extra record(s). Showing {duplicateGroups.Count}."
+            ? $"Found {duplicateTotalGroupCount} group(s) of duplicate words with {duplicateExtraRecordCount} extra record(s)."
             : string.IsNullOrWhiteSpace(duplicateFocusLabel)
                 ? "No duplicates found."
                 : $"No duplicates found for '{duplicateFocusLabel}'.";

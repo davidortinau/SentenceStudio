@@ -19,7 +19,7 @@ internal sealed record VocabularyListActions(
     Action ToggleListMode,
     Action<string, string?> ChangeWideFilter,
     Action? OpenLookups = null,
-    VocabularyDuplicateActions? Duplicates = null,
+    Action? OpenDuplicates = null,
     Action<double>? PageWidthChanged = null,
     Action? AddWord = null,
     Action<string>? SearchField = null,
@@ -40,8 +40,8 @@ internal sealed record VocabularyFilterActions(
 /// The Vocabulary list on the shared browse layout (<see cref="BrowserPage"/>, Captain
 /// 2026-11-09): one scrolling column on a phone with filters and sort in a sheet; wide, a fixed
 /// filter column beside the results, whose own scroll holds one row of counts above the lazily
-/// built grid. The toolbar holds Recent lookups, the grid/list switch (wide only), Filters and
-/// Add (+).
+/// built grid. The toolbar holds Recent lookups, Clean Up Duplicates, the grid/list switch
+/// (wide only), Filters and Add (+).
 /// </summary>
 /// <remarks>
 /// The scene updates a mounted page in place (the search field keeps focus while typing), so a
@@ -106,8 +106,7 @@ internal static class VocabularyListView
     /// <summary>
     /// The words show as a native List (Captain 2026-11-12: Library lists are native lists with
     /// swipe actions): always in one column (a phone, the Library split view's list column),
-    /// and in list mode on a wide page (its grid stays a grid). Not while the duplicate manager
-    /// is open above the words: its several buttons would share one list row's tap. One column
+    /// and in list mode on a wide page (its grid stays a grid). One column
     /// is a List in every state (loading, an error, no words, no matches: a row each), as Skills
     /// is, so the page keeps its outline under the system search field, updates in place and
     /// the field keeps its focus and Korean composition: one jamo matches no words, and the
@@ -115,7 +114,7 @@ internal static class VocabularyListView
     /// The wide layout shows only a loaded list.
     /// </summary>
     internal static bool AsNativeList(VocabularyBrowserList state, bool wide) =>
-        state.Duplicates is null && (!wide || state.ListMode);
+        !wide || state.ListMode;
 
     internal static SwiftView PhoneFilterSheet(
         VocabularyBrowserList state, SourceUiStyle style,
@@ -140,6 +139,11 @@ internal static class VocabularyListView
                 .WithAccessibilityLabel(text("Lookups_Title"))
                 .WithAccessibilityIdentifier(
                     SentenceStudio.Native.Features.Lookups.RecentLookupsAccess.Open));
+        // Clean Up Duplicates (Captain 2026-11-14): its own page, beside the list.
+        if (actions.OpenDuplicates is { } openDuplicates)
+            shown.Add(Views.Button(Views.Image("square.on.square"), openDuplicates)
+                .WithAccessibilityLabel(text("Vocabulary_DuplicatesCleanUp"))
+                .WithAccessibilityIdentifier($"{Prefix}.duplicates.open"));
         // A phone always shows one column, so it has no grid/list switch; no words or column to
         // arrange while the list loads or cannot show.
         if (wide)
@@ -469,10 +473,6 @@ internal static class VocabularyListView
                     : style.Text(Views.Text(state.Feedback),
                         SourceTextRole.Body2, SourceTextTone.Body))
                 .WithAccessibilityIdentifier("native.vocabulary.feedback"));
-        // Source: the cleanup panel sits above the word cards.
-        if (state.Duplicates is { } duplicates && actions.Duplicates is { } duplicateActions)
-            children.Add(VocabularyDuplicatesView.Panel(
-                duplicates, style, text, duplicateActions));
         if (state.FilteredWords.Count == 0)
         {
             children.Add(style.Text(Views.Text(text(state.Catalog.Words.Count == 0

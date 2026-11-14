@@ -189,6 +189,13 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _listOpen && _filters?.PhoneSheetOpen == true;
     internal bool IsNavigationBlocked => _saving || AnyDeleting || _handingOff;
 
+    /// <summary>
+    /// The open duplicate page, without filtering the list (<see cref="ListState"/> carries the
+    /// same panel); null when it is closed or the owner is not trusted.
+    /// </summary>
+    internal VocabularyDuplicatePanel? DuplicatePanel =>
+        _listOpen && TryOwner(out _) ? _cleanup.Duplicates : null;
+
     /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
     internal bool IsCreatingWord => IsFormOpen && _creating;
 
@@ -741,12 +748,21 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal Task OpenDuplicatesAsync(string term, string? wordId) =>
         Guard(() => _cleanup.OpenDuplicatesAsync(term, wordId));
 
+    /// <summary>The list's Clean Up Duplicates: the duplicate page over all of the owner's words.</summary>
+    internal Task OpenAllDuplicatesAsync() => Guard(_cleanup.OpenAllDuplicatesAsync);
+
     /// <summary>Source ShowMoreDuplicates.</summary>
     internal Task ShowMoreDuplicatesAsync() => Guard(_cleanup.ShowMoreDuplicatesAsync);
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
     internal Task MergeDuplicatesAsync(string normalizedTerm) =>
         Guard(() => _cleanup.MergeDuplicatesAsync(normalizedTerm));
+
+    /// <summary>Merge all: every safe group in one step, then the list reloads.</summary>
+    internal Task MergeAllDuplicatesAsync() => Guard(_cleanup.MergeAllDuplicatesAsync);
+
+    /// <summary>Skip: a review group leaves the duplicate page while it is open.</summary>
+    internal void SkipDuplicates(string normalizedTerm) => _cleanup.SkipDuplicates(normalizedTerm);
 
     /// <summary>Source CloseCleanupPanel.</summary>
     internal void CloseDuplicates() => _cleanup.CloseDuplicates();

@@ -30,6 +30,9 @@ internal sealed partial class AndroidSliceShell
             return RecentLookupsPage(palette);
         if (vocabulary is { IsFormOpen: true })
             return VocabularyWordPage(vocabulary, palette);
+        // The duplicate page over the list (as on iOS); Back returns to the list.
+        if (vocabulary?.DuplicatePanel is { } duplicates)
+            return VocabularyDuplicatesPage(vocabulary, duplicates, palette);
         var page = VocabularyListPage(vocabulary, palette);
         if (vocabulary is { IsPhoneFilterPresented: true })
             return new Box { Modifier.FillMaxSize(), page, VocabularyFilterSheet(vocabulary, palette) };
@@ -51,6 +54,8 @@ internal sealed partial class AndroidSliceShell
                 // Recent lookups (decision 4 B): words looked up in Writing and Reading.
                 RecentLookupsHeaderAction(palette, enabled: state is { Blocked: false }),
             };
+            actions.Add(VocabularyListMenu(vocabulary, palette,
+                enabled: state is { Blocked: false, Loading: false }));
             if (!wide)
             {
                 var label = Localize("Vocabulary_Filters");
@@ -149,9 +154,6 @@ internal sealed partial class AndroidSliceShell
                         automationId: "native.vocabulary.feedback")
                     : StatusAlert(state.Feedback!, palette, success: true,
                         automationId: "native.vocabulary.feedback")));
-            if (state.Duplicates is { } duplicates)
-                rows.Add(new("duplicates", () =>
-                    VocabularyDuplicatesPanel(vocabulary!, duplicates, palette)));
             if (state.FilteredWords.Count == 0)
                 rows.Add(new("empty", () =>
                 {
@@ -174,27 +176,6 @@ internal sealed partial class AndroidSliceShell
                 {
                     var item = word;
                     rows.Add(new($"word.{item.Id}", () => VocabularyCard(item, vocabulary!, palette)));
-                }
-                page.Add(VocabularyLazyList(rows, wide, listMode: true));
-            }
-            else if (state.Duplicates is not null)
-            {
-                // One scroll container while the duplicate manager is open (the source panel
-                // scrolls with the page): the grid's rows become lazy rows below it.
-                var columns = WindowWidthDp < 992 ? 2 : 3;
-                var words = state.FilteredWords;
-                for (var start = 0; start < words.Count; start += columns)
-                {
-                    var slice = words.Skip(start).Take(columns).ToArray();
-                    rows.Add(new($"grid.{slice[0].Id}", () =>
-                    {
-                        var row = new Row(Arrangement.SpacedBy(12)) { Modifier.FillMaxWidth() };
-                        foreach (var word in slice)
-                            row.Add(new Box { Modifier.Weight(1f), VocabularyCard(word, vocabulary!, palette) });
-                        for (var pad = slice.Length; pad < columns; pad++)
-                            row.Add(new Box { Modifier.Weight(1f) });
-                        return row;
-                    }));
                 }
                 page.Add(VocabularyLazyList(rows, wide, listMode: true));
             }

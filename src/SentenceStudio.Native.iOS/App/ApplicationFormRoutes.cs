@@ -13,6 +13,7 @@ internal static class ApplicationFormRoutes
     internal const string Vocabulary = "vocabulary";
     internal const string VocabularyWordForm = "vocabulary-word-form";
     internal const string RecentLookups = "recent-lookups";
+    internal const string VocabularyDuplicates = "vocabulary-duplicates";
     internal const string MinimalPairs = "minimal-pairs";
     internal const string MinimalPairsChild = "minimal-pairs-child";
 

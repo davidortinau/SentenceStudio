@@ -9979,4 +9979,76 @@
   <data name="ActivityCompleteLabel" xml:space="preserve">
     <value>완료!</value>
   </data>
+  <data name="Vocabulary_DuplicatesAllShared" xml:space="preserve">
+    <value>모든 사본을 다른 학습자가 사용하고 있어 남길 수 있는 사본이 없습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesOthersShared" xml:space="preserve">
+    <value>다른 사본은 다른 학습자가 사용하고 있어 그대로 남습니다. 병합하면 내 학습 기록과 리소스가 남기는 사본으로 옮겨집니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNotYours" xml:space="preserve">
+    <value>일부 사본이 내 단어가 아니어서 병합하지 않았습니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedKeeperShared" xml:space="preserve">
+    <value>남길 사본을 다른 학습자가 사용하고 있어 병합하지 않았습니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNothingToMove" xml:space="preserve">
+    <value>병합할 수 있는 사본이 없습니다. 다른 사본이 다른 학습자의 데이터와 연결되어 있습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCleanUp" xml:space="preserve">
+    <value>중복 단어 정리</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
+    <value>{0}개 그룹은 잃는 것 없이 병합할 수 있습니다(추가 사본 {1}개).</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
+    <value>{0}개 그룹 병합</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
+    <value>병합하는 중…</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
+    <value>{0}개 그룹을 병합하고 사본 {1}개를 삭제했습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
+    <value>{0}개 그룹을 병합하고 사본 {1}개를 삭제했습니다. {2}개 그룹은 병합할 수 없었습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
+    <value>자동으로 병합할 그룹이 남아 있지 않습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReview" xml:space="preserve">
+    <value>검토 필요</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReviewNote" xml:space="preserve">
+    <value>이 그룹을 병합하면 일부 정보가 사라집니다. 병합하면 첫 번째 사본의 뜻과 기억 도우미를 남기고, 건너뛰면 사본을 그대로 둡니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCantMerge" xml:space="preserve">
+    <value>병합할 수 없음</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerge" xml:space="preserve">
+    <value>병합</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSkip" xml:space="preserve">
+    <value>건너뛰기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeep" xml:space="preserve">
+    <value>이 사본을 남김</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMeaning" xml:space="preserve">
+    <value>뜻이 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMemoryAid" xml:space="preserve">
+    <value>기억 도우미가 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceBaseForm" xml:space="preserve">
+    <value>기본형이 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceLanguageOrKind" xml:space="preserve">
+    <value>언어 또는 종류가 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeRefused" xml:space="preserve">
+    <value>'{0}'을(를) 병합할 수 없습니다: {1}</value>
+  </data>
+  <data name="Vocabulary_MergeFailed" xml:space="preserve">
+    <value>병합을 완료하지 못했습니다. 다시 시도하세요.</value>
+  </data>
 </root>

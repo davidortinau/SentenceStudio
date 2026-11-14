@@ -10459,4 +10459,76 @@ For example: {0} ...</value>
     <value>{0} archived</value>
     <comment>Under the Skill Profiles title in the archive: how many archived skill profiles the list shows</comment>
   </data>
+  <data name="Vocabulary_DuplicatesAllShared" xml:space="preserve">
+    <value>Every copy is used by another learner, so none can be kept.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesOthersShared" xml:space="preserve">
+    <value>Another learner uses the other copies, so they stay. Merge moves your history and resources to the copy you keep.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNotYours" xml:space="preserve">
+    <value>Some copies aren't yours, so nothing was merged.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedKeeperShared" xml:space="preserve">
+    <value>The copy to keep is used by another learner, so nothing was merged.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNothingToMove" xml:space="preserve">
+    <value>Nothing could be merged: the other copies are linked to another learner's data.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCleanUp" xml:space="preserve">
+    <value>Clean Up Duplicates</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
+    <value>{0} group(s) can merge without losing anything ({1} extra copies).</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
+    <value>Merge {0} Group(s)</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
+    <value>Merging…</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
+    <value>Merged {0} group(s) and removed {1} copies.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
+    <value>Merged {0} group(s) and removed {1} copies. {2} group(s) could not merge.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
+    <value>Nothing left to merge automatically.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReview" xml:space="preserve">
+    <value>Needs Review</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReviewNote" xml:space="preserve">
+    <value>Merging these would lose something. Merge keeps the first copy's meaning and memory aid; Skip leaves the copies as they are.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCantMerge" xml:space="preserve">
+    <value>Can't Merge</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerge" xml:space="preserve">
+    <value>Merge</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSkip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeep" xml:space="preserve">
+    <value>Keeps this copy</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMeaning" xml:space="preserve">
+    <value>Different meanings</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMemoryAid" xml:space="preserve">
+    <value>Different memory aids</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceBaseForm" xml:space="preserve">
+    <value>Different base forms</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceLanguageOrKind" xml:space="preserve">
+    <value>Different language or kind</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeRefused" xml:space="preserve">
+    <value>Couldn't merge '{0}': {1}</value>
+  </data>
+  <data name="Vocabulary_MergeFailed" xml:space="preserve">
+    <value>The merge did not complete. Try again.</value>
+  </data>
 </root>

@@ -98,6 +98,9 @@ public abstract class VocabularyWordOwnerIsolationScenarios
 
     // Duplicate groups hold only the learner's own words: B's copy and words recorded to no one
     // are not shown, so they neither block a group nor show their memory aids.
+    private static readonly VocabularyMergeResult NotYours =
+        VocabularyMergeResult.Refused("Vocabulary_MergeRefusedNotYours");
+
     protected async Task Duplicates_ShowAndMergeOnlyTheLearnersOwnCopies()
     {
         var database = await SeedAsync();
@@ -112,14 +115,14 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         Assert.DoesNotContain(scan.Groups.SelectMany(g => g.Words), info =>
             info.Word.Id is "dup-b" or "pear-legacy" or "persimmon-legacy");
 
-        // Asked directly, a merge naming a word that is not A's is refused either way round.
-        Assert.Equal(VocabularyMergeResult.None,
+        // Asked directly, a merge naming a word that is not A's is refused either way round, and says so.
+        Assert.Equal(NotYours,
             await repository.MergeVocabularyWordsWithResultAsync("dup-a", ["dup-b"]));
-        Assert.Equal(VocabularyMergeResult.None,
+        Assert.Equal(NotYours,
             await repository.MergeVocabularyWordsWithResultAsync("dup-b", ["dup-a"]));
-        Assert.Equal(VocabularyMergeResult.None,
+        Assert.Equal(NotYours,
             await repository.MergeVocabularyWordsWithResultAsync("pear-a", ["pear-legacy"]));
-        Assert.Equal(VocabularyMergeResult.None, await Repository(database, null)
+        Assert.Equal(NotYours, await Repository(database, null)
             .MergeVocabularyWordsWithResultAsync("persimmon-a", ["persimmon-legacy"], default, UserA));
 
         await using (var db = Context(database))
@@ -140,6 +143,58 @@ public abstract class VocabularyWordOwnerIsolationScenarios
         // The learner's own copies still merge (named learner, explicitly).
         Assert.Equal(1, (await Repository(database, null).MergeVocabularyWordsWithResultAsync(
             "grape-1", ["grape-2"], default, UserA)).Deleted);
+    }
+
+    // Merge all (Captain 2026-11-14, docs/duplicate-merge-plan.md) on both providers: only A's
+    // safe groups merge; a phrase link between A's own words moves to the keeper, a copy that
+    // B's phrase uses stays (its group cannot merge), and B's own duplicates are not touched.
+    protected async Task MergeAll_MergesOnlyTheLearnersSafeGroups_AndPhraseLinksFollowTheirOwner()
+    {
+        var database = await SeedAsync();
+        await using (var db = Context(database))
+        {
+            Word(db, "kiwi-1", "키위", UserA, ResourceA);
+            Word(db, "kiwi-2", "키위", UserA, ResourceA);
+            Word(db, "a-phrase", "키위 주스", UserA, ResourceA).LexicalUnitType = LexicalUnitType.Phrase;
+            db.PhraseConstituents.Add(new PhraseConstituent {
+                Id = "pc-a-kiwi", PhraseWordId = "a-phrase", ConstituentWordId = "kiwi-2", CreatedAt = At });
+            Word(db, "melon-1", "멜론", UserA, ResourceA);
+            Word(db, "melon-2", "멜론", UserA, ResourceA);
+            Word(db, "b-phrase", "멜론 빙수", UserB, ResourceB).LexicalUnitType = LexicalUnitType.Phrase;
+            db.PhraseConstituents.Add(new PhraseConstituent {
+                Id = "pc-b-melon", PhraseWordId = "b-phrase", ConstituentWordId = "melon-2", CreatedAt = At });
+            Word(db, "b-mango-1", "망고", UserB, ResourceB);
+            Word(db, "b-mango-2", "망고", UserB, ResourceB);
+            await db.SaveChangesAsync();
+        }
+        var before = await SnapshotOfBAsync(database);
+
+        // No active learner: nothing is read or merged.
+        Assert.Equal(VocabularyMergeAllResult.None,
+            await Repository(database, null).MergeSafeDuplicateGroupsAsync());
+
+        var scan = await Repository(database, UserA).FindDuplicateVocabularyGroupsAsync();
+        Assert.Equal((2, 2, 0, 1), (scan.SafeGroupCount, scan.SafeCopyCount,
+            scan.ReviewGroupCount, scan.BlockedGroupCount));
+        var melon = Assert.Single(scan.Groups, group => group.NormalizedTerm == "멜론");
+        Assert.Equal("Vocabulary_DuplicatesOthersShared", melon.MergeBlockedReason);
+        Assert.Equal("melon-1", melon.KeeperId);
+
+        var merged = await Repository(database, UserA).MergeSafeDuplicateGroupsAsync();
+
+        Assert.Equal((2, 2), (merged.MergedGroups, merged.RemovedCopies));
+        Assert.Empty(merged.Refused);
+        await using var check = Context(database);
+        var kiwi = await check.VocabularyWords.AsNoTracking()
+            .Where(word => word.Id == "kiwi-1" || word.Id == "kiwi-2").Select(word => word.Id).SingleAsync();
+        Assert.Equal(kiwi, (await check.PhraseConstituents.AsNoTracking()
+            .SingleAsync(link => link.Id == "pc-a-kiwi")).ConstituentWordId);
+        Assert.Equal(1, await check.VocabularyWords.CountAsync(word => word.Id == "grape-1" || word.Id == "grape-2"));
+        Assert.Equal(2, await check.VocabularyWords.CountAsync(word => word.Id == "melon-1" || word.Id == "melon-2"));
+        Assert.Equal("melon-2", (await check.PhraseConstituents.AsNoTracking()
+            .SingleAsync(link => link.Id == "pc-b-melon")).ConstituentWordId);
+        Assert.Equal(2, await check.VocabularyWords.CountAsync(word => word.Id.StartsWith("b-mango-")));
+        Assert.Equal(before, await SnapshotOfBAsync(database));
     }
 
     // Review finding 9: the merge decides whose a sentence is by its recorded owner, not by the
@@ -834,6 +889,7 @@ public sealed class VocabularyWordOwnerIsolationSqliteTests : VocabularyWordOwne
     [Fact] public Task RefusedDeletes() => Delete_RefusesWhatTheServerWouldKeep_AndChangesNoRow();
     [Fact] public Task Duplicates() => Duplicates_ShowAndMergeOnlyTheLearnersOwnCopies();
     [Fact] public Task MergeSentenceOwners() => Merge_DecidesSentenceOwnersByTheirRecordedOwner();
+    [Fact] public Task MergeAll() => MergeAll_MergesOnlyTheLearnersSafeGroups_AndPhraseLinksFollowTheirOwner();
     [Fact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [Fact] public Task Editor() => Editor_OpensOnlyTheLearnersOwnWord_AndNeverSavesAnother();
     [Fact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();
@@ -884,6 +940,7 @@ public sealed class VocabularyWordOwnerIsolationPostgresTests : VocabularyWordOw
     [ApplicationOperationPostgresFact] public Task RefusedDeletes() => Delete_RefusesWhatTheServerWouldKeep_AndChangesNoRow();
     [ApplicationOperationPostgresFact] public Task Duplicates() => Duplicates_ShowAndMergeOnlyTheLearnersOwnCopies();
     [ApplicationOperationPostgresFact] public Task MergeSentenceOwners() => Merge_DecidesSentenceOwnersByTheirRecordedOwner();
+    [ApplicationOperationPostgresFact] public Task MergeAll() => MergeAll_MergesOnlyTheLearnersSafeGroups_AndPhraseLinksFollowTheirOwner();
     [ApplicationOperationPostgresFact] public Task AbsentLearner() => AbsentLearner_ReadsAndWritesNothing();
     [ApplicationOperationPostgresFact] public Task Editor() => Editor_OpensOnlyTheLearnersOwnWord_AndNeverSavesAnother();
     [ApplicationOperationPostgresFact] public Task BulkDelete() => BulkDelete_RemovesOnlyTheLearnersFreeWords();

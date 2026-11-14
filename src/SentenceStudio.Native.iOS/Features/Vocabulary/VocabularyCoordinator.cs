@@ -42,6 +42,29 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// <summary>Opens Recent lookups from the list toolbar (decision 4 B); none hides the button.</summary>
     internal Action? OpenLookups { get; init; }
 
+    /// <summary>Opens Clean Up Duplicates from the list toolbar; none hides the button.</summary>
+    internal Action? OpenDuplicates { get; init; }
+
+    /// <summary>The list toolbar's Clean Up Duplicates: the duplicate page over all of the owner's words.</summary>
+    internal void OpenAllDuplicates() => Run(OpenAllDuplicatesAsync);
+
+    /// <summary>The duplicate page's title: Clean Up Duplicates, or Find Duplicates for its word.</summary>
+    internal string DuplicatesTitle => DuplicatePanel?.Title ?? Text("Vocabulary_DuplicatesCleanUp");
+
+    /// <summary>The duplicate page (VocabularyDuplicatesView), pushed beside the list.</summary>
+    internal SwiftView RenderDuplicates(SourceUiStyle style) =>
+        DuplicatePanel is { } panel
+            ? VocabularyDuplicatesView.Page(panel, style, Text,
+                new VocabularyDuplicateActions(
+                    MergeAll: () => Run(MergeAllDuplicatesAsync),
+                    ShowMore: () => Run(ShowMoreDuplicatesAsync),
+                    Merge: term => Run(() => MergeDuplicatesAsync(term)),
+                    Skip: SkipDuplicates))
+            : Microsoft.SwiftUI.SwiftUI.Text(Text("Common_Loading"));
+
+    /// <summary>The person's Back left the duplicate page.</summary>
+    internal void OnDuplicatesPopped() => CloseDuplicates();
+
     /// <summary>Source: Add Word for a new word, Edit Word otherwise.</summary>
     internal string WordFormTitle =>
         Text(IsCreatingWord ? "VocabWordEdit_AddTitle" : "VocabWordEdit_EditTitle");
@@ -89,11 +112,7 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ToggleListMode: () => SetListMode(!ListMode),
                 ChangeWideFilter: ChangeWideFilter,
                 OpenLookups: OpenLookups,
-                Duplicates: new VocabularyDuplicateActions(
-                    Close: CloseDuplicates,
-                    ShowMore: () => Run(ShowMoreDuplicatesAsync),
-                    Merge: term => Run(() => MergeDuplicatesAsync(term)),
-                    EditRecord: id => Run(() => OpenWordAsync(id))),
+                OpenDuplicates: OpenDuplicates,
                 PageWidthChanged: OnPageWidthChanged,
                 AddWord: AddWord,
                 SearchField: SearchField,

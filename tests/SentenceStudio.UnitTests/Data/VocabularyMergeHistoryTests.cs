@@ -399,11 +399,10 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         WordExists(keeper).Should().BeTrue();
     }
 
+    // Captain 2026-11-14: merge everything safe at once; flag only merges that lose something.
     [Fact]
-    public async Task FindDuplicateVocabularyGroups_AllowsNativeMeaningConflictAndKeepsRecommendedNativeMeaning()
+    public async Task FindDuplicateVocabularyGroups_FlagsDifferentMeaningsForReview_AndMergingKeepsTheKeepersMeaning()
     {
-        // Arrange — normalized target matches, but native meanings differ. The form-level duplicate rule
-        // prevents editing one native meaning to match another, so merge must allow this and keep the keeper.
         var basicCar = SeedWord("자동차", "car");
         var automobile = SeedWord(" 자동차 ", "automobile");
         AddEncodingAids(automobile);
@@ -412,28 +411,26 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         using var scope = _fixture.ServiceProvider.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
 
-        // Act
         var result = await repo.FindDuplicateVocabularyGroupsAsync("자동차");
 
-        // Assert
-        result.TotalGroupCount.Should().Be(1);
         var group = result.Groups.Single();
-        group.NormalizedTerm.Should().Be(VocabularyDuplicatePolicy.NormalizeTargetTerm("자동차"));
-        group.CanMergeAutomatically.Should().BeTrue("same target with different native meanings is a safe merge; the recommended keeper's native meaning wins");
-        group.MergeBlockedReason.Should().BeNull();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review, "a second meaning would be lost");
+        group.Differences.Should().Equal(VocabularyDuplicateDifference.Meaning);
+        group.CanMergeAutomatically.Should().BeFalse();
         group.RecommendedKeeperId.Should().Be(automobile);
+        result.ReviewGroupCount.Should().Be(1);
+        result.SafeGroupCount.Should().Be(0);
 
-        var deleted = await repo.MergeVocabularyWordsAsync(group.RecommendedKeeperId, group.Words.Select(w => w.Word.Id).Where(id => id != group.RecommendedKeeperId).ToList());
-
-        deleted.Should().Be(1);
+        // The learner chose Merge: the keeper's meaning stays.
+        var merged = await repo.MergeVocabularyWordsWithResultAsync(group.RecommendedKeeperId, group.MergeRemovableIds.ToList());
+        merged.Deleted.Should().Be(1);
         GetWord(automobile)!.NativeLanguageTerm.Should().Be("automobile");
         WordExists(basicCar).Should().BeFalse();
     }
 
     [Fact]
-    public async Task FindDuplicateVocabularyGroups_BlocksLanguageAndLexicalTypeConflicts()
+    public async Task FindDuplicateVocabularyGroups_FlagsALanguageOrKindConflictForReview()
     {
-        // Arrange — target matches, but language/type differences still mean these may be different lexical entries.
         var koreanWord = SeedWord("자동차", "car");
         var japaneseWord = SeedWord("자동차 ", "car");
         UpdateWord(japaneseWord, word =>
@@ -446,15 +443,306 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         using var scope = _fixture.ServiceProvider.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
 
-        // Act
-        var result = await repo.FindDuplicateVocabularyGroupsAsync("자동차");
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("자동차")).Groups.Single();
 
-        // Assert
-        var group = result.Groups.Single();
-        group.CanMergeAutomatically.Should().BeFalse("language and lexical type conflicts still require editing before merge");
-        group.MergeBlockedReason.Should().Contain("language");
-        group.MergeBlockedReason.Should().Contain("lexical type");
-        group.MergeBlockedReason.Should().NotContain("native meaning");
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        group.Differences.Should().Equal(VocabularyDuplicateDifference.LanguageOrKind);
+        group.CanMergeAutomatically.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Differences_IgnoreFormattingOfOneMeaning_AndEmptyFields()
+    {
+        VocabularyWord Copy(string native, string? aid = null, string? lemma = null) => new()
+        {
+            TargetLanguageTerm = "먹다", NativeLanguageTerm = native, Language = "Korean",
+            MnemonicText = aid, Lemma = lemma
+        };
+
+        VocabularyDuplicatePolicy.Differences([Copy(" to eat"), Copy("To eat."), Copy("eat\r"), Copy("to  eat", "먹 = eat", "먹다")])
+            .Should().BeEmpty("one meaning written four ways, and one copy's memory aid and base form fill the others");
+        VocabularyDuplicatePolicy.Differences([Copy("to fit"), Copy("to be right")])
+            .Should().Equal(VocabularyDuplicateDifference.Meaning);
+        VocabularyDuplicatePolicy.Differences([Copy("eat", "a"), Copy("eat", "b")])
+            .Should().Equal(VocabularyDuplicateDifference.MemoryAid);
+        VocabularyDuplicatePolicy.Differences([Copy("eat", lemma: "먹다"), Copy("eat", lemma: "먹")])
+            .Should().Equal(VocabularyDuplicateDifference.BaseForm);
+    }
+
+    // 먹다 on 2026-11-13: the newest copy (the keeper by today's order) was also in the ownerless
+    // Starter Vocabulary resource, so the merge refused all six copies and said "No merge was needed".
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_KeepsACopyNoOneElseUses_AndTheGroupMerges()
+    {
+        SeedUserProfile(UserB);
+        var older = SeedWord("먹다", "to eat");
+        var middle = SeedWord("먹다 ", " to eat");
+        var newest = SeedWord(" 먹다", "To eat");
+        UpdateWord(older, word => word.UpdatedAt = DateTime.UtcNow.AddDays(-3));
+        UpdateWord(middle, word => word.UpdatedAt = DateTime.UtcNow.AddDays(-2));
+        EnsureWordsMappedToUser(UserA, older, middle, newest);
+        EnsureWordsMappedToUser(UserB, newest);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("먹다")).Groups.Single();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Safe);
+        group.RecommendedKeeperId.Should().Be(middle, "the newest copy is used by another learner's resource");
+        group.MergeRemovableIds.Should().Equal(older);
+
+        var all = await repo.MergeSafeDuplicateGroupsAsync();
+
+        all.MergedGroups.Should().Be(1);
+        all.RemovedCopies.Should().Be(1);
+        WordExists(middle).Should().BeTrue();
+        WordExists(older).Should().BeFalse();
+        WordExists(newest).Should().BeTrue("another learner's resource still uses it");
+        var after = (await repo.FindDuplicateVocabularyGroupsAsync("먹다")).Groups.Single();
+        after.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Blocked);
+        after.MergeBlockedReason.Should().Be("Vocabulary_DuplicatesOthersShared");
+    }
+
+    [Fact]
+    public async Task Merge_MovesAPhraseLinkBetweenTheLearnersOwnWords()
+    {
+        var keeper = SeedWord("먹다", "to eat");
+        var duplicate = SeedWord("먹다 ", "to eat");
+        var phrase = SeedWord("밥을 먹다", "to eat a meal");
+        AddEncodingAids(keeper);
+        EnsureWordsMappedToUser(UserA, keeper, duplicate, phrase);
+        SeedPhraseConstituent(phrase, duplicate);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("먹다")).Groups.Single();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Safe, "a link between the learner's own words moves with the merge");
+
+        (await repo.MergeSafeDuplicateGroupsAsync()).RemovedCopies.Should().Be(1);
+
+        WordExists(duplicate).Should().BeFalse();
+        CountPhraseConstituents(phrase, keeper).Should().Be(1);
+        CountPhraseConstituents(phrase, duplicate).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task FindAndMerge_IncludeTheLearnersWordsInNoResource()
+    {
+        var keeper = SeedWord("물", "water");
+        var duplicate = SeedWord("물 ", "water");
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        var result = await repo.FindDuplicateVocabularyGroupsAsync();
+        result.TotalGroupCount.Should().Be(1);
+        result.Groups.Single().EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Safe);
+
+        (await repo.MergeSafeDuplicateGroupsAsync()).RemovedCopies.Should().Be(1);
+        (WordExists(keeper) ^ WordExists(duplicate)).Should().BeTrue("one copy stays");
+    }
+
+    [Fact]
+    public async Task MergeSafeDuplicateGroups_MergesEverySafeGroupOnEveryPage_AndLeavesTheOnesToReview()
+    {
+        for (var index = 0; index < 25; index++)
+        {
+            var first = SeedWord($"단어{index}", "word");
+            var second = SeedWord($" 단어{index}", "Word.");
+            EnsureWordsMappedToUser(UserA, first, second);
+        }
+        var fit = SeedWord("맞다", "to fit");
+        var right = SeedWord("맞다 ", "to be right");
+        EnsureWordsMappedToUser(UserA, fit, right);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var before = await repo.FindDuplicateVocabularyGroupsAsync();
+        before.TotalGroupCount.Should().Be(26);
+        before.SafeGroupCount.Should().Be(25);
+        before.SafeCopyCount.Should().Be(25);
+        before.ReviewGroupCount.Should().Be(1);
+        before.Groups.First().NormalizedTerm.Should().Be("맞다", "groups to review come first");
+
+        var all = await repo.MergeSafeDuplicateGroupsAsync();
+
+        all.MergedGroups.Should().Be(25);
+        all.RemovedCopies.Should().Be(25);
+        all.Refused.Should().BeEmpty();
+        var after = await repo.FindDuplicateVocabularyGroupsAsync();
+        after.TotalGroupCount.Should().Be(1);
+        after.Groups.Single().EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        WordExists(fit).Should().BeTrue();
+        WordExists(right).Should().BeTrue();
+    }
+
+    // Review 2026-11-14: an empty meaning is no difference, so the group is safe; the merge must
+    // then fill the keeper's meaning from the copy that has one.
+    [Fact]
+    public async Task MergeSafe_AKeeperWithNoMeaning_TakesTheOtherCopysMeaning()
+    {
+        var keeper = SeedWord("먹다", "");
+        var duplicate = SeedWord("먹다 ", "to eat");
+        AddEncodingAids(keeper);
+        EnsureWordsMappedToUser(UserA, keeper, duplicate);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("먹다")).Groups.Single();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Safe);
+        group.RecommendedKeeperId.Should().Be(keeper);
+
+        (await repo.MergeSafeDuplicateGroupsAsync()).RemovedCopies.Should().Be(1);
+
+        WordExists(duplicate).Should().BeFalse();
+        GetWord(keeper)!.NativeLanguageTerm.Should().Be("to eat");
+    }
+
+    // Review 2026-11-14: a phrase copy whose part is another copy of the same term (a review
+    // group of a phrase and a word) would leave the keeper as its own part.
+    [Fact]
+    public async Task Merge_OfAPhraseAndItsOwnPart_LeavesNoLinkFromTheKeeperToItself()
+    {
+        var word = SeedWord("안녕하세요", "hello");
+        var phrase = SeedWord("안녕하세요 ", "hello");
+        AddEncodingAids(word);
+        UpdateWord(word, row => row.LexicalUnitType = LexicalUnitType.Word);
+        UpdateWord(phrase, row => row.LexicalUnitType = LexicalUnitType.Phrase);
+        EnsureWordsMappedToUser(UserA, word, phrase);
+        SeedPhraseConstituent(phrase, word);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("안녕하세요")).Groups.Single();
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        group.RecommendedKeeperId.Should().Be(word);
+
+        var result = await repo.MergeVocabularyWordsWithResultAsync(word, [phrase]);
+
+        result.Changed.Should().BeTrue();
+        WordExists(phrase).Should().BeFalse();
+        CountPhraseConstituents(word, word).Should().Be(0);
+    }
+
+    // Review 2026-11-14 (second pass): a copy another learner uses stays, but the learner's links
+    // and history on it move to the keeper, so its meaning counts when rating the group.
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_ASharedCopyWithAnotherMeaning_IsForReview()
+    {
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("맞다", "to fit");
+        var removable = SeedWord("맞다 ", "to fit");
+        var shared = SeedWord(" 맞다", "to be right");
+        AddEncodingAids(keeper);
+        EnsureWordsMappedToUser(UserA, keeper, removable, shared);
+        EnsureWordsMappedToUser(UserB, shared);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("맞다")).Groups.Single();
+
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Review);
+        group.Differences.Should().Contain(VocabularyDuplicateDifference.Meaning);
+        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(0);
+    }
+
+    // Review 2026-11-14 (second pass): an unclassified part of speech is filled from another copy;
+    // two different ones are for review.
+    [Fact]
+    public async Task Merge_FillsAMissingPartOfSpeech_AndTwoDifferentOnesAreForReview()
+    {
+        var keeper = SeedWord("공부", "study");
+        var duplicate = SeedWord("공부 ", "study");
+        AddEncodingAids(keeper);
+        UpdateWord(duplicate, word => word.PartOfSpeech = VocabularyPartOfSpeech.Noun);
+        var verb = SeedWord("사랑", "love");
+        var noun = SeedWord("사랑 ", "love");
+        UpdateWord(verb, word => word.PartOfSpeech = VocabularyPartOfSpeech.Verb);
+        UpdateWord(noun, word => word.PartOfSpeech = VocabularyPartOfSpeech.Noun);
+        EnsureWordsMappedToUser(UserA, keeper, duplicate, verb, noun);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        (await repo.FindDuplicateVocabularyGroupsAsync("사랑")).Groups.Single().EffectiveRisk
+            .Should().Be(VocabularyDuplicateRisk.Review);
+
+        (await repo.MergeSafeDuplicateGroupsAsync()).MergedGroups.Should().Be(1);
+        GetWord(keeper)!.PartOfSpeech.Should().Be(VocabularyPartOfSpeech.Noun);
+        WordExists(verb).Should().BeTrue();
+        WordExists(noun).Should().BeTrue();
+    }
+
+    // Review 2026-11-14 (second pass): a group whose every copy someone else uses names no keeper,
+    // so no caller merges into a shared copy.
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_EveryCopyShared_NamesNoKeeper()
+    {
+        SeedUserProfile(UserB);
+        var first = SeedWord("배", "pear");
+        var second = SeedWord("배 ", "pear");
+        EnsureWordsMappedToUser(UserA, first, second);
+        EnsureWordsMappedToUser(UserB, first, second);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var group = (await repo.FindDuplicateVocabularyGroupsAsync("배")).Groups.Single();
+
+        group.EffectiveRisk.Should().Be(VocabularyDuplicateRisk.Blocked);
+        group.MergeBlockedReason.Should().Be("Vocabulary_DuplicatesAllShared");
+        group.RecommendedKeeper.Should().BeNull();
+        group.RecommendedKeeperId.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MergeSafe_WithAFocusTerm_MergesOnlyThatTermsGroup()
+    {
+        var apple = SeedWord("사과", "apple");
+        var appleCopy = SeedWord("사과 ", "apple");
+        var water = SeedWord("물", "water");
+        var waterCopy = SeedWord("물 ", "water");
+        EnsureWordsMappedToUser(UserA, apple, appleCopy, water, waterCopy);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var merged = await repo.MergeSafeDuplicateGroupsAsync(focusTerm: " 사과");
+
+        merged.MergedGroups.Should().Be(1);
+        (WordExists(apple) ^ WordExists(appleCopy)).Should().BeTrue();
+        WordExists(water).Should().BeTrue();
+        WordExists(waterCopy).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Merge_UnitesTheCopiesTags()
+    {
+        var keeper = SeedWord("사과", "apple");
+        var duplicate = SeedWord("사과 ", "apple");
+        AddEncodingAids(keeper);
+        UpdateWord(keeper, word => word.Tags = "food, fruit");
+        UpdateWord(duplicate, word => word.Tags = "Fruit, market");
+        EnsureWordsMappedToUser(UserA, keeper, duplicate);
+
+        (await MergeAsync(keeper, duplicate)).Should().Be(1);
+
+        GetWord(keeper)!.Tags.Should().Be("food, fruit, market");
+    }
+
+    [Fact]
+    public async Task Merge_ThatIsRefused_SaysWhy()
+    {
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("배", "pear");
+        var duplicate = SeedWord("배 ", "pear");
+        EnsureWordsMappedToUser(UserA, keeper, duplicate);
+        EnsureWordsMappedToUser(UserB, keeper);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        var result = await repo.MergeVocabularyWordsWithResultAsync(keeper, [duplicate]);
+
+        result.Changed.Should().BeFalse();
+        result.RefusalKey.Should().Be("Vocabulary_MergeRefusedKeeperShared");
     }
 
     [Fact]
