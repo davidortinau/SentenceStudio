@@ -340,6 +340,29 @@ internal sealed partial class ApplicationScene : IDisposable
     }
 
     /// <summary>
+    /// A browse page mounted in <paramref name="slot"/> takes <paramref name="next"/> in place
+    /// (its rows swapped, the search field and toolbar kept), so the field keeps its focus while
+    /// typing; otherwise <paramref name="next"/> is mounted whole and the field's focus carried over.
+    /// </summary>
+    private static void UpdateBrowsePage(SwiftView slot, SwiftView next, BrowserPageUpdate update,
+        bool replaceAll, string searchText)
+    {
+        var current = slot.Children.Single();
+        var oldSearch = Find(current, update.SearchId);
+        if (replaceAll || oldSearch is null || !update.TryUpdateInPlace(current, next))
+        {
+            var focused = oldSearch?.FocusRequested == true;
+            Replace(slot, next);
+            if (focused && Find(slot, update.SearchId) is { } search)
+                search.FocusRequested = true;
+            return;
+        }
+        if (!string.Equals(oldSearch.Text, searchText, StringComparison.Ordinal))
+            oldSearch.Text = searchText;
+        next.Dispose();
+    }
+
+    /// <summary>
     /// The Skills list in place (its rows swapped, the search field and toolbar kept), so the
     /// field keeps its focus while typing; a new appearance draws it again.
     /// </summary>

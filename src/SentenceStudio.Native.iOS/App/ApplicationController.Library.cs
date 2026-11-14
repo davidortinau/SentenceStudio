@@ -580,6 +580,12 @@ internal sealed partial class ApplicationController
 
     internal string LibraryPairsChildTitle => _libraryPairs?.ChildTitle ?? string.Empty;
 
+    /// <summary>The pair count under the title.</summary>
+    internal string LibraryPairsSubtitle => _libraryPairs?.Subtitle ?? string.Empty;
+
+    /// <summary>The list's search text, which an in-place update gives the mounted field.</summary>
+    internal string LibraryPairsSearchText => _libraryPairs?.SearchText ?? string.Empty;
+
     /// <summary>Changes when what the Minimal Pairs list page shows changes.</summary>
     internal long LibraryPairsVersion => _libraryPairs?.PageVersion ?? 0;
 

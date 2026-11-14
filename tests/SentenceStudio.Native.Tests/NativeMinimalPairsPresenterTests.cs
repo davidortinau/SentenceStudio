@@ -107,6 +107,32 @@ public sealed class NativeMinimalPairsPresenterTests
     }
 
     [Fact]
+    public async Task SelectWord_ClearSearch_EmptiesOnlyThatWordsSearch_ARefusedChoiceKeepsIt()
+    {
+        using var fixture = await SignedInAsync(seedB: true);
+        var test = Create(fixture);
+        await using var _ = test;
+        await test.Presenter.OpenAsync(Launch());
+        await test.Presenter.OpenCreateAsync();
+        test.Presenter.SetSearch('A', "owner-a-2");
+        test.Presenter.SetSearch('B', "owner-a-3");
+
+        // Another learner's word is not offered: the choice is refused and the search stays.
+        var refused = await test.Presenter.SelectWordAsync('A', fixture.WordId(UserB, 2), clearSearch: true);
+        Assert.Null(refused.Create!.WordAId);
+        Assert.Equal("owner-a-2", refused.Create.SearchA);
+
+        var chosen = await test.Presenter.SelectWordAsync('A', fixture.WordId(UserA, 2), clearSearch: true);
+        Assert.Equal(fixture.WordId(UserA, 2), chosen.Create!.WordAId);
+        Assert.Equal(string.Empty, chosen.Create.SearchA);
+        Assert.Equal("owner-a-3", chosen.Create.SearchB);
+
+        // Without clearSearch (Android keeps its own field) the search is left as typed.
+        var kept = await test.Presenter.SelectWordAsync('B', fixture.WordId(UserA, 3));
+        Assert.Equal("owner-a-3", kept.Create!.SearchB);
+    }
+
+    [Fact]
     public async Task Create_ValidatesNormalizesRefusesDuplicatesAndReturnsToTheReloadedList()
     {
         using var fixture = await SignedInAsync(seedB: true);
@@ -337,6 +363,41 @@ public sealed class NativeMinimalPairsPresenterTests
         var row = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .MinimalPairSessions.AsNoTracking().SingleAsync();
         Assert.Equal(("Mixed", (int?)20), (row.Mode, row.PlannedTrialCount));
+    }
+
+    [Fact]
+    public async Task StudyPair_FromMixed_StartsAFocusSessionOnThatPairOnly_AnUnknownPairStaysOnTheList()
+    {
+        using var fixture = await SignedInAsync();
+        using var audio = new ScratchAudioCache(fixture);
+        await InsertPairAsync(fixture, UserA, 0, 1);
+        var studied = await InsertPairAsync(fixture, UserA, 2, 3);
+        var test = Create(fixture);
+        await using var _ = test;
+        await test.Presenter.OpenAsync(Launch());
+        await test.Presenter.SetModeAsync(NativeMinimalPairsMode.Mixed);
+
+        var unknown = await test.Presenter.StudyPairAsync("mp:not-a-pair");
+        Assert.Equal(NativeMinimalPairsPage.List, unknown.Page);
+        Assert.Equal(NativeMinimalPairsMode.Mixed, unknown.List!.Mode);
+
+        var state = await test.Presenter.StudyPairAsync(studied);
+        Assert.Equal(NativeMinimalPairsPage.Session, state.Page);
+        Assert.Equal(NativeMinimalPairsMode.Focus, state.Session!.Mode);
+        Assert.Equal(NativeMinimalPairsPresenter.FocusTrials, state.Session.TotalTrials);
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var pair = await db.MinimalPairs.AsNoTracking().SingleAsync(row => row.Id == studied);
+        var current = (await WaitAsync(test.Presenter, s => s.Session is { HasTrial: true })).Session!;
+        Assert.Equal(new HashSet<string> { pair.VocabularyWordAId, pair.VocabularyWordBId },
+            new HashSet<string> { current.Left!.WordId, current.Right!.WordId });
+        var row = await db.MinimalPairSessions.AsNoTracking().SingleAsync();
+        Assert.Equal(("Focus", (int?)NativeMinimalPairsPresenter.FocusTrials), (row.Mode, row.PlannedTrialCount));
+
+        // Back on the list, Focus keeps the studied pair chosen.
+        var list = await test.Presenter.BackToListAsync();
+        Assert.Equal(NativeMinimalPairsMode.Focus, list.List!.Mode);
+        Assert.Equal(studied, list.List.SelectedPairId);
     }
 
     [Fact]

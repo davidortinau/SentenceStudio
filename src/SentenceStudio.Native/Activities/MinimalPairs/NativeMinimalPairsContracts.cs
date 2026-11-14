@@ -23,6 +23,8 @@ public static class NativeMinimalPairsAccess
     public const string Empty = "native.minimalpairs.empty";
     public const string CreateFirstPair = "native.minimalpairs.create-first";
     public const string Pairs = "native.minimalpairs.pairs";
+    /// <summary>The list's "No results found" while the search matches no pair.</summary>
+    public const string NoResults = "native.minimalpairs.no-results";
     public const string Deleting = "native.minimalpairs.deleting";
     public const string DeleteDialog = "native.minimalpairs.delete";
     public const string DeleteCancel = "native.minimalpairs.delete.cancel";
@@ -59,6 +61,8 @@ public static class NativeMinimalPairsAccess
 
     public static string Pair(string id) => $"native.minimalpairs.pair.{id}";
     public static string PairDelete(string id) => $"native.minimalpairs.pair.{id}.delete";
+    public static string PairStudy(string id) => $"native.minimalpairs.pair.{id}.study";
+    public static string PairSwipe(string id) => $"native.minimalpairs.pair.{id}.swipe";
     public static string WordOption(char slot, string wordId) =>
         $"native.minimalpairs.create.word-{char.ToLowerInvariant(slot)}.{wordId}";
 }
@@ -82,6 +86,12 @@ public static class NativeMinimalPairsText
     public const string Cancel = "Common_Cancel";
     public const string Delete = "Common_Delete";
     public const string SelectPairFirst = "NativeMinimalPairs_SelectPairFirst";
+    /// <summary>Format: {0} = pairs the list shows (under the title).</summary>
+    public const string PairCount = "NativeMinimalPairs_PairCount";
+    /// <summary>The pair's swipe action that starts its Focus session (shared "Study this").</summary>
+    public const string Study = "Library_StudyThis";
+    public const string Search = "Common_Search";
+    public const string NoResults = "Common_NoResults";
     public const string NoPairsToStart = "NativeMinimalPairs_NoPairsToStart";
     public const string LoadFailed = "NativeMinimalPairs_LoadFailed";
     public const string Deleted = "NativeMinimalPairs_Deleted";

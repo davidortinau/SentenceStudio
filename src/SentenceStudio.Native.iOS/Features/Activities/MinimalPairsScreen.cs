@@ -4,6 +4,7 @@ using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
+using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
@@ -30,6 +31,10 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     private long _pageVersion;
     private bool _childDismissed;
     private SwiftView? _deleteAlert;
+    private const string ListPrefix = "native.minimalpairs";
+    private string _search = string.Empty;
+    // The pairs the last list render showed (after the search), for the count under the title.
+    private int _shownCount;
     private SourceUiStyle? _style;
     // Mounted create-page result slots (valid until the next RenderChild).
     private SwiftView? _rowsA;
@@ -59,7 +64,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     public long PageVersion => _pageVersion;
 
     /// <summary>The list's Create Pair, for a host that opens the create page directly (Library quick add).</summary>
-    public void OpenCreate() => Fire(_presenter.OpenCreateAsync);
+    public void OpenCreate() => FireFromList(_presenter.OpenCreateAsync, keepCreate: true);
 
     /// <summary>The Library's open threw: the list shows its error with Go Back (never a spinner).</summary>
     public void OnOpenFailed()
@@ -146,6 +151,29 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         _deleteAlert.IsPresented = pending is not null && _state.List?.IsDeleting != true;
     }
 
+    /// <summary>
+    /// A list command. In the split view the list stays beside the create page or a session,
+    /// which take no list commands: the command first goes back to the list (as system Back
+    /// does, so a session's progress is kept), then runs. <paramref name="keepCreate"/> leaves
+    /// an open create page alone (Create Pair while creating keeps the draft).
+    /// </summary>
+    private void FireFromList(Func<CancellationToken, Task<NativeMinimalPairsState>> action, bool keepCreate = false)
+    {
+        var page = _state.Page;
+        if (page == NativeMinimalPairsPage.List)
+        {
+            Fire(action);
+            return;
+        }
+        if (keepCreate && page == NativeMinimalPairsPage.Create)
+            return;
+        Fire(async token =>
+        {
+            var back = await _presenter.BackToListAsync(token);
+            return back.Page == NativeMinimalPairsPage.List ? await action(token) : back;
+        });
+    }
+
     /// <summary>Commands bypass the controller's busy gate so speech never disables Back; the presenter serializes them.</summary>
     private void Fire(Func<CancellationToken, Task<NativeMinimalPairsState>> action) => _ = FireAsync(action);
 
@@ -172,43 +200,34 @@ internal sealed class MinimalPairsScreen : IActivityScreen
 
     // ---- List (activity page) ----
 
+    /// <summary>
+    /// Captain 2026-11-13 (native lists, as Skills): a native List under the system search
+    /// field, Create Pair as the toolbar's Add (+). The rows: Mode as a segmented picker, Start
+    /// Session, then each pair (tap chooses it for Focus; swipe right to Study it, left to Delete,
+    /// which asks first). The search narrows the pairs in the view only.
+    /// </summary>
     public SwiftView Render(SourceUiStyle style)
     {
         _style = style;
         UpdateDeleteAlert();
         var text = _host.Text;
         var state = _state;
-        var items = new List<SwiftView>();
+        var list = state.List;
+        var rows = new List<SwiftView>();
+        _shownCount = 0;
+        if (state.Page == NativeMinimalPairsPage.List && !state.Notices.IsDefaultOrEmpty
+            && Notices(state, style) is { } notices)
+            rows.Add(notices);
         if (state.Phase is NativePhase.Blocked or NativePhase.Error)
         {
-            items.Add(style.Text(Views.Text(text(state.ErrorKey ?? NativeMinimalPairsText.Unavailable)),
+            rows.Add(style.Text(Views.Text(text(state.ErrorKey ?? NativeMinimalPairsText.Unavailable)),
                     SourceTextRole.Body1, SourceTextTone.Danger)
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Error));
-            items.Add(style.SecondaryButton(text(NativeMinimalPairsText.GoBack), _host.Exit)
+            rows.Add(style.SecondaryButton(text(NativeMinimalPairsText.GoBack), _host.Exit)
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.GoBack));
-            return Page(items, style, NativeMinimalPairsAccess.List);
         }
-        var list = state.List;
-        if (state.Phase is NativePhase.Idle or NativePhase.Loading || list is null)
-        {
-            items.Add(Spinner(text(NativeMinimalPairsText.Title)));
-            return Page(items, style, NativeMinimalPairsAccess.List);
-        }
-        if (state.Page == NativeMinimalPairsPage.List && !state.Notices.IsDefaultOrEmpty)
-            if (Notices(state, style) is { } notices)
-                items.Add(notices);
-
-        var create = style.LabelButton(IconText("plus", text(NativeMinimalPairsText.CreatePair)),
-                () => Fire(_presenter.OpenCreateAsync), SourceButtonRole.Primary)
-            .WithAccessibilityLabel(text(NativeMinimalPairsText.CreatePair))
-            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreatePair);
-        SourceUiStyle.SetCustomButtonAvailability(create, style.Appearance, SourceButtonRole.Primary,
-            !list.IsLoading && !list.IsDeleting);
-        items.Add(Views.HStack(Views.VStack().WithFlexibleWidth(), create).WithFlexibleWidth());
-        items.Add(ModeRow(list, style));
-
-        if (list.IsLoading)
-            items.Add(Spinner(text(NativeMinimalPairsText.Title)));
+        else if (state.Phase is NativePhase.Idle or NativePhase.Loading || list is null || list.IsLoading)
+            rows.Add(Spinner(text(NativeMinimalPairsText.Title)));
         else if (list.IsEmpty)
         {
             var empty = Views.VStack(
@@ -221,108 +240,167 @@ internal sealed class MinimalPairsScreen : IActivityScreen
                 .WithPadding(24)
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Empty);
             empty.Spacing = 16;
-            items.Add(empty);
+            rows.Add(empty);
         }
         else
         {
+            rows.Add(ModeRow(list));
+            rows.Add(StartRow(list, style));
             if (list.IsDeleting)
-                items.Add(Spinner(text(NativeMinimalPairsText.Delete))
+                rows.Add(Spinner(text(NativeMinimalPairsText.Delete))
                     .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Deleting));
-            // Source col-12 / col-md-6 / col-lg-4.
-            var columns = style.ViewportWidth >= 992 ? 3 : style.ViewportWidth >= 768 ? 2 : 1;
-            var grid = Views.LazyVGrid(columns, list.Pairs.Select(pair => PairCard(pair, list, style)).ToArray())
-                .WithFlexibleWidth()
-                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.Pairs);
-            grid.Spacing = 12;
-            items.Add(grid);
+            var shown = ShownPairs(list);
+            _shownCount = shown.Count;
+            if (shown.Count == 0)
+                rows.Add(style.Text(Views.Text(text(NativeMinimalPairsText.NoResults)), SourceTextRole.Body1,
+                        SourceTextTone.Secondary)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                    .WithAccessibilityIdentifier(NativeMinimalPairsAccess.NoResults));
+            rows.AddRange(shown.Select(pair => PairRow(pair, list, style)));
         }
-        return Page(items, style, NativeMinimalPairsAccess.List);
+
+        // One outline in every state (a native List under the field), so the page updates in
+        // place and the search field keeps its focus while typing.
+        var body = BrowserPage.SingleColumn(ListPrefix, rows, style.ViewportWidth,
+            new BrowserPage.PageSearch(text(NativeMinimalPairsText.Search), _search, OnSearch, [], _ => { }),
+            style);
+        var ready = state.Phase == NativePhase.Ready && list is { IsLoading: false, IsDeleting: false };
+        // Its action reads nothing from this render (a toolbar button keeps its first action).
+        var add = BrowserPage.AddButton(ListPrefix, text(NativeMinimalPairsText.CreatePair),
+                () => FireFromList(_presenter.OpenCreateAsync, keepCreate: true), ready)
+            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreatePair);
+        return Views.Toolbar(style.Page(body).WithAccessibilityIdentifier(NativeMinimalPairsAccess.List), add);
     }
 
-    private SwiftView ModeRow(NativeMinimalPairsListState list, SourceUiStyle style)
+    /// <summary>The hosts update the list in place and re-render it only for a new PageVersion.</summary>
+    public BrowserPageUpdate BrowsePage => BrowserPageUpdate.MinimalPairs;
+
+    public string SearchText => _search;
+
+    /// <summary>"{n} pair(s)" under the title, following the search, once the list has loaded.</summary>
+    public string Subtitle => _state is { Phase: NativePhase.Ready, List: { IsLoading: false, IsEmpty: false } }
+        ? string.Format(CultureInfo.CurrentCulture, _host.Text(NativeMinimalPairsText.PairCount), _shownCount)
+        : string.Empty;
+
+    /// <summary>Typing narrows the pairs in the view; the presenter's state is not involved.</summary>
+    private void OnSearch(string value)
+    {
+        if (string.Equals(_search, value, StringComparison.Ordinal))
+            return;
+        _search = value;
+        _pageVersion++;
+        _host.Publish();
+    }
+
+    /// <summary>The pairs whose words or contrast contain the search (case-insensitive).</summary>
+    private List<NativeMinimalPairItem> ShownPairs(NativeMinimalPairsListState list)
+    {
+        var search = _search.Trim();
+        return search.Length == 0 ? [.. list.Pairs]
+            : [.. list.Pairs.Where(pair => pair.WordA.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                || pair.WordB.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                || pair.ContrastLabel?.Contains(search, StringComparison.CurrentCultureIgnoreCase) == true)];
+    }
+
+    /// <summary>Focus (one chosen pair) or Mixed (every pair), as a segmented picker.</summary>
+    private SwiftView ModeRow(NativeMinimalPairsListState list)
     {
         var text = _host.Text;
-        SwiftView ModeButton(string label, NativeMinimalPairsMode mode, SourceButtonGroupPosition position, string id)
-        {
-            var selected = list.Mode == mode;
-            Action action = () => Fire(token => _presenter.SetModeAsync(mode, token));
-            var button = selected
-                ? style.PrimaryButton(label, action, groupPosition: position)
-                : style.SecondaryButton(label, action, groupPosition: position);
-            return button.WithAccessibilitySelected(selected).WithAccessibilityIdentifier(id);
-        }
-        var modes = Views.ButtonGroup([
-                ModeButton(text(NativeMinimalPairsText.Focus), NativeMinimalPairsMode.Focus,
-                    SourceButtonGroupPosition.First, NativeMinimalPairsAccess.ModeFocus),
-                ModeButton(text(NativeMinimalPairsText.Mixed), NativeMinimalPairsMode.Mixed,
-                    SourceButtonGroupPosition.Last, NativeMinimalPairsAccess.ModeMixed)],
-                selectedIndex: list.Mode == NativeMinimalPairsMode.Focus ? 0 : 1)
-            .WithButtonGroupLayout(style.Appearance.BootstrapBaseButtonBorderWidth);
-        var row = new List<SwiftView>
-        {
-            style.Text(Views.Text(text(NativeMinimalPairsText.Mode)), SourceTextRole.Body1Bold)
-                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.ModeLabel),
-            modes,
-        };
-        if (list.ShowsStart)
-        {
-            var label = list.Mode == NativeMinimalPairsMode.Mixed
-                ? string.Format(CultureInfo.CurrentCulture, text(NativeMinimalPairsText.StartSessionCount),
-                    list.Pairs.Length)
-                : text(NativeMinimalPairsText.StartSession);
-            var start = style.PrimaryButton(label, () => Fire(_presenter.StartSessionAsync))
-                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.StartSession);
-            SourceUiStyle.SetCustomButtonAvailability(start, style.Appearance, SourceButtonRole.Primary,
-                list.CanStart);
-            row.Add(start);
-        }
-        var stack = Views.HStack(row.ToArray())
-            .WithAdaptiveStack(420)
-            .WithFlexibleWidth();
-        stack.Spacing = 16;
-        return stack;
+        return Views.Picker(text(NativeMinimalPairsText.Mode),
+                [text(NativeMinimalPairsText.Focus), text(NativeMinimalPairsText.Mixed)],
+                list.Mode == NativeMinimalPairsMode.Focus ? 0 : 1,
+                index => FireFromList(token => _presenter.SetModeAsync(
+                    index == 0 ? NativeMinimalPairsMode.Focus : NativeMinimalPairsMode.Mixed, token)))
+            .WithPickerStyle(SwiftPickerStyle.Segmented)
+            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.ModeLabel);
     }
 
-    private SwiftView PairCard(NativeMinimalPairItem pair, NativeMinimalPairsListState list, SourceUiStyle style)
+    /// <summary>
+    /// Start Session (with the pair count in Mixed). In Focus it names the chosen pair (which a
+    /// search may hide), and with none chosen it is disabled and says how to choose one, so a
+    /// disabled button never stands there unexplained.
+    /// </summary>
+    private SwiftView StartRow(NativeMinimalPairsListState list, SourceUiStyle style)
+    {
+        var text = _host.Text;
+        var label = list.Mode == NativeMinimalPairsMode.Mixed
+            ? string.Format(CultureInfo.CurrentCulture, text(NativeMinimalPairsText.StartSessionCount),
+                list.Pairs.Length)
+            : text(NativeMinimalPairsText.StartSession);
+        var start = Views.Button(Views.Label(label, "play.fill"), () => FireFromList(_presenter.StartSessionAsync))
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark)
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.StartSession);
+        start.IsEnabled = list.CanStart;
+        if (list.Mode != NativeMinimalPairsMode.Focus)
+            return start;
+        var chosen = list.Pairs.FirstOrDefault(pair => pair.Id == list.SelectedPairId);
+        var note = chosen is null ? text(NativeMinimalPairsText.SelectPairFirst)
+            : $"{chosen.WordA} {text(NativeMinimalPairsText.Vs)} {chosen.WordB}";
+        var row = Views.VStack(start,
+                style.Text(Views.Text(note), SourceTextRole.Small, SourceTextTone.Secondary))
+            .WithFlexibleWidth();
+        row.Spacing = 2;
+        return row;
+    }
+
+    /// <summary>
+    /// A pair row: its icon, "A vs B" and the contrast label, a checkmark when chosen (every pair
+    /// in Mixed). Tap chooses it for Focus. Swipe right to Study it (Focus on that pair, then its
+    /// session); swipe left for Delete, which asks first. No action runs on a full swipe.
+    /// </summary>
+    private SwiftView PairRow(NativeMinimalPairItem pair, NativeMinimalPairsListState list, SourceUiStyle style)
     {
         var text = _host.Text;
         var appearance = style.Appearance;
         var vs = text(NativeMinimalPairsText.Vs);
-        var words = Views.HStack(
-            style.Text(Views.Text(pair.WordA), SourceTextRole.Title3).WithSpeechLanguage(SpeechLanguage),
+        var title = Views.HStack(
+            style.Text(Views.Text(pair.WordA), SourceTextRole.ListTitle).WithSpeechLanguage(SpeechLanguage),
             style.Text(Views.Text(vs), SourceTextRole.Small, SourceTextTone.Secondary),
-            style.Text(Views.Text(pair.WordB), SourceTextRole.Title3).WithSpeechLanguage(SpeechLanguage));
-        words.Spacing = 8;
-        var details = new List<SwiftView> { words };
+            style.Text(Views.Text(pair.WordB), SourceTextRole.ListTitle).WithSpeechLanguage(SpeechLanguage));
+        title.Spacing = 6;
+        var lines = new List<SwiftView> { title };
         if (!string.IsNullOrEmpty(pair.ContrastLabel))
-            details.Add(style.Text(Views.Text(pair.ContrastLabel), SourceTextRole.Small, SourceTextTone.Secondary));
-        var detailStack = Views.VStack(details.ToArray()).WithFlexibleWidth();
-        detailStack.Spacing = 4;
+            lines.Add(style.Text(Views.Text(pair.ContrastLabel), SourceTextRole.Small, SourceTextTone.Secondary)
+                .WithLineLimit(1));
+        var terms = Views.VStack(lines.ToArray()).WithFlexibleWidth();
+        terms.Spacing = 2;
         var highlighted = list.IsHighlighted(pair.Id);
+        var check = Views.Image("checkmark")
+            .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+            .WithHidden(!highlighted);
+        var icon = Views.Image("waveform")
+            .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark);
+        var content = Views.HStack(icon, terms, check).WithFlexibleWidth();
+        content.Spacing = SourceUiLayout.ItemGap;
         var label = string.IsNullOrEmpty(pair.ContrastLabel)
             ? $"{pair.WordA} {vs} {pair.WordB}" : $"{pair.WordA} {vs} {pair.WordB}. {pair.ContrastLabel}";
-        var select = Views.Button(detailStack, () => Fire(token => _presenter.SelectPairAsync(pair.Id, token)))
+        var row = Views.Button(content, () => FireFromList(token => _presenter.SelectPairAsync(pair.Id, token)))
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
             .WithAccessibilityLabel(label)
             .WithAccessibilitySelected(highlighted)
             .WithAccessibilityIdentifier(pair.AccessibilityId)
             .WithSpeechLanguage(SpeechLanguage);
-        var delete = Views.Button(Views.Image("trash")
-                    .WithForegroundColor(appearance.Danger.Light, appearance.Danger.Dark)
-                    .WithPadding(6, 10, 6, 10)
-                    .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight),
-                () => Fire(token => _presenter.RequestDeleteAsync(pair.Id, token)))
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithButtonAppearance(null, null, appearance.Danger.Light, appearance.Danger.Dark,
-                appearance.BootstrapRadius)
-            .WithAccessibilityLabel($"{text(NativeMinimalPairsText.Delete)} {label}")
-            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairDelete(pair.Id));
-        var row = Views.HStack(select, delete).WithPadding(SourceUiLayout.CardInset);
-        row.Spacing = 16;
-        var border = highlighted ? appearance.Primary : appearance.Border;
-        return row.WithFlexibleWidth().WithRoundedSurface(appearance.CardSurface.Light, appearance.CardSurface.Dark,
-            16, border.Light, border.Dark, highlighted ? 2 : 1);
+        var trailing = new[]
+        {
+            // Red, not destructive: a destructive swipe action removes its row at once, and
+            // this one asks first.
+            Views.Button(Views.Label(text(NativeMinimalPairsText.Delete), "trash"),
+                    () => FireFromList(token => _presenter.RequestDeleteAsync(pair.Id, token)))
+                .WithTintColor(appearance.Danger.Light, appearance.Danger.Dark)
+                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairDelete(pair.Id)),
+        };
+        var leading = new[]
+        {
+            Views.Button(Views.Label(text(NativeMinimalPairsText.Study), "graduationcap"),
+                    () => FireFromList(token => _presenter.StudyPairAsync(pair.Id, token)))
+                .WithTintColor(appearance.Primary.Light, appearance.Primary.Dark)
+                .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairStudy(pair.Id)),
+        };
+        return Views.SwipeRow(row, trailing, leading)
+            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.PairSwipe(pair.Id));
     }
 
     // ---- Child page: create or session ----
@@ -414,6 +492,13 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         yield return rows;
     }
 
+    /// <summary>
+    /// Choosing a word clears its search, so its matches close and the next field is in reach;
+    /// the choice's redraw shows the empty field with the chosen word under it.
+    /// </summary>
+    private void ChooseWord(char slot, string wordId) =>
+        Fire(token => _presenter.SelectWordAsync(slot, wordId, token, clearSearch: true));
+
     /// <summary>Typing only refills the word rows' Section; the field itself is never re-mounted.</summary>
     private void OnSearchChanged(char slot, string value)
     {
@@ -432,11 +517,18 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             rows.Add(row);
     }
 
-    /// <summary>The words to choose from (at most MaxRows; then the refine hint), each a row.</summary>
+    /// <summary>
+    /// The words to choose from while the word's search has text (at most MaxRows; then the
+    /// refine hint), each a row. With no search there are none, so the second word sits right
+    /// under the first instead of below the whole vocabulary.
+    /// </summary>
     private SwiftView[] WordRows(char slot, NativeMinimalPairsCreateState create, SourceUiStyle style)
     {
         var appearance = style.Appearance;
-        var filtered = create.Filter(slot == 'A' ? create.SearchA : create.SearchB);
+        var search = slot == 'A' ? create.SearchA : create.SearchB;
+        if (string.IsNullOrWhiteSpace(search))
+            return [];
+        var filtered = create.Filter(search);
         var selectedId = slot == 'A' ? create.WordAId : create.WordBId;
         var rows = filtered.Take(NativeMinimalPairsCreateState.MaxRows).Select(word =>
         {
@@ -450,7 +542,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
                         .WithFlexibleWidth(),
                     check)
                 .WithFlexibleWidth();
-            return Views.Button(line, () => Fire(token => _presenter.SelectWordAsync(slot, word.Id, token)))
+            return Views.Button(line, () => ChooseWord(slot, word.Id))
                 .WithForegroundColor(appearance.Text.Light, appearance.Text.Dark)
                 .WithFlexibleWidth()
                 .WithAccessibilityLabel($"{word.Target}, {word.Native}")

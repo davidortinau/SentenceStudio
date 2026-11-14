@@ -10007,6 +10007,9 @@ For example: {0} ...</value>
   <data name="NativeMinimalPairs_RefineSearch" xml:space="preserve">
     <value>Showing {0} of {1} words. Search to narrow the list.</value>
   </data>
+  <data name="NativeMinimalPairs_PairCount" xml:space="preserve">
+    <value>{0} pair(s)</value>
+  </data>
   <data name="NativeMinimalPairs_SelectPairFirst" xml:space="preserve">
     <value>Please select a pair to practice in Focus mode.</value>
   </data>

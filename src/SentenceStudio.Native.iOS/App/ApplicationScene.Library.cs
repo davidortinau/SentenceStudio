@@ -23,6 +23,8 @@ internal sealed partial class ApplicationScene
     private SourceUiStyle? _placeholderStyle;
     private SwiftView? _pairsSlot;
     private SwiftView? _pairsToastLayer;
+    // The list page's overlay, which carries the title and the count under it.
+    private SwiftView? _pairsPage;
     private SwiftView? _pairsChildSlot;
     private SwiftView? _pairsChildToastLayer;
     private long _renderedPairsVersion = -1;
@@ -386,7 +388,9 @@ internal sealed partial class ApplicationScene
             _renderedPairsToastLayer = null;
             var page = Views.Overlay(_pairsSlot, _pairsToastLayer, SwiftOverlayEdge.Top)
                 .WithNavigationTitle(_app.LibraryPairsTitle)
+                .WithNavigationSubtitle(_app.LibraryPairsSubtitle)
                 .WithInlineNavigationTitle();
+            _pairsPage = page;
             // A browse page: the list keeps the tab bar (its alert is wrapped around it once).
             stack.Push(ApplicationFormRoutes.MinimalPairs,
                 _app.PresentLibraryPairsOver(page).WithTabBarHidden(false));
@@ -394,17 +398,18 @@ internal sealed partial class ApplicationScene
         else
         {
             // Only a changed list re-renders the list page (not the create page or the
-            // session above it); the same shape swaps its content in place, so the scroll
-            // position stays. A new appearance, style or width re-renders it whole.
+            // session above it); the same outline updates in place (BrowserPageUpdate), so the
+            // search field keeps its focus and the list its scroll position. A new appearance,
+            // style or width re-renders it whole.
             var reshaped = appearanceChanged || !ReferenceEquals(_renderedPairsStyle, _style)
                 || Math.Abs(_renderedPairsWidth - _style.ViewportWidth) >= 0.5;
             if (reshaped || _renderedPairsVersion != _app.LibraryPairsVersion)
             {
-                var next = _app.RenderLibraryPairs(_style);
-                if (reshaped || !TryReplaceScrollContent(_pairsSlot, next))
-                    Replace(_pairsSlot, next);
+                UpdateBrowsePage(_pairsSlot, _app.RenderLibraryPairs(_style), BrowserPageUpdate.MinimalPairs,
+                    reshaped, _app.LibraryPairsSearchText);
                 RecordPairs();
             }
+            _pairsPage?.WithNavigationSubtitle(_app.LibraryPairsSubtitle);
         }
 
         if (_app.LibraryPairsHasChildPage)
@@ -473,25 +478,6 @@ internal sealed partial class ApplicationScene
         _renderedPairsChildWidth = _style.ViewportWidth;
     }
 
-    /// <summary>
-    /// Swaps a mounted page's scroll content for the next render's (same scroll and content
-    /// ids), so the scroll position stays. False when the shapes differ.
-    /// </summary>
-    private static bool TryReplaceScrollContent(SwiftView slot, SwiftView next)
-    {
-        if (slot.Children.Count != 1 || slot.Children[0] is not { Kind: "scroll" } scroll
-            || next.Kind != "scroll" || scroll.Children.Count != 1 || next.Children.Count != 1
-            || scroll.AccessibilityIdentifier != next.AccessibilityIdentifier
-            || scroll.Children[0].AccessibilityIdentifier is not { Length: > 0 } contentId
-            || next.Children[0].AccessibilityIdentifier != contentId)
-            return false;
-        var content = next.Children[0];
-        next.RemoveAt(0);
-        next.Dispose();
-        ReplaceContainerChildren(scroll.Children[0], content);
-        return true;
-    }
-
     /// <summary>The toast follows the page on top (as on the activity page), posted once per toast.</summary>
     private void UpdatePairsToast()
     {
@@ -528,6 +514,7 @@ internal sealed partial class ApplicationScene
     {
         _pairsSlot = null;
         _pairsToastLayer = null;
+        _pairsPage = null;
         _pairsChildSlot = null;
         _pairsChildToastLayer = null;
         _renderedPairsToastLayer = null;

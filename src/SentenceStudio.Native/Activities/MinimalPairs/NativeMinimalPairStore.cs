@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -20,7 +21,7 @@ namespace SentenceStudio.Native;
 /// practised; the row stays on the device.
 /// </para>
 /// </summary>
-public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
+public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes, ILogger<NativeMinimalPairStore> logger)
 {
     /// <summary>The owner's vocabulary (words recorded to them), ordered by target term.</summary>
     public async Task<List<VocabularyWord>> ListWordsAsync(string owner, CancellationToken cancellationToken)
@@ -87,10 +88,16 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
             .Where(word => word.Id == a || word.Id == b)
             .CountAsync(cancellationToken);
         if (owned != 2)
+        {
+            logger.LogWarning("Minimal Pairs: {Owned} of the pair's two words are the owner's.", owned);
             return null;
+        }
         if (await db.MinimalPairs.AnyAsync(pair => pair.UserId == owner
                 && pair.VocabularyWordAId == a && pair.VocabularyWordBId == b, cancellationToken))
+        {
+            logger.LogInformation("Minimal Pairs: the owner already has this pair.");
             return null;
+        }
         var now = DateTime.UtcNow;
         var row = new MinimalPair
         {
@@ -108,9 +115,11 @@ public sealed class NativeMinimalPairStore(IServiceScopeFactory scopes)
         {
             await db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            // The unique (UserId, A, B) index caught a concurrent duplicate.
+            // Usually the unique (UserId, A, B) index catching a concurrent duplicate; logged
+            // because any other refusal (a constraint, a trigger) reads the same to the learner.
+            logger.LogWarning(ex, "Minimal Pairs: the database refused a new pair.");
             return null;
         }
         return row;

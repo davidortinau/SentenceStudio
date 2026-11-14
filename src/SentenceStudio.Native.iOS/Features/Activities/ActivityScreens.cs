@@ -23,6 +23,19 @@ internal interface IActivityScreen : IDisposable
 {
     string TitleKey { get; }
 
+    /// <summary>Optional text under the title (for example a list's count); empty shows none.</summary>
+    string Subtitle => string.Empty;
+
+    /// <summary>
+    /// Set when <see cref="Render"/> draws a browse page (a native List under the system search
+    /// field): a host re-renders it only when <see cref="PageVersion"/> changes and updates it in
+    /// place, so the search field keeps its focus.
+    /// </summary>
+    SentenceStudio.Native.iOS.Features.Browse.BrowserPageUpdate? BrowsePage => null;
+
+    /// <summary>The browse page's search text, which an in-place update gives the mounted field.</summary>
+    string SearchText => string.Empty;
+
     /// <summary>True once the presenter has stopped its timer and handed control back to the Dashboard.</summary>
     bool HasExited { get; }
 

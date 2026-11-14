@@ -7,6 +7,12 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationScene
 {
     private SwiftView? _activitySlot;
+    // The activity page's overlay, which carries the title and the text under it.
+    private SwiftView? _activityPage;
+    // What the activity page last drew (a browse page redraws only when these change).
+    private long _renderedActivityPageVersion = -1;
+    private SourceUiStyle? _renderedActivityStyle;
+    private double _renderedActivityWidth;
     private SwiftView? _activityToastLayer;
     private SwiftView? _activityChildToastLayer;
     private SwiftView? _renderedActivityToastLayer;
@@ -34,6 +40,7 @@ internal sealed partial class ApplicationScene
         _activityChildSlot = null;
         ForgetChildToastLayer();
         _activitySlot = null;
+        _activityPage = null;
         _activityToastLayer = null;
         _renderedActivityToastLayer = null;
         _activitySheet = null;
@@ -54,14 +61,17 @@ internal sealed partial class ApplicationScene
                 && !_app.IsActivityPopPending)
             {
                 _activitySlot = Views.VStack(_app.RenderActivity(_style));
+                RecordActivityPage();
                 // Transient toasts are layered over the page's top edge (clear of input bars); the
                 // layer is empty (and shows nothing) between toasts.
                 _activityToastLayer = Views.VStack().WithFlexibleWidth();
                 _renderedActivityToastLayer = null;
                 var page = Views.Overlay(_activitySlot, _activityToastLayer, SwiftOverlayEdge.Top)
                     .WithNavigationTitle(_app.ActivityTitle)
+                    .WithNavigationSubtitle(_app.ActivitySubtitle)
                     .WithInlineNavigationTitle()
                     .WithTabBarHidden();
+                _activityPage = page;
                 if (_app.ActivityHasSheet)
                 {
                     // One stable sheet node: re-rendering replaces only its slots.
@@ -80,8 +90,22 @@ internal sealed partial class ApplicationScene
             }
             else if (_activitySlot is not null)
             {
-                if (!_app.TryUpdateActivityInPlace(_style))
+                if (_app.ActivityBrowsePage is { } browse)
+                {
+                    // A browse page (Minimal Pairs) redraws only when it shows something new, in
+                    // place, so its search field keeps focus and an open swipe stays open.
+                    var reshaped = !ReferenceEquals(_renderedActivityStyle, _style)
+                        || Math.Abs(_renderedActivityWidth - _style.ViewportWidth) >= 0.5;
+                    if (reshaped || _renderedActivityPageVersion != _app.ActivityPageVersion)
+                    {
+                        UpdateBrowsePage(_activitySlot, _app.RenderActivity(_style), browse, reshaped,
+                            _app.ActivitySearchText);
+                        RecordActivityPage();
+                    }
+                }
+                else if (!_app.TryUpdateActivityInPlace(_style))
                     Replace(_activitySlot, _app.RenderActivity(_style));
+                _activityPage?.WithNavigationSubtitle(_app.ActivitySubtitle);
                 if (_activitySheet is not null && _activitySheetSlot is not null)
                 {
                     if (_app.IsActivitySheetPresented)
@@ -101,6 +125,7 @@ internal sealed partial class ApplicationScene
             _activityChildSlot = null;
             ForgetChildToastLayer();
             _activitySlot = null;
+            _activityPage = null;
             _activityToastLayer = null;
             _renderedActivityToastLayer = null;
             _activitySheet = null;
@@ -206,6 +231,13 @@ internal sealed partial class ApplicationScene
             if (stack.NavigationPath.Count > 1)
                 stack.Pop();
         }
+    }
+
+    private void RecordActivityPage()
+    {
+        _renderedActivityPageVersion = _app.ActivityPageVersion;
+        _renderedActivityStyle = _style;
+        _renderedActivityWidth = _style.ViewportWidth;
     }
 
     private void RecordActivityChild()

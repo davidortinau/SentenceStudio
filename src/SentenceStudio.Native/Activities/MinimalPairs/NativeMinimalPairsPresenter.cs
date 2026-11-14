@@ -263,9 +263,13 @@ public sealed class NativeMinimalPairsPresenter(
         return _create;
     }
 
-    /// <summary>Source select binding for word A or B; only one of the owner's listed words.</summary>
+    /// <summary>
+    /// Source select binding for word A or B; only one of the owner's listed words.
+    /// <paramref name="clearSearch"/> also empties that word's search when the choice is taken
+    /// (iOS closes the word's matches; a refused choice keeps the typed search).
+    /// </summary>
     public async Task<NativeMinimalPairsState> SelectWordAsync(char slot, string wordId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool clearSearch = false)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -275,8 +279,8 @@ public sealed class NativeMinimalPairsPresenter(
             if (_create.IsLoading || _create.IsSaving || _create.Words.All(word => word.Id != wordId))
                 return State;
             _create = char.ToUpperInvariant(slot) == 'A'
-                ? _create with { WordAId = wordId }
-                : _create with { WordBId = wordId };
+                ? _create with { WordAId = wordId, SearchA = clearSearch ? string.Empty : _create.SearchA }
+                : _create with { WordBId = wordId, SearchB = clearSearch ? string.Empty : _create.SearchB };
             return PublishReady();
         }
         finally
@@ -350,7 +354,19 @@ public sealed class NativeMinimalPairsPresenter(
     /// trials over every pair. Opens the session page, stores the session row,
     /// deals the first trial and plays its audio after 500 ms.
     /// </summary>
-    public async Task<NativeMinimalPairsState> StartSessionAsync(CancellationToken cancellationToken = default)
+    public Task<NativeMinimalPairsState> StartSessionAsync(CancellationToken cancellationToken = default) =>
+        StartAsync(studyPairId: null, cancellationToken);
+
+    /// <summary>
+    /// Study on one pair (the list's swipe action): Focus mode with that pair selected, then its
+    /// session, as one command, so nothing can change the mode or selection in between.
+    /// </summary>
+    public Task<NativeMinimalPairsState> StudyPairAsync(string pairId,
+        CancellationToken cancellationToken = default) =>
+        StartAsync(pairId, cancellationToken);
+
+    private async Task<NativeMinimalPairsState> StartAsync(string? studyPairId,
+        CancellationToken cancellationToken)
     {
         long generation;
         await _gate.WaitAsync(cancellationToken);
@@ -361,6 +377,12 @@ public sealed class NativeMinimalPairsPresenter(
             if (_list.IsLoading || _list.IsDeleting)
                 return State;
             _notices = [];
+            if (studyPairId is not null)
+            {
+                if (_list.Pairs.All(pair => pair.Id != studyPairId))
+                    return PublishReady();
+                _list = _list with { Mode = NativeMinimalPairsMode.Focus, SelectedPairId = studyPairId };
+            }
             if (_list.Mode == NativeMinimalPairsMode.Focus && _list.SelectedPairId is null)
             {
                 AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SelectPairFirst);

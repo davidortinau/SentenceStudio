@@ -18,6 +18,9 @@ internal sealed class BrowserPageUpdate
     /// <summary>Skills: its rows (and messages) are the list's children; no header.</summary>
     internal static readonly BrowserPageUpdate Skills = new("native.skills", headerKeep: 0);
 
+    /// <summary>Minimal Pairs: as Skills, its mode, start and pair rows are the list's children.</summary>
+    internal static readonly BrowserPageUpdate MinimalPairs = new("native.minimalpairs", headerKeep: 0);
+
     /// <summary>
     /// The parts rebuilt on each update, each with how many of its first children stay mounted:
     /// the wide page's search row keeps its field, the wide results keep

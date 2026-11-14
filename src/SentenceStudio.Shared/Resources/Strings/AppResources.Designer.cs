@@ -11317,6 +11317,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} pair(s).
+        /// </summary>
+        internal static string NativeMinimalPairs_PairCount {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_PairCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Audio playback error..
         /// </summary>
         internal static string NativeMinimalPairs_PlaybackError {

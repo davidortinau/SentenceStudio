@@ -31,6 +31,16 @@ internal sealed partial class ApplicationController
 
     internal string ActivityTitle => _activity is null ? string.Empty : Text(_activity.TitleKey);
 
+    internal string ActivitySubtitle => _activity?.Subtitle ?? string.Empty;
+
+    /// <summary>Set while the activity page is a browse page (it updates in place, by version).</summary>
+    internal Features.Browse.BrowserPageUpdate? ActivityBrowsePage =>
+        HasActivityOpenFailed ? null : _activity?.BrowsePage;
+
+    internal long ActivityPageVersion => _activity?.PageVersion ?? 0;
+
+    internal string ActivitySearchText => _activity?.SearchText ?? string.Empty;
+
     /// <summary>The open threw outside the screen, so the screen never left its loading state.</summary>
     private bool HasActivityOpenFailed => _activity is not null
         && ReferenceEquals(_activityOpenFailure, _activity);
