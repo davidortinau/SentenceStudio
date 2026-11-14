@@ -619,9 +619,9 @@ internal sealed class VocabularyDuplicateFinder
                 _store.MergeSafeOwnedVocabularyDuplicatesAsync(owner, focus, leftOut, keepers, cancellationToken));
             var message = merged.Refused.Count > 0
                 ? Format("Vocabulary_DuplicatesMergedAllWithRefusals",
-                    merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
+                    merged.RemovedCopies, merged.Refused.Count)
                 : merged.MergedGroups > 0
-                    ? Format("Vocabulary_DuplicatesMergedAll", merged.MergedGroups, merged.RemovedCopies)
+                    ? Format("Vocabulary_DuplicatesMergedAll", merged.RemovedCopies)
                     : _text("Vocabulary_DuplicatesNothingSafe");
             results.Add(message);
             results.AddRange(merged.Refused.Select(refusal =>

@@ -450,7 +450,7 @@ else
                         @if (!isCleanupRunning && DuplicateMergeAllCopyCount > 0)
                         {
                             <p class="mb-2" id="vocabulary-duplicates-summary">
-                                @string.Format(Localize["Vocabulary_DuplicatesSafeSummary"], duplicateSafeGroupCount, DuplicateMergeAllCopyCount)
+                                @string.Format(Localize["Vocabulary_DuplicatesSafeSummary"], DuplicateMergeAllCopyCount)
                             </p>
                             <button class="btn btn-primary btn-sm" id="vocabulary-duplicates-merge-all"
                                     @onclick="MergeAllSafeDuplicates" disabled="@isCleanupRunning">
@@ -833,7 +833,6 @@ else
     private int duplicatePageSize = 20;
     private int duplicateTotalGroupCount;
     private int duplicateExtraRecordCount;
-    private int duplicateSafeGroupCount;
     private int duplicateSafeCopyCount;
     private int duplicateReviewGroupCount;
     private int duplicateBlockedGroupCount;
@@ -1664,7 +1663,6 @@ else
         duplicateGroups.Clear();
         duplicateTotalGroupCount = 0;
         duplicateExtraRecordCount = 0;
-        duplicateSafeGroupCount = 0;
         duplicateSafeCopyCount = 0;
         duplicateReviewGroupCount = 0;
         duplicateBlockedGroupCount = 0;
@@ -1855,9 +1853,9 @@ else
             chosenDuplicateKeepers.Clear();
             var message = merged.Refused.Count > 0
                 ? string.Format(Localize["Vocabulary_DuplicatesMergedAllWithRefusals"],
-                    merged.MergedGroups, merged.RemovedCopies, merged.Refused.Count)
+                    merged.RemovedCopies, merged.Refused.Count)
                 : merged.MergedGroups > 0
-                    ? string.Format(Localize["Vocabulary_DuplicatesMergedAll"], merged.MergedGroups, merged.RemovedCopies)
+                    ? string.Format(Localize["Vocabulary_DuplicatesMergedAll"], merged.RemovedCopies)
                     : Localize["Vocabulary_DuplicatesNothingSafe"];
             cleanupResults.Add(message);
             foreach (var (term, key) in merged.Refused)
@@ -2338,7 +2336,6 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
         duplicateTotalGroupCount = result.TotalGroupCount;
         duplicateExtraRecordCount = result.ExtraRecordCount;
-        duplicateSafeGroupCount = result.SafeGroupCount;
         duplicateSafeCopyCount = result.SafeCopyCount;
         duplicateReviewGroupCount = result.ReviewGroupCount;
         duplicateBlockedGroupCount = result.BlockedGroupCount;

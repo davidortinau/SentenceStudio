@@ -247,7 +247,7 @@ internal sealed partial class AndroidSliceShell
         if (panel.CanMergeAll)
         {
             items.Add(Body(string.Format(CultureInfo.CurrentCulture,
-                    Localize("Vocabulary_DuplicatesSafeSummary"), panel.SafeGroupCount,
+                    Localize("Vocabulary_DuplicatesSafeSummary"),
                     panel.MergeAllCopyCount), palette,
                 modifier: Modifier.TestTag("native.vocabulary.duplicates.summary")));
             items.Add(Action(string.Format(CultureInfo.CurrentCulture,

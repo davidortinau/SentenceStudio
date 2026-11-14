@@ -20939,7 +20939,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {1}..
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {0}..
         /// </summary>
         internal static string Vocabulary_DuplicatesMergedAll {
             get {
@@ -20948,7 +20948,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {1}. Could not merge: {2}..
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {0}. Could not merge: {1}..
         /// </summary>
         internal static string Vocabulary_DuplicatesMergedAllWithRefusals {
             get {
@@ -21110,7 +21110,7 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Matching copies that can merge without losing anything: {1}..
+        ///   Looks up a localized string similar to Matching copies that can merge without losing anything: {0}..
         /// </summary>
         internal static string Vocabulary_DuplicatesSafeSummary {
             get {

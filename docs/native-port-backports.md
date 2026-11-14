@@ -151,6 +151,7 @@ Captain, 2026-11-06: "every word should have an owner and only be visible and us
 |---|---|---|---|
 | B35 | Audio cache | **Done** (`10237d83`, `af88ea47`, `76c15d61`; shared `UiSpeechClipCache`). Cached clips are stored with absolute paths; on iOS the app container path changes on reinstall, so cached audio is never found and is re-synthesized | MAUI audio cache users (quiz, shadowing, how-do-you-say) |
 | B36 | Writing | **Done** by B7 (MAUI uses the same Writing page and service). Same as B7 on MAUI with CoreSync: an unowned `VocabularyWord` row makes the server refuse the device's uploads (403) | MAUI CoreSync |
+| B90 | Vocabulary duplicates: three summary strings (web and MAUI through the shared Razor UI, native iOS and Android) | **Fixed (2026-11-14, pending deploy and app installs)**. The B89 rewording dropped the group count from `Vocabulary_DuplicatesSafeSummary`, `Vocabulary_DuplicatesMergedAll` and `Vocabulary_DuplicatesMergedAllWithRefusals` but kept `{1}`/`{2}`, so `ResourceParityTests.PlaceholderIndicesAreContiguousFromZero` failed (a skipped index throws if a caller passes fewer arguments). The strings now start at `{0}` in English and Korean, and every caller passes only the copy count (and the refusal count) | Shared resources; UI `Vocabulary.razor`; native presenter, iOS and Android pages |
 
 ## Found while backporting (open)
 

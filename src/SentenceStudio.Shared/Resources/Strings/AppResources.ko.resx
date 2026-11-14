@@ -9998,7 +9998,7 @@
     <value>중복 단어 정리</value>
   </data>
   <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
-    <value>아무것도 잃지 않고 병합할 수 있는 똑같은 사본: {1}개</value>
+    <value>아무것도 잃지 않고 병합할 수 있는 똑같은 사본: {0}개</value>
   </data>
   <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
     <value>똑같은 사본 병합({0}개)</value>
@@ -10007,10 +10007,10 @@
     <value>병합하는 중…</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
-    <value>남긴 사본에 병합한 똑같은 사본: {1}개</value>
+    <value>남긴 사본에 병합한 똑같은 사본: {0}개</value>
   </data>
   <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
-    <value>남긴 사본에 병합한 똑같은 사본: {1}개. 병합하지 못한 항목: {2}개</value>
+    <value>남긴 사본에 병합한 똑같은 사본: {0}개. 병합하지 못한 항목: {1}개</value>
   </data>
   <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
     <value>자동으로 병합할 그룹이 남아 있지 않습니다.</value>

@@ -79,7 +79,7 @@ internal static class VocabularyDuplicatesView
         if (panel.CanMergeAll)
         {
             rows.Add(style.Text(Views.Text(Format(text, "Vocabulary_DuplicatesSafeSummary",
-                        panel.SafeGroupCount, panel.MergeAllCopyCount)), SourceTextRole.Body1)
+                        panel.MergeAllCopyCount)), SourceTextRole.Body1)
                 .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"{Prefix}.summary"));
             rows.Add(NativeForm.CenteredRow(NativeForm.Prominent(style,
