@@ -59,7 +59,13 @@ A group is the learner's own copies of one target term (normalized as today).
 Every merge on a device syncs through CoreSync.Sqlite 0.1.129-local4 (B87), so a large merge no
 longer echoes deletes.
 
-## Status (2026-11-14, branch `library-split-view`, not committed)
+## Status (2026-11-14, `5af12ccb` on `main`)
+
+Shipped 2026-11-14 (Captain's go): API deployed (`scripts/prod-deploy.sh deploy`, revision
+api--0000037, validation 17 pass, 0 fail); native Release and MAUI 1.1.0 Release installed on
+Duotopia, both launched and running. A second review (8 findings) added: shared copies count
+when rating a group, a part of speech is compared and filled, a group with no keeper names none,
+and the web texts use the resources.
 
 Built, reviewed (10 findings: 7 fixed, 3 to the backlog) and run on the SS iPad simulator against
 the local stack (Test Sailor, 22 safe and 2 review groups seeded): Clean Up Duplicates opens the
