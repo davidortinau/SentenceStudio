@@ -2055,7 +2055,7 @@ else
                 try
                 {
                     var grade = await TeacherSvc.GradeTargetWordSentence(sentenceText, currentItem.Word, targetLanguage, nativeLanguage);
-                    var targetAnalysis = GetTargetWordAnalysis(grade, currentItem.Word);
+                    var targetAnalysis = SentenceStudio.Shared.Services.VocabQuizSentenceUsagePolicy.GetTargetWordAnalysis(grade, currentItem.Word);
 
                     if (targetAnalysis == null)
                     {
@@ -2197,52 +2197,6 @@ else
             .ToList();
     }
 
-    private static VocabularyAnalysis? GetTargetWordAnalysis(GradeResponse? grade, VocabularyWord word)
-    {
-        var targetTerm = NormalizeTargetWordValue(word.TargetLanguageTerm);
-        if (grade?.VocabularyAnalysis?.Any() != true || string.IsNullOrWhiteSpace(targetTerm))
-            return null;
-
-        foreach (var item in grade.VocabularyAnalysis)
-        {
-            if (NormalizeTargetWordValue(item.DictionaryForm) == targetTerm
-                || NormalizeTargetWordValue(item.UsedForm) == targetTerm)
-            {
-                return item;
-            }
-
-            var usedFormTokens = System.Text.RegularExpressions.Regex
-                .Split(item.UsedForm ?? string.Empty, @"[\s\p{P}\p{S}]+")
-                .Select(NormalizeTargetWordValue)
-                .Where(token => !string.IsNullOrWhiteSpace(token));
-
-            if (usedFormTokens.Any(token => token == targetTerm))
-            {
-                return item;
-            }
-        }
-
-        return null;
-    }
-
-    private static string NormalizeTargetWordValue(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        var normalized = value.Trim().Normalize(System.Text.NormalizationForm.FormKC);
-        var builder = new System.Text.StringBuilder(normalized.Length);
-
-        foreach (var ch in normalized)
-        {
-            if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch))
-            {
-                builder.Append(char.ToLowerInvariant(ch));
-            }
-        }
-
-        return builder.ToString().Trim();
-    }
 
     private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
     {
