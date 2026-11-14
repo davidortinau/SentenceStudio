@@ -31,6 +31,8 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
     public TaskCompletionSource<bool>? ClozeHang { get; set; }
     /// <summary>The reply to an example sentence prompt (source GeneratedExampleSentencesDto).</summary>
     public GeneratedExampleSentencesDto? ExampleResponse { get; set; }
+    /// <summary>The reply to a duplicate resolution prompt (docs/duplicate-merge-ai-plan.md).</summary>
+    public Func<string, DuplicateResolutionResponse?>? DuplicateResponder { get; set; }
     public string? LastPrompt { get; private set; }
     public string? LastOwner { get; private set; }
 
@@ -71,6 +73,8 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
         }
         if (typeof(T) == typeof(GeneratedExampleSentencesDto))
             return (T?)(object?)ExampleResponse;
+        if (typeof(T) == typeof(DuplicateResolutionResponse))
+            return (T?)(object?)DuplicateResponder?.Invoke(prompt);
         throw new NotSupportedException("The isolated AI fixture supports only resource, cloze and example responses.");
     }
 

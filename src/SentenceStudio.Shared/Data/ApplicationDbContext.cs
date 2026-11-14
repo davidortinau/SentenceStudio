@@ -461,6 +461,16 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<VocabularyLookup>().Ignore(e => e.NativeTerm);
         modelBuilder.Entity<VocabularyLookup>().HasIndex(e => new { e.UserProfileId, e.LastLookedUpAt });
 
+        // Duplicate decisions (docs/duplicate-merge-ai-plan.md): owner-scoped and synced. The ID
+        // is derived from owner, kind, term and copies (SyncIds.VocabularyDuplicateDecision); the
+        // word IDs are plain references with no constraint, since a merge removes copies.
+        modelBuilder.Entity<VocabularyDuplicateDecision>().ToTable("VocabularyDuplicateDecision").HasKey(e => e.Id);
+        modelBuilder.Entity<VocabularyDuplicateDecision>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<VocabularyDuplicateDecision>().Property(e => e.Kind).HasConversion<string>();
+        modelBuilder.Entity<VocabularyDuplicateDecision>().Property(e => e.DecidedBy).HasConversion<string>();
+        modelBuilder.Entity<VocabularyDuplicateDecision>().Ignore(e => e.CopyIdList);
+        modelBuilder.Entity<VocabularyDuplicateDecision>().HasIndex(e => new { e.UserProfileId, e.TermKey });
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -517,5 +527,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NumberAttempt> NumberAttempts => Set<NumberAttempt>();
 
     public DbSet<VocabularyLookup> VocabularyLookups => Set<VocabularyLookup>();
+
+    public DbSet<VocabularyDuplicateDecision> VocabularyDuplicateDecisions => Set<VocabularyDuplicateDecision>();
 
 }

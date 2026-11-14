@@ -24,6 +24,7 @@ internal sealed partial class ApplicationController
     internal void OpenRecentLookups()
     {
         if (!IsVocabularyOpen || IsVocabularyWordOpen || IsRecentLookupsOpen
+            || IsVocabularyDuplicatesOpen
             || _vocabulary?.IsNavigationBlocked == true || _services is null)
             return;
         var provider = _services.Provider;

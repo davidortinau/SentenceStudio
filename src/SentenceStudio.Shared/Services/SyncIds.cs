@@ -118,6 +118,36 @@ public static class SyncIds
         return builder.ToString().ToLowerInvariant();
     }
 
+    /// <summary>
+    /// One decision per learner, kind, duplicate term and set of copies (docs/duplicate-merge-ai-plan.md).
+    /// "dd:" and the first 16 bytes, as lower-case hex, of the SHA-256 of the UTF-8 text
+    /// <c>owner U+001F kind U+001F term U+001F copies</c>, where kind is "Merged" or "KeptApart",
+    /// term is the group's normalized target term (<see cref="VocabularyDuplicatePolicy.NormalizeTargetTerm"/>)
+    /// and copies is <see cref="DuplicateDecisionCopies"/>. Every client (including the Flutter
+    /// port) must build it the same way (docs/sync-all-tables-plan.md, "Duplicate decisions").
+    /// </summary>
+    public static string VocabularyDuplicateDecision(
+        string userId, SentenceStudio.Shared.Models.VocabularyDuplicateDecisionKind kind,
+        string termKey, IEnumerable<string> copyIds)
+    {
+        Require(userId, nameof(userId));
+        Require(termKey, nameof(termKey));
+        var copies = DuplicateDecisionCopies(copyIds);
+        Require(copies, nameof(copyIds));
+        var key = string.Join('\u001f', userId, kind.ToString(), termKey, copies);
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(key));
+        return "dd:" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// A decision's copies as stored and hashed: the distinct, trimmed word IDs, ordinal-sorted,
+    /// joined with ",".
+    /// </summary>
+    public static string DuplicateDecisionCopies(IEnumerable<string> copyIds) =>
+        string.Join(',', copyIds.Select(id => id?.Trim() ?? string.Empty).Where(id => id.Length > 0)
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+
     private static void Require(string value, string name)
     {
         if (string.IsNullOrWhiteSpace(value))

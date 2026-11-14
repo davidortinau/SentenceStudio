@@ -293,6 +293,46 @@ public interface INativeResourceStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Duplicate merge is not available from this store.");
 
+    /// <summary>
+    /// Source MergeSafeDuplicateGroupsAsync for the active owner: every merge that loses nothing,
+    /// or only <paramref name="focusTerm"/>'s (a page focused on one word), never taking the
+    /// copies in <paramref name="leaveOut"/> (left out or skipped on the page), and keeping the
+    /// copies in <paramref name="keepers"/> (chosen with Keep This).
+    /// </summary>
+    Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
+        string owner, string? focusTerm, IReadOnlyCollection<string> leaveOut,
+        IReadOnlyCollection<string> keepers, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate merge is not available from this store.");
+
+    /// <summary>
+    /// Resolve with AI for the active owner (shared VocabularyDuplicateAiCleanup): the safe
+    /// merges, then the AI on the groups left to review, never one holding a copy in
+    /// <paramref name="leaveOut"/>, keeping the copies in <paramref name="keepers"/> (Keep This);
+    /// its confident calls apply, the rest come back as suggestions.
+    /// </summary>
+    Task<NativeVocabularyDuplicateAiResult> ResolveOwnedVocabularyDuplicatesWithAiAsync(
+        string owner, IReadOnlyCollection<string> leaveOut, IReadOnlyCollection<string> keepers,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate resolution with AI is not available from this store.");
+
+    /// <summary>
+    /// The owner's standing duplicate decisions, newest first, for the page's list (only
+    /// <paramref name="focusTerm"/>'s on a page focused on one word).
+    /// </summary>
+    Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
+        string owner, string? focusTerm, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<NativeVocabularyDuplicateDecision>>([]);
+
+    /// <summary>Undoes one of the owner's duplicate decisions.</summary>
+    Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionAsync(
+        string owner, string decisionId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Duplicate undo is not available from this store.");
+
+    /// <summary>Keep Apart: the owner's copies of one term stop showing as duplicates.</summary>
+    Task<NativeVocabularyMergeResult> KeepOwnedVocabularyDuplicatesApartAsync(
+        string owner, IReadOnlyCollection<string> wordIds, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Keeping duplicates apart is not available from this store.");
+
     Task<IReadOnlyList<NativeResourceItem>> ListAsync(
         string owner, CancellationToken cancellationToken);
 

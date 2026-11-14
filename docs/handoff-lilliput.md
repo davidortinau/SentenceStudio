@@ -173,8 +173,8 @@ The Workers project has an ID but no secrets file.
   otherwise picks `MaxProWildDev` (no app groups, MT7140). Local git-ignored
   `src/SentenceStudio.iOS/SentenceStudio.iOS.csproj.user` and
   `src/SentenceStudio.ShareExtension/SentenceStudio.ShareExtension.csproj.user` set
-  `CodesignProvision` to the new profiles' UUIDs for Release. The Android SDK platform 37 is not
-  installed, so Shared's `net11.0-android` target does not build here.
+  `CodesignProvision` to the new profiles' UUIDs for Release. The Android SDK platform 37 is
+  installed (2026-11-14).
 - **Restores outside `src/`:** projects under `tests/` and `tools/` restore through their own
   NuGet configs, which name api.nuget.org; on Lilliput pass a mirror config that also lists
   `lib/coresync` and `lib/coresync-postgresql-local3` (`--configfile`).
@@ -204,15 +204,17 @@ The Workers project has an ID but no secrets file.
   keyboard fix (95), the progress count repair and the sync cascade-echo fix (B87,
   `docs/progress-count-repair-2026-11-13.md`). API deployed; Duotopia has the native app and the
   MAUI app (1.1.0 (3)).
-- **Next:** DX24 and any other MAUI installs need builds with CoreSync.Sqlite 0.1.129-local4; no
-  duplicate merges until then. Then the duplicate-merge keeper fix (먹다: the recommended keeper is
-  linked from the ownerless Starter Vocabulary resource, so the merge refuses), and
-  `docs/native-review-backlog.md`.
+- **Clients:** DX24 is retired (2026-11-14); Duotopia's native and MAUI apps are the only clients.
+  Duplicate merges are allowed again.
+- **Next:** the duplicate-merge rework: a keeper that can actually be merged (먹다's recommended
+  keeper is linked from the ownerless Starter Vocabulary resource, so the merge refuses), a
+  full-width cleanup that merges every safe group in one step and flags only risky ones; then
+  `docs/native-review-backlog.md`. Skill flexibility is deferred (issue #224).
 - **Tests:** iOS contract tests 472/474 (two long-standing failures:
   `SourceButtons_KeepNativeHit...`, `SamPresentationUsesOnlyTheSwiftUIFacade`). The SwiftUIViews
   harness runs here (27/29; two Word editor cases fail, backlog).
-- **Waiting on the Captain:** the Korean wording of new strings (listed in
-  `docs/handoff-2026-11-13-remaining-work.md`).
+- **Korean:** every key in `AppResources.resx` has a Korean entry (2026-11-14); keep it that way
+  in each change without asking.
 
 ## Local-only work not yet on GitHub
 

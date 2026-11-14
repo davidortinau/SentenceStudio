@@ -20714,6 +20714,141 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Different base forms.
+        /// </summary>
+        internal static string Vocabulary_DuplicateDifferenceBaseForm {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicateDifferenceBaseForm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Different language or kind.
+        /// </summary>
+        internal static string Vocabulary_DuplicateDifferenceLanguageOrKind {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicateDifferenceLanguageOrKind", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Different meanings.
+        /// </summary>
+        internal static string Vocabulary_DuplicateDifferenceMeaning {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicateDifferenceMeaning", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Different memory aids.
+        /// </summary>
+        internal static string Vocabulary_DuplicateDifferenceMemoryAid {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicateDifferenceMemoryAid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: kept apart as {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiKeptApart {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiKeptApart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: merged as &quot;{1}&quot;.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiMerged {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiMerged", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The AI did not answer for this one. Try Resolve with AI again..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiNoAnswer {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiNoAnswer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Decisions.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiReport {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiReport", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI suggests keeping them apart as {0}. {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiSuggestsApart {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiSuggestsApart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI suggests merging as &quot;{0}&quot;. {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiSuggestsMerge {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiSuggestsMerge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI suggests: {0}. {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiSuggestsMixed {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiSuggestsMixed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AI merged: {0}. Kept apart: {1}. Copies removed: {2}. For you to decide: {3}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiSummary {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiSummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The AI could not be reached, so it decided nothing. Try again when you are online..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiUnavailable {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The AI could not decide this one..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAiUnsure {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAiUnsure", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Every copy is used by another learner, so none can be kept..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesAllShared {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesAllShared", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Auto-merge All.
         /// </summary>
         internal static string Vocabulary_DuplicatesAutoMergeAll {
@@ -20741,11 +20876,65 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Can&apos;t Merge.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesCantMerge {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesCantMerge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to it changed while the AI was deciding. Check it again..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesChangedSinceAi {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesChangedSinceAi", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose the copies to merge. The others stay as they are..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesChooseHint {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesChooseHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose at least two copies to merge..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesChooseTwo {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesChooseTwo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Clean Up Duplicates.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesCleanUp {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesCleanUp", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} copies.
         /// </summary>
         internal static string Vocabulary_DuplicatesCopies {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesCopies", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to copy {0} of {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesCopyPosition {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesCopyPosition", resourceCulture);
             }
         }
 
@@ -20813,6 +21002,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Mastery {0}% · attempts: {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesHistory {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesHistory", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keeps this copy.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeep {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeep", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep Apart.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeepApart {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeepApart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to these copies could not be kept apart. Check them again..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeepApartFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeepApartFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep This.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeepThis {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeepThis", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Kept apart: {0}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesKeptApart {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesKeptApart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMerge {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMerge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge Matching Copies ({0}).
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMergeAll {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMergeAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {0}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMergedAll {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMergedAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Matching copies merged into the copies kept: {0}. Could not merge: {1}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMergedAllWithRefusals {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMergedAllWithRefusals", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Merged &apos;{0}&apos;: kept 1, removed {1}.
         /// </summary>
         internal static string Vocabulary_DuplicatesMergedCount {
@@ -20845,6 +21124,51 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesMergeKeepBest {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesMergeKeepBest", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t merge &apos;{0}&apos;: {1}.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMergeRefused {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMergeRefused", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merging….
+        /// </summary>
+        internal static string Vocabulary_DuplicatesMerging {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesMerging", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Needs Review.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNeedReview {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNeedReview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merging these would lose something. Merge keeps the first copy&apos;s meaning and memory aid; Skip leaves the copies as they are..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNeedReviewNote {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNeedReviewNote", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not practised yet.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNoHistory {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNoHistory", resourceCulture);
             }
         }
 
@@ -20885,6 +21209,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Nothing left to merge automatically..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesNothingSafe {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesNothingSafe", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Another learner uses the other copies, so they stay. Merge moves your history and resources to the copy you keep..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesOthersShared {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesOthersShared", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Recommended keeper.
         /// </summary>
         internal static string Vocabulary_DuplicatesRecommendedKeeper {
@@ -20894,11 +21236,38 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Resolve with AI.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesResolveWithAi {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesResolveWithAi", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The AI is checking which copies mean the same thing....
+        /// </summary>
+        internal static string Vocabulary_DuplicatesResolvingWithAi {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesResolvingWithAi", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} resources.
         /// </summary>
         internal static string Vocabulary_DuplicatesResourceCount {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesResourceCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Matching copies that can merge without losing anything: {0}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesSafeSummary {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesSafeSummary", resourceCulture);
             }
         }
 
@@ -20930,6 +21299,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Skip.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesSkip {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesSkip", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Find Duplicates.
         /// </summary>
         internal static string Vocabulary_DuplicatesTitle {
@@ -20944,6 +21322,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_DuplicatesTitleForTerm {
             get {
                 return ResourceManager.GetString("Vocabulary_DuplicatesTitleForTerm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Undo.
+        /// </summary>
+        internal static string Vocabulary_DuplicatesUndo {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesUndo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not undo {0}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesUndoFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesUndoFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Undone: {0}..
+        /// </summary>
+        internal static string Vocabulary_DuplicatesUndone {
+            get {
+                return ResourceManager.GetString("Vocabulary_DuplicatesUndone", resourceCulture);
             }
         }
 
@@ -21416,11 +21821,47 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The merge did not complete. Try again..
+        /// </summary>
+        internal static string Vocabulary_MergeFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_MergeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Merge Group.
         /// </summary>
         internal static string Vocabulary_MergeGroup {
             get {
                 return ResourceManager.GetString("Vocabulary_MergeGroup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The copy to keep is used by another learner, so nothing was merged..
+        /// </summary>
+        internal static string Vocabulary_MergeRefusedKeeperShared {
+            get {
+                return ResourceManager.GetString("Vocabulary_MergeRefusedKeeperShared", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Nothing could be merged: the other copies are linked to another learner&apos;s data..
+        /// </summary>
+        internal static string Vocabulary_MergeRefusedNothingToMove {
+            get {
+                return ResourceManager.GetString("Vocabulary_MergeRefusedNothingToMove", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Some copies aren&apos;t yours, so nothing was merged..
+        /// </summary>
+        internal static string Vocabulary_MergeRefusedNotYours {
+            get {
+                return ResourceManager.GetString("Vocabulary_MergeRefusedNotYours", resourceCulture);
             }
         }
 

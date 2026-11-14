@@ -192,6 +192,12 @@ internal sealed partial class AndroidSliceShell
                     vocabulary.CloseWord();
                     return true;
                 }
+                // The duplicate page sits under a word its Edit opened, so it closes after the word.
+                if (vocabulary.DuplicatePanel is not null)
+                {
+                    vocabulary.CloseDuplicates();
+                    return true;
+                }
                 break;
             case MoreScreen.ImportContent when HandleImportContentBack():
                 return true;

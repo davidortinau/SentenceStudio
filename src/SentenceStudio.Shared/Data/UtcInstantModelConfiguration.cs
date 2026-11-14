@@ -40,6 +40,7 @@ internal static class UtcInstantModelConfiguration
         typeof(NumberAttempt),
         typeof(NumberMasteryProgress),
         typeof(VocabularyLookup),
+        typeof(VocabularyDuplicateDecision),
     ];
 
     internal static DateTime ToUtcInstant(DateTime value) => value.Kind switch

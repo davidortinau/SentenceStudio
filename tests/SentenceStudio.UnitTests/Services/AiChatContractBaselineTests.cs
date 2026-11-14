@@ -77,6 +77,7 @@ public class AiChatContractBaselineTests
         "SentenceStudio.Shared.Models.VocabularyExtractionResponse",
         "SentenceStudio.Shared.Models.WordAssociationGradeResponse",
         "SentenceStudio.Services.DTOs.GeneratedExampleSentencesDto",
+        "SentenceStudio.Services.DTOs.DuplicateResolutionResponse",
         // Resolved reflectively by the registry because it is internal to Shared.
         "SentenceStudio.Services.ContentClassificationAiResponse",
     };

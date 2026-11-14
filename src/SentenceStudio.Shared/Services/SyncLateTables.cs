@@ -40,6 +40,9 @@ public static class SyncLateTables
             // Lookup history (decision 4 B): a new table, so a device has no rows to upload, but
             // one that synced with an older app moved past the web's lookups and asks again.
             ["VocabularyLookup"] = "UserProfileId",
+            // Duplicate decisions: a new table, so a device that synced with an older app asks
+            // again for the decisions made on the web or another device.
+            ["VocabularyDuplicateDecision"] = "UserProfileId",
             // Not late-joined: phase 3 rebuilt this table on SQLite to change ScenarioId, which
             // drops its tracking triggers. Listing it re-sends the owner's conversations once,
             // with their converted scenario links, the first time the device tracks it again.

@@ -25,6 +25,18 @@ public sealed class NativeVocabularyRouteTests
         Assert.False(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
             formOpen: false, formMounted: true, canNavigateBack: true,
             path: [ApplicationFormRoutes.Skills, ApplicationFormRoutes.SkillForm]));
+        // Captain 2026-11-14: the duplicate page's Edit opens the editor above that page.
+        string[] aboveDuplicates = [
+            ApplicationFormRoutes.Vocabulary,
+            ApplicationFormRoutes.VocabularyDuplicates,
+            ApplicationFormRoutes.VocabularyWordForm
+        ];
+        Assert.True(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
+            formOpen: false, formMounted: true, canNavigateBack: true,
+            path: aboveDuplicates));
+        Assert.False(ApplicationFormRoutes.ShouldPopVocabularyWordForm(
+            formOpen: false, formMounted: true, canNavigateBack: true,
+            path: [ApplicationFormRoutes.Vocabulary, ApplicationFormRoutes.VocabularyDuplicates]));
     }
 
     [Fact]
