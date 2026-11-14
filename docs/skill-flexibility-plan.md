@@ -1,6 +1,6 @@
 # Skill flexibility plan
 
-Status: proposal, waiting on the Captain (2026-11-12). Nothing here is built.
+Status: proposal, deferred by the Captain (2026-11-14) and tracked as issue #224. Nothing here is built.
 
 ## Why
 
