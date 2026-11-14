@@ -101,7 +101,7 @@ public sealed class NativeVocabularyRouteTests
         // The search bar sits below the scroll (Captain 2026-11-12), so the content keeps no rows.
         Assert.Contains("($\"{prefix}.scroll.content\", 0),", update);
         Assert.Contains("($\"{prefix}.results.header\", headerKeep),", update);
-        Assert.Contains("($\"{prefix}.results.content\", 1),", update);
+        Assert.Contains("($\"{prefix}.results.content\", LeadingHeader),", update);
         // Another sort or grid/list choice mounts a new page, so the results start at the top.
         Assert.Contains("|| arrangement != _renderedVocabularyArrangement);", scene);
         Assert.Contains("child.SystemImageName = nextChild.SystemImageName;", update);

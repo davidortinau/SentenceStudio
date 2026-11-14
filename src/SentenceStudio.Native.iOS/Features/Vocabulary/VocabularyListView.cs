@@ -107,12 +107,15 @@ internal static class VocabularyListView
     /// The words show as a native List (Captain 2026-11-12: Library lists are native lists with
     /// swipe actions): always in one column (a phone, the Library split view's list column),
     /// and in list mode on a wide page (its grid stays a grid). Not while the duplicate manager
-    /// is open above the words: its several buttons would share one list row's tap.
+    /// is open above the words: its several buttons would share one list row's tap. One column
+    /// is a List in every state (loading, an error, no words, no matches: a row each), as Skills
+    /// is, so the page keeps its outline under the system search field, updates in place and
+    /// the field keeps its focus and Korean composition: one jamo matches no words, and the
+    /// page mounted anew under it closed the keyboard on every keystroke (Duotopia 2026-11-13).
+    /// The wide layout shows only a loaded list.
     /// </summary>
     internal static bool AsNativeList(VocabularyBrowserList state, bool wide) =>
-        !state.Loading && !state.Blocked && state.ErrorKey is null
-        && state.FilteredWords.Count > 0 && state.Duplicates is null
-        && (!wide || state.ListMode);
+        state.Duplicates is null && (!wide || state.ListMode);
 
     internal static SwiftView PhoneFilterSheet(
         VocabularyBrowserList state, SourceUiStyle style,

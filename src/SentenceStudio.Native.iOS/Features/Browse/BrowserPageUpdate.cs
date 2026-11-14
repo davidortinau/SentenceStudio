@@ -24,22 +24,30 @@ internal sealed class BrowserPageUpdate
     /// <summary>
     /// The parts rebuilt on each update, each with how many of its first children stay mounted:
     /// the wide page's search row keeps its field, the wide results keep
-    /// their header and the header keeps <c>headerKeep</c> rows (Vocabulary's counts: their
+    /// their header when they lead with one (<see cref="LeadingHeader"/>: Vocabulary's; Resources
+    /// has none, so its first result row is never part of the outline) and the header keeps
+    /// <c>headerKeep</c> rows (Vocabulary's counts: their
     /// badges and texts take the new values in place, so a counts row scrolled sideways stays
     /// where it is).
     /// </summary>
     private readonly (string Id, int Keep)[] Regions;
 
+    /// <summary>A region keeps its first child only when that child is the results header.</summary>
+    private const int LeadingHeader = -1;
+
+    private readonly string _headerId;
+
     private BrowserPageUpdate(string prefix, int headerKeep)
     {
         SearchId = $"{prefix}.search";
+        _headerId = $"{prefix}.results.header";
         Regions =
         [
             ($"{prefix}.search.row", 1),
             ($"{prefix}.scroll.content", 0),
             ($"{prefix}.filters.panel.content", 0),
             ($"{prefix}.results.header", headerKeep),
-            ($"{prefix}.results.content", 1),
+            ($"{prefix}.results.content", LeadingHeader),
         ];
     }
 
@@ -65,16 +73,18 @@ internal sealed class BrowserPageUpdate
             if (!mounted.Nodes.TryGetValue(id, out var region)
                 || !fresh.Nodes.TryGetValue(id, out var nextRegion))
                 continue;
-            while (region.Children.Count > keep)
+            var kept = Kept(keep, region);
+            while (region.Children.Count > kept)
             {
-                var old = region.Children[keep];
-                region.RemoveAt(keep);
+                var old = region.Children[kept];
+                region.RemoveAt(kept);
                 old.Dispose();
             }
-            while (nextRegion.Children.Count > keep)
+            kept = Kept(keep, nextRegion);
+            while (nextRegion.Children.Count > kept)
             {
-                var child = nextRegion.Children[keep];
-                nextRegion.RemoveAt(keep);
+                var child = nextRegion.Children[kept];
+                nextRegion.RemoveAt(kept);
                 region.Add(child);
             }
         }
@@ -110,6 +120,11 @@ internal sealed class BrowserPageUpdate
         return true;
     }
 
+    /// <summary>How many of <paramref name="region"/>'s first children stay mounted.</summary>
+    private int Kept(int keep, SwiftView region) =>
+        keep != LeadingHeader ? keep
+            : region.Children.Count > 0 && region.Children[0].AccessibilityIdentifier == _headerId ? 1 : 0;
+
     /// <summary>
     /// The page's outline (every node's kind and ID, without what the rebuilt regions hold) and
     /// its outlined nodes by ID, in one walk that never enters a region's rebuilt children (the
@@ -134,7 +149,7 @@ internal sealed class BrowserPageUpdate
             {
                 if (region == id)
                 {
-                    count = Math.Min(keep, count);
+                    count = Math.Min(Kept(keep, node), count);
                     break;
                 }
             }

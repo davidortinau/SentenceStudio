@@ -203,10 +203,14 @@ internal static class LearningResourcesView
             AsNativeList(state) ? style : null);
     }
 
-    /// <summary>The list mode with resources to show is a native List (the grid stays a grid).</summary>
+    /// <summary>
+    /// List mode is a native List in every state (the grid stays a grid): loading, an error and
+    /// the empty page are rows (its buttons are plain-styled, so each takes its own tap), so the
+    /// page keeps its outline while typing and the search field keeps its focus and Korean
+    /// composition. The wide layout shows only a loaded list.
+    /// </summary>
     private static bool AsNativeList(NativeResourceListState state) =>
-        state.ViewMode == NativeResourceViewMode.List
-        && state.Phase == NativeResourceListPhase.Populated;
+        state.ViewMode == NativeResourceViewMode.List;
 
     /// <summary>The search field's tokens: the Type and Language filters that are on.</summary>
     private static List<SwiftSearchToken> SearchTokens(NativeResourceListState state)

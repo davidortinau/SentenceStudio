@@ -427,7 +427,9 @@ var cases = new (string Name, Action Test)[]
         Assert(!Find(page, "native.vocabulary.filters.open")!.AccessibilitySelected);
         Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 3);
         using var listPage = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
-        Assert(Find(listPage, "native.vocabulary.cards")!.GridColumns == 1);
+        // List mode is a native List of rows (Captain 2026-11-12), the header its first row.
+        Assert(Find(listPage, "native.vocabulary.results.content")!.Kind == "list");
+        Assert(Find(listPage, "native.vocabulary.cards") is null);
         var toggle = Find(listPage, "native.vocabulary.view.toggle")!;
         Assert(toggle.Children[0].Text == "Vocabulary_GridView"
             && toggle.Children[0].SystemImageName == "square.grid.3x3");
@@ -505,7 +507,7 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(page, "native.vocabulary.stats") is null);
         Assert(Find(page, "native.vocabulary.search")!.Kind == "searchable");
         var content = Find(page, "native.vocabulary.scroll.content")!;
-        Assert(Find(content, "native.vocabulary.cards")!.GridColumns == 1);
+        Assert(content.Kind == "list" && content.Children.Count == 3);
         var state = ListState() with { SheetSortField = "updated", SheetSortDescending = false };
         using var sheet = VocabularyListView.PhoneFilterSheet(state, style, key => key,
             new VocabularyFilterActions((_, _) => { }, _ => { }, () => { }, () => { }, () => { }));
@@ -545,9 +547,43 @@ var cases = new (string Name, Action Test)[]
         Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(phone, phoneNext));
         phoneNext.Dispose();
         Assert(ReferenceEquals(Find(phone, BrowserPageUpdate.Vocabulary.SearchId), phoneSearch));
-        Assert(Find(phone, "native.vocabulary.cards")!.Children.Count == 1);
+        Assert(Find(phone, "native.vocabulary.scroll.content")!.Children.Count == 1);
     }),
-    ("Vocabulary: another layout is mounted anew; the grid/list switch changes in place", () =>
+    // Duotopia 2026-11-13: one Korean jamo matches no words; the List gave way to a plain
+    // column, the page under the field was mounted anew and the keyboard closed on every key.
+    ("Vocabulary: a search that matches no words keeps the List and updates in place", () =>
+    {
+        using var phone = VocabularyListView.Page(ListState(), style, key => key, ListActions());
+        var search = Find(phone, BrowserPageUpdate.Vocabulary.SearchId)!;
+        var none = VocabularyListView.Page(ListState(query: "ㅂ"), style, key => key, ListActions());
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(phone, none));
+        none.Dispose();
+        Assert(ReferenceEquals(Find(phone, BrowserPageUpdate.Vocabulary.SearchId), search));
+        Assert(Find(phone, "native.vocabulary.status") is not null);
+        var back = VocabularyListView.Page(ListState(query: "바다"), style, key => key, ListActions());
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(phone, back));
+        back.Dispose();
+        Assert(ReferenceEquals(Find(phone, BrowserPageUpdate.Vocabulary.SearchId), search));
+        Assert(Find(phone, "native.vocabulary.status") is null);
+
+        // A reload while typing (a sync, the word editor saving) keeps the List too.
+        var loading = VocabularyListView.Page(ListState(query: "바다") with { Loading = true }, style,
+            key => key, ListActions());
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(phone, loading));
+        loading.Dispose();
+        Assert(ReferenceEquals(Find(phone, BrowserPageUpdate.Vocabulary.SearchId), search));
+        Assert(Find(phone, "native.vocabulary.status") is not null);
+
+        using var wide = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
+        var wideSearch = Find(wide, BrowserPageUpdate.Vocabulary.SearchId)!;
+        var wideNone = VocabularyListView.Page(ListState(query: "ㅂ", listMode: true), wideStyle,
+            key => key, ListActions());
+        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(wide, wideNone));
+        wideNone.Dispose();
+        Assert(ReferenceEquals(Find(wide, BrowserPageUpdate.Vocabulary.SearchId), wideSearch));
+        Assert(Find(wide, "native.vocabulary.status") is not null);
+    }),
+    ("Vocabulary: another layout is mounted anew, as is the switch between the grid and the List", () =>
     {
         using var page = VocabularyListView.Page(ListState(), wideStyle, key => key, ListActions());
         var shape = BrowserPageUpdate.Vocabulary.Outline(page).Shape;
@@ -558,13 +594,12 @@ var cases = new (string Name, Action Test)[]
         Assert(!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, phone));
         phone.Dispose();
         Assert(BrowserPageUpdate.Vocabulary.Outline(page).Shape == shape);
-        var list = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
-        Assert(BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, list));
-        list.Dispose();
-        var toggle = Find(page, "native.vocabulary.view.toggle")!;
+        // The grid and the native List (Captain 2026-11-12) are different outlines.
+        using var list = VocabularyListView.Page(ListState(listMode: true), wideStyle, key => key, ListActions());
+        Assert(!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(page, list));
+        var toggle = Find(list, "native.vocabulary.view.toggle")!;
         Assert(toggle.Children[0].Text == "Vocabulary_GridView"
             && toggle.Children[0].SystemImageName == "square.grid.3x3");
-        Assert(Find(page, "native.vocabulary.cards")!.GridColumns == 1);
     }),
     // Captain 2026-11-10: every Library browse page has the same plain Add (+), last in its
     // toolbar; the Vocabulary one opens the source's add-word form.
@@ -686,6 +721,29 @@ var cases = new (string Name, Action Test)[]
         none.Dispose();
         Assert(ReferenceEquals(Find(page, BrowserPageUpdate.Resources.SearchId), search));
         Assert(Find(page, "native.resources.count") is null && Find(page, "native.resources.empty.add") is not null);
+        // List mode keeps its List with no matches, the source's empty page one row; wide too,
+        // whatever its first row was (an unconfirmed sync shows no status row above the results).
+        foreach (var (pageStyle, sync) in new[] { (style, NativeResourceSyncPhase.Confirmed),
+                     (wideStyle, NativeResourceSyncPhase.Confirmed), (wideStyle, NativeResourceSyncPhase.Unconfirmed) })
+        {
+            var listMode = Resources() with { ViewMode = NativeResourceViewMode.List, Sync = sync };
+            using var list = LearningResourcesView.Page(listMode, null, pageStyle, key => key, ResourceActions());
+            var listSearch = Find(list, BrowserPageUpdate.Resources.SearchId)!;
+            var listNone = LearningResourcesView.Page(
+                listMode with { Phase = NativeResourceListPhase.NoMatches, Items = [] },
+                null, pageStyle, key => key, ResourceActions());
+            Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(list, listNone));
+            listNone.Dispose();
+            Assert(ReferenceEquals(Find(list, BrowserPageUpdate.Resources.SearchId), listSearch));
+            Assert(Find(list, "native.resources.empty.actions") is not null);
+            Assert(Find(list, "native.resources.row.r1.swipe") is null);
+            var back = LearningResourcesView.Page(listMode, null, pageStyle, key => key, ResourceActions());
+            Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(list, back));
+            back.Dispose();
+            Assert(Find(list, "native.resources.empty") is null);
+            Assert(Find(list, "native.resources.row.r1.swipe") is not null
+                && Find(list, "native.resources.row.r2.swipe") is not null);
+        }
         // A starter resource in progress holds the page and its toolbar still, in place.
         var busy = LearningResourcesView.Page(Resources() with { StarterBusy = true }, null, style, key => key, ResourceActions());
         Assert(BrowserPageUpdate.Resources.TryUpdateInPlace(page, busy));

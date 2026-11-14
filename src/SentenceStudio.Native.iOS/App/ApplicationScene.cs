@@ -888,12 +888,13 @@ internal sealed partial class ApplicationScene : IDisposable
         SourceUiStyle.RefreshTypography(_root, _app.Appearance, width);
         Find(_dashboardSlot, "native.dashboard.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
-        Find(_resourcesSlot, "native.resources.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
+        // A browse page's column is either the padded stack or a native List (its own insets).
+        if (Find(_resourcesSlot, "native.resources.scroll.content") is { Kind: not "list" } resourcesColumn)
+            resourcesColumn.WithPadding(SourceUiLayout.PageGutter(width));
         Find(_activityLogSlot, "native.activity-log.scroll.content")?.WithPadding(
             SourceUiLayout.PageGutter(width));
-        Find(_vocabularySlot, "native.vocabulary.scroll.content")?.WithPadding(
-            SourceUiLayout.PageGutter(width));
+        if (Find(_vocabularySlot, "native.vocabulary.scroll.content") is { Kind: not "list" } vocabularyColumn)
+            vocabularyColumn.WithPadding(SourceUiLayout.PageGutter(width));
         if (Find(_resourcesSlot, "native.resources.grid") is { } resourceGrid)
             resourceGrid.GridColumns = LearningResourcesView.GridColumns(
                 _app.ResourcesPageWidth ?? width, _style.TextScale, _app.ResourcesFilterPanelShown);
