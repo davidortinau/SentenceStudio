@@ -428,6 +428,50 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         WordExists(basicCar).Should().BeFalse();
     }
 
+    // docs/duplicate-merge-ai-plan.md: the AI sees only groups to review, with the learner's own
+    // sense clues (resource titles, an example), never another learner's.
+    [Fact]
+    public async Task GetDuplicateGroupsForAi_SendsOnlyGroupsToReview_WithTheLearnersOwnClues()
+    {
+        SeedUserProfile(UserB);
+        var month = SeedWord("달", "month");
+        var moon = SeedWord(" 달 ", "moon");
+        var apple = SeedWord("사과", "apple");
+        var appleCopy = SeedWord(" 사과 ", "apple");
+        // A copy another learner's resource also links stays in the group to review (a merge
+        // keeps it), but that learner's resource title is not the learner's clue.
+        var sharedMoon = SeedWord("달", "moon");
+        EnsureWordsMappedToUser(UserA, month, moon, apple, appleCopy, sharedMoon);
+        EnsureWordsMappedToUser(UserB, sharedMoon);
+        using (var seed = _fixture.ServiceProvider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.ExampleSentences.AddRange(
+                new ExampleSentence { VocabularyWordId = moon, TargetSentence = "달이 밝아요", NativeSentence = "The moon is bright",
+                    UserProfileId = UserA, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new ExampleSentence { VocabularyWordId = sharedMoon, TargetSentence = "다른 사람 문장", UserProfileId = UserB,
+                    CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+            db.SaveChanges();
+        }
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        var groups = await repo.GetDuplicateGroupsForAiAsync();
+
+        var group = groups.Should().ContainSingle("사과's identical copies merge without the AI").Subject;
+        group.Term.Should().Be("달");
+        var moonCopy = group.Copies.Single(copy => copy.Id == moon);
+        moonCopy.Meaning.Should().Be("moon");
+        moonCopy.Example.Should().Be("달이 밝아요 (The moon is bright)");
+        moonCopy.Resources.Should().Equal($"Resource {UserA}");
+        group.Copies.Single(copy => copy.Id == month).Language.Should().Be("Korean");
+        var shared = group.Copies.Single(copy => copy.Id == sharedMoon);
+        shared.Resources.Should().Equal($"Resource {UserA}");
+        shared.Example.Should().BeNull("another learner's sentence is not the learner's clue");
+        (await repo.GetDuplicateGroupsForAiAsync(userProfileId: UserB)).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task FindDuplicateVocabularyGroups_FlagsALanguageOrKindConflictForReview()
     {

@@ -1878,6 +1878,72 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
+    /// The learner's duplicate groups to review, as the AI sees them (docs/duplicate-merge-ai-plan.md):
+    /// each copy's fields plus its sense clues, the titles of the learner's resources that hold it
+    /// and one of the learner's example sentences for it. Groups are keyed by their normalized term.
+    /// </summary>
+    public async Task<IReadOnlyList<VocabularyDuplicateAiGroup>> GetDuplicateGroupsForAiAsync(
+        CancellationToken ct = default, string? userProfileId = null)
+    {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetDuplicateGroupsForAiAsync called without an active user — returning no groups.");
+            return [];
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var groups = (await ScanDuplicateGroupsAsync(db, userId, null, ct))
+            .Where(group => group.EffectiveRisk == VocabularyDuplicateRisk.Review)
+            .ToList();
+        if (groups.Count == 0)
+            return [];
+
+        var ids = groups.SelectMany(group => group.Words.Select(info => info.Word.Id)).ToArray();
+        var titles = (await db.ResourceVocabularyMappings.AsNoTracking()
+                .Where(mapping => ids.Contains(mapping.VocabularyWordId) && mapping.Resource.UserProfileId == userId)
+                .Select(mapping => new { mapping.VocabularyWordId, mapping.Resource.Title })
+                .ToListAsync(ct))
+            .Where(mapping => !string.IsNullOrWhiteSpace(mapping.Title))
+            .GroupBy(mapping => mapping.VocabularyWordId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key,
+                group => group.Select(mapping => mapping.Title!.Trim()).Distinct(StringComparer.Ordinal)
+                    .Order(StringComparer.Ordinal).Take(3).ToArray(),
+                StringComparer.Ordinal);
+        var examples = (await db.ExampleSentences.AsNoTracking().OwnedBy(userId)
+                .Where(sentence => ids.Contains(sentence.VocabularyWordId) && !sentence.IsFlagged)
+                .Select(sentence => new { sentence.VocabularyWordId, sentence.TargetSentence, sentence.NativeSentence, sentence.IsCore, sentence.CreatedAt })
+                .ToListAsync(ct))
+            .GroupBy(sentence => sentence.VocabularyWordId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group =>
+                {
+                    var best = group.OrderByDescending(sentence => sentence.IsCore).ThenBy(sentence => sentence.CreatedAt).First();
+                    return string.IsNullOrWhiteSpace(best.NativeSentence)
+                        ? best.TargetSentence.Trim()
+                        : $"{best.TargetSentence.Trim()} ({best.NativeSentence.Trim()})";
+                },
+                StringComparer.Ordinal);
+
+        return groups.Select(group => new VocabularyDuplicateAiGroup(group.NormalizedTerm, group.DisplayTerm,
+                group.Words.Select(info => new VocabularyDuplicateAiCopy(
+                    info.Word.Id,
+                    info.Word.NativeLanguageTerm?.Trim() ?? string.Empty,
+                    info.Word.Lemma,
+                    info.Word.PartOfSpeech is { } partOfSpeech ? VocabularyPartOfSpeechTokens.ToToken(partOfSpeech) : null,
+                    info.Word.LexicalUnitType.ToString(),
+                    info.Word.Language,
+                    Snippet(info.Word.MnemonicText, 160),
+                    examples.GetValueOrDefault(info.Word.Id),
+                    titles.GetValueOrDefault(info.Word.Id) ?? []))
+                    .ToArray()))
+            .ToArray();
+
+        static string? Snippet(string? text, int length) => string.IsNullOrWhiteSpace(text) ? null
+            : text.Trim().Length <= length ? text.Trim() : text.Trim()[..length];
+    }
+
+    /// <summary>
     /// Every duplicate group of the learner's own words (the one ownership rule, with or without a
     /// resource), rated as docs/duplicate-merge-plan.md describes: the keeper is the first copy in
     /// merge order the merge can keep, removable copies are those no other learner's data uses, and
