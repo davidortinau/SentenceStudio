@@ -159,6 +159,17 @@ public class ScoringEngineTests : IDisposable
         ContextType = "Isolated"
     };
 
+    [Theory]
+    [InlineData("Text", 1.5f)]
+    [InlineData("MultipleChoice", 1.0f)]
+    [InlineData(null, 1.0f)]
+    public void QuizAttemptWeight_MatchesTheQuizClients(string? inputMode, float expected)
+    {
+        // The Vocabulary Quiz (web, MAUI and native) and the integration-test helpers all read the
+        // weight from here (#199), so a text-entry attempt is weighted the same everywhere.
+        VocabularyMasteryCalculator.QuizAttemptWeight(inputMode).Should().Be(expected);
+    }
+
     // ════════════════════════════════════════════════════════════════
     //  1-5: DifficultyWeight Acceleration
     // ════════════════════════════════════════════════════════════════

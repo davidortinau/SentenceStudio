@@ -393,6 +393,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
             Activity = "VocabularyQuiz",
             InputMode = inputMode,
             WasCorrect = wasCorrect,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(inputMode),
             LearningResourceId = resourceId,
             ContextType = "Isolated",
             ResponseTimeMs = 1500

@@ -2356,7 +2356,7 @@ else
             Activity = "VocabularyQuiz",
             InputMode = userMode,
             WasCorrect = isCorrect,
-            DifficultyWeight = userMode == "Text" ? 1.5f : 1.0f,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(userMode),
             ContextType = "Isolated",
             UserInput = answer,
             ExpectedAnswer = correctAnswer,

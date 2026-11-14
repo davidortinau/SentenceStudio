@@ -26,6 +26,19 @@ public static class VocabularyMasteryCalculator
     public const float STREAK_PRESERVE_DIVISOR = 8.0f;
     public const float RECOVERY_BOOST = 0.02f;
 
+    /// <summary>
+    /// Vocabulary Quiz attempt weight for text entry (production recall). Every quiz client and
+    /// the test fixtures read it through <see cref="QuizAttemptWeight"/> so they cannot drift.
+    /// </summary>
+    public const float QUIZ_TEXT_WEIGHT = 1.5f;
+
+    /// <summary>Vocabulary Quiz attempt weight for multiple choice (recognition).</summary>
+    public const float QUIZ_CHOICE_WEIGHT = 1.0f;
+
+    /// <summary>The Vocabulary Quiz's <see cref="VocabularyAttempt.DifficultyWeight"/> for an input mode.</summary>
+    public static float QuizAttemptWeight(string? inputMode) =>
+        inputMode == "Text" ? QUIZ_TEXT_WEIGHT : QUIZ_CHOICE_WEIGHT;
+
     private const int MAX_REVIEW_INTERVAL_DAYS = 365;
     private const int MASTERED_REVIEW_INTERVAL_DAYS = 60;
 
