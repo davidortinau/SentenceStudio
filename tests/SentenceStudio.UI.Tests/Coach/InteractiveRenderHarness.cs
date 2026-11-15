@@ -162,6 +162,38 @@ internal sealed class InteractiveTestRenderer : Renderer
         return ids;
     }
 
+    /// <summary>Every <c>href</c> rendered by a component and by everything it rendered.</summary>
+    public IReadOnlyList<string> RenderedHrefs(int componentId)
+    {
+        var hrefs = new List<string>();
+        CollectHrefs(componentId, hrefs);
+        return hrefs;
+    }
+
+    private void CollectHrefs(int componentId, List<string> hrefs)
+    {
+        var frames = GetCurrentRenderTreeFrames(componentId);
+        var array = frames.Array;
+
+        for (var i = 0; i < frames.Count; i++)
+        {
+            ref readonly var frame = ref array[i];
+
+            switch (frame.FrameType)
+            {
+                case RenderTreeFrameType.Attribute
+                    when string.Equals(frame.AttributeName, "href", StringComparison.Ordinal)
+                         && frame.AttributeValue is string href:
+                    hrefs.Add(href);
+                    break;
+
+                case RenderTreeFrameType.Component when frame.ComponentId != 0:
+                    CollectHrefs(frame.ComponentId, hrefs);
+                    break;
+            }
+        }
+    }
+
     /// <summary>The component types instantiated beneath a component, in render order.</summary>
     public IReadOnlyList<string> RenderedComponentNames(int componentId)
     {
@@ -548,6 +580,34 @@ internal sealed class InteractiveTestRenderer : Renderer
             try
             {
                 await DispatchEventAsync(handlerId, fieldInfo: null, new ChangeEventArgs { Value = value });
+            }
+            catch (Exception ex)
+            {
+                _unhandled.Add(ex);
+            }
+        });
+
+    /// <summary>
+    /// Types into the input carrying <paramref name="elementId"/>, for a field bound on
+    /// <c>oninput</c> rather than on change.
+    /// </summary>
+    public Task InputValueByIdAsync(int componentId, string elementId, string value) =>
+        DispatchByIdAsync(componentId, elementId, "oninput", new ChangeEventArgs { Value = value });
+
+    /// <summary>Submits the form carrying <paramref name="elementId"/>, as Enter or its button does.</summary>
+    public Task SubmitFormByIdAsync(int componentId, string elementId) =>
+        DispatchByIdAsync(componentId, elementId, "onsubmit", EventArgs.Empty);
+
+    private Task DispatchByIdAsync(int componentId, string elementId, string eventName, EventArgs args) =>
+        Dispatcher.InvokeAsync(async () =>
+        {
+            var handlerId = FindHandlerById(componentId, elementId, eventName)
+                ?? throw new InvalidOperationException(
+                    $"No element with id '{elementId}' and an {eventName} handler was found in component {componentId}.");
+
+            try
+            {
+                await DispatchEventAsync(handlerId, fieldInfo: null, args);
             }
             catch (Exception ex)
             {

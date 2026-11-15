@@ -8,6 +8,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IEnumerable<IHostNavItemProvider> HostNavProviders
+@inject ILogger<NavMenu> Logger
 @implements IDisposable
 
 <nav class="nav flex-column p-2 gap-1">
@@ -27,6 +29,14 @@
         var key = item.Key;
         <a class="nav-link nav-link-ss rounded px-3 py-2 @(NavMemory.IsSectionActive(key) ? "active" : "")"
            href="" @onclick="() => NavigateToSection(key)" @onclick:preventDefault title="@item.Label">
+            <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
+        </a>
+    }
+
+    @foreach (var item in _hostItems)
+    {
+        <a class="nav-link nav-link-ss rounded px-3 py-2 @(IsHostItemActive(item) ? "active" : "")"
+           href="@item.Href" @onclick="CloseOffcanvas" title="@item.Label">
             <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
         </a>
     }
@@ -59,10 +69,51 @@
         new NavItem("feedback", "bi-chat-dots", Localize["Nav_Feedback"]),
     };
 
+    // Entries the host app adds (the web app's Admin link). Empty on every host that registers none.
+    private IReadOnlyList<HostNavItem> _hostItems = [];
+    private bool _disposed;
+
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
         Localize.CultureChanged += OnCultureChanged;
+    }
+
+    // Asked only once the page is interactive, so a prerender never spends a host's lookup.
+    protected override Task OnInitializedAsync() => LoadHostItemsAsync();
+
+    /// <summary>Asks every host provider for its entries. True when what is drawn changed.</summary>
+    private async Task<bool> LoadHostItemsAsync()
+    {
+        if (!RendererInfo.IsInteractive || !HostNavProviders.Any())
+        {
+            return false;
+        }
+
+        var items = new List<HostNavItem>();
+        foreach (var provider in HostNavProviders)
+        {
+            try
+            {
+                items.AddRange(await provider.GetItemsAsync());
+            }
+            catch (Exception ex)
+            {
+                // A host entry is optional; the learner's navigation must not depend on it.
+                Logger.LogWarning(ex, "A host navigation provider failed; its entries are not shown");
+            }
+        }
+
+        var changed = !items.SequenceEqual(_hostItems);
+        _hostItems = items;
+        return changed;
+    }
+
+    private bool IsHostItemActive(HostNavItem item)
+    {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0];
+        return path.Equals(item.Href, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(item.Href + "/", StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
@@ -98,7 +149,22 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(async () =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            StateHasChanged();
+
+            // A provider answers from what it already knows, so this costs nothing on most
+            // navigations; it is how an entry appears or goes once the host's answer changes.
+            if (await LoadHostItemsAsync() && !_disposed)
+            {
+                StateHasChanged();
+            }
+        });
     }
 
     private async Task CloseOffcanvas()
@@ -112,6 +178,7 @@
 
     public void Dispose()
     {
+        _disposed = true;
         Nav.LocationChanged -= OnLocationChanged;
         Localize.CultureChanged -= OnCultureChanged;
     }

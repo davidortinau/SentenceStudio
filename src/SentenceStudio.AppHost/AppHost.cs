@@ -237,6 +237,15 @@ foreach (var (environmentName, value) in coachEnvironmentResult.EnvironmentVaria
     api = api.WithEnvironment(environmentName, value);
 }
 
+// Admin portal: the addresses that may be admins. The other half is the Admin role row written by
+// scripts/admin-grant.sh; either alone gives nothing. Same source rule as Coach above: the full
+// configuration (user secrets, environment) for a local run, explicit environment variables only
+// when publishing. Nothing set leaves the API with no admins.
+foreach (var (environmentName, value) in AdminConfigurationReader.ReadApiEnvironment(coachConfiguration))
+{
+    api = api.WithEnvironment(environmentName, value);
+}
+
 // Email (production only -- dev mode uses ConsoleEmailSender automatically), applied to api:
 //   .WithEnvironment("Email__SmtpHost", "<smtp-host>")
 //   .WithEnvironment("Email__SmtpPort", "587")

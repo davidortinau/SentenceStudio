@@ -1,0 +1,194 @@
+@page "/admin/audit"
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+
+@*
+    The audit log: one row per admin request that the API admitted and recorded. Rows are loaded
+    in the live circuit only, never into the prerendered page.
+*@
+
+<AdminGate @ref="_gate" Load="() => LoadAsync(before: null)">
+    <PageTitle>Audit log</PageTitle>
+    <PageHeader Title="Audit log" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
+        <ToolbarActions>
+            <button id="admin-audit-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-audit">
+        @if (_loadFailed)
+        {
+            <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                <span>The audit log could not be loaded. Use Refresh to try again.</span>
+            </div>
+        }
+
+        @if (_rows.Count == 0 && !_loading && !_loadFailed)
+        {
+            <p class="text-secondary" id="admin-audit-empty">
+                <i class="bi bi-inbox me-1" aria-hidden="true"></i>Nothing recorded before this visit.
+            </p>
+        }
+        else if (_rows.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle" id="admin-audit-table">
+                    <caption class="visually-hidden">Admin requests, newest first</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">When (UTC)</th>
+                            <th scope="col">Who</th>
+                            <th scope="col">Action</th>
+                            <th scope="col">On</th>
+                            <th scope="col">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr @key="row.Id" data-audit-id="@row.Id">
+                                <td class="text-nowrap">@row.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>
+                                    @switch (row.ActorKind)
+                                    {
+                                        case AdminAuditCodes.ActorAdmin:
+                                            @(row.ActorEmail ?? row.ActorId)
+                                            break;
+                                        case AdminAuditCodes.ActorAgentToken:
+                                            <span>Agent token <code class="small">@row.ActorId</code></span>
+                                            break;
+                                        default:
+                                            <span>Unknown (@row.ActorKind) <code class="small">@row.ActorId</code></span>
+                                            break;
+                                    }
+                                </td>
+                                <td><code>@row.Action</code></td>
+                                <td>
+                                    @if (row.TargetId is null)
+                                    {
+                                        <span class="text-secondary">&mdash;</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@row.TargetKind <code class="small">@row.TargetId</code></span>
+                                    }
+                                </td>
+                                <td>
+                                    <i class="bi @OutcomeIcon(row) me-1" aria-hidden="true"></i>@OutcomeText(row)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_nextBefore is not null)
+            {
+                <button id="admin-audit-older" class="btn btn-outline-secondary mb-3" type="button"
+                        @onclick="LoadOlderAsync" disabled="@_loading">
+                    Load older rows
+                </button>
+            }
+        }
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    private const int PageSize = 50;
+
+    private AdminGate? _gate;
+    private readonly List<AdminAuditRow> _rows = [];
+    private long? _nextBefore;
+    private bool _loading;
+    private bool _loadFailed;
+
+    private async Task RefreshAsync() => CloseIfRefused(await LoadAsync(before: null));
+
+    private async Task LoadOlderAsync()
+    {
+        if (_nextBefore is { } before)
+        {
+            CloseIfRefused(await LoadAsync(before));
+        }
+    }
+
+    /// <summary>
+    /// Loads one page of rows and returns how the API answered. The first call is the gate's;
+    /// later ones (Refresh, older rows) close the gate themselves if the API now says 404.
+    /// </summary>
+    private async Task<AdminApiStatus> LoadAsync(long? before)
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetAuditAsync(before, PageSize);
+            _loadFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+            if (result.Status == AdminApiStatus.NotFound)
+            {
+                State.MarkNotAdmin();
+                _rows.Clear();
+                _nextBefore = null;
+            }
+            else if (result.Value is { } page)
+            {
+                if (before is null)
+                {
+                    _rows.Clear();
+                }
+
+                _rows.AddRange(page.Items);
+                _nextBefore = page.NextBefore;
+            }
+
+            return result.Status;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CloseIfRefused(AdminApiStatus status)
+    {
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+    }
+
+    // Icon and words together: the result is never carried by colour alone. A code this page does
+    // not know is shown as that, not passed off as one it does.
+    private static string OutcomeIcon(AdminAuditRow row) => row.Outcome switch
+    {
+        AdminAuditCodes.OutcomeSucceeded => "bi-check-circle",
+        AdminAuditCodes.OutcomeFailed => "bi-x-circle",
+        AdminAuditCodes.OutcomeStarted => "bi-hourglass-split",
+        _ => "bi-question-circle"
+    };
+
+    private static string OutcomeText(AdminAuditRow row) => row.Outcome switch
+    {
+        AdminAuditCodes.OutcomeSucceeded => "Succeeded",
+        AdminAuditCodes.OutcomeFailed when row.FailureCode is not null => $"Failed ({row.FailureCode})",
+        AdminAuditCodes.OutcomeFailed => $"Failed ({row.StatusCode})",
+        AdminAuditCodes.OutcomeStarted => "Started, ending not recorded",
+        _ => $"Unknown ({row.Outcome})"
+    };
+}

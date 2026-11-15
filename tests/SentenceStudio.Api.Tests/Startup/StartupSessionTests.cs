@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using SentenceStudio.Api;
+using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Api.Feedback.Persistence;
 using SentenceStudio.Api.Startup;
@@ -396,8 +397,10 @@ public sealed class StartupSessionTests
             StartupDbContextFactory.CoachOptions(connection, interceptors));
         using var feedback = new FeedbackDbContext(
             StartupDbContextFactory.FeedbackOptions(connection, interceptors));
+        using var admin = new AdminDbContext(
+            StartupDbContextFactory.AdminOptions(connection, interceptors));
 
-        foreach (var context in new DbContext[] { application, coach, feedback })
+        foreach (var context in new DbContext[] { application, coach, feedback, admin })
         {
             context.Database.GetDbConnection().Should().BeSameAs(connection);
             context.Database.CreateExecutionStrategy().RetriesOnFailure.Should().BeFalse();
@@ -707,7 +710,7 @@ public sealed class StartupSessionTests
     [Fact]
     public void Different_coach_or_feedback_databases_refuse_unfenced_startup()
     {
-        foreach (var alternate in new[] { "coach", "feedback" })
+        foreach (var alternate in new[] { "coach", "feedback", "admin" })
         {
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?>

@@ -351,3 +351,26 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 
 - **Five `SentenceStudio.Native.iOS.Tests` fail on `main` (`46f6ec14`).** `NativeSourceStylingContractTests.SourceButtons_KeepNativeHitAndDisabledVisuals_WithARealTransparentOutline` (expects 5 `WithButtonBorderWidth(` uses, finds 6) and `SourcePhoneDashboard_UsesGridTilesAndPaddedCards`; `NativeVocabularyListContractTests.CancelWaitsForDeleteAndStudyUsesTheWordsResources` and `LongListsNeverBuildEveryRowOrMenuItem`; `NativeSamContractTests.SamPresentationUsesOnlyTheSwiftUIFacade` (`ApplicationController.Sam.cs` reads the theme and device model through UIKit for the feedback report: device facts, not UI, so narrow the test rather than the code). They read source text that later work changed; update each to the current source.
 
+
+## Admin portal phase 0 (review 2026-11-15, branch `admin-portal`)
+
+Correctness findings from `/code-review xhigh` were fixed on the branch. These are the cleanup
+findings, and one fault found in code the branch did not change.
+
+- **Sign-in loses failed attempts made in parallel (existing code, not changed).**
+  `AuthEndpoints.Login` and `ServerAuthService.SignInAsync` check the password and then call
+  `UserManager.AccessFailedAsync` without reading its result. A burst of simultaneous wrong
+  passwords collides on the account's concurrency stamp, one write wins, and the burst counts as
+  one failure toward lockout (#89). The API route also has a per-address rate limit; web sign-in
+  runs in the circuit and has none. The admin password check counts each attempt atomically
+  before looking at it (`src/SentenceStudio.Api/Admin/AdminPasswordCheck.cs`); the two sign-in
+  paths could share it.
+- **The UTC timestamp pin is now in four places.** `PinTimestampsToUtc` and its converter are the
+  same code in `AdminDbContext`, `FeedbackDbContext`, `CoachDbContext` and
+  `ApplicationOperationModelConfiguration`. One shared `ModelBuilder` extension would do.
+- **Every learner's page load asks the API whether to draw the Admin link.** One small request
+  per circuit (`GET /api/admin/access`). The web app could first check the role row itself and
+  ask the API only for role holders. Left as it is so the API stays the only place that decides.
+- **The operator page keeps its own copy of "Page not found".**
+  `Components/Pages/Operator/SamOpportunities.razor` does not use the new shared
+  `NotFoundContent`. Phase 1 replaces that page with the inbox.

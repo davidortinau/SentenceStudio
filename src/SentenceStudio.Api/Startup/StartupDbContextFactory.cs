@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Api.Feedback.Persistence;
 using SentenceStudio.Data;
@@ -39,6 +40,15 @@ internal sealed class StartupDbContextFactory(PostgresApplicationStartupLock sta
         return db;
     }
 
+    public AdminDbContext CreateAdmin()
+    {
+        startupLock.EnsureActive();
+        var db = new AdminDbContext(
+            AdminOptions(startupLock.Connection, startupLock.DbInterceptors));
+        VerifyContext(db);
+        return db;
+    }
+
     internal static DbContextOptions<ApplicationDbContext> ApplicationOptions(
         NpgsqlConnection connection, IEnumerable<IInterceptor> interceptors)
         => new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -63,6 +73,14 @@ internal sealed class StartupDbContextFactory(PostgresApplicationStartupLock sta
             .AddInterceptors(interceptors)
             .Options;
 
+    internal static DbContextOptions<AdminDbContext> AdminOptions(
+        NpgsqlConnection connection, IEnumerable<IInterceptor> interceptors)
+        => new DbContextOptionsBuilder<AdminDbContext>()
+            .UseNpgsql(connection, npgsql =>
+                npgsql.MigrationsHistoryTable(AdminSchema.MigrationsHistoryTable))
+            .AddInterceptors(interceptors)
+            .Options;
+
     internal static void RequireSingleDatabase(IConfiguration configuration)
     {
         var primary = configuration.GetConnectionString("sentencestudio");
@@ -73,7 +91,7 @@ internal sealed class StartupDbContextFactory(PostgresApplicationStartupLock sta
 
         // A session-level advisory lock is scoped to one database and one backend.
         // Do not quietly migrate an optional feature against a second database.
-        foreach (var alternate in new[] { "coach", "feedback" })
+        foreach (var alternate in new[] { "coach", "feedback", "admin" })
         {
             var configured = configuration.GetConnectionString(alternate);
             if (configured is not null && !string.Equals(configured, primary, StringComparison.Ordinal))

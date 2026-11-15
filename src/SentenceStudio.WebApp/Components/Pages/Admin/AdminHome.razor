@@ -1,0 +1,79 @@
+@page "/admin"
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+
+@*
+    The admin portal's front page. Web app only, English only (docs/admin-portal-plan.md).
+    AdminGate draws what is below it only after the API has answered LoadAsync for an admin.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>Admin</PageTitle>
+    <PageHeader Title="Admin" />
+
+    <div class="container-fluid" id="admin-home">
+        @if (_session is null)
+        {
+            <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                <span>The admin service did not answer as expected. Reload the page to try again.</span>
+            </div>
+        }
+        else
+        {
+            <p class="text-secondary" id="admin-signed-in-as">
+                Signed in as <strong>@(_session.Email ?? _session.DisplayName ?? _session.UserId)</strong>.
+                Every request you make here is recorded in the audit log.
+            </p>
+
+            <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                    <AdminPasswordCard OnNotAdmin="CloseGate" />
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card" id="admin-audit-card">
+                        <div class="card-body">
+                            <h2 class="h5 card-title">Audit log</h2>
+                            <p class="text-secondary">
+                                Who did what, to which learner or report, when, and how it ended.
+                                It holds no learner content.
+                            </p>
+                            <a id="admin-open-audit" class="btn btn-outline-primary" href="/admin/audit">
+                                <i class="bi bi-journal-text me-1" aria-hidden="true"></i>Open the audit log
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    private AdminGate? _gate;
+    private AdminSession? _session;
+
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        var result = await Api.GetSessionAsync(State.CurrentProof);
+        if (result.IsOk)
+        {
+            _session = result.Value;
+
+            // The API's word on the proof just sent is the one that counts.
+            State.Reconcile(_session!.StepUpExpiresAtUtc);
+        }
+        else if (result.Status == AdminApiStatus.NotFound)
+        {
+            State.MarkNotAdmin();
+        }
+
+        return result.Status;
+    }
+
+    private void CloseGate() => _gate?.Close();
+}

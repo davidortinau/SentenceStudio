@@ -1,6 +1,6 @@
 # Admin portal plan
 
-2026-11-15. Approved by the Captain the same day. Nothing here is built yet.
+2026-11-15. Approved by the Captain the same day. Phase 0 is built; see "Phase 0 as built".
 
 ## Why
 
@@ -179,11 +179,111 @@ the MAUI or native apps. Recording AI usage outside Sam.
 - **Optional, the Captain's to run:** `/code-review ultra` on phase 0 before its first
   production deploy.
 
+## Phase 0 as built (2026-11-15, branch `admin-portal`)
+
+What a person can do now: an admin signs in to the web app, sees an Admin link in the sidebar,
+opens `/admin`, confirms their password, and reads the audit log at `/admin/audit`. Everyone else
+sees no link and gets "Page not found".
+
+**API (`src/SentenceStudio.Api/Admin/`)**
+
+| Route | Does | Audit action |
+|---|---|---|
+| `GET /api/admin/access` | 204 for an admin. The web app asks it to decide whether to draw the sidebar link. | none |
+| `GET /api/admin/session` | Who is signed in, and when their password confirmation runs out. | `session.read` |
+| `POST /api/admin/step-up` | Checks the password and returns the proof. | `step_up.verify` |
+| `GET /api/admin/audit?take=&before=` | Audit rows, newest first, 50 a page (200 at most). The row for the read in progress is left out; it shows, completed, on the next read. | `audit.read` |
+| anything else under `/api/admin` | 404, for every method. | none |
+
+- **The gate** is one policy on the route group. `AdminAccessEvaluator` reads the account, its
+  email, whether the email is confirmed and the role row from the database on each request, and
+  the list from the live `Admin:Emails` setting. Only the account id is taken from the token.
+  A refusal is a bare 404, the same response as a path nobody mapped; there is no 401, 403 or
+  405 anywhere under the prefix.
+- **Password again.** `AdminStepUpService` seals the proof with the API's Data Protection key
+  ring, not the JWT signing key (the web app holds that key too). A proof names one account,
+  lasts 10 minutes and dies when the account's password changes. A later dangerous route adds
+  `.RequireAdminStepUp()`; no phase 0 route needs it, and
+  `AdminDangerousRoutePipelineTests` drives one through the pipeline.
+- **Guessing the password.** Failed checks count toward the account's lockout (5 wrong, locked
+  5 minutes), the same count and lock sign-in uses. `AdminPasswordCheck` counts each attempt
+  before looking at it, so a burst of parallel guesses cannot get more than 5 looked at.
+- **New routes** are mapped on `MapAdminGroup()`, which carries the policy, and must declare
+  `.WithAdminAction(...)`. `AdminEndpointInventoryTests` fails otherwise.
+- **Audit.** `AdminRequestMiddleware` inserts the row before the handler runs and completes it
+  afterwards. If the insert fails the request fails and nothing is read or changed. A row whose
+  ending could not be written stays `Started`.
+- **Granting the role.** `scripts/admin-grant.sh <email>` (`--revoke`, `--list`, `--container`,
+  `--prod`). It never creates an account.
+
+**Web (`src/SentenceStudio.WebApp/Admin/`, `Components/Admin/`, `Components/Pages/Admin/`)**
+
+- `AdminGate` wraps each admin page. The page's first API request is the gate, on every visit:
+  an answer draws the page, a 404 draws "Page not found", and no answer draws "This page could
+  not be loaded". The prerendered HTML is the same empty shell for everyone; admin content is
+  drawn only in the live circuit.
+- The sidebar link comes through `IHostNavItemProvider` (new, in `SentenceStudio.UI`). The web
+  app registers one; the MAUI heads register none and their sidebar is unchanged.
+- The proof is kept in the circuit on the server and never reaches the browser. A reload asks for
+  the password again. The page takes the API's word for whether the proof is still live.
+
+**Schema (needs the Captain's approval before merge).** One table, PostgreSQL only, in
+`AdminDbContext` with its own `__AdminMigrationsHistory`
+(`20261115224514_InitialAdminSchema`):
+
+| `AdminAuditEntry` column | Type | Holds |
+|---|---|---|
+| `Id` | bigint identity | |
+| `OccurredAtUtc` | timestamptz | When the request was admitted. |
+| `ActorKind` | integer | 1 admin account, 2 agent token (phase 1). |
+| `ActorId` | varchar(64) | Identity user id, or token id. |
+| `Action` | varchar(64) | A code such as `session.read`. |
+| `TargetKind`, `TargetId` | varchar(32), varchar(64), nullable | `learner` or `report` and its id, when there is one. |
+| `Outcome` | integer | 0 started, 1 succeeded, 2 failed. |
+| `StatusCode` | integer, nullable | HTTP status. |
+| `FailureCode` | varchar(64), nullable | A code such as `password_incorrect`. |
+
+Indexes: `OccurredAtUtc`; (`TargetKind`, `TargetId`); `ActorId`. No email, name or content.
+
+**Choices made while building (say if any is wrong)**
+
+1. The API checks the password and issues the proof; the web app only collects the password and
+   holds the proof. The plan said "the web app re-checks the password".
+2. `GET /api/admin/access` leaves no audit row. Every learner's sidebar calls it on every page
+   load, and it returns nothing.
+3. An account whose email is not confirmed is not an admin, even with the role and the list.
+4. Audit rows about a learner keep that learner's profile id after the account is erased
+   (phase 2 decides whether the erase removes them).
+5. A signed-in learner who loads `/admin` directly gets the app's shell with "Page not found"
+   (HTTP 200), as the operator page does today. A signed-out visitor is sent to sign in. Only the
+   API routes answer a bare 404. Making the page itself a 404 would take a check in the web app's
+   request pipeline.
+
+**Becoming an admin on the local stack**
+
+```
+dotnet user-secrets set "Admin:Emails:0" "<email>" --project src/SentenceStudio.AppHost
+scripts/admin-grant.sh <email>          # after the AppHost has started once on this branch
+```
+
+In production the grant is `scripts/admin-grant.sh <email> --prod --yes`, while
+`scripts/prod-db-access.sh open` is in effect. It refuses without `--yes`.
+
+**Left for later**
+
+- Deleting audit rows older than a year. Nothing can be that old before 2027-11; build it with
+  phase 2's scheduled erase.
+- Before the first production deploy: `scripts/prod-deploy.sh` carries only `Coach__*` settings
+  forward. It must also carry `Admin__Emails__*`, or each deploy empties the list (which fails
+  closed: nobody is an admin). The first deploy also needs the list set and the role granted
+  (a production database write).
+- Review findings not fixed here: `docs/native-review-backlog.md`, "Admin portal phase 0".
+
 ## Status
 
 | Phase | State |
 |---|---|
-| 0. Admin sign-in | Not started. Next. |
+| 0. Admin sign-in | Built on `admin-portal`, not merged or deployed. Waiting on the Captain: the schema above, then merge. |
 | 1. Feedback inbox, agent access, scheduled check | Not started. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Not started. Worker, after phase 0 merges. |

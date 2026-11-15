@@ -27,6 +27,7 @@ using SentenceStudio.Application.AppOperations;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
+using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Api.Coach.Application;
 using SentenceStudio.Api.Coach.Endpoints;
@@ -164,6 +165,10 @@ else
 }
 
 builder.Services.AddAuthorization();
+
+// The admin portal's gate (Admin role and Admin:Emails, both checked per request), its
+// password-again proof and its server-only audit log; see docs/admin-portal-plan.md.
+builder.Services.AddAdminPortal(builder.Configuration);
 
 builder.Services.AddScoped<JwtTokenService>();
 
@@ -657,6 +662,24 @@ if (!skipDatabaseInitialization)
                 "Feedback migrations failed; feedback submission will be unavailable."),
             startupToken);
 
+        // The admin portal's audit log. If its schema cannot be brought up to date the admin
+        // routes fail closed on their first audit write; learners are unaffected.
+        var adminStartupLogger = scope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("SentenceStudio.Api.Admin.Migrations");
+        await OptionalStartupMigration.RunAsync(
+            async ct =>
+            {
+                using var adminDb = contexts.CreateAdmin();
+                await adminDb.Database.MigrateAsync(ct);
+                assertSession();
+                adminStartupLogger.LogInformation("Admin schema is up to date.");
+            },
+            startupLock.VerifyHeldAsync,
+            ex => adminStartupLogger.LogError(ex,
+                "Admin migrations failed; the admin portal will be unavailable."),
+            startupToken);
+
         if (seedDevelopmentAccounts)
         {
             // UserManager's default scoped store would silently take a different
@@ -748,6 +771,7 @@ app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp")
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAdminPortal();
 app.UseMiddleware<TenantContextMiddleware>();
 
 // Health endpoints — exposed in Development so the Aspire dashboard can render check
@@ -830,6 +854,10 @@ app.MapCoachResponseReports();
 // outside Development the routes simply do not exist. That is gate 1 of four; the options
 // validator refuses to start a non-Development host that enables it at all.
 app.MapCoachOpportunityOperator(app.Environment);
+
+// The admin portal's routes. Always mapped; a caller who is not an admin gets the same 404 as
+// for a path that does not exist.
+app.MapAdminEndpoints();
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();

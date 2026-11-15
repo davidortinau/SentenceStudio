@@ -1,0 +1,489 @@
+using System.Net;
+using System.Text;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.JSInterop;
+using SentenceStudio.Abstractions;
+using SentenceStudio.Services.Progress;
+using SentenceStudio.UI.Tests.Activities;
+using SentenceStudio.UI.Tests.Coach;
+using SentenceStudio.WebApp.Admin;
+using SentenceStudio.WebApp.Components.Admin;
+using SentenceStudio.WebUI.Layout;
+using SentenceStudio.WebUI.Services;
+
+namespace SentenceStudio.UI.Tests.Admin;
+
+/// <summary>
+/// The admin portal's web components in a live circuit: what an admin sees, what everyone else
+/// sees, and that nothing is asked or shown while a page is only prerendering.
+/// </summary>
+/// <remarks>
+/// The API is the authority (its own suite proves who it admits). These tests pin the web side of
+/// the same promise: a person the API does not admit sees the "Page not found" every unknown route
+/// shows, and the Admin link is never drawn for them.
+/// </remarks>
+public sealed class AdminComponentTests
+{
+    private readonly ScriptedAdminApi _api = new();
+
+    private ServiceProvider Services(params IHostNavItemProvider[] navProviders) =>
+        Services(webAppAdminLink: false, navProviders);
+
+    /// <param name="webAppAdminLink">Registers the web app's own sidebar provider, as its Program does.</param>
+    private ServiceProvider Services(bool webAppAdminLink, params IHostNavItemProvider[] navProviders)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddScoped(_ => new AdminApiClient(
+            new HttpClient(_api) { BaseAddress = new Uri("http://api.test") },
+            NullLogger<AdminApiClient>.Instance));
+        services.AddScoped<AdminSessionState>();
+
+        // What the shared sidebar injects.
+        services.AddScoped<NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
+        services.AddScoped<NavigationMemoryService>();
+        services.AddSingleton<IPreferencesService, SwitchablePreferences>();
+        services.AddSingleton<IAppState, AppState>();
+        services.AddSingleton<ProgressCacheService>();
+        services.AddScoped<AuthenticationStateProvider, SignedInState>();
+        services.AddScoped<IJSRuntime>(_ => new ModuleAwareJSRuntime());
+        services.AddScoped<BlazorLocalizationService>();
+        if (webAppAdminLink)
+        {
+            services.AddScoped<IHostNavItemProvider, AdminNavItemProvider>();
+        }
+
+        foreach (var provider in navProviders)
+        {
+            services.AddSingleton(provider);
+        }
+
+        return services.BuildServiceProvider();
+    }
+
+    private static InteractiveTestRenderer Circuit(IServiceProvider services) =>
+        new(services, services.GetRequiredService<ILoggerFactory>());
+
+    /// <summary>A gate around a marker, whose page-load is one real client call.</summary>
+    private ParameterView GateParameters(IServiceProvider services, Action? onLoad = null) =>
+        ParameterView.FromDictionary(new Dictionary<string, object?>
+        {
+            [nameof(AdminGate.ChildContent)] = (RenderFragment)(builder =>
+            {
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(1, "id", "secret-admin-content");
+                builder.AddContent(2, "Admin only");
+                builder.CloseElement();
+            }),
+            [nameof(AdminGate.Load)] = (Func<Task<AdminApiStatus>>)(async () =>
+            {
+                onLoad?.Invoke();
+                return (await services.GetRequiredService<AdminApiClient>().GetSessionAsync(proof: null)).Status;
+            })
+        });
+
+    private const string SessionRoute = "/api/admin/session";
+    private const string SessionBody = """{"userId":"u1","email":"captain@example.test"}""";
+
+    // ------------------------------------------------------------------- gate
+
+    [Fact]
+    public async Task The_gate_shows_the_page_once_the_API_has_answered_the_pages_first_request()
+    {
+        _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var loads = 0;
+
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services, () => loads++));
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeTrue();
+        circuit.RenderedText(id).Should().NotContain("Page not found");
+        loads.Should().Be(1);
+        _api.Requests.Should().ContainSingle("the page's own request is the gate; there is no second probe");
+    }
+
+    [Fact]
+    public async Task The_gate_shows_page_not_found_to_a_person_the_API_refuses()
+    {
+        _api.Answer(SessionRoute, HttpStatusCode.NotFound);
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("Page not found").And.NotContain("Admin only");
+        circuit.RenderedComponentNames(id).Should().Contain(nameof(SentenceStudio.WebApp.Components.NotFoundContent),
+            "the gate draws the router's own not-found view, not a copy of it");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    public async Task When_the_API_gives_no_answer_the_gate_says_so_and_shows_nothing(HttpStatusCode status)
+    {
+        // Not "Page not found": an admin caught by an outage must be told to try again, and
+        // nothing may be drawn for anyone until the API has actually said yes.
+        _api.Answer(SessionRoute, status);
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("could not be loaded").And.NotContain("Page not found");
+    }
+
+    [Fact]
+    public async Task When_the_API_cannot_be_reached_the_gate_says_so_and_shows_nothing()
+    {
+        _api.Throw = new HttpRequestException("connection refused");
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("could not be loaded");
+    }
+
+    [Fact]
+    public async Task A_refusal_that_names_a_reason_still_means_the_API_admitted_this_person()
+    {
+        _api.Answer(SessionRoute, HttpStatusCode.BadRequest, """{"code":"invalid_request"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task While_prerendering_the_gate_shows_nothing_and_asks_the_API_nothing()
+    {
+        _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
+        await using var services = Services();
+        await using var prerender = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        var loads = 0;
+
+        var html = await prerender.Dispatcher.InvokeAsync(async () =>
+            (await prerender.RenderComponentAsync<AdminGate>(GateParameters(services, () => loads++))).ToHtmlString());
+
+        html.Should().NotContain("secret-admin-content").And.NotContain("Page not found").And.NotContain("could not");
+        loads.Should().Be(0);
+        _api.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_page_can_close_the_gate_when_a_later_request_is_refused()
+    {
+        _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeTrue();
+
+        await circuit.Dispatcher.InvokeAsync(() => ((AdminGate)circuit.LastRootComponent!).Close());
+
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("Page not found");
+    }
+
+    // -------------------------------------------------------- password again
+
+    [Fact]
+    public async Task The_right_password_turns_the_card_to_confirmed()
+    {
+        _api.Answer("/api/admin/step-up", HttpStatusCode.OK,
+            $$"""{"proof":"sealed","expiresAtUtc":"{{DateTimeOffset.UtcNow.AddMinutes(10):O}}"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminPasswordCard>();
+        circuit.RenderedText(id).Should().Contain("Not confirmed");
+
+        await circuit.InputValueByIdAsync(id, "admin-password", "right-password");
+        await circuit.SubmitFormByIdAsync(id, "admin-password-form");
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().Contain("Password confirmed");
+        circuit.HasElementWithId(id, "admin-password").Should().BeFalse("the form goes away once confirmed");
+        _api.Requests.Should().ContainSingle().Which.Body.Should().Be("""{"password":"right-password"}""");
+        services.GetRequiredService<AdminSessionState>().CurrentProof.Should().Be("sealed");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, "password_incorrect", "That password is not correct.")]
+    [InlineData(HttpStatusCode.TooManyRequests, "locked_out", "Too many failed attempts")]
+    [InlineData(HttpStatusCode.InternalServerError, "", "could not be checked")]
+    public async Task A_refused_password_says_why_and_confirms_nothing(
+        HttpStatusCode status, string code, string expectedMessage)
+    {
+        _api.Answer("/api/admin/step-up", status, $$"""{"code":"{{code}}"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminPasswordCard>();
+
+        await circuit.InputValueByIdAsync(id, "admin-password", "a-password");
+        await circuit.SubmitFormByIdAsync(id, "admin-password-form");
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().Contain(expectedMessage).And.Contain("Not confirmed");
+        circuit.AttributeValue(id, "admin-password", "value").Should().BeNullOrEmpty(
+            "a typed password must not stay in the field after it was sent");
+    }
+
+    [Fact]
+    public async Task An_empty_password_is_not_sent()
+    {
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminPasswordCard>();
+
+        await circuit.SubmitFormByIdAsync(id, "admin-password-form");
+
+        _api.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Being_refused_as_no_longer_an_admin_tells_the_page()
+    {
+        _api.Answer("/api/admin/step-up", HttpStatusCode.NotFound);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var notAdmin = 0;
+        var id = await circuit.RenderAsync<AdminPasswordCard>(ParameterView.FromDictionary(
+            new Dictionary<string, object?>
+            {
+                [nameof(AdminPasswordCard.OnNotAdmin)] = EventCallback.Factory.Create(new object(), () => notAdmin++)
+            }));
+
+        await circuit.InputValueByIdAsync(id, "admin-password", "a-password");
+        await circuit.SubmitFormByIdAsync(id, "admin-password-form");
+
+        notAdmin.Should().Be(1);
+    }
+
+    // ---------------------------------------------------------------- sidebar
+
+    [Fact]
+    public async Task The_sidebar_draws_the_Admin_link_for_an_admin()
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().Contain("Admin");
+        circuit.RenderedHrefs(id).Should().Contain("/admin");
+        _api.Requests.Should().ContainSingle().Which.Path.Should().Be("/api/admin/access");
+    }
+
+    [Fact]
+    public async Task The_link_goes_on_the_next_navigation_after_the_API_says_this_person_is_no_longer_an_admin()
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<NavMenu>();
+        circuit.RenderedHrefs(id).Should().Contain("/admin");
+
+        // An admin page learned it from a 404, and the person then moves to another page.
+        services.GetRequiredService<AdminSessionState>().MarkNotAdmin();
+        var nav = (SentenceStudio.UI.Tests.Coach.TestNavigationManager)services.GetRequiredService<NavigationManager>();
+        await circuit.Dispatcher.InvokeAsync(() => nav.GoTo("/vocabulary"));
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedHrefs(id).Should().NotContain("/admin");
+    }
+
+    [Fact]
+    public async Task The_link_appears_on_the_next_navigation_when_the_first_ask_got_no_answer()
+    {
+        _api.Throw = new HttpRequestException("the API is restarting");
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<NavMenu>();
+        circuit.RenderedHrefs(id).Should().NotContain("/admin");
+
+        _api.Throw = null;
+        _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
+        var nav = (SentenceStudio.UI.Tests.Coach.TestNavigationManager)services.GetRequiredService<NavigationManager>();
+        await circuit.Dispatcher.InvokeAsync(() => nav.GoTo("/vocabulary"));
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedHrefs(id).Should().Contain("/admin");
+    }
+
+    [Fact]
+    public async Task The_sidebar_draws_no_Admin_link_for_a_learner()
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NotFound);
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().NotContain("Admin");
+        circuit.RenderedHrefs(id).Should().NotContain("/admin");
+        _api.Requests.Should().ContainSingle("the sidebar asked, and was told no");
+    }
+
+    [Fact]
+    public async Task A_host_with_no_provider_gets_the_shared_sidebar_unchanged()
+    {
+        // Every MAUI head: nothing registered, nothing asked, nothing drawn.
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().NotContain("Admin");
+        _api.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_provider_that_throws_does_not_take_the_sidebar_down()
+    {
+        await using var services = Services(new ThrowingNavProvider());
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().NotContain("Admin");
+    }
+
+    [Fact]
+    public async Task While_prerendering_the_sidebar_asks_no_provider()
+    {
+        var provider = new CountingNavProvider();
+        await using var services = Services(provider);
+        await using var prerender = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+
+        var html = await prerender.Dispatcher.InvokeAsync(async () =>
+            (await prerender.RenderComponentAsync<NavMenu>()).ToHtmlString());
+
+        provider.Calls.Should().Be(0);
+        html.Should().NotContain("href=\"/admin\"");
+    }
+
+    // ---------------------------------------------------------------- doubles
+
+    private sealed record Recorded(string Path, string? Body);
+
+    private sealed class ScriptedAdminApi : HttpMessageHandler
+    {
+        private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _answers = new(StringComparer.Ordinal);
+
+        public List<Recorded> Requests { get; } = [];
+
+        public Exception? Throw { get; set; }
+
+        public void Answer(string path, HttpStatusCode status, string body = "") => _answers[path] = (status, body);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            Requests.Add(new Recorded(
+                path, request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
+
+            if (Throw is not null)
+            {
+                throw Throw;
+            }
+
+            var (status, body) = _answers.TryGetValue(path, out var answer) ? answer : (HttpStatusCode.NotFound, "");
+            return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    private sealed class SignedInState : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new System.Security.Claims.ClaimsPrincipal(
+                new System.Security.Claims.ClaimsIdentity("test"))));
+    }
+
+    private sealed class ThrowingNavProvider : IHostNavItemProvider
+    {
+        public ValueTask<IReadOnlyList<HostNavItem>> GetItemsAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("the host's lookup failed");
+    }
+
+    private sealed class CountingNavProvider : IHostNavItemProvider
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<IReadOnlyList<HostNavItem>> GetItemsAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return ValueTask.FromResult<IReadOnlyList<HostNavItem>>([new HostNavItem("/admin", "bi-shield-lock", "Admin")]);
+        }
+    }
+}
+
+/// <summary>The password card's clock: how long a confirmation is shown as live.</summary>
+public sealed class AdminPasswordCountdownTests
+{
+    [Fact]
+    public async Task The_minutes_shown_keep_falling_and_the_card_reverts_when_the_confirmation_runs_out()
+    {
+        var time = new SentenceStudio.Api.Tests.Coach.TestTimeProvider(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
+        var api = new OneAnswer("""{"proof":"sealed","expiresAtUtc":"2026-11-15T12:10:00+00:00"}""");
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<TimeProvider>(time)
+            .AddScoped(_ => new AdminApiClient(
+                new HttpClient(api) { BaseAddress = new Uri("http://api.test") }, NullLogger<AdminApiClient>.Instance))
+            .AddScoped<AdminSessionState>()
+            .BuildServiceProvider();
+        await using var _ = services;
+        var circuit = new InteractiveTestRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        var id = await circuit.RenderAsync<AdminPasswordCard>();
+
+        await circuit.InputValueByIdAsync(id, "admin-password", "right-password");
+        await circuit.SubmitFormByIdAsync(id, "admin-password-form");
+        circuit.RenderedText(id).Should().Contain("10 more minutes");
+
+        // Nothing else re-renders the card; the tick has to.
+        time.Advance(TimeSpan.FromMinutes(6));
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        circuit.RenderedText(id).Should().Contain("4 more minutes");
+
+        time.Advance(TimeSpan.FromMinutes(3) + TimeSpan.FromSeconds(30));
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        circuit.RenderedText(id).Should().Contain("less than a minute more");
+
+        time.Advance(TimeSpan.FromMinutes(1));
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        circuit.RenderedText(id).Should().Contain("Not confirmed");
+        circuit.HasElementWithId(id, "admin-password").Should().BeTrue("the form is back");
+        circuit.Unhandled.Should().BeEmpty();
+    }
+
+    private sealed class OneAnswer(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            });
+    }
+}

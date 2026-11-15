@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using OpenAI;
@@ -210,6 +211,21 @@ if (builder.Environment.IsDevelopment())
             client.BaseAddress = new Uri(apiBaseUrl))
         .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
 }
+
+// The admin portal (docs/admin-portal-plan.md). Registered in every environment: the API decides
+// per request who is an admin, and answers everyone else 404. No resilience pipeline, because
+// every admitted call leaves an audit row and a failed password check counts toward lockout, so
+// one click has to be one request.
+#pragma warning disable EXTEXP0001
+builder.Services
+    .AddHttpClient<SentenceStudio.WebApp.Admin.AdminApiClient>(client =>
+        client.BaseAddress = new Uri(apiBaseUrl))
+    .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
+    .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
+builder.Services.TryAddSingleton(TimeProvider.System);
+builder.Services.AddScoped<SentenceStudio.WebApp.Admin.AdminSessionState>();
+builder.Services.AddScoped<IHostNavItemProvider, SentenceStudio.WebApp.Admin.AdminNavItemProvider>();
 
 // OpenAI key — retained for the OpenAI audio (TTS) fallback path below.
 var openAiApiKey = builder.Configuration["Settings:OpenAIKey"];

@@ -46,6 +46,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The virtual clock the API tests already use, shared rather than copied, so a component
+         that redraws on a timer can be walked through time without sleeping. -->
+    <Compile Include="..\SentenceStudio.Api.Tests\Coach\TestTimeProvider.cs"
+             Link="Admin\TestTimeProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\SentenceStudio.UI\SentenceStudio.UI.csproj" />
     <!-- WebApp is referenced so the plan-date logging contract can be asserted against the real
          WebAppPlanDateContext rather than a copy of its log statements. -->

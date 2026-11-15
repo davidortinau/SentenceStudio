@@ -45,6 +45,8 @@
   <ItemGroup>
     <Compile Include="..\..\src\SentenceStudio.AppHost\CoachConfigurationReader.cs"
              Link="Coach\CoachConfigurationReader.cs" />
+    <Compile Include="..\..\src\SentenceStudio.AppHost\AdminConfigurationReader.cs"
+             Link="Admin\AdminConfigurationReader.cs" />
   </ItemGroup>
 
   <ItemGroup>

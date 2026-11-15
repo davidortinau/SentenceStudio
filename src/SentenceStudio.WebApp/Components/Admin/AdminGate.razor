@@ -1,0 +1,72 @@
+@using SentenceStudio.WebApp.Admin
+
+@*
+    Wraps every admin page. The page's own first admin request is the gate: the API answers it
+    only for an admin, on every visit, and until it has answered nothing of the page is drawn.
+    A person the API refuses sees the app's ordinary "Page not found".
+
+    The request is made in the live circuit only. A prerender draws nothing here, so no admin
+    content is ever in the HTML a browser first receives. (That first response is still the app
+    shell with status 200, as for any page of the app; the API routes are where a refusal is a
+    bare 404.)
+*@
+
+@switch (_state)
+{
+    case GateState.Admitted:
+        @ChildContent
+        break;
+
+    case GateState.NotFound:
+        <NotFoundContent />
+        break;
+
+    case GateState.Unavailable:
+        <div class="container text-center mt-5" id="admin-gate-unavailable" role="alert">
+            <h1>This page could not be loaded</h1>
+            <p class="text-secondary">The service did not answer. Reload the page to try again.</p>
+        </div>
+        break;
+}
+
+@code {
+    private enum GateState { Undecided = 0, Admitted, NotFound, Unavailable }
+
+    private GateState _state;
+
+    [Parameter, EditorRequired]
+    public RenderFragment ChildContent { get; set; } = default!;
+
+    /// <summary>
+    /// The page's first admin request, which loads what the page shows. Its status decides the
+    /// gate: answered (even with a refusal that names a reason) means admitted, 404 means not an
+    /// admin, and a call that failed means nobody knows yet.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public Func<Task<AdminApiStatus>> Load { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _state = await Load() switch
+        {
+            AdminApiStatus.Ok or AdminApiStatus.Refused => GateState.Admitted,
+            AdminApiStatus.NotFound => GateState.NotFound,
+            _ => GateState.Unavailable
+        };
+    }
+
+    /// <summary>
+    /// Replaces the page with "Page not found". A page calls this when a later admin request is
+    /// answered 404: the person stopped being an admin while the page was open.
+    /// </summary>
+    public void Close()
+    {
+        _state = GateState.NotFound;
+        StateHasChanged();
+    }
+}

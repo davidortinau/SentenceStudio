@@ -31,6 +31,7 @@ public sealed class AppHostMigrationStartupOrderTests
             StringComparison.Ordinal);
         var coachMigration = api.IndexOf("await coachDb.Database.MigrateAsync(ct);", StringComparison.Ordinal);
         var feedbackMigration = api.IndexOf("await feedbackDb.Database.MigrateAsync(ct);", StringComparison.Ordinal);
+        var adminMigration = api.IndexOf("await adminDb.Database.MigrateAsync(ct);", StringComparison.Ordinal);
         var versionMapping = api.IndexOf("app.MapVersionEndpoints();", StringComparison.Ordinal);
         var run = api.LastIndexOf("app.Run();", StringComparison.Ordinal);
 
@@ -42,6 +43,7 @@ public sealed class AppHostMigrationStartupOrderTests
         constituents.Should().BeGreaterThan(classification).And.BeLessThan(provisioning);
         coachMigration.Should().BeGreaterThan(provisioning).And.BeLessThan(feedbackMigration);
         feedbackMigration.Should().BeGreaterThan(coachMigration).And.BeLessThan(versionMapping);
+        adminMigration.Should().BeGreaterThan(feedbackMigration).And.BeLessThan(versionMapping);
         provisioning.Should().BeGreaterThan(constituents).And.BeLessThan(versionMapping,
             "the API must finish shared startup writes before the probe can respond");
         api.Should().Contain("new StartupDbContextFactory(startupLock)")
@@ -49,6 +51,7 @@ public sealed class AppHostMigrationStartupOrderTests
             .And.Contain("db, scope.ServiceProvider.GetRequiredService<")
             .And.Contain("using var coachDb = contexts.CreateCoach();")
             .And.Contain("using var feedbackDb = contexts.CreateFeedback();")
+            .And.Contain("using var adminDb = contexts.CreateAdmin();")
             .And.Contain("await devSeeder.SeedAsync(userManager, identityDb, assertSession, startupToken);")
             .And.Contain("StartupDbContextFactory.RequireSingleDatabase(app.Configuration)")
             .And.NotContain("await syncProvider.ApplyProvisionAsync();",
