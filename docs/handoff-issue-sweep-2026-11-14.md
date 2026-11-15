@@ -46,11 +46,28 @@ the App Insights arrival for #169 and #168 (needs a Release build and the Azure 
 Restore note: `dotnet restore tests/<project> --configfile src/NuGet.config`. Without it the
 user-level NuGet config adds an internal feed that answers 401.
 
-## `issue-219-resource-history`: unfinished WIP (`8a1b4712`)
+## `issue-219-resource-history`: done 2026-11-15, waiting for the go to push and merge
 
-Study history on the resource page. The stopped agent left a shared
-`ResourceStudySummaryService`, a Razor component, and iOS and Android sections. Not built as a
-whole, not reviewed, not run. Cut from `2159f21d`; merge `main` first.
+Study history on the resource page: a Study history group (last studied, sessions, time, then
+sessions and minutes per activity) and a Word mastery group (average, Unknown, Learning, Known),
+under Basic Information on web and MAUI (`ResourceStudyHistory.razor`), native iOS and native
+Android. One owner-scoped read (`ResourceStudySummaryService`) and one text projection
+(`ResourceStudyText`) serve every client. Read-only, no schema change.
+
+Differs from the issue's proposal: no Familiar row. Main retired that status on 2026-11-14;
+the counts follow `VocabularyKnownRule` with the learner's Learning mode.
+
+Checked, with `main` at `20f79ada` merged in:
+
+- Tests: UnitTests 2550, UI.Tests 2642, Native.Tests 1549, Native.Android.Tests 361.
+- Running against a clone of the local database, signed in as `e2e@test.local`, resource
+  "Shadowing Practice Words": web (PostgreSQL), native iOS (iPad simulator, iOS 27.0) and
+  native Android (API 36 emulator, Debug) all show Last studied 11/1/2026 · Listening, 2
+  sessions, 6 min, Listening and Shadowing 1 session · 3 min each, average 92%, Known 4 of 4.
+  The database agrees. A resource never studied shows "You haven't studied this resource yet."
+
+Not checked: Korean on a running client (the Korean text is unit-tested), the MAUI heads (they
+render the same Razor component as the web), Android Release/R8, macOS.
 
 ## `issue-218-toolbar`: unfinished WIP (`299daa22`)
 
