@@ -200,9 +200,15 @@ public static class VocabularyMasteryCalculator
     /// The mastery-after-each-active-attempt curve, suitable for charting. Passive exposures do not
     /// emit points.
     /// </param>
+    /// <param name="reset">
+    /// The reset the row's mark made (<see cref="VocabularyKnownMarks.ResetOf"/>: Practice again
+    /// or Start over), applied at its instant with the live action's numbers; null when the mark
+    /// is not a reset. The learner's mode never enters a replay: the score is what practice earned.
+    /// </param>
     public static void RecalculateInto(
         VocabularyProgress target,
         IEnumerable<VocabularyLearningContext> contexts,
+        VocabularyScoreReset? reset,
         out List<MasteryTrajectoryPoint> trajectory)
     {
         target.TotalAttempts = 0;
@@ -227,8 +233,15 @@ public static class VocabularyMasteryCalculator
             .OrderBy(c => c.LearnedAt)
             .ThenBy(c => c.CreatedAt);
 
+        var pendingReset = reset;
         foreach (var context in ordered)
         {
+            if (pendingReset is { } due && context.LearnedAt > due.At)
+            {
+                VocabularyKnownMarks.ApplyReset(target, due);
+                pendingReset = null;
+            }
+
             if (IsPassive(context))
             {
                 target.ExposureCount++;
@@ -246,6 +259,10 @@ public static class VocabularyMasteryCalculator
                 context.Activity ?? string.Empty,
                 context.InputMode ?? string.Empty));
         }
+
+        // A reset made after the last attempt.
+        if (pendingReset is { } last)
+            VocabularyKnownMarks.ApplyReset(target, last);
     }
 
     private static void UpdateQuizDemonstrationCounters(VocabularyProgress progress, VocabularyAttempt attempt)

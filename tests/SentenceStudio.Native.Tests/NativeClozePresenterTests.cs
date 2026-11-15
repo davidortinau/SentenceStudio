@@ -370,7 +370,9 @@ public sealed class NativeClozePresenterTests
     }
 
     [Fact]
-    public async Task FamiliarWord_GetsTheVerificationProbeAndItsNotice()
+    // docs/known-words-plan.md: trust but verify is retired. An old Familiar word is marked Known,
+    // so Cloze does not test it: no probe, no notice, and its row and mark are untouched.
+    public async Task OldFamiliarWord_IsKnown_SoItIsNotTestedOrProbed()
     {
         using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
         var owner = NativeSliceFixture.UserA;
@@ -395,17 +397,14 @@ public sealed class NativeClozePresenterTests
         await cloze.OpenAsync(ChooseOwnLaunch(fixture, owner));
 
         cloze.SetTypedAnswer(Answer(owner, 0));
-        var pending = cloze.SubmitAsync();
-        await WaitForAsync(() => cloze.State.Notice is not null);
-        Assert.Equal(NativeClozeText.FamiliarConfirmed, cloze.State.Notice?.Key);
-        Assert.Equal(NativeMessageKind.Success, cloze.State.Notice?.Kind);
-        Assert.True(cloze.State.Notice?.IsToast);
-        await pending;
+        await cloze.SubmitAsync();
 
         using var check = fixture.Scope();
         var row = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .VocabularyProgresses.AsNoTracking().SingleAsync(item => item.Id == "familiar-progress");
-        Assert.NotEqual(VerificationStatus.Pending, row.VerificationState);
+        Assert.Equal(VerificationStatus.Pending, row.VerificationState);
+        Assert.True(row.IsUserDeclared);
+        Assert.Equal(1, row.TotalAttempts);
     }
 
     [Fact]

@@ -215,9 +215,16 @@ internal static class QuizView
         string photoAccessibilityLabel, string photoCloseLabel,
         bool isPhotoPresented, Func<string, string> text,
         Action openSentence, Action togglePhotoText, Action dismissPhoto,
-        Action<string, string> photoFailed, out SwiftView? photoCover)
+        Action<string, string> photoFailed, out SwiftView? photoCover,
+        Action? markKnown = null)
     {
         var actions = new List<SwiftView>();
+        // docs/known-words-plan.md (Captain 2026-11-14): a secondary toolbar item, offered for
+        // every question in Learner-led and always enabled.
+        if (markKnown is not null && state.CanMarkKnown)
+            actions.Add(Views.Button(Views.Label(text("Vocabulary_MarkKnown"), "checkmark.circle"),
+                    markKnown)
+                .WithAccessibilityIdentifier("native.quiz.mark-known"));
         if (canOpenSentence)
             actions.Add(Views.Button(text("NativeVocabQuiz_UseInSentence"),
                     openSentence)

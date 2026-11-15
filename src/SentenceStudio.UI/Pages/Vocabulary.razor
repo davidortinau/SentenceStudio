@@ -52,7 +52,6 @@ else
         <span class="badge bg-dark rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsTotal"], filteredWords.Count, statTotal)</span>
         <span class="badge bg-secondary rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsUnknown"], statUnknown)</span>
         <span class="badge bg-primary rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsLearning"], statLearning)</span>
-        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsFamiliar"], statFamiliar)</span>
         <span class="badge bg-success rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsKnown"], statKnown)</span>
         <div class="ms-auto d-flex gap-2 flex-shrink-0">
             <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
@@ -92,9 +91,13 @@ else
             {
                 <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
                     <option value="">@Localize["Vocabulary_SetStatus"]</option>
-                    <option value="Unknown">@Localize["VocabWordEdit_Unknown"]</option>
-                    <option value="Learning">@Localize["VocabWordEdit_Learning"]</option>
-                    <option value="Familiar">@Localize["VocabWordEdit_Familiar"]</option>
+                    @* docs/known-words-plan.md: Mark Known shows only in Learner-led. *@
+                    @if (learningMode == LearningMode.LearnerLed)
+                    {
+                        <option value="MarkKnown">@Localize["Vocabulary_MarkKnown"]</option>
+                    }
+                    <option value="PracticeAgain">@Localize["Vocabulary_PracticeAgain"]</option>
+                    <option value="StartOver">@Localize["Vocabulary_StartOver"]</option>
                 </select>
             }
             else if (bulkAction == "language")
@@ -213,7 +216,6 @@ else
                 value="@CurrentStatus" @onchange="OnStatusDropdown">
             <option value="">All Status</option>
             <option value="known">Known</option>
-            <option value="familiar">Familiar</option>
             <option value="learning">Learning</option>
             <option value="unknown">Unknown</option>
         </select>
@@ -318,8 +320,7 @@ else
                             value="@CurrentStatus" @onchange="OnStatusDropdown">
                         <option value="">All Status</option>
                         <option value="known">Known</option>
-                        <option value="familiar">Familiar</option>
-                        <option value="learning">Learning</option>
+                                    <option value="learning">Learning</option>
                         <option value="unknown">Unknown</option>
                     </select>
                 </div>
@@ -837,7 +838,9 @@ else
 
     private List<VocabularyCardItem> allWords = new();
     private List<VocabularyCardItem> filteredWords = new();
-    private int statTotal, statUnknown, statLearning, statFamiliar, statKnown;
+    private int statTotal, statUnknown, statLearning, statKnown;
+    // The learner's Learning mode, which the Known rule needs (docs/known-words-plan.md).
+    private LearningMode learningMode;
     private bool isLoading = true;
     private string viewMode = "grid"; // "grid" or "list"
     private string sortField = "added"; // "added" (CreatedAt) | "updated" (UpdatedAt)
@@ -961,6 +964,7 @@ else
             availableResources = await resourcesTask;
 
             var userResourceIds = new HashSet<string>(availableResources.Select(r => r.Id));
+            learningMode = await ProgressService.GetLearningModeAsync(ActiveUserId);
 
             allWords = words.Select(w =>
             {
@@ -975,7 +979,8 @@ else
                         .ToList() ?? new(),
                     Progress = progress,
                     EncodingScore = score,
-                    EncodingLabel = label
+                    EncodingLabel = label,
+                    Mode = learningMode
                 };
             }).ToList();
 
@@ -1155,7 +1160,6 @@ else
                     "status" => val switch
                     {
                         "known" => filtered.Where(v => v.StatusText == "Known"),
-                        "familiar" => filtered.Where(v => v.StatusText == "Familiar"),
                         "learning" => filtered.Where(v => v.StatusText == "Learning"),
                         "unknown" => filtered.Where(v => v.StatusText == "Unknown"),
                         _ => filtered
@@ -1211,7 +1215,6 @@ else
 
         statUnknown = filteredWords.Count(w => w.StatusText == "Unknown");
         statLearning = filteredWords.Count(w => w.StatusText == "Learning");
-        statFamiliar = filteredWords.Count(w => w.StatusText == "Familiar");
         statKnown = filteredWords.Count(w => w.StatusText == "Known");
     }
 
@@ -1395,13 +1398,7 @@ else
     {
         if (selectedWordIds.Count == 0 || string.IsNullOrEmpty(bulkStatus)) return;
 
-        var status = bulkStatus switch
-        {
-            "Unknown" => LearningStatus.Unknown,
-            "Learning" => LearningStatus.Learning,
-            "Familiar" => LearningStatus.Familiar,
-            _ => LearningStatus.Unknown
-        };
+        if (!Enum.TryParse<VocabularyLearnerAction>(bulkStatus, out var action)) return;
 
         isBulkSaving = true;
         try
@@ -1413,27 +1410,27 @@ else
                 return;
             }
 
-            int successCount = 0;
-            int failCount = 0;
-            foreach (var wordId in selectedWordIds)
+            // One save for every selected word; only the learner's own words change.
+            var marked = await ProgressService.SetLearnerMarkAsync(selectedWordIds.ToList(), action, userId);
+            int successCount = marked.Changed;
+            int failCount = selectedWordIds.Count - marked.Changed;
+            if (successCount == 0)
             {
-                try
-                {
-                    await ProgressService.SetUserDeclaredStatusAsync(wordId, userId, status);
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning(ex, "Failed to update status for word {WordId}", wordId);
-                    failCount++;
-                }
+                // Nothing changed: say why (Practice Again with no Known word, Mark Known in Practice-led).
+                Toast.ShowWarning($"{Localize[marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours"]}");
+                return;
             }
 
             CacheService.InvalidateVocabSummary();
             await LoadData();
 
             if (failCount == 0)
-                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkUpdateSuccess"], successCount, bulkStatus)}");
+                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkUpdateSuccess"], successCount, Localize[action switch
+                {
+                    VocabularyLearnerAction.MarkKnown => "Vocabulary_Known",
+                    VocabularyLearnerAction.PracticeAgain => "Vocabulary_Learning",
+                    _ => "Vocabulary_Unknown"
+                }])}");
             else
                 Toast.ShowWarning($"{string.Format(Localize["Vocabulary_BulkUpdatePartial"], successCount, failCount)}");
 
@@ -1583,7 +1580,6 @@ else
     private static string GetStatusBadgeClass(VocabularyCardItem item) => item.StatusText switch
     {
         "Known" => "bg-success",
-        "Familiar" => "bg-warning text-dark",
         "Learning" => "bg-primary",
         _ => "bg-secondary"
     };
@@ -1591,14 +1587,12 @@ else
     private static string GetStatusIcon(VocabularyCardItem item) => item.StatusText switch
     {
         "Known" => "bi-check-circle-fill",
-        "Familiar" => "bi-star",
         "Learning" => "bi-book",
         _ => "bi-question-circle"
     };
 
     private static string GetStatusTooltip(VocabularyCardItem item) => item.StatusText switch
     {
-        "Familiar" => "Marked familiar — verification pending",
         "Learning" => "Currently studying",
         _ => "Not yet studied"
     };
@@ -2473,14 +2467,15 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         public double EncodingScore { get; set; }
         public string EncodingLabel { get; set; } = "Basic";
 
-        public bool IsKnown => Progress?.IsKnown ?? false;
-        public bool IsLearning => Progress?.IsLearning ?? false;
+        public LearningMode Mode { get; set; }
+
+        public bool IsKnown => VocabularyKnownRule.IsKnown(Progress, Mode);
+        public bool IsLearning => VocabularyKnownRule.IsLearning(Progress, Mode);
         public bool IsOrphaned => !AssociatedResources.Any();
 
-        public string StatusText => Progress?.Status switch
+        public string StatusText => VocabularyKnownRule.Status(Progress, Mode) switch
         {
             LearningStatus.Known => "Known",
-            LearningStatus.Familiar => "Familiar",
             LearningStatus.Learning => "Learning",
             _ => "Unknown"
         };

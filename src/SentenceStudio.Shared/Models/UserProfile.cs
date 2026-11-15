@@ -46,6 +46,12 @@ public class UserProfile
     /// </summary>
     public bool VocabQuizShowTextWithPhoto { get; set; } = false;
 
+    /// <summary>
+    /// Who decides that a word is Known (docs/known-words-plan.md): Learner-led by default.
+    /// Every place that decides Known reads it; changing it writes nothing else.
+    /// </summary>
+    public LearningMode LearningMode { get; set; } = LearningMode.LearnerLed;
+
     public DateTime CreatedAt { get; set; }
     
     [NotMapped]

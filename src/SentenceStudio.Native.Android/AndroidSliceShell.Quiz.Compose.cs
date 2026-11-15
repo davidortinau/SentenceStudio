@@ -98,7 +98,10 @@ internal sealed partial class AndroidSliceShell
         var bar = (TopAppBar)ScreenHeader(Localize(NativeText.Quiz), palette, back: true);
         var canSentence = AndroidQuizTurnPolicy.CanOpenSentence(state, busy: false);
         var canPhotoText = AndroidQuizTurnPolicy.CanTogglePhotoText(state, busy: false);
-        if (!canSentence && !canPhotoText)
+        // docs/known-words-plan.md (Captain 2026-11-14): Mark Known under More for every
+        // question in Learner-led, always enabled.
+        var canMarkKnown = state.CanMarkKnown;
+        if (!canSentence && !canPhotoText && !canMarkKnown)
         {
             _quizMenuOpen = false;
             return bar;
@@ -131,6 +134,13 @@ internal sealed partial class AndroidSliceShell
                 onClick: ToggleQuizPhotoText)
             {
                 Modifier = Modifier.TestTag("native.quiz.photo-text"),
+            });
+        if (canMarkKnown)
+            menu.Add(new DropdownMenuItem(
+                text: new Text(Localize("Vocabulary_MarkKnown")),
+                onClick: MarkQuizWordKnown)
+            {
+                Modifier = Modifier.TestTag("native.quiz.mark-known"),
             });
         bar.Actions = new Box { overflow, menu };
         return bar;

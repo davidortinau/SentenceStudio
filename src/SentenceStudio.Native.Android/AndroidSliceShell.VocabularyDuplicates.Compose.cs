@@ -158,6 +158,9 @@ internal sealed partial class AndroidSliceShell
         menu.Add(VocabularyMenuItem(Localize("Vocabulary_DuplicatesCleanUp"),
             "native.vocabulary.duplicates.open", enabled,
             () => RunMoreOnUi(vocabulary.OpenAllDuplicatesAsync)));
+        // Select: choose words, then set their status together (docs/known-words-plan.md).
+        menu.Add(VocabularyMenuItem(Localize("NativeVocabulary_Select"),
+            "native.vocabulary.select", enabled, () => vocabulary.SetSelecting(true)));
         return new Box { more, menu };
     }
 

@@ -16,7 +16,19 @@ public sealed record NativeVocabularyEntry(
 public sealed record NativeVocabularyCatalog(
     bool OwnerValid,
     IReadOnlyList<NativeVocabularyEntry> Words,
-    IReadOnlyList<NativeVocabularyResource> Resources);
+    IReadOnlyList<NativeVocabularyResource> Resources)
+{
+    /// <summary>The owner's Learning mode: Mark Known is offered only in Learner-led.</summary>
+    public LearningMode Mode { get; init; } = LearningMode.LearnerLed;
+}
+
+/// <summary>
+/// What a learner's mark (Mark Known, Practice again, Start over) did: how many of the owner's
+/// words changed, whether the save's sync tracking could not be recorded, and the resource key
+/// of why nothing changed.
+/// </summary>
+public sealed record NativeVocabularyMarkResult(int Changed, bool SyncUnconfirmed = false,
+    string? RefusalKey = null);
 
 public sealed record NativeVocabularyProgress(
     LearningStatus Status, bool IsKnown, float MasteryScore,
@@ -91,7 +103,24 @@ public sealed record NativeVocabularyDetail(
     IReadOnlyList<NativeVocabularyExample> Examples,
     IReadOnlyList<NativeVocabularyConstituent> Constituents,
     bool HasConstituentLinks,
-    NativeVocabularyDeleteBlock DeleteBlock);
+    NativeVocabularyDeleteBlock DeleteBlock)
+{
+    /// <summary>The owner's Learning mode (docs/known-words-plan.md).</summary>
+    public LearningMode Mode { get; init; } = LearningMode.LearnerLed;
+
+    /// <summary>Who decided a Known word is Known, for the status row's words.</summary>
+    public SentenceStudio.Services.VocabularyKnownSource KnownSource { get; init; }
+
+    /// <summary>Source word editor: a Known word offers Practice again.</summary>
+    public bool CanPracticeAgain => Word.IsKnown;
+
+    /// <summary>Source word editor: Mark Known for a word that is not Known, in Learner-led only.</summary>
+    public bool CanMarkKnown => !Word.IsKnown && Mode == LearningMode.LearnerLed;
+
+    /// <summary>Source word editor: Start over once the word has practice or a status.</summary>
+    public bool CanStartOver => Progress is { TotalAttempts: > 0 } || Word.IsKnown
+        || Word.Status != LearningStatus.Unknown;
+}
 
 /// <summary>
 /// Why the word cannot be deleted, by the rules the server applies to a synced word delete,

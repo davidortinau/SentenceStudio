@@ -29,7 +29,7 @@ public class WordAssociationService
 
     /// <summary>
     /// Select vocabulary words for a round from the owner's given Learning Resource(s).
-    /// Excludes Familiar words still in their 14-day grace period. An absent owner
+    /// Known words are not asked while others remain. An absent owner
     /// gets no words.
     /// </summary>
     public async Task<List<VocabularyWord>> GetRoundWordsAsync(string userId, string resourceIds, int count = 5)
@@ -56,11 +56,11 @@ public class WordAssociationService
             .Select(g => g.First())
             .ToList();
 
-        // Filter out Familiar words in grace period
+        // Choose from the words that are not Known
         var wordIds = distinct.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, userId);
-        var graceExcluded = distinct
-            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+        var mode = await _progressService.GetLearningModeAsync(userId);
+        var graceExcluded = VocabularyKnownRule.PracticePool(distinct, w => progressDict.GetValueOrDefault(w.Id), mode)
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
             .ToList();

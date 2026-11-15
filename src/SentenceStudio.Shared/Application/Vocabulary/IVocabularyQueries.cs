@@ -174,6 +174,12 @@ public interface IVocabularyQueries
     Task<int> CountTrackedWordsAsync(string userProfileId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The learner's Learning mode, which the Known rule needs
+    /// (<see cref="SentenceStudio.Services.VocabularyKnownRule"/>, docs/known-words-plan.md).
+    /// </summary>
+    Task<LearningMode> GetLearningModeAsync(string userProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Counts the learner's words the way the dashboard and the Vocabulary screen do, so a coach
     /// that reports a number reports the one the learner sees. An empty identifier counts zero.
     /// </summary>

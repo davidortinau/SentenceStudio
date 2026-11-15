@@ -20,7 +20,10 @@ public class MatchingTile
     public VocabularyWord? Word { get; set; }
 
     // Enhanced computed properties
-    public bool IsKnown => Progress?.IsKnown ?? false;
+    /// <summary>The learner's mode, which the Known rule needs (docs/known-words-plan.md).</summary>
+    public required LearningMode LearningMode { get; init; }
+
+    public bool IsKnown => SentenceStudio.Services.VocabularyKnownRule.IsKnown(Progress, LearningMode);
     public float MasteryProgress => Progress?.MasteryScore ?? 0f;
 }
 

@@ -191,8 +191,8 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         {
             var p = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
             p.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
-            p.IsKnown.Should().BeFalse();
-            p.Status.Should().Be(LearningStatus.Learning);
+            p.IsKnown().Should().BeFalse();
+            p.Status().Should().Be(LearningStatus.Learning);
         }
 
         // === Day 2: More MC practice, some words get a wrong answer ===
@@ -268,7 +268,7 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
             p.CurrentStreak.Should().BeApproximately(10.0f, 0.01f);
             p.ProductionInStreak.Should().Be(2);
             p.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
-            p.IsKnown.Should().BeTrue(
+            p.IsKnown().Should().BeTrue(
                 $"word {w} should be Known: mastery >= 0.85 AND productionInStreak >= 2");
             p.MasteredAt.Should().NotBeNull();
         }
@@ -278,7 +278,7 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
             p.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
-            p.IsKnown.Should().BeFalse();
+            p.IsKnown().Should().BeFalse();
         }
 
         // === Verify plan reflects progress: Known words excluded from review ===

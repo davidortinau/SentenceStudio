@@ -10130,4 +10130,64 @@
   <data name="Vocabulary_DuplicatesKeepApartFailed" xml:space="preserve">
     <value>이 사본들을 따로 유지하지 못했습니다. 다시 확인하세요.</value>
   </data>
+  <data name="Vocabulary_MarkKnown" xml:space="preserve">
+    <value>아는 단어로 표시</value>
+  </data>
+  <data name="Vocabulary_PracticeAgain" xml:space="preserve">
+    <value>다시 연습</value>
+  </data>
+  <data name="Vocabulary_StartOver" xml:space="preserve">
+    <value>처음부터 다시</value>
+  </data>
+  <data name="Vocabulary_MarkedKnown" xml:space="preserve">
+    <value>아는 단어로 표시함: {0}</value>
+  </data>
+  <data name="VocabWordEdit_KnownMarked" xml:space="preserve">
+    <value>직접 아는 단어로 표시함</value>
+  </data>
+  <data name="Vocabulary_MarkKnownPracticeLed" xml:space="preserve">
+    <value>연습 중심 학습에서는 아는 단어로 표시할 수 없습니다.</value>
+  </data>
+  <data name="Vocabulary_MarkRefusedNotYours" xml:space="preserve">
+    <value>이 단어의 상태를 바꿀 수 없습니다.</value>
+  </data>
+  <data name="LearningMode_Title" xml:space="preserve">
+    <value>학습 방식</value>
+  </data>
+  <data name="LearningMode_LearnerLed" xml:space="preserve">
+    <value>학습자 중심</value>
+  </data>
+  <data name="LearningMode_LearnerLedDetail" xml:space="preserve">
+    <value>나와 연습이 아는 단어를 정합니다. 아는 단어는 다시 연습을 선택할 때까지 그대로 유지됩니다.</value>
+  </data>
+  <data name="LearningMode_PracticeLed" xml:space="preserve">
+    <value>연습 중심</value>
+  </data>
+  <data name="LearningMode_PracticeLedDetail" xml:space="preserve">
+    <value>연습만으로 정합니다. 직접 표시한 아는 단어는 잠시 적용되지 않으며, 아는 단어를 틀리면 다시 연습으로 돌아갈 수 있습니다.</value>
+  </data>
+  <data name="LearningMode_SaveFailed" xml:space="preserve">
+    <value>학습 방식을 저장하지 못했습니다. 온라인일 때 다시 시도하세요.</value>
+  </data>
+  <data name="NativeVocabulary_MarkFailed" xml:space="preserve">
+    <value>상태를 바꾸지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeSettings_LearningModeLoadFailed" xml:space="preserve">
+    <value>학습 방식을 불러오지 못했습니다.</value>
+  </data>
+  <data name="NativeVocabulary_Select" xml:space="preserve">
+    <value>선택</value>
+  </data>
+  <data name="NativeVocabulary_SetStatus" xml:space="preserve">
+    <value>상태 설정</value>
+  </data>
+  <data name="VocabQuiz_MarkKnownDone" xml:space="preserve">
+    <value>아는 단어로 표시했습니다. 다시 연습을 선택하기 전까지는 나오지 않습니다.</value>
+  </data>
+  <data name="Vocabulary_PracticeAgainNotKnown" xml:space="preserve">
+    <value>다시 연습은 아는 단어에만 쓸 수 있습니다. 선택한 단어 중 아는 단어가 없습니다.</value>
+  </data>
+  <data name="Vocabulary_StartOverConfirm" xml:space="preserve">
+    <value>단어 {0}개를 처음부터 다시 시작할까요? 점수가 0으로 돌아갑니다. 연습 기록은 유지됩니다.</value>
+  </data>
 </root>

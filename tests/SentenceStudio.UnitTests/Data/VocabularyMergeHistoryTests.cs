@@ -1658,7 +1658,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         GetProgress(dup, UserA).Should().BeNull();
         var merged = GetProgress(keeper, UserA)!;
         merged.IsUserDeclared.Should().BeTrue("a user-declared Familiar status is high-value signal");
-        merged.IsFamiliar.Should().BeTrue("declaration + Pending verification must survive the merge");
+        merged.VerificationState.Should().Be(VerificationStatus.Pending, "the mark must survive the merge");
+        merged.IsKnown().Should().BeTrue("an old Familiar declaration reads as marked Known");
         merged.NextReviewDate.Should().NotBeNull("the grace-period review date must survive the merge");
         merged.NextReviewDate!.Value.Should().BeCloseTo(dueDate, TimeSpan.FromSeconds(1));
         merged.ReviewInterval.Should().Be(30);
@@ -1751,7 +1752,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         contexts.Should().HaveCount(inputs.Length, "every attempt persists exactly one context");
 
         var replay = new VocabularyProgress { Id = "replay", VocabularyWordId = wordId, UserId = UserA };
-        VocabularyMasteryCalculator.RecalculateInto(replay, contexts, out _);
+        VocabularyMasteryCalculator.RecalculateInto(replay, contexts, null, out _);
 
         replay.TotalAttempts.Should().Be(live.TotalAttempts);
         replay.CorrectAttempts.Should().Be(live.CorrectAttempts);
@@ -1838,7 +1839,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             UpdatedAt = c.At
         }).ToList();
 
-        VocabularyMasteryCalculator.RecalculateInto(progress, ctxList, out _);
+        VocabularyMasteryCalculator.RecalculateInto(progress, ctxList, null, out _);
         progress.FirstSeenAt = ctxList.Count > 0 ? ctxList.Min(c => c.LearnedAt) : DateTime.UtcNow;
         progress.CreatedAt = progress.FirstSeenAt;
 
@@ -1918,7 +1919,7 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             .ToList();
 
         var oracle = new VocabularyProgress { Id = "oracle", VocabularyWordId = keeperWordId, UserId = userId };
-        VocabularyMasteryCalculator.RecalculateInto(oracle, contexts, out _);
+        VocabularyMasteryCalculator.RecalculateInto(oracle, contexts, null, out _);
         return oracle;
     }
 

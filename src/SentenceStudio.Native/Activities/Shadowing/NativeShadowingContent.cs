@@ -86,16 +86,19 @@ public sealed class NativeShadowingContent(
         if (vocabulary.Count == 0)
             return new(NativeShadowingContentStatus.Empty, [], targetLanguage);
 
-        // Exclude Familiar words in their grace period (source, like Cloze/Translation).
+        // Known words are not practised while others remain (source, like Cloze/Translation).
         Dictionary<string, VocabularyProgress> progress;
+        LearningMode mode;
         using (var scope = scopes.CreateScope())
-            progress = await scope.ServiceProvider.GetRequiredService<IVocabularyProgressService>()
-                .GetProgressForWordsAsync(vocabulary.Select(word => word.Id).ToList(), userId);
+        {
+            var service = scope.ServiceProvider.GetRequiredService<IVocabularyProgressService>();
+            progress = await service.GetProgressForWordsAsync(vocabulary.Select(word => word.Id).ToList(), userId);
+            mode = await service.GetLearningModeAsync(userId);
+        }
         cancellationToken.ThrowIfCancellationRequested();
         if (!owner.IsActive(userId))
             return Refused();
-        var words = vocabulary
-            .Where(word => !progress.TryGetValue(word.Id, out var item) || !item.IsInGracePeriod)
+        var words = VocabularyKnownRule.PracticePool(vocabulary, word => progress.GetValueOrDefault(word.Id), mode)
             .OrderBy(_ => Random.Shared.Next())
             .Take(SentenceCount)
             .ToList();

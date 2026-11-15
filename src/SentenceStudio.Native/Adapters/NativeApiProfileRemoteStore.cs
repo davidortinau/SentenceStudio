@@ -104,6 +104,52 @@ public sealed class NativeApiProfileRemoteStore(
     }
 
     /// <summary>
+    /// Saves the learner's Learning mode through PUT /api/v1/profile/me/learning-mode. Refused
+    /// here unless the token's owner is the expected owner.
+    /// </summary>
+    public async Task<NativeProfileRemoteOutcome> SaveLearningModeAsync(
+        string owner, SentenceStudio.Shared.Models.LearningMode mode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            return NativeProfileRemoteOutcome.Rejected;
+        var token = await auth.GetAccessTokenAsync([]);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!auth.IsSignedIn
+            || !string.Equals(NativeAuthPresenter.ParseOwnerClaim(token), owner, StringComparison.Ordinal))
+        {
+            logger.LogWarning("Learning mode write refused an absent or mismatched token owner.");
+            return NativeProfileRemoteOutcome.Rejected;
+        }
+
+        var client = clients.CreateClient("AuthClient");
+        try
+        {
+            using var write = new HttpRequestMessage(HttpMethod.Put, "/api/v1/profile/me/learning-mode")
+            {
+                Content = JsonContent.Create(new { LearningMode = mode.ToString() })
+            };
+            write.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var response = await client.SendAsync(write, cancellationToken);
+            if (response.IsSuccessStatusCode)
+                return NativeProfileRemoteOutcome.Saved;
+            logger.LogWarning("Learning mode write returned {Status}.", response.StatusCode);
+            return response.StatusCode is HttpStatusCode.ServiceUnavailable
+                or HttpStatusCode.GatewayTimeout or HttpStatusCode.BadGateway
+                ? NativeProfileRemoteOutcome.TransportFailure
+                : NativeProfileRemoteOutcome.Rejected;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning("Learning mode write could not reach the API ({FailureType}).", ex.GetType().Name);
+            return NativeProfileRemoteOutcome.TransportFailure;
+        }
+    }
+
+    /// <summary>
     /// Saves the learner's own editable fields through PUT /api/v1/profile/me. The
     /// server takes the owner from the token, so the call is refused here unless the
     /// token's owner is the expected owner. Email and API keys are not sent.

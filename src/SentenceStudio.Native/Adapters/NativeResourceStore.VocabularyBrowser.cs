@@ -59,6 +59,7 @@ public sealed partial class NativeResourceStore
 
         var byResourceId = resources.ToDictionary(resource => resource.Id,
             StringComparer.Ordinal);
+        var mode = await db.GetLearningModeAsync(owner, cancellationToken);
         var entries = words.Select(word =>
         {
             progress.TryGetValue(word.Id, out var ownProgress);
@@ -69,11 +70,11 @@ public sealed partial class NativeResourceStore
                 .DistinctBy(resource => resource.Id)
                 .ToArray();
             return VocabularyEntry(word, associated, ownProgress,
-                exampleCounts.GetValueOrDefault(word.Id));
+                exampleCounts.GetValueOrDefault(word.Id), mode);
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
-        return new(true, entries, resources);
+        return new(true, entries, resources) { Mode = mode };
     }
 
     public async Task<NativeVocabularyDetail?> GetOwnedVocabularyAsync(
@@ -147,9 +148,10 @@ public sealed partial class NativeResourceStore
             || !IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return null;
 
+        var mode = await db.GetLearningModeAsync(owner, cancellationToken);
         var entry = VocabularyEntry(word,
             available.Where(resource => associatedIds.Contains(resource.Id)).ToArray(),
-            ownProgress, exampleCount);
+            ownProgress, exampleCount, mode);
         var draft = new NativeVocabularyEditDraft(
             word.Id, word.UpdatedAt,
             word.TargetLanguageTerm ?? string.Empty,
@@ -158,12 +160,46 @@ public sealed partial class NativeResourceStore
             word.MnemonicText, word.MnemonicImageUri,
             word.LexicalUnitType, associated);
         var progressSnapshot = ownProgress is null ? null
-            : new NativeVocabularyProgress(ownProgress.Status, ownProgress.IsKnown,
+            : new NativeVocabularyProgress(VocabularyKnownRule.Status(ownProgress, mode),
+                VocabularyKnownRule.IsKnown(ownProgress, mode),
                 ownProgress.MasteryScore, ownProgress.CurrentStreak,
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
         return new(entry, draft, available, progressSnapshot, history,
-            examples, constituents, hasConstituentLinks, deleteBlock);
+            examples, constituents, hasConstituentLinks, deleteBlock)
+        {
+            Mode = mode, KnownSource = VocabularyKnownRule.Source(ownProgress, mode)
+        };
+    }
+
+    /// <summary>
+    /// Mark Known, Practice again or Start over on the owner's own words, through the shared
+    /// rule every client uses (<see cref="VocabularyProgressRepository.ApplyLearnerActionAsync"/>).
+    /// </summary>
+    public async Task<NativeVocabularyMarkResult> ApplyLearnerActionAsync(
+        string owner, IReadOnlyCollection<string> wordIds, VocabularyLearnerAction action,
+        CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner) || wordIds is null || wordIds.Count == 0)
+            return new(0, RefusalKey: "Vocabulary_MarkRefusedNotYours");
+        var stamp = userScope.CaptureStamp();
+        using var scope = scopes.CreateScope();
+        var progress = scope.ServiceProvider.GetRequiredService<VocabularyProgressRepository>();
+        if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
+            return new(0, RefusalKey: "Vocabulary_MarkRefusedNotYours");
+        var marked = await progress.ApplyLearnerActionAsync(wordIds, action, owner, cancellationToken);
+        if (marked.Changed == 0)
+            return new(0, RefusalKey: marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours");
+        try
+        {
+            pendingWrites.MarkPending(owner);
+            return new(marked.Changed);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Vocabulary mark committed but sync tracking was not confirmed.");
+            return new(marked.Changed, SyncUnconfirmed: true);
+        }
     }
 
     /// <summary>
@@ -426,7 +462,7 @@ public sealed partial class NativeResourceStore
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,
-        VocabularyProgress? progress, int exampleCount)
+        VocabularyProgress? progress, int exampleCount, LearningMode mode)
     {
         var (_, encodingLabel) = EncodingScoreHelper.CalculateWithLabel(word, exampleCount);
         return new NativeVocabularyEntry(
@@ -434,7 +470,7 @@ public sealed partial class NativeResourceStore
             word.NativeLanguageTerm ?? string.Empty, word.LexicalUnitType,
             word.Tags, word.Lemma, word.Language,
             word.CreatedAt, word.UpdatedAt, encodingLabel,
-            progress?.Status ?? LearningStatus.Unknown,
-            progress?.IsKnown == true, resources);
+            VocabularyKnownRule.Status(progress, mode),
+            VocabularyKnownRule.IsKnown(progress, mode), resources);
     }
 }

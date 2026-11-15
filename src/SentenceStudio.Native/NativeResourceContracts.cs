@@ -235,6 +235,15 @@ public interface INativeResourceStore
         string owner, NativeVocabularyEditDraft draft, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary creation is not available from this store.");
 
+    /// <summary>
+    /// The learner's mark on their own words (docs/known-words-plan.md), one save for all of
+    /// them. Words that are not the owner's are left out; Mark Known is refused in Practice-led.
+    /// </summary>
+    Task<NativeVocabularyMarkResult> ApplyLearnerActionAsync(
+        string owner, IReadOnlyCollection<string> wordIds, VocabularyLearnerAction action,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Vocabulary marks are not available from this store.");
+
     Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary deletion is not available from this store.");

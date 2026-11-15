@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using AndroidX.Compose;
 using SentenceStudio.Native.Features.Settings;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Android;
 
@@ -103,6 +104,50 @@ internal sealed partial class AndroidSliceShell
         rows.Add(Action(Localize("Settings_SavePreferences"), "native.settings.quiz.save",
             SaveQuizSettings, enabled && !state.VoiceLoading));
         return Card(palette, "native.settings.quiz", rows.ToArray());
+    }
+
+    /// <summary>
+    /// Learning mode (docs/known-words-plan.md, source Settings.razor; iOS SettingsView):
+    /// Learner-led or Practice-led, with what the chosen one means under it. A change is saved
+    /// at once; the choice is off while it saves. Null until the mode has been read.
+    /// </summary>
+    private ComposableNode? RenderLearningModeSection(AndroidVisualPalette palette)
+    {
+        if (_learningMode is not { } setting)
+            return null;
+        var state = setting.State;
+        var rows = new List<ComposableNode>
+        {
+            Heading(Localize("LearningMode_Title"), palette, 20,
+                Modifier.Semantics(semantics => semantics.Heading())),
+        };
+        if (state.Mode is { } mode)
+        {
+            rows.Add(MoreSegments("native.settings.learning-mode",
+                [
+                    (nameof(LearningMode.LearnerLed), Localize("LearningMode_LearnerLed")),
+                    (nameof(LearningMode.PracticeLed), Localize("LearningMode_PracticeLed")),
+                ], mode.ToString(),
+                value =>
+                {
+                    if (Enum.TryParse<LearningMode>(value, out var chosen))
+                        RunMoreOnUi(() => setting.SetAsync(chosen));
+                }, enabled: !state.Saving && !Busy.Value));
+            rows.Add(Caption(Localize(mode == LearningMode.LearnerLed
+                    ? "LearningMode_LearnerLedDetail" : "LearningMode_PracticeLedDetail"), palette,
+                "native.settings.learning-mode.detail"));
+            if (state.Saving)
+                rows.Add(new LinearProgressIndicator
+                {
+                    Modifier = Modifier.FillMaxWidth().TestTag("native.settings.learning-mode.saving"),
+                });
+        }
+        else if (state.ErrorKey is null)
+            return null;
+        if (state.ErrorKey is { } error)
+            rows.Add(StatusAlert(Localize(error), palette, error: true,
+                automationId: "native.settings.learning-mode.error"));
+        return Card(palette, "native.settings.learning", rows.ToArray());
     }
 
     private static string DurationTitle(double seconds) =>

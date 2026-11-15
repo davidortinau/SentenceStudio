@@ -93,10 +93,10 @@ namespace SentenceStudio.Services
             var contextVocabulary = resourceVocabulary.Any() ? resourceVocabulary : allUserVocabulary;
             var wordIds = contextVocabulary.Select(w => w.Id).ToList();
             var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
-            var eligibleWords = contextVocabulary
-                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
-                .ToList();
+            var mode = await _progressService.GetLearningModeAsync(ActiveUserId);
+            var eligibleWords = VocabularyKnownRule.PracticePool(
+                contextVocabulary.Where(FocusVocabularySelection.IsUsableVocabularyWord),
+                w => progressDict.GetValueOrDefault(w.Id), mode);
 
             const int MaxVocabSample = 40;
             List<VocabularyWord> words;

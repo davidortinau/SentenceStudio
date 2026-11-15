@@ -1,3 +1,4 @@
+using SentenceStudio.Services;
 using SentenceStudio.Application.Vocabulary;
 using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
@@ -60,8 +61,10 @@ public sealed class VocabularyDueSummaryTool : CoachToolBase
 
         List<VocabularyProgressFacts> rows;
         IReadOnlyList<string?> dueTagValues;
+        LearningMode mode;
         try
         {
+            mode = await _vocabulary.GetLearningModeAsync(userProfileId, ct);
             rows = [.. await _vocabulary.GetProgressFactsAsync(userProfileId, ct)];
             dueTagValues = await _vocabulary.GetDueWordTagsAsync(userProfileId, now, ct);
         }
@@ -75,7 +78,7 @@ public sealed class VocabularyDueSummaryTool : CoachToolBase
         }
 
         var bands = rows
-            .GroupBy(ToBand)
+            .GroupBy(row => ToBand(row, mode))
             .Select(g => new VocabularyBandCount(g.Key.ToString(), g.Count()))
             .OrderBy(b => b.Band, StringComparer.Ordinal)
             .ToList();
@@ -102,9 +105,13 @@ public sealed class VocabularyDueSummaryTool : CoachToolBase
         var shownTags = tagCounts.Take(maxCategoryTags).ToList();
 
         return new VocabularyDueSummary(
-            DueNowCount: rows.Count(r => r.NextReviewDate is { } d && d <= now),
-            DueThisWeekCount: rows.Count(r => r.NextReviewDate is { } d && d > now && d <= weekEnd),
-            NeverPracticedCount: rows.Count(r => r.TotalAttempts == 0),
+            // A Known word is never due.
+            DueNowCount: rows.Count(r => r.NextReviewDate is { } d && d <= now
+                && ToBand(r, mode) != LearningStatus.Known),
+            DueThisWeekCount: rows.Count(r => r.NextReviewDate is { } d && d > now && d <= weekEnd
+                && ToBand(r, mode) != LearningStatus.Known),
+            // A word marked Known with no practice is Known, not never practised.
+            NeverPracticedCount: rows.Count(r => r.TotalAttempts == 0 && ToBand(r, mode) != LearningStatus.Known),
             TrackedWordCount: rows.Count,
             Bands: bands,
             LapseRate: lapseRate,
@@ -152,14 +159,14 @@ public sealed class VocabularyDueSummaryTool : CoachToolBase
     /// The rule stays in <see cref="VocabularyProgress"/>, so the coach and the
     /// rest of the app always report the same band for the same row.
     /// </summary>
-    private static LearningStatus ToBand(VocabularyProgressFacts row) => new VocabularyProgress
-    {
-        MasteryScore = row.MasteryScore,
-        ProductionInStreak = row.ProductionInStreak,
-        TotalAttempts = row.TotalAttempts,
-        IsUserDeclared = row.IsUserDeclared,
-        VerificationState = row.VerificationState
-    }.Status;
+    private static LearningStatus ToBand(VocabularyProgressFacts row, LearningMode mode) =>
+        VocabularyKnownRule.Status(new VocabularyProgress
+        {
+            MasteryScore = row.MasteryScore,
+            ProductionInStreak = row.ProductionInStreak,
+            TotalAttempts = row.TotalAttempts,
+            VerificationState = row.VerificationState
+        }, mode);
 
     private static IEnumerable<string> SplitTags(string? tags)
     {

@@ -276,10 +276,10 @@ else
                 {
                     var wordIds = resource.Vocabulary.Select(w => w.Id).ToList();
                     var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, _owner);
-                    var usable = resource.Vocabulary
-                        .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                        .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
-                        .ToList();
+                    var mode = await ProgressService.GetLearningModeAsync(_owner);
+                    var usable = VocabularyKnownRule.PracticePool(
+                        resource.Vocabulary.Where(FocusVocabularySelection.IsUsableVocabularyWord),
+                        w => progressDict.GetValueOrDefault(w.Id), mode);
                     allVocabulary = FilterToWordsOnly(usable);
                     if (!allVocabulary.Any() && usable.Any())
                     {
@@ -425,21 +425,9 @@ else
             {
                 try
                 {
-                    var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                    await ProgressService.ExtractAndScoreVocabularyAsync(
                         grade.VocabularyAnalysis, allVocabulary, owner,
                         activity: "Writing", difficultyWeight: 1.5f);
-
-                    // Show verification probe feedback to user
-                    foreach (var result in scoringResults)
-                    {
-                        if (result.UpdatedProgress.IsFamiliar)
-                        {
-                            if (result.WasCorrect)
-                                Toast.ShowSuccess(Localize["Writing_ProbeConfirmed"]);
-                            else
-                                Toast.ShowInfo(Localize["Writing_ProbeTricky"]);
-                        }
-                    }
 
                     CacheService.InvalidateVocabSummary();
                 }

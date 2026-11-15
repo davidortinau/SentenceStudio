@@ -160,8 +160,26 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 CancelDelete: CancelListDeleteLater,
                 Study: StudyWord,
                 ShowMoreRows: ShowMoreRows,
-                ChooseFilterValue: OpenChooser),
-            PageWidth, ListDeleteMessage);
+                ChooseFilterValue: OpenChooser,
+                SetSelecting: SetSelecting,
+                ToggleSelected: ToggleSelected,
+                SelectAll: SelectAllFiltered,
+                MarkSelected: action => Run(() => RequestMarkSelectedAsync(action)),
+                ConfirmStartOver: () => Run(ConfirmStartOverSelectedAsync),
+                CancelStartOver: CancelStartOverLater),
+            PageWidth, ListDeleteMessage, StartOverSelectedMessage);
+    }
+
+    /// <summary>As <see cref="CancelListDeleteLater"/>: SwiftUI can report the close before the action runs.</summary>
+    private void CancelStartOverLater()
+    {
+        if (StartOverSelectedMessage is null)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelStartOverSelected();
+        });
     }
 
     /// <summary>A row's swipe Study: Study opens on Choose My Own with the word's resources (none hides it).</summary>
@@ -227,6 +245,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 || state.ErrorKey is not null)
                 return string.Empty;
             var total = state.Catalog.Words.Count;
+            if (state.Selecting)
+                return string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Text("Vocabulary_BulkSelected"), state.Selected.Count);
             return state.Filters.HasActiveFilters
                 ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     Text("Vocabulary_StatsTotal"), state.FilteredWords.Count, total)
@@ -375,7 +396,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ToggleFlag: id => Run(() => ToggleExampleFlagAsync(id)),
                 Delete: id => Run(() => DeleteExampleAsync(id)),
                 RegisterButton: (key, view) => _exampleButtons[key] = view),
-            RegisterSection: (section, view) => _sections[section] = view);
+            RegisterSection: (section, view) => _sections[section] = view,
+            Mark: action => Run(() => MarkOpenWordAsync(action)));
         var form = VocabularyWordEditView.Page(EditState, style, Text, _formActions);
         UpdateSaveButtons();
         return form;
@@ -405,6 +427,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ScheduleRefill(VocabularyEditSection.Examples);
             if ((changes & VocabularyChanges.ExampleText) != 0)
                 UpdateExampleButtons();
+            if ((changes & VocabularyChanges.Progress) != 0)
+                ScheduleRefill(VocabularyEditSection.Progress);
         }
         var list = (changes & VocabularyChanges.List) != 0;
         var sheet = (changes & VocabularyChanges.Sheet) != 0;
@@ -460,6 +484,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
             if (_sections.TryGetValue(VocabularyEditSection.EncodingLabel, out var encoding))
                 encoding.Text = VocabularyWordEditView.EncodingText(detail.Word.EncodingLabel, Text);
         }
+        else if (section == VocabularyEditSection.Progress)
+            card = VocabularyWordEditView.ProgressCard(detail, state, style, Text, actions);
         else
             card = VocabularyWordEditView.ResourceCard(detail, state, style, Text, actions);
         // The card is a Section: its rows and header move into the mounted Section, which

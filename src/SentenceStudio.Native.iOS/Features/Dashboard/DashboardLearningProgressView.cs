@@ -135,13 +135,11 @@ internal static class DashboardLearningProgressView
         List<SwiftView> items, VocabProgressSummary summary, SourceUiStyle style,
         Func<string, string> text)
     {
-        var tiles = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 5,
+        var tiles = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 4,
             VocabularyTile(summary.New, text("Dashboard_VocabNew"), "new", style,
                 SourceTextTone.Primary),
             VocabularyTile(summary.Learning, text("Dashboard_VocabLearning"),
                 "learning", style),
-            VocabularyTile(summary.Familiar, text("Dashboard_VocabFamiliar"),
-                "familiar", style, SourceTextTone.Primary),
             VocabularyTile(summary.Review, text("Dashboard_VocabReview"),
                 "review", style),
             VocabularyTile(summary.Known, text("Dashboard_VocabKnown"),
@@ -149,7 +147,7 @@ internal static class DashboardLearningProgressView
         tiles.Spacing = SourceUiLayout.ItemGap;
         items.Add(tiles);
 
-        var total = summary.New + summary.Learning + summary.Familiar
+        var total = summary.New + summary.Learning
             + summary.Review + summary.Known;
         if (total > 0)
             items.Add(style.Card(Views.HStack(

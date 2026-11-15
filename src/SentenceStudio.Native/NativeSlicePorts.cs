@@ -330,6 +330,14 @@ public interface INativeProfileRemoteStore
     /// <summary>Saves the signed-in learner's own profile fields (PUT /api/v1/profile/me).</summary>
     Task<NativeProfileSaveResult> SaveProfileAsync(
         string owner, NativeProfileFields fields, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Saves the signed-in learner's Learning mode (PUT /api/v1/profile/me/learning-mode,
+    /// docs/known-words-plan.md); the device then receives it with the profile.
+    /// </summary>
+    Task<NativeProfileRemoteOutcome> SaveLearningModeAsync(
+        string owner, SentenceStudio.Shared.Models.LearningMode mode, CancellationToken cancellationToken) =>
+        Task.FromResult(NativeProfileRemoteOutcome.Unavailable);
 }
 
 internal sealed class UnavailableNativeProfileRemoteStore : INativeProfileRemoteStore

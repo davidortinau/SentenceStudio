@@ -40,6 +40,8 @@ internal sealed partial class AndroidSliceShell
             if (state.FeedbackKey is { } feedback)
                 viewport.Add(Body(Localize(feedback), palette, secondary: true,
                     modifier: Modifier.TestTag("native.settings.quiz.feedback")));
+            if (RenderLearningModeSection(palette) is { } learning)
+                viewport.Add(learning);
             // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
             if (RenderSamSettings(palette) is { } sam)
                 viewport.Add(sam);

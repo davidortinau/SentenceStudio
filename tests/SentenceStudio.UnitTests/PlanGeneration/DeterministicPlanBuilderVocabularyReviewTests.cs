@@ -116,7 +116,7 @@ public class DeterministicPlanBuilderVocabularyReviewTests : IClassFixture<PlanG
         plan.Should().NotBeNull();
         plan!.VocabularyReview.Should().NotBeNull("5 non-known words should trigger review");
         plan.VocabularyReview!.DueWords.Should().AllSatisfy(w =>
-            w.IsKnown.Should().BeFalse("known words should be excluded from review"));
+            w.IsKnown().Should().BeFalse("known words should be excluded from review"));
     }
 
     [Fact]

@@ -126,7 +126,6 @@ internal static class QuizLearningDetailsView
     private static string StatusKey(LearningStatus status) => status switch
     {
         LearningStatus.Known => "VocabWordEdit_StatusKnown",
-        LearningStatus.Familiar => "VocabWordEdit_StatusFamiliar",
         LearningStatus.Learning => "VocabWordEdit_StatusLearning",
         _ => "VocabWordEdit_StatusUnknown"
     };

@@ -32,6 +32,17 @@
                     </button>
                 </li>
             }
+            @* docs/known-words-plan.md (Captain 2026-11-14): Mark Known for the word on screen,
+               in Learner-led only and always enabled there. *@
+            @if (learningMode == LearningMode.LearnerLed && currentItem?.Word != null)
+            {
+                <li>
+                    <button class="dropdown-item" id="vocab-quiz-mark-known" data-testid="vocab-quiz-mark-known"
+                            @onclick="MarkCurrentWordKnownAsync">
+                        <i class="bi bi-check-circle me-2" aria-hidden="true"></i>@Localize["Vocabulary_MarkKnown"]
+                    </button>
+                </li>
+            }
         </SecondaryActions>
     </PageHeader>
 }
@@ -495,12 +506,11 @@ else
         <div class="offcanvas-body pt-2" style="overflow-y: auto;">
             @{
                 var p = currentItem.Progress;
-                var status = p?.Status ?? LearningStatus.Unknown;
+                var status = VocabularyKnownRule.Status(p, learningMode);
                 var statusBadge = status switch
                 {
                     LearningStatus.Known => "bg-success",
                     LearningStatus.Learning => "bg-warning text-dark",
-                    LearningStatus.Familiar => "bg-info text-dark",
                     _ => "bg-secondary"
                 };
                 var whyModeKey = WhyModeKey(currentItem);
@@ -735,6 +745,8 @@ else
         new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(StringComparer.Ordinal);
     private IReadOnlyList<string> focusVocabularyIds = Array.Empty<string>();
     private bool usingFocusVocabularyIds;
+    // The learner's Learning mode, which the Known rule needs (docs/known-words-plan.md).
+    private LearningMode learningMode;
     // #190 — full vocabulary scope used as the distractor pool, so MC always has 4 options
     // even when only 1 word remains in the active round. Populated in LoadVocabulary after dedup.
     private List<VocabularyWord> distractorScope = new();
@@ -995,6 +1007,7 @@ else
                 return;
             }
 
+            learningMode = await ProgressService.GetLearningModeAsync(currentUserId);
             var quizCandidates = allWords.Select(word =>
             {
                 var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
@@ -1003,11 +1016,14 @@ else
                         VocabularyWordId = word.Id, UserId = currentUserId, MasteryScore = 0.0f,
                         TotalAttempts = 0, CorrectAttempts = 0
                     };
-                return new VocabularyQuizItem { Word = word, Progress = progress };
+                return new VocabularyQuizItem { Word = word, Progress = progress, LearningMode = learningMode };
             }).ToList();
 
-            // Focus-plan cards retain their full explicit set, including known
-            // words; the legacy non-focus path shares selection with native.
+            // Known words are never scheduled (docs/known-words-plan.md): a focus-plan set drops
+            // the words that are Known now (marked since the plan was built), unless that would
+            // leave nothing. The legacy non-focus path shares selection with native.
+            if (usingFocusVocabularyIds && quizCandidates.Any(item => !item.IsKnown))
+                quizCandidates = quizCandidates.Where(item => !item.IsKnown).ToList();
             var nonFocusSelection = usingFocusVocabularyIds
                 ? null
                 : VocabQuizSourcePolicy.SelectNonFocusBatch(
@@ -1197,6 +1213,7 @@ else
                 return;
             }
 
+            learningMode = await ProgressService.GetLearningModeAsync(currentUserId);
             var itemsById = allWords.ToDictionary(
                 word => word.Id,
                 word =>
@@ -1211,7 +1228,7 @@ else
                             CorrectAttempts = 0
                         };
 
-                    return new VocabularyQuizItem { Word = word, Progress = progress };
+                    return new VocabularyQuizItem { Word = word, Progress = progress, LearningMode = learningMode };
                 },
                 StringComparer.Ordinal);
 
@@ -2131,12 +2148,6 @@ else
                 // Update session counters for sentence shortcut
                 currentItem.SessionCorrectCount++;
                 currentItem.SessionTextCorrect++;
-
-                if (updatedProgress.IsFamiliar)
-                {
-                    await ProgressService.HandleVerificationProbeResultAsync(
-                        currentItem.Word.Id, activeUserId, true);
-                }
             }
 
             sentenceShortcutResults.Clear();
@@ -2348,6 +2359,53 @@ else
         }
     }
 
+    private bool isMarkingKnown;
+
+    /// <summary>
+    /// The More menu's Mark Known: the word is marked through the one owner-scoped save, leaves
+    /// the session without counting as mastered in it, and the next question shows. A refused
+    /// or failed mark leaves the question as it was.
+    /// </summary>
+    private async Task MarkCurrentWordKnownAsync()
+    {
+        if (isMarkingKnown || showAnswer || requireCorrectTyping || isSentenceShortcutMode
+            || currentItem?.Word is not { } word)
+            return;
+        var userId = GetActiveUserId();
+        if (string.IsNullOrEmpty(userId))
+            return;
+        isMarkingKnown = true;
+        try
+        {
+            var marked = await ProgressService.SetLearnerMarkAsync([word.Id], VocabularyLearnerAction.MarkKnown, userId);
+            if (marked.Changed == 0)
+            {
+                Toast.ShowWarning($"{Localize[marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours"]}");
+                return;
+            }
+            var item = currentItem;
+            if (item?.Word?.Id != word.Id)
+                return;
+            item.Progress = await ProgressService.GetProgressAsync(word.Id, userId) ?? item.Progress;
+            CacheService.InvalidateVocabSummary();
+            ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
+            autoAdvanceCts?.Cancel();
+            pendingAttempt = null;
+            // A marked word is not one mastered in this session.
+            await AdvanceFromCurrentItemAsync(countMastered: false);
+            Toast.ShowSuccess($"{Localize["VocabQuiz_MarkKnownDone"]}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Vocab Quiz Mark Known failed for {WordId}", word.Id);
+            Toast.ShowError($"{Localize["NativeVocabulary_MarkFailed"]}");
+        }
+        finally
+        {
+            isMarkingKnown = false;
+        }
+    }
+
     private async Task NextItem()
     {
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
@@ -2358,14 +2416,15 @@ else
     }
 
     /// <summary>Moves from the answered current item to the next one or the round summary.</summary>
-    private async Task AdvanceFromCurrentItemAsync()
+    private async Task AdvanceFromCurrentItemAsync(bool countMastered = true)
     {
         // Immediate rotation check (spec §1.3): remove word mid-round if mastered
         if (currentItem != null && currentItem.ReadyToRotateOut)
         {
             roundWordOrder.Remove(currentItem);
             batchPool.Remove(currentItem);
-            wordsMastered++;
+            if (countMastered)
+                wordsMastered++;
 
             // If that was the last word in the round, trigger round summary
             if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count)
@@ -2417,7 +2476,7 @@ else
         try
         {
             // Snapshot IsKnown state before recording to detect loss (spec §4.3.1)
-            var wasKnownBefore = currentItem?.Progress?.IsKnown ?? false;
+            var wasKnownBefore = currentItem?.IsKnown ?? false;
 
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
             scoredAnswerThisRun = true;
@@ -2431,25 +2490,17 @@ else
                 currentItem.Progress = updatedProgress;
 
                 // Track IsKnown loss this session (spec §4.3.1)
-                if (wasKnownBefore && !updatedProgress.IsKnown)
+                if (wasKnownBefore && !currentItem.IsKnown)
                     currentItem.LostKnownThisSession = true;
 
                 // IsKnown re-qualification with shorter 14-day interval (spec §4.3.1)
-                if (currentItem.LostKnownThisSession && updatedProgress.IsKnown)
+                if (currentItem.LostKnownThisSession && currentItem.IsKnown)
                 {
                     updatedProgress.ReviewInterval = 14;
                     updatedProgress.NextReviewDate = DateTime.UtcNow.AddDays(14);
                     // Persist the shorter interval
                     await ProgressService.UpdateProgressAsync(updatedProgress);
                 }
-            }
-
-            if (updatedProgress.IsFamiliar)
-            {
-                // Still record the verification-probe result for SRS; no per-answer toast —
-                // inline feedback ("Correct!" / "The answer is: …") already covers it.
-                await ProgressService.HandleVerificationProbeResultAsync(
-                    attempt.VocabularyWordId, attempt.UserId, attempt.WasCorrect);
             }
 
             CacheService.InvalidateVocabSummary();
@@ -3181,7 +3232,6 @@ else
     private static string StatusKey(LearningStatus status) => status switch
     {
         LearningStatus.Known => "VocabWordEdit_StatusKnown",
-        LearningStatus.Familiar => "VocabWordEdit_StatusFamiliar",
         LearningStatus.Learning => "VocabWordEdit_StatusLearning",
         _ => "VocabWordEdit_StatusUnknown"
     };

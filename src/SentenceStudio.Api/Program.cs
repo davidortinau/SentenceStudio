@@ -1260,23 +1260,35 @@ app.MapPost("/api/v1/vocabulary/{wordId}/status", async (
         return Results.NotFound();
     }
 
+    // Known, Learning (Practice again) or Unknown (Start over); an older client's "Familiar" is
+    // read as Known (docs/known-words-plan.md).
     if (!Enum.TryParse<LearningStatus>(request.Status, ignoreCase: true, out var status))
     {
-        return Results.BadRequest($"Invalid status '{request.Status}'. Valid values: Unknown, Learning, Familiar.");
+        return Results.BadRequest($"Invalid status '{request.Status}'. Valid values: Known, Learning, Unknown.");
     }
 
-    if (status == LearningStatus.Known)
+    var action = status switch
     {
-        return Results.BadRequest("Known status must be earned through practice.");
+        LearningStatus.Known or LearningStatus.Familiar => VocabularyLearnerAction.MarkKnown,
+        LearningStatus.Learning => VocabularyLearnerAction.PracticeAgain,
+        _ => VocabularyLearnerAction.StartOver
+    };
+    var marked = await progressService.SetLearnerMarkAsync([wordId], action, userId);
+    if (marked.Changed == 0)
+    {
+        return Results.BadRequest(marked.RefusalKey == "Vocabulary_MarkKnownPracticeLed"
+            ? "Mark Known is not available in Practice-led learning."
+            : "The word's status was not changed.");
     }
 
-    var progress = await progressService.SetUserDeclaredStatusAsync(wordId, userId, status);
+    var progress = await progressService.GetProgressAsync(wordId, userId);
+    var mode = await progressService.GetLearningModeAsync(userId);
 
     return Results.Ok(new VocabularyProgressResponse
     {
         Id = progress.Id,
         VocabularyWordId = progress.VocabularyWordId,
-        Status = progress.Status.ToString(),
+        Status = VocabularyKnownRule.Status(progress, mode).ToString(),
         MasteryScore = progress.MasteryScore,
         IsUserDeclared = progress.IsUserDeclared,
         UserDeclaredAt = progress.UserDeclaredAt,

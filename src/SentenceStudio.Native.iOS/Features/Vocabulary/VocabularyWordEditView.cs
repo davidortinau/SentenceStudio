@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
 using SentenceStudio.Common;
+using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Shared.Models;
@@ -15,7 +16,8 @@ internal sealed record VocabularyEditActions(
     Action<SwiftView> RegisterSave,
     Action FindDuplicates, Action RequestDelete,
     VocabularyExampleActions Examples,
-    Action<VocabularyEditSection, SwiftView>? RegisterSection = null);
+    Action<VocabularyEditSection, SwiftView>? RegisterSection = null,
+    Action<VocabularyLearnerAction>? Mark = null);
 
 /// <summary>Source ReferenceSentencesSection's actions (a sentence by its ID, a suggestion by its key).</summary>
 internal sealed record VocabularyExampleActions(
@@ -33,7 +35,7 @@ internal sealed record VocabularyExampleActions(
 /// Resource Associations cards (each in its own slot, so the page keeps its scroll) and the
 /// encoding label, which counts the sentences.
 /// </summary>
-internal enum VocabularyEditSection { Examples, Resources, EncodingLabel }
+internal enum VocabularyEditSection { Examples, Resources, EncodingLabel, Progress }
 
 internal static partial class VocabularyWordEditView
 {
@@ -127,7 +129,8 @@ internal static partial class VocabularyWordEditView
         }
         if (!creating)
         {
-            fields.Add(ProgressCard(detail, style, text));
+            fields.Add(Section(VocabularyEditSection.Progress,
+                ProgressCard(detail, state, style, text, actions), actions));
             fields.Add(HistoryCard(detail, style, text));
         }
         fields.Add(Section(VocabularyEditSection.Resources,
@@ -312,15 +315,14 @@ internal static partial class VocabularyWordEditView
     private static string EncodingLabelText(Func<string, string> text) =>
         text("VocabWordEdit_EncodingStrength").TrimEnd(':', ' ');
 
-    private static SwiftView ProgressCard(
-        NativeVocabularyDetail detail, SourceUiStyle style,
-        Func<string, string> text)
+    internal static SwiftView ProgressCard(
+        NativeVocabularyDetail detail, VocabularyBrowserEdit state, SourceUiStyle style,
+        Func<string, string> text, VocabularyEditActions actions)
     {
         var progress = detail.Progress;
         var status = text(detail.Word.IsKnown ? "VocabWordEdit_Known"
             : detail.Word.Status switch {
             LearningStatus.Known => "VocabWordEdit_Known",
-            LearningStatus.Familiar => "VocabWordEdit_Familiar",
             LearningStatus.Learning => "VocabWordEdit_Learning",
             _ => "VocabWordEdit_Unknown"
         });
@@ -337,8 +339,14 @@ internal static partial class VocabularyWordEditView
                             (review.Date - DateTime.Now.Date).Days)
                         : review.ToString("MMM d", CultureInfo.CurrentCulture);
         var rows = new List<SwiftView> {
-            Value("VocabWordEdit_Status", detail.Word.IsKnown
-                ? $"{status} · {text("VocabWordEdit_EarnedThrough")}" : status,
+            // docs/known-words-plan.md: the status and, for a Known word, who decided it.
+            Value("VocabWordEdit_Status", detail.KnownSource switch {
+                    SentenceStudio.Services.VocabularyKnownSource.Learner =>
+                        $"{status} · {text("VocabWordEdit_KnownMarked")}",
+                    SentenceStudio.Services.VocabularyKnownSource.Practice =>
+                        $"{status} · {text("VocabWordEdit_EarnedThrough")}",
+                    _ => status
+                },
                 "native.vocabulary.edit.progress.status", style, text)
         };
         // Source "Details": one value row per measure (the native form pattern), or the
@@ -360,6 +368,31 @@ internal static partial class VocabularyWordEditView
         }
         rows.Add(Value("VocabWordEdit_NextReview", next,
             "native.vocabulary.edit.progress.review", style, text));
+        // Source status buttons: Practice Again for a Known word, Mark Known otherwise (in
+        // Learner-led only), and Start Over once the word has practice or a status.
+        if (actions.Mark is { } mark)
+        {
+            if (state.Marking)
+                rows.Add(Views.IndeterminateProgress(text("VocabWordEdit_Status"))
+                    .WithAccessibilityIdentifier("native.vocabulary.edit.marking"));
+            void Add(VocabularyLearnerAction action, string id, string symbol)
+            {
+                var button = NativeForm.Action(style, Views.Button(Views.Label(
+                            text(VocabularyBrowser.ActionKey(action)), symbol), () => mark(action))
+                    .WithAccessibilityIdentifier(id));
+                button.IsEnabled = state.CanMark;
+                rows.Add(button);
+            }
+            if (detail.CanPracticeAgain)
+                Add(VocabularyLearnerAction.PracticeAgain,
+                    "native.vocabulary.edit.practice-again", "arrow.counterclockwise");
+            else if (detail.CanMarkKnown)
+                Add(VocabularyLearnerAction.MarkKnown,
+                    "native.vocabulary.edit.mark-known", "checkmark.circle");
+            if (detail.CanStartOver)
+                Add(VocabularyLearnerAction.StartOver,
+                    "native.vocabulary.edit.start-over", "arrow.uturn.backward");
+        }
         return Card(style, "VocabWordEdit_LearningProgress", text, rows.ToArray());
     }
 

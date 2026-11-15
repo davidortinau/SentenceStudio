@@ -419,7 +419,7 @@ public sealed partial class NativeQuizPresenter
                     ? "NativeVocabQuiz_ModeFocusRecognition"
                     : "NativeVocabQuiz_ModeBuildingRecognition";
         var details = new NativeQuizLearningDetails(
-            p?.Status ?? LearningStatus.Unknown,
+            SentenceStudio.Services.VocabularyKnownRule.Status(p, _learningMode),
             p?.TotalAttempts ?? 0,
             p?.CorrectAttempts ?? 0,
             p?.Accuracy ?? 0f,
@@ -883,6 +883,86 @@ public sealed partial class NativeQuizPresenter
         }
     }
 
+    /// <summary>
+    /// The toolbar's Mark Known (docs/known-words-plan.md, Captain 2026-11-14: Vocab Quiz only,
+    /// always enabled, Learner-led only). The word is marked through the one owner-scoped save
+    /// every client uses, an answer already given is still saved, and the word leaves the session
+    /// for the next question. A refused or failed mark leaves the question as it was.
+    /// </summary>
+    public async Task<NativeQuizState> MarkKnownAsync(CancellationToken cancellationToken = default)
+    {
+        StopActiveAudioBeforeNavigation();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_launch is null || !HasOwner(_launch.UserId) || !State.CanMarkKnown
+                || State.IsSentenceSubmitting)
+                return RefuseInvalidAction();
+            var owner = _launch.UserId;
+            var item = _round[_turnIndex];
+            // The mark and the saves after it run to the end once started: a cancelled caller
+            // must not leave the word marked with the question still on screen.
+            try
+            {
+                var marked = await progress.ApplyLearnerActionAsync(
+                    [item.Word.Id], SentenceStudio.Data.VocabularyLearnerAction.MarkKnown, owner, _lifetime.Token);
+                if (!HasOwner(owner))
+                    return RefuseLaunch();
+                if (marked.Changed == 0)
+                {
+                    logger.LogWarning("Quiz Mark Known was refused ({Reason}).", marked.RefusalKey);
+                    return SetState(State with {
+                        ErrorKey = marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours" });
+                }
+            }
+            catch (DbUpdateException ex)
+            {
+                logger.LogError(ex, "Quiz Mark Known was not saved; the question stays.");
+                return SetState(State with { ErrorKey = NativeText.SaveFailed });
+            }
+            try
+            {
+                pendingWrites.MarkPending(owner);
+                _pendingSync = true;
+                _markedKnownTurnId = _turnId;
+                if (_pending is not null)
+                {
+                    // The answer already given is saved as any other (a miss is still recorded).
+                    var receipt = await committer.FindAsync(owner, _contextKey!, _turnId, _lifetime.Token)
+                        ?? await committer.CommitAsync(owner, _contextKey!, _turnId, _pending, _lifetime.Token);
+                    pendingWrites.MarkPending(owner);
+                    if (!HasOwner(owner))
+                        return RefuseLaunch();
+                    return await AdvanceCommittedAsync(receipt, _lifetime.Token);
+                }
+                item.Progress = await progress.GetByWordIdAndUserIdAsync(item.Word.Id, owner)
+                    ?? item.Progress;
+                if (!HasOwner(owner))
+                    return RefuseLaunch();
+                ResetSentenceSubmission();
+                return await AdvanceTurnAsync(_lifetime.Token);
+            }
+            catch (NotSupportedException ex)
+            {
+                logger.LogWarning(ex, "Quiz scoring requires the shared atomic turn receipt.");
+                return SetState(State with {
+                    Phase = NativePhase.Blocked, ErrorKey = NativeText.QuizUnavailable });
+            }
+            catch (DbUpdateException ex)
+            {
+                logger.LogError(ex, "Quiz save after Mark Known failed; the turn stays for Retry.");
+                _needsResumeAfterCommitFailure = _pending is null;
+                return SetState(State with {
+                    Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed,
+                    HasPendingSync = _pendingSync });
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task<NativeQuizState> AdvanceCommittedAsync(
         NativeQuizCommitReceipt receipt, CancellationToken cancellationToken)
     {
@@ -921,10 +1001,13 @@ public sealed partial class NativeQuizPresenter
         if (_launch is null || _turnIndex >= _round.Count)
             throw new InvalidOperationException("No current quiz question to move past.");
         var current = _round[_turnIndex];
+        var markedKnown = _markedKnownTurnId == _turnId;
+        _markedKnownTurnId = null;
         if (current.ReadyToRotateOut)
         {
             _round.RemoveAt(_turnIndex);
-            _wordsMastered++;
+            if (!markedKnown)
+                _wordsMastered++;
         }
         else
         {
