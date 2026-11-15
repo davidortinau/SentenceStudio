@@ -116,6 +116,23 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task In_Practice_led_a_Known_mark_alone_does_not_make_a_word_Known()
+    {
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.UserProfiles.Single(profile => profile.Id == Alice).LearningMode = LearningMode.PracticeLed;
+            db.SaveChanges();
+        }
+
+        var summary = await Service.GetAsync(Alice, AliceResource);
+
+        summary!.UnknownCount.Should().Be(1);
+        summary.LearningCount.Should().Be(2);
+        summary.KnownCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Gives_the_same_answer_after_a_restart()
     {
         await _provider.DisposeAsync();
@@ -129,8 +146,8 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
 
     [Theory]
     [InlineData("en", "Last studied", "11/9/2026 · Vocabulary Review", "Average mastery", "45%",
-        "Known", "1 of 4", "2 sessions · 15 min")]
-    [InlineData("ko", "마지막 학습", null, "평균 숙련도", null, "알고 있음", "4개 중 1개", "2회 · 15분")]
+        "Known", "2 of 4", "2 sessions · 15 min")]
+    [InlineData("ko", "마지막 학습", null, "평균 숙련도", null, "알고 있음", "4개 중 2개", "2회 · 15분")]
     public async Task Projects_the_summary_through_the_apps_text_in_English_and_Korean(
         string cultureName, string lastLabel, string? lastValue, string averageLabel,
         string? averageValue, string knownLabel, string knownValue, string readingValue)
@@ -157,8 +174,7 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
         text.Study.Single(line => line.Id == "study.activity.reading").Value
             .Should().Be(readingValue);
         text.Mastery.Select(line => line.Id).Should().Equal(
-            "mastery.average", "mastery.unknown", "mastery.learning",
-            "mastery.familiar", "mastery.known");
+            "mastery.average", "mastery.unknown", "mastery.learning", "mastery.known");
         text.Mastery[0].Label.Should().Be(averageLabel);
         if (averageValue is not null)
             text.Mastery[0].Value.Should().Be(averageValue);
@@ -172,7 +188,7 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
     public void Shows_why_a_group_is_empty()
     {
         var text = ResourceStudyText.From(
-            new ResourceStudySummary("r", 0, 0, [], null, null, 0, 0, 0, 0, 0, 0),
+            new ResourceStudySummary("r", 0, 0, [], null, null, 0, 0, 0, 0, 0),
             key => key, CultureInfo.InvariantCulture);
 
         text.Study.Should().BeEmpty();
@@ -197,8 +213,8 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
         summary.WordCount.Should().Be(4);
         summary.UnknownCount.Should().Be(1);
         summary.LearningCount.Should().Be(1);
-        summary.FamiliarCount.Should().Be(1);
-        summary.KnownCount.Should().Be(1);
+        // Learner-led (the default): the word she marked Known counts with the practiced one.
+        summary.KnownCount.Should().Be(2);
         // (0.4 + 0.5 + 0.9 + 0) / 4; Bob's mastery 1.0 on her words does not count.
         summary.AverageMastery.Should().BeApproximately(0.45, 0.0001);
     }
@@ -222,11 +238,11 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
             Resource(AliceResource, Alice), Resource("resource-alice-other", Alice),
             Resource(BobResource, Bob));
         db.VocabularyWords.AddRange(
-            Word("a-learning", Alice, "사과"), Word("a-familiar", Alice, "배"),
+            Word("a-learning", Alice, "사과"), Word("a-marked", Alice, "배"),
             Word("a-known", Alice, "포도"), Word("a-unknown", Alice, "딸기"),
             Word("b-word", Bob, "수박"));
         db.ResourceVocabularyMappings.AddRange(
-            Map(AliceResource, "a-learning"), Map(AliceResource, "a-familiar"),
+            Map(AliceResource, "a-learning"), Map(AliceResource, "a-marked"),
             Map(AliceResource, "a-known"), Map(AliceResource, "a-unknown"),
             // A foreign word mapped into Alice's resource (one owner per word): not hers.
             Map(AliceResource, "b-word"),
@@ -235,7 +251,7 @@ public sealed class ResourceStudySummaryServiceTests : IDisposable
             Progress(Alice, "a-learning", 0.4f),
             new VocabularyProgress
             {
-                Id = Guid.NewGuid().ToString(), UserId = Alice, VocabularyWordId = "a-familiar",
+                Id = Guid.NewGuid().ToString(), UserId = Alice, VocabularyWordId = "a-marked",
                 MasteryScore = 0.5f, IsUserDeclared = true,
                 VerificationState = VerificationStatus.Pending,
             },

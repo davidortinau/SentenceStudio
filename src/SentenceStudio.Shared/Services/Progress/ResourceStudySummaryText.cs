@@ -66,7 +66,6 @@ public sealed record ResourceStudyText(
             // The app's word-status names, in the order the Vocabulary page uses.
             mastery.Add(new("mastery.unknown", text("Vocabulary_Unknown"), Of(summary.UnknownCount)));
             mastery.Add(new("mastery.learning", text("Vocabulary_Learning"), Of(summary.LearningCount)));
-            mastery.Add(new("mastery.familiar", text("Vocabulary_Familiar"), Of(summary.FamiliarCount)));
             mastery.Add(new("mastery.known", text("Vocabulary_Known"), Of(summary.KnownCount)));
         }
 

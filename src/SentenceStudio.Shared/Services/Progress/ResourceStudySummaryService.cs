@@ -96,10 +96,11 @@ public sealed class ResourceStudySummaryService(
             .GroupBy(row => row.VocabularyWordId, StringComparer.Ordinal)
             .Select(group => group.OrderByDescending(row => row.UpdatedAt).First())
             .ToArray();
-        var learning = perWord.Count(row => row.Status == LearningStatus.Learning);
-        var familiar = perWord.Count(row => row.Status == LearningStatus.Familiar);
-        var known = perWord.Count(row => row.Status == LearningStatus.Known);
-        var unknown = Math.Max(0, wordCount - learning - familiar - known);
+        // Known follows the app's one rule, which reads the learner's own Learning mode.
+        var mode = await db.GetLearningModeAsync(userProfileId, cancellationToken);
+        var learning = perWord.Count(row => VocabularyKnownRule.Status(row, mode) == LearningStatus.Learning);
+        var known = perWord.Count(row => VocabularyKnownRule.Status(row, mode) == LearningStatus.Known);
+        var unknown = Math.Max(0, wordCount - learning - known);
         var average = wordCount == 0 ? 0
             : perWord.Sum(row => Math.Clamp((double)row.MasteryScore, 0, 1)) / wordCount;
 
@@ -110,7 +111,7 @@ public sealed class ResourceStudySummaryService(
             activities,
             last?.Date.Date,
             last is null ? null : ParseActivity(last.ActivityType),
-            wordCount, unknown, learning, familiar, known, average);
+            wordCount, unknown, learning, known, average);
     }
 
     private static PlanActivityType? ParseActivity(string? value) =>

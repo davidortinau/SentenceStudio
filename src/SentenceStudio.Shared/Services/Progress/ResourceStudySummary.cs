@@ -17,10 +17,9 @@ namespace SentenceStudio.Services.Progress;
 /// does not know.</param>
 /// <param name="WordCount">The owner's words attached to the resource.</param>
 /// <param name="UnknownCount">Words never practiced, or practiced without any mastery yet.</param>
-/// <param name="LearningCount">Words with some mastery that are not known yet.</param>
-/// <param name="FamiliarCount">Words the learner marked as known that still await
-/// verification (the app's Familiar status).</param>
-/// <param name="KnownCount">Words the learner has mastered.</param>
+/// <param name="LearningCount">Words with some mastery that are not Known yet.</param>
+/// <param name="KnownCount">Words that are Known by the app's one rule
+/// (<see cref="SentenceStudio.Services.VocabularyKnownRule"/>) in the learner's Learning mode.</param>
 /// <param name="AverageMastery">Mean mastery (0 to 1) over every word of the resource; a word
 /// never practiced counts as 0.</param>
 public sealed record ResourceStudySummary(
@@ -33,7 +32,6 @@ public sealed record ResourceStudySummary(
     int WordCount,
     int UnknownCount,
     int LearningCount,
-    int FamiliarCount,
     int KnownCount,
     double AverageMastery)
 {
