@@ -20,8 +20,7 @@ internal sealed partial class AndroidSliceShell
         var enabled = !Busy.Value;
         var rows = new List<ComposableNode>
         {
-            Heading(Localize("Settings_VoiceQuizSection"), palette, 20,
-                Modifier.Semantics(semantics => semantics.Heading())),
+            // No heading: the page's title bar names it.
             MoreDropdown("settings.voice-language", "native.settings.quiz.voice-language",
                 Localize("Settings_LanguageLabel"),
                 NativeQuizSettings.Languages.Select(language =>
@@ -118,8 +117,7 @@ internal sealed partial class AndroidSliceShell
         var state = setting.State;
         var rows = new List<ComposableNode>
         {
-            Heading(Localize("LearningMode_Title"), palette, 20,
-                Modifier.Semantics(semantics => semantics.Heading())),
+            // No heading: the page's title bar names it.
         };
         if (state.Mode is { } mode)
         {

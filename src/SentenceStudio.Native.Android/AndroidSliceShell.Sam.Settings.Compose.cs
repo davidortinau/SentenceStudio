@@ -31,8 +31,7 @@ internal sealed partial class AndroidSliceShell
     {
         var rows = new List<ComposableNode>
         {
-            Heading(Localize("Coach_SettingsSection"), palette, 20,
-                Modifier.Semantics(semantics => semantics.Heading())),
+            // No heading: the page's title bar names it.
             Caption(Localize("Coach_SettingsDescription"), palette),
         };
         if (!settings.IsAvailable)

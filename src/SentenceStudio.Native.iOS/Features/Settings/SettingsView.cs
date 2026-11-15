@@ -299,7 +299,7 @@ internal static class SettingsView
     {
         if (state.Mode is not { } mode)
             return state.ErrorKey is { } loadError
-                ? Views.Section(text("LearningMode_Title"), NativeForm.Notice(style, text(loadError),
+                ? Views.Section(string.Empty, NativeForm.Notice(style, text(loadError),
                     "native.settings.learning-mode.error", error: true))
                 : null;
         var picker = Views.Picker(text("LearningMode_Title"),
@@ -332,7 +332,8 @@ internal static class SettingsView
         if (state.ErrorKey is { } error)
             rows.Add(NativeForm.Notice(style, text(error), "native.settings.learning-mode.error",
                 error: true));
-        return Views.Section(text("LearningMode_Title"), rows.ToArray());
+        // Untitled: the Learning mode page's title bar names it.
+        return Views.Section(string.Empty, rows.ToArray());
     }
 
     /// <summary>A settings page's Form; ApplicationScene.UpdateSettings swaps its Sections in place.</summary>

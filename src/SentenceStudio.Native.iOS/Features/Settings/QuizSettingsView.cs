@@ -77,7 +77,8 @@ internal static class QuizSettingsView
         voice.Add(NativeForm.Switch(style, text("Settings_ShowMnemonics"), quiz.ShowMnemonics,
             enabled => quizChanged(draft => draft with { ShowMnemonics = enabled }),
             "native.settings.quiz.mnemonics"));
-        yield return Views.Section(text("Settings_VoiceQuizSection"), voice.ToArray());
+        // Untitled: the Voice & Quiz page's title bar names it.
+        yield return Views.Section(string.Empty, voice.ToArray());
 
         yield return Views.Section(text("Settings_PromptModalitiesLabel"),
             NativeForm.Switch(style, text("Settings_TextModality"), quiz.TextPrompt,

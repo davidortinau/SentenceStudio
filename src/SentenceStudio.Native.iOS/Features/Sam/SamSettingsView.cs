@@ -75,7 +75,8 @@ internal static class SamSettingsView
             rows.Add(style.Text(Views.Text(text(notice)), SourceTextRole.Body2,
                     notice == "Coach_SettingsDeleted" ? SourceTextTone.Success : SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.sam.settings.notice"));
-        return Views.Section(text("Coach_SettingsSection"), rows.ToArray());
+        // Untitled: the Learning Coach page's title bar names it.
+        return Views.Section(string.Empty, rows.ToArray());
     }
 
     private static SwiftView? Memory(SourceUiStyle style, NativeSamMemoryState memory,

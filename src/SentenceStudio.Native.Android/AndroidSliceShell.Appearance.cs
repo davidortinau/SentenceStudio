@@ -16,8 +16,7 @@ internal sealed partial class AndroidSliceShell
         var selection = CurrentAppearance;
         var rows = new List<ComposableNode>
         {
-            Heading(Localize("Settings_AppearanceSection"), palette, 20,
-                Modifier.Semantics(semantics => semantics.Heading())),
+            // No heading: the page's title bar names it.
             Strong(Localize("Settings_ThemeLabel"), palette),
         };
         var themes = ThemeCatalog.All;

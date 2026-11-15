@@ -104,6 +104,7 @@ internal static class AppearanceSettingsView
                 swatches)
             .WithFlexibleWidth();
         theme.Spacing = SourceUiLayout.ItemGap;
-        return Views.Section(text("Settings_AppearanceSection"), theme, mode, textSize);
+        // Untitled: the Appearance page's title bar names it.
+        return Views.Section(string.Empty, theme, mode, textSize);
     }
 }
