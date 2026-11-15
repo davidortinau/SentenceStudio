@@ -17,7 +17,8 @@ internal sealed record VocabularyEditActions(
     Action FindDuplicates, Action RequestDelete,
     VocabularyExampleActions Examples,
     Action<VocabularyEditSection, SwiftView>? RegisterSection = null,
-    Action<VocabularyLearnerAction>? Mark = null);
+    Action<VocabularyLearnerAction>? Mark = null,
+    Action? Discard = null);
 
 /// <summary>Source ReferenceSentencesSection's actions (a sentence by its ID, a suggestion by its key).</summary>
 internal sealed record VocabularyExampleActions(
@@ -52,6 +53,27 @@ internal static partial class VocabularyWordEditView
         if (state.ErrorKey is { } error)
             notices.Add(NativeForm.Notice(style, text(error), "native.vocabulary.edit.error",
                 error: true));
+        // "Save or undo your changes": both actions sit under the message, since beside the
+        // list the editor has no Back to undo with (Captain 2026-11-14: "There is no save or
+        // cancel button to do this").
+        if (state.ErrorKey == VocabularyBrowser.SaveBeforeOpeningAnotherKey
+            && state is { Detail: not null, Draft: not null, Creating: false })
+        {
+            var saveNow = NativeForm.Action(style, Views.Button(
+                    Views.Label(text("Common_Save"), "checkmark.circle"), actions.Save)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.unsaved.save"));
+            saveNow.IsEnabled = state.CanSave;
+            notices.Add(saveNow);
+            if (actions.Discard is { } discard)
+            {
+                var undo = NativeForm.Action(style, Views.Button(
+                        Views.Label(text("VocabWordEdit_DiscardChanges"), "arrow.uturn.backward"), discard)
+                    .WithButtonRole(SwiftButtonRole.Destructive)
+                    .WithAccessibilityIdentifier("native.vocabulary.edit.unsaved.discard"));
+                undo.IsEnabled = !state.Saving && !state.Deleting;
+                notices.Add(undo);
+            }
+        }
         if (state.DeleteError is { } deleteError)
             notices.Add(NativeForm.Notice(style, deleteError,
                 "native.vocabulary.edit.delete.error", error: true));

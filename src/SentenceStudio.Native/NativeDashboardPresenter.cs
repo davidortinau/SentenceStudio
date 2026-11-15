@@ -72,6 +72,24 @@ public sealed partial class NativeDashboardPresenter(
         LoadCoreAsync(generateIfMissing: true, synchronize: true, cancellationToken);
 
     /// <summary>
+    /// Reads the Vocabulary counts again and nothing else (no plan, no sync): the learner comes
+    /// back to Study after changing word statuses, deleting or adding words elsewhere in the
+    /// app (Captain 2026-11-14: "the counts on the dashboard aren't updating"). While a full
+    /// load is running it does nothing, since that load reads the counts itself.
+    /// </summary>
+    public async Task<NativeDashboardState> RefreshVocabularyAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryCurrentUser(out var owner) || _stateOwner != owner
+            || _state.Phase is NativePhase.Loading or NativePhase.Blocked)
+            return State;
+        await LoadVocabStateAsync(owner, cancellationToken);
+        if (!TryCurrentUser(out var current) || current != owner || _stateOwner != owner
+            || _state.Phase is NativePhase.Loading or NativePhase.Blocked)
+            return State;
+        return SetState(_state with { VocabSummary = _vocabSummary }, owner);
+    }
+
+    /// <summary>
     /// First Dashboard load after sign-in or restore: load from local data, then,
     /// if sync is still unconfirmed on a loaded Dashboard (a plan or Choose My
     /// Own with no plan), synchronize once so the pending caption reflects the

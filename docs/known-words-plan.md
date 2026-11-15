@@ -223,6 +223,12 @@ Every phase is reviewed before any device round.
 
 ## Built (2026-11-14, branch `known-words`)
 
+Shipped 2026-11-14: `c65e4657` on `main`, api--0000042 and webapp--0000037, the profile migration
+applied in production (24 profiles, all `LearnerLed`; backup
+`~/sstudio-prod-backup-20261114-1903`), native and MAUI apps installed on Duotopia. The Captain
+kept the direct `DROP COLUMN` in the SQLite migration's Down. Not run as apps before shipping:
+the web, Android and MAUI (the web by UI tests, Android by compile only).
+
 - Phase 1: `02366d33` (the profile column on both providers), `a5d046d7` (marks, the one Known
   rule, every reader, the merge, trust but verify removed), `ae463a87` (the mode in the profile
   API). The contract is in `docs/sync-all-tables-plan.md` ("Known marks and the Learning mode").
@@ -247,6 +253,12 @@ Every phase is reviewed before any device round.
   Known words out; the native lists ask before Start Over for many words.
 - The Familiar tile, badge and filter choice are gone from every client (the count fields in the
   API and Sam results stay, at zero).
+- After the release (2026-11-14, from the Captain's use on Duotopia): select mode on iOS and
+  Android holds the source's whole bulk edit (Set Status, Set Language, Add Tags, Delete with a
+  confirmation), and the editor's "Save or undo your changes" message carries Save and Discard
+  Changes under it (beside the list the editor has no Back to undo with). Open: on Duotopia's
+  unfolded screen the editor's own bar (full screen, Delete, Save) does not show; not reproduced
+  on a simulator, which cannot unfold.
 - Not the system control: the iOS list's select mode is rows with a selection circle, since the
   SwiftUI bridge has no List selection binding. Native List selection needs that bridge addition.
 - The SQLite migration's Down drops the column with SQL: EF's SQLite generator cannot drop a

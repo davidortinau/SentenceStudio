@@ -31,9 +31,11 @@ internal partial class VocabularyBrowser
     /// </summary>
     internal Task RequestMarkSelectedAsync(VocabularyLearnerAction action)
     {
+        if (!BulkEditMayStart())
+            return Task.CompletedTask;
         if (action != VocabularyLearnerAction.StartOver)
             return MarkSelectedAsync(action);
-        if (!_selecting || _marking || _selectedIds.Count == 0 || _askingStartOver || !TryOwner(out _))
+        if (!_selecting || _marking || _selectedIds.Count == 0 || BulkPromptOpen || !TryOwner(out _))
             return Task.CompletedTask;
         _askingStartOver = true;
         Notify(VocabularyChanges.List);
@@ -61,6 +63,9 @@ internal partial class VocabularyBrowser
     private void ResetSelection()
     {
         _askingStartOver = false;
+        _askingBulkDelete = false;
+        _tagEntryOpen = false;
+        _tagDraft = string.Empty;
         _selecting = false;
         _selectedIds = new HashSet<string>(StringComparer.Ordinal);
     }
@@ -72,13 +77,19 @@ internal partial class VocabularyBrowser
             return;
         ResetSelection();
         _selecting = selecting;
+        // "Choose one or more words first" belongs to select mode: it goes when the mode does.
+        if (_feedback == _text("NativeVocabulary_SelectFirst"))
+        {
+            _feedback = null;
+            _feedbackWarning = false;
+        }
         Notify(VocabularyChanges.List);
     }
 
     /// <summary>A row tapped in select mode: chosen, or no longer chosen.</summary>
     internal void ToggleSelected(string wordId)
     {
-        if (!_selecting || _marking || _askingStartOver || !TryOwner(out _)
+        if (!_selecting || _marking || BulkPromptOpen || !TryOwner(out _)
             || !_catalog.Words.Any(word => word.Id == wordId))
             return;
         var next = new HashSet<string>(_selectedIds, StringComparer.Ordinal);

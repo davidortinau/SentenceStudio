@@ -38,6 +38,71 @@ internal sealed partial class AndroidSliceShell
         var page = VocabularyListPage(vocabulary, palette);
         if (vocabulary is { IsPhoneFilterPresented: true })
             return new Box { Modifier.FillMaxSize(), page, VocabularyFilterSheet(vocabulary, palette) };
+        // Delete for the chosen words asks first (source bulkConfirmDeleteMessage).
+        if (vocabulary?.BulkDeleteMessage is { } bulkDelete)
+        {
+            var confirm = new TextButton(() => RunMoreOnUi(vocabulary.ConfirmBulkDeleteAsync), enabled: true)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.delete.confirm"),
+            };
+            confirm.Add(new Text(Localize("Common_Delete")) { Color = palette.Danger });
+            var cancel = new TextButton(vocabulary.CancelBulkDelete, enabled: true)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.delete.cancel"),
+            };
+            cancel.Add(new Text(Localize("Common_Cancel")));
+            return new Box
+            {
+                Modifier.FillMaxSize(),
+                page,
+                new AndroidX.Compose.AlertDialog(vocabulary.CancelBulkDelete)
+                {
+                    Modifier = Modifier.TestTag("native.vocabulary.select.delete.dialog"),
+                    Title = new Text(Localize("Vocabulary_BulkConfirmDeleteTitle")),
+                    Text = new Text(bulkDelete),
+                    ConfirmButton = confirm,
+                    DismissButton = cancel,
+                },
+            };
+        }
+        // Add Tags: a dialog with the one field (source bulkTagsInput).
+        if (vocabulary is { IsTagEntryOpen: true })
+        {
+            var add = new TextButton(() => RunMoreOnUi(vocabulary.AddTagsToSelectedAsync),
+                enabled: vocabulary.CanAddTags)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.tags.add"),
+            };
+            add.Add(new Text(Localize("Common_Add")));
+            var cancel = new TextButton(vocabulary.CancelTagEntry, enabled: true)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.tags.cancel"),
+            };
+            cancel.Add(new Text(Localize("Common_Cancel")));
+            return new Box
+            {
+                Modifier.FillMaxSize(),
+                page,
+                new AndroidX.Compose.AlertDialog(vocabulary.CancelTagEntry)
+                {
+                    Modifier = Modifier.TestTag("native.vocabulary.select.tags.dialog"),
+                    Title = new Text(Localize("Vocabulary_BulkActionAddTags")),
+                    Text = new OutlinedTextField(vocabulary.TagDraft, value =>
+                    {
+                        vocabulary.SetTagDraft(value);
+                        RenderMoreNow();
+                    }, enabled: true, singleLine: true)
+                    {
+                        Modifier = Modifier.FillMaxWidth().TestTag("native.vocabulary.select.tags.field")
+                            .Semantics(semantics => semantics.ContentDescription(
+                                Localize("Vocabulary_BulkAddTagsPlaceholder"))),
+                        Placeholder = new Text(Localize("Vocabulary_BulkAddTagsPlaceholder")),
+                    },
+                    ConfirmButton = add,
+                    DismissButton = cancel,
+                },
+            };
+        }
         // Start Over for the chosen words asks first (it sets every one's score to zero).
         if (vocabulary?.StartOverSelectedMessage is { } startOver)
         {
@@ -579,6 +644,16 @@ internal sealed partial class AndroidSliceShell
         if (state.ErrorKey is { } error)
             Add("error", () => StatusAlert(Localize(error), palette, error: true,
                 automationId: "native.vocabulary.edit.error"));
+        // "Save or undo your changes": both actions under the message (as on iOS).
+        if (state.ErrorKey == VocabularyBrowser.SaveBeforeOpeningAnotherKey
+            && state is { Detail: not null, Draft: not null, Creating: false })
+        {
+            Add("unsaved.save", () => Action(Localize("Common_Save"), "native.vocabulary.edit.unsaved.save",
+                () => RunMoreOnUi(vocabulary.SaveAsync), state.CanSave));
+            Add("unsaved.discard", () => Action(Localize("VocabWordEdit_DiscardChanges"),
+                "native.vocabulary.edit.unsaved.discard", vocabulary.DiscardEdits,
+                !state.Saving && !state.Deleting, primary: false));
+        }
         if (state.DeleteError is { } deleteError)
             Add("delete.error", () => StatusAlert(deleteError, palette, error: true,
                 automationId: "native.vocabulary.edit.delete.error"));
@@ -868,6 +943,7 @@ internal sealed partial class AndroidSliceShell
     }
 
     private const string VocabularySelectMenuKey = "vocabulary.select.status";
+    private const string VocabularySelectLanguageMenuKey = "vocabulary.select.language";
 
     /// <summary>Select mode's bar actions: the status menu, Select All and Done.</summary>
     private ComposableNode VocabularySelectActions(VocabularyBrowser vocabulary,
@@ -877,9 +953,9 @@ internal sealed partial class AndroidSliceShell
             enabled: state.CanMarkSelected)
         {
             Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                .TestTag("native.vocabulary.select.status"),
+                .TestTag("native.vocabulary.select.actions"),
         };
-        status.Add(new Text(Localize("NativeVocabulary_SetStatus")));
+        status.Add(new Text(Localize("NativeVocabulary_BulkActions")));
         var menu = PopupMenu(expanded: _moreMenu == VocabularySelectMenuKey,
             onDismissRequest: CloseMoreMenu);
         void Mark(VocabularyLearnerAction action, string tag) =>
@@ -889,6 +965,25 @@ internal sealed partial class AndroidSliceShell
             Mark(VocabularyLearnerAction.MarkKnown, "native.vocabulary.select.mark-known");
         Mark(VocabularyLearnerAction.PracticeAgain, "native.vocabulary.select.practice-again");
         Mark(VocabularyLearnerAction.StartOver, "native.vocabulary.select.start-over");
+        // Source bulk edit: Set Language (its own menu), Add Tags and Delete.
+        menu.Add(new HorizontalDivider { Color = palette.Border });
+        menu.Add(VocabularyMenuItem(Localize("Vocabulary_BulkActionSetLanguage"),
+            "native.vocabulary.select.language", state.CanMarkSelected,
+            () => ToggleMoreMenu(VocabularySelectLanguageMenuKey)));
+        menu.Add(VocabularyMenuItem(Localize("Vocabulary_BulkActionAddTags"),
+            "native.vocabulary.select.tags", state.CanMarkSelected, vocabulary.OpenTagEntry));
+        menu.Add(new HorizontalDivider { Color = palette.Border });
+        menu.Add(VocabularyMenuItem(Localize("Vocabulary_BulkActionDelete"),
+            "native.vocabulary.select.delete", state.CanMarkSelected, vocabulary.RequestBulkDelete,
+            state.CanMarkSelected ? palette.Danger : null));
+        var languages = PopupMenu(expanded: _moreMenu == VocabularySelectLanguageMenuKey,
+            onDismissRequest: CloseMoreMenu);
+        foreach (var language in Constants.Languages)
+        {
+            var chosen = language;
+            languages.Add(VocabularyMenuItem(chosen, $"native.vocabulary.select.language.{chosen}",
+                state.CanMarkSelected, () => RunMoreOnUi(() => vocabulary.SetSelectedLanguageAsync(chosen))));
+        }
         var all = new TextButton(vocabulary.SelectAllFiltered, enabled: !state.Marking)
         {
             Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
@@ -903,7 +998,7 @@ internal sealed partial class AndroidSliceShell
         done.Add(new Text(Localize("Common_Done")));
         return new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
         {
-            new Box { status, menu },
+            new Box { status, menu, languages },
             all,
             done,
         };

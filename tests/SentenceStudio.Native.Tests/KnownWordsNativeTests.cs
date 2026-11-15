@@ -74,6 +74,30 @@ public sealed class KnownWordsNativeTests
     }
 
     [Fact]
+    public async Task Dashboard_VocabularyCounts_FollowAMarkMadeInTheLibrary()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        var dashboard = fixture.Dashboard;
+        var loaded = await dashboard.LoadAsync();
+        var before = loaded.VocabSummary!;
+        Assert.Equal(0, before.Known);
+
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        await store.ApplyLearnerActionAsync(UserA, [fixture.WordId(UserA, 0), fixture.WordId(UserA, 1)],
+            VocabularyLearnerAction.MarkKnown, default);
+        // Nothing reads the counts again until Study asks.
+        Assert.Equal(0, dashboard.State.VocabSummary!.Known);
+
+        var after = (await dashboard.RefreshVocabularyAsync()).VocabSummary!;
+        Assert.Equal(2, after.Known);
+        Assert.Equal(before.New - 2, after.New);
+        Assert.Equal(loaded.Phase, dashboard.State.Phase);
+        Assert.Equal(loaded.Cards.Length, dashboard.State.Cards.Length);
+    }
+
+    [Fact]
     public async Task PracticeLed_OffersNoMarkKnown_AndTheStoreRefusesIt()
     {
         using var fixture = new NativeSliceFixture();
@@ -183,6 +207,140 @@ public sealed class KnownWordsNativeTests
         browser.ToggleSelected(first);
         browser.SetSelecting(false);
         Assert.Empty(browser.ListState.Selected);
+    }
+
+    [Fact]
+    public async Task SelectMode_SetsLanguage_AddsTags_AndDeletes_OnlyTheOwnersChosenWords()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), NullLogger<VocabularyBrowser>.Instance, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+        var first = fixture.WordId(UserA, 0);
+        var second = fixture.WordId(UserA, 1);
+        var foreign = fixture.WordId(UserB, 0);
+
+        // A language the app does not list is refused; the owner's words keep theirs.
+        Assert.Equal(0, (await store.SetOwnedVocabularyLanguageAsync(UserA, [first], "Klingon", default)).Changed);
+        // Another learner's word is never changed.
+        Assert.Equal(1, (await store.SetOwnedVocabularyLanguageAsync(UserA, [first, foreign], "Japanese", default)).Changed);
+
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.ToggleSelected(second);
+        await browser.SetSelectedLanguageAsync("Spanish");
+        Assert.False(browser.ListState.Selecting);
+        Assert.False(browser.ListState.FeedbackWarning);
+        Assert.All(browser.ListState.Catalog.Words.Where(word => word.Id == first || word.Id == second),
+            word => Assert.Equal("Spanish", word.Language));
+
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.OpenTagEntry();
+        Assert.True(browser.IsTagEntryOpen);
+        Assert.False(browser.CanAddTags);
+        browser.SetTagDraft(" food, Food ,travel,");
+        Assert.True(browser.CanAddTags);
+        await browser.AddTagsToSelectedAsync();
+        Assert.False(browser.IsTagEntryOpen);
+        Assert.False(browser.ListState.Selecting);
+        var tagged = browser.ListState.Catalog.Words.Single(word => word.Id == first).Tags ?? "";
+        Assert.Contains("food", tagged);
+        Assert.Contains("travel", tagged);
+        Assert.Equal(1, tagged.Split(',').Count(tag => tag.Trim().Equals("food", StringComparison.OrdinalIgnoreCase)));
+
+        // Adding a tag the word already holds is not a failure.
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.OpenTagEntry();
+        browser.SetTagDraft("food");
+        await browser.AddTagsToSelectedAsync();
+        Assert.False(browser.ListState.FeedbackWarning);
+        Assert.False(browser.ListState.Selecting);
+
+        // With no word chosen a bulk choice says so and changes nothing.
+        browser.SetSelecting(true);
+        var mounted = browser.Arrangement;
+        await browser.SetSelectedLanguageAsync("French");
+        Assert.Equal("NativeVocabulary_SelectFirst", browser.ListState.Feedback);
+        Assert.NotEqual(mounted, browser.Arrangement);
+        browser.OpenTagEntry();
+        Assert.False(browser.IsTagEntryOpen);
+        browser.RequestBulkDelete();
+        Assert.Null(browser.BulkDeleteMessage);
+        browser.SetSelecting(false);
+
+        // A word open beside the list with nothing typed takes the new language, and is not
+        // "unsaved"; one being edited keeps its draft and can still be saved.
+        await browser.OpenWordAsync(first);
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        await browser.SetSelectedLanguageAsync("French");
+        Assert.Equal("French", browser.EditState.Draft!.Language);
+        Assert.False(browser.HasUnsavedEdits);
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.Lemma), "kept");
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        await browser.SetSelectedLanguageAsync("German");
+        Assert.Equal("kept", browser.EditState.Draft!.Lemma);
+        Assert.True(browser.HasUnsavedEdits);
+        await browser.SaveAsync();
+        Assert.Null(browser.EditState.ErrorKey);
+        browser.CloseWord();
+
+        // Delete asks first; Cancel deletes nothing; confirmed, only the chosen word goes.
+        var before = browser.ListState.Catalog.Words.Count;
+        browser.SetSelecting(true);
+        browser.ToggleSelected(second);
+        browser.RequestBulkDelete();
+        Assert.NotNull(browser.BulkDeleteMessage);
+        browser.CancelBulkDelete();
+        Assert.Equal(before, browser.ListState.Catalog.Words.Count);
+        browser.RequestBulkDelete();
+        await browser.ConfirmBulkDeleteAsync();
+        Assert.False(browser.ListState.Selecting);
+        Assert.Equal(before - 1, browser.ListState.Catalog.Words.Count);
+        Assert.DoesNotContain(browser.ListState.Catalog.Words, word => word.Id == second);
+
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var other = await db.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == foreign);
+        Assert.NotEqual("Japanese", other.Language);
+        Assert.NotEqual("Spanish", other.Language);
+        Assert.DoesNotContain("food", other.Tags ?? "");
+    }
+
+    [Fact]
+    public async Task UnsavedEdits_BlockOpeningAnotherWord_UntilSavedOrDiscarded()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), NullLogger<VocabularyBrowser>.Instance, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+        var first = fixture.WordId(UserA, 0);
+        var second = fixture.WordId(UserA, 1);
+        await browser.OpenWordAsync(first);
+        var loaded = browser.EditState.Draft!;
+
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.Language), "Japanese");
+        await browser.OpenWordAsync(second);
+        Assert.Equal(VocabularyBrowser.SaveBeforeOpeningAnotherKey, browser.EditState.ErrorKey);
+        Assert.Equal(first, browser.EditState.Detail!.Word.Id);
+
+        browser.DiscardEdits();
+        Assert.Null(browser.EditState.ErrorKey);
+        Assert.Equal(loaded, browser.EditState.Draft);
+        Assert.False(browser.HasUnsavedEdits);
+        await browser.OpenWordAsync(second);
+        Assert.Equal(second, browser.EditState.Detail!.Word.Id);
+        Assert.Equal(loaded.Language, (await store.GetOwnedVocabularyAsync(UserA, first, default))!.Draft.Language);
     }
 
     [Fact]

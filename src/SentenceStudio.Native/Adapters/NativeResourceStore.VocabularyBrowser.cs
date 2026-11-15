@@ -203,6 +203,50 @@ public sealed partial class NativeResourceStore
     }
 
     /// <summary>
+    /// Source bulk Set Language, through the shared owner-scoped
+    /// <see cref="LearningResourceRepository.BulkSetLanguageAsync"/> (only the owner's words change).
+    /// </summary>
+    public Task<NativeVocabularyMarkResult> SetOwnedVocabularyLanguageAsync(
+        string owner, IReadOnlyCollection<string> wordIds, string language,
+        CancellationToken cancellationToken) =>
+        !SentenceStudio.Common.Constants.Languages.Contains(language, StringComparer.Ordinal)
+            ? Task.FromResult(new NativeVocabularyMarkResult(0))
+            : BulkEditAsync(owner, wordIds, repository =>
+                repository.BulkSetLanguageAsync(wordIds.ToList(), language, owner));
+
+    /// <summary>Source bulk Add Tags, through <see cref="LearningResourceRepository.BulkAddTagsAsync"/>.</summary>
+    public Task<NativeVocabularyMarkResult> AddOwnedVocabularyTagsAsync(
+        string owner, IReadOnlyCollection<string> wordIds, IReadOnlyCollection<string> tags,
+        CancellationToken cancellationToken) =>
+        BulkEditAsync(owner, wordIds, repository =>
+            repository.BulkAddTagsAsync(wordIds.ToList(), tags, owner));
+
+    private async Task<NativeVocabularyMarkResult> BulkEditAsync(string owner,
+        IReadOnlyCollection<string> wordIds, Func<LearningResourceRepository, Task<int>> change)
+    {
+        if (!IsActiveOwner(owner) || wordIds is null || wordIds.Count == 0)
+            return new(0);
+        var stamp = userScope.CaptureStamp();
+        using var scope = scopes.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+        if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
+            return new(0);
+        var changed = await change(repository);
+        if (changed == 0)
+            return new(0);
+        try
+        {
+            pendingWrites.MarkPending(owner);
+            return new(changed);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Vocabulary bulk edit committed but sync tracking was not confirmed.");
+            return new(changed, SyncUnconfirmed: true);
+        }
+    }
+
+    /// <summary>
     /// Whether the word is still recorded to the owner, without loading its detail: the
     /// editor's audio and image preview check only this.
     /// </summary>

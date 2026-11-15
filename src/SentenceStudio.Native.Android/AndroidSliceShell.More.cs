@@ -196,6 +196,11 @@ internal sealed partial class AndroidSliceShell
                 // Back leaves select mode before it leaves the list.
                 if (vocabulary.ListState.Selecting)
                 {
+                    if (vocabulary.IsTagEntryOpen)
+                    {
+                        vocabulary.CancelTagEntry();
+                        return true;
+                    }
                     vocabulary.SetSelecting(false);
                     return true;
                 }
