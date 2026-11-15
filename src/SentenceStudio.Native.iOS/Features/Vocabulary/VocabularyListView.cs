@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
+using SentenceStudio.Common;
 using SentenceStudio.Native;
 using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Styling;
@@ -35,7 +36,15 @@ internal sealed record VocabularyListActions(
     Action? SelectAll = null,
     Action<SentenceStudio.Data.VocabularyLearnerAction>? MarkSelected = null,
     Action? ConfirmStartOver = null,
-    Action? CancelStartOver = null);
+    Action? CancelStartOver = null,
+    Action<string>? SetSelectedLanguage = null,
+    Action? OpenTagEntry = null,
+    Action<string>? ChangeTagDraft = null,
+    Action? AddTags = null,
+    Action? CancelTagEntry = null,
+    Action? RequestBulkDelete = null,
+    Action? ConfirmBulkDelete = null,
+    Action? CancelBulkDelete = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -75,7 +84,8 @@ internal static class VocabularyListView
     internal static SwiftView Page(
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double? pageWidth = null,
-        string? deleteMessage = null, string? startOverMessage = null)
+        string? deleteMessage = null, string? startOverMessage = null,
+        string? bulkDeleteMessage = null, string? tagDraft = null)
     {
         var width = BrowserPage.Width(pageWidth, style);
         var wide = IsWide(width);
@@ -99,6 +109,42 @@ internal static class VocabularyListView
                 .WithAccessibilityIdentifier($"{Prefix}.select.start-over.dialog");
             dialog.IsPresented = true;
             page = dialog;
+        }
+        // Delete for the chosen words asks the same way (source bulkConfirmDeleteMessage).
+        if (bulkDeleteMessage is not null)
+        {
+            var dialog = Views.ConfirmationDialog(page, bulkDeleteMessage,
+                    () => actions.CancelBulkDelete?.Invoke(),
+                    Views.Button(text("Common_Delete"), () => actions.ConfirmBulkDelete?.Invoke())
+                        .WithButtonRole(SwiftButtonRole.Destructive)
+                        .WithAccessibilityIdentifier($"{Prefix}.select.delete.confirm"),
+                    Views.Button(text("Common_Cancel"), () => actions.CancelBulkDelete?.Invoke())
+                        .WithButtonRole(SwiftButtonRole.Cancel)
+                        .WithAccessibilityIdentifier($"{Prefix}.select.delete.cancel"))
+                .WithAccessibilityIdentifier($"{Prefix}.select.delete.dialog");
+            dialog.IsPresented = true;
+            page = dialog;
+        }
+        // Add Tags: a sheet with the one field (source bulkTagsInput), Cancel and Add.
+        if (tagDraft is not null)
+        {
+            var field = NativeForm.Field(text("Vocabulary_BulkActionAddTags"), tagDraft,
+                $"{Prefix}.select.tags.field", value => actions.ChangeTagDraft?.Invoke(value),
+                prompt: text("Vocabulary_BulkAddTagsPlaceholder"));
+            var form = NativeForm.Page(style, [Views.Section(string.Empty, field)],
+                $"{Prefix}.select.tags.form", $"{Prefix}.select.tags.screen");
+            var entry = Views.NavigationStack(Views.Toolbar(form,
+                    Views.Button(text("Common_Cancel"), () => actions.CancelTagEntry?.Invoke())
+                        .WithAccessibilityIdentifier($"{Prefix}.select.tags.cancel"),
+                    Views.Button(text("Common_Add"), () => actions.AddTags?.Invoke())
+                        .WithAccessibilityIdentifier($"{Prefix}.select.tags.add"))
+                .WithNavigationTitle(text("Vocabulary_BulkActionAddTags"))
+                .WithInlineNavigationTitle());
+            var sheet = Views.Sheet(page, entry, () => actions.CancelTagEntry?.Invoke())
+                .WithSheetDetentFraction(0.4)
+                .WithAccessibilityIdentifier($"{Prefix}.select.tags.sheet");
+            sheet.IsPresented = true;
+            page = sheet;
         }
         return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
             ToolbarActions(state, text, actions, wide, ready));
@@ -171,9 +217,40 @@ internal static class VocabularyListView
             Add(SentenceStudio.Data.VocabularyLearnerAction.PracticeAgain, "practice-again",
                 "arrow.counterclockwise");
             Add(SentenceStudio.Data.VocabularyLearnerAction.StartOver, "start-over", "arrow.uturn.backward");
-            shown.Add(Views.Menu(Views.Label(text("NativeVocabulary_SetStatus"), "checkmark.circle"),
-                    marks.ToArray())
-                .WithAccessibilityIdentifier($"{Prefix}.select.status"));
+            // Source bulk edit: Set Status, Set Language, Add Tags and Delete for the chosen words.
+            // A menu holds Buttons, Pickers, Dividers and Sections of Buttons (no menu inside a
+            // menu): the statuses are a titled Section, the languages a Picker (a submenu).
+            var edits = new List<SwiftView>
+            {
+                Views.Section(text("Vocabulary_BulkActionSetStatus"), marks.ToArray())
+            };
+            if (actions.SetSelectedLanguage is { } setLanguage)
+            {
+                var languages = Constants.Languages.ToArray();
+                // The first option stands for "no change": the chosen words may hold several.
+                edits.Add(Views.Picker(text("Vocabulary_BulkActionSetLanguage"),
+                        [text("Vocabulary_BulkSetLanguagePlaceholder"), .. languages], 0,
+                        index =>
+                        {
+                            if (index > 0 && index <= languages.Length)
+                                setLanguage(languages[index - 1]);
+                        })
+                    .WithPickerStyle(SwiftPickerStyle.Menu)
+                    .WithAccessibilityIdentifier($"{Prefix}.select.language"));
+            }
+            var more = new List<SwiftView>();
+            if (actions.OpenTagEntry is { } openTags)
+                more.Add(Views.Button(Views.Label(text("Vocabulary_BulkActionAddTags"), "tag"), openTags)
+                    .WithAccessibilityIdentifier($"{Prefix}.select.tags"));
+            if (actions.RequestBulkDelete is { } bulkDelete)
+                more.Add(Views.Button(Views.Label(text("Vocabulary_BulkActionDelete"), "trash"), bulkDelete)
+                    .WithButtonRole(SwiftButtonRole.Destructive)
+                    .WithAccessibilityIdentifier($"{Prefix}.select.delete"));
+            if (more.Count > 0)
+                edits.Add(Views.Section(string.Empty, more.ToArray()));
+            shown.Add(Views.Menu(Views.Label(text("NativeVocabulary_BulkActions"), "ellipsis.circle"),
+                    edits.ToArray())
+                .WithAccessibilityIdentifier($"{Prefix}.select.actions"));
             if (actions.SelectAll is { } selectAll)
                 shown.Add(Views.Button(text("Vocabulary_SelectAll"), selectAll)
                     .WithAccessibilityIdentifier($"{Prefix}.select.all"));

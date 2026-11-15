@@ -244,6 +244,18 @@ public interface INativeResourceStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary marks are not available from this store.");
 
+    /// <summary>Source bulk Set Language: the owner's own words get the language (one of the app's languages).</summary>
+    Task<NativeVocabularyMarkResult> SetOwnedVocabularyLanguageAsync(
+        string owner, IReadOnlyCollection<string> wordIds, string language,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Vocabulary bulk edits are not available from this store.");
+
+    /// <summary>Source bulk Add Tags: the tags are added to the owner's own words (existing tags stay).</summary>
+    Task<NativeVocabularyMarkResult> AddOwnedVocabularyTagsAsync(
+        string owner, IReadOnlyCollection<string> wordIds, IReadOnlyCollection<string> tags,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Vocabulary bulk edits are not available from this store.");
+
     Task<NativeVocabularyDeleteStatus> DeleteOwnedVocabularyAsync(
         string owner, string wordId, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Vocabulary deletion is not available from this store.");

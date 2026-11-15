@@ -236,7 +236,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// </summary>
     internal string Arrangement =>
         $"{_sortField}:{(_sortDescending ? "desc" : "asc")}:{(_listMode ? "list" : "grid")}"
-        + (_selecting ? ":select" : string.Empty) + (_askingStartOver ? ":ask" : string.Empty);
+        + (_selecting ? ":select" : string.Empty) + (_askingStartOver ? ":ask" : string.Empty)
+        + (_askingBulkDelete ? ":delete" : string.Empty) + (_tagEntryOpen ? ":tags" : string.Empty);
     internal string SearchText => TryOwner(out _)
         ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
 
@@ -455,6 +456,24 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             ? !string.IsNullOrWhiteSpace(draft.TargetTerm) || !string.IsNullOrWhiteSpace(draft.NativeTerm)
             : _detail is { } detail && !SameDraft(detail.Draft, draft));
 
+    /// <summary>The editor's message when another word was chosen while this one has unsaved changes.</summary>
+    internal const string SaveBeforeOpeningAnotherKey = "VocabWordEdit_SaveBeforeOpeningAnother";
+
+    /// <summary>
+    /// Undo for the open word: the draft goes back to the word as it was loaded, and the
+    /// "save or undo" message clears. Beside the list (the split view) the editor has no Back to
+    /// leave without saving, so the message offers this.
+    /// </summary>
+    internal void DiscardEdits()
+    {
+        if (!_formOpen || _creating || _saving || AnyDeleting || _handingOff
+            || _detail is not { } detail || !TryOwner(out _))
+            return;
+        _draft = detail.Draft;
+        _editErrorKey = null;
+        Notify(VocabularyChanges.Form);
+    }
+
     private static bool SameDraft(NativeVocabularyEditDraft loaded, NativeVocabularyEditDraft current) =>
         current with { ResourceIds = loaded.ResourceIds } == loaded
         && loaded.ResourceIds.SequenceEqual(current.ResourceIds, StringComparer.Ordinal);
@@ -471,7 +490,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (_formOpen && !string.Equals(id, _selectedWordId, StringComparison.Ordinal)
             && HasUnsavedEdits)
         {
-            _editErrorKey = "VocabWordEdit_SaveBeforeOpeningAnother";
+            _editErrorKey = SaveBeforeOpeningAnotherKey;
             Notify(VocabularyChanges.Form);
             return;
         }

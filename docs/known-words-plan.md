@@ -253,6 +253,12 @@ the web, Android and MAUI (the web by UI tests, Android by compile only).
   Known words out; the native lists ask before Start Over for many words.
 - The Familiar tile, badge and filter choice are gone from every client (the count fields in the
   API and Sam results stay, at zero).
+- After the release (2026-11-14, from the Captain's use on Duotopia): select mode on iOS and
+  Android holds the source's whole bulk edit (Set Status, Set Language, Add Tags, Delete with a
+  confirmation), and the editor's "Save or undo your changes" message carries Save and Discard
+  Changes under it (beside the list the editor has no Back to undo with). Open: on Duotopia's
+  unfolded screen the editor's own bar (full screen, Delete, Save) does not show; not reproduced
+  on a simulator, which cannot unfold.
 - Not the system control: the iOS list's select mode is rows with a selection circle, since the
   SwiftUI bridge has no List selection binding. Native List selection needs that bridge addition.
 - The SQLite migration's Down drops the column with SQL: EF's SQLite generator cannot drop a

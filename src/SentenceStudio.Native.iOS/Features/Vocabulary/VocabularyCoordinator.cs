@@ -166,8 +166,41 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 SelectAll: SelectAllFiltered,
                 MarkSelected: action => Run(() => RequestMarkSelectedAsync(action)),
                 ConfirmStartOver: () => Run(ConfirmStartOverSelectedAsync),
-                CancelStartOver: CancelStartOverLater),
-            PageWidth, ListDeleteMessage, StartOverSelectedMessage);
+                CancelStartOver: CancelStartOverLater,
+                SetSelectedLanguage: language => Run(() => SetSelectedLanguageAsync(language)),
+                OpenTagEntry: OpenTagEntry,
+                ChangeTagDraft: SetTagDraft,
+                AddTags: () => Run(AddTagsToSelectedAsync),
+                CancelTagEntry: CancelTagEntryLater,
+                RequestBulkDelete: RequestBulkDelete,
+                ConfirmBulkDelete: () => Run(ConfirmBulkDeleteAsync),
+                CancelBulkDelete: CancelBulkDeleteLater),
+            PageWidth, ListDeleteMessage, StartOverSelectedMessage, BulkDeleteMessage,
+            IsTagEntryOpen ? TagDraft : null);
+    }
+
+    /// <summary>As <see cref="CancelListDeleteLater"/>: the dialog can report its close before Delete runs.</summary>
+    private void CancelBulkDeleteLater()
+    {
+        if (BulkDeleteMessage is null)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelBulkDelete();
+        });
+    }
+
+    /// <summary>The tag sheet closed (Cancel, a swipe down, or after Add, which has already closed the entry).</summary>
+    private void CancelTagEntryLater()
+    {
+        if (!IsTagEntryOpen)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelTagEntry();
+        });
     }
 
     /// <summary>As <see cref="CancelListDeleteLater"/>: SwiftUI can report the close before the action runs.</summary>
@@ -397,7 +430,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 Delete: id => Run(() => DeleteExampleAsync(id)),
                 RegisterButton: (key, view) => _exampleButtons[key] = view),
             RegisterSection: (section, view) => _sections[section] = view,
-            Mark: action => Run(() => MarkOpenWordAsync(action)));
+            Mark: action => Run(() => MarkOpenWordAsync(action)),
+            Discard: DiscardEdits);
         var form = VocabularyWordEditView.Page(EditState, style, Text, _formActions);
         UpdateSaveButtons();
         return form;

@@ -186,6 +186,101 @@ public sealed class KnownWordsNativeTests
     }
 
     [Fact]
+    public async Task SelectMode_SetsLanguage_AddsTags_AndDeletes_OnlyTheOwnersChosenWords()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        await fixture.SeedAsync(UserB);
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), NullLogger<VocabularyBrowser>.Instance, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+        var first = fixture.WordId(UserA, 0);
+        var second = fixture.WordId(UserA, 1);
+        var foreign = fixture.WordId(UserB, 0);
+
+        // A language the app does not list is refused; the owner's words keep theirs.
+        Assert.Equal(0, (await store.SetOwnedVocabularyLanguageAsync(UserA, [first], "Klingon", default)).Changed);
+        // Another learner's word is never changed.
+        Assert.Equal(1, (await store.SetOwnedVocabularyLanguageAsync(UserA, [first, foreign], "Japanese", default)).Changed);
+
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.ToggleSelected(second);
+        await browser.SetSelectedLanguageAsync("Spanish");
+        Assert.False(browser.ListState.Selecting);
+        Assert.False(browser.ListState.FeedbackWarning);
+        Assert.All(browser.ListState.Catalog.Words.Where(word => word.Id == first || word.Id == second),
+            word => Assert.Equal("Spanish", word.Language));
+
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.OpenTagEntry();
+        Assert.True(browser.IsTagEntryOpen);
+        Assert.False(browser.CanAddTags);
+        browser.SetTagDraft(" food, Food ,travel,");
+        Assert.True(browser.CanAddTags);
+        await browser.AddTagsToSelectedAsync();
+        Assert.False(browser.IsTagEntryOpen);
+        Assert.False(browser.ListState.Selecting);
+        var tagged = browser.ListState.Catalog.Words.Single(word => word.Id == first).Tags ?? "";
+        Assert.Contains("food", tagged);
+        Assert.Contains("travel", tagged);
+        Assert.Equal(1, tagged.Split(',').Count(tag => tag.Trim().Equals("food", StringComparison.OrdinalIgnoreCase)));
+
+        // Delete asks first; Cancel deletes nothing; confirmed, only the chosen word goes.
+        var before = browser.ListState.Catalog.Words.Count;
+        browser.SetSelecting(true);
+        browser.ToggleSelected(second);
+        browser.RequestBulkDelete();
+        Assert.NotNull(browser.BulkDeleteMessage);
+        browser.CancelBulkDelete();
+        Assert.Equal(before, browser.ListState.Catalog.Words.Count);
+        browser.RequestBulkDelete();
+        await browser.ConfirmBulkDeleteAsync();
+        Assert.False(browser.ListState.Selecting);
+        Assert.Equal(before - 1, browser.ListState.Catalog.Words.Count);
+        Assert.DoesNotContain(browser.ListState.Catalog.Words, word => word.Id == second);
+
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var other = await db.VocabularyWords.AsNoTracking().SingleAsync(word => word.Id == foreign);
+        Assert.NotEqual("Japanese", other.Language);
+        Assert.NotEqual("Spanish", other.Language);
+        Assert.DoesNotContain("food", other.Tags ?? "");
+    }
+
+    [Fact]
+    public async Task UnsavedEdits_BlockOpeningAnotherWord_UntilSavedOrDiscarded()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        using var browser = new VocabularyBrowser(store, fixture.UserScope, fixture.Preferences,
+            new ScratchQuizMedia(), NullLogger<VocabularyBrowser>.Instance, key => key);
+        Assert.True(await browser.OpenAsync(UserA));
+        var first = fixture.WordId(UserA, 0);
+        var second = fixture.WordId(UserA, 1);
+        await browser.OpenWordAsync(first);
+        var loaded = browser.EditState.Draft!;
+
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.Language), "Japanese");
+        await browser.OpenWordAsync(second);
+        Assert.Equal(VocabularyBrowser.SaveBeforeOpeningAnotherKey, browser.EditState.ErrorKey);
+        Assert.Equal(first, browser.EditState.Detail!.Word.Id);
+
+        browser.DiscardEdits();
+        Assert.Null(browser.EditState.ErrorKey);
+        Assert.Equal(loaded, browser.EditState.Draft);
+        Assert.False(browser.HasUnsavedEdits);
+        await browser.OpenWordAsync(second);
+        Assert.Equal(second, browser.EditState.Detail!.Word.Id);
+        Assert.Equal(loaded.Language, (await store.GetOwnedVocabularyAsync(UserA, first, default))!.Draft.Language);
+    }
+
+    [Fact]
     public async Task Quiz_MarkKnown_MarksTheWordOnScreen_SavesAnAnswerAlreadyGiven_AndMovesOn()
     {
         using var fixture = new NativeSliceFixture();

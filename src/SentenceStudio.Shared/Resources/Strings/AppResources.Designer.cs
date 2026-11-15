@@ -12721,6 +12721,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Edit Selected.
+        /// </summary>
+        internal static string NativeVocabulary_BulkActions {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_BulkActions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The change could not be saved. Try again..
+        /// </summary>
+        internal static string NativeVocabulary_BulkFailed {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_BulkFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version..
         /// </summary>
         internal static string NativeVocabulary_Conflict {
@@ -22807,6 +22825,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_DetailsLabel {
             get {
                 return ResourceManager.GetString("VocabWordEdit_DetailsLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Discard Changes.
+        /// </summary>
+        internal static string VocabWordEdit_DiscardChanges {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_DiscardChanges", resourceCulture);
             }
         }
 
