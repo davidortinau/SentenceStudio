@@ -504,7 +504,7 @@ the text. Clips are small and no lifecycle rule deletes them yet. A changed key 
 Prepared 2026-11-14. **Nothing below has been run against Azure.** The Captain approves the
 Azure step.
 
-**What changed.** The API and Workers can send telemetry to `appi-sstudio-biz` with Entra tokens
+**What changed.** The API, Workers and WebApp can send telemetry to `appi-sstudio-biz` with Entra tokens
 from their managed identity instead of the instrumentation key alone. It is off until the setting
 `AzureMonitor:Authentication=ManagedIdentity` is present (`ResolveAzureMonitorCredential` in
 `src/SentenceStudio.ServiceDefaults/Extensions.cs`); the hosts pass a `DefaultAzureCredential`,
@@ -531,17 +531,20 @@ az role assignment create --assignee-object-id "$PRINCIPAL" --assignee-principal
   --role "Monitoring Metrics Publisher" --scope "$APPI" --subscription $S
 ```
 
-Wait 5 to 10 minutes, then turn it on for both hosts (a new revision of each):
+Wait 5 to 10 minutes, then turn it on for each host (a new revision of each). Before the
+WebApp, confirm it carries the same identity (`az containerapp show -g $RG -n webapp
+--subscription $S --query identity.userAssignedIdentities`); if it has another, grant that
+principal the role first.
 
 ```bash
-for app in api workers; do
+for app in api workers webapp; do
   az containerapp update -g $RG -n $app --subscription $S \
     --set-env-vars AzureMonitor__Authentication=ManagedIdentity
 done
 ```
 
 `azd deploy` keeps container env vars it did not set, but confirm after the next deploy that
-both apps still have the variable.
+every app still has the variable.
 
 **Verify** within 15 minutes, in `appi-sstudio-biz`: `requests | where cloud_RoleName ==
 "SentenceStudio.Api" and timestamp > ago(15m) | count` is above zero after you use the app,

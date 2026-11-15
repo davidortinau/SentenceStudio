@@ -117,12 +117,19 @@ public static class ServiceCollectionExtentions
         // The URI (https+http://api) is resolved by Aspire service discovery.
         if (apiBaseUri is not null)
         {
+            // No resilience handlers (#89): the MAUI defaults retry a 429 and wait out its
+            // Retry-After, so a rate-limited or locked-out sign-in would end in this client's
+            // 15 second timeout and a generic error instead of the "too many attempts" message.
+            // The native heads register this client without the pipeline as well.
+#pragma warning disable EXTEXP0001
             services.AddHttpClient("AuthClient", client =>
             {
                 client.BaseAddress = apiBaseUri;
                 client.Timeout = TimeSpan.FromSeconds(15);
             })
-            .AddHttpMessageHandler<ApiActivityHandler>();
+            .AddHttpMessageHandler<ApiActivityHandler>()
+            .RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
         }
 
         services.AddTransient<AuthenticatedHttpMessageHandler>();
