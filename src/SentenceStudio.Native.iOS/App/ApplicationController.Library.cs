@@ -72,6 +72,31 @@ internal sealed partial class ApplicationController
         Publish();
         if (_selectedTab == NativeTabs.Study && _refreshChooseOwnAfterSkills)
             ReloadChooseOwnAfterSkills();
+        // Words marked, added or deleted in the Library change Study's Vocabulary counts.
+        if (_selectedTab == NativeTabs.Study)
+            _ = RefreshDashboardVocabularyAsync();
+    }
+
+    /// <summary>Reads Study's Vocabulary counts again, quietly (no busy state; a failure keeps the old counts).</summary>
+    private async Task RefreshDashboardVocabularyAsync()
+    {
+        if (_dashboard is not { } dashboard || _disposed)
+            return;
+        try
+        {
+            var state = await dashboard.RefreshVocabularyAsync(_lifetime.Token);
+            if (_disposed || !ReferenceEquals(_dashboard, dashboard) || _busy)
+                return;
+            _dashboardState = state;
+            Publish();
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Study's vocabulary counts could not be read again.");
+        }
     }
 
     /// <summary>The Resources page is pushed above the Library list.</summary>

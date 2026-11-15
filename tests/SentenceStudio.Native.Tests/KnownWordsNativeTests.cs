@@ -74,6 +74,30 @@ public sealed class KnownWordsNativeTests
     }
 
     [Fact]
+    public async Task Dashboard_VocabularyCounts_FollowAMarkMadeInTheLibrary()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        fixture.Activate(UserA);
+        var dashboard = fixture.Dashboard;
+        var loaded = await dashboard.LoadAsync();
+        var before = loaded.VocabSummary!;
+        Assert.Equal(0, before.Known);
+
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+        await store.ApplyLearnerActionAsync(UserA, [fixture.WordId(UserA, 0), fixture.WordId(UserA, 1)],
+            VocabularyLearnerAction.MarkKnown, default);
+        // Nothing reads the counts again until Study asks.
+        Assert.Equal(0, dashboard.State.VocabSummary!.Known);
+
+        var after = (await dashboard.RefreshVocabularyAsync()).VocabSummary!;
+        Assert.Equal(2, after.Known);
+        Assert.Equal(before.New - 2, after.New);
+        Assert.Equal(loaded.Phase, dashboard.State.Phase);
+        Assert.Equal(loaded.Cards.Length, dashboard.State.Cards.Length);
+    }
+
+    [Fact]
     public async Task PracticeLed_OffersNoMarkKnown_AndTheStoreRefusesIt()
     {
         using var fixture = new NativeSliceFixture();
