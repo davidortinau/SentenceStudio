@@ -29,12 +29,12 @@ internal static class SettingsView
 
     /// <summary>
     /// The Settings sidebar: the profile row, the settings pages, the Learning Coach (when Sam
-    /// is offered) and Sign Out last. The open page's row is marked (see <see cref="Row"/>).
+    /// is offered) and About. Sign Out is at the bottom of Profile. The open page's row is marked (see <see cref="Row"/>).
     /// </summary>
     internal static SwiftView Sidebar(SourceUiStyle style, Func<string, string> text,
         (string Name, string NativeLanguage, string TargetLanguage)? summary,
         NativeSettingsPage? selected, bool coachShown, Action<NativeSettingsPage> select,
-        SwiftView signOut)
+        SwiftView? previewExit = null)
     {
         SwiftView PageRow(NativeSettingsPage page, string symbol, string id) =>
             Row(style, symbol, text(TitleKey(page)), selected == page, () => select(page), id);
@@ -53,7 +53,8 @@ internal static class SettingsView
                 "bubble.left.and.bubble.right", "native.settings.row.coach")));
         sections.Add(Views.Section(string.Empty,
             PageRow(NativeSettingsPage.About, "info.circle", "native.settings.row.about")));
-        sections.Add(Views.Section(string.Empty, signOut));
+        if (previewExit is not null)
+            sections.Add(Views.Section(string.Empty, previewExit));
         return NativeForm.Page(style, sections, "native.settings.sidebar.form",
             "native.settings.sidebar");
     }
@@ -223,7 +224,7 @@ internal static class SettingsView
             .WithAccessibilityIdentifier("native.settings.profile");
     }
 
-    /// <summary>The last row of the Settings sidebar (the Dashboard More menu's Sign out).</summary>
+    /// <summary>The last row of the Profile page (the Dashboard More menu's Sign out).</summary>
     internal static SwiftView SignOut(SourceUiStyle style, string title, bool enabled, Action signOut)
     {
         // The destructive row reads in the danger color, as iOS Settings' Sign Out does.

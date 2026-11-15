@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
 using SentenceStudio.Data;
 using SentenceStudio.Native.iOS.Features.Profile;
+using SentenceStudio.Native.iOS.Features.Settings;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using SentenceStudio.Services;
@@ -57,6 +58,10 @@ internal sealed partial class ApplicationController
         Run(async () => await _profile.OpenAsync(expectedOwner, _lifetime.Token));
     }
 
+    /// <summary>
+    /// The Profile page, Sign Out last; when the profile could not be opened it says so, with
+    /// Retry, above Sign Out.
+    /// </summary>
     internal SwiftView RenderProfile(SourceUiStyle style) =>
         _profile is { IsOpen: true } profile
             ? ProfileView.Page(profile.State, style, Text,
@@ -76,8 +81,19 @@ internal sealed partial class ApplicationController
                             // The sidebar's profile row shows beside the page: it follows the save.
                             await RefreshProfileSummaryAsync();
                         }
-                    })))
-            : Views.Text(Text("Common_Loading"));
+                    })), SignOutRow(style))
+            : ProfileView.Unavailable(style, Text, RetryProfile, SignOutRow(style));
+
+    /// <summary>Sign Out; off while the profile saves (the save finishes first).</summary>
+    internal SwiftView SignOutRow(SourceUiStyle style) =>
+        SettingsView.SignOut(style, SignOutTitle,
+            enabled: _profile?.State.IsSaving != true, SignOut);
+
+    private void RetryProfile()
+    {
+        OpenProfile();
+        Publish();
+    }
 
     internal void CancelProfileDelete() => _profile?.CancelDelete();
 }

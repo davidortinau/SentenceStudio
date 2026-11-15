@@ -9,11 +9,13 @@ internal sealed partial class ApplicationScene
     private SwiftView? _profileDeleteAlert;
     private int _renderedProfileVersion = -1;
 
-    /// <summary>The Profile page in the Settings detail column, once the profile has opened.</summary>
+    /// <summary>
+    /// The Profile page in the Settings detail column (its "unavailable" form with Sign Out
+    /// when the profile could not be opened).
+    /// </summary>
     private void UpdateProfile(bool appearanceChanged)
     {
-        if (_settingsDetailSlot is null || !_app.IsProfileOpen
-            || _renderedSettingsPage != NativeSettingsPage.Profile)
+        if (_settingsDetailSlot is null || _renderedSettingsPage != NativeSettingsPage.Profile)
             return;
         if (_profileSlot is null)
         {

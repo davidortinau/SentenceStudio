@@ -311,7 +311,7 @@ internal sealed partial class AndroidSliceShell
         return surface;
     }
 
-    /// <summary>The last row of the Settings tab (was the Dashboard More menu's Sign out), in the danger color.</summary>
+    /// <summary>The last row of Profile (was the Dashboard More menu's Sign out), in the danger color.</summary>
     private ComposableNode SettingsSignOut(AndroidVisualPalette palette)
     {
         var title = Localize("Nav_Logout");
@@ -319,7 +319,8 @@ internal sealed partial class AndroidSliceShell
         if (_preview)
             title = "Exit Debug preview";
 #endif
-        var button = new OutlinedButton(SignOut, enabled: !Busy.Value)
+        // Off while Profile saves (the save finishes first).
+        var button = new OutlinedButton(SignOut, enabled: !Busy.Value && !IsSettingsPageBlocked)
         {
             Modifier = Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
                 .TestTag("native.settings.sign-out")

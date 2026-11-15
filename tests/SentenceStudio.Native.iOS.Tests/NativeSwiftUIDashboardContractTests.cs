@@ -88,14 +88,18 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,\n"
             + "                OpenActivityLog));", app);
         // The More menu is gone: History and Regenerate (where it applies) are toolbar buttons;
-        // Sign out is the last row of the Settings tab.
+        // Sign out is the last row of Profile (Captain 2026-11-15), in every Profile state.
         Assert.DoesNotContain("Views.Menu(", toolbar);
         Assert.Contains("\"native.dashboard.regenerate\"", toolbar);
         Assert.Contains("\"native.study.history\"", toolbar);
         Assert.Contains("text(\"Nav_History\")", toolbar);
         Assert.Contains("if (canRegeneratePlan)", toolbar);
         Assert.Contains("\"native.settings.sign-out\"", Source("Features/Settings/SettingsView.cs"));
-        Assert.Contains("SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut)", app);
+        var profile = Source("App/ApplicationController.Profile.cs");
+        Assert.Contains("SettingsView.SignOut(style, SignOutTitle,\n            enabled: _profile?.State.IsSaving != true, SignOut)", profile);
+        Assert.Contains("ProfileView.Unavailable(style, Text, RetryProfile, SignOutRow(style))", profile);
+        Assert.Equal(3, Source("Features/Profile/ProfileView.cs")
+            .Split("Views.Section(string.Empty, signOut)", StringSplitOptions.None).Length - 1);
         Assert.Contains("await _dashboard.RefreshAsync(_lifetime.Token)", app);
         Assert.Contains("await _dashboard!.RegenerateAsync(_lifetime.Token)", app);
         Assert.Contains("_auth.SignOutAsync(_lifetime.Token)", app);

@@ -647,13 +647,14 @@ internal sealed partial class ApplicationController : IDisposable
     }
 
     /// <summary>
-    /// The Settings sidebar: the profile row first (iOS Settings starts with your name), the
-    /// settings pages, then Sign out last (both were in the Dashboard More menu).
+    /// The Settings sidebar: the profile row first (iOS Settings starts with your name), then the
+    /// settings pages. Sign out is at the bottom of Profile (Captain 2026-11-15).
     /// </summary>
     internal SwiftView RenderSettingsSidebar(SourceUiStyle style) =>
         SettingsView.Sidebar(style, Text, _profileSummary, _settingsPage,
             coachShown: IsSamSettingsShown, SelectSettingsPage,
-            SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut));
+            // The Debug preview has no profile of its own: its exit stays in the list.
+            previewExit: _preview ? SignOutRow(style) : null);
 
     /// <summary>The open settings page's Form (Profile is drawn by RenderProfile).</summary>
     internal SwiftView RenderSettings(SourceUiStyle style)
@@ -701,7 +702,9 @@ internal sealed partial class ApplicationController : IDisposable
     /// </summary>
     internal void SelectSettingsPage(NativeSettingsPage page)
     {
-        if (!_settingsOpen || _settingsPage == page || NavigationBlocked)
+        // Choosing Profile again while it could not open tries again.
+        if (!_settingsOpen || NavigationBlocked
+            || _settingsPage == page && !(page == NativeSettingsPage.Profile && !IsProfileOpen))
             return;
         var previous = _settingsPage;
         if (previous == NativeSettingsPage.Profile)
@@ -711,28 +714,25 @@ internal sealed partial class ApplicationController : IDisposable
         _settingsPage = page;
         if (page == NativeSettingsPage.Profile)
         {
+            // A refused open still shows the page: it says so, with Sign Out under it.
             OpenProfile();
             if (!IsProfileOpen)
-            {
-                _logger?.LogWarning("The Settings Profile page could not open.");
-                _settingsPage = previous;
-            }
+                _logger?.LogWarning("The Settings Profile page could not open its profile.");
         }
         Publish();
     }
 
     /// <summary>
     /// The detail column showed beside the sidebar with no page open (a wide width): Profile
-    /// opens, as iPad Settings opens on your account; Appearance when Profile cannot. While
-    /// navigation is blocked nothing opens and the scene asks again.
+    /// opens, as iPad Settings opens on your account. While navigation is blocked nothing opens
+    /// and the scene asks again.
     /// </summary>
     internal void SelectDefaultSettingsPage()
     {
         if (_settingsPage is not null || NavigationBlocked)
             return;
-        SelectSettingsPage(NativeSettingsPage.Profile);
-        if (_settingsPage is null)
-            SelectSettingsPage(NativeSettingsPage.Appearance);
+        // The preview has no profile of its own, so it opens on Appearance.
+        SelectSettingsPage(_preview ? NativeSettingsPage.Appearance : NativeSettingsPage.Profile);
     }
 
     /// <summary>

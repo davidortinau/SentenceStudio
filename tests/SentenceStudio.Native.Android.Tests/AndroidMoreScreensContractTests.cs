@@ -43,7 +43,12 @@ public sealed class AndroidMoreScreensContractTests
         var pages = Source("AndroidSliceShell.SettingsPages.Compose.cs");
         AssertInOrder(pages, "SettingsProfileRow(palette,", "\"native.settings.row.appearance\"",
             "\"native.settings.row.voice-quiz\"", "\"native.settings.row.learning-mode\"",
-            "\"native.settings.row.coach\"", "\"native.settings.row.about\"", "SettingsSignOut(palette)");
+            "\"native.settings.row.coach\"", "\"native.settings.row.about\"");
+        // Sign out is at the bottom of Profile (Captain 2026-11-15), also when it cannot load;
+        // only the Debug preview, which has no Profile, keeps its exit in the list.
+        Assert.Equal(2, Source("AndroidSliceShell.Profile.Compose.cs")
+            .Split("viewport.Add(SettingsSignOut(palette));", StringSplitOptions.None).Length - 1);
+        Assert.Contains("if (_preview)\n            viewport.Add(SettingsSignOut(palette));", pages);
         foreach (var section in new[] { "RenderAppearanceSection(palette)", "RenderQuizSettingsSection(",
                      "RenderLearningModeSection(palette)", "RenderSamSettings(palette)",
                      "SettingsAbout(palette)", "RenderProfile(palette)" })

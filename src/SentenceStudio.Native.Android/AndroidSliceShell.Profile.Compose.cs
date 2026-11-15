@@ -59,6 +59,8 @@ internal sealed partial class AndroidSliceShell
                 viewport.Add(Action(Localize(NativeText.Retry), "native.profile.retry",
                     () => RunMore(() => profile.ReloadAsync(_lifetime.Token)), true,
                     primary: false));
+            // Sign out stays reachable when the profile cannot load.
+            viewport.Add(SettingsSignOut(palette));
             return page;
         }
 
@@ -137,6 +139,8 @@ internal sealed partial class AndroidSliceShell
                 "native.profile.password.unavailable")));
 
         viewport.Add(ProfileDangerCard(profile, palette));
+        // Captain 2026-11-15: Logout at the bottom of Profile (it left the Settings list).
+        viewport.Add(SettingsSignOut(palette));
         if (state.ShowDeleteConfirmation)
             page.Add(ProfileDeleteDialog(profile));
         return page;

@@ -391,7 +391,9 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("native.settings.profile", Source("Features/Settings/SettingsView.cs"));
         Assert.Contains("selected == NativeSettingsPage.Profile, () => select(NativeSettingsPage.Profile))",
             Source("Features/Settings/SettingsView.cs"));
-        Assert.Contains("if (page == NativeSettingsPage.Profile)\n        {\n            OpenProfile();",
+        Assert.Contains("if (page == NativeSettingsPage.Profile)\n        {\n"
+            + "            // A refused open still shows the page: it says so, with Sign Out under it.\n"
+            + "            OpenProfile();",
             Source("App/ApplicationController.cs"));
         Assert.DoesNotContain("ExportAllData", view);
         Assert.DoesNotContain("SaveAsync(", view);

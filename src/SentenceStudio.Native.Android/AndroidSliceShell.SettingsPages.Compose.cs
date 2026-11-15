@@ -107,7 +107,7 @@ internal sealed partial class AndroidSliceShell
         _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Unrecognized Settings page."),
     };
 
-    /// <summary>The list of pages: the profile row, the settings, the coach, About, then Sign out.</summary>
+    /// <summary>The list of pages: the profile row, the settings, the coach and About.</summary>
     private ComposableNode SettingsList(AndroidVisualPalette palette, ComposeScrollState scroll, bool twoPane)
     {
         var viewport = new Column(Arrangement.SpacedBy(16))
@@ -136,7 +136,10 @@ internal sealed partial class AndroidSliceShell
         if (!string.IsNullOrWhiteSpace(Error.Value))
             viewport.Add(StatusAlert(Error.Value, palette, error: true,
                 automationId: "native.settings.error"));
-        viewport.Add(SettingsSignOut(palette));
+        // Sign out is at the bottom of Profile (Captain 2026-11-15); the Debug preview has no
+        // Profile, so its exit stays here.
+        if (_preview)
+            viewport.Add(SettingsSignOut(palette));
         return viewport;
     }
 
@@ -260,7 +263,9 @@ internal sealed partial class AndroidSliceShell
     /// </summary>
     private void SelectSettingsPage(NativeSettingsPage page)
     {
-        if (_settingsPage == page || Busy.Value || IsSettingsPageBlocked)
+        // Choosing Profile again while it could not open tries again.
+        if (Busy.Value || IsSettingsPageBlocked
+            || _settingsPage == page && !(page == NativeSettingsPage.Profile && _profile is null))
             return;
         var previous = _settingsPage;
         if (previous == NativeSettingsPage.Profile)

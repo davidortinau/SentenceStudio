@@ -21,13 +21,28 @@ internal sealed record ProfileFormActions(
 /// Personal Information holds Name beside its label and the read-only email as a value row;
 /// the languages and the learning preferences are system menu Pickers; Save is the toolbar's
 /// action; Change Password and Danger Zone keep their unavailable controls, disabled, with the
-/// reason.
+/// reason. Sign Out is the last row in every state (Captain 2026-11-15: Logout at the bottom
+/// of Profile), so a profile that cannot load never leaves the learner unable to sign out.
 /// </summary>
 internal static class ProfileView
 {
+    /// <summary>
+    /// Profile when it could not be opened (an action still running, a quiz open, an owner not
+    /// verified yet): it says so with Retry, then Sign Out.
+    /// </summary>
+    internal static SwiftView Unavailable(SourceUiStyle style, Func<string, string> text,
+        Action retry, SwiftView signOut) =>
+        Page(style, [
+            Views.Section(string.Empty,
+                NativeForm.Notice(style, text("Profile_LoadFailed"), "native.profile.status", error: true),
+                NativeForm.Action(style, Views.Button(text(NativeText.Retry), retry)
+                    .WithAccessibilityIdentifier("native.profile.retry"))),
+            Views.Section(string.Empty, signOut),
+        ]);
+
     internal static SwiftView Page(
         ProfileState state, SourceUiStyle style,
-        Func<string, string> text, ProfileFormActions actions)
+        Func<string, string> text, ProfileFormActions actions, SwiftView signOut)
     {
         if (state.Phase != ProfilePhase.Ready)
         {
@@ -47,7 +62,8 @@ internal static class ProfileView
                 unavailable.Add(NativeForm.Action(style, Views.Button(
                         text(NativeText.Retry), actions.Retry)
                     .WithAccessibilityIdentifier("native.profile.retry")));
-            return Page(style, [Views.Section(string.Empty, unavailable.ToArray())]);
+            return Page(style, [Views.Section(string.Empty, unavailable.ToArray()),
+                Views.Section(string.Empty, signOut)]);
         }
 
         var draft = state.Draft;
@@ -130,6 +146,7 @@ internal static class ProfileView
             style.Text(Views.Text(text("NativeProfile_AccountActionUnavailable")),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.profile.delete.unavailable")));
+        sections.Add(Views.Section(string.Empty, signOut));
 
         // Captain 2026-11-10 (every editor): one Save, the toolbar's action, as plain text.
         var save = Views.Button(text("Common_Save"), actions.Save)
