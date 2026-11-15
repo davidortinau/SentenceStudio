@@ -68,9 +68,9 @@ public sealed class NativeClozeSentenceSource(
             return [];
         var all = vocabulary.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
         var progress = await ProgressAsync(userId, all, cancellationToken);
-        var eligible = all
-            .Where(word => !progress.TryGetValue(word.Id, out var row) || !row.IsInGracePeriod)
-            .ToList();
+        // Built from the words that are not Known (the one Known rule).
+        var eligible = VocabularyKnownRule.PracticePool(all, word => progress.GetValueOrDefault(word.Id),
+            await ModeAsync(userId));
         return await GenerateAsync(userId, Sample(eligible), count, skillId,
             resource.Language, null, cancellationToken);
     }
@@ -116,7 +116,7 @@ public sealed class NativeClozeSentenceSource(
     }
 
     /// <summary>
-    /// Source due filter: unseen, never attempted, or review date reached; grace period excluded.
+    /// Source due filter: unseen, never attempted, or review date reached; Known words are never due.
     /// NextReviewDate is a UTC instant (VocabularyProgress.IsDueForReview, the quiz's
     /// VocabQuizSourcePolicy), so it is compared with the current UTC instant; the source's
     /// device-local DateTime.Now made words due early east of UTC and late west of it.
@@ -127,16 +127,24 @@ public sealed class NativeClozeSentenceSource(
         var usable = all.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
         var progress = await ProgressAsync(userId, usable, cancellationToken);
         var nowUtc = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        var mode = await ModeAsync(userId);
         return usable.Where(word =>
         {
             if (!progress.TryGetValue(word.Id, out var row))
                 return true;
-            if (row.IsInGracePeriod)
+            if (VocabularyKnownRule.IsKnown(row, mode))
                 return false;
             return row.TotalAttempts == 0
                 || row.NextReviewDate is { } next
                     && DateTime.SpecifyKind(next, DateTimeKind.Utc) <= nowUtc;
         }).ToList();
+    }
+
+    private async Task<LearningMode> ModeAsync(string userId)
+    {
+        using var scope = scopes.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<IVocabularyProgressService>()
+            .GetLearningModeAsync(userId);
     }
 
     private async Task<Dictionary<string, VocabularyProgress>> ProgressAsync(

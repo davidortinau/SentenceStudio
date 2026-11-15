@@ -92,13 +92,12 @@ public class ClozureService
             return new List<Challenge>(); // Return empty list instead of null
         }
 
-        // Send vocabulary words to AI, excluding Familiar words in grace period
+        // Send vocabulary words to AI: the ones that are not Known (the one Known rule)
         var allVocab = resource.Vocabulary.ToList();
         var wordIds = allVocab.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
-        var eligibleWords = allVocab
-            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
-            .ToList();
+        var mode = await _progressService.GetLearningModeAsync(ActiveUserId);
+        var eligibleWords = VocabularyKnownRule.PracticePool(allVocab, w => progressDict.GetValueOrDefault(w.Id), mode);
 
         // Cap vocab sample sent to AI. Dynamic resources (e.g. "New Words") can return
         // thousands of eligible words, which blows past Scriban's 1000-iteration loop limit
@@ -167,14 +166,15 @@ public class ClozureService
         var wordIds = allWords.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
         var now = DateTime.UtcNow; // NextReviewDate is a UTC instant
+        var mode = await _progressService.GetLearningModeAsync(ActiveUserId);
 
         return allWords.Where(w =>
         {
             if (!progressDict.TryGetValue(w.Id, out var progress))
                 return true;
 
-            if (progress.IsInGracePeriod)
-                return false;
+            if (VocabularyKnownRule.IsKnown(progress, mode))
+                return false; // Known words are never due
 
             var totalAttempts = progress.TotalAttempts;
             var nextReview = progress.NextReviewDate;
@@ -207,13 +207,14 @@ public class ClozureService
 
         // Filter to due words (same logic as VocabQuiz)
         var now = DateTime.UtcNow; // NextReviewDate is a UTC instant
+        var mode = await _progressService.GetLearningModeAsync(ActiveUserId);
         var dueWords = allWords.Where(w =>
         {
             if (!progressDict.TryGetValue(w.Id, out var progress))
                 return true; // Unseen words are due
             
-            if (progress.IsInGracePeriod)
-                return false; // Skip grace period words
+            if (VocabularyKnownRule.IsKnown(progress, mode))
+                return false; // Known words are never due
             
             var totalAttempts = progress.TotalAttempts;
             var nextReview = progress.NextReviewDate;

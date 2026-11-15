@@ -199,7 +199,7 @@ public sealed class VocabQuizPersistentDemonstrationTests
             : progress.VocabularyWordId;
 
         return new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord
             {
                 Id = progress.VocabularyWordId,
@@ -218,7 +218,7 @@ public sealed class VocabQuizPersistentDemonstrationTests
             : progress.VocabularyWordId;
 
         return new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord
             {
                 Id = progress.VocabularyWordId,

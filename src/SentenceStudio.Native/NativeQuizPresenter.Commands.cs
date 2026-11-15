@@ -419,7 +419,7 @@ public sealed partial class NativeQuizPresenter
                     ? "NativeVocabQuiz_ModeFocusRecognition"
                     : "NativeVocabQuiz_ModeBuildingRecognition";
         var details = new NativeQuizLearningDetails(
-            p?.Status ?? LearningStatus.Unknown,
+            SentenceStudio.Services.VocabularyKnownRule.Status(p, _learningMode),
             p?.TotalAttempts ?? 0,
             p?.CorrectAttempts ?? 0,
             p?.Accuracy ?? 0f,

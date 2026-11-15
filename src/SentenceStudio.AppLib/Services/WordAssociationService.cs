@@ -56,11 +56,11 @@ public class WordAssociationService
             .Select(g => g.First())
             .ToList();
 
-        // Filter out Familiar words in grace period
+        // Choose from the words that are not Known
         var wordIds = distinct.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, userId);
-        var graceExcluded = distinct
-            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
+        var mode = await _progressService.GetLearningModeAsync(userId);
+        var graceExcluded = VocabularyKnownRule.PracticePool(distinct, w => progressDict.GetValueOrDefault(w.Id), mode)
             .OrderBy(_ => Random.Shared.Next())
             .Take(count)
             .ToList();

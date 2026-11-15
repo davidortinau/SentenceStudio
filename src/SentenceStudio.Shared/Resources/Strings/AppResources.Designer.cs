@@ -9796,6 +9796,60 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Learner-led.
+        /// </summary>
+        internal static string LearningMode_LearnerLed {
+            get {
+                return ResourceManager.GetString("LearningMode_LearnerLed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You and your practice decide what&apos;s Known. Known words stay Known until you choose Practice Again..
+        /// </summary>
+        internal static string LearningMode_LearnerLedDetail {
+            get {
+                return ResourceManager.GetString("LearningMode_LearnerLedDetail", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Practice-led.
+        /// </summary>
+        internal static string LearningMode_PracticeLed {
+            get {
+                return ResourceManager.GetString("LearningMode_PracticeLed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only practice decides. Your Known marks are set aside, and a miss on a Known word can send it back to practice..
+        /// </summary>
+        internal static string LearningMode_PracticeLedDetail {
+            get {
+                return ResourceManager.GetString("LearningMode_PracticeLedDetail", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The learning mode could not be saved. Try again when you are online..
+        /// </summary>
+        internal static string LearningMode_SaveFailed {
+            get {
+                return ResourceManager.GetString("LearningMode_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Learning Mode.
+        /// </summary>
+        internal static string LearningMode_Title {
+            get {
+                return ResourceManager.GetString("LearningMode_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Learning Progress.
         /// </summary>
         internal static string LearningProgress {
@@ -21794,6 +21848,42 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Marked Known: {0}..
+        /// </summary>
+        internal static string Vocabulary_MarkedKnown {
+            get {
+                return ResourceManager.GetString("Vocabulary_MarkedKnown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mark Known.
+        /// </summary>
+        internal static string Vocabulary_MarkKnown {
+            get {
+                return ResourceManager.GetString("Vocabulary_MarkKnown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mark Known is not available in Practice-led learning..
+        /// </summary>
+        internal static string Vocabulary_MarkKnownPracticeLed {
+            get {
+                return ResourceManager.GetString("Vocabulary_MarkKnownPracticeLed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That word&apos;s status could not be changed..
+        /// </summary>
+        internal static string Vocabulary_MarkRefusedNotYours {
+            get {
+                return ResourceManager.GetString("Vocabulary_MarkRefusedNotYours", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Merged &apos;{0}&apos;: kept 1, removed {1}.
         /// </summary>
         internal static string Vocabulary_MergedGroup {
@@ -22037,6 +22127,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Practice Again.
+        /// </summary>
+        internal static string Vocabulary_PracticeAgain {
+            get {
+                return ResourceManager.GetString("Vocabulary_PracticeAgain", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Processing batch {0} of {1}....
         /// </summary>
         internal static string Vocabulary_ProcessingBatch {
@@ -22204,6 +22303,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_SortUpdatedTooltip {
             get {
                 return ResourceManager.GetString("Vocabulary_SortUpdatedTooltip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start Over.
+        /// </summary>
+        internal static string Vocabulary_StartOver {
+            get {
+                return ResourceManager.GetString("Vocabulary_StartOver", resourceCulture);
             }
         }
 
@@ -22852,6 +22960,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_KnownEarned {
             get {
                 return ResourceManager.GetString("VocabWordEdit_KnownEarned", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to you marked this Known.
+        /// </summary>
+        internal static string VocabWordEdit_KnownMarked {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_KnownMarked", resourceCulture);
             }
         }
 

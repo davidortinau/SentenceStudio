@@ -298,12 +298,13 @@ public partial class VocabularyProgressRepository
         }
         else
         {
-            // "Known" is a computed rule (VocabularyProgress.IsKnown) with no SQL form, so a status
+            // A status search classifies term-free rows in memory with the one Known rule, so a status
             // search classifies term-free rows in memory, as the dashboard's own count does.
+            var mode = await db.GetLearningModeAsync(userProfileId, cancellationToken);
             var loaded = await rows.ToListAsync(cancellationToken);
             var inStatus = loaded
                 .Where(r => IsInStatus(status, r.HasProgress, r.MasteryScore, r.ProductionInStreak,
-                    r.TotalAttempts, r.IsUserDeclared, r.VerificationState, r.NextReviewDate, asOfUtc))
+                    r.TotalAttempts, r.VerificationState, r.NextReviewDate, asOfUtc, mode))
                 .ToList();
             matched = inStatus.Count;
             var eligible = inStatus.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc).ToList();
@@ -347,31 +348,24 @@ public partial class VocabularyProgressRepository
             .Replace("_", LikeEscape + "_");
 
     /// <summary>
-    /// The dashboard's predicate for one tile (GetVocabSummaryCountsAsync), word for word, with
-    /// "known" taken from <see cref="VocabularyProgress.IsKnown"/> itself. Like the tiles, Known
-    /// and Familiar can both hold for one word.
+    /// The dashboard's predicate for one tile (GetVocabSummaryCountsAsync), with Known from the one
+    /// rule and the learner's mode. A Known word is in no other tile; Familiar is no longer a status.
     /// </summary>
     private static bool IsInStatus(
         VocabularySearchStatus status, bool hasProgress, float mastery, int productionInStreak,
-        int totalAttempts, bool isUserDeclared, VerificationStatus verification, DateTime? nextReview,
-        DateTime asOfUtc)
+        int totalAttempts, VerificationStatus mark, DateTime? nextReview,
+        DateTime asOfUtc, LearningMode mode)
     {
-        var familiar = hasProgress && isUserDeclared && verification == VerificationStatus.Pending;
-        var known = hasProgress && new VocabularyProgress
-        {
-            MasteryScore = mastery,
-            ProductionInStreak = productionInStreak,
-            TotalAttempts = totalAttempts
-        }.IsKnown;
+        var known = hasProgress && VocabularyKnownRule.IsKnown(mode, mark, mastery, productionInStreak, totalAttempts);
         var due = nextReview != null && nextReview <= asOfUtc;
 
         return status switch
         {
-            VocabularySearchStatus.New => !hasProgress || (totalAttempts == 0 && !familiar),
-            VocabularySearchStatus.Familiar => familiar,
+            VocabularySearchStatus.New => !hasProgress || (totalAttempts == 0 && !known && !due),
+            VocabularySearchStatus.Familiar => false,
             VocabularySearchStatus.Known => known,
-            VocabularySearchStatus.Learning => hasProgress && !familiar && !known && totalAttempts > 0 && !due,
-            VocabularySearchStatus.Review => hasProgress && !familiar && !known && due,
+            VocabularySearchStatus.Learning => hasProgress && !known && totalAttempts > 0 && !due,
+            VocabularySearchStatus.Review => hasProgress && !known && due,
             _ => false
         };
     }

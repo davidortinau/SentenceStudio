@@ -64,11 +64,35 @@ public static class VocabularyProgressConcurrentMerge
             .OrderBy(context => context.LearnedAt).ThenBy(context => context.CreatedAt)
             .ToList();
 
-        var candidate = Copy(stored);
-        foreach (var context in fresh)
-            Apply(candidate, context);
+        // The mark that wins (docs/known-words-plan.md): the learner's newest action; an automatic
+        // stamp on an unmarked row carries no time, so it never beats one.
+        var mark = WinningMark(stored, incoming);
+        var reset = mark is null ? null : VocabularyKnownMarks.ResetOf(mark);
+        // The stored row's Practice again or Start over that the upload did not know about: the
+        // uploaded score predates it, so it cannot be kept whole.
+        var storedResetWins = reset is not null && ReferenceEquals(mark, stored)
+            && !(incoming.VerificationState == stored.VerificationState
+                && incoming.UserDeclaredAt == stored.UserDeclaredAt);
 
-        if (incoming.TotalAttempts >= candidate.TotalAttempts
+        var candidate = Copy(stored);
+        if (reset is { } incomingReset && ReferenceEquals(mark, incoming))
+        {
+            // The upload's reset, on a row whose history may be incomplete: older new attempts,
+            // the reset, then the newer ones.
+            foreach (var context in fresh.Where(context => context.LearnedAt <= incomingReset.At))
+                Apply(candidate, context);
+            VocabularyKnownMarks.ApplyReset(candidate, incomingReset);
+            foreach (var context in fresh.Where(context => context.LearnedAt > incomingReset.At))
+                Apply(candidate, context);
+        }
+        else
+        {
+            foreach (var context in fresh)
+                Apply(candidate, context);
+        }
+
+        if (!storedResetWins
+            && incoming.TotalAttempts >= candidate.TotalAttempts
             && incoming.CorrectAttempts >= candidate.CorrectAttempts
             && incoming.ExposureCount >= candidate.ExposureCount)
         {
@@ -94,7 +118,7 @@ public static class VocabularyProgressConcurrentMerge
         if (candidate.TotalAttempts == all.Count - passive && candidate.ExposureCount == passive)
         {
             var replay = Copy(candidate);
-            VocabularyMasteryCalculator.RecalculateInto(replay, all, out _);
+            VocabularyMasteryCalculator.RecalculateInto(replay, all, reset, out _);
             candidate.MasteryScore = replay.MasteryScore;
             candidate.CurrentStreak = replay.CurrentStreak;
             candidate.ProductionInStreak = replay.ProductionInStreak;
@@ -127,7 +151,8 @@ public static class VocabularyProgressConcurrentMerge
             (int)candidate.CurrentPhase, (int)incoming.CurrentPhase);
         candidate.IsPromoted = candidate.MasteryScore >= 0.50f
             || stored.IsPromoted || incoming.IsPromoted;
-        candidate.IsCompleted = candidate.IsKnown || stored.IsCompleted || incoming.IsCompleted;
+        candidate.IsCompleted = VocabularyKnownRule.IsKnownByScore(candidate)
+            || stored.IsCompleted || incoming.IsCompleted;
 #pragma warning restore CS0618
 
         candidate.FirstSeenAt = Min(stored.FirstSeenAt, incoming.FirstSeenAt);
@@ -143,17 +168,24 @@ public static class VocabularyProgressConcurrentMerge
         return true;
     }
 
-    /// <summary>The most recent explicit declaration wins; an undeclared side never erases one.</summary>
+    /// <summary>
+    /// The row whose mark or declaration the merge keeps, or null when neither has one: the most
+    /// recent wins, a side with none never erases the other's, and on a tie a learner's action
+    /// beats an automatic stamp, then the stored row stays.
+    /// </summary>
+    private static VocabularyProgress? WinningMark(VocabularyProgress stored, VocabularyProgress incoming) =>
+        new[] { stored, incoming }
+            .Where(row => row.IsUserDeclared || VocabularyKnownRule.IsMark(row.VerificationState))
+            .OrderByDescending(row => row.UserDeclaredAt ?? DateTime.MinValue)
+            .ThenByDescending(row => row.VerificationState != VerificationStatus.KnownByPractice)
+            .FirstOrDefault();
+
     private static void MergeDeclaration(
         VocabularyProgress target, VocabularyProgress stored, VocabularyProgress incoming)
     {
-        var declared = new[] { stored, incoming }
-            .Where(row => row.IsUserDeclared)
-            .OrderByDescending(row => row.UserDeclaredAt ?? DateTime.MinValue)
-            .FirstOrDefault();
-        if (declared is null)
+        if (WinningMark(stored, incoming) is not { } declared)
             return;
-        target.IsUserDeclared = true;
+        target.IsUserDeclared = declared.IsUserDeclared;
         target.UserDeclaredAt = declared.UserDeclaredAt;
         target.VerificationState = declared.VerificationState;
     }
@@ -183,7 +215,7 @@ public static class VocabularyProgressConcurrentMerge
             VocabularyProgressService.ApplyPassiveExposure(progress, context.LearnedAt);
             return;
         }
-        VocabularyProgressService.ApplyAttemptScoring(progress,
+        VocabularyProgressService.ReplayAttemptScoring(progress,
             VocabularyMasteryCalculator.ToAttempt(context, progress.VocabularyWordId, progress.UserId),
             context.LearnedAt);
     }

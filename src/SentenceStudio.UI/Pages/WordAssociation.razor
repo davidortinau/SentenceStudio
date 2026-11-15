@@ -392,17 +392,6 @@ else
                 ContextType = "Association"
             });
 
-            // Handle verification probe for Familiar words
-            if (updatedProgress.IsFamiliar && OwnerStillActive())
-            {
-                await ProgressService.HandleVerificationProbeResultAsync(
-                    word.Id, userId, wasCorrect);
-                if (wasCorrect)
-                    Toast.ShowSuccess(Localize["Writing_ProbeConfirmed"]);
-                else
-                    Toast.ShowInfo(Localize["Writing_ProbeTricky"]);
-            }
-
             CacheService.InvalidateVocabSummary();
         }
         catch (Exception ex)

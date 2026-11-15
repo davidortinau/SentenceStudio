@@ -8,10 +8,11 @@ public sealed class NativeQuizSourceParityTests
     private const string Owner = "quiz-owner";
 
     [Fact]
-    public void NonFocusDueSelection_ExcludesKnownGraceFutureAndAttemptedWithoutDate()
+    public void NonFocusDueSelection_ExcludesKnownMarkedFutureAndAttemptedWithoutDate()
     {
         var now = DateTime.UtcNow;
         var neverAttempted = Item("new", review: now.AddDays(3));
+        // An old Familiar declaration reads as marked Known, however old (docs/known-words-plan.md).
         var expiredGrace = Item("expired-grace", mastery: 0.1f, grace: true);
         expiredGrace.Progress!.UserDeclaredAt = now.AddDays(-15);
         var dueAtBoundary = Item("due-now", mastery: 0.15f, attempts: 1, review: now);
@@ -26,20 +27,20 @@ public sealed class NativeQuizSourceParityTests
         };
 
         var due = VocabQuizSourcePolicy.SelectNonFocusBatch(Owner, true, candidates, now);
-        Assert.Equal(new[] { "new", "expired-grace", "due-now", "overdue" },
+        Assert.Equal(new[] { "new", "due-now", "overdue" },
             due.Batch.Select(item => item.Word.Id));
         Assert.False(due.AllMastered);
 
         var all = VocabQuizSourcePolicy.SelectNonFocusBatch(Owner, false, candidates, now);
         Assert.Equal(new[] {
-            "new", "expired-grace", "due-now", "overdue", "future", "no-date"
+            "new", "due-now", "overdue", "future", "no-date"
         },
             all.Batch.Select(item => item.Word.Id));
         Assert.False(all.AllMastered);
     }
 
     [Fact]
-    public void KnownBatchIsMastered_ButGraceOrNotDueAloneIsNot()
+    public void KnownOrMarkedBatchIsMastered_ButNotDueAloneIsNot()
     {
         var now = DateTime.UtcNow;
         var mastered = VocabQuizSourcePolicy.SelectNonFocusBatch(
@@ -49,7 +50,7 @@ public sealed class NativeQuizSourceParityTests
 
         var grace = VocabQuizSourcePolicy.SelectNonFocusBatch(
             Owner, false, [Item("familiar", grace: true)], now);
-        Assert.False(grace.AllMastered);
+        Assert.True(grace.AllMastered, "a word the learner marked Known is Known");
         Assert.Empty(grace.Batch);
 
         var future = VocabQuizSourcePolicy.SelectNonFocusBatch(
@@ -190,7 +191,7 @@ public sealed class NativeQuizSourceParityTests
     private static VocabularyQuizItem Item(
         string id, float mastery = 0f, int attempts = 0, DateTime? review = null,
         bool known = false, bool grace = false) => new()
-    {
+    { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
         Word = Word(id, $"target-{id}", $"native-{id}"),
         Progress = new VocabularyProgress
         {

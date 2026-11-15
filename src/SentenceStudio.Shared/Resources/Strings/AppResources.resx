@@ -10606,4 +10606,43 @@ For example: {0} ...</value>
   <data name="Vocabulary_DuplicatesKeepApartFailed" xml:space="preserve">
     <value>these copies could not be kept apart. Check them again.</value>
   </data>
+  <data name="Vocabulary_MarkKnown" xml:space="preserve">
+    <value>Mark Known</value>
+  </data>
+  <data name="Vocabulary_PracticeAgain" xml:space="preserve">
+    <value>Practice Again</value>
+  </data>
+  <data name="Vocabulary_StartOver" xml:space="preserve">
+    <value>Start Over</value>
+  </data>
+  <data name="Vocabulary_MarkedKnown" xml:space="preserve">
+    <value>Marked Known: {0}.</value>
+  </data>
+  <data name="VocabWordEdit_KnownMarked" xml:space="preserve">
+    <value>you marked this Known</value>
+  </data>
+  <data name="Vocabulary_MarkKnownPracticeLed" xml:space="preserve">
+    <value>Mark Known is not available in Practice-led learning.</value>
+  </data>
+  <data name="Vocabulary_MarkRefusedNotYours" xml:space="preserve">
+    <value>That word's status could not be changed.</value>
+  </data>
+  <data name="LearningMode_Title" xml:space="preserve">
+    <value>Learning Mode</value>
+  </data>
+  <data name="LearningMode_LearnerLed" xml:space="preserve">
+    <value>Learner-led</value>
+  </data>
+  <data name="LearningMode_LearnerLedDetail" xml:space="preserve">
+    <value>You and your practice decide what's Known. Known words stay Known until you choose Practice Again.</value>
+  </data>
+  <data name="LearningMode_PracticeLed" xml:space="preserve">
+    <value>Practice-led</value>
+  </data>
+  <data name="LearningMode_PracticeLedDetail" xml:space="preserve">
+    <value>Only practice decides. Your Known marks are set aside, and a miss on a Known word can send it back to practice.</value>
+  </data>
+  <data name="LearningMode_SaveFailed" xml:space="preserve">
+    <value>The learning mode could not be saved. Try again when you are online.</value>
+  </data>
 </root>

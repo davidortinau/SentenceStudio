@@ -391,14 +391,6 @@ public sealed class NativeClozePresenter(
                     UserInput = answer,
                     ExpectedAnswer = current.Answer
                 });
-                if (updated.IsFamiliar && owner.IsActive(userId))
-                {
-                    await progress.HandleVerificationProbeResultAsync(word.Id, userId, correct);
-                    // Source ShowSuccess / ShowInfo (Cloze.razor:351-353).
-                    _notice = correct
-                        ? NativeMessage.Success(NativeClozeText.FamiliarConfirmed)
-                        : NativeMessage.Info(NativeClozeText.FamiliarTricky);
-                }
                 scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
                 pendingWrites.MarkPending(userId);
             }

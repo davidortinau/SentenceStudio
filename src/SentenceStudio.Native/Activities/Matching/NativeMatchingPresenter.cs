@@ -283,13 +283,16 @@ public sealed class NativeMatchingPresenter(
             if (!owner.IsActive(userId))
                 return Refuse();
 
+            // Known words are never scheduled (the one Known rule): a focus set built before a word
+            // was marked Known drops it here, unless nothing else is left.
+            var mode = await progress.GetLearningModeAsync(userId);
+            var open = words.Where(word =>
+                !VocabularyKnownRule.IsKnown(progressByWord.GetValueOrDefault(word.Id), mode)).ToList();
             var selected = _usedFocus
-                ? words.Take(PairCount).ToList()
-                : words
+                ? (open.Count > 0 ? open : words).Take(PairCount).ToList()
+                : open
                     .Select(word => (Word: word,
                         Progress: progressByWord.GetValueOrDefault(word.Id)))
-                    .Where(item => !(item.Progress?.IsKnown ?? false))
-                    .Where(item => !(item.Progress?.IsInGracePeriod ?? false))
                     .OrderBy(item => item.Progress?.MasteryScore ?? 0f)
                     .ThenBy(_ => Random.Shared.Next())
                     .Take(PairCount)
@@ -383,8 +386,6 @@ public sealed class NativeMatchingPresenter(
                 ExpectedAnswer = $"{word.NativeLanguageTerm} = {word.TargetLanguageTerm}",
                 ResponseTimeMs = (int)_response.ElapsedMilliseconds
             });
-            if (updated.IsFamiliar && owner.IsActive(userId))
-                await progress.HandleVerificationProbeResultAsync(word.Id, userId, isMatch);
             scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
             pendingWrites.MarkPending(userId);
             _errorKey = null;

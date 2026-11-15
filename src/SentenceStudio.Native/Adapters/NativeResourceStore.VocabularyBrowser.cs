@@ -59,6 +59,7 @@ public sealed partial class NativeResourceStore
 
         var byResourceId = resources.ToDictionary(resource => resource.Id,
             StringComparer.Ordinal);
+        var mode = await db.GetLearningModeAsync(owner, cancellationToken);
         var entries = words.Select(word =>
         {
             progress.TryGetValue(word.Id, out var ownProgress);
@@ -69,7 +70,7 @@ public sealed partial class NativeResourceStore
                 .DistinctBy(resource => resource.Id)
                 .ToArray();
             return VocabularyEntry(word, associated, ownProgress,
-                exampleCounts.GetValueOrDefault(word.Id));
+                exampleCounts.GetValueOrDefault(word.Id), mode);
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
@@ -147,9 +148,10 @@ public sealed partial class NativeResourceStore
             || !IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return null;
 
+        var mode = await db.GetLearningModeAsync(owner, cancellationToken);
         var entry = VocabularyEntry(word,
             available.Where(resource => associatedIds.Contains(resource.Id)).ToArray(),
-            ownProgress, exampleCount);
+            ownProgress, exampleCount, mode);
         var draft = new NativeVocabularyEditDraft(
             word.Id, word.UpdatedAt,
             word.TargetLanguageTerm ?? string.Empty,
@@ -158,7 +160,8 @@ public sealed partial class NativeResourceStore
             word.MnemonicText, word.MnemonicImageUri,
             word.LexicalUnitType, associated);
         var progressSnapshot = ownProgress is null ? null
-            : new NativeVocabularyProgress(ownProgress.Status, ownProgress.IsKnown,
+            : new NativeVocabularyProgress(VocabularyKnownRule.Status(ownProgress, mode),
+                VocabularyKnownRule.IsKnown(ownProgress, mode),
                 ownProgress.MasteryScore, ownProgress.CurrentStreak,
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
@@ -426,7 +429,7 @@ public sealed partial class NativeResourceStore
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,
-        VocabularyProgress? progress, int exampleCount)
+        VocabularyProgress? progress, int exampleCount, LearningMode mode)
     {
         var (_, encodingLabel) = EncodingScoreHelper.CalculateWithLabel(word, exampleCount);
         return new NativeVocabularyEntry(
@@ -434,7 +437,7 @@ public sealed partial class NativeResourceStore
             word.NativeLanguageTerm ?? string.Empty, word.LexicalUnitType,
             word.Tags, word.Lemma, word.Language,
             word.CreatedAt, word.UpdatedAt, encodingLabel,
-            progress?.Status ?? LearningStatus.Unknown,
-            progress?.IsKnown == true, resources);
+            VocabularyKnownRule.Status(progress, mode),
+            VocabularyKnownRule.IsKnown(progress, mode), resources);
     }
 }

@@ -79,6 +79,8 @@ public sealed partial class NativeQuizPresenter(
     private bool _correctionRetryPending;
     private bool _needsResumeAfterCommitFailure;
     private bool _allMasteredAtLaunch;
+    // The learner's Learning mode, which the Known rule needs (docs/known-words-plan.md).
+    private LearningMode _learningMode;
     private bool _audioHeard;
     private bool _audioAvailable;
     // The turn whose prompt still autoplays once the head shows it (PlayAutoPromptAsync).
@@ -371,6 +373,7 @@ public sealed partial class NativeQuizPresenter(
                 .Union(snapshot.SessionItemsWordIds, StringComparer.Ordinal).ToList();
             var progressByWord = (await progress.GetByWordIdsForUserAsync(ids, _launch.UserId))
                 .ToDictionary(item => item.VocabularyWordId, StringComparer.Ordinal);
+            _learningMode = await progress.GetLearningModeAsync(_launch.UserId);
             if (!HasOwner(_launch.UserId))
                 return RefuseLaunch();
 
@@ -379,6 +382,7 @@ public sealed partial class NativeQuizPresenter(
                 var word = words[item.WordId];
                 var quizItem = new VocabularyQuizItem
                 {
+                    LearningMode = _learningMode,
                     Word = word,
                     Progress = progressByWord.GetValueOrDefault(word.Id)
                         ?? new VocabularyProgress { VocabularyWordId = word.Id, UserId = _launch.UserId },
@@ -410,6 +414,7 @@ public sealed partial class NativeQuizPresenter(
                     ? snapshot.SessionItemsWordIds : snapshot.RoundWordOrder)
                 .Select(id => byId.TryGetValue(id, out var item) ? item : new VocabularyQuizItem
                 {
+                    LearningMode = _learningMode,
                     // Mastered and rotated out on the client that saved the run; it appears in
                     // the round summary only (as the web restores it).
                     Word = words[id],

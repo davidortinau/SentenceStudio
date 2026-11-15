@@ -382,17 +382,6 @@ else
                         ExpectedAnswer = current.VocabularyWordAsUsed
                     });
 
-                    // Handle verification probe for Familiar words
-                    if (updatedProgress.IsFamiliar)
-                    {
-                        await ProgressService.HandleVerificationProbeResultAsync(
-                            vocabWord.Id, owner, isCorrect);
-                        if (isCorrect)
-                            Toast.ShowSuccess(Localize["NativeCloze_FamiliarConfirmed"]);
-                        else
-                            Toast.ShowInfo(Localize["NativeCloze_FamiliarTricky"]);
-                    }
-
                     CacheService.InvalidateVocabSummary();
                 }
             }

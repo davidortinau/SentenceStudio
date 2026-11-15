@@ -240,7 +240,7 @@ public class QuizAudioPersistenceTests
         public VocabQuiz CreateQuiz(IJSRuntime js, ILogger<VocabQuiz> logger)
         {
             var item = new VocabularyQuizItem
-            {
+            { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
                 Word = new VocabularyWord
                 {
                     Id = WordId,

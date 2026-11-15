@@ -233,29 +233,50 @@ else
             <div class="row g-2">
                 <div class="col-4 col-md-2"><strong class="ss-body2">@Localize["VocabWordEdit_Status"]</strong></div>
                 <div class="col-8 col-md-4 ss-body2">
-                    @if (progress?.IsKnown == true)
+                    @* docs/known-words-plan.md: the status, who decided it (in words), and the learner's
+                       own actions. Mark Known shows only in Learner-led. *@
+                    @{ var knownSource = VocabularyKnownRule.Source(progress, learningMode); }
+                    <span class="badge @(currentLearningStatus == LearningStatus.Known ? "bg-success" : currentLearningStatus == LearningStatus.Learning ? "bg-primary" : "bg-secondary")"
+                          id="vocab-word-status">
+                        @if (currentLearningStatus == LearningStatus.Known)
+                        {
+                            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
+                        }
+                        @Localize[$"VocabWordEdit_{currentLearningStatus}"]
+                    </span>
+                    @if (knownSource != VocabularyKnownSource.None)
                     {
-                        <span class="badge bg-success">
-                            <i class="bi bi-check-circle-fill me-1"></i>@Localize["VocabWordEdit_Known"]
-                        </span>
-                        <small class="text-secondary-ss ms-1">@Localize["VocabWordEdit_EarnedThrough"]</small>
+                        <small class="text-secondary-ss ms-1" id="vocab-word-status-source">
+                            @Localize[knownSource == VocabularyKnownSource.Learner ? "VocabWordEdit_KnownMarked" : "VocabWordEdit_EarnedThrough"]
+                        </small>
                     }
-                    else
-                    {
-                        <div class="d-flex align-items-center gap-2">
-                            <select class="form-select form-select-sm" style="max-width: 200px;"
-                                    disabled="@isSettingStatus"
-                                    @onchange="OnStatusSelectChanged">
-                                <option value="Unknown" selected="@(currentLearningStatus == LearningStatus.Unknown)">@Localize["VocabWordEdit_Unknown"]</option>
-                                <option value="Learning" selected="@(currentLearningStatus == LearningStatus.Learning)">@Localize["VocabWordEdit_Learning"]</option>
-                                <option value="Familiar" selected="@(currentLearningStatus == LearningStatus.Familiar)">@Localize["VocabWordEdit_Familiar"]</option>
-                            </select>
-                            @if (isSettingStatus)
-                            {
-                                <span class="spinner-border spinner-border-sm"></span>
-                            }
-                        </div>
-                    }
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                        @if (currentLearningStatus == LearningStatus.Known)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="vocab-word-practice-again"
+                                    disabled="@isSettingStatus" @onclick="() => SetStatus(VocabularyLearnerAction.PracticeAgain)">
+                                @Localize["Vocabulary_PracticeAgain"]
+                            </button>
+                        }
+                        else if (learningMode == LearningMode.LearnerLed)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="vocab-word-mark-known"
+                                    disabled="@isSettingStatus" @onclick="() => SetStatus(VocabularyLearnerAction.MarkKnown)">
+                                @Localize["Vocabulary_MarkKnown"]
+                            </button>
+                        }
+                        @if (progress is { TotalAttempts: > 0 } || currentLearningStatus != LearningStatus.Unknown)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="vocab-word-start-over"
+                                    disabled="@isSettingStatus" @onclick="() => SetStatus(VocabularyLearnerAction.StartOver)">
+                                @Localize["Vocabulary_StartOver"]
+                            </button>
+                        }
+                        @if (isSettingStatus)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        }
+                    </div>
                 </div>
                 <div class="col-4 col-md-2"><strong class="ss-body2">@Localize["VocabWordEdit_Details"]</strong></div>
                 <div class="col-8 col-md-4 ss-body2" style="white-space: pre-line;">@progressDetails</div>
@@ -517,6 +538,8 @@ else
     private string reviewDateText = "Not scheduled";
     private string encodingStrengthLabel = "Basic";
     private SentenceStudio.Shared.Models.LearningStatus currentLearningStatus = SentenceStudio.Shared.Models.LearningStatus.Unknown;
+    // The learner's Learning mode, which the Known rule needs (docs/known-words-plan.md).
+    private LearningMode learningMode;
     private bool isSettingStatus;
     private bool IsExistingWord => !string.IsNullOrEmpty(Id) && Id != "0";
 
@@ -590,6 +613,7 @@ else
                 await Task.WhenAll(progressTask, associatedTask, resourcesTask, constituentsTask);
 
                 progress = await progressTask;
+                learningMode = await ProgressService.GetLearningModeAsync(Preferences.Get("active_profile_id", ""));
                 var associatedResources = await associatedTask ?? new();
                 availableResources = await resourcesTask ?? new();
                 var constituentWords = await constituentsTask ?? new();
@@ -640,10 +664,10 @@ else
 
     private void UpdateProgressDisplay()
     {
-        currentLearningStatus = progress?.Status ?? SentenceStudio.Shared.Models.LearningStatus.Unknown;
+        currentLearningStatus = VocabularyKnownRule.Status(progress, learningMode);
 
-        var isKnown = progress?.IsKnown ?? false;
-        var isLearning = progress?.IsLearning ?? false;
+        var isKnown = currentLearningStatus == LearningStatus.Known;
+        var isLearning = currentLearningStatus == LearningStatus.Learning;
 
         progressStatusText = currentLearningStatus.ToString();
 
@@ -1083,21 +1107,24 @@ else
         NavManager.NavigateTo($"/vocabulary?{string.Join("&", queryParts)}");
     }
 
-    private async Task SetStatus(SentenceStudio.Shared.Models.LearningStatus status)
+    /// <summary>Mark Known, Practice again or Start over for this word (the learner's own).</summary>
+    private async Task SetStatus(VocabularyLearnerAction action)
     {
         if (isSettingStatus || string.IsNullOrEmpty(Id) || Id == "0") return;
-        if (currentLearningStatus == status) return;
 
         isSettingStatus = true;
         try
         {
             var userId = Preferences.Get("active_profile_id", "");
-            progress = await ProgressService.SetUserDeclaredStatusAsync(Id, userId, status);
+            var marked = await ProgressService.SetLearnerMarkAsync([Id], action, userId);
+            if (marked.Changed == 0)
+            {
+                Toast.ShowWarning(Localize[marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours"]);
+                return;
+            }
+            progress = await ProgressService.GetProgressAsync(Id, userId);
             CacheService.InvalidateVocabSummary();
             UpdateProgressDisplay();
-
-            if (status == SentenceStudio.Shared.Models.LearningStatus.Familiar)
-                Toast.ShowInfo($"{Localize["VocabWordEdit_FamiliarMessage"]}");
         }
         catch (Exception ex)
         {
@@ -1107,14 +1134,6 @@ else
         finally
         {
             isSettingStatus = false;
-        }
-    }
-
-    private async Task OnStatusSelectChanged(ChangeEventArgs e)
-    {
-        if (e.Value is string statusStr && Enum.TryParse<SentenceStudio.Shared.Models.LearningStatus>(statusStr, out var status))
-        {
-            await SetStatus(status);
         }
     }
 

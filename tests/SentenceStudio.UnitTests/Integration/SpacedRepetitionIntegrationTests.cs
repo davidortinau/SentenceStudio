@@ -313,7 +313,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
         var result = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
 
         // Assert: Known words get 60-day override
-        result.IsKnown.Should().BeTrue();
+        result.IsKnown().Should().BeTrue();
         result.ReviewInterval.Should().Be(60);
 
         // Verify it won't show up in due words

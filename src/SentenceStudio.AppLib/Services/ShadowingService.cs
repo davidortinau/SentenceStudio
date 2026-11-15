@@ -70,14 +70,13 @@ public class ShadowingService
 
         var random = new Random();
         
-        // Exclude Familiar words in grace period (consistent with Cloze/Translation services)
+        // Build from the words that are not Known (consistent with Cloze/Translation services)
         var allVocab = resource.Vocabulary.ToList();
         var wordIds = allVocab.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
-        var eligibleWords = allVocab
-            .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
-            .ToList();
-        _logger.LogDebug("Shadowing: {EligibleCount} eligible words ({Excluded} excluded for grace period)",
+        var mode = await _progressService.GetLearningModeAsync();
+        var eligibleWords = VocabularyKnownRule.PracticePool(allVocab, w => progressDict.GetValueOrDefault(w.Id), mode);
+        _logger.LogDebug("Shadowing: {EligibleCount} eligible words ({Excluded} Known words left out)",
             eligibleWords.Count, allVocab.Count - eligibleWords.Count);
 
         // Take a random selection of vocabulary words

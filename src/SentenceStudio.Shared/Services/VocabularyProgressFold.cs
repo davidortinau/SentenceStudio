@@ -41,9 +41,11 @@ public static class VocabularyProgressFold
             .Where(p => p.MasteredAt.HasValue)
             .Select(p => (DateTime?)p.MasteredAt!.Value)
             .Min();
+        // The newest mark or declaration; a learner's action beats an automatic stamp on a tie.
         var declared = sources
-            .Where(p => p.IsUserDeclared)
+            .Where(p => p.IsUserDeclared || VocabularyKnownRule.IsMark(p.VerificationState))
             .OrderByDescending(p => p.UserDeclaredAt ?? DateTime.MinValue)
+            .ThenByDescending(p => p.VerificationState != VerificationStatus.KnownByPractice)
             .FirstOrDefault();
         // Most-recently-practiced source's spaced-repetition schedule. Used only to restore the SR
         // cadence when replay cannot reconstruct it (aggregate-only legacy history with no contexts),
@@ -55,7 +57,9 @@ public static class VocabularyProgressFold
             ?? sources.OrderByDescending(p => p.LastPracticedAt).First();
 
         // Recalculate mastery as if all of this user's contexts had always belonged to the keeper.
-        VocabularyMasteryCalculator.RecalculateInto(keeper, contexts, out _);
+        // A Practice again or Start over among them resets the score at its instant.
+        var reset = declared is null ? null : VocabularyKnownMarks.ResetOf(declared);
+        VocabularyMasteryCalculator.RecalculateInto(keeper, contexts, reset, out _);
 
         // Number of active attempts the replay actually reconstructed (= keeper.TotalAttempts before
         // count reconciliation). When this is less than the summed aggregate, source history predates
@@ -74,7 +78,7 @@ public static class VocabularyProgressFold
         // answers it replays are allowed to lower mastery — that's the faithful "as if one word" result.
         // Only when there's a pre-context gap do we protect against regressing below the best source,
         // otherwise ancient words (aggregate-only, no contexts) would be wrongly reset toward Unknown.
-        if (hasPreContextHistory)
+        if (hasPreContextHistory && reset is null)
         {
             keeper.MasteryScore = Math.Max(keeper.MasteryScore, maxSourceMastery);
             keeper.CurrentStreak = Math.Max(keeper.CurrentStreak, maxSourceStreak);
@@ -106,7 +110,7 @@ public static class VocabularyProgressFold
         // Carry an explicit user declaration ("I know this word") — strong signal we must not drop.
         if (declared != null)
         {
-            keeper.IsUserDeclared = true;
+            keeper.IsUserDeclared = declared.IsUserDeclared;
             keeper.UserDeclaredAt = declared.UserDeclaredAt;
             keeper.VerificationState = declared.VerificationState;
         }

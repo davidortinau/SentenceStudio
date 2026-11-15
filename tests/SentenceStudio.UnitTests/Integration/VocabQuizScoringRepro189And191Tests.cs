@@ -250,7 +250,7 @@ public class VocabQuizScoringRepro189And191Tests
         var word = SeedWordReference(wordId);
 
         var quizItem = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = word,
             Progress = await _progressService.GetProgressAsync(wordId),
             IsCurrent = true,
@@ -326,7 +326,7 @@ public class VocabQuizScoringRepro189And191Tests
         var word = SeedWordReference(wordId);
 
         var quizItem = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = word,
             Progress = await _progressService.GetProgressAsync(wordId),
         };

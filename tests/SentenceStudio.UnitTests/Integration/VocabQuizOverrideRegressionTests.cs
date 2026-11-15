@@ -61,7 +61,7 @@ public class VocabQuizOverrideRegressionTests
         // grader scored wrong (sets PendingRecognitionCheck), user overrides
         // via "I was correct".
         var item = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord { Id = "w1", TargetLanguageTerm = "사과" },
             Progress = new VocabularyProgress
             {
@@ -99,7 +99,7 @@ public class VocabQuizOverrideRegressionTests
         // Captain explicitly said he overrode "twice" — make sure repeated
         // wrong-then-override cycles still leave the flag cleared.
         var item = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord { Id = "w1", TargetLanguageTerm = "사과" },
             Progress = new VocabularyProgress
             {
@@ -135,7 +135,7 @@ public class VocabQuizOverrideRegressionTests
         // MC mode, overriding must still clear the flag (the production code
         // already did this; this test pins the contract).
         var item = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord { Id = "w1", TargetLanguageTerm = "사과" },
             Progress = new VocabularyProgress
             {

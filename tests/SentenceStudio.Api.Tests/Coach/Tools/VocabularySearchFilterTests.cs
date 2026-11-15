@@ -166,14 +166,15 @@ public class VocabularySearchFilterTests
     }
 
     [Fact]
-    public async Task A_declared_known_word_is_both_familiar_and_known_as_on_the_dashboard()
+    public async Task A_word_marked_known_is_known_and_no_word_is_familiar_any_more()
     {
         var (fixture, _) = await SeedAsync();
         using var __ = fixture;
         var me = CoachToolTestFixture.UserA;
+        // Marked Known with a Learning score (docs/known-words-plan.md): the mark decides.
         var word = fixture.SeedWord("밥", "rice", owner: me);
-        var progress = fixture.SeedProgress(me, word.Id, masteryScore: 0.95f, totalAttempts: 20,
-            correctAttempts: 19, productionInStreak: 5, nextReviewDate: fixture.Now.AddDays(20));
+        var progress = fixture.SeedProgress(me, word.Id, masteryScore: 0.3f, totalAttempts: 4,
+            correctAttempts: 2, productionInStreak: 0, nextReviewDate: fixture.Now.AddDays(20));
         progress.IsUserDeclared = true;
         progress.VerificationState = SentenceStudio.Shared.Models.VerificationStatus.Pending;
         fixture.Db.SaveChanges();
@@ -182,9 +183,12 @@ public class VocabularySearchFilterTests
             null, 10, tag: null, resourceId: null, status: "familiar", includeNeverPracticed: true);
         var known = await fixture.VocabularySearchTool.SearchAsync(
             null, 10, tag: null, resourceId: null, status: "known", includeNeverPracticed: true);
+        var learning = await fixture.VocabularySearchTool.SearchAsync(
+            null, 10, tag: null, resourceId: null, status: "learning", includeNeverPracticed: true);
 
-        familiar.Words.Should().Contain(w => w.WordId == word.Id);
+        familiar.Words.Should().BeEmpty("Familiar is no longer a status");
         known.Words.Should().Contain(w => w.WordId == word.Id);
+        learning.Words.Should().NotContain(w => w.WordId == word.Id);
     }
 
     [Fact]
