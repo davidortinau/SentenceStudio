@@ -116,7 +116,9 @@ internal enum VocabularyChanges
     /// <summary>The editor's Reference Sentences changed (a sentence, a suggestion, the row being edited or the result shown).</summary>
     Examples = 128,
     /// <summary>Typed into a Reference Sentences field: the open editor already shows the text.</summary>
-    ExampleText = 256
+    ExampleText = 256,
+    /// <summary>The editor's Learning Progress alone (a status action ran): the page keeps its place.</summary>
+    Progress = 512
 }
 
 /// <summary>
@@ -1130,7 +1132,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             | VocabularyChanges.FilterDraft;
         const VocabularyChanges form = VocabularyChanges.Form | VocabularyChanges.DeleteDialog
             | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle
-            | VocabularyChanges.Examples | VocabularyChanges.ExampleText;
+            | VocabularyChanges.Examples | VocabularyChanges.ExampleText | VocabularyChanges.Progress;
         Publish((changes & list) != 0, (changes & form) != 0, sheet: false);
     }
 

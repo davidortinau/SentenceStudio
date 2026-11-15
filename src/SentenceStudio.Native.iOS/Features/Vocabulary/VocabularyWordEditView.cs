@@ -35,7 +35,7 @@ internal sealed record VocabularyExampleActions(
 /// Resource Associations cards (each in its own slot, so the page keeps its scroll) and the
 /// encoding label, which counts the sentences.
 /// </summary>
-internal enum VocabularyEditSection { Examples, Resources, EncodingLabel }
+internal enum VocabularyEditSection { Examples, Resources, EncodingLabel, Progress }
 
 internal static partial class VocabularyWordEditView
 {
@@ -129,7 +129,8 @@ internal static partial class VocabularyWordEditView
         }
         if (!creating)
         {
-            fields.Add(ProgressCard(detail, state, style, text, actions));
+            fields.Add(Section(VocabularyEditSection.Progress,
+                ProgressCard(detail, state, style, text, actions), actions));
             fields.Add(HistoryCard(detail, style, text));
         }
         fields.Add(Section(VocabularyEditSection.Resources,
@@ -314,7 +315,7 @@ internal static partial class VocabularyWordEditView
     private static string EncodingLabelText(Func<string, string> text) =>
         text("VocabWordEdit_EncodingStrength").TrimEnd(':', ' ');
 
-    private static SwiftView ProgressCard(
+    internal static SwiftView ProgressCard(
         NativeVocabularyDetail detail, VocabularyBrowserEdit state, SourceUiStyle style,
         Func<string, string> text, VocabularyEditActions actions)
     {

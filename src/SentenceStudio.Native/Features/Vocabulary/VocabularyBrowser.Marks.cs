@@ -143,7 +143,7 @@ internal partial class VocabularyBrowser
             var missed = ids.Length - result.Changed;
             var feedback = missed == 0
                 ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                    _text("Vocabulary_BulkUpdateSuccess"), result.Changed, _text(ActionKey(action)))
+                    _text("Vocabulary_BulkUpdateSuccess"), result.Changed, _text(StatusKey(action)))
                 : string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     _text("Vocabulary_BulkUpdatePartial"), result.Changed, missed);
             _feedback = result.SyncUnconfirmed
@@ -185,9 +185,13 @@ internal partial class VocabularyBrowser
             || _detail is null || _selectedWordId is not { } id || !TryOwner(out var owner))
             return;
         _marking = true;
+        var hadError = _editErrorKey is not null;
         _editErrorKey = null;
-        Notify(VocabularyChanges.Form | VocabularyChanges.List);
+        // Only the Learning Progress card changes, so the editor keeps its scroll position;
+        // a message at the top of the page needs the whole page.
+        Notify((hadError ? VocabularyChanges.Form : VocabularyChanges.Progress) | VocabularyChanges.List);
         var changed = false;
+        var generation = Volatile.Read(ref _formGeneration);
         try
         {
             var result = await OffUiAsync(() => _store.ApplyLearnerActionAsync(
@@ -201,6 +205,13 @@ internal partial class VocabularyBrowser
                 changed = true;
                 if (result.SyncUnconfirmed)
                     _editErrorKey = "NativeResources_SyncUnconfirmed";
+                // The word's new status and progress; the learner's draft stays.
+                var fresh = await OffUiAsync(() => _store.GetOwnedVocabularyAsync(owner, id, _lifetimeToken));
+                if (_disposed || !TryOwner(out _))
+                    return;
+                if (fresh is not null && generation == Volatile.Read(ref _formGeneration)
+                    && _formOpen && _selectedWordId == id)
+                    _detail = fresh;
             }
         }
         catch (OperationCanceledException) when (_disposed)
@@ -216,14 +227,20 @@ internal partial class VocabularyBrowser
         {
             _marking = false;
             if (!_disposed)
-                Notify(VocabularyChanges.Form | VocabularyChanges.List);
+                Notify((_editErrorKey is not null ? VocabularyChanges.Form : VocabularyChanges.Progress)
+                    | VocabularyChanges.List);
         }
         if (changed)
-        {
-            await ((IVocabularyCleanupHost)this).RefreshOpenWordAsync();
             await ReloadAsync();
-        }
     }
+
+    /// <summary>The resource key of the status an action leaves a word in ("Updated 3 word(s) to Known").</summary>
+    internal static string StatusKey(VocabularyLearnerAction action) => action switch
+    {
+        VocabularyLearnerAction.MarkKnown => "Vocabulary_Known",
+        VocabularyLearnerAction.PracticeAgain => "Vocabulary_Learning",
+        _ => "Vocabulary_Unknown"
+    };
 
     /// <summary>The resource key of an action's name.</summary>
     internal static string ActionKey(VocabularyLearnerAction action) => action switch

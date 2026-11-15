@@ -1425,7 +1425,12 @@ else
             await LoadData();
 
             if (failCount == 0)
-                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkUpdateSuccess"], successCount, Localize[$"Vocabulary_{bulkStatus}"])}");
+                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkUpdateSuccess"], successCount, Localize[action switch
+                {
+                    VocabularyLearnerAction.MarkKnown => "Vocabulary_Known",
+                    VocabularyLearnerAction.PracticeAgain => "Vocabulary_Learning",
+                    _ => "Vocabulary_Unknown"
+                }])}");
             else
                 Toast.ShowWarning($"{string.Format(Localize["Vocabulary_BulkUpdatePartial"], successCount, failCount)}");
 

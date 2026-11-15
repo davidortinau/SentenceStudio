@@ -427,6 +427,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ScheduleRefill(VocabularyEditSection.Examples);
             if ((changes & VocabularyChanges.ExampleText) != 0)
                 UpdateExampleButtons();
+            if ((changes & VocabularyChanges.Progress) != 0)
+                ScheduleRefill(VocabularyEditSection.Progress);
         }
         var list = (changes & VocabularyChanges.List) != 0;
         var sheet = (changes & VocabularyChanges.Sheet) != 0;
@@ -482,6 +484,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
             if (_sections.TryGetValue(VocabularyEditSection.EncodingLabel, out var encoding))
                 encoding.Text = VocabularyWordEditView.EncodingText(detail.Word.EncodingLabel, Text);
         }
+        else if (section == VocabularyEditSection.Progress)
+            card = VocabularyWordEditView.ProgressCard(detail, state, style, Text, actions);
         else
             card = VocabularyWordEditView.ResourceCard(detail, state, style, Text, actions);
         // The card is a Section: its rows and header move into the mounted Section, which
