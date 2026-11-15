@@ -223,6 +223,12 @@ Every phase is reviewed before any device round.
 
 ## Built (2026-11-14, branch `known-words`)
 
+Shipped 2026-11-14: `c65e4657` on `main`, api--0000042 and webapp--0000037, the profile migration
+applied in production (24 profiles, all `LearnerLed`; backup
+`~/sstudio-prod-backup-20261114-1903`), native and MAUI apps installed on Duotopia. The Captain
+kept the direct `DROP COLUMN` in the SQLite migration's Down. Not run as apps before shipping:
+the web, Android and MAUI (the web by UI tests, Android by compile only).
+
 - Phase 1: `02366d33` (the profile column on both providers), `a5d046d7` (marks, the one Known
   rule, every reader, the merge, trust but verify removed), `ae463a87` (the mode in the profile
   API). The contract is in `docs/sync-all-tables-plan.md` ("Known marks and the Learning mode").
