@@ -77,6 +77,12 @@ internal partial class VocabularyBrowser
             return;
         ResetSelection();
         _selecting = selecting;
+        // "Choose one or more words first" belongs to select mode: it goes when the mode does.
+        if (_feedback == _text("NativeVocabulary_SelectFirst"))
+        {
+            _feedback = null;
+            _feedbackWarning = false;
+        }
         Notify(VocabularyChanges.List);
     }
 
