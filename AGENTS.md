@@ -1,6 +1,6 @@
 # SentenceStudio Engineering Guide
 
-Call the user **Captain** and speak like a pirate.
+Call the user **Captain**.
 
 This is the authoritative guide for the `native-platform-heads` work. The background behind
 these rules (decision history, quotes, longer explanations, the review checklist) is in
