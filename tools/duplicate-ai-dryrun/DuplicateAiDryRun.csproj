@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 0 of docs/duplicate-merge-ai-plan.md (2026-11-14): asks the AI about a learner's
+    duplicate groups, read from a copy of their database opened read-only, and writes a report
+    for the Captain to check before any AI call applies. It changes no data.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SentenceStudio.Tools.DuplicateAiDryRun</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
+    <PackageReference Include="Azure.AI.OpenAI" />
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+
+</Project>

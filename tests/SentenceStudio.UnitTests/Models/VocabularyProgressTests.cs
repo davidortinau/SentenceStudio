@@ -35,7 +35,7 @@ public class VocabularyProgressTests
         };
 
         // Act
-        var isKnown = progress.IsKnown;
+        var isKnown = progress.IsKnown();
 
         // Assert
         isKnown.Should().Be(expectedIsKnown,
@@ -138,7 +138,7 @@ public class VocabularyProgressTests
         };
 
         // Act
-        var actualStatus = progress.Status;
+        var actualStatus = progress.Status();
 
         // Assert
         actualStatus.Should().Be(expectedStatus,
@@ -302,13 +302,13 @@ public class VocabularyProgressTests
         progress.ReviewInterval.Should().Be(1);
         progress.EaseFactor.Should().Be(2.5f);
         progress.UserId.Should().BeEmpty();
-        progress.Status.Should().Be(LearningStatus.Unknown);
+        progress.Status().Should().Be(LearningStatus.Unknown);
         progress.Accuracy.Should().Be(0f);
 
         // Assert - Streak fields
         progress.CurrentStreak.Should().Be(0, "new progress should have zero streak");
         progress.ProductionInStreak.Should().Be(0, "new progress should have zero production in streak");
-        progress.IsKnown.Should().BeFalse("new progress should not be marked as known");
+        progress.IsKnown().Should().BeFalse("new progress should not be marked as known");
     }
 
     #endregion

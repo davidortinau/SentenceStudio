@@ -191,16 +191,6 @@ internal sealed class SourceUiAppearance
     internal SourceColorPair DangerButtonText => new("#FFFFFF", "#FFFFFF");
     internal SourceColorPair Warning =>
         new(NativeThemeColorTable.WarningHex, NativeThemeColorTable.WarningHex);
-    /// <summary>
-    /// The duplicate manager's encoding badge on a list row (the page surface), the same rule
-    /// as Android's (<see cref="VocabularyEncodingBadge"/>).
-    /// </summary>
-    internal (SourceColorPair Fill, SourceColorPair Text) EncodingBadge(VocabularyEncodingTone tone)
-    {
-        var light = VocabularyEncodingBadge.Colors(tone, LightColors, LightColors.Body);
-        var dark = VocabularyEncodingBadge.Colors(tone, DarkColors, DarkColors.Body);
-        return (new(light.Fill, dark.Fill), new(light.Text, dark.Text));
-    }
     internal SourceColorPair SuccessAlertFill =>
         new(LightColors.SuccessAlert.Fill, DarkColors.SuccessAlert.Fill);
     internal SourceColorPair SuccessAlertText =>

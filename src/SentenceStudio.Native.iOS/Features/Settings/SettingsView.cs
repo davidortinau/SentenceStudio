@@ -106,7 +106,8 @@ internal static class SettingsView
         string? voiceErrorKey,
         IEnumerable<SwiftView>? coach = null,
         SwiftView? header = null,
-        SwiftView? footer = null)
+        SwiftView? footer = null,
+        SwiftView? learning = null)
     {
         var sections = new List<SwiftView>();
         if (header is not null)
@@ -119,12 +120,60 @@ internal static class SettingsView
             sections.Add(Views.Section(string.Empty, style.Text(Views.Text(text(feedbackKey)),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.settings.quiz.feedback")));
+        if (learning is not null)
+            sections.Add(learning);
         // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
         if (coach is not null)
             sections.AddRange(coach);
         if (footer is not null)
             sections.Add(Views.Section(string.Empty, footer));
         return Form(style, sections);
+    }
+
+    /// <summary>
+    /// Learning mode (docs/known-words-plan.md, source Settings.razor): Learner-led or
+    /// Practice-led, with what the chosen one means under it. A change is saved at once; the
+    /// picker is off while it saves. Null until the mode has been read.
+    /// </summary>
+    internal static SwiftView? LearningMode(SourceUiStyle style, LearningModeState state,
+        Func<string, string> text, Action<SentenceStudio.Shared.Models.LearningMode> choose)
+    {
+        if (state.Mode is not { } mode)
+            return state.ErrorKey is { } loadError
+                ? Views.Section(text("LearningMode_Title"), NativeForm.Notice(style, text(loadError),
+                    "native.settings.learning-mode.error", error: true))
+                : null;
+        var picker = Views.Picker(text("LearningMode_Title"),
+                [
+                    new SwiftPickerOption(nameof(SentenceStudio.Shared.Models.LearningMode.LearnerLed),
+                        text("LearningMode_LearnerLed")),
+                    new SwiftPickerOption(nameof(SentenceStudio.Shared.Models.LearningMode.PracticeLed),
+                        text("LearningMode_PracticeLed")),
+                ],
+                mode.ToString(),
+                value =>
+                {
+                    if (Enum.TryParse<SentenceStudio.Shared.Models.LearningMode>(value, out var chosen))
+                        choose(chosen);
+                })
+            .WithPickerStyle(SwiftPickerStyle.Segmented)
+            .WithAccessibilityIdentifier("native.settings.learning-mode");
+        picker.IsEnabled = !state.Saving;
+        var rows = new List<SwiftView>
+        {
+            picker,
+            style.Text(Views.Text(text(mode == SentenceStudio.Shared.Models.LearningMode.LearnerLed
+                        ? "LearningMode_LearnerLedDetail" : "LearningMode_PracticeLedDetail")),
+                    SourceTextRole.Body2, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.settings.learning-mode.detail")
+        };
+        if (state.Saving)
+            rows.Add(Views.IndeterminateProgress(text("LearningMode_Title"))
+                .WithAccessibilityIdentifier("native.settings.learning-mode.saving"));
+        if (state.ErrorKey is { } error)
+            rows.Add(NativeForm.Notice(style, text(error), "native.settings.learning-mode.error",
+                error: true));
+        return Views.Section(text("LearningMode_Title"), rows.ToArray());
     }
 
     /// <summary>The Settings Form; ApplicationScene.UpdateSettings swaps its Sections in place.</summary>

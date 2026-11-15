@@ -43,7 +43,10 @@ public class VocabularyQuizItem
     public int RecognitionDemonstrationsBaseline { get; set; }
     public int ProductionDemonstrationsBaseline { get; set; }
 
-    private bool MeetsKnownWordShortcutCriteria => (Progress?.IsKnown ?? false)
+    /// <summary>The learner's mode, which the Known rule needs (docs/known-words-plan.md).</summary>
+    public required LearningMode LearningMode { get; init; }
+
+    private bool MeetsKnownWordShortcutCriteria => IsKnown
         || (Progress?.CurrentStreak ?? 0f) >= 3f
         || (Progress?.MasteryScore ?? 0f) >= 0.50f;
 
@@ -72,6 +75,12 @@ public class VocabularyQuizItem
     {
         get
         {
+            // The learner marked the word Known (docs/known-words-plan.md): it leaves the
+            // session, a plan's focus session included.
+            if (LearningMode == LearningMode.LearnerLed && Progress is { } marked
+                && SentenceStudio.Services.VocabularyKnownRule.IsLearnerKnownMark(marked.VerificationState))
+                return true;
+
             if (RequiresFullSessionDemonstration)
             {
                 if (HasKnownWordShortcut)
@@ -108,7 +117,7 @@ public class VocabularyQuizItem
                 tieredReady = SessionMCCorrect >= 3 && SessionTextCorrect >= 3;
 
             // DueOnly bonus: globally known words can also rotate out
-            return tieredReady || (Progress?.IsKnown ?? false);
+            return tieredReady || IsKnown;
         }
     }
 
@@ -134,7 +143,7 @@ public class VocabularyQuizItem
 
     // Streak-based computed properties
     public bool IsPromoted => Progress?.MasteryScore >= 0.50f;
-    public bool IsCompleted => Progress?.IsKnown ?? false;
+    public bool IsCompleted => IsKnown;
 
     public const int RequiredCorrectAnswers = 3;
 
@@ -184,9 +193,9 @@ public class VocabularyQuizItem
     }
 
     // Status helpers
-    public bool IsUnknown => Progress?.IsUnknown ?? true;
-    public bool IsLearning => Progress?.IsLearning ?? false;
-    public bool IsKnown => Progress?.IsKnown ?? false;
+    public bool IsUnknown => SentenceStudio.Services.VocabularyKnownRule.IsUnknown(Progress, LearningMode);
+    public bool IsLearning => SentenceStudio.Services.VocabularyKnownRule.IsLearning(Progress, LearningMode);
+    public bool IsKnown => SentenceStudio.Services.VocabularyKnownRule.IsKnown(Progress, LearningMode);
     public bool IsDueForReview => Progress?.IsDueForReview ?? false;
 
     // LEGACY: Kept for backward compatibility but deprecated

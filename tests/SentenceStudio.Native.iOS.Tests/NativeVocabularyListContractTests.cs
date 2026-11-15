@@ -23,11 +23,13 @@ public sealed class NativeVocabularyListContractTests
     public void OneColumnAndWideListModeAreANativeListAndTheGridStays()
     {
         var view = ListView;
-        Assert.Contains("&& (!wide || state.ListMode);", view);
+        Assert.Contains("!wide || state.ListMode;", view);
         Assert.Contains("AsNativeList(state, wide: false) ? style : null);", view);
         Assert.Contains("asList: AsNativeList(state, wide: true));", view);
-        // The duplicate manager's buttons would share one list row's tap.
-        Assert.Contains("state.Duplicates is null", view);
+        // The duplicate page is its own page beside the list (Captain 2026-11-14), not a panel
+        // above the words, so the list stays a native List while it is open.
+        Assert.DoesNotContain("VocabularyDuplicatesView.", view);
+        Assert.Contains("$\"{Prefix}.duplicates.open\"", view);
         Assert.Contains("Views.LazyVGrid(", view);
     }
 

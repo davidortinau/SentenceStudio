@@ -13,8 +13,8 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20261104153858_AddVocabularyLookup"
-EXPECTED_PREVIOUS_MIGRATION="20261103230000_SyncOwnersPhase3"
+EXPECTED_SCHEMA_MIGRATION="20261114233928_AddUserProfileLearningMode"
+EXPECTED_PREVIOUS_MIGRATION="20261114203658_AddVocabularyDuplicateDecision"
 PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
@@ -1036,23 +1036,60 @@ expected_lookup_columns = [
     ("Activity", "TEXT", 1, 0), ("ResourceId", "TEXT", 0, 0),
     ("FirstLookedUpAt", "TEXT", 1, 0), ("LastLookedUpAt", "TEXT", 1, 0),
 ]
+# Lookup history (20261104153858) is now before both migrations of the checked transition.
+if lookup_columns != expected_lookup_columns:
+    errors.append("VocabularyLookup: column/type/nullability/PK contract mismatch")
+if list(connection.execute('PRAGMA foreign_key_list("VocabularyLookup")')):
+    errors.append("VocabularyLookup: unexpected foreign key")
+lookup_index = "IX_VocabularyLookup_UserProfileId_LastLookedUpAt"
+lookup_indexes = [
+    (row[1], row[2], row[4],
+     tuple(column[2] for column in connection.execute(f'PRAGMA index_info("{row[1]}")')))
+    for row in connection.execute('PRAGMA index_list("VocabularyLookup")')
+    if not row[1].startswith("sqlite_autoindex")
+]
+if lookup_indexes != [(lookup_index, 0, 0, ("UserProfileId", "LastLookedUpAt"))]:
+    errors.append("VocabularyLookup: owner index contract mismatch")
+
+# Duplicate decisions (docs/duplicate-merge-ai-plan.md, 20261114203658): one owner-scoped table
+# with a text ID, plain word references (no foreign key) and an owner + term index.
+decision_columns = [
+    (row[1], row[2].upper(), row[3], row[5])
+    for row in connection.execute('PRAGMA table_info("VocabularyDuplicateDecision")')
+]
+expected_decision_columns = [
+    ("Id", "TEXT", 1, 1), ("UserProfileId", "TEXT", 1, 0), ("TermKey", "TEXT", 1, 0),
+    ("Kind", "TEXT", 1, 0), ("CopyIds", "TEXT", 1, 0), ("KeeperId", "TEXT", 0, 0),
+    ("DecidedBy", "TEXT", 1, 0), ("Reason", "TEXT", 0, 0), ("Before", "TEXT", 0, 0),
+    ("DecidedAt", "TEXT", 1, 0), ("UndoneAt", "TEXT", 0, 0),
+]
+# Duplicate decisions (20261114203658) are now before both migrations of the checked transition.
+if decision_columns != expected_decision_columns:
+    errors.append("VocabularyDuplicateDecision: column/type/nullability/PK contract mismatch")
+if list(connection.execute('PRAGMA foreign_key_list("VocabularyDuplicateDecision")')):
+    errors.append("VocabularyDuplicateDecision: unexpected foreign key")
+decision_index = "IX_VocabularyDuplicateDecision_UserProfileId_TermKey"
+decision_indexes = [
+    (row[1], row[2], row[4],
+     tuple(column[2] for column in connection.execute(f'PRAGMA index_info("{row[1]}")')))
+    for row in connection.execute('PRAGMA index_list("VocabularyDuplicateDecision")')
+    if not row[1].startswith("sqlite_autoindex")
+]
+if decision_indexes != [(decision_index, 0, 0, ("UserProfileId", "TermKey"))]:
+    errors.append("VocabularyDuplicateDecision: owner index contract mismatch")
+
+# Learning mode (docs/known-words-plan.md, 20261114233928): one required text column on the
+# profile with the default "LearnerLed".
+learning_mode = [
+    (row[2].upper(), row[3], row[4])
+    for row in connection.execute('PRAGMA table_info("UserProfile")')
+    if row[1] == "LearningMode"
+]
 if phase == "previous":
-    if lookup_columns:
-        errors.append("VocabularyLookup: table exists before its migration")
-else:
-    if lookup_columns != expected_lookup_columns:
-        errors.append("VocabularyLookup: column/type/nullability/PK contract mismatch")
-    if list(connection.execute('PRAGMA foreign_key_list("VocabularyLookup")')):
-        errors.append("VocabularyLookup: unexpected foreign key")
-    lookup_index = "IX_VocabularyLookup_UserProfileId_LastLookedUpAt"
-    lookup_indexes = [
-        (row[1], row[2], row[4],
-         tuple(column[2] for column in connection.execute(f'PRAGMA index_info("{row[1]}")')))
-        for row in connection.execute('PRAGMA index_list("VocabularyLookup")')
-        if not row[1].startswith("sqlite_autoindex")
-    ]
-    if lookup_indexes != [(lookup_index, 0, 0, ("UserProfileId", "LastLookedUpAt"))]:
-        errors.append("VocabularyLookup: owner index contract mismatch")
+    if learning_mode:
+        errors.append("UserProfile.LearningMode: column exists before its migration")
+elif learning_mode != [("TEXT", 1, "'LearnerLed'")]:
+    errors.append("UserProfile.LearningMode: type/nullability/default contract mismatch")
 launch_index = connection.execute(
     "SELECT sql FROM sqlite_master WHERE type = 'index' "
     "AND name = 'IX_ActivitySession_UserId_LaunchContextKey'").fetchone()
@@ -1063,7 +1100,7 @@ if launch_index is None or "UNIQUE" not in launch_index[0].upper() \
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, activity-session, phase 3 owner and {phase} lookup-history contracts passed.")
+print(f"Six-table ledger, StreamHistory owner, plan-archive, word-owner, activity-session, phase 3 owner, lookup-history, duplicate-decision and {phase} learning-mode contracts passed.")
 PY
 }
 

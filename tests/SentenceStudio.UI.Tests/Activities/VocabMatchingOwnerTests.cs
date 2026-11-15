@@ -62,8 +62,8 @@ public sealed class VocabMatchingOwnerTests
         fixture.Renderer.Dispatcher.InvokeAsync(() =>
         {
             Members.Get<string>(page, "_owner").Should().Be(ActivityPageFixture.OwnerA);
-            var native = new MatchingTile { Id = 0, Text = word.NativeLanguageTerm!, Language = "native", VocabularyWordId = word.Id, Word = word };
-            var target = new MatchingTile { Id = 1, Text = word.TargetLanguageTerm!, Language = "target", VocabularyWordId = word.Id, Word = word };
+            var native = new MatchingTile { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed, Id = 0, Text = word.NativeLanguageTerm!, Language = "native", VocabularyWordId = word.Id, Word = word };
+            var target = new MatchingTile { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed, Id = 1, Text = word.TargetLanguageTerm!, Language = "target", VocabularyWordId = word.Id, Word = word };
             Members.Set(page, "tiles", new List<MatchingTile> { native, target });
             Members.Set(page, "totalPairs", 1);
             Members.Get<List<MatchingTile>>(page, "selectedTiles").AddRange([native, target]);

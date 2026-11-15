@@ -24,6 +24,8 @@ public sealed class SqliteMigrationApplicationTests
     private const string Phase2bMigration = "20261103151517_SyncTextIdsPhase2b";
     private const string Phase3Migration = "20261103230000_SyncOwnersPhase3";
     private const string LookupMigration = "20261104153858_AddVocabularyLookup";
+    private const string DuplicateDecisionMigration = "20261114203658_AddVocabularyDuplicateDecision";
+    private const string LearningModeMigration = "20261114233928_AddUserProfileLearningMode";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -727,7 +729,7 @@ public sealed class SqliteMigrationApplicationTests
         await using (var upgraded = CreateContext(scratch.ConnectionString))
         {
             await upgraded.Database.MigrateAsync();
-            Assert.Equal(LookupMigration, (await upgraded.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Contains(LookupMigration, await upgraded.Database.GetAppliedMigrationsAsync());
             Assert.False(upgraded.Database.HasPendingModelChanges());
             Assert.Equal(1, await upgraded.UserActivities.CountAsync());
             upgraded.VocabularyLookups.Add(new VocabularyLookup
@@ -771,6 +773,128 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Equal("1", await Scalar("SELECT count(*) FROM \"UserActivity\""));
         Assert.Equal(Phase3Migration, await Scalar(
             "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
+    }
+
+    /// <summary>
+    /// Duplicate decisions (docs/duplicate-merge-ai-plan.md, Captain 2026-11-14): a new
+    /// owner-scoped table. Up keeps every existing row, a decision round-trips its kind and decider
+    /// as text and its times as UTC, and Down drops only the new table.
+    /// </summary>
+    [Fact]
+    public async Task AddVocabularyDuplicateDecision_CreatesTheTable_KeepsExistingRows_AndDownDropsOnlyIt()
+    {
+        using var scratch = new ScratchDatabase();
+        var looked = new DateTime(2026, 11, 4, 1, 2, 3, DateTimeKind.Utc);
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(LookupMigration);
+            previous.VocabularyLookups.Add(new VocabularyLookup
+            {
+                Id = SentenceStudio.Services.SyncIds.VocabularyLookup("owner-a", "Korean", VocabularyLookupDirection.ToNative, "달"),
+                UserProfileId = "owner-a", Text = "달", Translation = "moon", Language = "Korean",
+                Direction = VocabularyLookupDirection.ToNative, Activity = VocabularyLookupActivity.Reading,
+                FirstLookedUpAt = looked, LastLookedUpAt = looked
+            });
+            await previous.SaveChangesAsync();
+        }
+
+        var decided = new DateTime(2026, 11, 14, 20, 36, 58, DateTimeKind.Utc);
+        var id = SentenceStudio.Services.SyncIds.VocabularyDuplicateDecision(
+            "owner-a", VocabularyDuplicateDecisionKind.KeptApart, "달", ["word-moon", "word-month"]);
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.Contains(DuplicateDecisionMigration, await upgraded.Database.GetAppliedMigrationsAsync());
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+            Assert.Equal(1, await upgraded.VocabularyLookups.CountAsync());
+            upgraded.VocabularyDuplicateDecisions.Add(new VocabularyDuplicateDecision
+            {
+                Id = id, UserProfileId = "owner-a", TermKey = "달",
+                Kind = VocabularyDuplicateDecisionKind.KeptApart,
+                CopyIds = SentenceStudio.Services.SyncIds.DuplicateDecisionCopies(["word-moon", "word-month"]),
+                DecidedBy = VocabularyDuplicateDecider.Ai, Reason = "moon and month are different words",
+                DecidedAt = decided
+            });
+            await upgraded.SaveChangesAsync();
+        }
+
+        await using (var reread = CreateContext(scratch.ConnectionString))
+        {
+            var row = await reread.VocabularyDuplicateDecisions.AsNoTracking().SingleAsync();
+            Assert.Equal(decided, row.DecidedAt);
+            Assert.Equal(DateTimeKind.Utc, row.DecidedAt.Kind);
+            Assert.Null(row.UndoneAt);
+            Assert.Equal(["word-month", "word-moon"], row.CopyIdList);
+        }
+
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("KeptApart|Ai", await Scalar("SELECT \"Kind\" || '|' || \"DecidedBy\" FROM \"VocabularyDuplicateDecision\""));
+        Assert.Equal("1", await Scalar(
+            "SELECT count(*) FROM pragma_index_list('VocabularyDuplicateDecision') WHERE name = 'IX_VocabularyDuplicateDecision_UserProfileId_TermKey'"));
+        Assert.Equal("KeeperId,Reason,Before,UndoneAt", await Scalar(
+            "SELECT group_concat(name) FROM pragma_table_info('VocabularyDuplicateDecision') WHERE \"notnull\" = 0 AND pk = 0"));
+        Assert.Equal("", await Scalar("SELECT group_concat(\"table\") FROM pragma_foreign_key_list('VocabularyDuplicateDecision')"));
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(LookupMigration);
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'VocabularyDuplicateDecision'"));
+        Assert.Equal("1", await Scalar("SELECT count(*) FROM \"VocabularyLookup\""));
+        Assert.Equal(LookupMigration, await Scalar(
+            "SELECT max(\"MigrationId\") FROM \"__EFMigrationsHistory\""));
+    }
+
+    /// <summary>
+    /// Learning mode (docs/known-words-plan.md, Captain 2026-11-14): one profile column. Up keeps
+    /// every profile and gives it Learner-led, the mode round-trips as its name, and Down drops
+    /// only the column.
+    /// </summary>
+    [Fact]
+    public async Task AddUserProfileLearningMode_DefaultsExistingProfilesToLearnerLed_AndStoresTheName()
+    {
+        using var scratch = new ScratchDatabase();
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(DuplicateDecisionMigration);
+            await previous.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"UserProfile\" (\"Id\", \"Name\", \"NativeLanguage\", \"TargetLanguage\", \"PreferredSessionMinutes\", \"VocabQuizShowTextWithPhoto\", \"CreatedAt\") VALUES ('owner-a', 'A', 'English', 'Korean', 20, 0, '2026-11-01 00:00:00')");
+        }
+
+        await using (var upgraded = CreateContext(scratch.ConnectionString))
+        {
+            await upgraded.Database.MigrateAsync();
+            Assert.Equal(LearningModeMigration, (await upgraded.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.False(upgraded.Database.HasPendingModelChanges());
+            var profile = await upgraded.UserProfiles.SingleAsync();
+            Assert.Equal(LearningMode.LearnerLed, profile.LearningMode);
+            profile.LearningMode = LearningMode.PracticeLed;
+            upgraded.UserProfiles.Add(new UserProfile { Id = "owner-b", Name = "B", CreatedAt = DateTime.UtcNow });
+            await upgraded.SaveChangesAsync();
+        }
+
+        await using var connection = new SqliteConnection(scratch.ConnectionString);
+        await connection.OpenAsync();
+        async Task<string> Scalar(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+        }
+        Assert.Equal("PracticeLed", await Scalar("SELECT \"LearningMode\" FROM \"UserProfile\" WHERE \"Id\" = 'owner-a'"));
+        Assert.Equal("LearnerLed", await Scalar("SELECT \"LearningMode\" FROM \"UserProfile\" WHERE \"Id\" = 'owner-b'"));
+
+        await using (var downgraded = CreateContext(scratch.ConnectionString))
+            await downgraded.GetService<IMigrator>().MigrateAsync(DuplicateDecisionMigration);
+        Assert.Equal("0", await Scalar(
+            "SELECT count(*) FROM pragma_table_info('UserProfile') WHERE name = 'LearningMode'"));
+        Assert.Equal("2", await Scalar("SELECT count(*) FROM \"UserProfile\""));
     }
 
     private static ApplicationDbContext CreateContext(string connectionString) =>

@@ -117,14 +117,14 @@ public class PlanToProgressLifecycleTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 0; w < 5; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.IsKnown.Should().BeTrue($"word {w} should be Known after 8 MC + 2 Text");
+            p.IsKnown().Should().BeTrue($"word {w} should be Known after 8 MC + 2 Text");
         }
 
         // Words 5-9 still at original level
         for (int w = 5; w < 10; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.IsKnown.Should().BeFalse($"word {w} should still be Learning");
+            p.IsKnown().Should().BeFalse($"word {w} should still be Learning");
         }
 
         // === STEP 3: Verify due count reflects mastery changes ===
@@ -243,7 +243,7 @@ public class PlanToProgressLifecycleTests : IClassFixture<PlanGenerationTestFixt
             // Due learning words should be present
             plan.VocabularyReview.DueWords.Should().AllSatisfy(w =>
             {
-                w.IsKnown.Should().BeFalse("due word list should not contain known words");
+                w.IsKnown().Should().BeFalse("due word list should not contain known words");
             });
         }
     }

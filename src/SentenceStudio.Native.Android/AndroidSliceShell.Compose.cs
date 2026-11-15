@@ -1019,7 +1019,6 @@ internal sealed partial class AndroidSliceShell
         {
             LearningStatus.Known => "VocabWordEdit_StatusKnown",
             LearningStatus.Learning => "VocabWordEdit_StatusLearning",
-            LearningStatus.Familiar => "VocabWordEdit_StatusFamiliar",
             _ => "StatusUnknown"
         };
         var sheet = new ModalBottomSheet(onDismissRequest: DismissOverlay)

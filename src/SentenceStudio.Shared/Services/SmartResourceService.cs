@@ -302,8 +302,11 @@ public class SmartResourceService
         var progressDict = userProgress.ToDictionary(vp => vp.VocabularyWordId);
 
         // Find words with no progress or zero attempts
+        // A word marked Known with no practice is not new (the one Known rule).
+        var mode = await _progressRepo.GetLearningModeAsync(userId);
         var newWordIds = allWords
-            .Where(w => !progressDict.ContainsKey(w.Id) || progressDict[w.Id].TotalAttempts == 0)
+            .Where(w => !progressDict.TryGetValue(w.Id, out var progress)
+                || (progress.TotalAttempts == 0 && !VocabularyKnownRule.IsKnown(progress, mode)))
             .Select(w => w.Id)
             .ToList();
 
@@ -320,9 +323,11 @@ public class SmartResourceService
         var allProgress = await _progressRepo.ListAsync();
         var userProgress = allProgress.Where(vp => vp.UserId == userId).ToList();
 
+        var mode = await _progressRepo.GetLearningModeAsync(userId);
         var strugglingWordIds = userProgress
             .Where(vp => vp.TotalAttempts >= STRUGGLING_MIN_ATTEMPTS &&
-                         vp.MasteryScore < STRUGGLING_MAX_MASTERY)
+                         vp.MasteryScore < STRUGGLING_MAX_MASTERY &&
+                         !VocabularyKnownRule.IsKnown(vp, mode))
             .Select(vp => vp.VocabularyWordId)
             .ToList();
 

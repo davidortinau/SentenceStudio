@@ -95,10 +95,9 @@ validation 17 pass, 0 fail); Duotopia runs the native build `04cd3ce1` (app code
 `ecd922b7` but for two comments) and the MAUI app 1.1.0 (3), both with CoreSync.Sqlite 0.1.129.4.
 
 **Open.**
-- Until every app is updated, a device that still holds pre-merge copies can
-  repeat the loss when it next syncs (DX24, a MAUI or Mac app): answers are protected by the
-  deployed server guard, moved example sentences, minimal pairs and phrase links are not. No
-  duplicate merges until all of them are updated.
+- **Merge hold lifted (Captain, 2026-11-14):** DX24 is retired and Duotopia's native and MAUI apps
+  are the only clients, both with the fix, so duplicate merges are safe again. A build without the
+  fix that syncs later would still be covered for answers only (the server guard).
 - A download applies the duplicate's delete before the updates that move its children, so the
   device removes the moved rows and relies on CoreSync's forced write to put them back. In the
   tests it does; on Duotopia the moved answers were missing until the restore re-sent them, not yet

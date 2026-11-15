@@ -112,21 +112,8 @@ public sealed class NativeQuizSentenceAttemptCommitter(
                 ResponseTimeMs = 0
             };
             var now = DateTime.UtcNow;
-            VocabularyProgressService.ApplyAttemptScoring(progress, attempt, now);
-            if (progress.IsFamiliar)
-            {
-                // Match the source's post-attempt familiar verification transition.
-                progress.VerificationState = VerificationStatus.Confirmed;
-                progress.MasteryScore = 1f;
-                progress.CurrentStreak = 7f;
-                progress.ProductionInStreak =
-                    VocabularyMasteryCalculator.MIN_PRODUCTION_FOR_KNOWN;
-                progress.MasteredAt = now;
-                progress.ReviewInterval = 60;
-                progress.EaseFactor = 2.5f;
-                progress.NextReviewDate = now.AddDays(60);
-                progress.LastPracticedAt = now;
-            }
+            VocabularyProgressService.ApplyAttemptScoring(progress, attempt, now,
+                await db.GetLearningModeAsync(userId, cancellationToken));
             progress.UpdatedAt = now;
             await NativeQuizAttemptCommitterAdapter.RecordDirectConstituentExposuresAsync(
                 db, userId, word, attempt, cancellationToken);

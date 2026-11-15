@@ -514,10 +514,6 @@ public sealed class NativeWritingPresenter(
                     var results = await progress.ExtractAndScoreVocabularyAsync(
                         grade.VocabularyAnalysis, [.. _vocabulary], userId,
                         ScoringActivity, DifficultyWeight);
-                    foreach (var result in results.Where(result => result.UpdatedProgress.IsFamiliar))
-                        notices.Add(result.WasCorrect
-                            ? new(NativeMessageKind.Success, NativeWritingText.ProbeConfirmed)
-                            : new(NativeMessageKind.Info, NativeWritingText.ProbeTricky));
                     if (results.Count > 0)
                         pendingWrites.MarkPending(userId);
                     scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
@@ -594,10 +590,9 @@ public sealed class NativeWritingPresenter(
                     words.Select(word => word.Id).ToList(), userId);
                 if (!owner.IsActive(userId))
                     return Refuse();
-                var usable = words
-                    .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                    .Where(word => !(byWord.GetValueOrDefault(word.Id)?.IsInGracePeriod ?? false))
-                    .ToList();
+                var usable = VocabularyKnownRule.PracticePool(
+                    words.Where(FocusVocabularySelection.IsUsableVocabularyWord),
+                    word => byWord.GetValueOrDefault(word.Id), await progress.GetLearningModeAsync(userId));
                 _vocabulary.AddRange(WritingActivityVocabularyFilter.FilterToWordsOnly(usable));
                 if (_vocabulary.Count == 0 && usable.Count > 0)
                     logger.LogWarning("Writing filtered out all {Count} entries of its resource (no Word entries).", usable.Count);

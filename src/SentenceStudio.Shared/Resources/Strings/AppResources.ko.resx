@@ -362,7 +362,7 @@
     <comment/>
   </data>
   <data name="Translation" xml:space="preserve">
-    <value>Translation</value>
+    <value>번역</value>
     <comment/>
   </data>
   <data name="OpenAI_APIKey" xml:space="preserve">
@@ -5446,7 +5446,7 @@
     <comment>Filter label</comment>
   </data>
   <data name="Vocabulary_FilterLabelLemma" xml:space="preserve">
-    <value>Lemma</value>
+    <value>기본형</value>
     <comment>Filter label</comment>
   </data>
   <data name="Vocabulary_FilterLabelLanguage" xml:space="preserve">
@@ -5760,6 +5760,10 @@
   <data name="Login_UnexpectedError" xml:space="preserve">
     <value>예기치 않은 오류가 발생했습니다. 다시 시도하세요.</value>
     <comment>Generic error</comment>
+  </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>로그인 시도가 너무 많습니다. 몇 분 후에 다시 시도하세요.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
   </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>계정 만들기</value>
@@ -9851,5 +9855,407 @@
   <data name="Skills_ArchivedCount" xml:space="preserve">
     <value>보관됨 {0}개</value>
     <comment>Under the Skill Profiles title in the archive: how many archived skill profiles the list shows</comment>
+  </data>
+  <data name="HideNativeWords" xml:space="preserve">
+    <value>번역 숨기기</value>
+  </data>
+  <data name="ShowAllWords" xml:space="preserve">
+    <value>모든 단어 보기</value>
+  </data>
+  <data name="TapTargetToReveal" xml:space="preserve">
+    <value>학습 언어 단어를 눌러 번역을 확인한 다음 짝을 찾으세요</value>
+  </data>
+  <data name="VocabularyQuiz" xml:space="preserve">
+    <value>어휘 퀴즈</value>
+  </data>
+  <data name="No Vocabulary" xml:space="preserve">
+    <value>어휘 없음</value>
+  </data>
+  <data name="This resource has no vocabulary to study." xml:space="preserve">
+    <value>이 자료에는 학습할 어휘가 없습니다.</value>
+  </data>
+  <data name="VocabularyWords" xml:space="preserve">
+    <value>어휘 단어</value>
+  </data>
+  <data name="ImportFromFile" xml:space="preserve">
+    <value>파일에서 가져오기</value>
+  </data>
+  <data name="UploadFile" xml:space="preserve">
+    <value>파일 업로드</value>
+  </data>
+  <data name="ImportVocabulary" xml:space="preserve">
+    <value>어휘 가져오기</value>
+  </data>
+  <data name="BulkAddVocabulary" xml:space="preserve">
+    <value>어휘 한꺼번에 추가</value>
+  </data>
+  <data name="EnterVocabularyPairs" xml:space="preserve">
+    <value>어휘 쌍을 입력하세요 (한 줄에 하나씩)</value>
+  </data>
+  <data name="Format" xml:space="preserve">
+    <value>형식</value>
+  </data>
+  <data name="CommaDelimiter" xml:space="preserve">
+    <value>쉼표 (단어, 번역)</value>
+  </data>
+  <data name="ColonDelimiter" xml:space="preserve">
+    <value>콜론 (단어: 번역)</value>
+  </data>
+  <data name="HyphenDelimiter" xml:space="preserve">
+    <value>하이픈 (단어 - 번역)</value>
+  </data>
+  <data name="TabDelimiter" xml:space="preserve">
+    <value>탭 (단어	번역)</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>오류</value>
+  </data>
+  <data name="NoVocabularyToImport" xml:space="preserve">
+    <value>가져올 어휘가 없습니다</value>
+  </data>
+  <data name="NoValidVocabularyFound" xml:space="preserve">
+    <value>입력에서 유효한 어휘를 찾지 못했습니다</value>
+  </data>
+  <data name="ImportComplete" xml:space="preserve">
+    <value>가져오기 완료</value>
+  </data>
+  <data name="VocabularyImportSuccess" xml:space="preserve">
+    <value>새 어휘 {0}개를 추가했습니다.</value>
+  </data>
+  <data name="VocabularyImportWithDuplicates" xml:space="preserve">
+    <value>새 어휘 {0}개를 추가했습니다. 중복 {1}개는 건너뛰었습니다.</value>
+  </data>
+  <data name="FailedToImportVocabulary" xml:space="preserve">
+    <value>어휘를 가져오지 못했습니다: {0}</value>
+  </data>
+  <data name="SelectFile" xml:space="preserve">
+    <value>파일 선택</value>
+  </data>
+  <data name="ValidationError" xml:space="preserve">
+    <value>입력 오류</value>
+  </data>
+  <data name="TitleRequired" xml:space="preserve">
+    <value>제목을 입력하세요</value>
+  </data>
+  <data name="DashboardTitle" xml:space="preserve">
+    <value>대시보드</value>
+  </data>
+  <data name="ModeTodaysPlan" xml:space="preserve">
+    <value>오늘의 계획</value>
+  </data>
+  <data name="ModeChooseOwn" xml:space="preserve">
+    <value>직접 선택</value>
+  </data>
+  <data name="PlanCardTitle" xml:space="preserve">
+    <value>오늘의 학습 계획</value>
+  </data>
+  <data name="PlanMinutesLabel" xml:space="preserve">
+    <value>분</value>
+  </data>
+  <data name="PlanCompleteLabel" xml:space="preserve">
+    <value>완료</value>
+  </data>
+  <data name="PlanWordsLabel" xml:space="preserve">
+    <value>단어</value>
+  </data>
+  <data name="PlanMinAbbrev" xml:space="preserve">
+    <value>분</value>
+  </data>
+  <data name="PlanStartButton" xml:space="preserve">
+    <value>시작</value>
+  </data>
+  <data name="PlanResumeButton" xml:space="preserve">
+    <value>이어서 하기</value>
+  </data>
+  <data name="PlanRegenerateButton" xml:space="preserve">
+    <value>계획 다시 생성</value>
+  </data>
+  <data name="PlanSequentialHint" xml:space="preserve">
+    <value>가장 좋은 결과를 위해 순서대로 활동을 완료하세요</value>
+  </data>
+  <data name="PlanChooseOwnButton" xml:space="preserve">
+    <value>직접 선택</value>
+  </data>
+  <data name="PlanItemVocabReviewTitle" xml:space="preserve">
+    <value>어휘 복습</value>
+  </data>
+  <data name="PlanItemVocabReviewDesc" xml:space="preserve">
+    <value>복습할 때가 된 단어를 간격 반복으로 복습하세요</value>
+  </data>
+  <data name="PlanItemReadingTitle" xml:space="preserve">
+    <value>읽기 연습</value>
+  </data>
+  <data name="PlanItemReadingDesc" xml:space="preserve">
+    <value>새 콘텐츠를 읽으며 이해력을 키우세요</value>
+  </data>
+  <data name="PlanItemListeningTitle" xml:space="preserve">
+    <value>듣기 연습</value>
+  </data>
+  <data name="PlanItemListeningDesc" xml:space="preserve">
+    <value>오디오를 들으며 이해력을 높이세요</value>
+  </data>
+  <data name="PlanItemVideoTitle" xml:space="preserve">
+    <value>비디오 수업</value>
+  </data>
+  <data name="PlanItemVideoDesc" xml:space="preserve">
+    <value>비디오 콘텐츠를 보며 배우세요</value>
+  </data>
+  <data name="PlanItemShadowingTitle" xml:space="preserve">
+    <value>섀도잉 연습</value>
+  </data>
+  <data name="PlanItemShadowingDesc" xml:space="preserve">
+    <value>오디오를 따라 말하며 발음과 리듬을 다듬으세요</value>
+  </data>
+  <data name="PlanItemClozeTitle" xml:space="preserve">
+    <value>빈칸 채우기 연습</value>
+  </data>
+  <data name="PlanItemClozeDesc" xml:space="preserve">
+    <value>빠진 단어를 채우며 문법과 어휘를 연습하세요</value>
+  </data>
+  <data name="PlanItemTranslationTitle" xml:space="preserve">
+    <value>문장 번역하기</value>
+  </data>
+  <data name="PlanItemTranslationDesc" xml:space="preserve">
+    <value>언어 사이의 번역을 연습하세요</value>
+  </data>
+  <data name="PlanItemConversationTitle" xml:space="preserve">
+    <value>대화 연습</value>
+  </data>
+  <data name="PlanItemConversationDesc" xml:space="preserve">
+    <value>학습 언어로 대화하세요</value>
+  </data>
+  <data name="PlanItemVocabGameTitle" xml:space="preserve">
+    <value>어휘 게임</value>
+  </data>
+  <data name="PlanItemVocabGameDesc" xml:space="preserve">
+    <value>단어를 익히는 빠른 짝 맞추기 게임</value>
+  </data>
+  <data name="ActivityProgressTitle" xml:space="preserve">
+    <value>활동 진행 상황</value>
+  </data>
+  <data name="RoundsLabel" xml:space="preserve">
+    <value>라운드</value>
+  </data>
+  <data name="ActivityCompleteLabel" xml:space="preserve">
+    <value>완료!</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAllShared" xml:space="preserve">
+    <value>모든 사본을 다른 학습자가 사용하고 있어 남길 수 있는 사본이 없습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesOthersShared" xml:space="preserve">
+    <value>다른 사본은 다른 학습자가 사용하고 있어 그대로 남습니다. 병합하면 내 학습 기록과 리소스가 남기는 사본으로 옮겨집니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNotYours" xml:space="preserve">
+    <value>일부 사본이 내 단어가 아니어서 병합하지 않았습니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedKeeperShared" xml:space="preserve">
+    <value>남길 사본을 다른 학습자가 사용하고 있어 병합하지 않았습니다.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNothingToMove" xml:space="preserve">
+    <value>병합할 수 있는 사본이 없습니다. 다른 사본이 다른 학습자의 데이터와 연결되어 있습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCleanUp" xml:space="preserve">
+    <value>중복 단어 정리</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
+    <value>아무것도 잃지 않고 병합할 수 있는 똑같은 사본: {0}개</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
+    <value>똑같은 사본 병합({0}개)</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
+    <value>병합하는 중…</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
+    <value>남긴 사본에 병합한 똑같은 사본: {0}개</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
+    <value>남긴 사본에 병합한 똑같은 사본: {0}개. 병합하지 못한 항목: {1}개</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
+    <value>자동으로 병합할 그룹이 남아 있지 않습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReview" xml:space="preserve">
+    <value>검토 필요</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReviewNote" xml:space="preserve">
+    <value>이 그룹을 병합하면 일부 정보가 사라집니다. 병합하면 첫 번째 사본의 뜻과 기억 도우미를 남기고, 건너뛰면 사본을 그대로 둡니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCantMerge" xml:space="preserve">
+    <value>병합할 수 없음</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerge" xml:space="preserve">
+    <value>병합</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSkip" xml:space="preserve">
+    <value>건너뛰기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeep" xml:space="preserve">
+    <value>이 사본을 남김</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMeaning" xml:space="preserve">
+    <value>뜻이 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMemoryAid" xml:space="preserve">
+    <value>기억 도우미가 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceBaseForm" xml:space="preserve">
+    <value>기본형이 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceLanguageOrKind" xml:space="preserve">
+    <value>언어 또는 종류가 다름</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeRefused" xml:space="preserve">
+    <value>'{0}'을(를) 병합할 수 없습니다: {1}</value>
+  </data>
+  <data name="Vocabulary_MergeFailed" xml:space="preserve">
+    <value>병합을 완료하지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseHint" xml:space="preserve">
+    <value>병합할 사본을 고르세요. 고르지 않은 사본은 그대로 남습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseTwo" xml:space="preserve">
+    <value>병합할 사본을 두 개 이상 고르세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
+    <value>{1}개 중 {0}번째 사본</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepThis" xml:space="preserve">
+    <value>이것 남기기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesHistory" xml:space="preserve">
+    <value>숙련도 {0}% · 시도 {1}회</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNoHistory" xml:space="preserve">
+    <value>아직 연습하지 않음</value>
+  </data>
+  <data name="Vocabulary_DuplicatesResolveWithAi" xml:space="preserve">
+    <value>AI로 정리</value>
+  </data>
+  <data name="Vocabulary_DuplicatesResolvingWithAi" xml:space="preserve">
+    <value>AI가 같은 뜻의 사본인지 확인하는 중...</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSummary" xml:space="preserve">
+    <value>AI 병합: {0}개. 따로 유지: {1}개. 제거한 사본: {2}개. 직접 결정할 항목: {3}개</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiReport" xml:space="preserve">
+    <value>결정한 항목</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiMerged" xml:space="preserve">
+    <value>{0}: "{1}"(으)로 병합</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiKeptApart" xml:space="preserve">
+    <value>{0}: {1}(으)로 따로 유지</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndo" xml:space="preserve">
+    <value>되돌리기</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndone" xml:space="preserve">
+    <value>되돌림: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndoFailed" xml:space="preserve">
+    <value>되돌리지 못함: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMerge" xml:space="preserve">
+    <value>AI 제안: "{0}"(으)로 병합. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsApart" xml:space="preserve">
+    <value>AI 제안: {0}(으)로 따로 유지. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMixed" xml:space="preserve">
+    <value>AI 제안: {0}. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnsure" xml:space="preserve">
+    <value>AI가 이 항목을 판단하지 못했습니다.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApart" xml:space="preserve">
+    <value>따로 유지</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeptApart" xml:space="preserve">
+    <value>따로 유지함: {0}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChangedSinceAi" xml:space="preserve">
+    <value>AI가 판단하는 동안 바뀌었습니다. 다시 확인하세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnavailable" xml:space="preserve">
+    <value>AI에 연결할 수 없어 아무것도 결정하지 않았습니다. 온라인일 때 다시 시도하세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiNoAnswer" xml:space="preserve">
+    <value>AI가 이 항목에 답하지 않았습니다. AI로 정리를 다시 시도하세요.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApartFailed" xml:space="preserve">
+    <value>이 사본들을 따로 유지하지 못했습니다. 다시 확인하세요.</value>
+  </data>
+  <data name="Vocabulary_MarkKnown" xml:space="preserve">
+    <value>아는 단어로 표시</value>
+  </data>
+  <data name="Vocabulary_PracticeAgain" xml:space="preserve">
+    <value>다시 연습</value>
+  </data>
+  <data name="Vocabulary_StartOver" xml:space="preserve">
+    <value>처음부터 다시</value>
+  </data>
+  <data name="Vocabulary_MarkedKnown" xml:space="preserve">
+    <value>아는 단어로 표시함: {0}</value>
+  </data>
+  <data name="VocabWordEdit_KnownMarked" xml:space="preserve">
+    <value>직접 아는 단어로 표시함</value>
+  </data>
+  <data name="Vocabulary_MarkKnownPracticeLed" xml:space="preserve">
+    <value>연습 중심 학습에서는 아는 단어로 표시할 수 없습니다.</value>
+  </data>
+  <data name="Vocabulary_MarkRefusedNotYours" xml:space="preserve">
+    <value>이 단어의 상태를 바꿀 수 없습니다.</value>
+  </data>
+  <data name="LearningMode_Title" xml:space="preserve">
+    <value>학습 방식</value>
+  </data>
+  <data name="LearningMode_LearnerLed" xml:space="preserve">
+    <value>학습자 중심</value>
+  </data>
+  <data name="LearningMode_LearnerLedDetail" xml:space="preserve">
+    <value>나와 연습이 아는 단어를 정합니다. 아는 단어는 다시 연습을 선택할 때까지 그대로 유지됩니다.</value>
+  </data>
+  <data name="LearningMode_PracticeLed" xml:space="preserve">
+    <value>연습 중심</value>
+  </data>
+  <data name="LearningMode_PracticeLedDetail" xml:space="preserve">
+    <value>연습만으로 정합니다. 직접 표시한 아는 단어는 잠시 적용되지 않으며, 아는 단어를 틀리면 다시 연습으로 돌아갈 수 있습니다.</value>
+  </data>
+  <data name="LearningMode_SaveFailed" xml:space="preserve">
+    <value>학습 방식을 저장하지 못했습니다. 온라인일 때 다시 시도하세요.</value>
+  </data>
+  <data name="NativeVocabulary_MarkFailed" xml:space="preserve">
+    <value>상태를 바꾸지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeSettings_LearningModeLoadFailed" xml:space="preserve">
+    <value>학습 방식을 불러오지 못했습니다.</value>
+  </data>
+  <data name="NativeVocabulary_Select" xml:space="preserve">
+    <value>선택</value>
+  </data>
+  <data name="NativeVocabulary_SetStatus" xml:space="preserve">
+    <value>상태 설정</value>
+  </data>
+  <data name="VocabQuiz_MarkKnownDone" xml:space="preserve">
+    <value>아는 단어로 표시했습니다. 다시 연습을 선택하기 전까지는 나오지 않습니다.</value>
+  </data>
+  <data name="Vocabulary_PracticeAgainNotKnown" xml:space="preserve">
+    <value>다시 연습은 아는 단어에만 쓸 수 있습니다. 선택한 단어 중 아는 단어가 없습니다.</value>
+  </data>
+  <data name="Vocabulary_StartOverConfirm" xml:space="preserve">
+    <value>단어 {0}개를 처음부터 다시 시작할까요? 점수가 0으로 돌아갑니다. 연습 기록은 유지됩니다.</value>
+  </data>
+  <data name="VocabWordEdit_DiscardChanges" xml:space="preserve">
+    <value>변경 내용 버리기</value>
+  </data>
+  <data name="NativeVocabulary_BulkFailed" xml:space="preserve">
+    <value>변경 내용을 저장하지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeVocabulary_BulkActions" xml:space="preserve">
+    <value>선택 항목 편집</value>
+  </data>
+  <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
+    <value>먼저 단어를 하나 이상 선택하세요.</value>
   </data>
 </root>

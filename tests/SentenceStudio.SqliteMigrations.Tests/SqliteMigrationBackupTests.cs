@@ -11,7 +11,7 @@ public sealed class SqliteMigrationBackupTests : IDisposable
 {
     private const string ArchiveMigration = "20260928050905_ArchiveDisplacedPlanItems";
     private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
-    private const string LatestMigration = "20261104153858_AddVocabularyLookup";
+    private const string LatestMigration = "20261114233928_AddUserProfileLearningMode";
 
     private readonly DirectoryInfo _directory =
         Directory.CreateTempSubdirectory("SentenceStudio.MigrationBackup.");

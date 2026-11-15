@@ -40,8 +40,7 @@ public static class VocabQuizSourcePolicy
         }
 
         var allMastered = candidates.Count > 0 && candidates.All(item => item.IsKnown);
-        var eligible = candidates.Where(item =>
-            !item.IsKnown && !(item.Progress?.IsInGracePeriod ?? false));
+        var eligible = candidates.Where(item => !item.IsKnown);
 
         if (dueOnly)
         {

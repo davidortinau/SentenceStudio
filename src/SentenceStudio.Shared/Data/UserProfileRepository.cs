@@ -479,6 +479,44 @@ public partial class UserProfileRepository : SentenceStudio.Application.Learners
         }
     }
 
+    /// <summary>
+    /// Saves only the learner's Learning mode (docs/known-words-plan.md). A single-property
+    /// update, so it cannot overwrite an unrelated change; no progress row is written.
+    /// </summary>
+    /// <returns>True when the mode is stored for that learner (also when it already was).</returns>
+    public async Task<bool> SaveLearningModeAsync(string userId, LearningMode mode, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId) || !Enum.IsDefined(mode))
+        {
+            _logger.LogWarning("SaveLearningModeAsync called with no learner or an unknown mode; nothing saved.");
+            return false;
+        }
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == userId, ct);
+            if (profile is null)
+            {
+                _logger.LogWarning("SaveLearningModeAsync: no profile for the learner; nothing saved.");
+                return false;
+            }
+            if (profile.LearningMode == mode)
+                return true;
+            profile.LearningMode = mode;
+            await db.SaveChangesAsync(ct);
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            _logger.LogInformation("Learning mode set to {Mode}.", mode);
+            return true;
+        }
+        catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException or InvalidOperationException)
+        {
+            _logger.LogError(ex, "SaveLearningModeAsync: the mode was not saved.");
+            return false;
+        }
+    }
+
     public async Task<int> DeleteAsync()
     {
         using var scope = _serviceProvider.CreateScope();

@@ -1,3 +1,4 @@
+using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native;
@@ -15,7 +16,19 @@ public sealed record NativeVocabularyEntry(
 public sealed record NativeVocabularyCatalog(
     bool OwnerValid,
     IReadOnlyList<NativeVocabularyEntry> Words,
-    IReadOnlyList<NativeVocabularyResource> Resources);
+    IReadOnlyList<NativeVocabularyResource> Resources)
+{
+    /// <summary>The owner's Learning mode: Mark Known is offered only in Learner-led.</summary>
+    public LearningMode Mode { get; init; } = LearningMode.LearnerLed;
+}
+
+/// <summary>
+/// What a learner's mark (Mark Known, Practice again, Start over) did: how many of the owner's
+/// words changed, whether the save's sync tracking could not be recorded, and the resource key
+/// of why nothing changed.
+/// </summary>
+public sealed record NativeVocabularyMarkResult(int Changed, bool SyncUnconfirmed = false,
+    string? RefusalKey = null);
 
 public sealed record NativeVocabularyProgress(
     LearningStatus Status, bool IsKnown, float MasteryScore,
@@ -90,7 +103,24 @@ public sealed record NativeVocabularyDetail(
     IReadOnlyList<NativeVocabularyExample> Examples,
     IReadOnlyList<NativeVocabularyConstituent> Constituents,
     bool HasConstituentLinks,
-    NativeVocabularyDeleteBlock DeleteBlock);
+    NativeVocabularyDeleteBlock DeleteBlock)
+{
+    /// <summary>The owner's Learning mode (docs/known-words-plan.md).</summary>
+    public LearningMode Mode { get; init; } = LearningMode.LearnerLed;
+
+    /// <summary>Who decided a Known word is Known, for the status row's words.</summary>
+    public SentenceStudio.Services.VocabularyKnownSource KnownSource { get; init; }
+
+    /// <summary>Source word editor: a Known word offers Practice again.</summary>
+    public bool CanPracticeAgain => Word.IsKnown;
+
+    /// <summary>Source word editor: Mark Known for a word that is not Known, in Learner-led only.</summary>
+    public bool CanMarkKnown => !Word.IsKnown && Mode == LearningMode.LearnerLed;
+
+    /// <summary>Source word editor: Start over once the word has practice or a status.</summary>
+    public bool CanStartOver => Progress is { TotalAttempts: > 0 } || Word.IsKnown
+        || Word.Status != LearningStatus.Unknown;
+}
 
 /// <summary>
 /// Why the word cannot be deleted, by the rules the server applies to a synced word delete,
@@ -138,10 +168,55 @@ public enum NativeVocabularyDeleteStatus
 /// can move to the keeper while a copy other data references is kept), and whether the change
 /// was saved but its sync tracking could not be recorded.
 /// </summary>
-public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool SyncUnconfirmed)
+/// <param name="RefusalKey">The resource key of why nothing changed, or null.</param>
+public sealed record NativeVocabularyMergeResult(int Removed, bool Changed, bool SyncUnconfirmed,
+    string? RefusalKey = null)
 {
     public static NativeVocabularyMergeResult None { get; } = new(0, false, false);
 }
+
+/// <summary>A group a merge refused: its display term and the resource key of why.</summary>
+public sealed record NativeVocabularyMergeRefusal(string DisplayTerm, string RefusalKey);
+
+/// <summary>Source MergeSafeDuplicateGroupsAsync for the active owner ("Merge all").</summary>
+/// <param name="Refused">Safe groups the merge still refused (changed since the scan).</param>
+public sealed record NativeVocabularyMergeAllResult(
+    int MergedGroups, int RemovedCopies, IReadOnlyList<NativeVocabularyMergeRefusal> Refused,
+    bool SyncUnconfirmed)
+{
+    public static NativeVocabularyMergeAllResult None { get; } = new(0, 0, [], false);
+}
+
+/// <summary>
+/// "Resolve with AI" for the active owner (docs/duplicate-merge-ai-plan.md): what the rules merged,
+/// what the AI applied (its decisions are listed, each with Undo), the calls left for the learner
+/// and the refusals. <see cref="AiUnavailable"/>: the AI answered nothing, so it decided nothing.
+/// </summary>
+public sealed record NativeVocabularyDuplicateAiResult(
+    int RulesRemovedCopies, int MergedGroups, int KeptApartGroups, int RemovedCopies,
+    IReadOnlyList<NativeVocabularyDuplicateAiSuggestion> NeedsYou,
+    IReadOnlyList<NativeVocabularyMergeRefusal> Refused,
+    bool SyncUnconfirmed, bool AiUnavailable = false)
+{
+    public static NativeVocabularyDuplicateAiResult None { get; } = new(0, 0, 0, 0, [], [], false);
+}
+
+/// <summary>
+/// The AI's call on a group it was not sure of, shown on the group for the learner to decide.
+/// Not <see cref="Usable"/> when the AI gave no answer that passed the checks;
+/// <see cref="Unanswered"/> when it did not answer for the group at all.
+/// </summary>
+public sealed record NativeVocabularyDuplicateAiSuggestion(
+    string NormalizedTerm, bool Usable, SentenceStudio.Services.VocabularyDuplicateAiVerdict Verdict,
+    IReadOnlyList<string> Meanings, string Reason, bool Unanswered = false);
+
+/// <summary>
+/// One of the owner's standing duplicate decisions (shared VocabularyDuplicateDecisionSummary),
+/// listed on the duplicate page with its Undo.
+/// </summary>
+public sealed record NativeVocabularyDuplicateDecision(
+    string Id, VocabularyDuplicateDecisionKind Kind, string DisplayTerm, IReadOnlyList<string> Meanings,
+    VocabularyDuplicateDecider DecidedBy, string? Reason);
 
 /// <summary>
 /// One copy in a duplicate group (source VocabularyDuplicateWordInfo): always one of the
@@ -151,20 +226,36 @@ public sealed record NativeVocabularyDuplicateWord(
     string Id, string TargetTerm, string NativeTerm,
     string? Language, LexicalUnitType LexicalUnitType,
     int ResourceCount, double EncodingScore, string EncodingLabel,
-    string? MnemonicText, bool HasImageAid, bool HasAudio);
+    string? MnemonicText, bool HasImageAid, bool HasAudio, string? Lemma = null,
+    bool UsedByOthers = false, double Mastery = 0, int Attempts = 0);
 
 /// <summary>
 /// Source VocabularyDuplicateGroup of the owner's own words; <see cref="Words"/> is in
 /// merge-preference order.
 /// </summary>
+/// <param name="MergeBlockedReason">The resource key of why it cannot merge, or null.</param>
+/// <param name="Risk">Safe (merged by Merge all), review (the learner decides) or blocked.</param>
+/// <param name="Differences">What merging would drop, when <paramref name="Risk"/> is review.</param>
 public sealed record NativeVocabularyDuplicateGroup(
     string NormalizedTerm, string DisplayTerm,
     IReadOnlyList<NativeVocabularyDuplicateWord> Words,
     bool CanMergeAutomatically, string? MergeBlockedReason,
-    string RecommendedKeeperId);
+    string RecommendedKeeperId,
+    VocabularyDuplicateRisk Risk = VocabularyDuplicateRisk.Safe,
+    IReadOnlyList<VocabularyDuplicateDifference>? Differences = null,
+    IReadOnlyList<VocabularyDuplicateMergePart>? MergeParts = null)
+{
+    public IReadOnlyList<VocabularyDuplicateDifference> DifferenceList => Differences ?? [];
+
+    /// <summary>What Merge all merges in this group (the shared scan's parts; none for a test double).</summary>
+    public IReadOnlyList<VocabularyDuplicateMergePart> MergePartList => MergeParts ?? [];
+}
 
 /// <summary>Source VocabularyDuplicateScanResult for the active owner.</summary>
 public sealed record NativeVocabularyDuplicateScan(
     bool OwnerValid,
     IReadOnlyList<NativeVocabularyDuplicateGroup> Groups,
-    int TotalGroupCount, int ExtraRecordCount);
+    int TotalGroupCount, int ExtraRecordCount,
+    int SafeGroupCount = 0, int SafeCopyCount = 0, int ReviewGroupCount = 0, int BlockedGroupCount = 0);
+// SafeGroupCount counts merges, not groups: a safe group is one, and each set of identical copies
+// inside a group to review is one more (VocabularyDuplicateScanResult).

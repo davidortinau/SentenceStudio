@@ -11,7 +11,7 @@ namespace SentenceStudio.Native;
 /// <summary>
 /// Word Association (source UI/Pages/WordAssociation.razor and
 /// WordAssociationService, activities.md 14). A round is five random words
-/// from every selected resource (grace-period Familiar words excluded). The
+/// from every selected resource (Known words are not asked while others remain). The
 /// learner writes clues for each word, grades them with the source
 /// GradeWordAssociation prompt (Reasoning tier), moves between words, and
 /// finishes with a scored summary and the all-time / weekly high-score
@@ -370,13 +370,6 @@ public sealed class NativeWordAssociationPresenter(
                     DifficultyWeight = DifficultyWeight,
                     ContextType = AttemptContext
                 });
-                if (updated.IsFamiliar && owner.IsActive(userId))
-                {
-                    await progress.HandleVerificationProbeResultAsync(word.Id, userId, wasCorrect);
-                    notices.Add(wasCorrect
-                        ? new(NativeMessageKind.Success, NativeWordAssociationText.ProbeConfirmed)
-                        : new(NativeMessageKind.Info, NativeWordAssociationText.ProbeTricky));
-                }
                 pendingWrites.MarkPending(userId);
                 scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
             }
@@ -468,8 +461,8 @@ public sealed class NativeWordAssociationPresenter(
                     distinct.Select(word => word.Id).ToList(), userId);
                 if (!owner.IsActive(userId))
                     return Refuse();
-                _words.AddRange(distinct
-                    .Where(word => !(byWord.GetValueOrDefault(word.Id)?.IsInGracePeriod ?? false))
+                _words.AddRange(VocabularyKnownRule.PracticePool(distinct,
+                        word => byWord.GetValueOrDefault(word.Id), await progress.GetLearningModeAsync(userId))
                     .OrderBy(_ => Random.Shared.Next())
                     .Take(RoundSize));
             }

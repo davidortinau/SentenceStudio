@@ -120,7 +120,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         }
 
         VocabularyProgressService.ApplyAttemptScoring(
-            progress, frozenAttempt, DateTime.UtcNow);
+            progress, frozenAttempt, DateTime.UtcNow, await db.GetLearningModeAsync(userId, cancellationToken));
         // VocabularyProgressRepository.SaveAsync also refreshes UpdatedAt.
         progress.UpdatedAt = DateTime.UtcNow;
         NativeQuizOwnerGuard.RequireActiveOwner(
@@ -840,7 +840,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             .Where(row => row.UserId == launch.UserId
                 && usable.Contains(row.VocabularyWordId))
             .ToListAsync(cancellationToken);
-        if (progress.Count != usable.Count || progress.Any(row => !row.IsKnown))
+        var mode = await db.GetLearningModeAsync(launch.UserId, cancellationToken);
+        if (progress.Count != usable.Count || progress.Any(row => !VocabularyKnownRule.IsKnown(row, mode)))
             return false;
 
         var now = DateTime.UtcNow;

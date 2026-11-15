@@ -51,7 +51,7 @@ public class GeneratedPlanValidator
         if (review == null) return;
 
         // Invariant 1: No known words in review
-        var knownWords = review.DueWords.Where(w => w.IsKnown).ToList();
+        var knownWords = review.DueWords.Where(VocabularyKnownRule.IsKnownByScore).ToList();
         if (knownWords.Any())
         {
             result.CriticalViolations.Add(
@@ -61,7 +61,7 @@ public class GeneratedPlanValidator
 
         // Invariant 2: Promoted words (MasteryScore >= 0.50) should be flagged for production mode
         var promotedWords = review.DueWords
-            .Where(w => w.MasteryScore >= 0.50f && !w.IsKnown)
+            .Where(w => w.MasteryScore >= 0.50f && !VocabularyKnownRule.IsKnownByScore(w))
             .ToList();
         if (promotedWords.Any())
         {

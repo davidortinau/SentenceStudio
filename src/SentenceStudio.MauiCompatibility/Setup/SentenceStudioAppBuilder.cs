@@ -586,6 +586,8 @@ public static class SentenceStudioAppBuilder
         services.AddSingleton<IAudioPlaybackService, MauiAudioPlaybackService>();
         services.AddSingleton<IAudioPlayerFactory, MauiAudioPlayerFactory>();
         services.AddSingleton<IConnectivityService, MauiConnectivityService>();
+        // Unhandled JavaScript errors in the Blazor WebView go to the logs and App Insights (#169).
+        services.AddSingleton<IWebViewErrorSink, LoggingWebViewErrorSink>();
 
         // Shared core services
         services.AddSentenceStudioCoreServices();

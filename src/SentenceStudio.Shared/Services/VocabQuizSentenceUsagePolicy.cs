@@ -21,27 +21,72 @@ public static class VocabQuizSentenceUsagePolicy
     public static VocabularyAnalysis? GetTargetWordAnalysis(
         GradeResponse? grade, VocabularyWord word)
     {
-        var targetTerm = NormalizeTargetWordValue(word.TargetLanguageTerm);
-        if (grade?.VocabularyAnalysis?.Any() != true || targetTerm.Length == 0)
+        var candidates = TargetTermCandidates(word.TargetLanguageTerm);
+        if (grade?.VocabularyAnalysis?.Any() != true || candidates.Count == 0)
             return null;
 
-        foreach (var item in grade.VocabularyAnalysis)
+        // Candidates in order: the term without its parentheticals first, across every analysis
+        // item, then the forms written inside the parentheses (#221). So "(을/를) 좋아하다" finds
+        // the 좋아하다 item before an item for the particle.
+        foreach (var targetTerm in candidates)
         {
-            if (NormalizeTargetWordValue(item.DictionaryForm) == targetTerm
-                || NormalizeTargetWordValue(item.UsedForm) == targetTerm)
-                return item;
+            foreach (var item in grade.VocabularyAnalysis)
+            {
+                if (NormalizeTargetWordValue(item.DictionaryForm) == targetTerm
+                    || NormalizeTargetWordValue(item.UsedForm) == targetTerm)
+                    return item;
 
-            var usedFormTokens = Regex
-                .Split(item.UsedForm ?? string.Empty, @"[\s\p{P}\p{S}]+")
-                .Select(NormalizeTargetWordValue)
-                .Where(token => !string.IsNullOrWhiteSpace(token));
+                var usedFormTokens = Regex
+                    .Split(item.UsedForm ?? string.Empty, @"[\s\p{P}\p{S}]+")
+                    .Select(NormalizeTargetWordValue)
+                    .Where(token => !string.IsNullOrWhiteSpace(token));
 
-            if (usedFormTokens.Any(token => token == targetTerm))
-                return item;
+                if (usedFormTokens.Any(token => token == targetTerm))
+                    return item;
+            }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// The normalized forms a sentence may use for <paramref name="term"/>. A term often carries
+    /// a parenthetical, such as "맛있다 (맛있어요)" or "(을/를) 좋아하다"; normalizing it whole
+    /// gives "맛있다 맛있어요", which no analysis ever matches (#221). The first candidate is the
+    /// term without its parentheticals. Forms inside the parentheses follow, split on "/" and
+    /// ",", but only those in the same script as the term and at least two letters long, so a
+    /// native-language hint ("배 (pear)") or a lone particle never counts as the target word.
+    /// </summary>
+    internal static IReadOnlyList<string> TargetTermCandidates(string? term)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return [];
+
+        var text = term.Normalize(NormalizationForm.FormKC);
+        var inner = Parenthetical.Matches(text).Select(match => match.Groups[1].Value).ToList();
+        var main = NormalizeTargetWordValue(Parenthetical.Replace(text, " "));
+
+        var candidates = new List<string>();
+        if (main.Length > 0)
+            candidates.Add(main);
+
+        foreach (var part in inner.SelectMany(group => group.Split('/', ',', '、')))
+        {
+            var form = NormalizeTargetWordValue(part);
+            if (form.Count(char.IsLetter) < 2 || candidates.Contains(form))
+                continue;
+            if (main.Length > 0 && (form.Any(IsHangul) != main.Any(IsHangul)
+                || form.Any(IsLatin) != main.Any(IsLatin)))
+                continue;
+            candidates.Add(form);
+        }
+
+        return candidates;
+    }
+
+    private static readonly Regex Parenthetical = new(@"[(\uFF08]([^()\uFF08\uFF09]*)[)\uFF09]");
+
+    private static bool IsLatin(char value) => value is >= 'a' and <= 'z' or >= 'A' and <= 'Z';
 
     public static bool HasVerifiedTargetUse(
         string sentence, VocabularyWord word, string? targetLanguage, string? usedForm)

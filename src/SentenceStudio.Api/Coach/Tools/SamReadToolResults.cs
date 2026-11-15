@@ -55,7 +55,7 @@ public sealed record VocabularyWordDetail(
     [property: Description("Days since last practice. Null if never practiced.")] int? DaysSinceLastPractice,
     [property: Description("Total practice attempts.")] int TotalAttempts,
     [property: Description("Correct attempts.")] int CorrectAttempts,
-    [property: Description("True if the learner added this word manually.")] bool IsLearnerAdded,
+    [property: Description("True if the learner set this word's status themselves (marked it Known, or chose Practice again or Start over).")] bool IsLearnerAdded,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
 
 /// <summary>One example sentence on the learner's word.</summary>

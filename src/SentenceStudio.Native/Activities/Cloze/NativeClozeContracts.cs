@@ -56,8 +56,6 @@ public static class NativeClozeText
     public const string Next = "Common_Next";
     public const string Unavailable = "NativeActivity_LaunchUnavailable";
     public const string GenerationFailed = "NativeCloze_GenerationFailed";
-    public const string FamiliarConfirmed = "NativeCloze_FamiliarConfirmed";
-    public const string FamiliarTricky = "NativeCloze_FamiliarTricky";
     public const string Blank = "NativeCloze_Blank";
 }
 

@@ -42,12 +42,73 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// <summary>Opens Recent lookups from the list toolbar (decision 4 B); none hides the button.</summary>
     internal Action? OpenLookups { get; init; }
 
+    /// <summary>Opens Clean Up Duplicates from the list toolbar; none hides the button.</summary>
+    internal Action? OpenDuplicates { get; init; }
+
+    /// <summary>The list toolbar's Clean Up Duplicates: the duplicate page over all of the owner's words.</summary>
+    internal void OpenAllDuplicates() => Run(OpenAllDuplicatesAsync);
+
+    /// <summary>The duplicate page's title: Clean Up Duplicates, or Find Duplicates for its word.</summary>
+    internal string DuplicatesTitle => DuplicatePanel?.Title ?? Text("Vocabulary_DuplicatesCleanUp");
+
+    /// <summary>The duplicate page (VocabularyDuplicatesView), pushed beside the list.</summary>
+    internal SwiftView RenderDuplicates(SourceUiStyle style) =>
+        DuplicatePanel is { } panel
+            ? VocabularyDuplicatesView.Page(panel, style, Text,
+                new VocabularyDuplicateActions(
+                    MergeAll: () => Run(MergeAllDuplicatesAsync),
+                    ShowMore: () => Run(ShowMoreDuplicatesAsync),
+                    Merge: term => Run(() => MergeDuplicatesAsync(term)),
+                    Skip: SkipDuplicates,
+                    ToggleCopy: ToggleDuplicateCopy,
+                    EditCopy: EditDuplicateCopy,
+                    ChooseKeeper: ChooseDuplicateKeeper,
+                    ResolveWithAi: () => Run(ResolveDuplicatesWithAiAsync),
+                    UndoDecision: id => Run(() => UndoDuplicateDecisionAsync(id)),
+                    KeepApart: term => Run(() => KeepDuplicatesApartAsync(term))))
+            : Microsoft.SwiftUI.SwiftUI.Text(Text("Common_Loading"));
+
+    /// <summary>The person's Back left the duplicate page.</summary>
+    internal void OnDuplicatesPopped() => CloseDuplicates();
+
+    /// <summary>
+    /// The open word came from the duplicate page's Edit (Captain 2026-11-14: "go directly to a
+    /// vocabulary word so that I can modify the entry"): it opens above that page, and Save or
+    /// Back returns to it (the page scans again after a save or delete).
+    /// </summary>
+    internal bool WordFromDuplicates => _wordFromDuplicates && IsFormOpen;
+
+    private bool _wordFromDuplicates;
+
+    private void EditDuplicateCopy(string wordId)
+    {
+        if (DuplicatePanel is null || IsFormOpen)
+            return;
+        _wordFromDuplicates = true;
+        Run(() => OpenWordAsync(wordId));
+    }
+
+    /// <summary>
+    /// A word opened from the list (or a new one) replaces the duplicate page beside the list; when
+    /// an editor the page's Edit opened is showing, the word opens in that editor (as it would
+    /// over the list), and Back still returns to the page.
+    /// </summary>
+    private void OpenListWord(string wordId)
+    {
+        _wordFromDuplicates = false;
+        Run(() => OpenWordAsync(wordId));
+    }
+
     /// <summary>Source: Add Word for a new word, Edit Word otherwise.</summary>
     internal string WordFormTitle =>
         Text(IsCreatingWord ? "VocabWordEdit_AddTitle" : "VocabWordEdit_EditTitle");
 
     /// <summary>The list toolbar's Add (+) and the empty page's Add your first word.</summary>
-    internal void AddWord() => Run(OpenNewWordAsync);
+    internal void AddWord()
+    {
+        _wordFromDuplicates = false;
+        Run(OpenNewWordAsync);
+    }
 
     internal void OnListAppeared() => Run(ReloadAsync);
 
@@ -82,18 +143,14 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 OpenFilters: OpenPhoneFilters,
                 ToggleFilterPanel: ToggleFilterPanel,
                 ClearFilters: ClearFilters,
-                OpenWord: id => Run(() => OpenWordAsync(id)),
+                OpenWord: OpenListWord,
                 Reload: () => Run(ReloadAsync),
                 Sort: SetSort,
                 // Read at tap time: the scene keeps a mounted toolbar button.
                 ToggleListMode: () => SetListMode(!ListMode),
                 ChangeWideFilter: ChangeWideFilter,
                 OpenLookups: OpenLookups,
-                Duplicates: new VocabularyDuplicateActions(
-                    Close: CloseDuplicates,
-                    ShowMore: () => Run(ShowMoreDuplicatesAsync),
-                    Merge: term => Run(() => MergeDuplicatesAsync(term)),
-                    EditRecord: id => Run(() => OpenWordAsync(id))),
+                OpenDuplicates: OpenDuplicates,
                 PageWidthChanged: OnPageWidthChanged,
                 AddWord: AddWord,
                 SearchField: SearchField,
@@ -103,8 +160,68 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 CancelDelete: CancelListDeleteLater,
                 Study: StudyWord,
                 ShowMoreRows: ShowMoreRows,
-                ChooseFilterValue: OpenChooser),
-            PageWidth, ListDeleteMessage);
+                ChooseFilterValue: OpenChooser,
+                SetSelecting: SetSelecting,
+                ToggleSelected: ToggleSelected,
+                SelectAll: SelectAllFiltered,
+                MarkSelected: action => Run(() => RequestMarkSelectedAsync(action)),
+                ConfirmStartOver: () => Run(ConfirmStartOverSelectedAsync),
+                CancelStartOver: CancelStartOverLater,
+                SetSelectedLanguage: language => Run(() => SetSelectedLanguageAsync(language)),
+                OpenTagEntry: OpenTagEntry,
+                ChangeTagDraft: value =>
+                {
+                    SetTagDraft(value);
+                    if (_tagAddButton is { } add && add.IsEnabled != CanAddTags)
+                        add.IsEnabled = CanAddTags;
+                },
+                RegisterTagAdd: button => _tagAddButton = button,
+                AddTags: () => Run(AddTagsToSelectedAsync),
+                CancelTagEntry: CancelTagEntryLater,
+                RequestBulkDelete: RequestBulkDelete,
+                ConfirmBulkDelete: () => Run(ConfirmBulkDeleteAsync),
+                CancelBulkDelete: CancelBulkDeleteLater),
+            PageWidth, ListDeleteMessage, StartOverSelectedMessage, BulkDeleteMessage,
+            IsTagEntryOpen ? TagDraft : null);
+    }
+
+    /// <summary>The tag sheet's Add, enabled once a tag is typed.</summary>
+    private SwiftView? _tagAddButton;
+
+    /// <summary>As <see cref="CancelListDeleteLater"/>: the dialog can report its close before Delete runs.</summary>
+    private void CancelBulkDeleteLater()
+    {
+        if (BulkDeleteMessage is null)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelBulkDelete();
+        });
+    }
+
+    /// <summary>The tag sheet closed (Cancel, a swipe down, or after Add, which has already closed the entry).</summary>
+    private void CancelTagEntryLater()
+    {
+        if (!IsTagEntryOpen)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelTagEntry();
+        });
+    }
+
+    /// <summary>As <see cref="CancelListDeleteLater"/>: SwiftUI can report the close before the action runs.</summary>
+    private void CancelStartOverLater()
+    {
+        if (StartOverSelectedMessage is null)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelStartOverSelected();
+        });
     }
 
     /// <summary>A row's swipe Study: Study opens on Choose My Own with the word's resources (none hides it).</summary>
@@ -170,6 +287,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 || state.ErrorKey is not null)
                 return string.Empty;
             var total = state.Catalog.Words.Count;
+            if (state.Selecting)
+                return string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Text("Vocabulary_BulkSelected"), state.Selected.Count);
             return state.Filters.HasActiveFilters
                 ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     Text("Vocabulary_StatsTotal"), state.FilteredWords.Count, total)
@@ -318,7 +438,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ToggleFlag: id => Run(() => ToggleExampleFlagAsync(id)),
                 Delete: id => Run(() => DeleteExampleAsync(id)),
                 RegisterButton: (key, view) => _exampleButtons[key] = view),
-            RegisterSection: (section, view) => _sections[section] = view);
+            RegisterSection: (section, view) => _sections[section] = view,
+            Mark: action => Run(() => MarkOpenWordAsync(action)),
+            Discard: DiscardEdits);
         var form = VocabularyWordEditView.Page(EditState, style, Text, _formActions);
         UpdateSaveButtons();
         return form;
@@ -334,6 +456,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
     /// </summary>
     protected override void OnChanged(VocabularyChanges changes)
     {
+        // An Edit-opened word is done once its editor closes: the next word opens as usual.
+        if (!IsFormOpen && !IsNavigationBlocked)
+            _wordFromDuplicates = false;
         if ((changes & (VocabularyChanges.DraftText | VocabularyChanges.DeleteDialog)) != 0)
             UpdateSaveButtons();
         var form = (changes & VocabularyChanges.Form) != 0;
@@ -345,6 +470,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ScheduleRefill(VocabularyEditSection.Examples);
             if ((changes & VocabularyChanges.ExampleText) != 0)
                 UpdateExampleButtons();
+            if ((changes & VocabularyChanges.Progress) != 0)
+                ScheduleRefill(VocabularyEditSection.Progress);
         }
         var list = (changes & VocabularyChanges.List) != 0;
         var sheet = (changes & VocabularyChanges.Sheet) != 0;
@@ -400,6 +527,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
             if (_sections.TryGetValue(VocabularyEditSection.EncodingLabel, out var encoding))
                 encoding.Text = VocabularyWordEditView.EncodingText(detail.Word.EncodingLabel, Text);
         }
+        else if (section == VocabularyEditSection.Progress)
+            card = VocabularyWordEditView.ProgressCard(detail, state, style, Text, actions);
         else
             card = VocabularyWordEditView.ResourceCard(detail, state, style, Text, actions);
         // The card is a Section: its rows and header move into the mounted Section, which

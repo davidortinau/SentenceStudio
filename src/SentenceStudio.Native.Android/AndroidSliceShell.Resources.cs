@@ -95,6 +95,8 @@ internal sealed partial class AndroidSliceShell
                 await _dashboard.LoadChooseOwnAsync(cancellationToken);
             else
                 await _dashboard.LoadAsync(cancellationToken);
+            // Words marked, added or deleted in the Library change the Vocabulary counts.
+            await _dashboard.RefreshVocabularyAsync(cancellationToken);
         });
     }
 

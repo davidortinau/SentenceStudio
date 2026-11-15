@@ -336,7 +336,7 @@ internal sealed partial class ApplicationScene
             _app.OnLibraryResourcesPopped();
         }
         if (_vocabularySlot is not null || _lookupsSlot is not null)
-            OnVocabularyRoutesChanged(routes.Count);
+            OnVocabularyRoutesChanged(routes);
         if (_skillsSlot is not null)
             OnSkillsRoutesChanged(routes.Count);
         if (_pairsSlot is not null && !routes.Contains(ApplicationFormRoutes.MinimalPairs))

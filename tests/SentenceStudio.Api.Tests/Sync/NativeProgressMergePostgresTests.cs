@@ -97,7 +97,7 @@ public sealed class NativeProgressMergePostgresTests : IClassFixture<NativeOwner
         {
             var row = await db.VocabularyProgresses.SingleAsync(item => item.Id == seeded.ProgressId);
             var attempt = Attempt(seeded, correct: true);
-            VocabularyProgressService.ApplyAttemptScoring(row, attempt, T0.AddMinutes(10));
+            VocabularyProgressService.ReplayAttemptScoring(row, attempt, T0.AddMinutes(10));
             db.VocabularyLearningContexts.Add(VocabularyProgressService.CreateLearningContext(
                 row.Id, attempt, T0.AddMinutes(10)));
             await db.SaveChangesAsync();
@@ -194,7 +194,7 @@ public sealed class NativeProgressMergePostgresTests : IClassFixture<NativeOwner
 #pragma warning restore CS0618
             QuizRecognitionDemonstrations = legacyAttempts
         };
-        VocabularyProgressService.ApplyAttemptScoring(row, attempt, T0);
+        VocabularyProgressService.ReplayAttemptScoring(row, attempt, T0);
         await using var db = _fixture.NewContext();
         db.LearningResources.Add(new LearningResource { Id = seeded.ResourceId, UserProfileId = owner });
         db.VocabularyWords.Add(new VocabularyWord { Id = seeded.WordId, TargetLanguageTerm = "반찬", UserProfileId = owner });
@@ -215,7 +215,7 @@ public sealed class NativeProgressMergePostgresTests : IClassFixture<NativeOwner
     {
         var row = VocabularyProgressConcurrentMergeCopy(seeded.Row);
         var attempt = Attempt(seeded, correct);
-        VocabularyProgressService.ApplyAttemptScoring(row, attempt, at);
+        VocabularyProgressService.ReplayAttemptScoring(row, attempt, at);
         var context = VocabularyProgressService.CreateLearningContext(row.Id, attempt, at);
         context.CreatedAt = context.UpdatedAt = at;
         return (ToItem("VocabularyProgress", ChangeType.Update, row),

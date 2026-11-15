@@ -758,7 +758,7 @@ public sealed class NativeVocabularyStoreTests
             NativeSliceFixture.UserA, null, 0, 20, default);
         Assert.True(duplicates.OwnerValid);
         Assert.Empty(duplicates.Groups);
-        Assert.Equal(NativeVocabularyMergeResult.None,
+        Assert.Equal(NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_MergeRefusedNotYours" },
             await store.MergeOwnedVocabularyDuplicatesAsync(
                 NativeSliceFixture.UserA, unlinkedId, [ownerlessId], default));
 

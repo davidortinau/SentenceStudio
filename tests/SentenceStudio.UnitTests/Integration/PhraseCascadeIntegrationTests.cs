@@ -80,7 +80,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
 
         // Assert: phrase mastery updated normally
         phraseProgress.MasteryScore.Should().BeGreaterThan(0, "phrase mastery should increase on correct answer");
-        phraseProgress.CurrentStreak.Should().Be(1, "phrase streak should be 1 after first attempt");
+        phraseProgress.CurrentStreak.Should().Be(1.5f, "a correct Text quiz attempt adds its 1.5 weight to the streak");
         phraseProgress.ProductionInStreak.Should().Be(1, "Text input counts as production");
         phraseProgress.TotalAttempts.Should().Be(1);
         phraseProgress.CorrectAttempts.Should().Be(1);
@@ -160,7 +160,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
         // Mastery/Streak unchanged (already verified in scenario 1, but double-check)
         after1.MasteryScore.Should().Be(before1.MasteryScore);
         after2.CurrentStreak.Should().Be(before2.CurrentStreak);
-        after1.IsKnown.Should().Be(before1.IsKnown);
+        after1.IsKnown().Should().Be(before1.IsKnown());
     }
 
     #endregion
@@ -372,7 +372,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
         afterConstituent!.ExposureCount.Should().Be(1, "first exposure count");
         afterConstituent.MasteryScore.Should().Be(0, "new progress starts with zero mastery");
         afterConstituent.CurrentStreak.Should().Be(0, "new progress starts with zero streak");
-        afterConstituent.IsKnown.Should().BeFalse();
+        afterConstituent.IsKnown().Should().BeFalse();
         afterConstituent.LastExposedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
 
@@ -535,6 +535,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
             Activity = activity,
             InputMode = inputMode,
             WasCorrect = wasCorrect,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(inputMode),
             ContextType = "Isolated",
             ResponseTimeMs = 1500
         };

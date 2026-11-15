@@ -111,7 +111,7 @@ public sealed class NativeQuizProductionAdapterTests
             CancellationToken.None));
         await Assert.ThrowsAsync<NotSupportedException>(() => adapter.SelectAsync(
             NativeSliceFixture.UserA, false,
-            [new VocabularyQuizItem { Word = owned[1] }],
+            [new VocabularyQuizItem { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed, Word = owned[1] }],
             CancellationToken.None));
     }
 
@@ -206,7 +206,7 @@ public sealed class NativeQuizProductionAdapterTests
         provider.GetRequiredService<IPreferencesService>());
 
     private static VocabularyQuizItem Item(VocabularyWord word, string progressOwner) => new()
-    {
+    { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
         Word = word,
         Progress = new VocabularyProgress
         {

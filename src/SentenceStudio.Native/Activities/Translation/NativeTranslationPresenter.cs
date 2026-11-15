@@ -581,10 +581,9 @@ public sealed class NativeTranslationPresenter(
             var progress = scope.ServiceProvider.GetRequiredService<IVocabularyProgressService>();
             var progressByWord = await progress.GetProgressForWordsAsync(
                 context.Select(word => word.Id).ToList(), userId);
-            context = context
-                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                .Where(word => !(progressByWord.GetValueOrDefault(word.Id)?.IsInGracePeriod ?? false))
-                .ToList();
+            context = VocabularyKnownRule.PracticePool(
+                context.Where(FocusVocabularySelection.IsUsableVocabularyWord),
+                word => progressByWord.GetValueOrDefault(word.Id), await progress.GetLearningModeAsync(userId));
         }
 
         List<VocabularyWord> words;

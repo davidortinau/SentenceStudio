@@ -388,7 +388,33 @@ internal sealed partial class ApplicationController
             QuizPhotoAccessibilityLabel, QuizPhotoCloseLabel,
             IsQuizPhotoPresented, Text,
             OpenQuizSentence, ToggleQuizPhotoText, DismissQuizPhoto,
-            OnQuizPhotoFailed, out photoCover);
+            OnQuizPhotoFailed, out photoCover, MarkQuizWordKnown);
+
+    /// <summary>The toolbar's Mark Known: the word is marked and the quiz moves to the next one.</summary>
+    private void MarkQuizWordKnown()
+    {
+        if (_quiz is not { } quiz || !IsQuizOpen || !_quizState.CanMarkKnown)
+            return;
+        CancelAutoAdvance();
+        CancelQuizAutoPlay();
+        Run(async () =>
+        {
+            var turn = _quizState.TurnId;
+            var state = await quiz.MarkKnownAsync(_lifetime.Token);
+            if (_disposed || !IsQuizOpen || !ReferenceEquals(_quiz, quiz))
+                return;
+            _quizState = state;
+            // The question stays (and keeps what was typed) when the mark was refused.
+            if (state.TurnId == turn && state.Phase != NativePhase.Summary)
+                return;
+            _answer = string.Empty;
+            _quizInputFocused = false;
+            _quizCorrectionCompleted = false;
+            ClearQuizAnswerForNewTurn();
+            if (_quizState.Phase == NativePhase.Summary)
+                _destination = NativeDestination.QuizSummary;
+        });
+    }
 
     private void ToggleQuizSentenceHints()
     {

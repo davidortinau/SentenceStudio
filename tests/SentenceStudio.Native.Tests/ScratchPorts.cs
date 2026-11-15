@@ -234,8 +234,7 @@ internal sealed class ScratchQuizEligibility : INativeQuizEligibility
     {
         if (candidates.Count > 0 && candidates.All(item => item.IsKnown))
             return Task.FromResult(new NativeQuizEligibilityResult([], AllMastered: true));
-        var eligible = candidates.Where(item =>
-            !item.IsKnown && !(item.Progress?.IsInGracePeriod ?? false));
+        var eligible = candidates.Where(item => !item.IsKnown);
         if (dueOnly)
             eligible = eligible.Where(item =>
                 item.Progress?.TotalAttempts == 0

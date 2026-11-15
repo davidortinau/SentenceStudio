@@ -72,6 +72,31 @@ internal sealed partial class ApplicationController
         Publish();
         if (_selectedTab == NativeTabs.Study && _refreshChooseOwnAfterSkills)
             ReloadChooseOwnAfterSkills();
+        // Words marked, added or deleted in the Library change Study's Vocabulary counts.
+        if (_selectedTab == NativeTabs.Study)
+            _ = RefreshDashboardVocabularyAsync();
+    }
+
+    /// <summary>Reads Study's Vocabulary counts again, quietly (no busy state; a failure keeps the old counts).</summary>
+    private async Task RefreshDashboardVocabularyAsync()
+    {
+        if (_dashboard is not { } dashboard || _disposed)
+            return;
+        try
+        {
+            var state = await dashboard.RefreshVocabularyAsync(_lifetime.Token);
+            if (_disposed || !ReferenceEquals(_dashboard, dashboard) || _busy)
+                return;
+            _dashboardState = state;
+            Publish();
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Study's vocabulary counts could not be read again.");
+        }
     }
 
     /// <summary>The Resources page is pushed above the Library list.</summary>
@@ -287,6 +312,7 @@ internal sealed partial class ApplicationController
             _authState, _preview, debugFixtureBuild,
             NSBundle.MainBundle.BundleIdentifier, PreviewOwner,
             scope, preferences, _logger!);
+        OpenLearningMode(provider, scope, owner);
         if (_settings is { } current)
         {
             var state = current.State;
@@ -320,6 +346,26 @@ internal sealed partial class ApplicationController
         }
         _settings = settings;
         _ = LoadSettingsVoicesAsync(settings, owner, settings.State.Quiz!.VoiceLanguage);
+    }
+
+    /// <summary>Every Settings visit reads the owner's Learning mode again (another client may have changed it).</summary>
+    private void OpenLearningMode(IServiceProvider provider, DeviceUserScopeProvider scope, string? owner)
+    {
+        if (owner is null)
+        {
+            _learningMode?.Close();
+            return;
+        }
+        if (_learningMode is null)
+        {
+            _learningMode = new LearningModeSetting(scope,
+                provider.GetRequiredService<VocabularyProgressRepository>(),
+                provider.GetRequiredService<UserProfileRepository>(),
+                provider.GetRequiredService<INativeProfileRemoteStore>(),
+                provider.GetRequiredService<ILogger<LearningModeSetting>>());
+            _learningMode.Changed += OnSettingsChanged;
+        }
+        _ = _learningMode.OpenAsync(owner);
     }
 
     /// <summary>The name and languages on the Settings profile row, read for the signed-in owner only.</summary>

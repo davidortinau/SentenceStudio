@@ -6009,6 +6009,10 @@ For example: {0} ...</value>
     <value>An unexpected error occurred. Please try again.</value>
     <comment>Generic error</comment>
   </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>Too many sign-in attempts. Wait a few minutes and try again.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
+  </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>Create Account</value>
     <comment>Register page title</comment>
@@ -10514,5 +10518,224 @@ For example: {0} ...</value>
   <data name="Skills_ArchivedCount" xml:space="preserve">
     <value>{0} archived</value>
     <comment>Under the Skill Profiles title in the archive: how many archived skill profiles the list shows</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesAllShared" xml:space="preserve">
+    <value>Every copy is used by another learner, so none can be kept.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesOthersShared" xml:space="preserve">
+    <value>Another learner uses the other copies, so they stay. Merge moves your history and resources to the copy you keep.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNotYours" xml:space="preserve">
+    <value>Some copies aren't yours, so nothing was merged.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedKeeperShared" xml:space="preserve">
+    <value>The copy to keep is used by another learner, so nothing was merged.</value>
+  </data>
+  <data name="Vocabulary_MergeRefusedNothingToMove" xml:space="preserve">
+    <value>Nothing could be merged: the other copies are linked to another learner's data.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCleanUp" xml:space="preserve">
+    <value>Clean Up Duplicates</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSafeSummary" xml:space="preserve">
+    <value>Matching copies that can merge without losing anything: {0}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeAll" xml:space="preserve">
+    <value>Merge Matching Copies ({0})</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerging" xml:space="preserve">
+    <value>Merging…</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAll" xml:space="preserve">
+    <value>Matching copies merged into the copies kept: {0}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedAllWithRefusals" xml:space="preserve">
+    <value>Matching copies merged into the copies kept: {0}. Could not merge: {1}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNothingSafe" xml:space="preserve">
+    <value>Nothing left to merge automatically.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReview" xml:space="preserve">
+    <value>Needs Review</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNeedReviewNote" xml:space="preserve">
+    <value>Merging these would lose something. Merge keeps the first copy's meaning and memory aid; Skip leaves the copies as they are.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCantMerge" xml:space="preserve">
+    <value>Can't Merge</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMerge" xml:space="preserve">
+    <value>Merge</value>
+  </data>
+  <data name="Vocabulary_DuplicatesSkip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeep" xml:space="preserve">
+    <value>Keeps this copy</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMeaning" xml:space="preserve">
+    <value>Different meanings</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceMemoryAid" xml:space="preserve">
+    <value>Different memory aids</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceBaseForm" xml:space="preserve">
+    <value>Different base forms</value>
+  </data>
+  <data name="Vocabulary_DuplicateDifferenceLanguageOrKind" xml:space="preserve">
+    <value>Different language or kind</value>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeRefused" xml:space="preserve">
+    <value>Couldn't merge '{0}': {1}</value>
+  </data>
+  <data name="Vocabulary_MergeFailed" xml:space="preserve">
+    <value>The merge did not complete. Try again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseHint" xml:space="preserve">
+    <value>Choose the copies to merge. The others stay as they are.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChooseTwo" xml:space="preserve">
+    <value>Choose at least two copies to merge.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesCopyPosition" xml:space="preserve">
+    <value>copy {0} of {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepThis" xml:space="preserve">
+    <value>Keep This</value>
+  </data>
+  <data name="Vocabulary_DuplicatesHistory" xml:space="preserve">
+    <value>Mastery {0}% · attempts: {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesNoHistory" xml:space="preserve">
+    <value>Not practised yet</value>
+  </data>
+  <data name="Vocabulary_DuplicatesResolveWithAi" xml:space="preserve">
+    <value>Resolve with AI</value>
+  </data>
+  <data name="Vocabulary_DuplicatesResolvingWithAi" xml:space="preserve">
+    <value>The AI is checking which copies mean the same thing...</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSummary" xml:space="preserve">
+    <value>AI merged: {0}. Kept apart: {1}. Copies removed: {2}. For you to decide: {3}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiReport" xml:space="preserve">
+    <value>Decisions</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiMerged" xml:space="preserve">
+    <value>{0}: merged as "{1}"</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiKeptApart" xml:space="preserve">
+    <value>{0}: kept apart as {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndo" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndone" xml:space="preserve">
+    <value>Undone: {0}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesUndoFailed" xml:space="preserve">
+    <value>Could not undo {0}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMerge" xml:space="preserve">
+    <value>AI suggests merging as "{0}". {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsApart" xml:space="preserve">
+    <value>AI suggests keeping them apart as {0}. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiSuggestsMixed" xml:space="preserve">
+    <value>AI suggests: {0}. {1}</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnsure" xml:space="preserve">
+    <value>The AI could not decide this one.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApart" xml:space="preserve">
+    <value>Keep Apart</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeptApart" xml:space="preserve">
+    <value>Kept apart: {0}.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesChangedSinceAi" xml:space="preserve">
+    <value>it changed while the AI was deciding. Check it again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiUnavailable" xml:space="preserve">
+    <value>The AI could not be reached, so it decided nothing. Try again when you are online.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesAiNoAnswer" xml:space="preserve">
+    <value>The AI did not answer for this one. Try Resolve with AI again.</value>
+  </data>
+  <data name="Vocabulary_DuplicatesKeepApartFailed" xml:space="preserve">
+    <value>these copies could not be kept apart. Check them again.</value>
+  </data>
+  <data name="Vocabulary_MarkKnown" xml:space="preserve">
+    <value>Mark Known</value>
+  </data>
+  <data name="Vocabulary_PracticeAgain" xml:space="preserve">
+    <value>Practice Again</value>
+  </data>
+  <data name="Vocabulary_StartOver" xml:space="preserve">
+    <value>Start Over</value>
+  </data>
+  <data name="Vocabulary_MarkedKnown" xml:space="preserve">
+    <value>Marked Known: {0}.</value>
+  </data>
+  <data name="VocabWordEdit_KnownMarked" xml:space="preserve">
+    <value>you marked this Known</value>
+  </data>
+  <data name="Vocabulary_MarkKnownPracticeLed" xml:space="preserve">
+    <value>Mark Known is not available in Practice-led learning.</value>
+  </data>
+  <data name="Vocabulary_MarkRefusedNotYours" xml:space="preserve">
+    <value>That word's status could not be changed.</value>
+  </data>
+  <data name="LearningMode_Title" xml:space="preserve">
+    <value>Learning Mode</value>
+  </data>
+  <data name="LearningMode_LearnerLed" xml:space="preserve">
+    <value>Learner-led</value>
+  </data>
+  <data name="LearningMode_LearnerLedDetail" xml:space="preserve">
+    <value>You and your practice decide what's Known. Known words stay Known until you choose Practice Again.</value>
+  </data>
+  <data name="LearningMode_PracticeLed" xml:space="preserve">
+    <value>Practice-led</value>
+  </data>
+  <data name="LearningMode_PracticeLedDetail" xml:space="preserve">
+    <value>Only practice decides. Your Known marks are set aside, and a miss on a Known word can send it back to practice.</value>
+  </data>
+  <data name="LearningMode_SaveFailed" xml:space="preserve">
+    <value>The learning mode could not be saved. Try again when you are online.</value>
+  </data>
+  <data name="NativeVocabulary_MarkFailed" xml:space="preserve">
+    <value>The status could not be changed. Try again.</value>
+  </data>
+  <data name="NativeSettings_LearningModeLoadFailed" xml:space="preserve">
+    <value>The learning mode could not be read.</value>
+  </data>
+  <data name="NativeVocabulary_Select" xml:space="preserve">
+    <value>Select</value>
+  </data>
+  <data name="NativeVocabulary_SetStatus" xml:space="preserve">
+    <value>Set Status</value>
+  </data>
+  <data name="VocabQuiz_MarkKnownDone" xml:space="preserve">
+    <value>Marked Known. It will not be asked again unless you choose Practice Again.</value>
+  </data>
+  <data name="Vocabulary_PracticeAgainNotKnown" xml:space="preserve">
+    <value>Practice Again is for Known words. None of these is Known.</value>
+  </data>
+  <data name="Vocabulary_StartOverConfirm" xml:space="preserve">
+    <value>Start over with {0} word(s)? Their scores go back to zero. Practice history is kept.</value>
+  </data>
+  <data name="VocabWordEdit_DiscardChanges" xml:space="preserve">
+    <value>Discard Changes</value>
+  </data>
+  <data name="NativeVocabulary_BulkFailed" xml:space="preserve">
+    <value>The change could not be saved. Try again.</value>
+  </data>
+  <data name="NativeVocabulary_BulkActions" xml:space="preserve">
+    <value>Edit Selected</value>
+  </data>
+  <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
+    <value>Choose one or more words first.</value>
   </data>
 </root>

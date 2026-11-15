@@ -26,6 +26,7 @@ public sealed partial class NativeQuizPresenter
         var progressByWord = (await progress.GetByWordIdsForUserAsync(
                 all.Select(word => word.Id).ToList(), _launch.UserId))
             .ToDictionary(item => item.VocabularyWordId, StringComparer.Ordinal);
+        _learningMode = await progress.GetLearningModeAsync(_launch.UserId);
         if (!HasOwner(_launch.UserId))
             return RefuseLaunch();
 
@@ -33,6 +34,7 @@ public sealed partial class NativeQuizPresenter
         {
             var item = new VocabularyQuizItem
             {
+                LearningMode = _learningMode,
                 Word = word,
                 Progress = progressByWord.GetValueOrDefault(word.Id)
                     ?? new VocabularyProgress { VocabularyWordId = word.Id, UserId = _launch.UserId },
@@ -69,7 +71,10 @@ public sealed partial class NativeQuizPresenter
         }
         else
         {
-            _batch = candidates.Take(BatchSize).ToList();
+            // Known words are never scheduled (docs/known-words-plan.md): a focus set drops the
+            // words that are Known now (marked since the plan was built), unless none is left.
+            var open = candidates.Where(item => !item.IsKnown).ToList();
+            _batch = (open.Count > 0 ? open : candidates).Take(BatchSize).ToList();
             _allMasteredAtLaunch = false;
         }
 
