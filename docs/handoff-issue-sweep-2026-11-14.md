@@ -69,12 +69,12 @@ Checked, with `main` at `20f79ada` merged in:
 Not checked: Korean on a running client (the Korean text is unit-tested), the MAUI heads (they
 render the same Razor component as the web), Android Release/R8, macOS.
 
-## `issue-218-toolbar`: unfinished WIP (`299daa22`)
+## `issue-218-toolbar`: done 2026-11-15
 
-Toolbar changes on Conversation, Scene, Vocabulary Matching and Sam, plus
-`NativeToolbarOverflowContractTests`. The agent was stopped while checking the More button on a
-simulator, so the fix for #218 is unconfirmed. The #217 audit of toolbar Save buttons was not
-written up. Scratch files are in that worktree's `.task-scratch/issue218`.
+#218 no longer reproduces on Learning Resources, and the four remaining screens with untitled
+toolbar icons are titled. The #217 audit of Save buttons is written. Both are in
+`docs/toolbar-save-audit-2026-11-15.md`. Open for the Captain: Android Profile and YouTube
+channel keep their Save in the page, unlike iOS.
 
 ## Also done this session
 

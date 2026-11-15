@@ -127,8 +127,8 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
                 () => Fire(_presenter.ToggleHideNativeAsync))
             .WithAccessibilityIdentifier(NativeMatchingAccess.HideToggle);
         return Views.Toolbar(page, newGame,
-            Views.Menu(Views.Image("ellipsis.circle"), toggle)
-                .WithAccessibilityLabel(text("More"))
+            // Titled, so a toolbar out of room lists it in its own "More" menu (issue #218).
+            Views.Menu(Views.Label(text("More"), "ellipsis.circle"), toggle)
                 .WithAccessibilityIdentifier(NativeMatchingAccess.Menu));
     }
 

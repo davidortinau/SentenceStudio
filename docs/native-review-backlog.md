@@ -341,8 +341,13 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   `_ = learningMode.SetAsync(mode)` (moved, not new). `LearningModeSetting` reports its own
   errors, but the Task is not observed; route it through a single-flight owner per
   `.squad/skills/single-flight-async/SKILL.md`.
-- Sign Out in the Settings sidebar signs out without asking while Profile, beside it, has
-  unsaved edits.
+- Logout (now the last row of Profile) signs out without asking while Profile has unsaved
+  edits.
 - `ReleaseNotesService.GetAllNotesAsync` skips a notes file it cannot read in an empty catch,
   so a broken file looks like "no notes" on every client and nothing is logged. Give the service
   a logger and report the failure.
+
+## Stale iOS source-contract tests (2026-11-15)
+
+- **Five `SentenceStudio.Native.iOS.Tests` fail on `main` (`46f6ec14`).** `NativeSourceStylingContractTests.SourceButtons_KeepNativeHitAndDisabledVisuals_WithARealTransparentOutline` (expects 5 `WithButtonBorderWidth(` uses, finds 6) and `SourcePhoneDashboard_UsesGridTilesAndPaddedCards`; `NativeVocabularyListContractTests.CancelWaitsForDeleteAndStudyUsesTheWordsResources` and `LongListsNeverBuildEveryRowOrMenuItem`; `NativeSamContractTests.SamPresentationUsesOnlyTheSwiftUIFacade` (`ApplicationController.Sam.cs` reads the theme and device model through UIKit for the feedback report: device facts, not UI, so narrow the test rather than the code). They read source text that later work changed; update each to the current source.
+
