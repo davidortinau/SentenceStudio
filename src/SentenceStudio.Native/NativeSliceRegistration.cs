@@ -100,6 +100,9 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeQuizPresenter>();
         services.TryAddSingleton<INativeResourceStore, NativeResourceStore>();
         services.AddTransient<NativeResourcePresenter>();
+        // A Learning Resource's study history (issue #219): the shared owner-scoped read.
+        services.TryAddSingleton<SentenceStudio.Services.Progress.ResourceStudySummaryService>();
+        services.AddTransient<NativeResourceStudyHistory>();
         // Import Content: the shared ContentImportService for the verified owner.
         services.TryAddSingleton<SentenceStudio.Native.Features.Import.INativeContentImport,
             NativeContentImport>();

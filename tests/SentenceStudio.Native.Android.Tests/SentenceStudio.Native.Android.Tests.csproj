@@ -39,6 +39,8 @@
              Link="AndroidRegistrationPolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidResourcesCoordinator.cs"
              Link="AndroidResourcesCoordinator.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidResourcesCoordinator.StudyHistory.cs"
+             Link="AndroidResourcesCoordinator.StudyHistory.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidSamCards.cs"
              Link="AndroidSamCards.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidSamProjection.cs"

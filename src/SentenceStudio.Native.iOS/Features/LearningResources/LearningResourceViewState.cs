@@ -38,5 +38,8 @@ internal sealed record LearningResourceViewState
     internal NativeResourceSyncPhase Sync { get; init; }
     internal string? SyncErrorKey { get; init; }
     internal bool ShowDeleteConfirmation { get; init; }
+    /// <summary>The resource's study history (issue #219); Idle while creating.</summary>
+    internal NativeResourceStudyState Study { get; init; } =
+        new(NativeResourceStudyPhase.Idle);
 }
 

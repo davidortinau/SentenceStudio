@@ -363,7 +363,8 @@ internal sealed partial class ApplicationController : IDisposable
             _services.Provider.GetRequiredService<NativeResourcePresenter>(),
             _services.Provider
                 .GetRequiredService<ILogger<LearningResourcesCoordinator>>(),
-            Text);
+            Text,
+            _services.Provider.GetRequiredService<NativeResourceStudyHistory>());
         _resources.Changed += Publish;
         _resources.FormOpenChanged += open =>
         {

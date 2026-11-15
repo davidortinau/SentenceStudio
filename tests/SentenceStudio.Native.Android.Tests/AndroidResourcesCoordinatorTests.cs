@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Abstractions;
@@ -8,6 +10,8 @@ using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Android;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Progress;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Android.Tests;
 
@@ -120,6 +124,56 @@ public sealed class AndroidResourcesCoordinatorTests
     }
 
     [Fact]
+    public async Task OpeningAResourceShowsItsStudyHistoryAndCreatingShowsNone()
+    {
+        // Issue #219: the open form carries the shared owner-scoped history read from SQLite.
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        using var services = new ServiceCollection()
+            .AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connection))
+            .AddLogging()
+            .AddSingleton<ResourceStudySummaryService>()
+            .BuildServiceProvider();
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Database.EnsureCreated();
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = "r1", Title = "Mine", UserProfileId = Owner, Language = "Korean",
+            });
+            db.DailyPlanCompletions.Add(new DailyPlanCompletion
+            {
+                Id = "c1", UserProfileId = Owner, ResourceId = "r1", PlanItemId = "p1",
+                ActivityType = "Reading", Date = new DateTime(2026, 11, 12), MinutesSpent = 9,
+                IsCompleted = true,
+            });
+            db.SaveChanges();
+        }
+        var (store, coordinator, _) = Create(study: (userScope, preferences) =>
+            new NativeResourceStudyHistory(userScope, preferences,
+                services.GetRequiredService<ResourceStudySummaryService>(),
+                NullLogger<NativeResourceStudyHistory>.Instance));
+        store.Add("r1", "Mine");
+        coordinator.OnBrowserAppeared();
+        await Until(() => coordinator.ListState.Phase == NativeResourceListPhase.Populated);
+
+        coordinator.Open("r1");
+        await Until(() => coordinator.FormState.Phase == NativeResourceDetailPhase.Ready);
+
+        var study = coordinator.FormState.Study;
+        Assert.Equal(NativeResourceStudyPhase.Ready, study.Phase);
+        Assert.Equal("r1", study.ResourceId);
+        Assert.Equal(1, study.Summary!.SessionCount);
+        Assert.Equal(9, study.Summary.TotalMinutes);
+
+        coordinator.CloseForm();
+        Assert.Equal(NativeResourceStudyPhase.Idle, coordinator.FormState.Study.Phase);
+        coordinator.OpenCreate();
+        Assert.Equal(NativeResourceStudyPhase.Idle, coordinator.FormState.Study.Phase);
+    }
+
+    [Fact]
     public void RouteAndShellSourcesExposeResourcesWithStableTags()
     {
         var browser = Source("AndroidSliceShell.Resources.Compose.cs");
@@ -154,7 +208,8 @@ public sealed class AndroidResourcesCoordinatorTests
     }
 
     private static (FakeStore Store, AndroidResourcesCoordinator Coordinator,
-        ScratchPreferences Preferences) Create(bool activate = true)
+        ScratchPreferences Preferences) Create(bool activate = true,
+        Func<DeviceUserScopeProvider, IPreferencesService, NativeResourceStudyHistory>? study = null)
     {
         var preferences = new ScratchPreferences();
         var scope = new DeviceUserScopeProvider();
@@ -172,7 +227,7 @@ public sealed class AndroidResourcesCoordinatorTests
                 .GetRequiredService<NativePendingWrites>(),
             NullLogger<NativeResourcePresenter>.Instance);
         return (store, new AndroidResourcesCoordinator(presenter,
-            NullLogger.Instance, key => key), preferences);
+            NullLogger.Instance, key => key, study?.Invoke(scope, preferences)), preferences);
     }
 
     private static async Task Until(Func<bool> condition)

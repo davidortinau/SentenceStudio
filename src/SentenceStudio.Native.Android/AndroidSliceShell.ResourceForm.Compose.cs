@@ -115,6 +115,9 @@ internal sealed partial class AndroidSliceShell
 
         var readOnly = state.IsSmartResource || busy;
         Add("basic", () => ResourceBasicCard(resources, state, creating, readOnly, palette));
+        // Issue #219: how much, how recently and how well, under the resource's own facts.
+        if (!creating)
+            AddResourceStudyRows(fields, resources, state.Study, palette);
 
         if (creating && state.MediaType != "Vocabulary List")
             Add("media", () => Card(palette, "native.resources.form.media.card",
