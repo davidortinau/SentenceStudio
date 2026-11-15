@@ -17,7 +17,7 @@ public sealed class AndroidMoreScreensContractTests
         "AndroidSliceShell.Settings.Compose.cs", "AndroidSliceShell.Profile.Compose.cs",
         "AndroidSliceShell.Skills.Compose.cs", "AndroidSliceShell.Vocabulary.Compose.cs",
         "AndroidSliceShell.ActivityLog.Compose.cs", "AndroidSliceShell.Tabs.cs",
-        "AndroidSliceShell.Tabs.Compose.cs",
+        "AndroidSliceShell.Tabs.Compose.cs", "AndroidSliceShell.SettingsPages.Compose.cs",
     ];
 
     /// <summary>
@@ -38,10 +38,17 @@ public sealed class AndroidMoreScreensContractTests
         AssertInOrder(shell, "new(\"resource\"", "new(\"skill\"", "new(\"minimal-pair\"",
             "new(\"import-content\"", "new(\"youtube-import\"");
         Assert.Contains("OpenActivityLog", Source("AndroidSliceShell.Visual.cs"));
-        var settings = Source("AndroidSliceShell.Appearance.cs");
-        AssertInOrder(settings, "SettingsProfileRow(palette)", "RenderAppearanceSection(palette)",
-            "RenderSamSettings(palette)", "SettingsSignOut(palette)");
-        Assert.Contains(".Clickable(OpenProfile)", tabs);
+        // Settings (2026-11-15, the iOS Settings split view): the list of pages starts with the
+        // profile row and ends with About and Sign out; each page opens its section.
+        var pages = Source("AndroidSliceShell.SettingsPages.Compose.cs");
+        AssertInOrder(pages, "SettingsProfileRow(palette,", "\"native.settings.row.appearance\"",
+            "\"native.settings.row.voice-quiz\"", "\"native.settings.row.learning-mode\"",
+            "\"native.settings.row.coach\"", "\"native.settings.row.about\"", "SettingsSignOut(palette)");
+        foreach (var section in new[] { "RenderAppearanceSection(palette)", "RenderQuizSettingsSection(",
+                     "RenderLearningModeSection(palette)", "RenderSamSettings(palette)",
+                     "SettingsAbout(palette)", "RenderProfile(palette)" })
+            Assert.Contains(section, pages);
+        Assert.Contains(".Clickable(() => Publish(() => SelectSettingsPage(NativeSettingsPage.Profile)))", tabs);
         Assert.DoesNotContain("native.dashboard.menu.", Source("AndroidSliceShell.Visual.cs"));
     }
 
@@ -57,7 +64,7 @@ public sealed class AndroidMoreScreensContractTests
     {
         var more = Source("AndroidSliceShell.More.cs");
         Assert.Contains("new SettingsCoordinator(", more);
-        Assert.Contains("new ProfileCoordinator(", more);
+        Assert.Contains("new ProfileCoordinator(", Source("AndroidSliceShell.SettingsPages.Compose.cs"));
         Assert.Contains("new SkillsCoordinator(", more);
         Assert.Contains("new VocabularyBrowser(", more);
         Assert.Contains("new ActivityLogCoordinator(", more);
@@ -80,11 +87,14 @@ public sealed class AndroidMoreScreensContractTests
         var more = Source("AndroidSliceShell.More.cs");
         var shell = Source("AndroidSliceShell.cs");
         Assert.Contains("return HasDashboardOwner(owner) ? owner : null;", more);
-        Assert.Contains("case MoreScreen.Profile when owner is not null:", more);
+        // Profile is a Settings page: it opens only for the trusted owner.
+        Assert.Contains("if (owner is null || _scope is null)", Between(
+            Source("AndroidSliceShell.SettingsPages.Compose.cs"),
+            "private bool OpenSettingsProfile()", "\n    }"));
         Assert.Contains("case MoreScreen.Skills when owner is not null:", more);
         Assert.Contains("case MoreScreen.Vocabulary when owner is not null:", more);
         Assert.Contains("case MoreScreen.ActivityLog when owner is not null:", more);
-        Assert.Contains("NativeSettings_OwnerUnavailable", Source("AndroidSliceShell.Appearance.cs"));
+        Assert.Contains("NativeSettings_OwnerUnavailable", Source("AndroidSliceShell.SettingsPages.Compose.cs"));
         // Sign-out and every owner change drop the screens and their drafts.
         Assert.True(Regex.Matches(shell, @"ResetMoreScreens\(\);").Count >= 4);
         Assert.Contains("Post(ResetMoreScreens);", shell);
@@ -96,8 +106,15 @@ public sealed class AndroidMoreScreensContractTests
         var back = Between(Source("AndroidSliceShell.More.cs"),
             "private bool HandleMoreBack()", "\n    private void CloseMoreScreen()");
         int At(string text) => back.IndexOf(text, StringComparison.Ordinal);
-        Assert.True(At("_moreMenu is not null") < At("ShowDeleteConfirmation"));
+        Assert.True(At("_moreMenu is not null") < At("skills.IsDeleteConfirmationPresented"));
         Assert.True(At("skills.IsDeleteConfirmationPresented") < At("skills.IsFormOpen"));
+        // The Settings pages: the menu, the What's New sheet and the delete dialog close before the page.
+        var settings = Between(Source("AndroidSliceShell.SettingsPages.Compose.cs"),
+            "private bool HandleSettingsBack()", "\n    /// <summary>Opens the owner's profile");
+        int SettingsAt(string text) => settings.IndexOf(text, StringComparison.Ordinal);
+        Assert.True(SettingsAt("_moreMenu is not null") < SettingsAt("_whatsNewPresented"));
+        Assert.True(SettingsAt("_whatsNewPresented") < SettingsAt("ShowDeleteConfirmation"));
+        Assert.True(SettingsAt("ShowDeleteConfirmation") < SettingsAt("CloseSettingsPage()"));
         Assert.True(At("vocabulary.IsPhoneFilterPresented") < At("vocabulary.IsFormOpen"));
         Assert.True(At("vocabulary.IsFormOpen") < At("Publish(CloseMoreScreen)"));
         Assert.Contains("if (skills.IsPending)\n                    return true;", back);
@@ -137,10 +154,12 @@ public sealed class AndroidMoreScreensContractTests
         var more = Source("AndroidSliceShell.More.cs");
         // Save (decision 8d) runs the shared owner-checked save off the UI thread and is
         // disabled while a save is in flight; the result shows under the button.
-        Assert.Contains("\"native.profile.save\",\n            () => RunMore(() => profile.SaveAsync(_lifetime.Token)), enabled: state.CanSave)", profile);
+        Assert.Contains("\"native.profile.save\",\n            () => RunMore(async () =>", profile);
+        Assert.Contains("if (await profile.SaveAsync(_lifetime.Token))\n                    await RefreshProfileSummaryAsync();", profile);
         Assert.Contains("\"native.profile.save.status\"", profile);
         Assert.Contains("NativeProfile_Saving", profile);
-        Assert.Contains("provider.GetRequiredService<INativeProfileRemoteStore>()", more);
+        Assert.Contains("provider.GetRequiredService<INativeProfileRemoteStore>()",
+            Source("AndroidSliceShell.SettingsPages.Compose.cs"));
         // Email is not part of the save, so it is read-only with an explanation.
         Assert.Contains("\"native.profile.email\", profile.SetEmail, enabled: false", profile);
         Assert.Contains("NativeProfile_EmailReadOnly", profile);

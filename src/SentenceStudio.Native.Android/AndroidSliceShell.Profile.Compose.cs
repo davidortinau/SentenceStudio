@@ -14,6 +14,7 @@ namespace SentenceStudio.Native.Android;
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
+    /// <summary>The Profile page in the Settings detail pane (the pane draws its header).</summary>
     private ComposableNode RenderProfile(AndroidVisualPalette palette) =>
         new Composed(composer =>
         {
@@ -33,8 +34,6 @@ internal sealed partial class AndroidSliceShell
         var page = new Column
         {
             Modifier.FillMaxSize().TestTag("native.profile.screen"),
-            ScreenHeader(Localize("Profile_PageTitle"), palette, back: true,
-                backAutomationId: "native.profile.back"),
             viewport,
         };
         var profile = _profile;
@@ -107,7 +106,12 @@ internal sealed partial class AndroidSliceShell
                 level => ProfileEdit(profile.SetTargetCefrLevel(level)), palette, editable)));
 
         viewport.Add(Action(Localize("Profile_SaveProfile"), "native.profile.save",
-            () => RunMore(() => profile.SaveAsync(_lifetime.Token)), enabled: state.CanSave));
+            () => RunMore(async () =>
+            {
+                // Beside the list the profile row stays in view: it follows the save.
+                if (await profile.SaveAsync(_lifetime.Token))
+                    await RefreshProfileSummaryAsync();
+            }), enabled: state.CanSave));
         if (ProfileSaveMessage(state, palette) is { } saveStatus)
             viewport.Add(saveStatus);
 

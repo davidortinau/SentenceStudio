@@ -6,59 +6,11 @@ using SentenceStudio.Native.Features.Settings;
 namespace SentenceStudio.Native.Android;
 
 /// <summary>
-/// The Settings tab (source Settings.razor, iOS SettingsView): the profile row, Appearance
-/// (theme, mode, text size), Voice and Quiz preferences, the Learning Coach cards, and
-/// Sign out last.
+/// Settings > Appearance (source Settings.razor, iOS AppearanceSettingsView): theme, mode and
+/// text size. The Settings pages are in AndroidSliceShell.SettingsPages.Compose.cs.
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    // The scroll is kept with the owner's settings between Settings tab visits.
-    private ComposableNode RenderSettings(AndroidVisualPalette palette) =>
-        new Composed(composer => RenderSettings(palette,
-            composer.Remember(() => new AndroidX.Compose.ScrollState(), _settings)));
-
-    private ComposableNode RenderSettings(AndroidVisualPalette palette,
-        AndroidX.Compose.ScrollState scroll)
-    {
-        var viewport = new Column(Arrangement.SpacedBy(12))
-        {
-            Modifier = Modifier.FillMaxSize()
-                .VerticalScroll(scroll)
-                .Padding(AndroidVisualTheme.PagePadding)
-                .TestTag("native.settings.screen"),
-        };
-        if (!_preview)
-            viewport.Add(SettingsProfileRow(palette));
-        var state = _settings?.State;
-        if (state is not { OwnerBlocked: false, Quiz: { } quiz })
-            viewport.Add(StatusAlert(Localize("NativeSettings_OwnerUnavailable"), palette,
-                error: true, automationId: "native.settings.owner-unavailable"));
-        else
-        {
-            viewport.Add(RenderAppearanceSection(palette));
-            viewport.Add(RenderQuizSettingsSection(state, quiz, palette));
-            if (state.FeedbackKey is { } feedback)
-                viewport.Add(Body(Localize(feedback), palette, secondary: true,
-                    modifier: Modifier.TestTag("native.settings.quiz.feedback")));
-            if (RenderLearningModeSection(palette) is { } learning)
-                viewport.Add(learning);
-            // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
-            if (RenderSamSettings(palette) is { } sam)
-                viewport.Add(sam);
-        }
-        if (!string.IsNullOrWhiteSpace(Error.Value))
-            viewport.Add(StatusAlert(Error.Value, palette, error: true,
-                automationId: "native.settings.error"));
-        viewport.Add(SettingsSignOut(palette));
-
-        return new Column
-        {
-            Modifier.FillMaxSize(),
-            ScreenHeader(Localize("Settings_Title"), palette),
-            viewport,
-        };
-    }
-
     private ComposableNode RenderAppearanceSection(AndroidVisualPalette palette)
     {
         var selection = CurrentAppearance;

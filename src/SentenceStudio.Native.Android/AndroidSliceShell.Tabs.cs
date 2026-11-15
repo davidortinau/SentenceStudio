@@ -63,7 +63,7 @@ internal sealed partial class AndroidSliceShell
 
     /// <summary>A save is running on the shown page: the tabs wait, as Back does.</summary>
     private bool IsTabNavigationBlocked => Busy.Value || _resources?.IsNavigationBlocked == true
-        || IsMorePageBlocked(MorePage);
+        || IsMorePageBlocked(MorePage) || IsSettingsPageBlocked;
 
     /// <summary>
     /// A tab tap. The shown tab returns to its root (iOS pops the Library to its list);
@@ -138,6 +138,12 @@ internal sealed partial class AndroidSliceShell
         if (IsMoreScreenOpen)
         {
             CloseMoreScreen();
+            return;
+        }
+        // On a phone the Settings page closes back to the list (beside the list it stays).
+        if (_tab == ShellTab.Settings && !IsSettingsTwoPane)
+        {
+            CloseSettingsPage();
             return;
         }
         if (_tab == ShellTab.Library && Destination == NativeDestination.Resources && !IsResourceFormOpen)

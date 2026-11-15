@@ -200,7 +200,7 @@ public sealed class AndroidSamProjectionTests
     {
         var shell = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Sam.cs"));
         Assert.Contains("AndroidSamProjection.ReviewBlockedByScreen(Destination,\n"
-            + "                IsMoreScreenOpen || IsResourceFormOpen)", shell);
+            + "                IsMoreScreenOpen || IsResourceFormOpen || _profile?.HasUnsavedChanges == true)", shell);
         var compose = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Sam.Compose.cs"));
         Assert.Contains("    /// Source SamFab: the one entry, bottom trailing, round and icon only, named \"Ask {name}\".\n", compose);
         Assert.Contains("    /// </summary>\n    private ComposableNode RenderSamFab(", compose);

@@ -24,7 +24,7 @@ namespace SentenceStudio.Native.Android;
 /// </summary>
 internal sealed partial class AndroidSliceShell
 {
-    private enum MoreScreen { None, Profile, Skills, Vocabulary, ActivityLog, ImportContent, YouTubeImport }
+    private enum MoreScreen { None, Skills, Vocabulary, ActivityLog, ImportContent, YouTubeImport }
 
     private string? _moreMenu;
     private SettingsCoordinator? _settings;
@@ -42,7 +42,6 @@ internal sealed partial class AndroidSliceShell
 
     private ComposableNode RenderMoreScreen(AndroidVisualPalette palette) => MorePage switch
     {
-        MoreScreen.Profile => RenderProfile(palette),
         MoreScreen.Skills => RenderSkills(palette),
         MoreScreen.Vocabulary => RenderVocabulary(palette),
         MoreScreen.ActivityLog => RenderActivityLog(palette),
@@ -69,7 +68,6 @@ internal sealed partial class AndroidSliceShell
         return HasDashboardOwner(owner) ? owner : null;
     }
 
-    private void OpenProfile() => OpenMoreScreen(MoreScreen.Profile);
     private void OpenSkills(bool create = false) => OpenMoreScreen(MoreScreen.Skills, create);
     private void OpenVocabulary() => OpenMoreScreen(MoreScreen.Vocabulary);
     private void OpenActivityLog() => OpenMoreScreen(MoreScreen.ActivityLog);
@@ -91,15 +89,6 @@ internal sealed partial class AndroidSliceShell
         var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
         switch (screen)
         {
-            case MoreScreen.Profile when owner is not null:
-                var profile = new ProfileCoordinator(
-                    provider.GetRequiredService<UserProfileRepository>(), scope,
-                    provider.GetRequiredService<ILogger<ProfileCoordinator>>(),
-                    provider.GetRequiredService<INativeProfileRemoteStore>());
-                profile.Changed += OnMoreChanged;
-                _profile = profile;
-                RunMore(() => profile.OpenAsync(owner, _lifetime.Token));
-                break;
             case MoreScreen.Skills when owner is not null:
                 var skills = new SkillsCoordinator(
                     provider.GetRequiredService<SkillProfileRepository>(), scope,
@@ -156,9 +145,6 @@ internal sealed partial class AndroidSliceShell
         }
         switch (MorePage)
         {
-            case MoreScreen.Profile when _profile?.State.ShowDeleteConfirmation == true:
-                _profile.CancelDelete();
-                return true;
             case MoreScreen.Skills when _skills is { } skills:
                 if (skills.IsPending)
                     return true;
@@ -229,15 +215,11 @@ internal sealed partial class AndroidSliceShell
         MorePage = MoreScreen.None;
         _moreMenu = null;
         ReleaseMorePage(page);
-        // The profile row shows a renamed learner or new languages at once.
-        if (page == MoreScreen.Profile)
-            _ = RefreshProfileSummaryAsync();
     }
 
     /// <summary>A page that is saving cannot close (Back waits, the tab bar is disabled).</summary>
     private bool IsMorePageBlocked(MoreScreen page) => page switch
     {
-        MoreScreen.Profile => _profile?.State.IsSaving == true,
         MoreScreen.Skills => _skills?.IsPending == true,
         MoreScreen.Vocabulary => _vocabulary?.IsNavigationBlocked == true,
         MoreScreen.ImportContent => _importContent?.IsNavigationBlocked == true
@@ -259,6 +241,7 @@ internal sealed partial class AndroidSliceShell
     {
         foreach (var page in Enum.GetValues<MoreScreen>())
             ReleaseMorePage(page);
+        ReleaseSettingsPages();
         ReleaseSettings();
         _learningMode?.Dispose();
         _learningMode = null;
@@ -268,11 +251,6 @@ internal sealed partial class AndroidSliceShell
     {
         switch (page)
         {
-            case MoreScreen.Profile when _profile is { } profile:
-                _profile = null;
-                profile.Changed -= OnMoreChanged;
-                profile.Dispose();
-                break;
             case MoreScreen.Skills when _skills is { } skills:
                 _skills = null;
                 skills.Changed -= OnMoreChanged;

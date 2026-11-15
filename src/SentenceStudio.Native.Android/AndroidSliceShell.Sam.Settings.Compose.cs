@@ -14,7 +14,7 @@ internal sealed partial class AndroidSliceShell
 {
     private ComposableNode? RenderSamSettings(AndroidVisualPalette palette)
     {
-        if (_preview || _sam is null || !HasDashboardOwner(Auth.UserId))
+        if (!IsSamSettingsShown)
             return null;
         var state = SamState;
         var column = new Column(Arrangement.SpacedBy(12))

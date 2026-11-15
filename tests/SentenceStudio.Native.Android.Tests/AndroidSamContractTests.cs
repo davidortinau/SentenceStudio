@@ -53,7 +53,7 @@ public sealed class AndroidSamContractTests
     [Fact]
     public void SettingsHostsTheSamSectionsAndLoadsThemOnOpen()
     {
-        Assert.Contains("RenderSamSettings(palette)", Code("AndroidSliceShell.Appearance.cs"));
+        Assert.Contains("RenderSamSettings(palette)", Code("AndroidSliceShell.SettingsPages.Compose.cs"));
         Assert.Contains("OpenSamSettings();",
             Between(Code("AndroidSliceShell.Tabs.cs"), "private void OpenSettingsTab()", "\n    }"));
         var open = Between(Code("AndroidSliceShell.Sam.cs"), "private void OpenSamSettings()", "\n    }");

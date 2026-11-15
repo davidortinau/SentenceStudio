@@ -124,6 +124,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     {
         if (HandleMoreBack())
             return true;
+        if (HandleSettingsBack())
+            return true;
         // Back closes the photo viewer or the Learning Details sheet first and
         // returns focus to the control that opened it.
         if (_photoDialog is not null

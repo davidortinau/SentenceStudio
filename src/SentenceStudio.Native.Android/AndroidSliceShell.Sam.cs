@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Native;
+using SentenceStudio.Native.Features.Settings;
 
 namespace SentenceStudio.Native.Android;
 
@@ -56,11 +57,12 @@ internal sealed partial class AndroidSliceShell
         {
             MoreScreen.Vocabulary => _vocabulary?.IsFormOpen == true ? "vocabulary.word-form" : "vocabulary.list",
             MoreScreen.Skills => _skills?.IsFormOpen == true ? "skills.form" : "skills.list",
-            MoreScreen.Profile => "profile",
             MoreScreen.ActivityLog => "activity-log",
             MoreScreen.ImportContent => IsImportWordOpen ? "import.word-form" : "import.content",
             MoreScreen.YouTubeImport => IsYouTubeChannelOpen ? "youtube.channel" : "youtube.import",
             _ when IsResourceFormOpen => "resources.form",
+            _ when Destination == NativeDestination.Dashboard && _tab == ShellTab.Settings
+                && _settingsPage == NativeSettingsPage.Profile => "profile",
             _ => NativeSamScreenContext.ForDestination(Destination, _tab switch
             {
                 ShellTab.Library => NativeSamScreenContext.LibraryTab,
@@ -488,10 +490,10 @@ internal sealed partial class AndroidSliceShell
     private void OnSamVocabularyReview(string owner, string resourceId)
     {
         // The quiz replaces the current screen: an activity, a running quiz, a More
-        // screen (Settings, Profile, Skills, Vocabulary, Activity Log)
+        // screen (Skills, Vocabulary, Activity Log), Profile with unsaved edits
         // or an open resource form must close first, as on iOS.
         if (AndroidSamProjection.ReviewBlockedByScreen(Destination,
-                IsMoreScreenOpen || IsResourceFormOpen))
+                IsMoreScreenOpen || IsResourceFormOpen || _profile?.HasUnsavedChanges == true))
         {
             _sam?.ReportVocabularyReviewBlockedByScreen();
             return;

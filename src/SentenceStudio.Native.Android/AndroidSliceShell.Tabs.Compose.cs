@@ -257,10 +257,11 @@ internal sealed partial class AndroidSliceShell
     // ---- Settings tab rows ----
 
     /// <summary>
-    /// The first row of the Settings tab (iOS SettingsView.ProfileRow): the learner's name and
-    /// languages; it opens Profile. Before the profile is read it shows "Profile" alone.
+    /// The first row of the Settings list (iOS SettingsView.ProfileRow): the learner's name and
+    /// languages; it opens Profile. Before the profile is read it shows "Profile" alone. Marked
+    /// like the other rows while Profile is open beside the list.
     /// </summary>
-    private ComposableNode SettingsProfileRow(AndroidVisualPalette palette)
+    private ComposableNode SettingsProfileRow(AndroidVisualPalette palette, bool selected)
     {
         var profileTitle = Localize("Nav_Profile");
         var summary = _profileSummary;
@@ -274,18 +275,28 @@ internal sealed partial class AndroidSliceShell
         if (!string.Equals(name, profileTitle, StringComparison.Ordinal))
             spoken.Add(profileTitle);
         var label = string.Join(", ", spoken);
-        var labels = new Column(Arrangement.SpacedBy(2)) { Modifier.Weight(1f), Heading(name, palette, 20) };
+        var labels = new Column(Arrangement.SpacedBy(2))
+        {
+            Modifier.Weight(1f),
+            new Text(name)
+            {
+                Color = selected ? palette.Primary : palette.Text,
+                FontSize = new Sp(20),
+                FontWeight = selected ? FontWeight.Bold : FontWeight.SemiBold,
+            },
+        };
         if (languages is not null)
             labels.Add(Body(languages, palette, secondary: true));
         var surface = new Surface
         {
             Modifier = Modifier.FillMaxWidth().TestTag("native.settings.profile")
                 .Clip(AndroidVisualTheme.CardRadius)
-                .Clickable(OpenProfile)
+                .Clickable(() => Publish(() => SelectSettingsPage(NativeSettingsPage.Profile)))
                 .Semantics(semantics =>
                 {
                     semantics.ContentDescription(label);
                     semantics.Role(SemanticsRole.Button);
+                    semantics.Selected(selected);
                 }),
             Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
             Color = palette.Card,
@@ -295,11 +306,7 @@ internal sealed partial class AndroidSliceShell
             Modifier.FillMaxWidth().Padding(AndroidVisualTheme.CardPadding),
             new Icon(Icons.Default.AccountCircle, null) { Modifier = Modifier.Size(40), Tint = palette.Primary },
             labels,
-            new Icon(Icons.AutoMirrored.Default.KeyboardArrowRight, null)
-            {
-                Modifier = Modifier.Size(20),
-                Tint = palette.SecondaryText,
-            },
+            SettingsRowTrailing(selected, palette),
         });
         return surface;
     }
