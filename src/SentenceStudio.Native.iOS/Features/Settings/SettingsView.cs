@@ -51,9 +51,77 @@ internal static class SettingsView
         if (coachShown)
             sections.Add(Views.Section(string.Empty, PageRow(NativeSettingsPage.Coach,
                 "bubble.left.and.bubble.right", "native.settings.row.coach")));
+        sections.Add(Views.Section(string.Empty,
+            PageRow(NativeSettingsPage.About, "info.circle", "native.settings.row.about")));
         sections.Add(Views.Section(string.Empty, signOut));
         return NativeForm.Page(style, sections, "native.settings.sidebar.form",
             "native.settings.sidebar");
+    }
+
+    /// <summary>
+    /// The About page (source Settings.razor About card): the app's version, and What's New,
+    /// which opens the release notes in a sheet. A note says when there are none or they could
+    /// not be read.
+    /// </summary>
+    internal static SwiftView About(SourceUiStyle style, Func<string, string> text, string version,
+        bool loading, string? noticeKey, Action openWhatsNew)
+    {
+        var whatsNew = NativeForm.Action(style, text("Settings_WhatsNew"), "megaphone", openWhatsNew,
+            "native.settings.about.whats-new");
+        whatsNew.IsEnabled = !loading;
+        var rows = new List<SwiftView> { whatsNew };
+        if (loading)
+            rows.Add(Views.IndeterminateProgress(text("Common_Loading"))
+                .WithAccessibilityIdentifier("native.settings.about.loading"));
+        if (noticeKey is not null)
+            rows.Add(NativeForm.Notice(style, text(noticeKey), "native.settings.about.notice",
+                error: noticeKey != "Settings_NoReleaseNotes"));
+        return Form(style,
+        [
+            Views.Section(string.Empty, style.Text(Views.Text(string.Format(
+                        CultureInfo.CurrentCulture, text("Settings_VersionLabel"), version)),
+                    SourceTextRole.Body1)
+                .WithAccessibilityIdentifier("native.settings.about.version")),
+            Views.Section(string.Empty, rows.ToArray()),
+        ]);
+    }
+
+    /// <summary>
+    /// What's New (source WhatsNewModal): the release's title, version and date, then each
+    /// section of the notes as a list Section whose rows are a bold headline over its text.
+    /// </summary>
+    internal static SwiftView WhatsNew(SourceUiStyle style, Func<string, string> text,
+        NativeReleaseNotes? notes)
+    {
+        if (notes is null)
+            return Loading(style, text);
+        var date = DateOnly.TryParse(notes.Date, CultureInfo.InvariantCulture, out var day)
+            ? day.ToString("D", CultureInfo.CurrentCulture) : notes.Date;
+        var header = Views.VStack(
+                style.Text(Views.Text(notes.Title), SourceTextRole.Title3),
+                style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        text("Settings_VersionLabel"), notes.Version)
+                    + (date.Length > 0 ? " · " + date : string.Empty)),
+                    SourceTextRole.Body2, SourceTextTone.Secondary))
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier("native.whats-new.header");
+        header.Spacing = 4;
+        var sections = new List<SwiftView> { Views.Section(string.Empty, header) };
+        foreach (var section in notes.Sections)
+            sections.Add(Views.Section(section.Title, section.Items.Select(item =>
+            {
+                if (item.Headline is null)
+                    return style.Text(Views.Text(item.Text), SourceTextRole.Body1);
+                var lines = Views.VStack(
+                        style.Text(Views.Text(item.Headline), SourceTextRole.Body1,
+                            strongElement: true),
+                        style.Text(Views.Text(item.Text), SourceTextRole.Body2,
+                            SourceTextTone.Secondary))
+                    .WithFlexibleWidth();
+                lines.Spacing = 2;
+                return lines;
+            }).ToArray()));
+        return NativeForm.Page(style, sections, "native.whats-new.form", "native.whats-new");
     }
 
     /// <summary>A page's title: its sidebar row and the detail column's navigation title.</summary>
@@ -64,6 +132,7 @@ internal static class SettingsView
         NativeSettingsPage.VoiceQuiz => "Settings_VoiceQuizSection",
         NativeSettingsPage.LearningMode => "LearningMode_Title",
         NativeSettingsPage.Coach => "Coach_SettingsSection",
+        NativeSettingsPage.About => "Settings_AboutSection",
         _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Unrecognized Settings page."),
     };
 

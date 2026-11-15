@@ -12,4 +12,5 @@ internal enum NativeSettingsPage
     VoiceQuiz,
     LearningMode,
     Coach,
+    About,
 }

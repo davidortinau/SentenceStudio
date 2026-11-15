@@ -23,6 +23,12 @@ internal sealed partial class ApplicationScene
     private bool _settingsDefaultPending;
     // What the detail column shows: a page, or (null) the empty column.
     private NativeSettingsPage? _renderedSettingsPage;
+    // The About page and its What's New sheet.
+    private SwiftView? _aboutSlot;
+    private SwiftView? _whatsNewSlot;
+    private SwiftView? _whatsNewSheet;
+    private int _renderedAboutVersion = -1;
+    private NativeReleaseNotes? _renderedWhatsNew;
 
     private SwiftView BuildSettingsSplit()
     {
@@ -119,11 +125,13 @@ internal sealed partial class ApplicationScene
         {
             if (_renderedSettingsPage == NativeSettingsPage.Profile)
                 DropProfileReferences();
+            DropAboutReferences();
             // Profile is drawn by UpdateProfile once it has opened.
             Replace(_settingsDetailSlot, page switch
             {
                 null => SettingsDetailPlaceholder(),
                 NativeSettingsPage.Profile => SettingsView.Loading(_style, _app.Localize),
+                NativeSettingsPage.About => BuildAbout(),
                 _ => _app.RenderSettings(_style),
             });
             if (page is { } open)
@@ -141,6 +149,8 @@ internal sealed partial class ApplicationScene
             if (restyled)
                 Replace(_settingsDetailSlot, SettingsDetailPlaceholder());
         }
+        else if (page == NativeSettingsPage.About)
+            UpdateAbout(restyled);
         else if (page != NativeSettingsPage.Profile
             && (restyled || visible && _renderedSettingsVersion != version))
         {
@@ -152,6 +162,61 @@ internal sealed partial class ApplicationScene
             label.Text = string.Format(CultureInfo.CurrentCulture,
                 _app.Localize("Settings_TextSizeLabel"),
                 (int)Math.Round(_app.Appearance.Selection.FontScale * 100));
+    }
+
+    /// <summary>
+    /// The About page, with the What's New sheet over it (its own stack: the title and a button
+    /// that closes it; swiping it down closes it too).
+    /// </summary>
+    private SwiftView BuildAbout()
+    {
+        _aboutSlot = Views.VStack(_app.RenderAbout(_style)).WithFlexibleWidth();
+        _aboutSlot.Spacing = 0;
+        _renderedAboutVersion = _app.AboutVersion;
+        _renderedWhatsNew = _app.WhatsNewNotes;
+        _whatsNewSlot = Views.VStack(_app.RenderWhatsNew(_style))
+            .WithFlexibleWidth()
+            .WithNavigationTitle(_app.Localize("WhatsNew_Title"))
+            .WithInlineNavigationTitle();
+        _whatsNewSlot.Spacing = 0;
+        var done = Views.Button(_app.Localize("WhatsNew_GotIt"), _app.DismissWhatsNew)
+            .WithAccessibilityIdentifier("native.whats-new.done");
+        _whatsNewSheet = Views.Sheet(_aboutSlot,
+                Views.NavigationStack(Views.Toolbar(_whatsNewSlot, done)),
+                _app.DismissWhatsNew)
+            .WithAccessibilityIdentifier("native.settings.about");
+        _whatsNewSheet.IsPresented = _app.IsWhatsNewPresented;
+        return _whatsNewSheet;
+    }
+
+    private void UpdateAbout(bool restyled)
+    {
+        if (_aboutSlot is null || _whatsNewSlot is null || _whatsNewSheet is null)
+            return;
+        var version = _app.AboutVersion;
+        if (restyled || _renderedAboutVersion != version)
+        {
+            ReplaceForm(_aboutSlot, _app.RenderAbout(_style), restyled);
+            _renderedAboutVersion = version;
+        }
+        // The notes are drawn once read (and again for a new theme), not on every change, so
+        // the open sheet keeps its scroll position.
+        if (restyled || !ReferenceEquals(_renderedWhatsNew, _app.WhatsNewNotes))
+        {
+            Replace(_whatsNewSlot, _app.RenderWhatsNew(_style));
+            _renderedWhatsNew = _app.WhatsNewNotes;
+        }
+        if (_whatsNewSheet.IsPresented != _app.IsWhatsNewPresented)
+            _whatsNewSheet.IsPresented = _app.IsWhatsNewPresented;
+    }
+
+    private void DropAboutReferences()
+    {
+        _aboutSlot = null;
+        _whatsNewSlot = null;
+        _whatsNewSheet = null;
+        _renderedAboutVersion = -1;
+        _renderedWhatsNew = null;
     }
 
     /// <summary>
@@ -177,5 +242,6 @@ internal sealed partial class ApplicationScene
         _renderedSettingsVersion = -1;
         _renderedSettingsPage = null;
         DropProfileReferences();
+        DropAboutReferences();
     }
 }

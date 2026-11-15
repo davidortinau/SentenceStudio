@@ -5353,6 +5353,10 @@ For example: {0} ...</value>
     <value>Settings are unavailable: the active profile changed or could not be verified. Go back and reopen Settings.</value>
     <comment>Native Settings: missing or revoked owner, including an unverified local preview.</comment>
   </data>
+  <data name="NativeSettings_ReleaseNotesFailed" xml:space="preserve">
+    <value>The release notes could not be read. Try again.</value>
+    <comment>Native Settings, About: the release notes could not be read.</comment>
+  </data>
   <data name="NativeSettings_CurrentVoice" xml:space="preserve">
     <value>Current voice</value>
     <comment>Native Settings: locally saved voice shown when discovery is unavailable.</comment>

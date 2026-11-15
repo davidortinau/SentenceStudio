@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../SentenceStudio.Version.props" />
   <PropertyGroup>
     <TargetFramework>net11.0-ios</TargetFramework>
+    <!-- Settings > About shows it; the same product version as the web. -->
+    <ApplicationDisplayVersion>$(SentenceStudioVersion)</ApplicationDisplayVersion>
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

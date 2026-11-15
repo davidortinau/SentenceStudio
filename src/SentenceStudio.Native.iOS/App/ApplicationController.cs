@@ -706,6 +706,8 @@ internal sealed partial class ApplicationController : IDisposable
         var previous = _settingsPage;
         if (previous == NativeSettingsPage.Profile)
             CloseSettingsProfile();
+        // The What's New sheet belongs to About: it does not come back with the next visit.
+        _whatsNewPresented = false;
         _settingsPage = page;
         if (page == NativeSettingsPage.Profile)
         {
@@ -745,6 +747,7 @@ internal sealed partial class ApplicationController : IDisposable
             return false;
         if (_settingsPage == NativeSettingsPage.Profile)
             CloseSettingsProfile();
+        _whatsNewPresented = false;
         _settingsPage = null;
         Publish();
         return true;

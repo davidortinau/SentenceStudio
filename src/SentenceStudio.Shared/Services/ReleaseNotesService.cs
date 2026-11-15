@@ -27,6 +27,32 @@ public class ReleaseNotesService
         return allNotes.FirstOrDefault(n => n.Version == version);
     }
 
+    /// <summary>
+    /// The notes for an app version: notes are named by major.minor ("1.2"), so "1.2.0+build..."
+    /// finds them. The newest notes when that version has none (or the version is unknown).
+    /// Every client chooses through this one rule.
+    /// </summary>
+    public async Task<ReleaseNote?> GetNotesForAppVersionAsync(string? appVersion)
+    {
+        var allNotes = await GetAllNotesAsync();
+        var release = ParseVersion(appVersion);
+        return (release is null ? null : allNotes.FirstOrDefault(n =>
+                ParseVersion(n.Version) is { } version
+                && version.Major == release.Major && version.Minor == release.Minor))
+            ?? allNotes.FirstOrDefault();
+    }
+
+    /// <summary>"1.2", "1.2.0" or "1.2.0+build..." as a version; null when it is not one.</summary>
+    public static Version? ParseVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+        var core = version.Split('+', '-')[0].Trim();
+        if (!core.Contains('.'))
+            core += ".0";
+        return Version.TryParse(core, out var parsed) ? parsed : null;
+    }
+
     public async Task<ReleaseNote?> GetLatestNotesAsync()
     {
         var allNotes = await GetAllNotesAsync();
@@ -63,7 +89,8 @@ public class ReleaseNotesService
             }
         }
 
-        notes = notes.OrderByDescending(n => n.Version).ToList();
+        // By version, not by text ("1.10" is newer than "1.9").
+        notes = notes.OrderByDescending(n => ParseVersion(n.Version)).ToList();
         _cachedNotes = notes;
         return notes;
     }

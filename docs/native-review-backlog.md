@@ -343,3 +343,8 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
   `.squad/skills/single-flight-async/SKILL.md`.
 - Sign Out in the Settings sidebar signs out without asking while Profile, beside it, has
   unsaved edits.
+- `ReleaseNotesService.GetAllNotesAsync` skips a notes file it cannot read in an empty catch,
+  so a broken file looks like "no notes" on every client and nothing is logged. Give the service
+  a logger and report the failure.
+- Native Android has no Settings About page or What's New yet (iOS and the web have them,
+  2026-11-15); `NativeReleaseNotes` in the shared native project is ready for it.

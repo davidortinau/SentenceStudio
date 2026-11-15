@@ -539,7 +539,9 @@
     {
         try
         {
-            var releaseNote = await ReleaseNotesService.GetNotesForVersionAsync(currentVersion);
+            // currentVersion carries the patch and build ("1.2.0+build..."), so an exact lookup
+            // never matched the "1.2" notes; the shared rule matches major.minor, else the newest.
+            var releaseNote = await ReleaseNotesService.GetNotesForAppVersionAsync(currentVersion);
             if (releaseNote != null)
             {
                 whatsNewVersion = releaseNote.Version;

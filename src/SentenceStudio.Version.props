@@ -1,0 +1,8 @@
+<Project>
+  <!-- The product version every client shows (Captain 2026-11-15): the web, the shared Razor UI the
+       MAUI heads host, and the native heads. Its major.minor names the release notes in
+       docs/release-notes (v1.2.md is version 1.2). Bump it with a new release-notes file. -->
+  <PropertyGroup>
+    <SentenceStudioVersion>1.2.0</SentenceStudioVersion>
+  </PropertyGroup>
+</Project>

@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../SentenceStudio.Version.props" />
   <PropertyGroup>
     <TargetFramework>net11.0-android</TargetFramework>
     <SupportedOSPlatformVersion>36</SupportedOSPlatformVersion>
@@ -10,7 +11,7 @@
     <ApplicationTitle Condition="'$(Configuration)' == 'Debug'">SentenceStudio Native Debug</ApplicationTitle>
     <ApplicationTitle Condition="'$(Configuration)' == 'Release'">SentenceStudio</ApplicationTitle>
     <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>$(SentenceStudioVersion)</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <DefaultItemExcludes>$(DefaultItemExcludes);AilohaBinding/**</DefaultItemExcludes>

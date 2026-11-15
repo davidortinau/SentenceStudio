@@ -26,6 +26,8 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<NativePendingWrites>(sp =>
             new NativePendingWrites().UsePersistentStore(
                 sp.GetRequiredService<IPreferencesService>()));
+        // Settings > About > What's New: the release notes built into the shared library.
+        services.TryAddSingleton<ReleaseNotesService>();
         services.TryAddSingleton<INativeQuizAttemptCommitter, UnavailableNativeQuizAttemptCommitter>();
         services.TryAddSingleton<INativePlanCreation, UnavailableNativePlanCreation>();
         services.TryAddSingleton<INativeQuizChoices, UnavailableNativeQuizChoices>();

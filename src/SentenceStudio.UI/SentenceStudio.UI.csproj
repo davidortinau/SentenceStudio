@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
+  <Import Project="../SentenceStudio.Version.props" />
+
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>SentenceStudio.WebUI</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.1.0</Version>
-    <InformationalVersion>1.1.0+build.$([System.DateTime]::UtcNow.ToString("yyyyMMdd.HHmmss"))</InformationalVersion>
+    <Version>$(SentenceStudioVersion)</Version>
+    <InformationalVersion>$(SentenceStudioVersion)+build.$([System.DateTime]::UtcNow.ToString("yyyyMMdd.HHmmss"))</InformationalVersion>
   </PropertyGroup>
 
 

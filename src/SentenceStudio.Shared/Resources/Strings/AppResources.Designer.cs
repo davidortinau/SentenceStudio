@@ -12262,6 +12262,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The release notes could not be read. Try again..
+        /// </summary>
+        internal static string NativeSettings_ReleaseNotesFailed {
+            get {
+                return ResourceManager.GetString("NativeSettings_ReleaseNotesFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Voice choices need sign-in. Your current voice is available locally..
         /// </summary>
         internal static string NativeSettings_VoicesRequireSignIn {

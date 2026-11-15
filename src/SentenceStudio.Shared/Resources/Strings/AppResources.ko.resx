@@ -5105,6 +5105,10 @@
     <value>설정을 사용할 수 없습니다. 현재 프로필이 변경되었거나 확인할 수 없습니다. 뒤로 돌아가 설정을 다시 여세요.</value>
     <comment>Native Settings: missing or revoked owner, including an unverified local preview.</comment>
   </data>
+  <data name="NativeSettings_ReleaseNotesFailed" xml:space="preserve">
+    <value>릴리스 노트를 읽을 수 없습니다. 다시 시도하세요.</value>
+    <comment>Native Settings, About: the release notes could not be read.</comment>
+  </data>
   <data name="NativeSettings_CurrentVoice" xml:space="preserve">
     <value>현재 음성</value>
     <comment>Native Settings: locally saved voice shown when discovery is unavailable.</comment>
