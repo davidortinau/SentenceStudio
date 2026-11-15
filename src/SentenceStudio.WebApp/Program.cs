@@ -28,7 +28,8 @@ using System.Globalization;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults("SentenceStudio.WebApp");
+// AzureMonitor:Authentication=ManagedIdentity sends telemetry with this identity (#168).
+builder.AddServiceDefaults("SentenceStudio.WebApp", azureMonitorCredential: () => new Azure.Identity.DefaultAzureCredential());
 
 // ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
 // `OpenTelemetry.Instrumentation.AspNetCore` package references `Microsoft.AspNetCore.App`,

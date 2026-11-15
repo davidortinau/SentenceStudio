@@ -139,6 +139,10 @@ internal static class LearningResourceView
             state.Description, NativeAccess.ResourceDescription,
             value => actions.Change(nameof(LearningResourceViewState.Description), value),
             readOnly, placeholder: creating ? text("ResourceAdd_DescriptionPlaceholder") : null));
+        // Issue #219: how much, how recently and how well, under the resource's own facts
+        // (Basic Info and its description), as the web page's card after Basic Info.
+        if (!creating)
+            LearningResourceStudyHistoryView.Add(sections, style, state.Study, actions, text);
 
         if (creating && state.MediaType != "Vocabulary List")
         {

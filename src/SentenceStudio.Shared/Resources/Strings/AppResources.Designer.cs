@@ -10102,6 +10102,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Too many sign-in attempts. Wait a few minutes and try again..
+        /// </summary>
+        internal static string Login_TooManyAttempts {
+            get {
+                return ResourceManager.GetString("Login_TooManyAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to An unexpected error occurred. Please try again..
         /// </summary>
         internal static string Login_UnexpectedError {
@@ -16287,6 +16296,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Average mastery.
+        /// </summary>
+        internal static string ResourceEdit_AverageMastery {
+            get {
+                return ResourceManager.GetString("ResourceEdit_AverageMastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Basic Information.
         /// </summary>
         internal static string ResourceEdit_BasicInfo {
@@ -16557,6 +16575,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Add words to this resource to see how well you know them..
+        /// </summary>
+        internal static string ResourceEdit_MasteryNoWords {
+            get {
+                return ResourceManager.GetString("ResourceEdit_MasteryNoWords", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Media Type.
         /// </summary>
         internal static string ResourceEdit_MediaType {
@@ -16737,6 +16764,105 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Study history.
+        /// </summary>
+        internal static string ResourceEdit_StudyHistory {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyHistory", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last studied.
+        /// </summary>
+        internal static string ResourceEdit_StudyLastStudied {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyLastStudied", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t load the study history..
+        /// </summary>
+        internal static string ResourceEdit_StudyLoadFailed {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyLoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} min.
+        /// </summary>
+        internal static string ResourceEdit_StudyMinutes {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyMinutes", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You haven&apos;t studied this resource yet..
+        /// </summary>
+        internal static string ResourceEdit_StudyNotYet {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyNotYet", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} · {1}.
+        /// </summary>
+        internal static string ResourceEdit_StudyPair {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyPair", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} sessions.
+        /// </summary>
+        internal static string ResourceEdit_StudySessionMany {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudySessionMany", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} session.
+        /// </summary>
+        internal static string ResourceEdit_StudySessionOne {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudySessionOne", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sessions.
+        /// </summary>
+        internal static string ResourceEdit_StudySessions {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudySessions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Time studied.
+        /// </summary>
+        internal static string ResourceEdit_StudyTime {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyTime", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1}.
+        /// </summary>
+        internal static string ResourceEdit_StudyWordCount {
+            get {
+                return ResourceManager.GetString("ResourceEdit_StudyWordCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Tab.
         /// </summary>
         internal static string ResourceEdit_Tab {
@@ -16877,6 +17003,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceEdit_WordAddedNamed {
             get {
                 return ResourceManager.GetString("ResourceEdit_WordAddedNamed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Word mastery.
+        /// </summary>
+        internal static string ResourceEdit_WordMastery {
+            get {
+                return ResourceManager.GetString("ResourceEdit_WordMastery", resourceCulture);
             }
         }
 

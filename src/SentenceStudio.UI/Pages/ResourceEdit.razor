@@ -106,6 +106,9 @@ else
         </div>
     </div>
 
+    @* Issue #219: how much, how recently and how well, under the resource's own facts. *@
+    <ResourceStudyHistory ResourceId="@resource.Id" />
+
     @if (!resource.IsSmartResource)
     {
         <div class="card card-ss p-4 mb-3">

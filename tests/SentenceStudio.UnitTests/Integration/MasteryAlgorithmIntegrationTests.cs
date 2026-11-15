@@ -79,10 +79,10 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var result = await _progressService.RecordAttemptAsync(attempt);
 
         // Assert
-        result.CurrentStreak.Should().Be(1);
+        result.CurrentStreak.Should().Be(1.5f, "a correct Text quiz attempt weighs 1.5");
         result.ProductionInStreak.Should().Be(1, "Text input is production");
-        // EffectiveStreak = 1 + 1*0.5 = 1.5 → MasteryScore = 1.5/12.0 ≈ 0.125 (#191)
-        result.MasteryScore.Should().BeApproximately(1.5f / 12.0f, 0.01f);
+        // EffectiveStreak = 1.5 + 1*0.5 = 2.0 → MasteryScore = 2.0/12.0 ≈ 0.167 (#191, #199)
+        result.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
     }
 
     [Fact]
@@ -405,6 +405,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
             Activity = activity,
             InputMode = inputMode,
             WasCorrect = wasCorrect,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(inputMode),
             LearningResourceId = resourceId,
             ContextType = "Isolated",
             ResponseTimeMs = 1500

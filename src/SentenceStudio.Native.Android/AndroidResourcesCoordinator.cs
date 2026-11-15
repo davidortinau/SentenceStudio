@@ -44,6 +44,9 @@ internal sealed record AndroidResourceFormState
     internal NativeResourceSyncPhase Sync { get; init; }
     internal string? SyncErrorKey { get; init; }
     internal bool ShowDeleteConfirmation { get; init; }
+    /// <summary>The resource's study history (issue #219); Idle while creating.</summary>
+    internal NativeResourceStudyState Study { get; init; } =
+        new(NativeResourceStudyPhase.Idle);
 
     internal bool IsBusy => IsSaving || IsReloading || IsGenerating || IsImporting
         || IsQuickAddAttaching
@@ -66,7 +69,7 @@ internal sealed record AndroidResourceFormState
 /// import and generation) but holds no Android UI types so Compose rendering
 /// stays a pure projection and the workflow is testable on the host.
 /// </summary>
-internal sealed class AndroidResourcesCoordinator : IDisposable
+internal sealed partial class AndroidResourcesCoordinator : IDisposable
 {
     internal const string Comma = "comma";
     internal const string Tab = "tab";
@@ -90,11 +93,13 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
     private bool _disposed;
 
     internal AndroidResourcesCoordinator(
-        NativeResourcePresenter presenter, ILogger logger, Func<string, string> text)
+        NativeResourcePresenter presenter, ILogger logger, Func<string, string> text,
+        NativeResourceStudyHistory? studyHistory = null)
     {
         _presenter = presenter;
         _logger = logger;
         _text = text;
+        _studyHistory = studyHistory;
     }
 
     internal event Action? Changed;
@@ -236,6 +241,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
     internal void Save() => Run(SaveAsync);
     internal void ReloadDraft() => Run(ReloadDraftAsync);
     internal void RetryForm() => Run(ReloadFormAsync);
+    internal void RetryStudyHistory() => Run(RetryStudyHistoryAsync);
     internal void CreateStarter() => Run(CreateStarterAsync);
     internal void Generate() => Run(GenerateVocabularyAsync);
     internal void ReloadList() => Run(LoadListAsync);
@@ -426,8 +432,11 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         IsFormOpen = true;
         FormOpenChanged?.Invoke(true);
         var load = _presenter.OpenAsync(id, _lifetime.Token);
+        // The study history reads beside the resource; the form shows both together.
+        var study = LoadStudyHistoryAsync(id);
         Publish();
         await load;
+        await study;
         if (IsCurrentForm(formGeneration, id))
         {
             if (_presenter.Detail is {
@@ -441,6 +450,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
     private void ResetForm(bool creating)
     {
         Interlocked.Increment(ref _formGeneration);
+        _studyHistory?.Reset();
         IsCreating = creating;
         _selectedId = null;
         _formStatus = null;
@@ -512,6 +522,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
             Sync = state.Sync,
             SyncErrorKey = state.SyncErrorKey,
             ShowDeleteConfirmation = state.ShowDeleteConfirmation,
+            Study = StudyState,
         };
     }
 
@@ -548,8 +559,10 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
             return;
         var formGeneration = Interlocked.Read(ref _formGeneration);
         var load = _presenter.OpenAsync(id, _lifetime.Token);
+        var study = LoadStudyHistoryAsync(id);
         Publish();
         await load;
+        await study;
         if (!IsCurrentForm(formGeneration, id))
             return;
         if (_presenter.Detail is {
@@ -573,6 +586,7 @@ internal sealed class AndroidResourcesCoordinator : IDisposable
         _quickSearch?.Dispose();
         _quickSearch = null;
         Interlocked.Increment(ref _quickSearchVersion);
+        _studyHistory?.Reset();
         _presenter.InvalidateDetail();
         FormOpenChanged?.Invoke(false);
         Publish();

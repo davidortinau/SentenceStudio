@@ -1,3 +1,4 @@
+using Azure.Core;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,9 +17,16 @@ namespace Microsoft.Extensions.Hosting;
 // To learn more about using this project, see https://aka.ms/dotnet/aspire/service-defaults
 public static class Extensions
 {
-    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder, string? cloudRoleName = null) where TBuilder : IHostApplicationBuilder
+    /// <param name="azureMonitorCredential">
+    /// Builds the Entra credential for the Azure Monitor exporters when
+    /// <c>AzureMonitor:Authentication</c> is <c>ManagedIdentity</c> (#168). Server hosts pass
+    /// <c>() =&gt; new DefaultAzureCredential()</c>; this library stays free of Azure.Identity,
+    /// since the client apps share it.
+    /// </param>
+    public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder, string? cloudRoleName = null,
+        Func<TokenCredential>? azureMonitorCredential = null) where TBuilder : IHostApplicationBuilder
     {
-        builder.ConfigureOpenTelemetry(cloudRoleName);
+        builder.ConfigureOpenTelemetry(cloudRoleName, azureMonitorCredential);
 
         builder.Services.AddServiceDiscovery();
 
@@ -45,7 +53,8 @@ public static class Extensions
         return builder;
     }
 
-    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder, string? cloudRoleName = null) where TBuilder : IHostApplicationBuilder
+    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder, string? cloudRoleName = null,
+        Func<TokenCredential>? azureMonitorCredential = null) where TBuilder : IHostApplicationBuilder
     {
         // cloud_RoleName in App Insights — constant literal per consumer (no runtime detection).
         // Falls back to ApplicationName if the caller didn't pass one; prod callers MUST pass an
@@ -83,12 +92,34 @@ public static class Extensions
                     .AddHttpClientInstrumentation();
             });
 
-        builder.AddOpenTelemetryExporters();
+        builder.AddOpenTelemetryExporters(azureMonitorCredential);
 
         return builder;
     }
 
-    private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    /// <summary>The <c>AzureMonitor:Authentication</c> value that sends Entra tokens (#168).</summary>
+    public const string AzureMonitorManagedIdentity = "ManagedIdentity";
+
+    /// <summary>
+    /// The credential the Azure Monitor exporters use: null (instrumentation key in the connection
+    /// string) unless <c>AzureMonitor:Authentication</c> is <c>ManagedIdentity</c>. Then the
+    /// host must supply one; a host that cannot is a configuration error, not a silent fallback.
+    /// </summary>
+    public static TokenCredential? ResolveAzureMonitorCredential(
+        IConfiguration configuration, Func<TokenCredential>? azureMonitorCredential)
+    {
+        var mode = configuration["AzureMonitor:Authentication"];
+        if (string.IsNullOrWhiteSpace(mode))
+            return null;
+        if (!string.Equals(mode, AzureMonitorManagedIdentity, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"AzureMonitor:Authentication '{mode}' is not supported; use '{AzureMonitorManagedIdentity}' or leave it unset.");
+        return azureMonitorCredential?.Invoke() ?? throw new InvalidOperationException(
+            "AzureMonitor:Authentication is ManagedIdentity, but this host supplies no credential.");
+    }
+
+    private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder,
+        Func<TokenCredential>? azureMonitorCredential) where TBuilder : IHostApplicationBuilder
     {
         var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
 
@@ -107,12 +138,21 @@ public static class Extensions
         var azureMonitorConnectionString = builder.Configuration["AzureMonitor:ConnectionString"];
         if (!string.IsNullOrWhiteSpace(azureMonitorConnectionString))
         {
-            builder.Logging.AddOpenTelemetry(logging =>
-                logging.AddAzureMonitorLogExporter(o => o.ConnectionString = azureMonitorConnectionString));
+            // With a credential the exporters send Entra tokens, so the resource can turn off
+            // instrumentation-key ingestion (DisableLocalAuth). See docs/deploy-runbook.md.
+            var credential = ResolveAzureMonitorCredential(builder.Configuration, azureMonitorCredential);
+            void Configure(AzureMonitorExporterOptions o)
+            {
+                o.ConnectionString = azureMonitorConnectionString;
+                if (credential is not null)
+                    o.Credential = credential;
+            }
+
+            builder.Logging.AddOpenTelemetry(logging => logging.AddAzureMonitorLogExporter(Configure));
 
             builder.Services.AddOpenTelemetry()
-                .WithMetrics(metrics => metrics.AddAzureMonitorMetricExporter(o => o.ConnectionString = azureMonitorConnectionString))
-                .WithTracing(tracing => tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = azureMonitorConnectionString));
+                .WithMetrics(metrics => metrics.AddAzureMonitorMetricExporter(Configure))
+                .WithTracing(tracing => tracing.AddAzureMonitorTraceExporter(Configure));
         }
 #endif
 

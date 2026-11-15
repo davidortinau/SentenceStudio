@@ -149,9 +149,12 @@ public sealed partial class NativeAuthPresenter(
         {
             logger.LogWarning(ex, "Native sign-in HTTP or transport failure.");
             return SetState(new(NativePhase.Error, NativeDestination.SignIn,
-                ErrorKey: ex.StatusCode is null
-                    ? NativeText.ConnectionError
-                    : NativeText.UnexpectedError));
+                ErrorKey: ex.StatusCode switch
+                {
+                    null => NativeText.ConnectionError,
+                    System.Net.HttpStatusCode.TooManyRequests => NativeText.TooManySignInAttempts,
+                    _ => NativeText.UnexpectedError,
+                }));
         }
         catch (NotSupportedException ex)
         {

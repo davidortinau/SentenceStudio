@@ -4221,6 +4221,62 @@ For example: {0} ...</value>
     <value>Vocabulary ({0} words)</value>
     <comment>Section heading with count</comment>
   </data>
+  <data name="ResourceEdit_StudyHistory" xml:space="preserve">
+    <value>Study history</value>
+    <comment>Resource page: heading of the study history group (sessions, time, last studied)</comment>
+  </data>
+  <data name="ResourceEdit_StudyNotYet" xml:space="preserve">
+    <value>You haven't studied this resource yet.</value>
+    <comment>Resource page: study history when no session used this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyLastStudied" xml:space="preserve">
+    <value>Last studied</value>
+    <comment>Resource page: label for the date and activity of the latest session</comment>
+  </data>
+  <data name="ResourceEdit_StudySessions" xml:space="preserve">
+    <value>Sessions</value>
+    <comment>Resource page: label for how many sessions used this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyTime" xml:space="preserve">
+    <value>Time studied</value>
+    <comment>Resource page: label for total minutes studied with this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyMinutes" xml:space="preserve">
+    <value>{0} min</value>
+    <comment>Resource page: a number of minutes</comment>
+  </data>
+  <data name="ResourceEdit_StudySessionOne" xml:space="preserve">
+    <value>{0} session</value>
+    <comment>Resource page: one session of an activity</comment>
+  </data>
+  <data name="ResourceEdit_StudySessionMany" xml:space="preserve">
+    <value>{0} sessions</value>
+    <comment>Resource page: several sessions of an activity</comment>
+  </data>
+  <data name="ResourceEdit_StudyPair" xml:space="preserve">
+    <value>{0} · {1}</value>
+    <comment>Resource page: two study facts side by side (date and activity, or sessions and minutes)</comment>
+  </data>
+  <data name="ResourceEdit_WordMastery" xml:space="preserve">
+    <value>Word mastery</value>
+    <comment>Resource page: heading of the mastery spread of the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_AverageMastery" xml:space="preserve">
+    <value>Average mastery</value>
+    <comment>Resource page: label for the mean mastery of the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_StudyWordCount" xml:space="preserve">
+    <value>{0} of {1}</value>
+    <comment>Resource page: words in one status out of all the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_MasteryNoWords" xml:space="preserve">
+    <value>Add words to this resource to see how well you know them.</value>
+    <comment>Resource page: word mastery when the resource has no words</comment>
+  </data>
+  <data name="ResourceEdit_StudyLoadFailed" xml:space="preserve">
+    <value>Couldn't load the study history.</value>
+    <comment>Resource page: the study history read failed</comment>
+  </data>
   <data name="ResourceEdit_Generating" xml:space="preserve">
     <value>Generating...</value>
     <comment>Button text when loading</comment>
@@ -5956,6 +6012,10 @@ For example: {0} ...</value>
   <data name="Login_UnexpectedError" xml:space="preserve">
     <value>An unexpected error occurred. Please try again.</value>
     <comment>Generic error</comment>
+  </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>Too many sign-in attempts. Wait a few minutes and try again.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
   </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>Create Account</value>

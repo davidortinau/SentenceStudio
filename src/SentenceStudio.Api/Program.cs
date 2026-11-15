@@ -62,7 +62,8 @@ using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults("SentenceStudio.Api");
+// AzureMonitor:Authentication=ManagedIdentity sends telemetry with this identity (#168).
+builder.AddServiceDefaults("SentenceStudio.Api", azureMonitorCredential: () => new Azure.Identity.DefaultAzureCredential());
 
 // ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
 // `OpenTelemetry.Instrumentation.AspNetCore` package references `Microsoft.AspNetCore.App`,
@@ -93,6 +94,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+// Per-client limits on the anonymous auth endpoints (#89); see AuthRateLimiting.
+builder.Services.AddAuthRateLimiting(builder.Configuration);
 
 const string JwtOrDevAuthScheme = "JwtOrDev";
 
@@ -741,6 +745,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseSecurityHeaders();
 app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();

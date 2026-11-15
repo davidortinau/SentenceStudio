@@ -3973,6 +3973,62 @@
     <value>어휘 ({0}개 단어)</value>
     <comment>Section heading with count</comment>
   </data>
+  <data name="ResourceEdit_StudyHistory" xml:space="preserve">
+    <value>학습 기록</value>
+    <comment>Resource page: heading of the study history group (sessions, time, last studied)</comment>
+  </data>
+  <data name="ResourceEdit_StudyNotYet" xml:space="preserve">
+    <value>아직 이 자료로 학습한 기록이 없습니다.</value>
+    <comment>Resource page: study history when no session used this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyLastStudied" xml:space="preserve">
+    <value>마지막 학습</value>
+    <comment>Resource page: label for the date and activity of the latest session</comment>
+  </data>
+  <data name="ResourceEdit_StudySessions" xml:space="preserve">
+    <value>세션</value>
+    <comment>Resource page: label for how many sessions used this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyTime" xml:space="preserve">
+    <value>학습 시간</value>
+    <comment>Resource page: label for total minutes studied with this resource</comment>
+  </data>
+  <data name="ResourceEdit_StudyMinutes" xml:space="preserve">
+    <value>{0}분</value>
+    <comment>Resource page: a number of minutes</comment>
+  </data>
+  <data name="ResourceEdit_StudySessionOne" xml:space="preserve">
+    <value>{0}회</value>
+    <comment>Resource page: one session of an activity</comment>
+  </data>
+  <data name="ResourceEdit_StudySessionMany" xml:space="preserve">
+    <value>{0}회</value>
+    <comment>Resource page: several sessions of an activity</comment>
+  </data>
+  <data name="ResourceEdit_StudyPair" xml:space="preserve">
+    <value>{0} · {1}</value>
+    <comment>Resource page: two study facts side by side (date and activity, or sessions and minutes)</comment>
+  </data>
+  <data name="ResourceEdit_WordMastery" xml:space="preserve">
+    <value>단어 숙련도</value>
+    <comment>Resource page: heading of the mastery spread of the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_AverageMastery" xml:space="preserve">
+    <value>평균 숙련도</value>
+    <comment>Resource page: label for the mean mastery of the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_StudyWordCount" xml:space="preserve">
+    <value>{1}개 중 {0}개</value>
+    <comment>Resource page: words in one status out of all the resource's words</comment>
+  </data>
+  <data name="ResourceEdit_MasteryNoWords" xml:space="preserve">
+    <value>이 자료에 단어를 추가하면 숙련도를 볼 수 있습니다.</value>
+    <comment>Resource page: word mastery when the resource has no words</comment>
+  </data>
+  <data name="ResourceEdit_StudyLoadFailed" xml:space="preserve">
+    <value>학습 기록을 불러오지 못했습니다.</value>
+    <comment>Resource page: the study history read failed</comment>
+  </data>
   <data name="ResourceEdit_Generating" xml:space="preserve">
     <value>생성 중...</value>
     <comment>Button text when loading</comment>
@@ -5708,6 +5764,10 @@
   <data name="Login_UnexpectedError" xml:space="preserve">
     <value>예기치 않은 오류가 발생했습니다. 다시 시도하세요.</value>
     <comment>Generic error</comment>
+  </data>
+  <data name="Login_TooManyAttempts" xml:space="preserve">
+    <value>로그인 시도가 너무 많습니다. 몇 분 후에 다시 시도하세요.</value>
+    <comment>Sign-in refused by the rate limit or account lockout</comment>
   </data>
   <data name="Register_CreateAccount" xml:space="preserve">
     <value>계정 만들기</value>

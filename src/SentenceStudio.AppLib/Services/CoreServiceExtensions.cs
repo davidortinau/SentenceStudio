@@ -95,6 +95,8 @@ public static class CoreServiceExtensions
         services.AddSingleton<IVocabularyProgressService>(provider =>
             provider.GetRequiredService<VocabularyProgressService>());
         services.AddSingleton<SmartResourceService>();
+        // A Learning Resource's study history (issue #219), owner-scoped per call.
+        services.AddSingleton<ResourceStudySummaryService>();
         services.AddSingleton<VocabQuizLaunchValidator>();
 
         // Post-login routing decision (issue #187) — keep the rule out of LoginPage

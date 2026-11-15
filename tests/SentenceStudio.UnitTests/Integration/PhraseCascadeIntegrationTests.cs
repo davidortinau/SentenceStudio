@@ -80,7 +80,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
 
         // Assert: phrase mastery updated normally
         phraseProgress.MasteryScore.Should().BeGreaterThan(0, "phrase mastery should increase on correct answer");
-        phraseProgress.CurrentStreak.Should().Be(1, "phrase streak should be 1 after first attempt");
+        phraseProgress.CurrentStreak.Should().Be(1.5f, "a correct Text quiz attempt adds its 1.5 weight to the streak");
         phraseProgress.ProductionInStreak.Should().Be(1, "Text input counts as production");
         phraseProgress.TotalAttempts.Should().Be(1);
         phraseProgress.CorrectAttempts.Should().Be(1);
@@ -535,6 +535,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
             Activity = activity,
             InputMode = inputMode,
             WasCorrect = wasCorrect,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(inputMode),
             ContextType = "Isolated",
             ResponseTimeMs = 1500
         };

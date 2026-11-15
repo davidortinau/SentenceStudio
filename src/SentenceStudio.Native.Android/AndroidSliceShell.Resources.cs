@@ -31,7 +31,8 @@ internal sealed partial class AndroidSliceShell
             provider.GetRequiredService<NativeResourcePresenter>(),
             provider.GetRequiredService<ILoggerFactory>()
                 .CreateLogger<AndroidResourcesCoordinator>(),
-            Localize);
+            Localize,
+            provider.GetRequiredService<NativeResourceStudyHistory>());
         coordinator.Changed += OnResourcesChanged;
         coordinator.FormOpenChanged += OnResourceFormOpenChanged;
         _resources = coordinator;

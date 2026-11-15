@@ -546,7 +546,7 @@ public sealed partial class NativeQuizPresenter
                 Activity = "VocabularyQuiz",
                 InputMode = _mode,
                 WasCorrect = correct,
-                DifficultyWeight = _mode == "Text" ? 1.5f : 1.0f,
+                DifficultyWeight = SentenceStudio.Services.VocabularyMasteryCalculator.QuizAttemptWeight(_mode),
                 ContextType = "Isolated",
                 UserInput = answer,
                 ExpectedAnswer = expected,

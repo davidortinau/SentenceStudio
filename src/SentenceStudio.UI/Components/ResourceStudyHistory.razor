@@ -1,0 +1,134 @@
+@* Issue #219: a Learning Resource's study history for the active learner: how much and how
+   recently (sessions, minutes by activity, the last session), then how well (the word-status
+   spread). The wording comes from the shared ResourceStudyText, as on the native heads. *@
+@using System.Globalization
+@implements IDisposable
+@inject ResourceStudySummaryService StudySummaries
+@inject SentenceStudio.Abstractions.IPreferencesService Preferences
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject ILogger<ResourceStudyHistory> Logger
+
+@if (_failed)
+{
+    <div class="card card-ss p-4 mb-3" data-testid="resource-study-card">
+        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_StudyHistory"]</h5>
+        <div class="alert alert-danger d-flex align-items-center gap-2 mb-3" role="alert" data-testid="resource-study-error">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <span>@Localize["ResourceEdit_StudyLoadFailed"]</span>
+        </div>
+        <div>
+            <button type="button" class="btn btn-ss-secondary btn-sm" @onclick="RetryAsync" disabled="@_loading"
+                    data-testid="resource-study-retry">
+                @Localize["Common_Retry"]
+            </button>
+        </div>
+    </div>
+}
+else if (_summary is null)
+{
+    @if (_loading)
+    {
+        <div class="card card-ss p-4 mb-3" data-testid="resource-study-card">
+            <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_StudyHistory"]</h5>
+            <div class="spinner-border spinner-border-sm text-primary" role="status" data-testid="resource-study-loading">
+                <span class="visually-hidden">@Localize["Common_Loading"]</span>
+            </div>
+        </div>
+    }
+}
+else
+{
+    var text = ResourceStudyText.From(_summary, key => Localize[key], Localize.Culture);
+    <div class="card card-ss p-4 mb-3" data-testid="resource-study-card">
+        <h5 class="ss-title3 mb-3">@text.StudyTitle</h5>
+        @StudyLines(text.StudyEmpty, "study-empty", text.Study)
+    </div>
+    <div class="card card-ss p-4 mb-3" data-testid="resource-mastery-card">
+        <h5 class="ss-title3 mb-3">@text.MasteryTitle</h5>
+        @StudyLines(text.MasteryEmpty, "mastery-empty", text.Mastery)
+    </div>
+}
+
+@code {
+    /// <summary>The resource whose history shows; the active learner is read per load.</summary>
+    [Parameter, EditorRequired] public string ResourceId { get; set; } = "";
+
+    private readonly CancellationTokenSource _lifetime = new();
+    private ResourceStudySummary? _summary;
+    private string? _loadedResourceId;
+    private bool _loading;
+    private bool _failed;
+    private long _generation;
+
+    private RenderFragment StudyLines(string? empty, string emptyId,
+        IReadOnlyList<ResourceStudyLine> lines) => __builder =>
+    {
+        if (empty is not null)
+        {
+            <p class="text-secondary-ss ss-body2 mb-0" data-testid="resource-@emptyId">@empty</p>
+        }
+        else
+        {
+            <dl class="row g-2 mb-0">
+                @foreach (var line in lines)
+                {
+                    <dt class="col-6 col-md-4 ss-body2 text-secondary-ss fw-semibold" data-testid="resource-@(line.Id.Replace('.', '-'))-label">@line.Label</dt>
+                    <dd class="col-6 col-md-8 ss-body2 mb-0" data-testid="resource-@(line.Id.Replace('.', '-'))">@line.Value</dd>
+                }
+            </dl>
+        }
+    };
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnCultureChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.Equals(_loadedResourceId, ResourceId, StringComparison.Ordinal))
+            return;
+        _loadedResourceId = ResourceId;
+        _summary = null;
+        await LoadAsync();
+    }
+
+    private Task RetryAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var generation = ++_generation;
+        var resourceId = ResourceId;
+        _loading = true;
+        _failed = false;
+        try
+        {
+            var owner = Preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
+            var summary = await StudySummaries.GetAsync(owner, resourceId, _lifetime.Token);
+            if (generation != _generation)
+                return;
+            // No owner, or a resource the owner does not hold: nothing shows (the service logs).
+            _summary = summary;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Resource study history failed to load for resource {ResourceId}.", resourceId);
+            if (generation == _generation)
+                _failed = true;
+        }
+        finally
+        {
+            if (generation == _generation)
+                _loading = false;
+        }
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}
