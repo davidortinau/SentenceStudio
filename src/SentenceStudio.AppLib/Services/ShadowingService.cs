@@ -74,7 +74,7 @@ public class ShadowingService
         var allVocab = resource.Vocabulary.ToList();
         var wordIds = allVocab.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
-        var mode = await _progressService.GetLearningModeAsync();
+        var mode = await _progressService.GetLearningModeAsync(userProfile?.Id ?? string.Empty);
         var eligibleWords = VocabularyKnownRule.PracticePool(allVocab, w => progressDict.GetValueOrDefault(w.Id), mode);
         _logger.LogDebug("Shadowing: {EligibleCount} eligible words ({Excluded} Known words left out)",
             eligibleWords.Count, allVocab.Count - eligibleWords.Count);

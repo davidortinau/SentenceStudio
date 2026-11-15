@@ -75,6 +75,12 @@ public class VocabularyQuizItem
     {
         get
         {
+            // The learner marked the word Known (docs/known-words-plan.md): it leaves the
+            // session, a plan's focus session included.
+            if (LearningMode == LearningMode.LearnerLed && Progress is { } marked
+                && SentenceStudio.Services.VocabularyKnownRule.IsLearnerKnownMark(marked.VerificationState))
+                return true;
+
             if (RequiresFullSessionDemonstration)
             {
                 if (HasKnownWordShortcut)

@@ -39,7 +39,8 @@ public partial class VocabularyProgressRepository
     /// <summary>
     /// Applies <paramref name="action"/> to each of <paramref name="wordIds"/> that is the
     /// learner's own word, creating its progress row when it has none. Mark Known is refused in
-    /// Practice-led, where marks are not read. Words that are not the learner's are left out.
+    /// Practice-led, where marks are not read. Practice again changes only words that are Known.
+    /// Words that are not the learner's are left out.
     /// </summary>
     public async Task<VocabularyMarkResult> ApplyLearnerActionAsync(
         IReadOnlyCollection<string> wordIds, VocabularyLearnerAction action, string userId = "",
@@ -79,9 +80,17 @@ public partial class VocabularyProgressRepository
                 .ToListAsync(ct))
             .ToLookup(progress => progress.VocabularyWordId, StringComparer.Ordinal);
         var now = DateTime.UtcNow;
+        var mode = await db.GetLearningModeAsync(owner, ct);
+        var changed = 0;
         foreach (var wordId in owned)
         {
             var existing = rows[wordId].ToList();
+            // Practice again is for a Known word: on any other it would raise or lower a score
+            // practice earned (a new word to typing level, a strong one down to it).
+            if (action == VocabularyLearnerAction.PracticeAgain
+                && !existing.Any(progress => VocabularyKnownRule.IsKnown(progress, mode)))
+                continue;
+            changed++;
             if (existing.Count == 0)
             {
                 var created = new VocabularyProgress
@@ -108,10 +117,15 @@ public partial class VocabularyProgressRepository
                 }
             }
         }
+        if (changed == 0)
+        {
+            _logger.LogInformation("Practice again asked for {Count} words, none of them Known; nothing written.", ids.Length);
+            return VocabularyMarkResult.Refused("Vocabulary_PracticeAgainNotKnown");
+        }
         await db.SaveChangesAsync(ct);
         _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         _logger.LogInformation("Learner action {Action} applied to {Count} of {Asked} words.",
-            action, owned.Count, ids.Length);
-        return new VocabularyMarkResult(owned.Count);
+            action, changed, ids.Length);
+        return new VocabularyMarkResult(changed);
     }
 }

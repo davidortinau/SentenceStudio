@@ -105,8 +105,11 @@ public sealed class VocabularyDueSummaryTool : CoachToolBase
         var shownTags = tagCounts.Take(maxCategoryTags).ToList();
 
         return new VocabularyDueSummary(
-            DueNowCount: rows.Count(r => r.NextReviewDate is { } d && d <= now),
-            DueThisWeekCount: rows.Count(r => r.NextReviewDate is { } d && d > now && d <= weekEnd),
+            // A Known word is never due.
+            DueNowCount: rows.Count(r => r.NextReviewDate is { } d && d <= now
+                && ToBand(r, mode) != LearningStatus.Known),
+            DueThisWeekCount: rows.Count(r => r.NextReviewDate is { } d && d > now && d <= weekEnd
+                && ToBand(r, mode) != LearningStatus.Known),
             // A word marked Known with no practice is Known, not never practised.
             NeverPracticedCount: rows.Count(r => r.TotalAttempts == 0 && ToBand(r, mode) != LearningStatus.Known),
             TrackedWordCount: rows.Count,

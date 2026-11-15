@@ -234,7 +234,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// </summary>
     internal string Arrangement =>
         $"{_sortField}:{(_sortDescending ? "desc" : "asc")}:{(_listMode ? "list" : "grid")}"
-        + (_selecting ? ":select" : string.Empty);
+        + (_selecting ? ":select" : string.Empty) + (_askingStartOver ? ":ask" : string.Empty);
     internal string SearchText => TryOwner(out _)
         ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
 

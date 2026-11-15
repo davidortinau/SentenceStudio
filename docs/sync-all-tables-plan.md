@@ -651,7 +651,8 @@ chosen for practice while the learner has other words.
 - Mark Known (Learner-led only; refused in Practice-led): mark 2, `IsUserDeclared` true,
   `UserDeclaredAt` and `UpdatedAt` now. No score field changes. A word with no progress row
   gets one.
-- Practice again: mark 5, `UserDeclaredAt` now, `MasteryScore` 0.5, `CurrentStreak` 0,
+- Practice again (only for a word that is Known by the rule; any other word is left as it is):
+  mark 5, `UserDeclaredAt` now, `MasteryScore` 0.5, `CurrentStreak` 0,
   `ProductionInStreak` 0, `ReviewInterval` 1, `EaseFactor` 2.5, `NextReviewDate` now. Counts and
   history are kept.
 - Start over: mark 6 and the same reset with `MasteryScore` 0 and `NextReviewDate` null.
@@ -668,11 +669,13 @@ reset for the attempts after it.
 
 **Merge (server, and any client that merges two copies of a row).** The winning mark is the one
 with the newest `UserDeclaredAt`; a mark with no time is older than any with one; on a tie a
-learner's action (1, 2, 5, 6) beats the automatic stamp (4); a side with no mark and no
-declaration never erases the other side's. A row the learner declared competes by its time
-whatever its value, so an old failed probe (3) newer than a mark still wins, and reads as no mark. When the winning mark is a reset (5 or 6) that the
+learner's action (1, 2, 5, 6) beats the automatic stamp (4), which beats a declared row with no
+mark (0 or 3); a side with no mark and no declaration never erases the other side's. A row the
+learner declared competes by its time whatever its value, so an old failed probe (3) newer than
+a mark still wins, and reads as no mark. When the winning mark is a reset (5 or 6) that the
 upload does not carry, the upload's score is not taken whole even when its counts cover the
-stored row: the row is replayed with the reset.
+stored row: the row is replayed with the reset, and where the history is incomplete an uploaded
+attempt made before the reset is counted without changing the score.
 
 **Older builds.** A build that does not know marks 4 to 6 shows a word by its score; it cannot
 erase a mark, since the merge keeps the marked side.

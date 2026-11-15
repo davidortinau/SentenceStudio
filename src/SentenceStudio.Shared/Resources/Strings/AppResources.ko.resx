@@ -10180,4 +10180,10 @@
   <data name="VocabQuiz_MarkKnownDone" xml:space="preserve">
     <value>아는 단어로 표시했습니다. 다시 연습을 선택하기 전까지는 나오지 않습니다.</value>
   </data>
+  <data name="Vocabulary_PracticeAgainNotKnown" xml:space="preserve">
+    <value>다시 연습은 아는 단어에만 쓸 수 있습니다. 선택한 단어 중 아는 단어가 없습니다.</value>
+  </data>
+  <data name="Vocabulary_StartOverConfirm" xml:space="preserve">
+    <value>단어 {0}개를 처음부터 다시 시작할까요? 점수가 0으로 돌아갑니다. 연습 기록은 유지됩니다.</value>
+  </data>
 </root>

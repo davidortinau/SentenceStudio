@@ -45,7 +45,7 @@ public static class VocabularyProgressFold
         var declared = sources
             .Where(p => p.IsUserDeclared || VocabularyKnownRule.IsMark(p.VerificationState))
             .OrderByDescending(p => p.UserDeclaredAt ?? DateTime.MinValue)
-            .ThenByDescending(p => p.VerificationState != VerificationStatus.KnownByPractice)
+            .ThenByDescending(p => VocabularyKnownRule.MarkRank(p.VerificationState))
             .FirstOrDefault();
         // Most-recently-practiced source's spaced-repetition schedule. Used only to restore the SR
         // cadence when replay cannot reconstruct it (aggregate-only legacy history with no contexts),

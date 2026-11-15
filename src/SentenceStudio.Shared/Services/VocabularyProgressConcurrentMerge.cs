@@ -85,6 +85,24 @@ public static class VocabularyProgressConcurrentMerge
             foreach (var context in fresh.Where(context => context.LearnedAt > incomingReset.At))
                 Apply(candidate, context);
         }
+        else if (storedResetWins && reset is { } storedReset)
+        {
+            // The stored row is already reset: an uploaded attempt made before the reset is
+            // counted, but must not raise or lower the score the reset restarted.
+            foreach (var context in fresh)
+            {
+                if (context.LearnedAt > storedReset.At)
+                {
+                    Apply(candidate, context);
+                    continue;
+                }
+                var score = (candidate.MasteryScore, candidate.CurrentStreak, candidate.ProductionInStreak,
+                    candidate.ReviewInterval, candidate.EaseFactor, candidate.NextReviewDate, candidate.MasteredAt);
+                Apply(candidate, context);
+                (candidate.MasteryScore, candidate.CurrentStreak, candidate.ProductionInStreak,
+                    candidate.ReviewInterval, candidate.EaseFactor, candidate.NextReviewDate, candidate.MasteredAt) = score;
+            }
+        }
         else
         {
             foreach (var context in fresh)
@@ -177,7 +195,7 @@ public static class VocabularyProgressConcurrentMerge
         new[] { stored, incoming }
             .Where(row => row.IsUserDeclared || VocabularyKnownRule.IsMark(row.VerificationState))
             .OrderByDescending(row => row.UserDeclaredAt ?? DateTime.MinValue)
-            .ThenByDescending(row => row.VerificationState != VerificationStatus.KnownByPractice)
+            .ThenByDescending(row => VocabularyKnownRule.MarkRank(row.VerificationState))
             .FirstOrDefault();
 
     private static void MergeDeclaration(

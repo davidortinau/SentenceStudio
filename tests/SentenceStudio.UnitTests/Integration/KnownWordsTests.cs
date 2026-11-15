@@ -249,6 +249,78 @@ public class KnownWordsTests : IClassFixture<PlanGenerationTestFixture>
         merged.VerificationState.Should().Be(VerificationStatus.KnownByPractice);
     }
 
+    [Fact]
+    public void Merge_AStampBeatsAnOldDeclarationWithNoMark_MadeAtTheSameTime()
+    {
+        // The old editor's "Learning" left IsUserDeclared with no mark; the device later stamps
+        // the same row Known by practice, keeping that time.
+        var stored = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w", TotalAttempts = 4,
+            CorrectAttempts = 4, IsUserDeclared = true, UserDeclaredAt = T0 };
+        var incoming = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w", TotalAttempts = 5,
+            CorrectAttempts = 5, IsUserDeclared = true, UserDeclaredAt = T0,
+            VerificationState = VerificationStatus.KnownByPractice };
+
+        VocabularyProgressConcurrentMerge.TryMerge(stored, incoming, [], [], T0.AddHours(1), out var upload);
+        VocabularyProgressConcurrentMerge.TryMerge(incoming, stored, [], [], T0.AddHours(1), out var stale);
+
+        upload.VerificationState.Should().Be(VerificationStatus.KnownByPractice);
+        stale.VerificationState.Should().Be(VerificationStatus.KnownByPractice, "a stale row cannot erase the stamp either");
+    }
+
+    [Fact]
+    public void Merge_AnswersMadeBeforeAPracticeAgainElsewhere_AreCountedButDoNotRaiseTheReopenedScore()
+    {
+        // A row older than its history (counts the contexts do not explain), reopened on the web.
+        var stored = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w",
+            TotalAttempts = 10, CorrectAttempts = 10, MasteryScore = 1f, CurrentStreak = 10, ProductionInStreak = 4 };
+        VocabularyKnownMarks.PracticeAgain(stored, T0.AddHours(2));
+        // A device answers correctly before the reopen and uploads afterwards, knowing no mark.
+        var incoming = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w",
+            TotalAttempts = 11, CorrectAttempts = 11, MasteryScore = 1f, CurrentStreak = 11, ProductionInStreak = 5 };
+        var before = new VocabularyLearningContext { Id = "c-before", VocabularyProgressId = "p", Activity = "VocabularyQuiz",
+            InputMode = "Text", WasCorrect = true, LearnedAt = T0.AddHours(1), CreatedAt = T0.AddHours(1) };
+
+        VocabularyProgressConcurrentMerge.TryMerge(stored, incoming, [], [before], T0.AddHours(3), out var merged);
+
+        merged.VerificationState.Should().Be(VerificationStatus.Reopened);
+        merged.MasteryScore.Should().Be(VocabularyKnownMarks.PracticeAgainMastery);
+        merged.CurrentStreak.Should().Be(0);
+        merged.ProductionInStreak.Should().Be(0);
+        merged.TotalAttempts.Should().Be(11, "the answer is still counted");
+    }
+
+    [Fact]
+    public void AFocusWordMarkedKnown_LeavesTheSession_AndInPracticeLedItDoesNot()
+    {
+        var marked = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w" };
+        VocabularyKnownMarks.MarkKnown(marked, T0);
+        VocabularyQuizItem Item(LearningMode mode) => new()
+        {
+            Word = new VocabularyWord { Id = "w" }, Progress = marked, LearningMode = mode,
+            RequiresFullSessionDemonstration = true,
+        };
+
+        Item(LearningMode.LearnerLed).ReadyToRotateOut.Should().BeTrue();
+        Item(LearningMode.PracticeLed).ReadyToRotateOut.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PracticeAgain_ChangesOnlyKnownWords()
+    {
+        var words = SeedWords(2, UserA);
+        var repository = _fixture.ServiceProvider.GetRequiredService<VocabularyProgressRepository>();
+        (await repository.ApplyLearnerActionAsync([words[0]], VocabularyLearnerAction.MarkKnown, UserA)).Changed.Should().Be(1);
+
+        var both = await repository.ApplyLearnerActionAsync(words, VocabularyLearnerAction.PracticeAgain, UserA);
+        both.Changed.Should().Be(1);
+        Row(words[0]).VerificationState.Should().Be(VerificationStatus.Reopened);
+        Rows(words[1]).Should().BeEmpty("a word that is not Known keeps what practice earned (here, nothing)");
+
+        var none = await repository.ApplyLearnerActionAsync([words[1]], VocabularyLearnerAction.PracticeAgain, UserA);
+        none.Changed.Should().Be(0);
+        none.RefusalKey.Should().Be("Vocabulary_PracticeAgainNotKnown");
+    }
+
     private List<string> SeedWords(int count, string? owner = null)
     {
         var resource = _fixture.SeedResource(vocabWordCount: count, userProfileId: owner);

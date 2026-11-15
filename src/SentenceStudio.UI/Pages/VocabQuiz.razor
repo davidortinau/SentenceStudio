@@ -2437,10 +2437,8 @@ else
             ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
             autoAdvanceCts?.Cancel();
             pendingAttempt = null;
-            var mastered = wordsMastered;
-            await AdvanceFromCurrentItemAsync();
             // A marked word is not one mastered in this session.
-            wordsMastered = mastered;
+            await AdvanceFromCurrentItemAsync(countMastered: false);
             Toast.ShowSuccess($"{Localize["VocabQuiz_MarkKnownDone"]}");
         }
         catch (Exception ex)
@@ -2464,14 +2462,15 @@ else
     }
 
     /// <summary>Moves from the answered current item to the next one or the round summary.</summary>
-    private async Task AdvanceFromCurrentItemAsync()
+    private async Task AdvanceFromCurrentItemAsync(bool countMastered = true)
     {
         // Immediate rotation check (spec §1.3): remove word mid-round if mastered
         if (currentItem != null && currentItem.ReadyToRotateOut)
         {
             roundWordOrder.Remove(currentItem);
             batchPool.Remove(currentItem);
-            wordsMastered++;
+            if (countMastered)
+                wordsMastered++;
 
             // If that was the last word in the round, trigger round summary
             if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count)

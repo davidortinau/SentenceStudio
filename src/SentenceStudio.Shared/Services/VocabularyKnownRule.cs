@@ -47,6 +47,13 @@ public static class VocabularyKnownRule
     /// <summary>Any mark the merge carries (the old failed probe reads as no mark).</summary>
     public static bool IsMark(VerificationStatus mark) => IsKnownMark(mark) || IsResetMark(mark);
 
+    /// <summary>
+    /// Which of two marks made at the same time a merge keeps: a learner's action (2), then the
+    /// automatic stamp (1), then no mark (0: an old declaration that set none, or a failed probe).
+    /// </summary>
+    public static int MarkRank(VerificationStatus mark) =>
+        IsLearnerKnownMark(mark) || IsResetMark(mark) ? 2 : IsKnownMark(mark) ? 1 : 0;
+
     /// <summary>Known by the practice score alone, in either mode.</summary>
     public static bool IsKnownByScore(float masteryScore, int productionInStreak, int totalAttempts) =>
         (masteryScore >= MasteryThreshold && productionInStreak >= MinProductionForKnown)

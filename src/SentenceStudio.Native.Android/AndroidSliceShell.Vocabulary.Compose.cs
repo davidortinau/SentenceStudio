@@ -38,6 +38,33 @@ internal sealed partial class AndroidSliceShell
         var page = VocabularyListPage(vocabulary, palette);
         if (vocabulary is { IsPhoneFilterPresented: true })
             return new Box { Modifier.FillMaxSize(), page, VocabularyFilterSheet(vocabulary, palette) };
+        // Start Over for the chosen words asks first (it sets every one's score to zero).
+        if (vocabulary?.StartOverSelectedMessage is { } startOver)
+        {
+            var confirm = new TextButton(() => RunMoreOnUi(vocabulary.ConfirmStartOverSelectedAsync), enabled: true)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.start-over.confirm"),
+            };
+            confirm.Add(new Text(Localize("Vocabulary_StartOver")) { Color = palette.Danger });
+            var cancel = new TextButton(vocabulary.CancelStartOverSelected, enabled: true)
+            {
+                Modifier = Modifier.TestTag("native.vocabulary.select.start-over.cancel"),
+            };
+            cancel.Add(new Text(Localize("Common_Cancel")));
+            return new Box
+            {
+                Modifier.FillMaxSize(),
+                page,
+                new AndroidX.Compose.AlertDialog(vocabulary.CancelStartOverSelected)
+                {
+                    Modifier = Modifier.TestTag("native.vocabulary.select.start-over.dialog"),
+                    Title = new Text(Localize("Vocabulary_StartOver")),
+                    Text = new Text(startOver),
+                    ConfirmButton = confirm,
+                    DismissButton = cancel,
+                },
+            };
+        }
         return page;
     }
 
@@ -857,7 +884,7 @@ internal sealed partial class AndroidSliceShell
             onDismissRequest: CloseMoreMenu);
         void Mark(VocabularyLearnerAction action, string tag) =>
             menu.Add(VocabularyMenuItem(Localize(VocabularyBrowser.ActionKey(action)), tag,
-                state.CanMarkSelected, () => RunMoreOnUi(() => vocabulary.MarkSelectedAsync(action))));
+                state.CanMarkSelected, () => RunMoreOnUi(() => vocabulary.RequestMarkSelectedAsync(action))));
         if (state.OffersMarkKnown)
             Mark(VocabularyLearnerAction.MarkKnown, "native.vocabulary.select.mark-known");
         Mark(VocabularyLearnerAction.PracticeAgain, "native.vocabulary.select.practice-again");

@@ -22181,6 +22181,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Practice Again is for Known words. None of these is Known..
+        /// </summary>
+        internal static string Vocabulary_PracticeAgainNotKnown {
+            get {
+                return ResourceManager.GetString("Vocabulary_PracticeAgainNotKnown", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Processing batch {0} of {1}....
         /// </summary>
         internal static string Vocabulary_ProcessingBatch {
@@ -22357,6 +22366,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_StartOver {
             get {
                 return ResourceManager.GetString("Vocabulary_StartOver", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start over with {0} word(s)? Their scores go back to zero. Practice history is kept..
+        /// </summary>
+        internal static string Vocabulary_StartOverConfirm {
+            get {
+                return ResourceManager.GetString("Vocabulary_StartOverConfirm", resourceCulture);
             }
         }
 

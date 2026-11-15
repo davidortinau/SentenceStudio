@@ -146,11 +146,41 @@ public sealed class KnownWordsNativeTests
         Assert.True(edit.Detail.CanMarkKnown);
         Assert.DoesNotContain(browser.ListState.Catalog.Words, word => word.Id == first && word.IsKnown);
 
-        // Select All takes the filtered words; Done clears the choice.
+        // Select All takes the filtered words. Start Over asks first; Cancel changes nothing.
         browser.CloseWord();
         browser.SetSelecting(true);
         browser.SelectAllFiltered();
         Assert.Equal(browser.ListState.FilteredWords.Count, browser.ListState.Selected.Count);
+        await browser.RequestMarkSelectedAsync(VocabularyLearnerAction.StartOver);
+        Assert.NotNull(browser.StartOverSelectedMessage);
+        browser.CancelStartOverSelected();
+        Assert.Null(browser.StartOverSelectedMessage);
+        Assert.Contains(browser.ListState.Catalog.Words, word => word.Id == second && word.IsKnown);
+
+        // Practice Again changes only the Known word; the others keep what practice earned.
+        await browser.RequestMarkSelectedAsync(VocabularyLearnerAction.PracticeAgain);
+        Assert.True(browser.ListState.FeedbackWarning);
+        using (var scope = fixture.Scope())
+        {
+            var rows = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                .VocabularyProgresses.AsNoTracking().Where(row => row.UserId == UserA).ToListAsync();
+            Assert.Equal(VerificationStatus.Reopened, rows.Single(row => row.VocabularyWordId == second).VerificationState);
+            Assert.DoesNotContain(rows, row => row.VocabularyWordId == third);
+            Assert.Equal(0f, rows.Single(row => row.VocabularyWordId == first).MasteryScore);
+        }
+
+        // With no Known word chosen, Practice Again is refused and says why.
+        browser.SetSelecting(true);
+        browser.ToggleSelected(third);
+        await browser.RequestMarkSelectedAsync(VocabularyLearnerAction.PracticeAgain);
+        Assert.Equal("Vocabulary_PracticeAgainNotKnown", browser.ListState.Feedback);
+
+        // Confirmed, Start Over applies; Done clears the choice.
+        await browser.RequestMarkSelectedAsync(VocabularyLearnerAction.StartOver);
+        await browser.ConfirmStartOverSelectedAsync();
+        Assert.False(browser.ListState.Selecting);
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
         browser.SetSelecting(false);
         Assert.Empty(browser.ListState.Selected);
     }

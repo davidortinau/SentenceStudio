@@ -276,6 +276,7 @@
     [Inject] private CoachWorkspaceState CoachWorkspace { get; set; } = default!;
 
     [Inject] private SentenceStudio.Data.UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService ProgressCache { get; set; } = default!;
     [Inject] private SentenceStudio.Services.IVocabularyProgressService ProgressService { get; set; } = default!;
     private IJSObjectReference? jsModule;
 
@@ -354,6 +355,9 @@
                 learningMode = previous;
                 Toast.ShowError($"{Localize["LearningMode_SaveFailed"]}");
             }
+            else
+                // The dashboard's Known, Learning and Review counts follow the mode.
+                ProgressCache.InvalidateVocabSummary();
         }
         finally
         {

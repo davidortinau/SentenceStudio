@@ -16,8 +16,51 @@ internal partial class VocabularyBrowser
     private IReadOnlySet<string> _selectedIds = new HashSet<string>(StringComparer.Ordinal);
     private bool _marking;
 
+    /// <summary>Start Over for the chosen words is asking to confirm.</summary>
+    private bool _askingStartOver;
+
+    /// <summary>The confirmation's message while it asks (source bulk delete asks the same way); null otherwise.</summary>
+    internal string? StartOverSelectedMessage => _listOpen && _selecting && _askingStartOver
+        ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+            _text("Vocabulary_StartOverConfirm"), _selectedIds.Count)
+        : null;
+
+    /// <summary>
+    /// The status menu's choice. Mark Known and Practice Again apply at once; Start Over, which
+    /// sets every chosen word's score to zero, asks first.
+    /// </summary>
+    internal Task RequestMarkSelectedAsync(VocabularyLearnerAction action)
+    {
+        if (action != VocabularyLearnerAction.StartOver)
+            return MarkSelectedAsync(action);
+        if (!_selecting || _marking || _selectedIds.Count == 0 || _askingStartOver || !TryOwner(out _))
+            return Task.CompletedTask;
+        _askingStartOver = true;
+        Notify(VocabularyChanges.List);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The confirmation's Start Over.</summary>
+    internal Task ConfirmStartOverSelectedAsync()
+    {
+        if (!_askingStartOver)
+            return Task.CompletedTask;
+        _askingStartOver = false;
+        return MarkSelectedAsync(VocabularyLearnerAction.StartOver);
+    }
+
+    /// <summary>Cancel (or the dialog dismissed) while it asks.</summary>
+    internal void CancelStartOverSelected()
+    {
+        if (!_askingStartOver)
+            return;
+        _askingStartOver = false;
+        Notify(VocabularyChanges.List);
+    }
+
     private void ResetSelection()
     {
+        _askingStartOver = false;
         _selecting = false;
         _selectedIds = new HashSet<string>(StringComparer.Ordinal);
     }
@@ -35,7 +78,7 @@ internal partial class VocabularyBrowser
     /// <summary>A row tapped in select mode: chosen, or no longer chosen.</summary>
     internal void ToggleSelected(string wordId)
     {
-        if (!_selecting || _marking || !TryOwner(out _)
+        if (!_selecting || _marking || _askingStartOver || !TryOwner(out _)
             || !_catalog.Words.Any(word => word.Id == wordId))
             return;
         var next = new HashSet<string>(_selectedIds, StringComparer.Ordinal);

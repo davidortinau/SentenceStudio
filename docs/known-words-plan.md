@@ -240,6 +240,11 @@ Every phase is reviewed before any device round.
     menu only before an answer.
   - Settings: Learning mode on the web and MAUI (`Settings.razor`), iOS (`SettingsView.LearningMode`)
     and Android (`RenderLearningModeSection`), through `LearningModeSetting` on the native heads.
+- Review of the branch (2026-11-14) changed: a word marked Known leaves a plan's focus quiz too;
+  Practice again changes only Known words (many at once, it skips the others); a stamp beats an
+  old declaration that set no mark; answers made before a Practice again elsewhere are counted
+  without raising the reopened score; plan focus words, Sam's due counts and due tags leave
+  Known words out; the native lists ask before Start Over for many words.
 - The Familiar tile, badge and filter choice are gone from every client (the count fields in the
   API and Sam results stay, at zero).
 - Not the system control: the iOS list's select mode is rows with a selection circle, since the

@@ -105,11 +105,14 @@ public partial class VocabularyProgressRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // A Known word is never due, so its tags are not focus areas.
+        var mode = await db.GetLearningModeAsync(userProfileId, cancellationToken);
         return await db.VocabularyProgresses
             .AsNoTracking()
             .Where(p => p.UserId == userProfileId
                         && p.NextReviewDate != null
                         && p.NextReviewDate <= asOfUtc)
+            .Where(VocabularyKnownRule.IsNotKnownExpression(mode))
             .Join(
                 db.VocabularyWords.AsNoTracking(),
                 progress => progress.VocabularyWordId,

@@ -1414,6 +1414,12 @@ else
             var marked = await ProgressService.SetLearnerMarkAsync(selectedWordIds.ToList(), action, userId);
             int successCount = marked.Changed;
             int failCount = selectedWordIds.Count - marked.Changed;
+            if (successCount == 0)
+            {
+                // Nothing changed: say why (Practice Again with no Known word, Mark Known in Practice-led).
+                Toast.ShowWarning($"{Localize[marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours"]}");
+                return;
+            }
 
             CacheService.InvalidateVocabSummary();
             await LoadData();

@@ -164,8 +164,22 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 SetSelecting: SetSelecting,
                 ToggleSelected: ToggleSelected,
                 SelectAll: SelectAllFiltered,
-                MarkSelected: action => Run(() => MarkSelectedAsync(action))),
-            PageWidth, ListDeleteMessage);
+                MarkSelected: action => Run(() => RequestMarkSelectedAsync(action)),
+                ConfirmStartOver: () => Run(ConfirmStartOverSelectedAsync),
+                CancelStartOver: CancelStartOverLater),
+            PageWidth, ListDeleteMessage, StartOverSelectedMessage);
+    }
+
+    /// <summary>As <see cref="CancelListDeleteLater"/>: SwiftUI can report the close before the action runs.</summary>
+    private void CancelStartOverLater()
+    {
+        if (StartOverSelectedMessage is null)
+            return;
+        DispatchQueue.MainQueue.DispatchAsync(() =>
+        {
+            if (!IsDisposed)
+                CancelStartOverSelected();
+        });
     }
 
     /// <summary>A row's swipe Study: Study opens on Choose My Own with the word's resources (none hides it).</summary>

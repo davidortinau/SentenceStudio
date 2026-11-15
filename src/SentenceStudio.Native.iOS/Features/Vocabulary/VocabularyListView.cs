@@ -33,7 +33,9 @@ internal sealed record VocabularyListActions(
     Action<bool>? SetSelecting = null,
     Action<string>? ToggleSelected = null,
     Action? SelectAll = null,
-    Action<SentenceStudio.Data.VocabularyLearnerAction>? MarkSelected = null);
+    Action<SentenceStudio.Data.VocabularyLearnerAction>? MarkSelected = null,
+    Action? ConfirmStartOver = null,
+    Action? CancelStartOver = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -73,7 +75,7 @@ internal static class VocabularyListView
     internal static SwiftView Page(
         VocabularyBrowserList state, SourceUiStyle style,
         Func<string, string> text, VocabularyListActions actions, double? pageWidth = null,
-        string? deleteMessage = null)
+        string? deleteMessage = null, string? startOverMessage = null)
     {
         var width = BrowserPage.Width(pageWidth, style);
         var wide = IsWide(width);
@@ -82,6 +84,22 @@ internal static class VocabularyListView
             ? WideLayout(state, style, text, actions, width)
             : SingleColumn(state, style, text, actions, width);
         page = DeleteConfirmation(page, deleteMessage, text, actions);
+        // Start Over for the chosen words asks first. A new page is mounted when it asks and
+        // when it stops (VocabularyBrowser.Arrangement), so the dialog is built only then.
+        if (startOverMessage is not null)
+        {
+            var dialog = Views.ConfirmationDialog(page, startOverMessage,
+                    () => actions.CancelStartOver?.Invoke(),
+                    Views.Button(text("Vocabulary_StartOver"), () => actions.ConfirmStartOver?.Invoke())
+                        .WithButtonRole(SwiftButtonRole.Destructive)
+                        .WithAccessibilityIdentifier($"{Prefix}.select.start-over.confirm"),
+                    Views.Button(text("Common_Cancel"), () => actions.CancelStartOver?.Invoke())
+                        .WithButtonRole(SwiftButtonRole.Cancel)
+                        .WithAccessibilityIdentifier($"{Prefix}.select.start-over.cancel"))
+                .WithAccessibilityIdentifier($"{Prefix}.select.start-over.dialog");
+            dialog.IsPresented = true;
+            page = dialog;
+        }
         return BrowserPage.WithToolbar(Prefix, page, style, actions.PageWidthChanged,
             ToolbarActions(state, text, actions, wide, ready));
     }
