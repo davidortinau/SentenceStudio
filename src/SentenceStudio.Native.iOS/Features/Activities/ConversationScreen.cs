@@ -392,7 +392,9 @@ internal sealed class ConversationScreen : IActivityScreen
             })
             .ToArray();
         var name = state.Scenarios.FirstOrDefault(item => item.Id == selected)?.DisplayName ?? string.Empty;
-        return Views.Menu(Views.Image("theatermasks"), actions)
+        // Titled, so a toolbar out of room lists it in its "More" menu (issue #218); VoiceOver
+        // also hears the scenario chosen.
+        return Views.Menu(Views.Label(text(NativeConversationText.Scenario), "theatermasks"), actions)
             .WithAccessibilityLabel($"{text(NativeConversationText.Scenario)}, {name}")
             .WithAccessibilityIdentifier(NativeConversationAccess.Scenario);
     }
@@ -563,10 +565,11 @@ internal sealed class ConversationScreen : IActivityScreen
                     .WithAccessibilityIdentifier($"{NativeConversationAccess.LanguageOption}.{language}");
             })
             .ToArray();
-        // Source: translate icon, with the language name from md widths up.
+        // Source: translate icon, with the language name from md widths up. The narrow icon is
+        // a titled Label, so a toolbar out of room lists it in its "More" menu (issue #218).
         SwiftView label = style.ViewportWidth >= 768
             ? Views.HStack(Views.Image("translate"), Views.Text(state.TargetLanguage))
-            : Views.Image("translate");
+            : Views.Label(text(NativeConversationText.ChangeLanguage), "translate");
         return Views.Menu(label, actions)
             .WithAccessibilityLabel($"{text(NativeConversationText.ChangeLanguage)}, {state.TargetLanguage}")
             .WithAccessibilityIdentifier(NativeConversationAccess.Language);

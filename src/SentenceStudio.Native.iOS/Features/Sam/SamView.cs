@@ -120,27 +120,30 @@ internal static class SamView
     internal static string Title(NativeSamState state, Func<string, string> text) => Persona(state);
 
     /// <summary>Header actions: conversations, compact/expand, close (source SamPanel header).</summary>
+    /// <remarks>
+    /// Each is a titled Label: the toolbar shows its symbol, and when the toolbar runs out of
+    /// room (the folded iPhone Duo in landscape) its "More" menu lists it by that title. An
+    /// untitled icon gives that menu nothing to show, so it did not open (issue #218).
+    /// </remarks>
     internal static SwiftView[] HeaderActions(NativeSamState state, Func<string, string> text,
         SamActions actions)
     {
         var items = new List<SwiftView>
         {
-            Views.Button(Views.Image("list.bullet"), actions.ToggleConversations)
-                .WithAccessibilityLabel(text("Coach_ConversationsToggle"))
+            Views.Button(Views.Label(text("Coach_ConversationsToggle"), "list.bullet"),
+                    actions.ToggleConversations)
                 .WithAccessibilityIdentifier("native.sam.conversations.toggle"),
-            Views.Button(Views.Image("square.and.pencil"), actions.NewConversation)
-                .WithAccessibilityLabel(text("Coach_NewConversation"))
+            Views.Button(Views.Label(text("Coach_NewConversation"), "square.and.pencil"),
+                    actions.NewConversation)
                 .WithAccessibilityIdentifier("native.sam.new"),
         };
         // Both presentations resize: the iPad side panel's width, the phone sheet's height.
-        items.Add(Views.Button(Views.Image(state.Size == NativeSamPanelSize.Compact
-                        ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left"),
+        var compact = state.Size == NativeSamPanelSize.Compact;
+        items.Add(Views.Button(Views.Label(text(compact ? "Coach_PanelExpand" : "Coach_PanelCompact"),
+                        compact ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left"),
                     actions.ToggleSize)
-                .WithAccessibilityLabel(text(state.Size == NativeSamPanelSize.Compact
-                    ? "Coach_PanelExpand" : "Coach_PanelCompact"))
                 .WithAccessibilityIdentifier("native.sam.size"));
-        items.Add(Views.Button(Views.Image("xmark"), actions.Close)
-            .WithAccessibilityLabel(text("Coach_PanelClose"))
+        items.Add(Views.Button(Views.Label(text("Coach_PanelClose"), "xmark"), actions.Close)
             .WithAccessibilityIdentifier("native.sam.close"));
         foreach (var item in items)
             item.IsEnabled = !state.Busy || item.AccessibilityIdentifier == "native.sam.close";

@@ -164,9 +164,10 @@ internal sealed class SceneScreen : IActivityScreen
             : page);
         if (state.Phase is not (NativePhase.Ready or NativePhase.Empty))
             return body;
-        // Source PageHeader ToolbarActions: the image gallery icon.
-        var gallery = Views.Button(Views.Image("photo.on.rectangle.angled"), () => Fire(_presenter.OpenGalleryAsync))
-            .WithAccessibilityLabel(text(NativeSceneText.ImageGallery))
+        // Source PageHeader ToolbarActions: the image gallery icon, titled so a toolbar out of
+        // room lists it in its "More" menu (issue #218).
+        var gallery = Views.Button(Views.Label(text(NativeSceneText.ImageGallery), "photo.on.rectangle.angled"),
+                () => Fire(_presenter.OpenGalleryAsync))
             .WithAccessibilityIdentifier(NativeSceneAccess.OpenGallery);
         return Views.Toolbar(body, gallery);
     }
