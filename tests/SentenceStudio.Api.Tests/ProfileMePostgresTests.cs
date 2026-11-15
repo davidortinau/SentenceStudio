@@ -45,6 +45,38 @@ public sealed class ProfileMePostgresTests : IClassFixture<ProfileMePostgresFixt
         _fixture.AssertSeeded(await _fixture.GetAsync(b), b);
     }
 
+    // docs/known-words-plan.md: the Learning mode is saved for the token's owner only, by name,
+    // and nothing else on the profile changes.
+    [ApplicationOperationPostgresFact]
+    public async Task LearningMode_IsSavedForTheTokenOwnerOnly_AndRefusesUnknownValues()
+    {
+        var (a, b) = await _fixture.SeedOwnersAsync();
+        using var client = _fixture.ClientFor(a);
+        Assert.Equal(SentenceStudio.Shared.Models.LearningMode.LearnerLed, (await _fixture.GetAsync(a)).LearningMode);
+
+        using (var saved = await client.PutAsJsonAsync("/api/v1/profile/me/learning-mode", new { LearningMode = "PracticeLed" }))
+        {
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            Assert.Contains("\"learningMode\":\"PracticeLed\"", await saved.Content.ReadAsStringAsync());
+        }
+        var storedA = await _fixture.GetAsync(a);
+        Assert.Equal(SentenceStudio.Shared.Models.LearningMode.PracticeLed, storedA.LearningMode);
+        storedA.LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed;
+        _fixture.AssertSeeded(storedA, a);
+        _fixture.AssertSeeded(await _fixture.GetAsync(b), b);
+        Assert.Equal(SentenceStudio.Shared.Models.LearningMode.LearnerLed, (await _fixture.GetAsync(b)).LearningMode);
+
+        foreach (var bad in new[] { "1", "Familiar", "", "practiceled" })
+        {
+            using var refused = await client.PutAsJsonAsync("/api/v1/profile/me/learning-mode", new { LearningMode = bad });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        }
+        using (var anonymous = _fixture.CreateClient())
+        using (var noOwner = await anonymous.PutAsJsonAsync("/api/v1/profile/me/learning-mode", new { LearningMode = "LearnerLed" }))
+            Assert.Equal(HttpStatusCode.Unauthorized, noOwner.StatusCode);
+        Assert.Equal(SentenceStudio.Shared.Models.LearningMode.PracticeLed, (await _fixture.GetAsync(a)).LearningMode);
+    }
+
     [ApplicationOperationPostgresFact]
     public async Task OwnerBToken_CannotChangeOwnerA()
     {
