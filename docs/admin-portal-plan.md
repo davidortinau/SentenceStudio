@@ -163,3 +163,28 @@ the MAUI or native apps. Recording AI usage outside Sam.
 2. What the server records per device for sync. Needs a short read of the sync tables. (Phase 3)
 3. Whether 24 hours is acceptable for a switched-off account on a phone. (Phase 2)
 4. Where the scheduled task keeps its token. A cloud task cannot use this Mac's keychain. (Phase 1)
+
+## Team and how each phase runs (Captain, 2026-11-15)
+
+- **One fresh session per phase.** Each starts by reading this plan.
+- **Lead: Fable 5.2.** Effort xhigh for phases 0 and 2 (a mistake there is a security hole or
+  lost data), high for phase 1. The Captain sets these with `/model` and `/effort`.
+- **Phases 3 and 4 run in parallel on a worker.** The Captain asked for this: one Sonnet 5.5
+  worker at medium effort, in its own git worktree with its own files, started only after
+  phase 0 is merged. The lead reviews its diff before anything is merged.
+- **Review.** `/code-review` on every diff before any running check: high, and xhigh for phases
+  0 and 2, which also get `/security-review`.
+- **Weekday check (phase 1).** Sonnet 5.5 at medium. It triages and reports; real fixes go to a
+  full session.
+- **Optional, the Captain's to run:** `/code-review ultra` on phase 0 before its first
+  production deploy.
+
+## Status
+
+| Phase | State |
+|---|---|
+| 0. Admin sign-in | Not started. Next. |
+| 1. Feedback inbox, agent access, scheduled check | Not started. |
+| 2. Accounts and the sign-up list | Not started. |
+| 3. Sync and data health | Not started. Worker, after phase 0 merges. |
+| 4. AI usage and jobs | Not started. Worker, after phase 0 merges. |
