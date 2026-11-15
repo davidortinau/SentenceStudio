@@ -31,7 +31,8 @@ internal sealed partial class AndroidSliceShell
             provider.GetRequiredService<NativeResourcePresenter>(),
             provider.GetRequiredService<ILoggerFactory>()
                 .CreateLogger<AndroidResourcesCoordinator>(),
-            Localize);
+            Localize,
+            provider.GetRequiredService<NativeResourceStudyHistory>());
         coordinator.Changed += OnResourcesChanged;
         coordinator.FormOpenChanged += OnResourceFormOpenChanged;
         _resources = coordinator;
@@ -94,6 +95,8 @@ internal sealed partial class AndroidSliceShell
                 await _dashboard.LoadChooseOwnAsync(cancellationToken);
             else
                 await _dashboard.LoadAsync(cancellationToken);
+            // Words marked, added or deleted in the Library change the Vocabulary counts.
+            await _dashboard.RefreshVocabularyAsync(cancellationToken);
         });
     }
 

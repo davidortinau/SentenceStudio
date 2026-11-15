@@ -13,6 +13,7 @@ internal sealed record LearningResourceActions(
     Action CancelDelete,
     Action Delete,
     Action Generate,
+    Action RetryStudy,
     Action<string> AttachWord,
     Action CreateWord,
     Action<string> RemoveWord,

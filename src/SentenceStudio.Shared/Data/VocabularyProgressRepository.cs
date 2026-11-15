@@ -309,36 +309,35 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
             {
                 vp.TotalAttempts,
                 vp.MasteryScore,
+                vp.ProductionInStreak,
                 vp.NextReviewDate,
-                vp.IsUserDeclared,
-                vp.VerificationState,
-                vp.IsKnown
+                vp.VerificationState
             })
             .ToListAsync();
 
         var now = DateTime.UtcNow;
+        // The one Known rule with the learner's mode (docs/known-words-plan.md). A Known word is
+        // in no other tile, practised or not; Familiar is no longer a status (always 0).
+        var mode = await db.GetLearningModeAsync(userId);
+        var rows = allProgress.Select(p => new
+        {
+            p.TotalAttempts, p.NextReviewDate,
+            Known = VocabularyKnownRule.IsKnown(mode, p.VerificationState, p.MasteryScore,
+                p.ProductionInStreak, p.TotalAttempts)
+        }).ToList();
 
-        // Familiar = user-declared but not yet verified through practice
-        var familiar = allProgress.Count(p => p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending);
-
-        // Words with progress records (excluding Familiar, which is its own category)
-        var learning = allProgress.Count(p =>
-            !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending)
-            && !p.IsKnown && p.TotalAttempts > 0
+        var learning = rows.Count(p => !p.Known && p.TotalAttempts > 0
             && (p.NextReviewDate == null || p.NextReviewDate > now));
-        var review = allProgress.Count(p =>
-            !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending)
-            && !p.IsKnown && p.NextReviewDate != null && p.NextReviewDate <= now);
-        var known = allProgress.Count(p => p.IsKnown);
+        var review = rows.Count(p => !p.Known && p.NextReviewDate != null && p.NextReviewDate <= now);
+        var known = rows.Count(p => p.Known);
 
-        // "New" = Total words that have never been practiced (no progress record OR progress with 0 attempts)
-        var wordsWithProgress = allProgress.Count;
-        var newFromProgress = allProgress.Count(p => p.TotalAttempts == 0
-            && !(p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending));
-        var wordsNeverSeen = totalVocabWords - wordsWithProgress;
+        // "New" = never practised and not Known (no progress record, or one with 0 attempts)
+        var newFromProgress = rows.Count(p => !p.Known && p.TotalAttempts == 0
+            && !(p.NextReviewDate != null && p.NextReviewDate <= now));
+        var wordsNeverSeen = totalVocabWords - rows.Count;
         var newCount = wordsNeverSeen + newFromProgress;
 
-        return (newCount, learning, familiar, review, known);
+        return (newCount, learning, 0, review, known);
     }
 
     /// <summary>
@@ -388,10 +387,12 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Known words are never due (the one rule, with the learner's mode).
+        var notKnown = VocabularyKnownRule.IsNotKnownExpression(await db.GetLearningModeAsync(userId));
         var dueCount = await db.VocabularyProgresses
+            .Where(notKnown)
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
-                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
                 && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)
                 && db.ResourceVocabularyMappings.Any(m =>
                     m.VocabularyWordId == vp.VocabularyWordId
@@ -421,13 +422,15 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Known words are never due (the one rule, with the learner's mode).
+        var notKnown = VocabularyKnownRule.IsNotKnownExpression(await db.GetLearningModeAsync(userId));
         var dueWords = await db.VocabularyProgresses
+            .Where(notKnown)
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
-                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
                 && db.VocabularyWords.Any(w => w.Id == vp.VocabularyWordId && w.UserProfileId == userId)
                 && db.ResourceVocabularyMappings.Any(m =>
                     m.VocabularyWordId == vp.VocabularyWordId
@@ -557,7 +560,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
                 AverageMasteryScore = g.Average(p => p.MasteryScore),
                 TotalAttempts = g.Sum(p => p.TotalAttempts),
                 TotalCorrectAttempts = g.Sum(p => p.CorrectAttempts),
-                KnownCount = g.Count(p => p.IsKnown)
+                KnownCount = g.Count(p => p.MasteryScore >= 0.85f && p.ProductionInStreak >= 2)
             })
             .FirstOrDefaultAsync();
 

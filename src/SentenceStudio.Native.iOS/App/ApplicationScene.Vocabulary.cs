@@ -25,9 +25,13 @@ internal sealed partial class ApplicationScene
     private long _renderedVocabularyFormVersion = -1;
     private long _renderedVocabularySheetVersion = -1;
 
-    private void OnVocabularyRoutesChanged(int count)
+    /// <summary>
+    /// System Back changed the path: each Vocabulary page that left it closes. The word editor can
+    /// sit above the duplicate page (its Edit), so Back from it leaves the duplicate page open.
+    /// </summary>
+    private void OnVocabularyRoutesChanged(IReadOnlyList<string> routes)
     {
-        if (count == 0 && _vocabularySlot is not null)
+        if (_vocabularySlot is not null && !routes.Contains(ApplicationFormRoutes.Vocabulary))
         {
             if (_lookupsSlot is not null)
             {
@@ -36,17 +40,88 @@ internal sealed partial class ApplicationScene
             }
             DropVocabularyReferences();
             _app.OnVocabularyListPopped();
+            return;
         }
-        else if (count == 1 && _vocabularyWordSlot is not null)
+        if (_vocabularyWordSlot is not null && !routes.Contains(ApplicationFormRoutes.VocabularyWordForm))
         {
             DropVocabularyWordReferences();
             _app.OnVocabularyWordPopped();
         }
-        else if (count == 1 && _lookupsSlot is not null)
+        if (_lookupsSlot is not null && !routes.Contains(ApplicationFormRoutes.RecentLookups))
         {
             DropRecentLookupsReferences();
             _app.OnRecentLookupsPopped();
         }
+        if (_duplicatesSlot is not null && !routes.Contains(ApplicationFormRoutes.VocabularyDuplicates))
+        {
+            DropDuplicatesReferences();
+            _app.OnVocabularyDuplicatesPopped();
+        }
+    }
+
+    // The duplicate page (Captain 2026-11-14: "The cramped space in the split view doesn't
+    // work"): pushed above the Vocabulary list, so the Library split view shows it in the detail
+    // column beside the list (with Full screen), and a phone shows it full width.
+    private SwiftView? _duplicatesSlot;
+    private VocabularyDuplicatePanel? _renderedDuplicates;
+    private SourceUiStyle? _renderedDuplicatesStyle;
+
+    private void UpdateVocabularyDuplicates(ISceneNavigation stack, bool appearanceChanged)
+    {
+        var panel = _app.VocabularyDuplicates;
+        if (panel is not null && _duplicatesSlot is null)
+        {
+            // It waits for the editor to leave (Find Duplicates closes it first).
+            if (stack.NavigationPath.Count != 1 || _vocabularyWordSlot is not null
+                || _lookupsSlot is not null)
+                return;
+            _duplicatesSlot = Views.VStack(_app.RenderVocabularyDuplicates(_style))
+                .WithNavigationTitle(_app.VocabularyDuplicatesTitle)
+                .WithInlineNavigationTitle();
+            RecordDuplicates(panel);
+            stack.Push(ApplicationFormRoutes.VocabularyDuplicates, _duplicatesSlot);
+        }
+        else if (panel is null && _duplicatesSlot is not null)
+        {
+            // Closed without a Back (a word opened from the list beside it): leave the page too.
+            // Under an editor (its Edit), or while Back is blocked, the reference stays, so the
+            // page leaves once it is on top again rather than stay on the stack, dead.
+            var path = stack.NavigationPath;
+            if (path.Contains(ApplicationFormRoutes.VocabularyDuplicates)
+                && (path[^1] != ApplicationFormRoutes.VocabularyDuplicates || !stack.CanNavigateBack))
+                return;
+            var onTop = path.Count > 0 && path[^1] == ApplicationFormRoutes.VocabularyDuplicates;
+            // Clear first: the route callback must not report this pop as a person's Back.
+            DropDuplicatesReferences();
+            if (onTop)
+                stack.Pop();
+        }
+        else if (panel is not null && _duplicatesSlot is not null
+            && (appearanceChanged || !ReferenceEquals(panel, _renderedDuplicates)
+                || !ReferenceEquals(_style, _renderedDuplicatesStyle)))
+        {
+            // A merge or Skip swaps the Sections into the mounted Form, so the page keeps its
+            // scroll position; a new appearance or style draws it whole.
+            var next = _app.RenderVocabularyDuplicates(_style);
+            var reshaped = appearanceChanged || !ReferenceEquals(_style, _renderedDuplicatesStyle);
+            if (reshaped || !TrySwapFormSections(_duplicatesSlot, next, VocabularyDuplicatesView.FormId))
+                Replace(_duplicatesSlot, next);
+            _duplicatesSlot.WithNavigationTitle(_app.VocabularyDuplicatesTitle);
+            RecordDuplicates(panel);
+        }
+    }
+
+    private void RecordDuplicates(VocabularyDuplicatePanel panel)
+    {
+        _renderedDuplicates = panel;
+        _renderedDuplicatesStyle = _style;
+    }
+
+    private void DropDuplicatesReferences()
+    {
+        _duplicatesSlot = null;
+        _renderedDuplicates = null;
+        _renderedDuplicatesStyle = null;
     }
 
     // Recent lookups (decision 4 B): one page pushed above the Vocabulary list.
@@ -128,8 +203,22 @@ internal sealed partial class ApplicationScene
         }
         _vocabularySheet.IsPresented = _app.IsVocabularyFilterPresented;
 
+        // A word opened from the list beside the duplicate page (the split view): the page
+        // gives the detail column to the word, as another list row would. A word the page's own
+        // Edit opened goes above the page instead, and Back returns to it (Captain 2026-11-14).
+        if (_app.IsVocabularyWordOpen && _duplicatesSlot is not null && _vocabularyWordSlot is null
+            && !_app.IsVocabularyWordFromDuplicates)
+            _app.CloseVocabularyDuplicates();
+        UpdateVocabularyDuplicates(stack, appearanceChanged);
+
+        // Above the duplicate page only for a word its Edit opened, while the page is still open;
+        // otherwise the editor waits for that page to leave (its close can wait while Back is
+        // blocked).
+        var path = stack.NavigationPath;
         if (_app.IsVocabularyWordOpen && _vocabularyWordSlot is null
-            && stack.NavigationPath.Count == 1)
+            && (path.Count == 1 || _duplicatesSlot is not null && path.Count == 2
+                && path[^1] == ApplicationFormRoutes.VocabularyDuplicates
+                && _app.IsVocabularyWordFromDuplicates && _app.VocabularyDuplicates is not null))
         {
             _vocabularyWordContent = Views.VStack(_app.RenderVocabularyWord(_style));
             _vocabularyDeleteMessage = _app.VocabularyDeleteMessage;
@@ -162,6 +251,8 @@ internal sealed partial class ApplicationScene
                 _vocabularyDeleteConfirmation.IsPresented = asking;
         }
 
+        // Find Duplicates in the editor: the editor has left in this update, so the page can open.
+        UpdateVocabularyDuplicates(stack, appearanceChanged);
         UpdateRecentLookups(stack, appearanceChanged);
     }
 
@@ -242,6 +333,7 @@ internal sealed partial class ApplicationScene
     {
         DropVocabularyWordReferences();
         DropRecentLookupsReferences();
+        DropDuplicatesReferences();
         _vocabularySlot = null;
         _vocabularySearch = null;
         _vocabularyFilterSlot = null;

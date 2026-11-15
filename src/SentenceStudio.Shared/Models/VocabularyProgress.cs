@@ -6,14 +6,7 @@ namespace SentenceStudio.Shared.Models;
 [Table("VocabularyProgress")]
 public class VocabularyProgress
 {
-    // Minimum production attempts required to be considered "Known"
     private const int MIN_PRODUCTION_FOR_KNOWN = 2;
-    private const float MASTERY_THRESHOLD = 0.85f;
-    
-    // Fix 4: High-confidence bypass for IsKnown
-    private const float HIGH_CONFIDENCE_MASTERY_FLOOR = 0.75f;
-    private const int HIGH_CONFIDENCE_MIN_PRODUCTION = 4;
-    private const int HIGH_CONFIDENCE_MIN_ATTEMPTS = 8;
 
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string VocabularyWordId { get; set; } = string.Empty; // FK - ONE record per word
@@ -97,31 +90,9 @@ public class VocabularyProgress
     [NotMapped]
     public float EffectiveStreak => CurrentStreak + (ProductionInStreak * 0.5f);
 
-    // Computed properties for status classification
-    [NotMapped]
-    public LearningStatus Status =>
-        IsUserDeclared && VerificationState == VerificationStatus.Pending
-            ? LearningStatus.Familiar
-            : MasteryScore switch
-            {
-                0 => LearningStatus.Unknown,
-                _ when IsKnown => LearningStatus.Known,
-                _ => LearningStatus.Learning
-            };
-
-    // Fix 4: IsKnown with high-confidence streak-based bypass
-    [NotMapped]
-    public bool IsKnown => 
-        (MasteryScore >= MASTERY_THRESHOLD && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN)
-        || (MasteryScore >= HIGH_CONFIDENCE_MASTERY_FLOOR 
-            && ProductionInStreak >= HIGH_CONFIDENCE_MIN_PRODUCTION 
-            && TotalAttempts >= HIGH_CONFIDENCE_MIN_ATTEMPTS);
-
-    [NotMapped]
-    public bool IsLearning => MasteryScore > 0 && !IsKnown;
-
-    [NotMapped]
-    public bool IsUnknown => MasteryScore == 0;
+    // Known, Learning and Unknown are decided by SentenceStudio.Services.VocabularyKnownRule with
+    // the learner's Learning mode (docs/known-words-plan.md); a row cannot know the mode, so it
+    // has no status properties of its own.
 
     [NotMapped]
     public float Accuracy => TotalAttempts > 0 ? (float)CorrectAttempts / TotalAttempts : 0;
@@ -144,13 +115,6 @@ public class VocabularyProgress
 
     [NotMapped]
     public bool IsDueForReview => NextReviewDate.HasValue && NextReviewDate.Value <= DateTime.UtcNow;
-
-    [NotMapped]
-    public bool IsFamiliar => IsUserDeclared && VerificationState == VerificationStatus.Pending;
-
-    [NotMapped]
-    public bool IsInGracePeriod => IsFamiliar && UserDeclaredAt.HasValue
-        && (DateTime.UtcNow - UserDeclaredAt.Value).TotalDays < 14;
 
     // LEGACY: computed properties for backward compatibility
     [NotMapped]

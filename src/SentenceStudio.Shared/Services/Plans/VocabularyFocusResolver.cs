@@ -115,14 +115,21 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
             .AsNoTracking()
             .Where(p => p.UserId == userId)
             .Select(p => new ProgressRow(
-                p.VocabularyWordId, p.MasteryScore, p.TotalAttempts, p.NextReviewDate, p.LastPracticedAt))
+                p.VocabularyWordId, p.MasteryScore, p.TotalAttempts, p.NextReviewDate, p.LastPracticedAt,
+                p.ProductionInStreak, p.VerificationState))
             .ToListAsync(ct);
 
         var progressLookup = progressById
             .GroupBy(p => p.VocabularyWordId, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
+        // Known words are never scheduled (docs/known-words-plan.md): not as never-practised, weak
+        // or least-recently-practised focus either.
+        var mode = await _db.GetLearningModeAsync(userId, ct);
         var ranked = matches
+            .Where(w => !(progressLookup.GetValueOrDefault(w.Id) is { } progress
+                && VocabularyKnownRule.IsKnown(mode, progress.Mark, progress.MasteryScore,
+                    progress.ProductionInStreak, progress.TotalAttempts)))
             .Select(w => Rank(w, progressLookup.GetValueOrDefault(w.Id), dueCutoffUtc))
             .OrderBy(r => (int)r.Tier)
             .ThenBy(r => r.SecondarySort)
@@ -270,7 +277,9 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
         float MasteryScore,
         int TotalAttempts,
         DateTime? NextReviewDate,
-        DateTime LastPracticedAt);
+        DateTime LastPracticedAt,
+        int ProductionInStreak,
+        VerificationStatus Mark);
 
     private sealed record RankedWord(
         WordRow Word,

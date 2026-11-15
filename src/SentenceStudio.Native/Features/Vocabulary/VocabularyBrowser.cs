@@ -16,8 +16,20 @@ internal sealed record VocabularyBrowserList(
     VocabularyDuplicatePanel? Duplicates = null,
     string SheetSortField = "added", bool SheetSortDescending = true,
     bool FilterPanelHidden = false,
-    int RowLimit = int.MaxValue)
+    int RowLimit = int.MaxValue,
+    bool Selecting = false, IReadOnlySet<string>? SelectedIds = null, bool Marking = false)
 {
+    private static readonly IReadOnlySet<string> NoSelection = new HashSet<string>();
+
+    /// <summary>The words chosen in select mode (empty outside it).</summary>
+    internal IReadOnlySet<string> Selected => SelectedIds ?? NoSelection;
+
+    /// <summary>A mark can be applied: words are chosen and nothing is saving.</summary>
+    internal bool CanMarkSelected => Selecting && !Marking && Selected.Count > 0;
+
+    /// <summary>Mark Known is offered in Learner-led only (docs/known-words-plan.md).</summary>
+    internal bool OffersMarkKnown => Catalog.Mode == LearningMode.LearnerLed;
+
     /// <summary>
     /// The words a head that builds every row up front shows now (iOS): the first
     /// <see cref="RowLimit"/> of <see cref="FilteredWords"/>. A learner can hold thousands of
@@ -36,8 +48,13 @@ internal sealed record VocabularyBrowserEdit(
     bool PlayingAudio, NativeQuizPhotoAsset? Photo,
     bool ConfirmingDelete = false, bool Deleting = false,
     string? DeleteError = null, bool HandingOff = false,
-    VocabularyExamplesState? Examples = null, bool Creating = false)
+    VocabularyExamplesState? Examples = null, bool Creating = false,
+    bool Marking = false)
 {
+    /// <summary>A status action (Mark Known, Practice again, Start over) can run now.</summary>
+    internal bool CanMark => !Creating && !Marking && !Saving && !Deleting && !HandingOff
+        && Detail is not null;
+
     /// <summary>Source VocabularyWordEdit: Find Duplicates is disabled while saving (and absent for a new word).</summary>
     internal bool CanFindDuplicates => !Creating
         && VocabularyWordCommands.CanFindDuplicates(Saving || Deleting || HandingOff, Draft);
@@ -99,7 +116,9 @@ internal enum VocabularyChanges
     /// <summary>The editor's Reference Sentences changed (a sentence, a suggestion, the row being edited or the result shown).</summary>
     Examples = 128,
     /// <summary>Typed into a Reference Sentences field: the open editor already shows the text.</summary>
-    ExampleText = 256
+    ExampleText = 256,
+    /// <summary>The editor's Learning Progress alone (a status action ran): the page keeps its place.</summary>
+    Progress = 512
 }
 
 /// <summary>
@@ -189,6 +208,13 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _listOpen && _filters?.PhoneSheetOpen == true;
     internal bool IsNavigationBlocked => _saving || AnyDeleting || _handingOff;
 
+    /// <summary>
+    /// The open duplicate page, without filtering the list (<see cref="ListState"/> carries the
+    /// same panel); null when it is closed or the owner is not trusted.
+    /// </summary>
+    internal VocabularyDuplicatePanel? DuplicatePanel =>
+        _listOpen && TryOwner(out _) ? _cleanup.Duplicates : null;
+
     /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
     internal bool IsCreatingWord => IsFormOpen && _creating;
 
@@ -209,7 +235,10 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// different arrangement (the iOS page starts again at the top).
     /// </summary>
     internal string Arrangement =>
-        $"{_sortField}:{(_sortDescending ? "desc" : "asc")}:{(_listMode ? "list" : "grid")}";
+        $"{_sortField}:{(_sortDescending ? "desc" : "asc")}:{(_listMode ? "list" : "grid")}"
+        + (_selecting ? ":select" : string.Empty) + (_askingStartOver ? ":ask" : string.Empty)
+        + (_askingBulkDelete ? ":delete" : string.Empty) + (_tagEntryOpen ? ":tags" : string.Empty)
+        + (_selecting ? $":{_bulkRefusals}" : string.Empty);
     internal string SearchText => TryOwner(out _)
         ? _filters?.CommittedQuery ?? string.Empty : string.Empty;
 
@@ -241,7 +270,8 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 SheetSortField: _sheetSort?.Field ?? _sortField,
                 SheetSortDescending: _sheetSort?.Descending ?? _sortDescending,
                 FilterPanelHidden: _filterPanelHidden,
-                RowLimit: _rowLimit);
+                RowLimit: _rowLimit,
+                Selecting: _selecting, SelectedIds: _selectedIds, Marking: _marking);
         }
     }
 
@@ -282,7 +312,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal VocabularyBrowserEdit EditState => TryOwner(out _)
         ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
             _photo, _cleanup.ConfirmingDelete, _cleanup.Deleting, _cleanup.DeleteError, _handingOff,
-            ExamplesState, _creating)
+            ExamplesState, _creating, _marking)
         : new(false, false, null, null, "Vocabulary_NoActiveProfile",
             false, null);
 
@@ -320,6 +350,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             return;
         _cleanup.Reset();
         _askingListDelete = null;
+        ResetSelection();
         ResetRowWindow();
         OnListReset();
         ResetExamples();
@@ -426,6 +457,24 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             ? !string.IsNullOrWhiteSpace(draft.TargetTerm) || !string.IsNullOrWhiteSpace(draft.NativeTerm)
             : _detail is { } detail && !SameDraft(detail.Draft, draft));
 
+    /// <summary>The editor's message when another word was chosen while this one has unsaved changes.</summary>
+    internal const string SaveBeforeOpeningAnotherKey = "VocabWordEdit_SaveBeforeOpeningAnother";
+
+    /// <summary>
+    /// Undo for the open word: the draft goes back to the word as it was loaded, and the
+    /// "save or undo" message clears. Beside the list (the split view) the editor has no Back to
+    /// leave without saving, so the message offers this.
+    /// </summary>
+    internal void DiscardEdits()
+    {
+        if (!_formOpen || _creating || _saving || AnyDeleting || _handingOff
+            || _detail is not { } detail || !TryOwner(out _))
+            return;
+        _draft = detail.Draft;
+        _editErrorKey = null;
+        Notify(VocabularyChanges.Form);
+    }
+
     private static bool SameDraft(NativeVocabularyEditDraft loaded, NativeVocabularyEditDraft current) =>
         current with { ResourceIds = loaded.ResourceIds } == loaded
         && loaded.ResourceIds.SequenceEqual(current.ResourceIds, StringComparer.Ordinal);
@@ -442,7 +491,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         if (_formOpen && !string.Equals(id, _selectedWordId, StringComparison.Ordinal)
             && HasUnsavedEdits)
         {
-            _editErrorKey = "VocabWordEdit_SaveBeforeOpeningAnother";
+            _editErrorKey = SaveBeforeOpeningAnotherKey;
             Notify(VocabularyChanges.Form);
             return;
         }
@@ -741,12 +790,40 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     internal Task OpenDuplicatesAsync(string term, string? wordId) =>
         Guard(() => _cleanup.OpenDuplicatesAsync(term, wordId));
 
+    /// <summary>The list's Clean Up Duplicates: the duplicate page over all of the owner's words.</summary>
+    internal Task OpenAllDuplicatesAsync() => Guard(_cleanup.OpenAllDuplicatesAsync);
+
     /// <summary>Source ShowMoreDuplicates.</summary>
     internal Task ShowMoreDuplicatesAsync() => Guard(_cleanup.ShowMoreDuplicatesAsync);
 
     /// <summary>Source MergeDuplicateGroup, then the list reloads (source LoadData).</summary>
     internal Task MergeDuplicatesAsync(string normalizedTerm) =>
         Guard(() => _cleanup.MergeDuplicatesAsync(normalizedTerm));
+
+    /// <summary>Merge all: every safe group in one step, then the list reloads.</summary>
+    internal Task MergeAllDuplicatesAsync() => Guard(_cleanup.MergeAllDuplicatesAsync);
+
+    /// <summary>Resolve with AI: the rules, then the AI's confident calls, then the list reloads.</summary>
+    internal Task ResolveDuplicatesWithAiAsync() => Guard(_cleanup.ResolveDuplicatesWithAiAsync);
+
+    /// <summary>Undo one standing duplicate decision.</summary>
+    internal Task UndoDuplicateDecisionAsync(string decisionId) =>
+        Guard(() => _cleanup.UndoDuplicateDecisionAsync(decisionId));
+
+    /// <summary>Keep Apart: a review group's copies stop showing as duplicates.</summary>
+    internal Task KeepDuplicatesApartAsync(string normalizedTerm) =>
+        Guard(() => _cleanup.KeepDuplicatesApartAsync(normalizedTerm));
+
+    /// <summary>Skip: a review group leaves the duplicate page while it is open.</summary>
+    internal void SkipDuplicates(string normalizedTerm) => _cleanup.SkipDuplicates(normalizedTerm);
+
+    /// <summary>A copy goes into, or is left out of, its review group's Merge.</summary>
+    internal void ToggleDuplicateCopy(string normalizedTerm, string wordId) =>
+        _cleanup.ToggleDuplicateCopy(normalizedTerm, wordId);
+
+    /// <summary>Keep This: the copy a review group's Merge keeps.</summary>
+    internal void ChooseDuplicateKeeper(string normalizedTerm, string wordId) =>
+        _cleanup.ChooseDuplicateKeeper(normalizedTerm, wordId);
 
     /// <summary>Source CloseCleanupPanel.</summary>
     internal void CloseDuplicates() => _cleanup.CloseDuplicates();
@@ -1017,6 +1094,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         _logger.LogWarning("Vocabulary view refused a missing or changed active owner.");
         _catalog = new(false, [], []);
         _askingListDelete = null;
+        ResetSelection();
         _knownWordCount = null;
         OnListReset();
         _detail = null;
@@ -1074,7 +1152,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
             | VocabularyChanges.FilterDraft;
         const VocabularyChanges form = VocabularyChanges.Form | VocabularyChanges.DeleteDialog
             | VocabularyChanges.DraftText | VocabularyChanges.ResourceToggle
-            | VocabularyChanges.Examples | VocabularyChanges.ExampleText;
+            | VocabularyChanges.Examples | VocabularyChanges.ExampleText | VocabularyChanges.Progress;
         Publish((changes & list) != 0, (changes & form) != 0, sheet: false);
     }
 

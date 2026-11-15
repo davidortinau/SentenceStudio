@@ -55,6 +55,17 @@ internal static class TestApiHostConfigurator
         services.TryAddSingleton<IChatClient>(new UnconfiguredAiChatClient());
     }
 
+    /// <summary>
+    /// Raises the auth endpoints' per-address limits (#89) far above what a test class sends, since
+    /// every request from a test server shares one client address.
+    /// </summary>
+    public static void RelaxAuthRateLimits(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+    {
+        builder.UseSetting("Auth:RateLimit:LoginPerMinute", "10000");
+        builder.UseSetting("Auth:RateLimit:RegisterPerHour", "10000");
+        builder.UseSetting("Auth:RateLimit:AccountRecoveryPerHour", "10000");
+    }
+
     public static void ConfigureSqliteDatabaseAndSync(
         IServiceCollection services,
         string dbPath,

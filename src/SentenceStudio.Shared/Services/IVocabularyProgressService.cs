@@ -61,19 +61,12 @@ public interface IVocabularyProgressService
         string activity = "VocabularyQuiz",
         string? learningResourceId = null);
 
-    /// <summary>
-    /// Sets a user-declared status for a vocabulary word ("Trust but Verify").
-    /// Familiar: sets grace period, excludes from quizzes for 14 days, then soft verification probes.
-    /// Learning/Unknown: resets to algorithmic tracking.
-    /// Known is not settable — it must be earned through practice or verified from Familiar.
-    /// </summary>
-    Task<VocabularyProgress> SetUserDeclaredStatusAsync(string vocabularyWordId, string userId, LearningStatus declaredStatus);
+    /// <summary>The learner's Learning mode (docs/known-words-plan.md), from their own profile.</summary>
+    Task<LearningMode> GetLearningModeAsync(string userId = "");
 
-    /// <summary>
-    /// Handles the result of a verification probe for a Familiar word.
-    /// Correct: promotes to Known. Incorrect: demotes to Learning.
-    /// </summary>
-    Task<VocabularyProgress> HandleVerificationProbeResultAsync(string vocabularyWordId, string userId, bool wasCorrect);
+    /// <summary>Mark Known, Practice again or Start over for the learner's own words, in one save.</summary>
+    Task<SentenceStudio.Data.VocabularyMarkResult> SetLearnerMarkAsync(IReadOnlyCollection<string> vocabularyWordIds,
+        SentenceStudio.Data.VocabularyLearnerAction action, string userId = "", CancellationToken ct = default);
 
     /// <summary>
     /// Persists updated SRS fields (ReviewInterval, NextReviewDate) on an existing progress record.

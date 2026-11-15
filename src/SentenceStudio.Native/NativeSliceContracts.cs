@@ -28,6 +28,7 @@ public static class NativeText
     public const string InvalidCredentials = "Login_InvalidCredentials";
     public const string ConnectionError = "Login_ConnectionError";
     public const string UnexpectedError = "Login_UnexpectedError";
+    public const string TooManySignInAttempts = "Login_TooManyAttempts";
     public const string SignInUnavailable = "Login_NotAvailable";
     public const string Email = "Common_Email";
     public const string Password = "Common_Password";
@@ -372,6 +373,11 @@ public sealed record NativeQuizState(
     NativeQuizLearningDetails? Details = null)
 {
     public ImmutableArray<NativeQuizSentenceHint> SentenceHints { get; init; } = [];
+    /// <summary>
+    /// Mark Known (docs/known-words-plan.md) is offered for this question: Learner-led, a
+    /// question or its feedback on screen, nothing open over it. The toolbar item shows only then.
+    /// </summary>
+    public bool CanMarkKnown { get; init; }
     public bool CanShowSentenceHints { get; init; }
     public bool SentenceHintsExpanded { get; init; }
     public bool CanPlayAnswerAudio { get; init; }

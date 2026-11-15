@@ -23,7 +23,14 @@ public sealed record ProfileDto(
     string TargetCefrLevel,
     int PreferredSessionMinutes,
     string? OpenAiApiKey,
-    string? ElevenLabsApiKey);
+    string? ElevenLabsApiKey,
+    string LearningMode = "LearnerLed");
+
+/// <summary>
+/// Body for PUT /api/v1/profile/me/learning-mode: "LearnerLed" or "PracticeLed"
+/// (docs/known-words-plan.md). The owner comes only from the token.
+/// </summary>
+public sealed record UpdateLearningModeRequest(string? LearningMode);
 
 /// <summary>
 /// Body for PUT /api/v1/profile/{profileId}. Only DisplayName and
@@ -67,6 +74,7 @@ public static class ProfileEndpoints
 
         // The literal "me" segment outranks the {profileId} parameter.
         group.MapPut("/me", UpdateOwnProfile);
+        group.MapPut("/me/learning-mode", UpdateLearningMode);
         group.MapGet("/{profileId}", GetProfile);
         group.MapPut("/{profileId}", UpdateProfile);
 
@@ -350,7 +358,44 @@ public static class ProfileEndpoints
         TargetCefrLevel: profile.TargetCEFRLevel ?? string.Empty,
         PreferredSessionMinutes: profile.PreferredSessionMinutes,
         OpenAiApiKey: profile.OpenAI_APIKey,
-        ElevenLabsApiKey: null);
+        ElevenLabsApiKey: null,
+        LearningMode: profile.LearningMode.ToString());
+
+    /// <summary>
+    /// Saves the signed-in learner's Learning mode, the only field written. The native apps
+    /// receive the profile by download only, so this is how they change the mode; the change
+    /// reaches every device with the profile. No progress row is written.
+    /// </summary>
+    private static async Task<IResult> UpdateLearningMode(
+        [FromBody] UpdateLearningModeRequest? request,
+        ClaimsPrincipal user,
+        [FromServices] UserProfileRepository repository,
+        [FromServices] ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var logger = loggerFactory.CreateLogger("ProfileEndpoints");
+        var owner = user.FindFirstValue(AuthClaimTypes.UserProfileId);
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            logger.LogWarning("UpdateLearningMode: refused a token without an owner claim");
+            return Results.Unauthorized();
+        }
+        // Names only: a number would also parse, and is not part of the contract.
+        if (request?.LearningMode is not ("LearnerLed" or "PracticeLed")
+            || !Enum.TryParse<LearningMode>(request.LearningMode, out var mode))
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["LearningMode"] = ["LearningMode must be LearnerLed or PracticeLed."]
+            });
+
+        if (!await repository.SaveLearningModeAsync(owner, mode, cancellationToken))
+        {
+            logger.LogWarning("UpdateLearningMode: the mode was not saved for profile {ProfileId}", owner);
+            return Results.NotFound();
+        }
+        var reloaded = await repository.GetByIdAsync(owner, cancellationToken);
+        return reloaded is null ? Results.NotFound() : Results.Ok(MapToDto(reloaded));
+    }
 
     // Stricter email check than EmailAddressAttribute (which accepts e.g. "missing@tld"
     // and other inputs without a dotted domain). Requires a non-empty local part with

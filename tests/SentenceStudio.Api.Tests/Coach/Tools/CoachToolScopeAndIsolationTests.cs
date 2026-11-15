@@ -196,7 +196,8 @@ public class CoachToolScopeAndIsolationTests
 
         summary.TrackedWordCount.Should().Be(3);
         summary.DueNowCount.Should().Be(1);
-        summary.DueThisWeekCount.Should().Be(1);
+        // 바다 is Known, and a Known word is never due (docs/known-words-plan.md).
+        summary.DueThisWeekCount.Should().Be(0);
         summary.NeverPracticedCount.Should().Be(1);
         summary.LapseRate.Should().BeApproximately(0.2, 0.001);
         summary.AverageMasteryScore.Should().BeApproximately(0.4, 0.001);

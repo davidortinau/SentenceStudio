@@ -202,6 +202,12 @@
         {
             errorMessage = Localize["Login_NotAvailable"];
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            // The API's rate limit or account lockout (#89).
+            Logger.LogWarning("Login refused: too many attempts");
+            errorMessage = Localize["Login_TooManyAttempts"];
+        }
         catch (HttpRequestException ex)
         {
             Logger.LogError(ex, "Login connectivity error");

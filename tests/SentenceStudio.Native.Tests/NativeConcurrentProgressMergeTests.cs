@@ -125,7 +125,7 @@ public sealed class NativeConcurrentProgressMergeTests
             FirstSeenAt = T0, CreatedAt = T0, LastPracticedAt = T0, UpdatedAt = T0
         };
         var attempt = Attempt(correct: true);
-        VocabularyProgressService.ApplyAttemptScoring(row, attempt, T0);
+        VocabularyProgressService.ReplayAttemptScoring(row, attempt, T0);
         db.VocabularyProgresses.Add(row);
         db.VocabularyLearningContexts.Add(
             VocabularyProgressService.CreateLearningContext(row.Id, attempt, T0));
@@ -138,7 +138,7 @@ public sealed class NativeConcurrentProgressMergeTests
         await using var db = store.OpenContext();
         var row = await db.VocabularyProgresses.SingleAsync(item => item.Id == Progress);
         var attempt = Attempt(correct);
-        VocabularyProgressService.ApplyAttemptScoring(row, attempt, at);
+        VocabularyProgressService.ReplayAttemptScoring(row, attempt, at);
         var context = VocabularyProgressService.CreateLearningContext(row.Id, attempt, at);
         context.CreatedAt = context.UpdatedAt = at;
         db.VocabularyLearningContexts.Add(context);

@@ -22,6 +22,8 @@ public sealed class ApplicationModelSnapshotTests
         "ActivitySession",
         // Lookup history (decision 4 B, 2026-11-04).
         "VocabularyLookup",
+        // Duplicate decisions (docs/duplicate-merge-ai-plan.md, 2026-11-14).
+        "VocabularyDuplicateDecision",
     ];
 
     [Fact]
@@ -34,6 +36,7 @@ public sealed class ApplicationModelSnapshotTests
         Assert.Contains("20261103015116_SyncTextIdsPhase2a", db.Database.GetMigrations());
         Assert.Contains("20261103151517_SyncTextIdsPhase2b", db.Database.GetMigrations());
         Assert.Contains("20261104153858_AddVocabularyLookup", db.Database.GetMigrations());
+        Assert.Contains("20261114203658_AddVocabularyDuplicateDecision", db.Database.GetMigrations());
 
         var snapshot = db.GetService<IModelRuntimeInitializer>().Initialize(
             db.GetService<IMigrationsAssembly>().ModelSnapshot!.Model, designTime: true);

@@ -1,3 +1,4 @@
+using SentenceStudio.Services;
 using Xunit;
 using FluentAssertions;
 using SentenceStudio.Shared.Models;
@@ -77,28 +78,28 @@ public class VocabularyProgressEdgeCaseTests
     public void IsKnown_ExactBoundary_MasteryAt085_ProductionAt2_IsKnown()
     {
         var p = new VocabularyProgress { MasteryScore = 0.85f, ProductionInStreak = 2 };
-        p.IsKnown.Should().BeTrue("exact boundary values should satisfy IsKnown");
+        p.IsKnown().Should().BeTrue("exact boundary values should satisfy IsKnown");
     }
 
     [Fact]
     public void IsKnown_JustBelowMastery_IsNotKnown()
     {
         var p = new VocabularyProgress { MasteryScore = 0.849f, ProductionInStreak = 5 };
-        p.IsKnown.Should().BeFalse("0.849 < 0.85 threshold");
+        p.IsKnown().Should().BeFalse("0.849 < 0.85 threshold");
     }
 
     [Fact]
     public void IsKnown_JustBelowProduction_IsNotKnown()
     {
         var p = new VocabularyProgress { MasteryScore = 1.0f, ProductionInStreak = 1 };
-        p.IsKnown.Should().BeFalse("needs at least 2 production in streak");
+        p.IsKnown().Should().BeFalse("needs at least 2 production in streak");
     }
 
     [Fact]
     public void IsKnown_ZeroMastery_HighProduction_IsNotKnown()
     {
         var p = new VocabularyProgress { MasteryScore = 0f, ProductionInStreak = 10 };
-        p.IsKnown.Should().BeFalse("zero mastery is not known regardless of production");
+        p.IsKnown().Should().BeFalse("zero mastery is not known regardless of production");
     }
 
     #endregion
@@ -182,57 +183,46 @@ public class VocabularyProgressEdgeCaseTests
 
     #endregion
 
-    #region Status with UserDeclared
+    #region Status with the learner's mark (docs/known-words-plan.md)
 
-    [Fact]
-    public void Status_UserDeclaredFamiliar_ReturnsFamiliar()
+    [Theory]
+    [InlineData(VerificationStatus.Pending)]
+    [InlineData(VerificationStatus.Confirmed)]
+    [InlineData(VerificationStatus.KnownByPractice)]
+    public void Status_KnownMark_IsKnownInLearnerLed_AndFollowsTheScoreInPracticeLed(VerificationStatus mark)
     {
-        var p = new VocabularyProgress
+        var p = new VocabularyProgress { VerificationState = mark, MasteryScore = 0.3f };
+
+        VocabularyKnownRule.Status(p, LearningMode.LearnerLed).Should().Be(LearningStatus.Known);
+        VocabularyKnownRule.Status(p, LearningMode.PracticeLed).Should().Be(LearningStatus.Learning);
+    }
+
+    [Theory]
+    [InlineData(VerificationStatus.None)]
+    [InlineData(VerificationStatus.Demoted)]
+    [InlineData(VerificationStatus.Reopened)]
+    [InlineData(VerificationStatus.StartedOver)]
+    public void Status_OtherMarks_FollowTheScoreInBothModes(VerificationStatus mark)
+    {
+        var learning = new VocabularyProgress { VerificationState = mark, MasteryScore = 0.3f };
+        var known = new VocabularyProgress { VerificationState = mark, MasteryScore = 0.9f, ProductionInStreak = 2 };
+
+        foreach (var mode in new[] { LearningMode.LearnerLed, LearningMode.PracticeLed })
         {
-            IsUserDeclared = true,
-            VerificationState = VerificationStatus.Pending,
-            MasteryScore = 0.3f
-        };
-        p.Status.Should().Be(LearningStatus.Familiar);
-        p.IsFamiliar.Should().BeTrue();
+            VocabularyKnownRule.Status(learning, mode).Should().Be(LearningStatus.Learning);
+            VocabularyKnownRule.Status(known, mode).Should().Be(LearningStatus.Known);
+        }
     }
 
     [Fact]
-    public void Status_UserDeclaredButVerified_UsesAlgorithmicStatus()
+    public void Status_MarkedKnownWithNoPractice_IsKnown_NotUnknown()
     {
-        var p = new VocabularyProgress
-        {
-            IsUserDeclared = true,
-            VerificationState = VerificationStatus.Confirmed,
-            MasteryScore = 0.3f
-        };
-        // Not Pending → falls through to algorithmic status
-        p.Status.Should().Be(LearningStatus.Learning);
-        p.IsFamiliar.Should().BeFalse();
-    }
+        var p = new VocabularyProgress { VerificationState = VerificationStatus.Confirmed };
 
-    [Fact]
-    public void IsInGracePeriod_RecentDeclaration_IsTrue()
-    {
-        var p = new VocabularyProgress
-        {
-            IsUserDeclared = true,
-            VerificationState = VerificationStatus.Pending,
-            UserDeclaredAt = DateTime.UtcNow.AddDays(-7)
-        };
-        p.IsInGracePeriod.Should().BeTrue("declared 7 days ago, within 14-day grace");
-    }
-
-    [Fact]
-    public void IsInGracePeriod_OldDeclaration_IsFalse()
-    {
-        var p = new VocabularyProgress
-        {
-            IsUserDeclared = true,
-            VerificationState = VerificationStatus.Pending,
-            UserDeclaredAt = DateTime.UtcNow.AddDays(-15)
-        };
-        p.IsInGracePeriod.Should().BeFalse("declared 15 days ago, past 14-day grace");
+        VocabularyKnownRule.IsUnknown(p, LearningMode.LearnerLed).Should().BeFalse();
+        VocabularyKnownRule.Source(p, LearningMode.LearnerLed).Should().Be(VocabularyKnownSource.Learner);
+        VocabularyKnownRule.IsUnknown(p, LearningMode.PracticeLed).Should().BeTrue();
+        VocabularyKnownRule.Source(p, LearningMode.PracticeLed).Should().Be(VocabularyKnownSource.None);
     }
 
     #endregion
@@ -262,24 +252,24 @@ public class VocabularyProgressEdgeCaseTests
     public void IsLearning_WithSomeMastery_NotKnown()
     {
         var p = new VocabularyProgress { MasteryScore = 0.5f, ProductionInStreak = 0 };
-        p.IsLearning.Should().BeTrue();
-        p.IsUnknown.Should().BeFalse();
+        p.IsLearning().Should().BeTrue();
+        p.IsUnknown().Should().BeFalse();
     }
 
     [Fact]
     public void IsUnknown_ZeroMastery()
     {
         var p = new VocabularyProgress { MasteryScore = 0f };
-        p.IsUnknown.Should().BeTrue();
-        p.IsLearning.Should().BeFalse();
+        p.IsUnknown().Should().BeTrue();
+        p.IsLearning().Should().BeFalse();
     }
 
     [Fact]
     public void KnownWord_IsNotLearning()
     {
         var p = new VocabularyProgress { MasteryScore = 0.90f, ProductionInStreak = 3 };
-        p.IsKnown.Should().BeTrue();
-        p.IsLearning.Should().BeFalse();
+        p.IsKnown().Should().BeTrue();
+        p.IsLearning().Should().BeFalse();
     }
 
     #endregion

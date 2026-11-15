@@ -76,11 +76,13 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     internal LearningResourcesCoordinator(
         NativeResourcePresenter presenter,
         ILogger<LearningResourcesCoordinator> logger,
-        Func<string, string> text)
+        Func<string, string> text,
+        NativeResourceStudyHistory? studyHistory = null)
     {
         _presenter = presenter;
         _logger = logger;
         _text = text;
+        _studyHistory = studyHistory;
     }
 
     internal event Action? Changed;
@@ -238,6 +240,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
                 CancelDelete: CancelDelete,
                 Delete: () => Run(DeleteResourceAsync),
                 Generate: () => Run(GenerateVocabularyAsync),
+                RetryStudy: () => Run(RetryStudyHistoryAsync),
                 AttachWord: id => Run(() => AttachVocabularyAsync(id)),
                 CreateWord: () => Run(() => CreateVocabularyAsync(
                     _quickQuery.Trim(), _quickNativeTerm.Trim())),
@@ -705,8 +708,12 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         _formOpen = true;
         FormOpenChanged?.Invoke(true);
         var load = _presenter.OpenAsync(id, _lifetime.Token);
+        // The study history reads beside the resource; the form draws once both are in, so
+        // its arrival never redraws a form the person is already editing.
+        var study = LoadStudyHistoryAsync(id);
         Publish();
         await load;
+        await study;
         if (IsCurrentForm(formGeneration, id))
         {
             if (_presenter.Detail is {
@@ -720,6 +727,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
     private void ResetForm(bool creating)
     {
         Interlocked.Increment(ref _formGeneration);
+        _studyHistory?.Reset();
         _creating = creating;
         _selectedId = null;
         _formStatus = null;
@@ -802,6 +810,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             Sync = state.Sync,
             SyncErrorKey = state.SyncErrorKey,
             ShowDeleteConfirmation = state.ShowDeleteConfirmation,
+            Study = StudyState,
         };
     }
 
@@ -862,8 +871,10 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
             return;
         var formGeneration = Interlocked.Read(ref _formGeneration);
         var load = _presenter.OpenAsync(id, _lifetime.Token);
+        var study = LoadStudyHistoryAsync(id);
         Publish();
         await load;
+        await study;
         if (!IsCurrentForm(formGeneration, id))
             return;
         if (_presenter.Detail is {
@@ -900,6 +911,7 @@ internal sealed partial class LearningResourcesCoordinator : IDisposable
         Interlocked.Increment(ref _quickSearchVersion);
         if (_fileImporterPresented)
             OnFileImporterDismissed();
+        _studyHistory?.Reset();
         _presenter.InvalidateDetail();
         if (notifyNavigation)
             FormOpenChanged?.Invoke(false);

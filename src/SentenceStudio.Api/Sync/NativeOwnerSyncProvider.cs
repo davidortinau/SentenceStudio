@@ -938,6 +938,9 @@ internal sealed class NativeOwnerSyncProvider(
                     || keys.ResourceIds.Contains(Value(item, "LearningResourceId")!)),
             // Lookup history (decision 4 B): only the owner's rows; no owner never matches.
             "VocabularyLookup" => Value(item, "UserProfileId") == owner,
+            // Duplicate decisions (docs/duplicate-merge-ai-plan.md): only the owner's rows; no
+            // owner never matches. Its word IDs are plain references: a merge removed some.
+            "VocabularyDuplicateDecision" => Value(item, "UserProfileId") == owner,
             _ => false,
         };
     }

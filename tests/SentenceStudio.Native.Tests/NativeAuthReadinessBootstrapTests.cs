@@ -42,6 +42,28 @@ public sealed class NativeAuthReadinessBootstrapTests
     }
 
     [Fact]
+    public async Task TooManyAttemptsSaysSoAndAllowsALaterSignIn()
+    {
+        // The API's per-address limit or account lockout answers 429 (#89).
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        fixture.SetAuthStatus(HttpStatusCode.TooManyRequests);
+        var auth = fixture.Auth;
+
+        var refused = await auth.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password");
+        Assert.Equal(NativePhase.Error, refused.Phase);
+        Assert.Equal(NativeDestination.SignIn, refused.Destination);
+        Assert.Equal(NativeText.TooManySignInAttempts, refused.ErrorKey);
+        Assert.Null(await fixture.SecureStorage.GetAsync(AuthTokenStore.JwtKey));
+
+        fixture.SetAuthStatus(null);
+        var later = await auth.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password");
+        Assert.Equal(NativePhase.Ready, later.Phase);
+    }
+
+    [Fact]
     public async Task IncompleteOwnedProfileRoutesOnboardingWithoutRemoteConfirmation()
     {
         using var fixture = new NativeSliceFixture(ownerBoundReadiness: true);

@@ -208,12 +208,14 @@ else
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, _owner);
 
+            // Known words are never scheduled (the one Known rule): a focus set built before a word
+            // was marked Known drops it here, unless nothing else is left.
+            var mode = await ProgressService.GetLearningModeAsync(_owner);
+            var open = allWords.Where(w => !VocabularyKnownRule.IsKnown(progressDict.GetValueOrDefault(w.Id), mode)).ToList();
             var selectedWords = usingFocusVocabularyIds
-                ? allWords.Take(8).ToList()
-                : allWords
+                ? (open.Count > 0 ? open : allWords).Take(8).ToList()
+                : open
                     .Select(w => new { Word = w, Progress = progressDict.ContainsKey(w.Id) ? progressDict[w.Id] : null })
-                    .Where(wp => !(wp.Progress?.IsKnown ?? false))
-                    .Where(wp => !(wp.Progress?.IsInGracePeriod ?? false))
                     .OrderBy(wp => wp.Progress?.MasteryScore ?? 0f)
                     .ThenBy(_ => Guid.NewGuid())
                     .Take(8)
@@ -236,7 +238,8 @@ else
                     Language = "native",
                     VocabularyWordId = word.Id,
                     IsVisible = !hideNativeWordsMode,
-                    Word = word
+                    Word = word,
+                    LearningMode = mode
                 });
             }
             foreach (var word in selectedWords)
@@ -248,7 +251,8 @@ else
                     Language = "target",
                     VocabularyWordId = word.Id,
                     IsVisible = true,
-                    Word = word
+                    Word = word,
+                    LearningMode = mode
                 });
             }
 
@@ -369,13 +373,6 @@ else
                     ExpectedAnswer = $"{matchedWord.NativeLanguageTerm} = {matchedWord.TargetLanguageTerm}",
                     ResponseTimeMs = (int)responseTimer.ElapsedMilliseconds
                 });
-
-                // Handle verification probe for Familiar words
-                if (updatedProgress.IsFamiliar)
-                {
-                    await ProgressService.HandleVerificationProbeResultAsync(
-                        matchedWord.Id, activeUserId, isMatch);
-                }
 
                 CacheService.InvalidateVocabSummary();
             }

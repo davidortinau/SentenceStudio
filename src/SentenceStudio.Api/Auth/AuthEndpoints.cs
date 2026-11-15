@@ -20,12 +20,12 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth");
 
-        group.MapPost("/register", Register);
-        group.MapPost("/login", Login);
+        group.MapPost("/register", Register).RequireRateLimiting(AuthRateLimiting.RegisterPolicy);
+        group.MapPost("/login", Login).RequireRateLimiting(AuthRateLimiting.LoginPolicy);
         group.MapPost("/refresh", Refresh);
-        group.MapGet("/confirm-email", ConfirmEmail);
-        group.MapPost("/forgot-password", ForgotPassword);
-        group.MapPost("/reset-password", ResetPassword);
+        group.MapGet("/confirm-email", ConfirmEmail).RequireRateLimiting(AuthRateLimiting.AccountRecoveryPolicy);
+        group.MapPost("/forgot-password", ForgotPassword).RequireRateLimiting(AuthRateLimiting.AccountRecoveryPolicy);
+        group.MapPost("/reset-password", ResetPassword).RequireRateLimiting(AuthRateLimiting.AccountRecoveryPolicy);
         group.MapDelete("/account", DeleteAccount).RequireAuthorization();
         group.MapPost("/change-password", ChangePassword).RequireAuthorization();
 
@@ -150,10 +150,22 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
+        // Account lockout (#89): Identity's defaults, 5 failed passwords lock the account for
+        // 5 minutes. Checked before the password so a locked account cannot be probed.
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            logger.LogWarning("Login refused for user {UserId}: account locked out", user.Id);
+            return Results.Problem("Too many failed sign-ins. Try again in a few minutes.",
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
         if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
+            await userManager.AccessFailedAsync(user);
             return Results.Unauthorized();
         }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         if (!await userManager.IsEmailConfirmedAsync(user))
         {

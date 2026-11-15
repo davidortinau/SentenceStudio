@@ -1367,6 +1367,7 @@ public class ProgressService : IProgressService
         // writes DateTime.UtcNow; VocabularyProgress.IsDueForReview reads UtcNow).
         var now = DateTime.UtcNow;
         var freshIds = new List<string>(allFocusIds.Count);
+        var mode = await _progressRepo.GetLearningModeAsync();
 
         foreach (var wordId in allFocusIds)
         {
@@ -1376,6 +1377,11 @@ public class ProgressService : IProgressService
                 freshIds.Add(wordId);
                 continue;
             }
+
+            // A Known word is never scheduled (a word marked Known has no attempts and no
+            // review date, so the checks below would keep it).
+            if (VocabularyKnownRule.IsKnown(progress, mode))
+                continue;
 
             if (progress.TotalAttempts == 0)
             {

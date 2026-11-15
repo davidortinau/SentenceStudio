@@ -87,10 +87,13 @@ public sealed partial class NativeResourceStore
                     string.IsNullOrEmpty(title) ? group.DisplayTerm : title,
                     shown.Select(info => DuplicateWord(info)).ToArray(),
                     group.CanMergeAutomatically, group.MergeBlockedReason,
-                    group.RecommendedKeeperId);
+                    // Empty when no copy can be kept (nothing to merge into).
+                    group.RecommendedKeeperId, group.EffectiveRisk, group.Differences,
+                    group.MergeParts);
             })
             .ToArray();
-        return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount);
+        return new(true, groups, scan.TotalGroupCount, scan.ExtraRecordCount,
+            scan.SafeGroupCount, scan.SafeCopyCount, scan.ReviewGroupCount, scan.BlockedGroupCount);
     }
 
     /// <summary>
@@ -125,7 +128,7 @@ public sealed partial class NativeResourceStore
             if (inVocabulary != requested.Length)
             {
                 logger.LogWarning("Native duplicate merge refused words the owner does not hold.");
-                return NativeVocabularyMergeResult.None;
+                return NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_MergeRefusedNotYours" };
             }
         }
 
@@ -136,8 +139,112 @@ public sealed partial class NativeResourceStore
             resources.MergeVocabularyWordsWithResultAsync(
                 keeperWordId, duplicates, cancellationToken, owner));
         if (!merge.Changed)
-            return new(merge.Deleted, false, false);
+            return new(merge.Deleted, false, false, merge.RefusalKey);
         return new(merge.Deleted, true, !TryMarkPending(owner, "Duplicate merge"));
+    }
+
+    /// <summary>
+    /// Source MergeSafeDuplicateGroupsAsync for the active owner: every group the shared rules
+    /// rate safe (nothing is lost), across all pages, in one step. The shared scan reads only the
+    /// words recorded to the owner, the same rule as <see cref="OwnedVocabularyIds"/>.
+    /// </summary>
+    public async Task<NativeVocabularyMergeAllResult> MergeSafeOwnedVocabularyDuplicatesAsync(
+        string owner, string? focusTerm, IReadOnlyCollection<string> leaveOut,
+        IReadOnlyCollection<string> keepers, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return NativeVocabularyMergeAllResult.None;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // The merges are the owner's even if the account changes while they run, so their sync
+        // is recorded for that owner (TryMarkPending is keyed by owner).
+        var merged = await WithResourcesAsync(resources =>
+            resources.MergeSafeDuplicateGroupsAsync(cancellationToken, owner, focusTerm, leaveOut, keepers));
+        var refused = merged.Refused
+            .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey))
+            .ToArray();
+        if (merged.MergedGroups == 0)
+            return new(0, 0, refused, false);
+        return new(merged.MergedGroups, merged.RemovedCopies, refused,
+            !TryMarkPending(owner, "Duplicate merge all"));
+    }
+
+    /// <summary>
+    /// Resolve with AI (shared <see cref="VocabularyDuplicateAiCleanup"/>) for the active owner:
+    /// the prompt goes through the owner-bound gateway (fast tier, then reasoning for the unsure),
+    /// in the owner's native and target languages, and the merges are made here with the shared
+    /// rules, so they sync like any other.
+    /// </summary>
+    public async Task<NativeVocabularyDuplicateAiResult> ResolveOwnedVocabularyDuplicatesWithAiAsync(
+        string owner, IReadOnlyCollection<string> leaveOut, IReadOnlyCollection<string> keepers,
+        CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return NativeVocabularyDuplicateAiResult.None;
+        using var scope = scopes.CreateScope();
+        var gateway = scope.ServiceProvider.GetService<IOwnerBoundNativeAiGateway>()
+            ?? throw new InvalidOperationException("Duplicate resolution with AI requires an owner-bound AI gateway.");
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var languages = await db.UserProfiles.AsNoTracking().Where(profile => profile.Id == owner)
+            .Select(profile => new { profile.NativeLanguage, profile.TargetLanguage })
+            .SingleOrDefaultAsync(cancellationToken);
+        var cleanup = new VocabularyDuplicateAiCleanup(
+            scope.ServiceProvider.GetRequiredService<LearningResourceRepository>(),
+            scope.ServiceProvider.GetRequiredService<ILogger<VocabularyDuplicateAiCleanup>>());
+        var result = await cleanup.RunAsync(owner, languages?.NativeLanguage ?? "English",
+            languages?.TargetLanguage ?? "Korean",
+            (prompt, tier, ct) => gateway.SendPromptAsync<SentenceStudio.Services.DTOs.DuplicateResolutionResponse>(
+                owner, prompt, tier, ct),
+            leaveOut, keepers, cancellationToken);
+
+        var changed = result.Rules.MergedGroups > 0 || result.Ai.Applied.Count > 0;
+        return new NativeVocabularyDuplicateAiResult(
+            result.Rules.RemovedCopies, result.Ai.MergedGroups, result.Ai.KeptApartGroups, result.Ai.RemovedCopies,
+            result.Ai.NeedsYou.Select(open => new NativeVocabularyDuplicateAiSuggestion(open.Call.GroupId,
+                open.Call.Usable, open.Call.Verdict, open.Call.Sets.Select(set => set.Meaning).ToArray(),
+                open.Call.Reason, open.Call.Unanswered)).ToArray(),
+            result.Rules.Refused.Concat(result.Ai.Refused)
+                .Select(refusal => new NativeVocabularyMergeRefusal(refusal.DisplayTerm, refusal.RefusalKey)).ToArray(),
+            changed && !TryMarkPending(owner, "Duplicate resolution with AI"), result.AiUnavailable);
+    }
+
+    /// <summary>The owner's standing duplicate decisions (shared GetStandingDuplicateDecisionsAsync).</summary>
+    public async Task<IReadOnlyList<NativeVocabularyDuplicateDecision>> GetOwnedVocabularyDuplicateDecisionsAsync(
+        string owner, string? focusTerm, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return [];
+        var decisions = await WithResourcesAsync(resources =>
+            resources.GetStandingDuplicateDecisionsAsync(cancellationToken, owner, focusTerm));
+        return decisions.Select(decision => new NativeVocabularyDuplicateDecision(decision.Id, decision.Kind,
+                decision.DisplayTerm, decision.Meanings, decision.DecidedBy, decision.Reason))
+            .ToArray();
+    }
+
+    /// <summary>Undo (shared <see cref="LearningResourceRepository.UndoDuplicateDecisionAsync"/>).</summary>
+    public async Task<NativeVocabularyMergeResult> UndoOwnedVocabularyDuplicateDecisionAsync(
+        string owner, string decisionId, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner) || string.IsNullOrWhiteSpace(decisionId))
+            return NativeVocabularyMergeResult.None;
+        var undone = await WithResourcesAsync(resources =>
+            resources.UndoDuplicateDecisionAsync(decisionId, cancellationToken, owner));
+        return undone
+            ? new(0, true, !TryMarkPending(owner, "Duplicate undo"))
+            : NativeVocabularyMergeResult.None;
+    }
+
+    /// <summary>Keep Apart (shared <see cref="LearningResourceRepository.KeepDuplicatesApartAsync"/>).</summary>
+    public async Task<NativeVocabularyMergeResult> KeepOwnedVocabularyDuplicatesApartAsync(
+        string owner, IReadOnlyCollection<string> wordIds, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return NativeVocabularyMergeResult.None;
+        var kept = await WithResourcesAsync(resources => resources.KeepDuplicatesApartAsync(
+            wordIds, VocabularyDuplicateDecider.Learner, null, cancellationToken, owner));
+        return kept
+            ? new(0, true, !TryMarkPending(owner, "Keep duplicates apart"))
+            : NativeVocabularyMergeResult.None with { RefusalKey = "Vocabulary_DuplicatesKeepApartFailed" };
     }
 
     /// <summary>
@@ -168,6 +275,8 @@ public sealed partial class NativeResourceStore
             info.EncodingScore, EncodingScoreHelper.GetLabel(info.EncodingScore),
             string.IsNullOrWhiteSpace(word.MnemonicText) ? null : word.MnemonicText,
             !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
-            !string.IsNullOrWhiteSpace(word.AudioPronunciationUri));
+            !string.IsNullOrWhiteSpace(word.AudioPronunciationUri),
+            string.IsNullOrWhiteSpace(word.Lemma) ? null : word.Lemma.Trim(),
+            info.UsedByOthers, info.Mastery, info.Attempts);
     }
 }

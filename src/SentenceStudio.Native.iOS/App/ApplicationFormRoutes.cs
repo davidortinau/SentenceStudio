@@ -13,6 +13,7 @@ internal static class ApplicationFormRoutes
     internal const string Vocabulary = "vocabulary";
     internal const string VocabularyWordForm = "vocabulary-word-form";
     internal const string RecentLookups = "recent-lookups";
+    internal const string VocabularyDuplicates = "vocabulary-duplicates";
     internal const string MinimalPairs = "minimal-pairs";
     internal const string MinimalPairsChild = "minimal-pairs-child";
 
@@ -30,10 +31,14 @@ internal static class ApplicationFormRoutes
         !formOpen && formMounted && canNavigateBack
         && path.Count == 2 && path[0] == Skills && path[1] == SkillForm;
 
+    /// <summary>
+    /// The word editor sits above the Vocabulary list, or above the duplicate page when its Edit
+    /// opened the word; it is always the top route.
+    /// </summary>
     internal static bool ShouldPopVocabularyWordForm(
         bool formOpen, bool formMounted, bool canNavigateBack,
         IReadOnlyList<string> path) =>
         !formOpen && formMounted && canNavigateBack
-        && path.Count == 2 && path[0] == Vocabulary
-        && path[1] == VocabularyWordForm;
+        && path.Count >= 2 && path[0] == Vocabulary
+        && path[^1] == VocabularyWordForm;
 }

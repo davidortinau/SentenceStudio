@@ -201,7 +201,7 @@ public class VocabQuizFilteringTests
     {
         // If Progress is somehow null, fallback to 0f → MultipleChoice
         var item = new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord
             {
                 Id = "test-word",
@@ -332,7 +332,6 @@ public class VocabQuizFilteringTests
         // Apply the FIXED filter (IsKnown, not IsCompleted)
         var filtered = items
             .Where(i => !i.IsKnown)
-            .Where(i => !(i.Progress?.IsInGracePeriod ?? false))
             .ToList();
 
         filtered.Should().HaveCount(3, "only the Known word (sightseeing) should be filtered out");
@@ -357,7 +356,7 @@ public class VocabQuizFilteringTests
     private static VocabularyQuizItem MakeQuizItem(VocabularyProgress progress)
     {
         return new VocabularyQuizItem
-        {
+        { LearningMode = SentenceStudio.Shared.Models.LearningMode.LearnerLed,
             Word = new VocabularyWord
             {
                 Id = progress.VocabularyWordId ?? Guid.NewGuid().ToString(),

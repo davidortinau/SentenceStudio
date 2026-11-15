@@ -63,8 +63,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         result.CorrectAttempts.Should().Be(1);
         // EffectiveStreak = 1 + 0*0.5 = 1.0 → MasteryScore = 1.0/12.0 ≈ 0.083 (#191)
         result.MasteryScore.Should().BeApproximately(1.0f / 12.0f, 0.01f);
-        result.IsKnown.Should().BeFalse("one correct answer is not enough");
-        result.Status.Should().Be(LearningStatus.Learning);
+        result.IsKnown().Should().BeFalse("one correct answer is not enough");
+        result.Status().Should().Be(LearningStatus.Learning);
     }
 
     [Fact]
@@ -79,10 +79,10 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var result = await _progressService.RecordAttemptAsync(attempt);
 
         // Assert
-        result.CurrentStreak.Should().Be(1);
+        result.CurrentStreak.Should().Be(1.5f, "a correct Text quiz attempt weighs 1.5");
         result.ProductionInStreak.Should().Be(1, "Text input is production");
-        // EffectiveStreak = 1 + 1*0.5 = 1.5 → MasteryScore = 1.5/12.0 ≈ 0.125 (#191)
-        result.MasteryScore.Should().BeApproximately(1.5f / 12.0f, 0.01f);
+        // EffectiveStreak = 1.5 + 1*0.5 = 2.0 → MasteryScore = 2.0/12.0 ≈ 0.167 (#191, #199)
+        result.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // EffectiveStreak = 12 + 0 = 12 → MasteryScore = 12/12 = 1.0
         // (recovery boost may push slightly above 1.0 but is clamped)
         result.MasteryScore.Should().Be(1.0f);
-        result.IsKnown.Should().BeFalse(
+        result.IsKnown().Should().BeFalse(
             "IsKnown requires ProductionInStreak >= 2 even with max mastery score");
     }
 
@@ -157,9 +157,9 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // Phase 1: Unknown → Learning (first correct answer)
         var progress = await _progressService.RecordAttemptAsync(
             MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
-        progress.Status.Should().Be(LearningStatus.Learning,
+        progress.Status().Should().Be(LearningStatus.Learning,
             "after first attempt, word should be Learning");
-        progress.IsKnown.Should().BeFalse();
+        progress.IsKnown().Should().BeFalse();
 
         // Phase 2: Build up recognition streak (MC only) — under #191's
         // EFFECTIVE_STREAK_DIVISOR=12.0, need 7 MC to clear the 0.50 promotion
@@ -173,13 +173,13 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // After 8 MC: EffStreak = 8/12 ≈ 0.667 → above promotion threshold (0.50)
         progress.MasteryScore.Should().BeGreaterOrEqualTo(0.50f,
             "after 8 correct MC answers, should be above promotion threshold");
-        progress.IsKnown.Should().BeFalse("still no production attempts");
+        progress.IsKnown().Should().BeFalse("still no production attempts");
 
         // Phase 3: Switch to production mode (Text input)
         progress = await _progressService.RecordAttemptAsync(
             MakeAttempt(wordId, wasCorrect: true, inputMode: "Text"));
         progress.ProductionInStreak.Should().Be(1);
-        progress.IsKnown.Should().BeFalse("need 2 production attempts");
+        progress.IsKnown().Should().BeFalse("need 2 production attempts");
 
         progress = await _progressService.RecordAttemptAsync(
             MakeAttempt(wordId, wasCorrect: true, inputMode: "Text"));
@@ -188,9 +188,9 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // After 8 MC + 2 Text: streak = 10, prodInStreak = 2,
         // EffStreak = 10 + 2*0.5 = 11 → Mastery = 11/12 ≈ 0.917
         progress.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
-        progress.IsKnown.Should().BeTrue(
+        progress.IsKnown().Should().BeTrue(
             "MasteryScore >= 0.85 AND ProductionInStreak >= 2 → Known");
-        progress.Status.Should().Be(LearningStatus.Known);
+        progress.Status().Should().Be(LearningStatus.Known);
         progress.MasteredAt.Should().NotBeNull("should record mastery timestamp");
     }
 
@@ -213,7 +213,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var result = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
 
         // Assert: Known words always get 60 day review interval
-        result.IsKnown.Should().BeTrue();
+        result.IsKnown().Should().BeTrue();
         result.ReviewInterval.Should().Be(60, "known words get pushed to 60-day review");
         result.NextReviewDate.Should().BeCloseTo(DateTime.UtcNow.AddDays(60), TimeSpan.FromMinutes(5));
     }
@@ -235,7 +235,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
 
         var beforeWrong = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
         beforeWrong.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
-        beforeWrong.IsKnown.Should().BeTrue("should be Known before wrong answer");
+        beforeWrong.IsKnown().Should().BeTrue("should be Known before wrong answer");
 
         // Act: wrong answer
         var result = await _progressService.RecordAttemptAsync(
@@ -246,9 +246,16 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         result.CurrentStreak.Should().BeGreaterThan(0, "partial streak preservation");
         result.ProductionInStreak.Should().BeLessThan(2,
             "production streak drops below min threshold for Known");
-        result.IsKnown.Should().BeFalse(
-            "no longer Known because ProductionInStreak < 2 after partial preservation");
-        result.Status.Should().Be(LearningStatus.Learning);
+        // The score no longer meets the Known rule, so in Practice-led the word is Learning again.
+        VocabularyKnownRule.IsKnownByScore(result).Should().BeFalse(
+            "ProductionInStreak < 2 after partial preservation");
+        VocabularyKnownRule.Status(result, LearningMode.PracticeLed).Should().Be(LearningStatus.Learning);
+        // Learner-led (the default, docs/known-words-plan.md): it was Known in practice, so it was
+        // stamped and stays Known; the miss is still in the score and the history.
+        result.VerificationState.Should().Be(VerificationStatus.KnownByPractice);
+        result.UserDeclaredAt.Should().BeNull("a stamp on an unmarked row carries no time");
+        result.IsKnown().Should().BeTrue();
+        result.TotalAttempts.Should().Be(11);
     }
 
     #endregion
@@ -398,6 +405,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
             Activity = activity,
             InputMode = inputMode,
             WasCorrect = wasCorrect,
+            DifficultyWeight = VocabularyMasteryCalculator.QuizAttemptWeight(inputMode),
             LearningResourceId = resourceId,
             ContextType = "Isolated",
             ResponseTimeMs = 1500

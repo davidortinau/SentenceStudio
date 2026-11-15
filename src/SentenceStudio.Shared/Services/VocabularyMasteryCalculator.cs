@@ -26,6 +26,19 @@ public static class VocabularyMasteryCalculator
     public const float STREAK_PRESERVE_DIVISOR = 8.0f;
     public const float RECOVERY_BOOST = 0.02f;
 
+    /// <summary>
+    /// Vocabulary Quiz attempt weight for text entry (production recall). Every quiz client and
+    /// the test fixtures read it through <see cref="QuizAttemptWeight"/> so they cannot drift.
+    /// </summary>
+    public const float QUIZ_TEXT_WEIGHT = 1.5f;
+
+    /// <summary>Vocabulary Quiz attempt weight for multiple choice (recognition).</summary>
+    public const float QUIZ_CHOICE_WEIGHT = 1.0f;
+
+    /// <summary>The Vocabulary Quiz's <see cref="VocabularyAttempt.DifficultyWeight"/> for an input mode.</summary>
+    public static float QuizAttemptWeight(string? inputMode) =>
+        inputMode == "Text" ? QUIZ_TEXT_WEIGHT : QUIZ_CHOICE_WEIGHT;
+
     private const int MAX_REVIEW_INTERVAL_DAYS = 365;
     private const int MASTERED_REVIEW_INTERVAL_DAYS = 60;
 
@@ -187,9 +200,15 @@ public static class VocabularyMasteryCalculator
     /// The mastery-after-each-active-attempt curve, suitable for charting. Passive exposures do not
     /// emit points.
     /// </param>
+    /// <param name="reset">
+    /// The reset the row's mark made (<see cref="VocabularyKnownMarks.ResetOf"/>: Practice again
+    /// or Start over), applied at its instant with the live action's numbers; null when the mark
+    /// is not a reset. The learner's mode never enters a replay: the score is what practice earned.
+    /// </param>
     public static void RecalculateInto(
         VocabularyProgress target,
         IEnumerable<VocabularyLearningContext> contexts,
+        VocabularyScoreReset? reset,
         out List<MasteryTrajectoryPoint> trajectory)
     {
         target.TotalAttempts = 0;
@@ -214,8 +233,15 @@ public static class VocabularyMasteryCalculator
             .OrderBy(c => c.LearnedAt)
             .ThenBy(c => c.CreatedAt);
 
+        var pendingReset = reset;
         foreach (var context in ordered)
         {
+            if (pendingReset is { } due && context.LearnedAt > due.At)
+            {
+                VocabularyKnownMarks.ApplyReset(target, due);
+                pendingReset = null;
+            }
+
             if (IsPassive(context))
             {
                 target.ExposureCount++;
@@ -233,6 +259,10 @@ public static class VocabularyMasteryCalculator
                 context.Activity ?? string.Empty,
                 context.InputMode ?? string.Empty));
         }
+
+        // A reset made after the last attempt.
+        if (pendingReset is { } last)
+            VocabularyKnownMarks.ApplyReset(target, last);
     }
 
     private static void UpdateQuizDemonstrationCounters(VocabularyProgress progress, VocabularyAttempt attempt)

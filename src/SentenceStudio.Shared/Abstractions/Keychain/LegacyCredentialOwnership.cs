@@ -69,7 +69,7 @@ public static class LegacyCredentialOwnership
     /// <summary>Claim names that carry the SentenceStudio profile id, in order of preference.</summary>
     private static readonly string[] ProfileClaimNames =
     {
-        "user_profile_id",
+        SentenceStudio.Contracts.AuthClaimTypes.UserProfileId,
         "userProfileId",
         "profile_id",
     };

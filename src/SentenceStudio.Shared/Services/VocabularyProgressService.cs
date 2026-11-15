@@ -17,9 +17,6 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     // Streak-based scoring math now lives in VocabularyMasteryCalculator — the single source of truth
     // shared by the live attempt path, duplicate-merge recalculation, and the word-page mastery chart.
-    // The constant below is still referenced by HandleVerificationProbeResultAsync; it aliases the
-    // calculator's value so the two can never drift.
-    private const int MIN_PRODUCTION_FOR_KNOWN = VocabularyMasteryCalculator.MIN_PRODUCTION_FOR_KNOWN;
     private const string VocabularyQuizActivity = "VocabularyQuiz";
 
     // LEGACY: Old constants kept for reference during migration
@@ -81,7 +78,8 @@ public class VocabularyProgressService : IVocabularyProgressService
 
         // The native transactional writer uses this same operation, including the
         // legacy fields and quiz demonstration counters, rather than copying policy.
-        ApplyAttemptScoring(progress, attempt, DateTime.UtcNow);
+        var mode = await _progressRepo.GetLearningModeAsync(attempt.UserId);
+        ApplyAttemptScoring(progress, attempt, DateTime.UtcNow, mode);
 
         if (!wasMasteredBefore && progress.MasteredAt.HasValue)
         {
@@ -147,11 +145,25 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// The source attempt path's entire progress mutation, including legacy
-    /// phase fields and quiz demonstration counts. Persistence and phrase
-    /// cascade remain the caller's responsibility.
+    /// A live answer: the score (<see cref="ReplayAttemptScoring"/>), then the Learner-led stamp
+    /// that keeps a Known word Known (<see cref="VocabularyKnownMarks.AfterLiveAttempt"/>). Every
+    /// live scoring path calls this with the learner's own mode. Persistence and phrase cascade
+    /// remain the caller's responsibility.
     /// </summary>
     public static void ApplyAttemptScoring(
+        VocabularyProgress progress, VocabularyAttempt attempt, DateTime scoredAt, LearningMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        var wasKnown = VocabularyKnownRule.IsKnown(progress, mode);
+        ReplayAttemptScoring(progress, attempt, scoredAt);
+        VocabularyKnownMarks.AfterLiveAttempt(progress, wasKnown, mode, scoredAt);
+    }
+
+    /// <summary>
+    /// The score change of one attempt, including legacy phase fields and quiz demonstration
+    /// counts, with no mark and no mode: what merges and replays apply.
+    /// </summary>
+    public static void ReplayAttemptScoring(
         VocabularyProgress progress, VocabularyAttempt attempt, DateTime scoredAt)
     {
         ArgumentNullException.ThrowIfNull(progress);
@@ -247,11 +259,11 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         var resolvedUserId = ResolveUserId(userId);
         var allProgress = await _progressRepo.ListAsync();
+        var mode = await _progressRepo.GetLearningModeAsync(resolvedUserId);
         return allProgress.Where(p =>
             p.UserId == resolvedUserId &&
             p.IsDueForReview &&
-            !p.IsKnown &&
-            !p.IsInGracePeriod).ToList();
+            !VocabularyKnownRule.IsKnown(p, mode)).ToList();
     }
 
     /// <summary>
@@ -344,7 +356,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         progress.IsPromoted = progress.MasteryScore >= 0.50f;
 
         // Update completed status based on IsKnown (new logic)
-        progress.IsCompleted = progress.IsKnown;
+        progress.IsCompleted = VocabularyKnownRule.IsKnownByScore(progress);
 #pragma warning restore CS0618
     }
 
@@ -402,7 +414,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     [Obsolete("No longer used - use progress.IsKnown instead")]
     private bool HasMixedModeCompetency(VocabularyProgress progress)
     {
-        return progress.IsKnown;
+        return VocabularyKnownRule.IsKnownByScore(progress);
     }
 
     [Obsolete("No longer used - streak-based scoring replaces phase advancement")]
@@ -441,103 +453,18 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     // Legacy method implementations for backward compatibility
 
-    /// <summary>
-    /// Sets a user-declared status for a vocabulary word ("Trust but Verify").
-    /// </summary>
-    public async Task<VocabularyProgress> SetUserDeclaredStatusAsync(string vocabularyWordId, string userId, LearningStatus declaredStatus)
-    {
-        if (declaredStatus == LearningStatus.Known)
-            throw new ArgumentException("Known status must be earned through practice or verification, not declared manually.");
-
-        var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
-
-        if (declaredStatus == LearningStatus.Familiar)
-        {
-            progress.IsUserDeclared = true;
-            progress.UserDeclaredAt = DateTime.UtcNow;
-            progress.VerificationState = VerificationStatus.Pending;
-            // Set review date to end of grace period (14 days)
-            progress.NextReviewDate = DateTime.UtcNow.AddDays(14);
-            progress.ReviewInterval = 30; // After grace period, review every 30 days
-
-            _logger.LogInformation("Word {WordId} marked as Familiar by user {UserId}. Grace period until {GraceEnd:d}.",
-                vocabularyWordId, userId, progress.NextReviewDate);
-        }
-        else
-        {
-            // Learning or Unknown: reset to algorithmic tracking
-            progress.IsUserDeclared = true;
-            progress.UserDeclaredAt = DateTime.UtcNow;
-            progress.VerificationState = VerificationStatus.None;
-
-            if (declaredStatus == LearningStatus.Unknown)
-            {
-                // Reset mastery to zero — user says they don't know it
-                progress.MasteryScore = 0;
-                progress.CurrentStreak = 0f;
-                progress.ProductionInStreak = 0;
-                progress.MasteredAt = null;
-                progress.NextReviewDate = null;
-                progress.ReviewInterval = 1;
-                progress.EaseFactor = 2.5f;
-            }
-            // For Learning: keep existing mastery data, just mark as user-declared
-
-            _logger.LogInformation("Word {WordId} marked as {Status} by user {UserId}.",
-                vocabularyWordId, declaredStatus, userId);
-        }
-
-        progress.UpdatedAt = DateTime.UtcNow;
-        return await _progressRepo.SaveAsync(progress);
-    }
+    /// <summary>The learner's Learning mode (docs/known-words-plan.md), from their own profile.</summary>
+    public Task<LearningMode> GetLearningModeAsync(string userId = "") =>
+        _progressRepo.GetLearningModeAsync(ResolveUserId(userId));
 
     /// <summary>
-    /// Handles the result of a verification probe for a Familiar word.
+    /// Mark Known, Practice again or Start over, for one word or many in one save
+    /// (<see cref="VocabularyProgressRepository.ApplyLearnerActionAsync"/>). Only the learner's own
+    /// words change.
     /// </summary>
-    public async Task<VocabularyProgress> HandleVerificationProbeResultAsync(string vocabularyWordId, string userId, bool wasCorrect)
-    {
-        var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
-
-        if (!progress.IsFamiliar)
-        {
-            _logger.LogWarning("HandleVerificationProbeResultAsync called for non-Familiar word {WordId}. Ignoring.", vocabularyWordId);
-            return progress;
-        }
-
-        if (wasCorrect)
-        {
-            // Promote to Known
-            progress.VerificationState = VerificationStatus.Confirmed;
-            progress.MasteryScore = 1.0f;
-            progress.CurrentStreak = 7f;
-            progress.ProductionInStreak = MIN_PRODUCTION_FOR_KNOWN;
-            progress.MasteredAt = DateTime.UtcNow;
-            progress.ReviewInterval = 60;
-            progress.EaseFactor = 2.5f;
-            progress.NextReviewDate = DateTime.UtcNow.AddDays(60);
-
-            _logger.LogInformation("Word {WordId} verified and promoted to Known for user {UserId}.",
-                vocabularyWordId, userId);
-        }
-        else
-        {
-            // Demote to Learning
-            progress.VerificationState = VerificationStatus.Demoted;
-            progress.IsUserDeclared = false;
-            progress.MasteryScore = 0.3f;
-            progress.CurrentStreak = 0f;
-            progress.ProductionInStreak = 0;
-            progress.ReviewInterval = 1;
-            progress.NextReviewDate = DateTime.UtcNow.AddDays(1);
-
-            _logger.LogInformation("Word {WordId} failed verification, moved to Learning for user {UserId}.",
-                vocabularyWordId, userId);
-        }
-
-        progress.LastPracticedAt = DateTime.UtcNow;
-        progress.UpdatedAt = DateTime.UtcNow;
-        return await _progressRepo.SaveAsync(progress);
-    }
+    public Task<VocabularyMarkResult> SetLearnerMarkAsync(IReadOnlyCollection<string> vocabularyWordIds,
+        VocabularyLearnerAction action, string userId = "", CancellationToken ct = default) =>
+        _progressRepo.ApplyLearnerActionAsync(vocabularyWordIds, action, ResolveUserId(userId), ct);
 
     /// <summary>
     /// Legacy method: Gets or creates progress for a vocabulary word (backward compatibility)
@@ -659,7 +586,6 @@ public class VocabularyProgressService : IVocabularyProgressService
             .ToList();
 
         var results = new List<VocabScoringResult>();
-        var verificationProbes = new List<(string WordId, string UserId, bool WasCorrect)>();
 
         foreach (var vocabItem in deduplicated)
         {
@@ -693,18 +619,6 @@ public class VocabularyProgressService : IVocabularyProgressService
                 UsedForm = vocabItem.UsedForm,
                 UsageExplanation = vocabItem.UsageExplanation
             });
-
-            // Collect verification probes — do NOT fire inline
-            if (updatedProgress.IsFamiliar)
-            {
-                verificationProbes.Add((matched.Id, userId, vocabItem.UsageCorrect));
-            }
-        }
-
-        // Handle verification probes AFTER all scoring completes
-        foreach (var (wordId, uid, wasCorrect) in verificationProbes)
-        {
-            await HandleVerificationProbeResultAsync(wordId, uid, wasCorrect);
         }
 
         _logger.LogInformation("ExtractAndScoreVocabulary: {Activity} scored {Count} words for user {UserId}",

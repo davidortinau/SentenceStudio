@@ -305,6 +305,7 @@ internal sealed partial class AndroidSliceShell
         _ = RefreshProfileSummaryAsync();
         OpenSamSettings();
         var owner = MoreOwner();
+        OpenLearningMode(owner);
         if (_settings is { } current)
         {
             if (owner is not null && current.State is { IsOpen: true, OwnerBlocked: false })
@@ -319,6 +320,28 @@ internal sealed partial class AndroidSliceShell
         }
         var provider = _scope.ServiceProvider;
         OpenSettingsCoordinator(provider, provider.GetRequiredService<DeviceUserScopeProvider>(), owner);
+    }
+
+    /// <summary>Every Settings visit reads the owner's Learning mode again (another client may have changed it).</summary>
+    private void OpenLearningMode(string? owner)
+    {
+        if (owner is null || _scope is null)
+        {
+            _learningMode?.Close();
+            return;
+        }
+        if (_learningMode is null)
+        {
+            var provider = _scope.ServiceProvider;
+            _learningMode = new SentenceStudio.Native.Features.Settings.LearningModeSetting(
+                provider.GetRequiredService<DeviceUserScopeProvider>(),
+                provider.GetRequiredService<VocabularyProgressRepository>(),
+                provider.GetRequiredService<UserProfileRepository>(),
+                provider.GetRequiredService<INativeProfileRemoteStore>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SentenceStudio.Native.Features.Settings.LearningModeSetting>>());
+            _learningMode.Changed += OnMoreChanged;
+        }
+        _ = _learningMode.OpenAsync(owner);
     }
 
     /// <summary>The name and languages on the Settings profile row, read for the signed-in owner only.</summary>

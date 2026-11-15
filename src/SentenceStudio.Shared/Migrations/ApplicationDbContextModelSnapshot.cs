@@ -1985,6 +1985,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("IanaTimeZoneId")
                         .HasColumnType("text");
 
+                    b.Property<string>("LearningMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("LearnerLed");
+
                     b.Property<string>("Name")
                         .HasColumnType("text");
 
@@ -2069,6 +2075,53 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasIndex("VideoId");
 
                     b.ToTable("VideoImport", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyDuplicateDecision", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CopyIds")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeeperId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TermKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UndoneAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "TermKey");
+
+                    b.ToTable("VocabularyDuplicateDecision", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.VocabularyLearningContext", b =>
