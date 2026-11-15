@@ -215,11 +215,16 @@ if (builder.Environment.IsDevelopment())
 // The admin portal (docs/admin-portal-plan.md). Registered in every environment: the API decides
 // per request who is an admin, and answers everyone else 404. No resilience pipeline, because
 // every admitted call leaves an audit row and a failed password check counts toward lockout, so
-// one click has to be one request.
+// one click has to be one request. Removing the pipeline also removes its attempt timeout, so
+// the client sets its own: an API that accepts the connection and never answers must turn into
+// "could not be loaded" in seconds, not leave the page blank for HttpClient's default 100.
 #pragma warning disable EXTEXP0001
 builder.Services
     .AddHttpClient<SentenceStudio.WebApp.Admin.AdminApiClient>(client =>
-        client.BaseAddress = new Uri(apiBaseUrl))
+    {
+        client.BaseAddress = new Uri(apiBaseUrl);
+        client.Timeout = SentenceStudio.WebApp.Admin.AdminApiClient.RequestTimeout;
+    })
     .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
     .RemoveAllResilienceHandlers();
 #pragma warning restore EXTEXP0001

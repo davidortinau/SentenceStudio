@@ -97,6 +97,9 @@ public sealed class AdminApiClient
     /// <summary>The header a password-again proof travels in. Mirrors the API's constant.</summary>
     public const string ProofHeader = "X-Admin-Proof";
 
+    /// <summary>How long one admin request may take before it counts as not answered.</summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+
     private const string BasePath = "/api/admin";
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);

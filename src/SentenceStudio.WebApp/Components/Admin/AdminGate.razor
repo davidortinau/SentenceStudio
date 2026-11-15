@@ -13,6 +13,13 @@
 
 @switch (_state)
 {
+    case GateState.Asking:
+        <div class="d-flex justify-content-center align-items-center py-5" role="status">
+            <span class="spinner-border text-primary" aria-hidden="true"></span>
+            <span class="visually-hidden">Loading&hellip;</span>
+        </div>
+        break;
+
     case GateState.Admitted:
         @ChildContent
         break;
@@ -30,7 +37,8 @@
 }
 
 @code {
-    private enum GateState { Undecided = 0, Admitted, NotFound, Unavailable }
+    // Undecided is the prerender: nothing is drawn. Asking is the live circuit waiting on the API.
+    private enum GateState { Undecided = 0, Asking, Admitted, NotFound, Unavailable }
 
     private GateState _state;
 
@@ -52,6 +60,7 @@
             return;
         }
 
+        _state = GateState.Asking;
         _state = await Load() switch
         {
             AdminApiStatus.Ok or AdminApiStatus.Refused => GateState.Admitted,

@@ -157,6 +157,54 @@ public sealed class AdminComponentTests
     }
 
     [Fact]
+    public async Task While_the_API_has_not_answered_the_gate_shows_it_is_loading_and_nothing_else()
+    {
+        // Found on the running stack: an API that accepts the connection and never answers left
+        // the page blank. The page must say it is waiting, and draw no admin content meanwhile.
+        var answer = new TaskCompletionSource<AdminApiStatus>();
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+        {
+            [nameof(AdminGate.ChildContent)] = (RenderFragment)(builder => builder.AddContent(0, "Admin only")),
+            [nameof(AdminGate.Load)] = (Func<Task<AdminApiStatus>>)(() => answer.Task)
+        });
+
+        // The render does not finish until the API answers, so the id it returns is not available
+        // yet. A renderer's first root component is always id 0; the last line checks that.
+        const int id = 0;
+        var rendering = circuit.RenderAsync<AdminGate>(parameters);
+        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+
+        circuit.RenderedText(id).Should()
+            .Contain("Loading").And.NotContain("Admin only").And.NotContain("Page not found");
+
+        answer.SetResult(AdminApiStatus.Failed);
+        (await rendering).Should().Be(id);
+        circuit.RenderedText(id).Should().Contain("could not be loaded").And.NotContain("Admin only");
+    }
+
+    [Fact]
+    public void An_admin_request_gives_up_in_seconds_not_minutes()
+    {
+        // The client has no resilience pipeline, so this is the only bound on a request that hangs.
+        AdminApiClient.RequestTimeout.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(30));
+        var program = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "SentenceStudio.WebApp", "Program.cs"));
+        program.Should().Contain("client.Timeout = SentenceStudio.WebApp.Admin.AdminApiClient.RequestTimeout;");
+    }
+
+    private static string RepositoryRoot()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "src")))
+        {
+            root = root.Parent;
+        }
+
+        return root!.FullName;
+    }
+
+    [Fact]
     public async Task A_refusal_that_names_a_reason_still_means_the_API_admitted_this_person()
     {
         _api.Answer(SessionRoute, HttpStatusCode.BadRequest, """{"code":"invalid_request"}""");
