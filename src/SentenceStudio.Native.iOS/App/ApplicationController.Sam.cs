@@ -43,7 +43,7 @@ internal sealed partial class ApplicationController
     /// </summary>
     internal bool IsSamReviewBlockedByScreen =>
         _destination != NativeDestination.Dashboard || IsActivityLogOpen
-        || IsProfileOpen || HasLibraryEditor;
+        || IsProfileEditing || HasLibraryEditor;
 
     internal bool IsSamPresented => IsSamShellDestination(_destination)
         && SamState.IsOpen;
@@ -124,8 +124,11 @@ internal sealed partial class ApplicationController
     internal int SamSettingsVersion => HashCode.Combine(SamState.SafeSettings,
         SamState.SafeMemory with { EditText = string.Empty });
 
+    /// <summary>Settings offers the Learning Coach (not in the preview, nor before services exist).</summary>
+    internal bool IsSamSettingsShown => !(_preview || _sam is null && _services is null);
+
     internal IEnumerable<SwiftView>? RenderSamSettings(SourceUiStyle style) =>
-        _preview || _sam is null && _services is null ? null
+        !IsSamSettingsShown ? null
             : SamSettingsView.Sections(style, SamState, Text, SamSettingsActions);
 
     /// <summary>Opening Settings reads availability and what Sam remembers for the current owner.</summary>
@@ -199,7 +202,7 @@ internal sealed partial class ApplicationController
             : IsYouTubeImportOpen ? "youtube.import"
             : IsImportWordOpen ? "import.word-form"
             : IsImportContentOpen ? "import.content"
-            : IsProfileOpen ? "profile"
+            : IsProfileOpen && _selectedTab == NativeTabs.Settings ? "profile"
             : IsActivityLogOpen ? "activity-log"
             : IsRecentLookupsOpen ? "recent-lookups"
             : NativeSamScreenContext.ForDestination(_destination, _selectedTab switch

@@ -67,7 +67,7 @@ public sealed class NativeSamContractTests
         // The browse pages keep the tab bar, so Sam's slot is their entry.
         var browse = new[]
         {
-            "\"activity-log\"", "\"profile\"", "\"skills\"", "ApplicationFormRoutes.LibraryResources",
+            "\"activity-log\"", "\"skills\"", "ApplicationFormRoutes.LibraryResources",
             "ApplicationFormRoutes.MinimalPairs", "ApplicationFormRoutes.RecentLookups",
             "ApplicationFormRoutes.VocabularyDuplicates",
             "ApplicationFormRoutes.Vocabulary", "ApplicationImportRoutes.ImportContent",
@@ -131,7 +131,7 @@ public sealed class NativeSamContractTests
         // Study) and every editor with unsaved edits on another tab block it; a smart
         // resource being read in the Library does not.
         foreach (var screen in new[] { "_destination != NativeDestination.Dashboard",
-            "IsActivityLogOpen", "IsProfileOpen", "HasLibraryEditor" })
+            "IsActivityLogOpen", "IsProfileEditing", "HasLibraryEditor" })
             Assert.Contains(screen, guard);
         var library = Source("App/ApplicationController.Library.cs");
         var editor = library[library.IndexOf("internal bool HasLibraryEditor =>",

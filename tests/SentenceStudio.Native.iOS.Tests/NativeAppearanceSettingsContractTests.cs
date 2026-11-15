@@ -30,18 +30,19 @@ public sealed class NativeAppearanceSettingsContractTests
         Assert.Contains("if (debugBuild && bundleId == FixtureBundleId)", owner);
         Assert.Contains("_scope.ScopeChanged += OnScopeChanged", owner);
         Assert.Contains("_scope.ScopeChanged -= OnScopeChanged", owner);
-        Assert.Contains("SettingsView.OwnerUnavailable(style, Text, signOut)", app);
+        Assert.Contains("SettingsView.OwnerUnavailable(style, Text)", app);
         Assert.Contains("return SettingsView.OwnerUnavailable", app);
         Assert.Contains("text(\"NativeSettings_OwnerUnavailable\"), \"native.settings.owner-unavailable\"",
             Read("Features/Settings/SettingsView.cs"));
         Assert.Contains("result = _allowVoiceDiscovery", owner);
-        // Settings is its own tab (tab shell trial): the root of the Settings stack.
-        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
-        Assert.Contains("_settingsStack = Views.NavigationStack(_settingsSlot,", scene);
+        // Settings is its own tab (tab shell trial), a split view as iOS Settings is (2026-11-15).
+        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", settings)", scene);
+        Assert.Contains("_settingsSplit = Views.NavigationSplitView(_settingsSidebarSlot, _settingsDetailSlot,",
+            Read("App/ApplicationScene.Settings.cs"));
         Assert.Contains("_root.PreferredColorScheme = PreferredSchemeFor(selectedAppearance.Mode)", scene);
         Assert.Contains("SourceUiStyle.RefreshTypography(", scene);
-        Assert.Contains("_settingsSlot = Views.VStack(_app.RenderSettings(_style))",
-            scene);
+        Assert.Contains("_settingsSidebarSlot = Views.VStack(_app.RenderSettingsSidebar(_style))",
+            Read("App/ApplicationScene.Settings.cs"));
         Assert.Contains("WithPickerStyle(SwiftPickerStyle.Segmented)", appearance);
         Assert.Contains("ThemeCatalog.All.Select", appearance);
         Assert.Contains("Views.Slider(", appearance);
@@ -87,16 +88,15 @@ public sealed class NativeAppearanceSettingsContractTests
     [Fact]
     public void SettingsFeedback_KeepsTheMountedForm()
     {
-        var scene = Read("App/ApplicationScene.cs");
-        var update = scene[scene.IndexOf("private void UpdateSettings(",
-            StringComparison.Ordinal)..scene.IndexOf(
-            "private void StartQuizProgressIfGraded()", StringComparison.Ordinal)];
+        var update = Read("App/ApplicationScene.Settings.cs");
 
         // A feedback or quiz change swaps the mounted Form's Sections (it keeps its scroll
         // position); a theme or mode change rebuilds the page.
-        Assert.Contains("!themeChanged && !modeChanged", update);
-        Assert.Contains("_settingsSlot.Children[0] is { Kind: \"form\" } currentForm", update);
-        Assert.Contains("ReplaceContainerChildren(currentForm, next)", update);
+        Assert.Contains("var restyled = themeChanged || modeChanged;", update);
+        Assert.Contains("ReplaceForm(_settingsDetailSlot, _app.RenderSettings(_style), restyled);", update);
+        Assert.Contains("if (!restyled && slot.Children.Count == 1\n"
+            + "            && slot.Children[0] is { Kind: \"form\" } currentForm && next.Kind == \"form\")\n"
+            + "            ReplaceContainerChildren(currentForm, next);", update);
     }
 
     [Fact]

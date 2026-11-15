@@ -62,6 +62,7 @@ internal sealed partial class ApplicationController : IDisposable
     private bool _insightExpanded;
     private bool _resourceFormFromDashboard;
     private bool _settingsOpen;
+    private NativeSettingsPage? _settingsPage;
     private bool _refreshChooseOwnAfterSkills;
     private bool _dashboardStarterBusy;
     private string? _dashboardStarterErrorKey;
@@ -172,7 +173,7 @@ internal sealed partial class ApplicationController : IDisposable
     /// <summary>The scene reads it only while Settings is in front.</summary>
     internal int SettingsProjectionVersion => !_settingsOpen ? -1
         : HashCode.Combine(_settingsGeneration, _settings?.ViewVersion ?? -2,
-            SamSettingsVersion, _profileSummary, _learningMode?.State);
+            SamSettingsVersion, _profileSummary, _learningMode?.State, SettingsPageKey);
     internal string Localize(string key) => Text(key);
     internal string DashboardTitle => Text(_dashboardState.IsNewUser
         ? "Dashboard_Welcome" : "Nav_Study");
@@ -646,20 +647,25 @@ internal sealed partial class ApplicationController : IDisposable
     }
 
     /// <summary>
-    /// The Settings tab: the profile row first (iOS Settings starts with your name), the
-    /// settings, then Sign out last (both were in the Dashboard More menu).
+    /// The Settings sidebar: the profile row first (iOS Settings starts with your name), the
+    /// settings pages, then Sign out last (both were in the Dashboard More menu).
     /// </summary>
+    internal SwiftView RenderSettingsSidebar(SourceUiStyle style) =>
+        SettingsView.Sidebar(style, Text, _profileSummary, _settingsPage,
+            coachShown: IsSamSettingsShown, SelectSettingsPage,
+            SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut));
+
+    /// <summary>The open settings page's Form (Profile is drawn by RenderProfile).</summary>
     internal SwiftView RenderSettings(SourceUiStyle style)
     {
-        if (!_settingsOpen)
+        if (!_settingsOpen || _settingsPage is not { } page)
             return SettingsView.Loading(style, Text);
-        var signOut = SettingsView.SignOut(style, SignOutTitle, enabled: true, SignOut);
         var settings = _settings;
         var state = settings?.State;
         if (settings is null || state is not { IsOpen: true, OwnerBlocked: false,
                 Quiz: { } quiz })
-            return SettingsView.OwnerUnavailable(style, Text, signOut);
-        return SettingsView.Page(style, Appearance.Selection,
+            return SettingsView.OwnerUnavailable(style, Text);
+        return SettingsView.Page(style, page, Appearance.Selection,
             quiz, Text,
             theme => SetAppearance(settings, Appearance.Selection.WithTheme(theme)),
             mode => SetAppearance(settings, Appearance.Selection.WithMode(mode)),
@@ -668,12 +674,89 @@ internal sealed partial class ApplicationController : IDisposable
             changed => settings.Edit(changed),
             () => SaveQuizSettings(settings), state.FeedbackKey,
             state.VoiceLoading, state.VoiceErrorKey, RenderSamSettings(style),
-            header: SettingsView.ProfileRow(style, Text, _profileSummary, OpenProfile),
-            footer: signOut,
             learning: _learningMode is { } learningMode
                 ? SettingsView.LearningMode(style, learningMode.State, Text,
                     mode => _ = learningMode.SetAsync(mode))
                 : null);
+    }
+
+    /// <summary>What the Settings sidebar shows: the profile row, the open page and the coach row.</summary>
+    internal int SettingsSidebarVersion => !_settingsOpen ? -1
+        : HashCode.Combine(_profileSummary, SettingsPageKey, IsSamSettingsShown);
+
+    /// <summary>
+    /// The open page for a version hash: no page and Profile (enum value 0) both hash to 0,
+    /// so opening Profile would not change the version.
+    /// </summary>
+    private int SettingsPageKey => _settingsPage is { } page ? (int)page + 1 : 0;
+
+    /// <summary>The settings page in the detail column; null while the sidebar shows alone.</summary>
+    internal NativeSettingsPage? SettingsPage => _settingsPage;
+
+    /// <summary>
+    /// A sidebar row: the page fills the detail column. Leaving Profile closes it, unless it has
+    /// edits not saved yet: then it stays open in the background and shows them again on return
+    /// (the sidebar is beside the form, so one tap must not lose them). Nothing changes while
+    /// navigation is blocked, or when Profile cannot open.
+    /// </summary>
+    internal void SelectSettingsPage(NativeSettingsPage page)
+    {
+        if (!_settingsOpen || _settingsPage == page || NavigationBlocked)
+            return;
+        var previous = _settingsPage;
+        if (previous == NativeSettingsPage.Profile)
+            CloseSettingsProfile();
+        _settingsPage = page;
+        if (page == NativeSettingsPage.Profile)
+        {
+            OpenProfile();
+            if (!IsProfileOpen)
+            {
+                _logger?.LogWarning("The Settings Profile page could not open.");
+                _settingsPage = previous;
+            }
+        }
+        Publish();
+    }
+
+    /// <summary>
+    /// The detail column showed beside the sidebar with no page open (a wide width): Profile
+    /// opens, as iPad Settings opens on your account; Appearance when Profile cannot. While
+    /// navigation is blocked nothing opens and the scene asks again.
+    /// </summary>
+    internal void SelectDefaultSettingsPage()
+    {
+        if (_settingsPage is not null || NavigationBlocked)
+            return;
+        SelectSettingsPage(NativeSettingsPage.Profile);
+        if (_settingsPage is null)
+            SelectSettingsPage(NativeSettingsPage.Appearance);
+    }
+
+    /// <summary>
+    /// In a compact width the person went back to the sidebar: the page closes, as Back from a
+    /// pushed page does. False (nothing changes) while navigation is blocked.
+    /// </summary>
+    internal bool CloseSettingsPage()
+    {
+        if (_settingsPage is null)
+            return true;
+        if (NavigationBlocked)
+            return false;
+        if (_settingsPage == NativeSettingsPage.Profile)
+            CloseSettingsProfile();
+        _settingsPage = null;
+        Publish();
+        return true;
+    }
+
+    private void CloseSettingsProfile()
+    {
+        if (!IsProfileOpen || IsProfileEditing)
+            return;
+        _profile?.Close();
+        // A saved name or language shows on the Settings profile row.
+        _ = RefreshProfileSummaryAsync();
     }
 
     private void OnSettingsChanged() => Publish();
@@ -1148,6 +1231,7 @@ internal sealed partial class ApplicationController : IDisposable
         _authenticatedSample = false;
         _insightExpanded = false;
         _settingsOpen = false;
+        _settingsPage = null;
         _dashboardStarterBusy = false;
         _dashboardStarterErrorKey = null;
         _dashboardName = null;

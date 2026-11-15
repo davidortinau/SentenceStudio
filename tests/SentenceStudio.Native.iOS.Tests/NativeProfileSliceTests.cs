@@ -377,18 +377,22 @@ public sealed class NativeProfileSliceTests
         Assert.Contains("GetRequiredService<INativeProfileRemoteStore>()", app);
         Assert.Contains("delete.IsEnabled = false;", scene);
         Assert.Contains("Views.Alert(_profileSlot,", scene);
-        Assert.Contains("_settingsStack.Push(\"profile\",", scene);
+        // The Settings split view's detail column shows Profile (Captain 2026-11-15).
+        Assert.Contains("Replace(_settingsDetailSlot, _profileDeleteAlert);", scene);
         Assert.Contains("_renderedProfileVersion != _app.ProfileViewVersion", scene);
         Assert.Contains("Replace(_profileSlot, _app.RenderProfile(_style))", scene);
-        Assert.Contains("Profile_PageTitle", scene);
+        Assert.Contains("NativeSettingsPage.Profile => \"Profile_PageTitle\"",
+            Source("Features/Settings/SettingsView.cs"));
         Assert.Contains("NativePreviewFixture.FromAssembly()?.Owner", app);
         Assert.Contains("scope.TryGetUserProfileId(out var activeOwner)", app);
         Assert.Contains("GetByIdAsync(owner, cancellationToken)",
             Source("../SentenceStudio.Native/Features/Profile/ProfileCoordinator.cs"));
-        // The profile row at the top of the Settings tab opens Profile.
+        // The profile row at the top of the Settings sidebar opens Profile.
         Assert.Contains("native.settings.profile", Source("Features/Settings/SettingsView.cs"));
-        Assert.Contains("header: SettingsView.ProfileRow(style, Text, _profileSummary, OpenProfile)", app
-            + Source("App/ApplicationController.cs"));
+        Assert.Contains("selected == NativeSettingsPage.Profile, () => select(NativeSettingsPage.Profile))",
+            Source("Features/Settings/SettingsView.cs"));
+        Assert.Contains("if (page == NativeSettingsPage.Profile)\n        {\n            OpenProfile();",
+            Source("App/ApplicationController.cs"));
         Assert.DoesNotContain("ExportAllData", view);
         Assert.DoesNotContain("SaveAsync(", view);
         Assert.DoesNotContain("DeleteAccountAsync(", view + app);

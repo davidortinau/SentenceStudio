@@ -207,6 +207,34 @@ public sealed class NativeProfileSaveTests
         Assert.True(coordinator.SetName("Editable again"));
     }
 
+    /// <summary>
+    /// Settings shows Profile beside its list, so an open profile is not an editor by itself:
+    /// only edits not saved yet (or a running save) block Sam's review (2026-11-15).
+    /// </summary>
+    [Fact]
+    public async Task UnsavedChangesFollowTheEditsAndTheSave()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var remote = new FakeRemote { Hold = true };
+        using var coordinator = fixture.Coordinator(remote);
+        Assert.False(coordinator.HasUnsavedChanges);
+        Assert.True(await coordinator.OpenAsync(OwnerA));
+        Assert.False(coordinator.HasUnsavedChanges);
+
+        Assert.True(coordinator.SetName("Edited"));
+        Assert.True(coordinator.HasUnsavedChanges);
+        var save = coordinator.SaveAsync();
+        await remote.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(coordinator.HasUnsavedChanges);
+        remote.Release();
+        Assert.True(await save.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(coordinator.HasUnsavedChanges);
+
+        Assert.True(coordinator.SetName("Edited again"));
+        coordinator.Close();
+        Assert.False(coordinator.HasUnsavedChanges);
+    }
+
     [Theory]
     [InlineData("   ")]
     [InlineData("")]

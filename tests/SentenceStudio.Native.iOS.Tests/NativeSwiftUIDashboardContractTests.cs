@@ -16,7 +16,8 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Equal(4, scene.Split("Views.Tab(", StringSplitOptions.None).Length - 1);
         Assert.Contains("Views.Tab(localize(\"Nav_Study\"), \"graduationcap\", _dashboardStack)", scene);
         Assert.Contains("Views.Tab(localize(\"Nav_Library\"), \"books.vertical\", library)", scene);
-        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", _settingsStack)", scene);
+        Assert.Contains("Views.Tab(localize(\"Settings_Title\"), \"gearshape\", settings)", scene);
+        Assert.Contains("var settings = BuildSettingsSplit();", scene);
         Assert.Contains("\"bubble.left.and.bubble.right.fill\"", scene);
         Assert.Contains(".WithTabRole(SwiftTabRole.Search)", scene);
         // Shown to every signed-in owner. A tap that does not open Sam reads availability
@@ -54,14 +55,15 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("if (_dashboardSlot is not null)", scene);
         Assert.Contains("Views.NavigationStack(_selectorSheet,", scene);
         Assert.Contains("new LibrarySplitNavigation(_libraryRoot,", library);
-        Assert.Contains("Views.NavigationStack(_settingsSlot,", scene);
+        Assert.Contains("Views.NavigationSplitView(_settingsSidebarSlot, _settingsDetailSlot,",
+            Source("App/ApplicationScene.Settings.cs"));
         Assert.Contains("_dashboardStack.Push(\"quiz\", WithSamToolbar(_dashboardStack, \"quiz\", _quizSheet))", scene);
         Assert.Contains("_libraryStack.Push(\"resource-form\",", scene);
         Assert.Contains("_dashboardStack.CanNavigateBack =\n"
             + "                !_app.NavigationBlocked || _app.CanNavigateBackDuringQuizAudio;",
             scene);
         Assert.Contains("_libraryStack.CanNavigateBack = !_app.NavigationBlocked;", scene);
-        Assert.Contains("_settingsStack.CanNavigateBack = !_app.NavigationBlocked;", scene);
+        Assert.Contains("if (!_app.CloseSettingsPage())", Source("App/ApplicationScene.Settings.cs"));
         // Sam's slot is an action: the selection stays on the current tab.
         var tabs = Source("App/ApplicationController.Library.cs");
         Assert.Contains("if (index == NativeTabs.Sam)", tabs);

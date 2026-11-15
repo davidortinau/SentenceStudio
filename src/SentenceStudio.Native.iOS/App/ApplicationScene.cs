@@ -46,7 +46,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private string? _renderedResourcesArrangement;
     private object? _renderedResourcesKey;
     private string? _renderedResourceSheetKey;
-    private SwiftView? _settingsStack;
     private SwiftView? _samTab;
     private SwiftView? _samUnavailableNotice;
     private SwiftView? _skillsSlot;
@@ -54,7 +53,6 @@ internal sealed partial class ApplicationScene : IDisposable
     private SwiftView? _skillDeleteConfirmation;
     private long _renderedSkillsListVersion = -1;
     private long _renderedSkillFormVersion = -1;
-    private SwiftView? _settingsSlot;
     private int _renderedSettingsVersion = -1;
     private SwiftView? _formSlot;
     private SwiftView? _fileImporter;
@@ -211,8 +209,6 @@ internal sealed partial class ApplicationScene : IDisposable
         _dashboardSlot?.WithNavigationTitle(_app.DashboardTitle);
         if (_libraryStack is not null)
             _libraryStack.CanNavigateBack = !_app.NavigationBlocked;
-        if (_settingsStack is not null)
-            _settingsStack.CanNavigateBack = !_app.NavigationBlocked;
         if (_app.SelectedTab == NativeTabs.Study || _app.IsQuizOpen || themeChanged || modeChanged)
             Replace(_dashboardSlot!, _app.RenderDashboardContent(_style));
         UpdateLibrary(themeChanged || modeChanged);
@@ -272,16 +268,7 @@ internal sealed partial class ApplicationScene : IDisposable
             });
 
         var library = BuildLibraryStack();
-        _settingsSlot = Views.VStack(_app.RenderSettings(_style))
-            .WithNavigationTitle(localize("Settings_Title"))
-            .WithInlineNavigationTitle();
-        _renderedSettingsVersion = _app.SettingsProjectionVersion;
-        _settingsStack = Views.NavigationStack(_settingsSlot,
-            routes =>
-            {
-                if (_app.IsProfileOpen)
-                    OnProfileRoutesChanged(routes.Count);
-            });
+        var settings = BuildSettingsSplit();
         // iOS tab shell trial (Captain, 2026-11-05): Study, Library, Settings, and Sam in the
         // trailing search-role slot with his own symbol and name. Selecting Sam's slot opens
         // Sam and keeps the current tab. A sidebar on iPad.
@@ -296,7 +283,7 @@ internal sealed partial class ApplicationScene : IDisposable
                     .WithAccessibilityIdentifier("native.tab.study"),
                 Views.Tab(localize("Nav_Library"), "books.vertical", library)
                     .WithAccessibilityIdentifier("native.tab.library"),
-                Views.Tab(localize("Settings_Title"), "gearshape", _settingsStack)
+                Views.Tab(localize("Settings_Title"), "gearshape", settings)
                     .WithAccessibilityIdentifier("native.tab.settings"),
                 _samTab)
             // Tabs only (Captain 2026-11-12): the tabs stay in the tab bar (at the side on the
@@ -558,36 +545,6 @@ internal sealed partial class ApplicationScene : IDisposable
             _quizSheet = null;
             _quizPhotoCover = null;
         }
-    }
-
-    private void UpdateSettings(
-        bool themeChanged, bool modeChanged, bool fontScaleChanged)
-    {
-        if (_settingsSlot is null)
-            return;
-        // The Settings projection (with Sam's memory) is read only while Settings is in
-        // front; an appearance change re-renders it anyway, and the next visit catches up.
-        var visible = _app.SelectedTab == NativeTabs.Settings;
-        if (themeChanged || modeChanged
-            || visible && _renderedSettingsVersion != _app.SettingsProjectionVersion)
-        {
-            var version = _app.SettingsProjectionVersion;
-            var next = _app.RenderSettings(_style);
-            // The mounted Form keeps its place (and scroll position): its Sections are swapped.
-            if (!themeChanged && !modeChanged
-                && _settingsSlot.Children.Count == 1
-                && _settingsSlot.Children[0] is { Kind: "form" } currentForm
-                && next.Kind == "form")
-                ReplaceContainerChildren(currentForm, next);
-            else
-                Replace(_settingsSlot, next);
-            _renderedSettingsVersion = version;
-        }
-        else if (fontScaleChanged
-            && Find(_settingsSlot, "native.settings.scale.label") is { } label)
-            label.Text = string.Format(CultureInfo.CurrentCulture,
-                _app.Localize("Settings_TextSizeLabel"),
-                (int)Math.Round(_app.Appearance.Selection.FontScale * 100));
     }
 
     private void StartQuizProgressIfGraded()
@@ -1044,13 +1001,10 @@ internal sealed partial class ApplicationScene : IDisposable
             _libraryListSlot = null;
             _renderedLibraryList = null;
             DropPairsReferences();
-            _settingsStack = null;
             _samTab = null;
             _renderedSamTabPersona = null;
             _samUnavailableNotice = null;
-            _settingsSlot = null;
-            _renderedSettingsVersion = -1;
-            DropProfileReferences();
+            DropSettingsReferences();
             DropActivityLogReferences();
             _selectorSlot = null;
             _selectorSearch = null;

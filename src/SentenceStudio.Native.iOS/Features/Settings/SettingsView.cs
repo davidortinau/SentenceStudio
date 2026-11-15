@@ -9,48 +9,126 @@ using SentenceStudio.Native.iOS.Styling;
 namespace SentenceStudio.Native.iOS.Features.Settings;
 
 /// <summary>
-/// The Settings tab (Captain 2026-11-13, the native form pattern): one grouped Form, as iOS
-/// Settings is. The profile row first, Appearance, Voice &amp; Quiz and the prompt modalities,
-/// the Learning Coach and what Sam remembers, then Sign Out.
+/// The Settings tab as iOS Settings is laid out (Captain 2026-11-15): a sidebar of pages (the
+/// profile row first, Appearance, Voice &amp; Quiz, Learning mode, the Learning Coach, then
+/// Sign Out) beside the chosen page's grouped Form (the native form pattern, 2026-11-13). In a
+/// compact width the sidebar is the list and a page is pushed over it.
 /// </summary>
 internal static class SettingsView
 {
-    internal static SwiftView OwnerUnavailable(
-        SourceUiStyle style, Func<string, string> text, SwiftView? footer = null)
-    {
-        var sections = new List<SwiftView>
-        {
-            Views.Section(string.Empty, NativeForm.Notice(style,
-                text("NativeSettings_OwnerUnavailable"), "native.settings.owner-unavailable",
-                error: true))
-        };
-        if (footer is not null)
-            sections.Add(Views.Section(string.Empty, footer));
-        return Form(style, sections);
-    }
+    /// <summary>A settings page when its owner's settings cannot be read (Sign Out stays in the sidebar).</summary>
+    internal static SwiftView OwnerUnavailable(SourceUiStyle style, Func<string, string> text) =>
+        Form(style, [Views.Section(string.Empty, NativeForm.Notice(style,
+            text("NativeSettings_OwnerUnavailable"), "native.settings.owner-unavailable",
+            error: true))]);
 
-    /// <summary>The Settings tab before its owner's settings are read.</summary>
+    /// <summary>A settings page before its owner's settings are read.</summary>
     internal static SwiftView Loading(SourceUiStyle style, Func<string, string> text) =>
         Form(style, [Views.Section(string.Empty,
             Views.IndeterminateProgress(text("Common_Loading")))]);
 
     /// <summary>
-    /// The first row of the Settings tab, as iOS Settings starts with your name: the
+    /// The Settings sidebar: the profile row, the settings pages, the Learning Coach (when Sam
+    /// is offered) and Sign Out last. The open page's row is marked (see <see cref="Row"/>).
+    /// </summary>
+    internal static SwiftView Sidebar(SourceUiStyle style, Func<string, string> text,
+        (string Name, string NativeLanguage, string TargetLanguage)? summary,
+        NativeSettingsPage? selected, bool coachShown, Action<NativeSettingsPage> select,
+        SwiftView signOut)
+    {
+        SwiftView PageRow(NativeSettingsPage page, string symbol, string id) =>
+            Row(style, symbol, text(TitleKey(page)), selected == page, () => select(page), id);
+        var sections = new List<SwiftView>
+        {
+            Views.Section(string.Empty, ProfileRow(style, text, summary,
+                selected == NativeSettingsPage.Profile, () => select(NativeSettingsPage.Profile))),
+            Views.Section(string.Empty,
+                PageRow(NativeSettingsPage.Appearance, "paintbrush", "native.settings.row.appearance"),
+                PageRow(NativeSettingsPage.VoiceQuiz, "speaker.wave.2", "native.settings.row.voice-quiz"),
+                PageRow(NativeSettingsPage.LearningMode, "slider.horizontal.3",
+                    "native.settings.row.learning-mode")),
+        };
+        if (coachShown)
+            sections.Add(Views.Section(string.Empty, PageRow(NativeSettingsPage.Coach,
+                "bubble.left.and.bubble.right", "native.settings.row.coach")));
+        sections.Add(Views.Section(string.Empty, signOut));
+        return NativeForm.Page(style, sections, "native.settings.sidebar.form",
+            "native.settings.sidebar");
+    }
+
+    /// <summary>A page's title: its sidebar row and the detail column's navigation title.</summary>
+    internal static string TitleKey(NativeSettingsPage page) => page switch
+    {
+        NativeSettingsPage.Profile => "Profile_PageTitle",
+        NativeSettingsPage.Appearance => "Settings_AppearanceSection",
+        NativeSettingsPage.VoiceQuiz => "Settings_VoiceQuizSection",
+        NativeSettingsPage.LearningMode => "LearningMode_Title",
+        NativeSettingsPage.Coach => "Coach_SettingsSection",
+        _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Unrecognized Settings page."),
+    };
+
+    /// <summary>
+    /// A sidebar row: symbol, title and a chevron. The open page's row (beside the list only:
+    /// in a compact width nothing stays chosen) shows its title and symbol in the accent color,
+    /// bold, and a checkmark in place of the chevron (not color alone), and is selected for
+    /// VoiceOver, as the Library's sidebar marks its open place.
+    /// </summary>
+    private static SwiftView Row(SourceUiStyle style, string symbol, string title, bool selected,
+        Action choose, string id)
+    {
+        var appearance = style.Appearance;
+        var row = Views.HStack(
+                Views.Image(symbol)
+                    .WithFixedSymbolSize(20)
+                    .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark),
+                style.Text(Views.Text(title), SourceTextRole.Body1,
+                        selected ? SourceTextTone.Primary : SourceTextTone.Body,
+                        strongElement: selected)
+                    .WithLineLimit(1)
+                    .WithFlexibleWidth(),
+                Trailing(style, selected))
+            .WithFlexibleWidth();
+        row.Spacing = 12;
+        return Views.Button(row, choose)
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithFlexibleWidth()
+            .WithAccessibilitySelected(selected)
+            .WithAccessibilityLabel(title)
+            .WithAccessibilityIdentifier(id);
+    }
+
+    private static SwiftView Trailing(SourceUiStyle style, bool selected)
+    {
+        var appearance = style.Appearance;
+        return selected
+            ? Views.Image("checkmark")
+                .WithFixedSymbolSize(15)
+                .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
+            : Views.Image("chevron.right")
+                .WithFixedSymbolSize(13)
+                .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark);
+    }
+
+    /// <summary>
+    /// The first row of the Settings sidebar, as iOS Settings starts with your name: the
     /// learner's name and languages (in the UI language); it opens the Profile page.
     /// Before the profile is read it shows "Profile" alone.
     /// </summary>
-    internal static SwiftView ProfileRow(SourceUiStyle style, Func<string, string> text,
-        (string Name, string NativeLanguage, string TargetLanguage)? summary, Action openProfile)
+    private static SwiftView ProfileRow(SourceUiStyle style, Func<string, string> text,
+        (string Name, string NativeLanguage, string TargetLanguage)? summary, bool selected,
+        Action openProfile)
     {
         var appearance = style.Appearance;
         var profileTitle = text("Nav_Profile");
         var name = summary is { Name.Length: > 0 } known ? known.Name : profileTitle;
         var languages = summary is { } profile
             ? NativeProfileSummaryText.LanguagePair(profile.NativeLanguage, profile.TargetLanguage, text) : null;
+        var tone = selected ? SourceTextTone.Primary : SourceTextTone.Body;
         var labels = languages is null
-            ? Views.VStack(style.Text(Views.Text(name), SourceTextRole.Title3))
+            ? Views.VStack(style.Text(Views.Text(name), SourceTextRole.Title3, tone,
+                strongElement: selected))
             : Views.VStack(
-                style.Text(Views.Text(name), SourceTextRole.Title3),
+                style.Text(Views.Text(name), SourceTextRole.Title3, tone, strongElement: selected),
                 style.Text(Views.Text(languages), SourceTextRole.Body2, SourceTextTone.Secondary));
         labels.WithFlexibleWidth();
         labels.Spacing = 2;
@@ -64,18 +142,19 @@ internal static class SettingsView
                     .WithFixedSymbolSize(40)
                     .WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark),
                 labels,
-                Views.Image("chevron.right")
-                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark))
+                Trailing(style, selected))
             .WithFlexibleWidth();
         row.Spacing = 12;
-        // A Form row that opens Profile, as iOS Settings' first row opens your account.
+        // A sidebar row that opens Profile, as iOS Settings' first row opens your account.
         return Views.Button(row, openProfile)
+            .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithFlexibleWidth()
+            .WithAccessibilitySelected(selected)
             .WithAccessibilityLabel(string.Join(", ", spoken))
             .WithAccessibilityIdentifier("native.settings.profile");
     }
 
-    /// <summary>The last row of the Settings tab (the Dashboard More menu's Sign out).</summary>
+    /// <summary>The last row of the Settings sidebar (the Dashboard More menu's Sign out).</summary>
     internal static SwiftView SignOut(SourceUiStyle style, string title, bool enabled, Action signOut)
     {
         // The destructive row reads in the danger color, as iOS Settings' Sign Out does.
@@ -90,8 +169,13 @@ internal static class SettingsView
         return button;
     }
 
+    /// <summary>
+    /// A settings page's Form (Profile is its own page, ProfileView): the Sections it held in
+    /// the single Settings Form, in the same order.
+    /// </summary>
     internal static SwiftView Page(
         SourceUiStyle style,
+        NativeSettingsPage page,
         AppearanceSelection selection,
         QuizSettingsDraft quiz,
         Func<string, string> text,
@@ -105,28 +189,34 @@ internal static class SettingsView
         bool voiceLoading,
         string? voiceErrorKey,
         IEnumerable<SwiftView>? coach = null,
-        SwiftView? header = null,
-        SwiftView? footer = null,
         SwiftView? learning = null)
     {
         var sections = new List<SwiftView>();
-        if (header is not null)
-            sections.Add(Views.Section(string.Empty, header));
-        sections.Add(AppearanceSettingsView.Section(style, selection, text,
-            selectTheme, selectMode, setFontScale));
-        sections.AddRange(QuizSettingsView.Sections(style, quiz, text, selectVoiceLanguage,
-            quizChanged, saveQuiz, voiceLoading, voiceErrorKey));
-        if (feedbackKey is not null)
-            sections.Add(Views.Section(string.Empty, style.Text(Views.Text(text(feedbackKey)),
-                    SourceTextRole.Body2, SourceTextTone.Secondary)
-                .WithAccessibilityIdentifier("native.settings.quiz.feedback")));
-        if (learning is not null)
-            sections.Add(learning);
-        // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
-        if (coach is not null)
-            sections.AddRange(coach);
-        if (footer is not null)
-            sections.Add(Views.Section(string.Empty, footer));
+        switch (page)
+        {
+            case NativeSettingsPage.Appearance:
+                sections.Add(AppearanceSettingsView.Section(style, selection, text,
+                    selectTheme, selectMode, setFontScale));
+                break;
+            case NativeSettingsPage.VoiceQuiz:
+                sections.AddRange(QuizSettingsView.Sections(style, quiz, text, selectVoiceLanguage,
+                    quizChanged, saveQuiz, voiceLoading, voiceErrorKey));
+                if (feedbackKey is not null)
+                    sections.Add(Views.Section(string.Empty, style.Text(Views.Text(text(feedbackKey)),
+                            SourceTextRole.Body2, SourceTextTone.Secondary)
+                        .WithAccessibilityIdentifier("native.settings.quiz.feedback")));
+                break;
+            case NativeSettingsPage.LearningMode when learning is not null:
+                sections.Add(learning);
+                break;
+            // Source Settings.razor: the Learning Coach and what Sam remembers.
+            case NativeSettingsPage.Coach when coach is not null:
+                sections.AddRange(coach);
+                break;
+            default:
+                // Learning mode not read yet, or no Learning Coach to show.
+                return Loading(style, text);
+        }
         return Form(style, sections);
     }
 
@@ -176,7 +266,7 @@ internal static class SettingsView
         return Views.Section(text("LearningMode_Title"), rows.ToArray());
     }
 
-    /// <summary>The Settings Form; ApplicationScene.UpdateSettings swaps its Sections in place.</summary>
+    /// <summary>A settings page's Form; ApplicationScene.UpdateSettings swaps its Sections in place.</summary>
     private static SwiftView Form(SourceUiStyle style, IEnumerable<SwiftView> sections) =>
         NativeForm.Page(style, sections, "native.settings.form", "native.settings.screen");
 }

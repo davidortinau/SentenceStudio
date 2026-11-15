@@ -331,3 +331,15 @@ Review of the voice pace and read-aloud change (2026-11-06; correctness findings
 - **Native bulk delete calls the store once per word (review, 2026-11-14).** `VocabularyBrowser.ConfirmBulkDeleteAsync` loops `DeleteOwnedVocabularyAsync` from the presenter (a scope, an ownership query, a transaction and a sync mark each time), with the list locked for the whole run; Select All on 4,466 words would take a long time and a backgrounded app leaves a partial delete with no message. One store method over `LearningResourceRepository.BulkDeleteVocabularyWordsAsync` would count the same outcomes and mark sync once.
 - **Three copies of the store's owner/stamp/mark-pending wrapper (same review).** `ApplyLearnerActionAsync`, `BulkEditAsync` and the delete path each repeat it, and the two bulk edit methods take a cancellation token they do not use.
 - **Older SQLite migrations' Down may not run (2026-11-14).** Seven hand-written SQLite migrations from `AddQuizDemonstrationCounters` on call `migrationBuilder.DropColumn` in `Down` after a hand-written predecessor with no Designer model; EF's SQLite generator refused exactly that for `AddUserProfileLearningMode` (now a direct `DROP COLUMN`). Not run to confirm; devices only migrate up.
+
+## 2026-11-15, Settings split view (branch settings-split-view)
+
+- `ApplicationScene.Settings.cs` repeats part of `LibrarySplitNavigation` (placeholder swaps,
+  compact Back closing the page, re-showing the detail column when Back is blocked). If a third
+  split view appears, extract the shared part.
+- `ApplicationController.RenderSettings` still starts the Learning mode save as
+  `_ = learningMode.SetAsync(mode)` (moved, not new). `LearningModeSetting` reports its own
+  errors, but the Task is not observed; route it through a single-flight owner per
+  `.squad/skills/single-flight-async/SKILL.md`.
+- Sign Out in the Settings sidebar signs out without asking while Profile, beside it, has
+  unsaved edits.

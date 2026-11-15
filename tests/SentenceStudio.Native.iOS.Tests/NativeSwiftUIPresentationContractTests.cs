@@ -146,8 +146,11 @@ public sealed class NativeSwiftUIPresentationContractTests
             scene);
         Assert.Contains("_libraryStack.CanNavigateBack = !_app.NavigationBlocked;",
             scene);
-        Assert.Contains("_settingsStack.CanNavigateBack = !_app.NavigationBlocked;",
-            scene);
+        // Settings is a split view: Back to its list (compact width) is refused while blocked.
+        Assert.Contains("if (!_app.CloseSettingsPage())\n"
+            + "            _settingsSplit.PreferredCompactColumn = SwiftSplitViewColumn.Detail;",
+            Source("App/ApplicationScene.Settings.cs"));
+        Assert.Contains("if (NavigationBlocked)\n            return false;", app);
         Assert.Contains("internal bool CanNavigateBackDuringQuizAudio =>", quiz);
         Assert.Contains("internal bool NavigationBlocked => _busy", app);
         Assert.Contains("_resources?.IsNavigationBlocked == true", app);

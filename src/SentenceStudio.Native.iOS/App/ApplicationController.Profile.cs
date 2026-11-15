@@ -20,9 +20,12 @@ internal sealed partial class ApplicationController
     internal bool IsProfileDeleteRequested =>
         _profile?.State.ShowDeleteConfirmation == true;
 
-    internal void OpenProfile()
+    /// <summary>The profile is open with edits not saved yet (or a save running).</summary>
+    internal bool IsProfileEditing => _profile?.HasUnsavedChanges == true;
+
+    private void OpenProfile()
     {
-        // The profile row at the top of the Settings tab.
+        // The Settings sidebar's profile row (SelectSettingsPage).
         if (_destination != NativeDestination.Dashboard || _selectedTab != NativeTabs.Settings
             || NavigationBlocked || IsQuizOpen || _services is null || IsProfileOpen)
             return;
@@ -68,17 +71,13 @@ internal sealed partial class ApplicationController
                     {
                         // A saved language creates its smart resources on this device.
                         if (await profile.SaveAsync(_lifetime.Token))
+                        {
                             _resources?.NoteResourcesWritten();
+                            // The sidebar's profile row shows beside the page: it follows the save.
+                            await RefreshProfileSummaryAsync();
+                        }
                     })))
             : Views.Text(Text("Common_Loading"));
 
     internal void CancelProfileDelete() => _profile?.CancelDelete();
-
-    internal void OnProfilePopped()
-    {
-        _profile?.Close();
-        Publish();
-        // A saved name or language shows on the Settings profile row.
-        _ = RefreshProfileSummaryAsync();
-    }
 }

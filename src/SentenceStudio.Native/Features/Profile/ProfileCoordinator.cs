@@ -90,6 +90,16 @@ internal sealed class ProfileCoordinator : IDisposable
     {
         get { lock (_gate) return _viewVersion; }
     }
+
+    /// <summary>Open with edits that differ from what was loaded or saved, or a save running.</summary>
+    internal bool HasUnsavedChanges
+    {
+        get
+        {
+            lock (_gate)
+                return _open && (_draft != _stored || _saveStatus == ProfileSaveStatus.Saving);
+        }
+    }
     internal ProfileState State
     {
         get

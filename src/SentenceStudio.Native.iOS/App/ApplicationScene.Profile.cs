@@ -9,23 +9,15 @@ internal sealed partial class ApplicationScene
     private SwiftView? _profileDeleteAlert;
     private int _renderedProfileVersion = -1;
 
-    private void OnProfileRoutesChanged(int count)
-    {
-        if (count != 0 || _profileSlot is null)
-            return;
-        DropProfileReferences();
-        _app.OnProfilePopped();
-    }
-
+    /// <summary>The Profile page in the Settings detail column, once the profile has opened.</summary>
     private void UpdateProfile(bool appearanceChanged)
     {
-        if (_settingsStack is null || !_app.IsProfileOpen)
+        if (_settingsDetailSlot is null || !_app.IsProfileOpen
+            || _renderedSettingsPage != NativeSettingsPage.Profile)
             return;
-        if (_profileSlot is null && _settingsStack.NavigationPath.Count == 0)
+        if (_profileSlot is null)
         {
-            _profileSlot = Views.VStack(_app.RenderProfile(_style))
-                .WithNavigationTitle(_app.Localize("Profile_PageTitle"))
-                .WithInlineNavigationTitle();
+            _profileSlot = Views.VStack(_app.RenderProfile(_style));
             var cancel = Views.Button(_app.Localize("Profile_Cancel"),
                     _app.CancelProfileDelete)
                 .WithAccessibilityIdentifier("native.profile.delete.cancel");
@@ -39,11 +31,9 @@ internal sealed partial class ApplicationScene
                     cancel, delete)
                 .WithAccessibilityIdentifier("native.profile.delete.confirmation");
             _renderedProfileVersion = _app.ProfileViewVersion;
-            _settingsStack.Push("profile", _profileDeleteAlert);
+            Replace(_settingsDetailSlot, _profileDeleteAlert);
         }
-        if (_profileSlot is null)
-            return;
-        if (appearanceChanged
+        else if (appearanceChanged
             || _renderedProfileVersion != _app.ProfileViewVersion)
         {
             Replace(_profileSlot, _app.RenderProfile(_style));

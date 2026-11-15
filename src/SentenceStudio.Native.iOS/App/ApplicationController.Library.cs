@@ -304,6 +304,10 @@ internal sealed partial class ApplicationController
 #endif
         _settingsOpen = true;
         _ = RefreshProfileSummaryAsync();
+        // Profile stays open beside the list: without unsaved edits it reads the profile again,
+        // so a change made elsewhere (web, MAUI, Sam) shows in the form as on the row.
+        if (_profile is { IsOpen: true, HasUnsavedChanges: false } profile)
+            Run(() => profile.ReloadAsync(_lifetime.Token));
         OpenSamSettings();
         var provider = _services.Provider;
         var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
