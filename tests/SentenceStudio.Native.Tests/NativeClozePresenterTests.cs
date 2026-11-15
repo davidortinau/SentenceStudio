@@ -398,7 +398,6 @@ public sealed class NativeClozePresenterTests
 
         cloze.SetTypedAnswer(Answer(owner, 0));
         await cloze.SubmitAsync();
-        Assert.NotEqual(NativeClozeText.FamiliarConfirmed, cloze.State.Notice?.Key);
 
         using var check = fixture.Scope();
         var row = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()

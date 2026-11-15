@@ -610,6 +610,73 @@ names another owner or reuses another learner's ID is refused; a row with no own
 out and stays on the device (`NativeOwnerSyncProvider`; MAUI's `OwnerCheckedSyncProvider`
 reads owners from `SyncRowOwners`). It is a late table (`SyncLateTables`), so a device that
 synced with an older app asks for decisions made elsewhere.
+## Known marks and the Learning mode (2026-11-14)
+
+Captain, 2026-11-14 (`docs/known-words-plan.md`). The contract for every client (web, MAUI,
+native iOS and Android, the future Flutter port). The code is `VocabularyKnownRule`,
+`VocabularyKnownMarks`, `VocabularyProgressConcurrentMerge` and `VocabularyProgressFold` in
+`SentenceStudio.Shared`.
+
+**The mark** is the integer column `VocabularyProgress.VerificationState`, with
+`UserDeclaredAt` (UTC) as the time of a learner's action. No column was added.
+
+| Value | Name | Meaning |
+|---|---|---|
+| 0 | None | no mark |
+| 1 | Pending | the old Familiar declaration: read as Marked Known |
+| 2 | Confirmed | the learner marked the word Known |
+| 3 | Demoted | the old failed probe: read as no mark |
+| 4 | KnownByPractice | was Known in practice while Learner-led: stays Known |
+| 5 | Reopened | Practice again, at `UserDeclaredAt` |
+| 6 | StartedOver | Start over, at `UserDeclaredAt` |
+
+**The mode** is `UserProfile.LearningMode`, stored as the text `LearnerLed` (default) or
+`PracticeLed` (migration `20261114233928_AddUserProfileLearningMode`, PostgreSQL scaffolded,
+SQLite hand-written). The profile API returns it (`learningMode` on `GET /api/v1/profile/me`)
+and saves it with `PUT /api/v1/profile/me/learning-mode`, body `{ "learningMode": "PracticeLed" }`:
+only the two names are accepted (400 otherwise), the owner is the token's, and no other field
+changes. The web and MAUI save it on the profile row; the native heads, whose profile sync is
+download-only, call the endpoint and keep the value on the device once it answers 200. Changing
+the mode writes no progress row.
+
+**The Known rule.** A word is Known when, in Learner-led, its mark is 1, 2 or 4, or, in either
+mode, its score meets the score rule: `MasteryScore >= 0.85` and `ProductionInStreak >= 2`, or
+`MasteryScore >= 0.75` and `ProductionInStreak >= 4` and `TotalAttempts >= 8`. Learning: a score
+above zero and not Known. Unknown: no row, or a score of zero and not Known. Familiar is no
+longer produced (count fields that carried it are zero). A Known word is never due and is not
+chosen for practice while the learner has other words.
+
+**What each action writes.**
+
+- Mark Known (Learner-led only; refused in Practice-led): mark 2, `IsUserDeclared` true,
+  `UserDeclaredAt` and `UpdatedAt` now. No score field changes. A word with no progress row
+  gets one.
+- Practice again: mark 5, `UserDeclaredAt` now, `MasteryScore` 0.5, `CurrentStreak` 0,
+  `ProductionInStreak` 0, `ReviewInterval` 1, `EaseFactor` 2.5, `NextReviewDate` now. Counts and
+  history are kept.
+- Start over: mark 6 and the same reset with `MasteryScore` 0 and `NextReviewDate` null.
+- A live answer: the score is calculated as before. Then, in Learner-led only, a row with no
+  Known mark that was Known before the answer or is Known by score after it gets mark 4. Stamped
+  on an unmarked row the stamp sets no `UserDeclaredAt`; stamped over mark 5 or 6 (the word grew
+  back) it sets `UserDeclaredAt` to the answer's time. In Practice-led nothing is stamped.
+- Only words recorded to the learner are marked; a client marks many words in one save.
+
+**Replay.** Rebuilding a row from its history (the sync merge, a duplicate merge, a repair)
+never reads the mode and never stamps. A row whose mark is 5 or 6 applies the reset above at
+`UserDeclaredAt`: attempts before it count toward totals only, and the score restarts from the
+reset for the attempts after it.
+
+**Merge (server, and any client that merges two copies of a row).** The winning mark is the one
+with the newest `UserDeclaredAt`; a mark with no time is older than any with one; on a tie a
+learner's action (1, 2, 5, 6) beats the automatic stamp (4); a side with no mark and no
+declaration never erases the other side's. A row the learner declared competes by its time
+whatever its value, so an old failed probe (3) newer than a mark still wins, and reads as no mark. When the winning mark is a reset (5 or 6) that the
+upload does not carry, the upload's score is not taken whole even when its counts cover the
+stored row: the row is replayed with the reset.
+
+**Older builds.** A build that does not know marks 4 to 6 shows a word by its score; it cannot
+erase a mark, since the merge keeps the marked side.
+
 ## Owner-checked sync for every client (decisions 1 and 2, 2026-11-04)
 
 Captain, 2026-11-04: "do A, and you should also do what is necessary to make the MAUI app

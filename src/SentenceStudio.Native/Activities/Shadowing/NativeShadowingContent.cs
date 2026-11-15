@@ -86,7 +86,7 @@ public sealed class NativeShadowingContent(
         if (vocabulary.Count == 0)
             return new(NativeShadowingContentStatus.Empty, [], targetLanguage);
 
-        // Exclude Familiar words in their grace period (source, like Cloze/Translation).
+        // Known words are not practised while others remain (source, like Cloze/Translation).
         Dictionary<string, VocabularyProgress> progress;
         LearningMode mode;
         using (var scope = scopes.CreateScope())

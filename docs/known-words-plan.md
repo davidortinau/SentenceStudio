@@ -221,6 +221,49 @@ defaults and the empty states.
 
 Every phase is reviewed before any device round.
 
+## Built (2026-11-14, branch `known-words`)
+
+- Phase 1: `02366d33` (the profile column on both providers), `a5d046d7` (marks, the one Known
+  rule, every reader, the merge, trust but verify removed), `ae463a87` (the mode in the profile
+  API). The contract is in `docs/sync-all-tables-plan.md` ("Known marks and the Learning mode").
+- Phases 2 to 5 on every client:
+  - Word editor: web and MAUI (`VocabularyWordEdit.razor`), iOS (`VocabularyWordEditView`
+    Learning Progress section), Android (`VocabularyProgressCard`). IDs
+    `native.vocabulary.edit.mark-known`, `.practice-again`, `.start-over`.
+  - Many words at once: the web's bulk status; on iOS and Android a select mode in the
+    Vocabulary list (Select, then Set Status, Select All, Done; IDs `native.vocabulary.select*`),
+    one save for every chosen word (`VocabularyBrowser.Marks.cs`).
+  - Vocab Quiz: Mark Known in the page's More menu on every client (`vocab-quiz-mark-known`,
+    `native.quiz.mark-known`), offered for every question in Learner-led
+    (`NativeQuizPresenter.MarkKnownAsync`). A marked word leaves the session without counting as
+    mastered in it. On the native heads an answer already given is saved first; the web shows its
+    menu only before an answer.
+  - Settings: Learning mode on the web and MAUI (`Settings.razor`), iOS (`SettingsView.LearningMode`)
+    and Android (`RenderLearningModeSection`), through `LearningModeSetting` on the native heads.
+- The Familiar tile, badge and filter choice are gone from every client (the count fields in the
+  API and Sam results stay, at zero).
+- Not the system control: the iOS list's select mode is rows with a selection circle, since the
+  SwiftUI bridge has no List selection binding. Native List selection needs that bridge addition.
+- The SQLite migration's Down drops the column with SQL: EF's SQLite generator cannot drop a
+  column after a hand-written migration (it rebuilds the table from the previous migration's
+  model, which a hand-written twin does not carry).
+
+### Learning Value Gate (pools, empty states and the quiz item)
+
+1. Learning objective: the learner's practice time goes to words they do not know yet; a word
+   they know is asked again only when they choose Practice again.
+2. Language roles: no prompt or response modality, direction or toggle changed. Every activity
+   asks the same questions in the same languages as before; only which words are chosen changed.
+   No native-to-native state exists or was added.
+3. Defaults: Learner-led for every learner. Old Familiar words read as Known (Captain: "All
+   become Known").
+4. Empty states: an activity whose words are all Known uses the whole list (`PracticePool`), so it
+   still has target-language sentences; Vocab Quiz with every word Known shows its existing
+   "all mastered" state.
+5. Answer leakage: Mark Known adds no text to the prompt; its label is the same for every word.
+6. Mark Known in the quiz gives no score: the word is not counted as answered or mastered, so it
+   cannot be used to raise a score without recalling the word.
+
 ## History of this plan
 
 Revision 1 wrote the mark into the score fields (mastery 1.0 for a marked word), made the score

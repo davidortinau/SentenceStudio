@@ -29,7 +29,11 @@ internal sealed record VocabularyListActions(
     Action? CancelDelete = null,
     Action<string>? Study = null,
     Action? ShowMoreRows = null,
-    Action<string>? ChooseFilterValue = null);
+    Action<string>? ChooseFilterValue = null,
+    Action<bool>? SetSelecting = null,
+    Action<string>? ToggleSelected = null,
+    Action? SelectAll = null,
+    Action<SentenceStudio.Data.VocabularyLearnerAction>? MarkSelected = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -133,6 +137,32 @@ internal static class VocabularyListView
         VocabularyListActions actions, bool wide, bool ready)
     {
         var shown = new List<SwiftView>();
+        // Select mode (docs/known-words-plan.md, source bulk edit): the toolbar holds only the
+        // status menu, Select All and Done. Entering or leaving it mounts a new page
+        // (VocabularyBrowser.Arrangement), so these buttons are never updated from the others.
+        if (state.Selecting && actions.SetSelecting is { } setSelecting
+            && actions.MarkSelected is { } markSelected)
+        {
+            var marks = new List<SwiftView>();
+            void Add(SentenceStudio.Data.VocabularyLearnerAction action, string id, string symbol) =>
+                marks.Add(Views.Button(Views.Label(text(VocabularyBrowser.ActionKey(action)), symbol),
+                        () => markSelected(action))
+                    .WithAccessibilityIdentifier($"{Prefix}.select.{id}"));
+            if (state.OffersMarkKnown)
+                Add(SentenceStudio.Data.VocabularyLearnerAction.MarkKnown, "mark-known", "checkmark.circle");
+            Add(SentenceStudio.Data.VocabularyLearnerAction.PracticeAgain, "practice-again",
+                "arrow.counterclockwise");
+            Add(SentenceStudio.Data.VocabularyLearnerAction.StartOver, "start-over", "arrow.uturn.backward");
+            shown.Add(Views.Menu(Views.Label(text("NativeVocabulary_SetStatus"), "checkmark.circle"),
+                    marks.ToArray())
+                .WithAccessibilityIdentifier($"{Prefix}.select.status"));
+            if (actions.SelectAll is { } selectAll)
+                shown.Add(Views.Button(text("Vocabulary_SelectAll"), selectAll)
+                    .WithAccessibilityIdentifier($"{Prefix}.select.all"));
+            shown.Add(Views.Button(text("Common_Done"), () => setSelecting(false))
+                .WithAccessibilityIdentifier($"{Prefix}.select.done"));
+            return shown.ToArray();
+        }
         // Recent lookups (decision 4 B): words looked up in Writing and Reading.
         if (actions.OpenLookups is { } openLookups)
             shown.Add(Views.Button(Views.Image("clock.arrow.circlepath"), openLookups)
@@ -162,6 +192,15 @@ internal static class VocabularyListView
         if (actions.AddWord is { } addWord)
             // It waits for the list, which reads the resources a new word can join.
             shown.Add(BrowserPage.AddButton(Prefix, text("Vocabulary_Add"), addWord, ready));
+        // Select: choose words, then set their status together.
+        if (actions.SetSelecting is { } select)
+        {
+            var button = Views.Button(Views.Label(text("NativeVocabulary_Select"), "checklist"),
+                    () => select(true))
+                .WithAccessibilityIdentifier($"{Prefix}.select");
+            button.IsEnabled = ready;
+            shown.Add(button);
+        }
         return shown.ToArray();
     }
 
@@ -421,8 +460,6 @@ internal static class VocabularyListView
                 text("Vocabulary_StatsUnknown"), Count(LearningStatus.Unknown)), false),
             Badge("learning", string.Format(CultureInfo.CurrentCulture,
                 text("Vocabulary_StatsLearning"), Count(LearningStatus.Learning)), false),
-            Badge("familiar", string.Format(CultureInfo.CurrentCulture,
-                text("Vocabulary_StatsFamiliar"), Count(LearningStatus.Familiar)), false),
             Badge("known", string.Format(CultureInfo.CurrentCulture,
                 text("Vocabulary_StatsKnown"), Count(LearningStatus.Known)), true)
         };
@@ -493,16 +530,19 @@ internal static class VocabularyListView
         // redraw time.
         if (AsNativeList(state, wide))
         {
-            children.AddRange(state.ShownWords.Select(word =>
-                ListRow(word, style, text, actions)));
+            children.AddRange(state.ShownWords.Select(word => state.Selecting
+                ? SelectRow(word, state.Selected.Contains(word.Id), style, text, actions)
+                : ListRow(word, style, text, actions)));
             AddLoadMore(children, state, style, text, actions);
             return;
         }
         var list = Views.LazyVGrid(
                 CardColumns(width, style.TextScale, state.ListMode,
                     !state.FilterPanelHidden, wide),
-                state.ShownWords.Select(word =>
-                    Card(word, style, text, actions.OpenWord)).ToArray())
+                state.ShownWords.Select(word => state.Selecting
+                    ? style.Card(SelectRow(word, state.Selected.Contains(word.Id), style, text, actions)
+                        .WithPadding(SourceUiLayout.CardInset))
+                    : Card(word, style, text, actions.OpenWord)).ToArray())
             .WithAccessibilityIdentifier("native.vocabulary.cards");
         list.Spacing = SourceUiLayout.PageGap;
         children.Add(list);
@@ -568,9 +608,8 @@ internal static class VocabularyListView
                     _ => "Vocabulary_FilterTypeSentence"
                 })),
             new("status", "Vocabulary_StatusLabel", "Vocabulary_AllStatus",
-                ["known", "familiar", "learning", "unknown"], value => text(value switch {
+                ["known", "learning", "unknown"], value => text(value switch {
                     "known" => "Vocabulary_Known",
-                    "familiar" => "Vocabulary_Familiar",
                     "learning" => "Vocabulary_Learning",
                     _ => "Vocabulary_Unknown"
                 }))
@@ -746,6 +785,38 @@ internal static class VocabularyListView
             .WithAccessibilityIdentifier($"native.vocabulary.card.{word.Id}.swipe");
     }
 
+    /// <summary>
+    /// A word in select mode: a tap chooses it or lets it go. The circle is filled for a chosen
+    /// word, and the row says so to assistive technology (selected), not by the symbol alone.
+    /// </summary>
+    private static SwiftView SelectRow(NativeVocabularyEntry word, bool selected,
+        SourceUiStyle style, Func<string, string> text, VocabularyListActions actions)
+    {
+        var mark = Views.Image(selected ? "checkmark.circle.fill" : "circle")
+            .WithForegroundColor(style.Appearance.Primary.Light, style.Appearance.Primary.Dark);
+        var target = style.Text(Views.Text(word.TargetTerm), SourceTextRole.ListTitle)
+            .WithLineLimit(1)
+            .WithFlexibleWidth();
+        var native = style.Text(Views.Text(word.NativeTerm),
+                SourceTextRole.Body2, SourceTextTone.Secondary)
+            .WithLineLimit(1)
+            .WithFlexibleWidth();
+        var terms = Views.VStack(target, native).WithFlexibleWidth();
+        terms.Spacing = 2;
+        var status = style.Text(Views.Text(text(StatusKey(word))), SourceTextRole.Small,
+            word.IsKnown ? SourceTextTone.Success : SourceTextTone.Secondary);
+        var label = Views.HStack(mark, terms, status).WithFlexibleWidth();
+        label.Spacing = SourceUiLayout.ItemGap;
+        return Views.Button(label, () => actions.ToggleSelected?.Invoke(word.Id))
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithFlexibleWidth()
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+            .WithAccessibilityIdentifier($"native.vocabulary.select.{word.Id}")
+            .WithAccessibilityLabel(
+                $"{word.TargetTerm}, {word.NativeTerm}, {text(StatusKey(word))}")
+            .WithAccessibilitySelected(selected);
+    }
+
     /// <summary>The card's details line: encoding, resources (or orphaned), lemma and up to three tags.</summary>
     private static string Details(NativeVocabularyEntry word, Func<string, string> text)
     {
@@ -771,7 +842,6 @@ internal static class VocabularyListView
 
     private static string StatusKey(NativeVocabularyEntry word) =>
         word.IsKnown ? "Vocabulary_Known" : word.Status switch {
-            LearningStatus.Familiar => "Vocabulary_Familiar",
             LearningStatus.Learning => "Vocabulary_Learning",
             LearningStatus.Known => "Vocabulary_Known",
             _ => "Vocabulary_Unknown"

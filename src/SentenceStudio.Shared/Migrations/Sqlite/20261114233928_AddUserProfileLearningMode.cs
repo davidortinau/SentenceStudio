@@ -28,8 +28,9 @@ public partial class AddUserProfileLearningMode : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropColumn(
-            name: "LearningMode",
-            table: "UserProfile");
+        // EF's SQLite generator drops a column by rebuilding the table from the previous
+        // migration's model, and the hand-written twin before this one carries none
+        // (NotSupportedException: DropColumnOperation). SQLite drops a plain column itself.
+        migrationBuilder.Sql("ALTER TABLE \"UserProfile\" DROP COLUMN \"LearningMode\";");
     }
 }

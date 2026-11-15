@@ -194,6 +194,16 @@ internal sealed partial class AndroidSliceShell
             cancellationToken);
     });
 
+    /// <summary>More's Mark Known: the word is marked and the quiz moves to the next one.</summary>
+    public void MarkQuizWordKnown() => Execute(async cancellationToken =>
+    {
+        Publish(() => _quizMenuOpen = false);
+        if (_quiz is not { } quiz || !Quiz.CanMarkKnown)
+            return;
+        CancelQuizAutoPlay();
+        await ApplyQuizStateAsync(await quiz.MarkKnownAsync(cancellationToken), cancellationToken);
+    });
+
     public void OpenQuizSentence()
     {
         Publish(() => _quizMenuOpen = false);

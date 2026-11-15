@@ -29,7 +29,7 @@ public class WordAssociationService
 
     /// <summary>
     /// Select vocabulary words for a round from the owner's given Learning Resource(s).
-    /// Excludes Familiar words still in their 14-day grace period. An absent owner
+    /// Known words are not asked while others remain. An absent owner
     /// gets no words.
     /// </summary>
     public async Task<List<VocabularyWord>> GetRoundWordsAsync(string userId, string resourceIds, int count = 5)

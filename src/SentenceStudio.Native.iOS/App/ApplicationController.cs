@@ -50,6 +50,7 @@ internal sealed partial class ApplicationController : IDisposable
     private bool _feedbackAutoAdvanceCanceled;
     private DateTimeOffset? _autoAdvanceDisplayStartedAt;
     private SettingsCoordinator? _settings;
+    private LearningModeSetting? _learningMode;
     private SwiftView? _signInSubmit;
     private SwiftView? _onboardingNextButton;
     private string _chooseOwnSearch = string.Empty;
@@ -171,7 +172,7 @@ internal sealed partial class ApplicationController : IDisposable
     /// <summary>The scene reads it only while Settings is in front.</summary>
     internal int SettingsProjectionVersion => !_settingsOpen ? -1
         : HashCode.Combine(_settingsGeneration, _settings?.ViewVersion ?? -2,
-            SamSettingsVersion, _profileSummary);
+            SamSettingsVersion, _profileSummary, _learningMode?.State);
     internal string Localize(string key) => Text(key);
     internal string DashboardTitle => Text(_dashboardState.IsNewUser
         ? "Dashboard_Welcome" : "Nav_Study");
@@ -668,7 +669,11 @@ internal sealed partial class ApplicationController : IDisposable
             () => SaveQuizSettings(settings), state.FeedbackKey,
             state.VoiceLoading, state.VoiceErrorKey, RenderSamSettings(style),
             header: SettingsView.ProfileRow(style, Text, _profileSummary, OpenProfile),
-            footer: signOut);
+            footer: signOut,
+            learning: _learningMode is { } learningMode
+                ? SettingsView.LearningMode(style, learningMode.State, Text,
+                    mode => _ = learningMode.SetAsync(mode))
+                : null);
     }
 
     private void OnSettingsChanged() => Publish();
@@ -1137,6 +1142,8 @@ internal sealed partial class ApplicationController : IDisposable
         _activityLog = null;
         _settings?.Dispose();
         _settings = null;
+        _learningMode?.Dispose();
+        _learningMode = null;
         _refreshChooseOwnAfterSkills = false;
         _authenticatedSample = false;
         _insightExpanded = false;
@@ -1290,6 +1297,7 @@ internal sealed partial class ApplicationController : IDisposable
         _profile?.Dispose();
         _activityLog?.Dispose();
         _settings?.Dispose();
+        _learningMode?.Dispose();
         _services?.Dispose();
         _lifetime.Dispose();
     }

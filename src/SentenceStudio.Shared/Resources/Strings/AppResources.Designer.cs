@@ -12244,6 +12244,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The learning mode could not be read..
+        /// </summary>
+        internal static string NativeSettings_LearningModeLoadFailed {
+            get {
+                return ResourceManager.GetString("NativeSettings_LearningModeLoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Settings are unavailable: the active profile changed or could not be verified. Go back and reopen Settings..
         /// </summary>
         internal static string NativeSettings_OwnerUnavailable {
@@ -12883,6 +12892,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The status could not be changed. Try again..
+        /// </summary>
+        internal static string NativeVocabulary_MarkFailed {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_MarkFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No constituent words added yet..
         /// </summary>
         internal static string NativeVocabulary_NoConstituents {
@@ -12906,6 +12924,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeVocabulary_SavedSyncUnconfirmed {
             get {
                 return ResourceManager.GetString("NativeVocabulary_SavedSyncUnconfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select.
+        /// </summary>
+        internal static string NativeVocabulary_Select {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_Select", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Set Status.
+        /// </summary>
+        internal static string NativeVocabulary_SetStatus {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_SetStatus", resourceCulture);
             }
         }
 
@@ -19746,6 +19782,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_MarkedCorrect {
             get {
                 return ResourceManager.GetString("VocabQuiz_MarkedCorrect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Marked Known. It will not be asked again unless you choose Practice Again..
+        /// </summary>
+        internal static string VocabQuiz_MarkKnownDone {
+            get {
+                return ResourceManager.GetString("VocabQuiz_MarkKnownDone", resourceCulture);
             }
         }
 

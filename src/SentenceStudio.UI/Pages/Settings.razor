@@ -144,6 +144,29 @@
     <button class="btn btn-ss-primary" @onclick="SavePreferences">@Localize["Settings_SavePreferences"]</button>
 </div>
 
+@* Learning mode (docs/known-words-plan.md): who decides that a word is Known. Changing it
+   saves the setting only; no word or mark is rewritten. *@
+<div class="card card-ss p-4 mb-3">
+    <fieldset class="mb-0" disabled="@isSavingLearningMode">
+        <legend class="ss-title3 mb-3" id="settings-learning-mode-title">@Localize["LearningMode_Title"]</legend>
+        @foreach (var option in new[] { LearningMode.LearnerLed, LearningMode.PracticeLed })
+        {
+            var id = $"settings-learning-mode-{(option == LearningMode.LearnerLed ? "learner-led" : "practice-led")}";
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="settings-learning-mode" id="@id"
+                       data-testid="@id" aria-describedby="@($"{id}-detail")"
+                       checked="@(learningMode == option)" @onchange="() => SetLearningModeAsync(option)" />
+                <label class="form-check-label ss-body1" for="@id">
+                    @Localize[option == LearningMode.LearnerLed ? "LearningMode_LearnerLed" : "LearningMode_PracticeLed"]
+                </label>
+                <div class="ss-caption1 text-secondary-ss" id="@($"{id}-detail")">
+                    @Localize[option == LearningMode.LearnerLed ? "LearningMode_LearnerLedDetail" : "LearningMode_PracticeLedDetail"]
+                </div>
+            </div>
+        }
+    </fieldset>
+</div>
+
 @* Data Management *@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-3">@Localize["Settings_DataManagementSection"]</h5>
@@ -252,7 +275,12 @@
     [Inject] private ToastService Toast { get; set; }
     [Inject] private CoachWorkspaceState CoachWorkspace { get; set; } = default!;
 
+    [Inject] private SentenceStudio.Data.UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.IVocabularyProgressService ProgressService { get; set; } = default!;
     private IJSObjectReference? jsModule;
+
+    private LearningMode learningMode = LearningMode.LearnerLed;
+    private bool isSavingLearningMode;
 
     private string selectedLanguage = "Korean";
     private string selectedVoiceId = "";
@@ -288,6 +316,7 @@
         var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         currentVersion = infoVersion ?? asm.GetName().Version?.ToString() ?? "1.0";
         LoadPreferences();
+        learningMode = await ProgressService.GetLearningModeAsync(ActiveUserId);
         coachAvailability = await CoachWorkspace.RefreshAvailabilityAsync();
         await LoadVoicesAsync();
     }
@@ -307,6 +336,29 @@
         await jsModule.InvokeVoidAsync("setFontScale", fontScale);
         await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
         StateHasChanged();
+    }
+
+    private string ActiveUserId => Preferences.Get("active_profile_id", string.Empty);
+
+    private async Task SetLearningModeAsync(LearningMode mode)
+    {
+        if (isSavingLearningMode || mode == learningMode)
+            return;
+        var previous = learningMode;
+        learningMode = mode;
+        isSavingLearningMode = true;
+        try
+        {
+            if (!await ProfileRepo.SaveLearningModeAsync(ActiveUserId, mode))
+            {
+                learningMode = previous;
+                Toast.ShowError($"{Localize["LearningMode_SaveFailed"]}");
+            }
+        }
+        finally
+        {
+            isSavingLearningMode = false;
+        }
     }
 
     private async Task OnThemeSelected(string themeId)

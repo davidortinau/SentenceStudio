@@ -32,6 +32,17 @@
                     </button>
                 </li>
             }
+            @* docs/known-words-plan.md (Captain 2026-11-14): Mark Known for the word on screen,
+               in Learner-led only and always enabled there. *@
+            @if (learningMode == LearningMode.LearnerLed && currentItem?.Word != null)
+            {
+                <li>
+                    <button class="dropdown-item" id="vocab-quiz-mark-known" data-testid="vocab-quiz-mark-known"
+                            @onclick="MarkCurrentWordKnownAsync">
+                        <i class="bi bi-check-circle me-2" aria-hidden="true"></i>@Localize["Vocabulary_MarkKnown"]
+                    </button>
+                </li>
+            }
         </SecondaryActions>
     </PageHeader>
 }
@@ -500,7 +511,6 @@ else
                 {
                     LearningStatus.Known => "bg-success",
                     LearningStatus.Learning => "bg-warning text-dark",
-                    LearningStatus.Familiar => "bg-info text-dark",
                     _ => "bg-secondary"
                 };
                 var whyModeKey = WhyModeKey(currentItem);
@@ -2395,6 +2405,55 @@ else
         }
     }
 
+    private bool isMarkingKnown;
+
+    /// <summary>
+    /// The More menu's Mark Known: the word is marked through the one owner-scoped save, leaves
+    /// the session without counting as mastered in it, and the next question shows. A refused
+    /// or failed mark leaves the question as it was.
+    /// </summary>
+    private async Task MarkCurrentWordKnownAsync()
+    {
+        if (isMarkingKnown || showAnswer || requireCorrectTyping || isSentenceShortcutMode
+            || currentItem?.Word is not { } word)
+            return;
+        var userId = GetActiveUserId();
+        if (string.IsNullOrEmpty(userId))
+            return;
+        isMarkingKnown = true;
+        try
+        {
+            var marked = await ProgressService.SetLearnerMarkAsync([word.Id], VocabularyLearnerAction.MarkKnown, userId);
+            if (marked.Changed == 0)
+            {
+                Toast.ShowWarning($"{Localize[marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours"]}");
+                return;
+            }
+            var item = currentItem;
+            if (item?.Word?.Id != word.Id)
+                return;
+            item.Progress = await ProgressService.GetProgressAsync(word.Id, userId) ?? item.Progress;
+            CacheService.InvalidateVocabSummary();
+            ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
+            autoAdvanceCts?.Cancel();
+            pendingAttempt = null;
+            var mastered = wordsMastered;
+            await AdvanceFromCurrentItemAsync();
+            // A marked word is not one mastered in this session.
+            wordsMastered = mastered;
+            Toast.ShowSuccess($"{Localize["VocabQuiz_MarkKnownDone"]}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Vocab Quiz Mark Known failed for {WordId}", word.Id);
+            Toast.ShowError($"{Localize["NativeVocabulary_MarkFailed"]}");
+        }
+        finally
+        {
+            isMarkingKnown = false;
+        }
+    }
+
     private async Task NextItem()
     {
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
@@ -3220,7 +3279,6 @@ else
     private static string StatusKey(LearningStatus status) => status switch
     {
         LearningStatus.Known => "VocabWordEdit_StatusKnown",
-        LearningStatus.Familiar => "VocabWordEdit_StatusFamiliar",
         LearningStatus.Learning => "VocabWordEdit_StatusLearning",
         _ => "VocabWordEdit_StatusUnknown"
     };

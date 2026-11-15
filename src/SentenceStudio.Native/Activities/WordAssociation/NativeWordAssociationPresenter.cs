@@ -11,7 +11,7 @@ namespace SentenceStudio.Native;
 /// <summary>
 /// Word Association (source UI/Pages/WordAssociation.razor and
 /// WordAssociationService, activities.md 14). A round is five random words
-/// from every selected resource (grace-period Familiar words excluded). The
+/// from every selected resource (Known words are not asked while others remain). The
 /// learner writes clues for each word, grades them with the source
 /// GradeWordAssociation prompt (Reasoning tier), moves between words, and
 /// finishes with a scored summary and the all-time / weekly high-score

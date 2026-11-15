@@ -74,7 +74,7 @@ public sealed partial class NativeResourceStore
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
-        return new(true, entries, resources);
+        return new(true, entries, resources) { Mode = mode };
     }
 
     public async Task<NativeVocabularyDetail?> GetOwnedVocabularyAsync(
@@ -166,7 +166,40 @@ public sealed partial class NativeResourceStore
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
         return new(entry, draft, available, progressSnapshot, history,
-            examples, constituents, hasConstituentLinks, deleteBlock);
+            examples, constituents, hasConstituentLinks, deleteBlock)
+        {
+            Mode = mode, KnownSource = VocabularyKnownRule.Source(ownProgress, mode)
+        };
+    }
+
+    /// <summary>
+    /// Mark Known, Practice again or Start over on the owner's own words, through the shared
+    /// rule every client uses (<see cref="VocabularyProgressRepository.ApplyLearnerActionAsync"/>).
+    /// </summary>
+    public async Task<NativeVocabularyMarkResult> ApplyLearnerActionAsync(
+        string owner, IReadOnlyCollection<string> wordIds, VocabularyLearnerAction action,
+        CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner) || wordIds is null || wordIds.Count == 0)
+            return new(0, RefusalKey: "Vocabulary_MarkRefusedNotYours");
+        var stamp = userScope.CaptureStamp();
+        using var scope = scopes.CreateScope();
+        var progress = scope.ServiceProvider.GetRequiredService<VocabularyProgressRepository>();
+        if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
+            return new(0, RefusalKey: "Vocabulary_MarkRefusedNotYours");
+        var marked = await progress.ApplyLearnerActionAsync(wordIds, action, owner, cancellationToken);
+        if (marked.Changed == 0)
+            return new(0, RefusalKey: marked.RefusalKey ?? "Vocabulary_MarkRefusedNotYours");
+        try
+        {
+            pendingWrites.MarkPending(owner);
+            return new(marked.Changed);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Vocabulary mark committed but sync tracking was not confirmed.");
+            return new(marked.Changed, SyncUnconfirmed: true);
+        }
     }
 
     /// <summary>

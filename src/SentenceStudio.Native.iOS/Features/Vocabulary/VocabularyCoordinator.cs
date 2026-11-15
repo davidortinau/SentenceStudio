@@ -160,7 +160,11 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 CancelDelete: CancelListDeleteLater,
                 Study: StudyWord,
                 ShowMoreRows: ShowMoreRows,
-                ChooseFilterValue: OpenChooser),
+                ChooseFilterValue: OpenChooser,
+                SetSelecting: SetSelecting,
+                ToggleSelected: ToggleSelected,
+                SelectAll: SelectAllFiltered,
+                MarkSelected: action => Run(() => MarkSelectedAsync(action))),
             PageWidth, ListDeleteMessage);
     }
 
@@ -227,6 +231,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 || state.ErrorKey is not null)
                 return string.Empty;
             var total = state.Catalog.Words.Count;
+            if (state.Selecting)
+                return string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    Text("Vocabulary_BulkSelected"), state.Selected.Count);
             return state.Filters.HasActiveFilters
                 ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     Text("Vocabulary_StatsTotal"), state.FilteredWords.Count, total)
@@ -375,7 +382,8 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 ToggleFlag: id => Run(() => ToggleExampleFlagAsync(id)),
                 Delete: id => Run(() => DeleteExampleAsync(id)),
                 RegisterButton: (key, view) => _exampleButtons[key] = view),
-            RegisterSection: (section, view) => _sections[section] = view);
+            RegisterSection: (section, view) => _sections[section] = view,
+            Mark: action => Run(() => MarkOpenWordAsync(action)));
         var form = VocabularyWordEditView.Page(EditState, style, Text, _formActions);
         UpdateSaveButtons();
         return form;

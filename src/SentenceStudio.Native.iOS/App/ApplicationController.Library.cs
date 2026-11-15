@@ -287,6 +287,7 @@ internal sealed partial class ApplicationController
             _authState, _preview, debugFixtureBuild,
             NSBundle.MainBundle.BundleIdentifier, PreviewOwner,
             scope, preferences, _logger!);
+        OpenLearningMode(provider, scope, owner);
         if (_settings is { } current)
         {
             var state = current.State;
@@ -320,6 +321,26 @@ internal sealed partial class ApplicationController
         }
         _settings = settings;
         _ = LoadSettingsVoicesAsync(settings, owner, settings.State.Quiz!.VoiceLanguage);
+    }
+
+    /// <summary>Every Settings visit reads the owner's Learning mode again (another client may have changed it).</summary>
+    private void OpenLearningMode(IServiceProvider provider, DeviceUserScopeProvider scope, string? owner)
+    {
+        if (owner is null)
+        {
+            _learningMode?.Close();
+            return;
+        }
+        if (_learningMode is null)
+        {
+            _learningMode = new LearningModeSetting(scope,
+                provider.GetRequiredService<VocabularyProgressRepository>(),
+                provider.GetRequiredService<UserProfileRepository>(),
+                provider.GetRequiredService<INativeProfileRemoteStore>(),
+                provider.GetRequiredService<ILogger<LearningModeSetting>>());
+            _learningMode.Changed += OnSettingsChanged;
+        }
+        _ = _learningMode.OpenAsync(owner);
     }
 
     /// <summary>The name and languages on the Settings profile row, read for the signed-in owner only.</summary>

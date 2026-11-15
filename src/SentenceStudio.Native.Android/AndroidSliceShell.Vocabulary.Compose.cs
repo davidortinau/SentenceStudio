@@ -3,6 +3,8 @@ using AndroidX.Compose;
 using AndroidX.Compose.UI.Graphics;
 using AndroidX.Compose.UI.Graphics.Painter;
 using SentenceStudio.Common;
+using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Native.Features.Vocabulary;
 using SentenceStudio.Shared.Models;
 using Bitmap = Android.Graphics.Bitmap;
@@ -45,9 +47,17 @@ internal sealed partial class AndroidSliceShell
     {
         var state = vocabulary?.ListState;
         var wide = WindowWidthDp >= 768;
-        var header = ScreenHeader(Localize("Vocabulary_Title"), palette, back: true,
+        var selecting = state is { Selecting: true };
+        // Select mode (docs/known-words-plan.md, source bulk edit): the bar counts the chosen
+        // words and holds only the status menu, Select All and Done.
+        var header = ScreenHeader(selecting
+                ? string.Format(CultureInfo.CurrentCulture, Localize("Vocabulary_BulkSelected"),
+                    state!.Selected.Count)
+                : Localize("Vocabulary_Title"), palette, back: true,
             backAutomationId: "native.vocabulary.back");
-        if (vocabulary is not null && header is TopAppBar bar)
+        if (selecting && header is TopAppBar selectBar)
+            selectBar.Actions = VocabularySelectActions(vocabulary!, state!, palette);
+        else if (vocabulary is not null && header is TopAppBar bar)
         {
             var actions = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
             {
@@ -175,7 +185,7 @@ internal sealed partial class AndroidSliceShell
                 foreach (var word in state.FilteredWords)
                 {
                     var item = word;
-                    rows.Add(new($"word.{item.Id}", () => VocabularyCard(item, vocabulary!, palette)));
+                    rows.Add(new($"word.{item.Id}", () => VocabularyCard(item, vocabulary!, state, palette)));
                 }
                 page.Add(VocabularyLazyList(rows, wide, listMode: true));
             }
@@ -193,7 +203,7 @@ internal sealed partial class AndroidSliceShell
                 }
                 var columns = WindowWidthDp < 992 ? 2 : 3;
                 page.Add(new LazyVerticalGrid<NativeVocabularyEntry>(GridCells.Fixed(columns),
-                    state.FilteredWords.ToArray(), word => VocabularyCard(word, vocabulary!, palette))
+                    state.FilteredWords.ToArray(), word => VocabularyCard(word, vocabulary!, state, palette))
                 {
                     Key = word => word.Id,
                     Modifier = Modifier.FillMaxWidth().Weight(1f)
@@ -231,7 +241,6 @@ internal sealed partial class AndroidSliceShell
         {
             ("Vocabulary_StatsUnknown", words.Count(word => word.Status == LearningStatus.Unknown)),
             ("Vocabulary_StatsLearning", words.Count(word => word.Status == LearningStatus.Learning)),
-            ("Vocabulary_StatsFamiliar", words.Count(word => word.Status == LearningStatus.Familiar)),
             ("Vocabulary_StatsKnown", words.Count(word => word.Status == LearningStatus.Known)),
         })
             stats.Add(Caption(string.Format(CultureInfo.CurrentCulture, Localize(key), count), palette));
@@ -284,7 +293,7 @@ internal sealed partial class AndroidSliceShell
     }
 
     private ComposableNode VocabularyCard(NativeVocabularyEntry word, VocabularyBrowser vocabulary,
-        AndroidVisualPalette palette)
+        VocabularyBrowserList list, AndroidVisualPalette palette)
     {
         var status = Localize(VocabularyStatusKey(word));
         var metadata = new List<string>();
@@ -316,36 +325,51 @@ internal sealed partial class AndroidSliceShell
         var target = Heading(word.TargetTerm, palette, 20,
             Modifier.TestTag($"native.vocabulary.card.{word.Id}.target"));
         var id = word.Id;
+        // In select mode a tap (or the checkbox) chooses the word instead of opening it.
+        var selecting = list.Selecting;
+        var selected = selecting && list.Selected.Contains(id);
         var card = new Surface
         {
             Modifier = Modifier.FillMaxWidth()
                 .Clip(Shape.RoundedCorners(AndroidVisualTheme.CardRadius))
-                .Clickable(() => RunMoreOnUi(() => vocabulary.OpenWordAsync(id)))
+                .Clickable(selecting
+                    ? () => vocabulary.ToggleSelected(id)
+                    : () => RunMoreOnUi(() => vocabulary.OpenWordAsync(id)))
                 .TestTag($"native.vocabulary.card.{word.Id}")
                 .Semantics(semantics =>
                 {
                     semantics.ContentDescription($"{word.TargetTerm}, {word.NativeTerm}, {status}");
-                    semantics.Role(SemanticsRole.Button);
+                    semantics.Role(selecting ? SemanticsRole.Checkbox : SemanticsRole.Button);
+                    if (selecting)
+                        semantics.Selected(selected);
                 }),
             Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
             Color = palette.Card,
         };
+        var heading = new Row(Arrangement.SpacedBy(8), Alignment.Vertical.Top)
+        {
+            Modifier.FillMaxWidth(),
+        };
+        if (selecting)
+            heading.Add(new Checkbox(@checked: selected,
+                onCheckedChange: _ => vocabulary.ToggleSelected(id), enabled: !list.Marking)
+            {
+                Modifier = Modifier.TestTag($"native.vocabulary.select.{id}")
+                    .Semantics(semantics => semantics.ContentDescription(word.TargetTerm)),
+            });
+        heading.Add(new Column(Arrangement.SpacedBy(2))
+        {
+            Modifier.Weight(1f),
+            target,
+            Body(word.NativeTerm, palette, secondary: true,
+                modifier: Modifier.TestTag($"native.vocabulary.card.{word.Id}.native")),
+        });
+        heading.Add(badge);
         card.Add(new Column(Arrangement.SpacedBy(6))
         {
             Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
                 .Padding(AndroidVisualTheme.CardPadding),
-            new Row(Arrangement.SpacedBy(8), Alignment.Vertical.Top)
-            {
-                Modifier.FillMaxWidth(),
-                new Column(Arrangement.SpacedBy(2))
-                {
-                    Modifier.Weight(1f),
-                    target,
-                    Body(word.NativeTerm, palette, secondary: true,
-                        modifier: Modifier.TestTag($"native.vocabulary.card.{word.Id}.native")),
-                },
-                badge,
-            },
+            heading,
             Caption(details, palette, $"native.vocabulary.card.{word.Id}.details"),
         });
         return card;
@@ -354,7 +378,6 @@ internal sealed partial class AndroidSliceShell
     private static string VocabularyStatusKey(NativeVocabularyEntry word) =>
         word.IsKnown ? "Vocabulary_Known" : word.Status switch
         {
-            LearningStatus.Familiar => "Vocabulary_Familiar",
             LearningStatus.Learning => "Vocabulary_Learning",
             LearningStatus.Known => "Vocabulary_Known",
             _ => "Vocabulary_Unknown"
@@ -454,11 +477,10 @@ internal sealed partial class AndroidSliceShell
                     _ => "Vocabulary_FilterTypeSentence"
                 })),
             VocabularyFilter(vocabulary, state, "status", "Vocabulary_StatusLabel",
-                "Vocabulary_AllStatus", ["known", "familiar", "learning", "unknown"], live, palette,
+                "Vocabulary_AllStatus", ["known", "learning", "unknown"], live, palette,
                 value => Localize(value switch
                 {
                     "known" => "Vocabulary_Known",
-                    "familiar" => "Vocabulary_Familiar",
                     "learning" => "Vocabulary_Learning",
                     _ => "Vocabulary_Unknown"
                 })),
@@ -579,7 +601,7 @@ internal sealed partial class AndroidSliceShell
                         modifier: Modifier.TestTag($"native.vocabulary.edit.constituent.{constituent.Id}")));
                 return Card(palette, "native.vocabulary.edit.constituents", items.ToArray());
             });
-        Add("progress", () => VocabularyProgressCard(detail, palette));
+        Add("progress", () => VocabularyProgressCard(vocabulary, state, detail, palette));
         // History: a heading row, then one lazy row per learning event.
         Add("history", () => VocabularyHistoryHeading(detail, palette));
         foreach (var item in detail.History)
@@ -748,13 +770,13 @@ internal sealed partial class AndroidSliceShell
             srcSize: ((long)bitmap.Width << 32) | (uint)bitmap.Height, filterQuality: 1);
     }
 
-    private ComposableNode VocabularyProgressCard(NativeVocabularyDetail detail, AndroidVisualPalette palette)
+    private ComposableNode VocabularyProgressCard(VocabularyBrowser vocabulary, VocabularyBrowserEdit state,
+        NativeVocabularyDetail detail, AndroidVisualPalette palette)
     {
         var progress = detail.Progress;
         var status = Localize(detail.Word.IsKnown ? "VocabWordEdit_Known" : detail.Word.Status switch
         {
             LearningStatus.Known => "VocabWordEdit_Known",
-            LearningStatus.Familiar => "VocabWordEdit_Familiar",
             LearningStatus.Learning => "VocabWordEdit_Learning",
             _ => "VocabWordEdit_Unknown"
         });
@@ -784,13 +806,80 @@ internal sealed partial class AndroidSliceShell
             Caption(Localize(key), palette),
             Body(value, palette, modifier: Modifier.TestTag(tag)),
         };
-        return Card(palette, "native.vocabulary.edit.progress",
+        var items = new List<ComposableNode>
+        {
             WordSectionHeading("VocabWordEdit_LearningProgress", palette),
-            Value("VocabWordEdit_Status", detail.Word.IsKnown
-                ? $"{status} · {Localize("VocabWordEdit_EarnedThrough")}" : status,
+            // docs/known-words-plan.md: the status and, for a Known word, who decided it.
+            Value("VocabWordEdit_Status", detail.KnownSource switch
+                {
+                    VocabularyKnownSource.Learner => $"{status} · {Localize("VocabWordEdit_KnownMarked")}",
+                    VocabularyKnownSource.Practice => $"{status} · {Localize("VocabWordEdit_EarnedThrough")}",
+                    _ => status
+                },
                 "native.vocabulary.edit.progress.status"),
             Value("VocabWordEdit_Details", summary, "native.vocabulary.edit.progress.details"),
-            Value("VocabWordEdit_NextReview", next, "native.vocabulary.edit.progress.review"));
+            Value("VocabWordEdit_NextReview", next, "native.vocabulary.edit.progress.review"),
+        };
+        // Source status buttons: Practice Again for a Known word, Mark Known otherwise (in
+        // Learner-led only), and Start Over once the word has practice or a status.
+        void Mark(VocabularyLearnerAction action, string tag) =>
+            items.Add(Action(Localize(VocabularyBrowser.ActionKey(action)), tag,
+                () => RunMoreOnUi(() => vocabulary.MarkOpenWordAsync(action)), state.CanMark,
+                primary: false));
+        if (detail.CanPracticeAgain)
+            Mark(VocabularyLearnerAction.PracticeAgain, "native.vocabulary.edit.practice-again");
+        else if (detail.CanMarkKnown)
+            Mark(VocabularyLearnerAction.MarkKnown, "native.vocabulary.edit.mark-known");
+        if (detail.CanStartOver)
+            Mark(VocabularyLearnerAction.StartOver, "native.vocabulary.edit.start-over");
+        if (state.Marking)
+            items.Add(new LinearProgressIndicator
+            {
+                Modifier = Modifier.FillMaxWidth().TestTag("native.vocabulary.edit.marking"),
+            });
+        return Card(palette, "native.vocabulary.edit.progress", items.ToArray());
+    }
+
+    private const string VocabularySelectMenuKey = "vocabulary.select.status";
+
+    /// <summary>Select mode's bar actions: the status menu, Select All and Done.</summary>
+    private ComposableNode VocabularySelectActions(VocabularyBrowser vocabulary,
+        VocabularyBrowserList state, AndroidVisualPalette palette)
+    {
+        var status = new TextButton(() => ToggleMoreMenu(VocabularySelectMenuKey),
+            enabled: state.CanMarkSelected)
+        {
+            Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .TestTag("native.vocabulary.select.status"),
+        };
+        status.Add(new Text(Localize("NativeVocabulary_SetStatus")));
+        var menu = PopupMenu(expanded: _moreMenu == VocabularySelectMenuKey,
+            onDismissRequest: CloseMoreMenu);
+        void Mark(VocabularyLearnerAction action, string tag) =>
+            menu.Add(VocabularyMenuItem(Localize(VocabularyBrowser.ActionKey(action)), tag,
+                state.CanMarkSelected, () => RunMoreOnUi(() => vocabulary.MarkSelectedAsync(action))));
+        if (state.OffersMarkKnown)
+            Mark(VocabularyLearnerAction.MarkKnown, "native.vocabulary.select.mark-known");
+        Mark(VocabularyLearnerAction.PracticeAgain, "native.vocabulary.select.practice-again");
+        Mark(VocabularyLearnerAction.StartOver, "native.vocabulary.select.start-over");
+        var all = new TextButton(vocabulary.SelectAllFiltered, enabled: !state.Marking)
+        {
+            Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .TestTag("native.vocabulary.select.all"),
+        };
+        all.Add(new Text(Localize("Vocabulary_SelectAll")));
+        var done = new TextButton(() => vocabulary.SetSelecting(false), enabled: !state.Marking)
+        {
+            Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .TestTag("native.vocabulary.select.done"),
+        };
+        done.Add(new Text(Localize("Common_Done")));
+        return new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+        {
+            new Box { status, menu },
+            all,
+            done,
+        };
     }
 
     private ComposableNode VocabularyHistoryHeading(NativeVocabularyDetail detail, AndroidVisualPalette palette)

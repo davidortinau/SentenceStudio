@@ -152,15 +152,13 @@ internal sealed partial class AndroidSliceShell
                 palette.Primary, palette),
             VocabularyTile(summary.Learning, "Dashboard_VocabLearning", "learning",
                 palette.WarningText, palette),
-            VocabularyTile(summary.Familiar, "Dashboard_VocabFamiliar", "familiar",
-                palette.Primary, palette),
             VocabularyTile(summary.Review, "Dashboard_VocabReview", "review",
                 palette.WarningText, palette),
             VocabularyTile(summary.Known, "Dashboard_VocabKnown", "known",
                 palette.KnownText, palette),
         ];
-        // Source col-6 col-md: two per row on a phone, one row of five from 768.
-        var columns = WindowWidthDp >= 768 ? 5 : 2;
+        // Source col-6 col-md: two per row on a phone, one row of four from 768.
+        var columns = WindowWidthDp >= 768 ? 4 : 2;
         for (var start = 0; start < tiles.Length; start += columns)
         {
             var row = new Row(Arrangement.SpacedBy(12))
@@ -171,7 +169,7 @@ internal sealed partial class AndroidSliceShell
                 row.Add(index < tiles.Length ? tiles[index] : new Box { Modifier.Weight(1f) });
             viewport.Add(row);
         }
-        var total = summary.New + summary.Learning + summary.Familiar
+        var total = summary.New + summary.Learning
             + summary.Review + summary.Known;
         if (total > 0)
             viewport.Add(Card(palette, "native.dashboard.vocab.summary",

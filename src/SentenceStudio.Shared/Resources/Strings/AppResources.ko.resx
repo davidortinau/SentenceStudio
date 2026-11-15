@@ -10165,4 +10165,19 @@
   <data name="LearningMode_SaveFailed" xml:space="preserve">
     <value>학습 방식을 저장하지 못했습니다. 온라인일 때 다시 시도하세요.</value>
   </data>
+  <data name="NativeVocabulary_MarkFailed" xml:space="preserve">
+    <value>상태를 바꾸지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeSettings_LearningModeLoadFailed" xml:space="preserve">
+    <value>학습 방식을 불러오지 못했습니다.</value>
+  </data>
+  <data name="NativeVocabulary_Select" xml:space="preserve">
+    <value>선택</value>
+  </data>
+  <data name="NativeVocabulary_SetStatus" xml:space="preserve">
+    <value>상태 설정</value>
+  </data>
+  <data name="VocabQuiz_MarkKnownDone" xml:space="preserve">
+    <value>아는 단어로 표시했습니다. 다시 연습을 선택하기 전까지는 나오지 않습니다.</value>
+  </data>
 </root>

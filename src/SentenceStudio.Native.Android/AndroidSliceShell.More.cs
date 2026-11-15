@@ -28,6 +28,7 @@ internal sealed partial class AndroidSliceShell
 
     private string? _moreMenu;
     private SettingsCoordinator? _settings;
+    private LearningModeSetting? _learningMode;
     // The size a text-size drag shows until release applies it; null when none.
     private double? _textSizePreview;
     private Task _appearanceSaves = Task.CompletedTask;
@@ -192,6 +193,12 @@ internal sealed partial class AndroidSliceShell
                     vocabulary.CloseWord();
                     return true;
                 }
+                // Back leaves select mode before it leaves the list.
+                if (vocabulary.ListState.Selecting)
+                {
+                    vocabulary.SetSelecting(false);
+                    return true;
+                }
                 // The duplicate page sits under a word its Edit opened, so it closes after the word.
                 if (vocabulary.DuplicatePanel is not null)
                 {
@@ -248,6 +255,8 @@ internal sealed partial class AndroidSliceShell
         foreach (var page in Enum.GetValues<MoreScreen>())
             ReleaseMorePage(page);
         ReleaseSettings();
+        _learningMode?.Dispose();
+        _learningMode = null;
     }
 
     private void ReleaseMorePage(MoreScreen page)

@@ -81,6 +81,9 @@ public sealed partial class NativeQuizPresenter(
     private bool _allMasteredAtLaunch;
     // The learner's Learning mode, which the Known rule needs (docs/known-words-plan.md).
     private LearningMode _learningMode;
+    // The current word was marked Known from the toolbar: it leaves the session without
+    // counting as mastered in it.
+    private string? _markedKnownTurnId;
     private bool _audioHeard;
     private bool _audioAvailable;
     // The turn whose prompt still autoplays once the head shows it (PlayAutoPromptAsync).
@@ -722,7 +725,12 @@ public sealed partial class NativeQuizPresenter(
         {
             AutoPlayPending = AutoPlayEligible && value.TurnId == _turnId
                 && value.Overlay == NativeQuizOverlay.None && value.Sentence is null
+                && value.Phase is NativePhase.Ready or NativePhase.Feedback,
+            CanMarkKnown = _learningMode == LearningMode.LearnerLed && _launch is not null
+                && value.Destination == NativeDestination.VocabularyQuiz
                 && value.Phase is NativePhase.Ready or NativePhase.Feedback
+                && value.TurnId == _turnId && _turnIndex < _round.Count
+                && value.Overlay == NativeQuizOverlay.None && value.Sentence is null
         };
         StateChanged?.Invoke(State);
         return State;

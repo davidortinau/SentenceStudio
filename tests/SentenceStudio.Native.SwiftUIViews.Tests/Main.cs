@@ -546,7 +546,7 @@ var cases = new (string Name, Action Test)[]
         var stats = Find(results, "native.vocabulary.stats")!;
         Assert(stats.Kind == "horizontalGrid" && stats.Children.Count == 1
             && stats.Children[0].Children.Count == 5);
-        foreach (var id in new[] { "total", "unknown", "learning", "familiar", "known" })
+        foreach (var id in new[] { "total", "unknown", "learning", "known" })
             Assert(Find(stats, $"native.vocabulary.stats.{id}") is not null);
         Assert(Find(results, "native.vocabulary.chips") is null);
         var cards = Find(Find(results, "native.vocabulary.results.scroll")!, "native.vocabulary.cards")!;
