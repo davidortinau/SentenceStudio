@@ -169,7 +169,13 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
                 CancelStartOver: CancelStartOverLater,
                 SetSelectedLanguage: language => Run(() => SetSelectedLanguageAsync(language)),
                 OpenTagEntry: OpenTagEntry,
-                ChangeTagDraft: SetTagDraft,
+                ChangeTagDraft: value =>
+                {
+                    SetTagDraft(value);
+                    if (_tagAddButton is { } add && add.IsEnabled != CanAddTags)
+                        add.IsEnabled = CanAddTags;
+                },
+                RegisterTagAdd: button => _tagAddButton = button,
                 AddTags: () => Run(AddTagsToSelectedAsync),
                 CancelTagEntry: CancelTagEntryLater,
                 RequestBulkDelete: RequestBulkDelete,
@@ -178,6 +184,9 @@ internal sealed class VocabularyCoordinator : VocabularyBrowser
             PageWidth, ListDeleteMessage, StartOverSelectedMessage, BulkDeleteMessage,
             IsTagEntryOpen ? TagDraft : null);
     }
+
+    /// <summary>The tag sheet's Add, enabled once a tag is typed.</summary>
+    private SwiftView? _tagAddButton;
 
     /// <summary>As <see cref="CancelListDeleteLater"/>: the dialog can report its close before Delete runs.</summary>
     private void CancelBulkDeleteLater()

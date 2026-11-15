@@ -31,6 +31,8 @@ internal partial class VocabularyBrowser
     /// </summary>
     internal Task RequestMarkSelectedAsync(VocabularyLearnerAction action)
     {
+        if (!BulkEditMayStart())
+            return Task.CompletedTask;
         if (action != VocabularyLearnerAction.StartOver)
             return MarkSelectedAsync(action);
         if (!_selecting || _marking || _selectedIds.Count == 0 || BulkPromptOpen || !TryOwner(out _))

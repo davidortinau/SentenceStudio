@@ -229,6 +229,45 @@ public sealed class KnownWordsNativeTests
         Assert.Contains("travel", tagged);
         Assert.Equal(1, tagged.Split(',').Count(tag => tag.Trim().Equals("food", StringComparison.OrdinalIgnoreCase)));
 
+        // Adding a tag the word already holds is not a failure.
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        browser.OpenTagEntry();
+        browser.SetTagDraft("food");
+        await browser.AddTagsToSelectedAsync();
+        Assert.False(browser.ListState.FeedbackWarning);
+        Assert.False(browser.ListState.Selecting);
+
+        // With no word chosen a bulk choice says so and changes nothing.
+        browser.SetSelecting(true);
+        var mounted = browser.Arrangement;
+        await browser.SetSelectedLanguageAsync("French");
+        Assert.Equal("NativeVocabulary_SelectFirst", browser.ListState.Feedback);
+        Assert.NotEqual(mounted, browser.Arrangement);
+        browser.OpenTagEntry();
+        Assert.False(browser.IsTagEntryOpen);
+        browser.RequestBulkDelete();
+        Assert.Null(browser.BulkDeleteMessage);
+        browser.SetSelecting(false);
+
+        // A word open beside the list with nothing typed takes the new language, and is not
+        // "unsaved"; one being edited keeps its draft and can still be saved.
+        await browser.OpenWordAsync(first);
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        await browser.SetSelectedLanguageAsync("French");
+        Assert.Equal("French", browser.EditState.Draft!.Language);
+        Assert.False(browser.HasUnsavedEdits);
+        browser.ChangeDraft(nameof(NativeVocabularyEditDraft.Lemma), "kept");
+        browser.SetSelecting(true);
+        browser.ToggleSelected(first);
+        await browser.SetSelectedLanguageAsync("German");
+        Assert.Equal("kept", browser.EditState.Draft!.Lemma);
+        Assert.True(browser.HasUnsavedEdits);
+        await browser.SaveAsync();
+        Assert.Null(browser.EditState.ErrorKey);
+        browser.CloseWord();
+
         // Delete asks first; Cancel deletes nothing; confirmed, only the chosen word goes.
         var before = browser.ListState.Catalog.Words.Count;
         browser.SetSelecting(true);

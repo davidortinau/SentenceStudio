@@ -644,6 +644,16 @@ internal sealed partial class AndroidSliceShell
         if (state.ErrorKey is { } error)
             Add("error", () => StatusAlert(Localize(error), palette, error: true,
                 automationId: "native.vocabulary.edit.error"));
+        // "Save or undo your changes": both actions under the message (as on iOS).
+        if (state.ErrorKey == VocabularyBrowser.SaveBeforeOpeningAnotherKey
+            && state is { Detail: not null, Draft: not null, Creating: false })
+        {
+            Add("unsaved.save", () => Action(Localize("Common_Save"), "native.vocabulary.edit.unsaved.save",
+                () => RunMoreOnUi(vocabulary.SaveAsync), state.CanSave));
+            Add("unsaved.discard", () => Action(Localize("VocabWordEdit_DiscardChanges"),
+                "native.vocabulary.edit.unsaved.discard", vocabulary.DiscardEdits,
+                !state.Saving && !state.Deleting, primary: false));
+        }
         if (state.DeleteError is { } deleteError)
             Add("delete.error", () => StatusAlert(deleteError, palette, error: true,
                 automationId: "native.vocabulary.edit.delete.error"));
@@ -943,7 +953,7 @@ internal sealed partial class AndroidSliceShell
             enabled: state.CanMarkSelected)
         {
             Modifier = Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight)
-                .TestTag("native.vocabulary.select.status"),
+                .TestTag("native.vocabulary.select.actions"),
         };
         status.Add(new Text(Localize("NativeVocabulary_BulkActions")));
         var menu = PopupMenu(expanded: _moreMenu == VocabularySelectMenuKey,

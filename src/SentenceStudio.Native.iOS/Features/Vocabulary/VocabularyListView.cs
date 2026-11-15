@@ -44,7 +44,8 @@ internal sealed record VocabularyListActions(
     Action? CancelTagEntry = null,
     Action? RequestBulkDelete = null,
     Action? ConfirmBulkDelete = null,
-    Action? CancelBulkDelete = null);
+    Action? CancelBulkDelete = null,
+    Action<SwiftView>? RegisterTagAdd = null);
 
 internal sealed record VocabularyFilterActions(
     Action<string, string?> Change,
@@ -133,11 +134,15 @@ internal static class VocabularyListView
                 prompt: text("Vocabulary_BulkAddTagsPlaceholder"));
             var form = NativeForm.Page(style, [Views.Section(string.Empty, field)],
                 $"{Prefix}.select.tags.form", $"{Prefix}.select.tags.screen");
+            // Off until a tag is typed; the coordinator turns it on as the field changes.
+            var add = Views.Button(text("Common_Add"), () => actions.AddTags?.Invoke())
+                .WithAccessibilityIdentifier($"{Prefix}.select.tags.add");
+            add.IsEnabled = VocabularyBrowser.ParseTags(tagDraft).Count > 0;
+            actions.RegisterTagAdd?.Invoke(add);
             var entry = Views.NavigationStack(Views.Toolbar(form,
                     Views.Button(text("Common_Cancel"), () => actions.CancelTagEntry?.Invoke())
                         .WithAccessibilityIdentifier($"{Prefix}.select.tags.cancel"),
-                    Views.Button(text("Common_Add"), () => actions.AddTags?.Invoke())
-                        .WithAccessibilityIdentifier($"{Prefix}.select.tags.add"))
+                    add)
                 .WithNavigationTitle(text("Vocabulary_BulkActionAddTags"))
                 .WithInlineNavigationTitle());
             var sheet = Views.Sheet(page, entry, () => actions.CancelTagEntry?.Invoke())

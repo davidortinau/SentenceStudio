@@ -10195,4 +10195,7 @@
   <data name="NativeVocabulary_BulkActions" xml:space="preserve">
     <value>선택 항목 편집</value>
   </data>
+  <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
+    <value>먼저 단어를 하나 이상 선택하세요.</value>
+  </data>
 </root>

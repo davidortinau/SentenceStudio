@@ -10675,4 +10675,7 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_BulkActions" xml:space="preserve">
     <value>Edit Selected</value>
   </data>
+  <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
+    <value>Choose one or more words first.</value>
+  </data>
 </root>

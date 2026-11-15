@@ -40,17 +40,39 @@ internal partial class VocabularyBrowser
     private bool CanStartBulkEdit => _selecting && !_marking && !_saving && !AnyDeleting && !_handingOff
         && _selectedIds.Count > 0 && !BulkPromptOpen;
 
+    /// <summary>Moves on when a bulk choice was refused, so a head mounts its menu anew (a picker keeps no stale choice).</summary>
+    private int _bulkRefusals;
+
+    /// <summary>
+    /// A bulk choice made with no word chosen says so (the iOS menu's items cannot follow the
+    /// selection: the scene keeps the mounted toolbar). True when the choice may go on.
+    /// </summary>
+    private bool BulkEditMayStart()
+    {
+        if (CanStartBulkEdit)
+            return true;
+        if (_selecting && !_marking && !BulkPromptOpen && _selectedIds.Count == 0 && TryOwner(out _))
+        {
+            _feedback = _text("NativeVocabulary_SelectFirst");
+            _feedbackWarning = true;
+            _bulkRefusals++;
+            Notify(VocabularyChanges.List);
+        }
+        return false;
+    }
+
     /// <summary>Source Set Language: every chosen word gets the language, in one save.</summary>
     internal Task SetSelectedLanguageAsync(string language) =>
-        !CanStartBulkEdit || !TryOwner(out var owner) ? Task.CompletedTask
+        !BulkEditMayStart() || !TryOwner(out var owner) ? Task.CompletedTask
             : BulkEditSelectedAsync((ids, token) => _store.SetOwnedVocabularyLanguageAsync(owner, ids, language, token),
                 changed => string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                    _text("Vocabulary_BulkLanguageSuccess"), changed, language));
+                    _text("Vocabulary_BulkLanguageSuccess"), changed, language),
+                everyWordChanges: true);
 
     /// <summary>Source Add Tags: opens the entry for the tags to add.</summary>
     internal void OpenTagEntry()
     {
-        if (!CanStartBulkEdit || !TryOwner(out _))
+        if (!BulkEditMayStart() || !TryOwner(out _))
             return;
         _tagEntryOpen = true;
         _tagDraft = string.Empty;
@@ -76,21 +98,40 @@ internal partial class VocabularyBrowser
     /// <summary>Adds the typed tags to every chosen word (their own tags stay), in one save.</summary>
     internal Task AddTagsToSelectedAsync()
     {
-        var tags = ParseTags(_tagDraft);
-        if (!_tagEntryOpen || tags.Count == 0 || _marking || !TryOwner(out var owner))
+        var typed = _tagDraft;
+        var tags = ParseTags(typed);
+        if (!_tagEntryOpen || tags.Count == 0 || _marking || _saving || AnyDeleting || _handingOff
+            || _selectedIds.Count == 0 || !TryOwner(out var owner))
             return Task.CompletedTask;
         _tagEntryOpen = false;
         _tagDraft = string.Empty;
+        // A word that already holds every tag does not change, so a count of zero is not a
+        // failure here. A save that threw opens the entry again with what was typed.
         return BulkEditSelectedAsync((ids, token) => _store.AddOwnedVocabularyTagsAsync(owner, ids, tags, token),
             changed => string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                _text("Vocabulary_BulkTagsSuccess"), changed));
+                _text("Vocabulary_BulkTagsSuccess"), changed),
+            everyWordChanges: false,
+            failed: () =>
+            {
+                _tagEntryOpen = true;
+                _tagDraft = typed;
+            });
     }
 
     /// <summary>One bulk save for the chosen words: says what happened, leaves select mode, reloads.</summary>
+    /// <param name="everyWordChanges">
+    /// The save changes every word it is given (Set Language), so fewer changed than chosen is a
+    /// partial result and none is a failure.
+    /// </param>
+    /// <param name="failed">What to restore when the save threw.</param>
     private async Task BulkEditSelectedAsync(
-        Func<string[], CancellationToken, Task<NativeVocabularyMarkResult>> save, Func<int, string> success)
+        Func<string[], CancellationToken, Task<NativeVocabularyMarkResult>> save, Func<int, string> success,
+        bool everyWordChanges, Action? failed = null)
     {
         var ids = _selectedIds.ToArray();
+        // A word open beside the list with nothing typed takes the new values; one being edited
+        // keeps its draft.
+        var openClean = _formOpen && !_creating && !HasUnsavedEdits;
         _marking = true;
         Notify(VocabularyChanges.List | VocabularyChanges.Form);
         var changed = false;
@@ -99,16 +140,20 @@ internal partial class VocabularyBrowser
             var result = await OffUiAsync(() => save(ids, _lifetimeToken));
             if (_disposed || !TryOwner(out _))
                 return;
-            if (result.Changed == 0)
+            if (result.Changed == 0 && everyWordChanges)
             {
                 _feedback = _text("NativeVocabulary_BulkFailed");
                 _feedbackWarning = true;
                 return;
             }
-            changed = true;
-            _feedback = result.SyncUnconfirmed
-                ? $"{success(result.Changed)} {_text("NativeResources_SyncUnconfirmed")}" : success(result.Changed);
-            _feedbackWarning = result.SyncUnconfirmed;
+            changed = result.Changed > 0;
+            var missed = everyWordChanges ? ids.Length - result.Changed : 0;
+            var said = missed > 0
+                ? string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    _text("Vocabulary_BulkUpdatePartial"), result.Changed, missed)
+                : success(result.Changed);
+            _feedback = result.SyncUnconfirmed ? $"{said} {_text("NativeResources_SyncUnconfirmed")}" : said;
+            _feedbackWarning = result.SyncUnconfirmed || missed > 0;
             ResetSelection();
         }
         catch (OperationCanceledException) when (_disposed)
@@ -120,6 +165,7 @@ internal partial class VocabularyBrowser
             _logger.LogError(ex, "Native Vocabulary bulk edit failed.");
             _feedback = _text("NativeVocabulary_BulkFailed");
             _feedbackWarning = true;
+            failed?.Invoke();
         }
         finally
         {
@@ -130,15 +176,45 @@ internal partial class VocabularyBrowser
         if (changed)
         {
             await ReloadAsync();
-            // A word open beside the list shows what it holds now (its draft stays).
-            await ((IVocabularyCleanupHost)this).RefreshOpenWordAsync();
+            await RefreshOpenWordAfterBulkEditAsync(ids, openClean);
+        }
+    }
+
+    /// <summary>
+    /// The word open beside the list was one of the changed ones: it shows what it holds now.
+    /// With nothing typed its fields take the new values; a draft being edited is kept, with the
+    /// word's new save stamp so its Save is not refused as a conflict.
+    /// </summary>
+    private async Task RefreshOpenWordAfterBulkEditAsync(string[] ids, bool openClean)
+    {
+        if (!_formOpen || _creating || _selectedWordId is not { } id
+            || !ids.Contains(id, StringComparer.Ordinal) || !TryOwner(out var owner))
+            return;
+        var generation = Volatile.Read(ref _formGeneration);
+        try
+        {
+            var fresh = await OffUiAsync(() => _store.GetOwnedVocabularyAsync(owner, id, _lifetimeToken));
+            if (fresh is null || generation != Volatile.Read(ref _formGeneration)
+                || !_formOpen || _selectedWordId != id || !TryOwner(out _))
+                return;
+            _detail = fresh;
+            _draft = openClean || _draft is null ? fresh.Draft
+                : _draft with { OriginalUpdatedAt = fresh.Draft.OriginalUpdatedAt };
+            Notify(VocabularyChanges.Form);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Native Vocabulary word refresh after a bulk edit failed.");
         }
     }
 
     /// <summary>Source Delete: asks first, naming how many words.</summary>
     internal void RequestBulkDelete()
     {
-        if (!CanStartBulkEdit || !TryOwner(out _))
+        if (!BulkEditMayStart() || !TryOwner(out _))
             return;
         _askingBulkDelete = true;
         Notify(VocabularyChanges.List);
@@ -227,9 +303,11 @@ internal partial class VocabularyBrowser
                 _cleanup.ResetDelete();
                 LeaveWord();
             }
-            // A failure keeps the choice, so the learner can try again.
+            // A failure keeps the words still there chosen, so the learner can try again.
             if (failed == 0)
                 ResetSelection();
+            else
+                _selectedIds = _selectedIds.Where(id => !gone.Contains(id)).ToHashSet(StringComparer.Ordinal);
         }
         finally
         {

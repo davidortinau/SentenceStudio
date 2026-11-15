@@ -12955,6 +12955,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Choose one or more words first..
+        /// </summary>
+        internal static string NativeVocabulary_SelectFirst {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_SelectFirst", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Set Status.
         /// </summary>
         internal static string NativeVocabulary_SetStatus {
