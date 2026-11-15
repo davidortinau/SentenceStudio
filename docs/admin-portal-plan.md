@@ -269,6 +269,48 @@ scripts/admin-grant.sh <email>          # after the AppHost has started once on 
 In production the grant is `scripts/admin-grant.sh <email> --prod --yes`, while
 `scripts/prod-db-access.sh open` is in effect. It refuses without `--yes`.
 
+**Checked running (2026-11-15, Lilliput, commit `ec86ab56`)**
+
+On an isolated stack (its own worktree, PostgreSQL 17 and Azurite volumes, since removed), with
+the seeded accounts `e2e@test.local` (on the list) and `testsailor@test.local`, driven by
+headless Chromium and `curl`:
+
+- The API's fenced startup applied `20261115224514_InitialAdminSchema` under
+  `__AdminMigrationsHistory`.
+- 404 from every admin route for: no token (Development's sign-in fallback), the learner, `e2e`
+  listed before the grant, and `testsailor` holding the role without being listed. After
+  `scripts/admin-grant.sh e2e@test.local`, `e2e` got 204 and 200. A wrong verb and an unknown
+  admin path were 404 for the admin too. Revoking took effect on the next request with the same
+  token.
+- In the browser: the learner saw no Admin link and "Page not found" on `/admin` and
+  `/admin/audit`, and stayed signed in. The admin saw the link (also in the phone-width menu),
+  `/admin` named the account, a wrong password was refused, the right one confirmed, and the
+  audit log listed each request, 50 to a page with older rows on demand. The browser itself never
+  called `/api/admin`, and no proof appeared in the page, storage or cookies.
+- 40 wrong passwords sent at once: 4 were looked at, 36 refused, the account locked for 5
+  minutes, and sign-in was refused too.
+- A proof issued before an API restart was still honoured after it (the key ring is in Azurite
+  locally), and the audit rows were still there.
+- With the API stopped, `/admin` showed a spinner and then "This page could not be loaded"
+  within 15 seconds; after the API came back a reload opened it. (This check found the blank
+  page fixed in `ec86ab56`.)
+- No error-level lines in the API or web app logs, and no password, proof or email in either.
+  No audit row was left `Started`; none contains an address.
+
+Not checked: any MAUI head build (they consume the same `SentenceStudio.UI` assembly the web app
+and `SentenceStudio.UI.Tests` built), light theme, and production.
+
+**Running a web check on Lilliput.** The everyday stack there has no web app: it runs the
+`https` launch profile, the API's health check fails on the untrusted dev certificate, and the
+web app waits for it for ever. From a separate worktree, `aspire start --isolated -lp http
+--no-build` with `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`, fresh `LocalDb__DataVolume` and
+`LocalAzurite__DataVolume` names, scratch `WebApp__AppDataRoot` and
+`SENTENCESTUDIO_APPDATA_ROOT`, throwaway `Parameters__dbUser`, `Parameters__dbPassword`,
+`Parameters__jwtkey` and `Parameters__feedbackhmackey`, and `Admin__Emails__0` brings up the
+whole stack over http on random ports beside it. `aspire describe --apphost <path>` lists the
+URLs; `aspire stop --apphost <path> --force` stops it (never `--all`), and its `db-` and
+`storage-` containers then need `docker rm`.
+
 **Left for later**
 
 - Deleting audit rows older than a year. Nothing can be that old before 2027-11; build it with
@@ -283,7 +325,7 @@ In production the grant is `scripts/admin-grant.sh <email> --prod --yes`, while
 
 | Phase | State |
 |---|---|
-| 0. Admin sign-in | Built on `admin-portal`, not merged or deployed. Waiting on the Captain: the schema above, then merge. |
+| 0. Admin sign-in | Built, reviewed and checked running on `admin-portal` (`ec86ab56`). Not pushed, merged or deployed. Waiting on the Captain: the schema above, then merge. |
 | 1. Feedback inbox, agent access, scheduled check | Not started. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Not started. Worker, after phase 0 merges. |
