@@ -1,6 +1,6 @@
 # Admin portal plan
 
-2026-11-15. Approved by the Captain the same day. Phases 0, 3 and 4 are on `main`; phase 1 is merged into `admin-portal` and not yet pushed (see "Phase 1 as built").
+2026-11-15. Approved by the Captain the same day. Phases 0, 1, 3 and 4 are on `main` and deployed (2026-11-16); phase 2 is not started.
 
 ## Why
 
@@ -458,7 +458,7 @@ sidebar carries the number of flagged answers nobody has looked at), sees every 
 flagged Sam answers and the reports filed to GitHub, opens a flagged question and answer after
 confirming their password, and gives the report a status and a GitHub issue number. Under
 **Agent tokens** they create a token for the maintenance agent, see it once, and revoke it. The
-agent reads the same inbox with `scripts/admin-api.sh`. Merged into `admin-portal` locally; not pushed, not deployed.
+agent reads the same inbox with `scripts/admin-api.sh`. Merged to `main` and deployed on 2026-11-16.
 
 **Routes (`src/SentenceStudio.Api/Admin/AdminReportsEndpoints.cs`, `AdminTokenEndpoints.cs`)**
 
@@ -628,14 +628,34 @@ of a host name, and the gap noted below) were fixed or recorded in the commit af
 was tested and not reviewed again. Cleanup left for later is in
 `docs/native-review-backlog.md`, "Admin portal phase 1".
 
+**Deployed (2026-11-16, the first production deploy of the admin portal: phases 0, 1, 3 and 4)**
+
+On the Captain's word ("proceed with merge and deploy"; he named `dave@ortinau.com` as the
+admin):
+
+- `main` and `native-platform-heads` fast-forwarded to `69bb6ead`: phase 1 and one commit that
+  makes `scripts/prod-deploy.sh` carry `Admin__*` settings forward on every deploy, as it
+  carries `Coach__*`. While production has no list, `Admin__Emails__N` in the deploying shell
+  becomes it; afterwards the live list is what ships.
+- Backup first: `~/sstudio-prod-backup-20261116-1201/sentencestudio.dump`, 11 MB, 72 of 72
+  tables.
+- `scripts/prod-deploy.sh deploy` with `Admin__Emails__0` set: exit 0; new revisions
+  `api--0000043`, `webapp--0000038`, `workers--0000039`, `marketing--0000046`, healthy and
+  running; Sam's 13 settings equal the previous revision's; the API has one admin setting.
+- In the production database afterwards: `__AdminMigrationsHistory` holds
+  `20261115224514_InitialAdminSchema` and `20261116165723_AddAdminAgentToken`; the newest coach
+  migration is `20261116161852_AddCoachOpportunityLinkedIssueNumber`; the column is there.
+- `scripts/admin-grant.sh dave@ortinau.com --prod --yes`: the account holds the role and its
+  email is confirmed. The firewall rule was removed and the database lock restored.
+- Production had 3 flagged Sam answers, all new, none without a report row, and 4 reports filed
+  to GitHub.
+- Not checked: the portal's pages in production. Nobody but the Captain can sign in as the
+  admin, so the first look is his.
+
 **Left for later**
 
-- **Before the first production deploy** (each needs the Captain's go): `scripts/prod-deploy.sh`
-  must carry `Admin__Emails__*` forward as it carries `Coach__*`, or each deploy empties the
-  list; the `Admin:Emails` setting; the role grant (`scripts/admin-grant.sh <email> --prod
-  --yes`); a database backup first, because the deploy carries two migrations.
-- **After that deploy:** create the first token at `/admin/tokens`, put it in Key Vault as
-  `admin-agent-token` (a write: his, or with his go), and schedule the weekday check.
+- Create the first token at `/admin/tokens` in production, put it in Key Vault as
+  `admin-agent-token` (a write: the Captain's, or with his go), and schedule the weekday check.
 - A report holds one issue number. Flags about different problems that share a learner, a reason
   and a day share it.
 - One narrow gap in "needs attention": a flag stamped a few milliseconds before a triage and
@@ -646,8 +666,8 @@ was tested and not reviewed again. Cleanup left for later is in
 
 | Phase | State |
 |---|---|
-| 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
-| 1. Feedback inbox, agent access, scheduled check | Built, reviewed and checked running (2026-11-16); see "Phase 1 as built". Merged into `admin-portal` on the Captain's word the same day ("merge it and i'll restart"), for him to see on his local stack; not yet pushed to `main`. Its choices are still his to confirm. Not deployed; the weekday check is not scheduled until it is. |
+| 0. Admin sign-in | Merged to `main` on 2026-11-15; deployed on 2026-11-16 with phases 1, 3 and 4. |
+| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word ("proceed with merge and deploy"); see "Deployed" under "Phase 1 as built". Its nine choices were not discussed one by one. The weekday check is not scheduled: it needs the first token, made in the portal and put in Key Vault. |
 | 2. Accounts and the sign-up list | Not started. |
-| 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; the Captain approved the choices in `docs/admin-portal-phases-3-4-handoff.md`. Not deployed. |
-| 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3. Not deployed. |
+| 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; deployed the same day. |
+| 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3; deployed the same day. |
