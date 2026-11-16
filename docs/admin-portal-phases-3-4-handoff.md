@@ -218,3 +218,31 @@ Left in `docs/native-review-backlog.md`: the reader's other duplicated helpers, 
 round trips in one learner read, the other schemas' migrations, and counting the backfill's real
 queue.
 
+## Checked running (2026-11-15, lead, commit `f19c2391`)
+
+On an isolated stack (its own worktree, PostgreSQL and storage volumes), with a scratch database
+seeded by hand for the two test learners: 7 and 2 words, 2 imports each (two failed, one stuck,
+one two minutes old), and Sam usage rows dated by each learner's own calendar. UTC was on Monday
+the 16th at the time, the exact turn of a week.
+
+- Every new route answered 404 to the learner and to no token, and 200 to the admin. A learner
+  asking for their own row got 404. Bad input was 400; an unknown learner 404.
+- The API's numbers matched what was stored: 2 and 7 words, 2 imports each, per learner; 9 words
+  in all, 4 with a part of speech; "2 failed, 1 stuck"; reasons "video not accessible" 1 and
+  "another reason" 1; the two-minute-old import not listed. No title, URL or stored failure text
+  in any answer.
+- Sam with one week chosen showed the run dated Sunday the 15th and the one dated Monday the
+  16th. With the default four weeks it also showed the week of 26 October.
+- Each read left an audit row with its action; the per-learner reads named the learner; no row
+  was left `Started`.
+- In the browser: admin 39 of 39 (search with Enter, an empty search result, both learner pages,
+  an unknown learner, the usage page, choosing one week, Refresh), the learner 11 of 11 ("Page
+  not found" on all three pages), phone width 32 of 32 with no sideways scroll. Phase 0's own
+  checks passed again on this build: admin 24, learner 12, outage and retry 18.
+- The API log had no error-level lines. The web app log had the plan-generation null reference
+  now in `docs/native-review-backlog.md`, from the hand-seeded words; nothing from the admin
+  pages. No password, proof, seeded content or search text in either log.
+
+Not checked: a learner with a device store (no device synced with the isolated stack, so the
+devices table was only seen empty), any MAUI head build, light theme, production.
+

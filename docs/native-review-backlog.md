@@ -434,4 +434,10 @@ Correctness findings from `/code-review high` were fixed on the branch. These ar
 - **The Workers host deletes every failed import when it starts** (`Worker.cs`, about line 49),
   so the failed-imports list only ever holds failures since the last Workers restart. Existing
   behaviour, not changed; it also deletes rows a learner might want to retry.
+- **Plan generation throws when a plan has no primary resource** (existing code, found by the
+  running check). `LlmPlanGenerationService.GeneratePlanAsync` logs
+  `planSkeleton.PrimaryResource.Title` (`LlmPlanGenerationService.cs`, about line 67) without
+  checking it. A learner whose words are linked to no resource gets a skeleton with no primary
+  resource: the web dashboard logs "Plan generation failed" with a null reference and falls back
+  to the basic plan. Seen on the isolated stack with hand-seeded words.
 
