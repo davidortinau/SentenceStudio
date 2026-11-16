@@ -141,10 +141,16 @@ internal static class AdminReportsEndpoints
         CancellationToken cancellationToken)
     {
         const string shape =
-            "The body must be JSON with at least one of: {\"status\": \"reviewed\", \"issueNumber\": 123, \"unlinkIssue\": true}.";
+            "The body must be JSON: {\"seenFlagCount\": 1} and, to change something, any of "
+            + "\"status\": \"reviewed\", \"issueNumber\": 123, \"unlinkIssue\": true.";
         if (await AdminRequestBody.ReadAsync<AdminSamTriageRequest>(http, cancellationToken) is not { } request)
         {
             return Invalid(http, shape);
+        }
+
+        if (request.SeenFlagCount is not >= 1)
+        {
+            return Invalid(http, "seenFlagCount is required: the report's flagCount as you read it.");
         }
 
         CoachOpportunityStatus? status = null;
@@ -169,12 +175,8 @@ internal static class AdminReportsEndpoints
             return Invalid(http, "Send issueNumber to link an issue or unlinkIssue to remove one, not both.");
         }
 
-        if (status is null && request.IssueNumber is null && !unlink)
-        {
-            return Invalid(http, shape);
-        }
-
-        return ToResult(http, await reports.TriageSamAsync(reportId, status, request.IssueNumber, unlink, cancellationToken));
+        return ToResult(http, await reports.TriageSamAsync(
+            reportId, request.SeenFlagCount.Value, status, request.IssueNumber, unlink, cancellationToken));
     }
 
     private static async Task<IResult> ListGitHubAsync(
@@ -236,7 +238,7 @@ internal static class AdminReportsEndpoints
 
         AdminReportOutcome.Conflict => AdminRefusal.Create(
             http, StatusCodes.Status409Conflict, AdminFailureCodes.Conflict,
-            "The report changed while this was being saved. Read it again and decide again."),
+            "The report changed since it was read: the learner flagged again, or someone else saved. Read it again and decide again."),
 
         AdminReportOutcome.KeyRingNotDurable => AdminRefusal.Create(
             http, StatusCodes.Status409Conflict, AdminFailureCodes.KeyRingNotDurable,

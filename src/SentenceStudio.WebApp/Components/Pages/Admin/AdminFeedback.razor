@@ -117,7 +117,7 @@
                                     <th scope="col">Failure code</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Issue</th>
-                                    <th scope="col"><span class="visually-hidden">Open</span></th>
+                                    <th scope="col" aria-label="Open"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -916,25 +916,36 @@
             issue = number;
         }
 
-        // Only what this form changed is sent. A number left as it was when the report was opened
-        // is left out, so a link somebody else added meanwhile is not removed by this save.
-        var shown = detail.Report.IssueNumber;
-        var unlink = issue is null && shown is not null;
-        var link = issue is not null && issue != shown ? issue : null;
+        // Only what this form changed is sent. A status or a number left as it was when the
+        // report was opened is left out, so a change somebody else made meanwhile is not undone
+        // by this save. Saving with nothing changed says "I have looked".
+        var shown = detail.Report;
+        var status = _triageStatus != shown.Status ? _triageStatus : null;
+        var unlink = issue is null && shown.IssueNumber is not null;
+        var link = issue is not null && issue != shown.IssueNumber ? issue : null;
 
         _busy = true;
         _triageMessage = null;
         try
         {
-            var result = await Api.TriageSamReportAsync(detail.Report.Id, _triageStatus, link, unlink);
+            var result = await Api.TriageSamReportAsync(shown.Id, shown.FlagCount, status, link, unlink);
 
             // Closed, or another report opened, while this was being saved: the answer is for a
-            // panel that is gone. The list still follows the change.
-            if (_detail?.Report.Id != detail.Report.Id)
+            // panel that is gone. The list still follows the change, and a save that failed is
+            // said at the top of the page, where there is still somewhere to say it.
+            if (_detail?.Report.Id != shown.Id)
             {
-                if (result.Status == AdminApiStatus.Ok)
+                if (result.Status == AdminApiStatus.NotFound)
+                {
+                    await GoneAsync("That report");
+                }
+                else
                 {
                     CloseIfRefused(await LoadSamAsync());
+                    if (result.Status != AdminApiStatus.Ok)
+                    {
+                        _notice = "The change to the report you closed was not saved. Open it again to retry.";
+                    }
                 }
 
                 return;
@@ -956,12 +967,15 @@
                     break;
 
                 case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureTransitionRefused:
+                    // The form may have been showing an older status: show what is true now.
+                    await ReloadDetailAsync(shown.Id);
                     _triageMessage = "An accepted report keeps its status. Its issue number can still be changed.";
                     break;
 
                 case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureConflict:
-                    _triageMessage = "The report changed while this was being saved. It has been reloaded; decide again.";
-                    await ReloadDetailAsync(detail.Report.Id);
+                    await ReloadDetailAsync(shown.Id);
+                    _exchange = null;
+                    _triageMessage = "The report changed since you opened it: the learner flagged again, or someone else saved. It has been reloaded; look again and decide again.";
                     break;
 
                 default:
@@ -980,6 +994,7 @@
         var result = await Api.GetSamReportAsync(reportId);
         if (result.Value is { } detail && _detail?.Report.Id == reportId)
         {
+            // The same report, read again: Show keeps what belongs to it and resets the form.
             Show(detail);
         }
     }

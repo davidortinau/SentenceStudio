@@ -57,9 +57,10 @@ public sealed class AdminReportsClientTests
 
         await client.GetSamReportAsync("r 1");
         var exchange = await client.OpenSamExchangeAsync("r 1", "the-proof");
-        var triage = await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusNew, issueNumber: null, unlinkIssue: false);
-        await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusReviewed, issueNumber: 7, unlinkIssue: false);
-        await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusReviewed, issueNumber: null, unlinkIssue: true);
+        var triage = await client.TriageSamReportAsync("r 1", 2, AdminReportCodes.StatusNew, issueNumber: null, unlinkIssue: false);
+        await client.TriageSamReportAsync("r 1", 2, AdminReportCodes.StatusReviewed, issueNumber: 7, unlinkIssue: false);
+        await client.TriageSamReportAsync("r 1", 2, status: null, issueNumber: null, unlinkIssue: true);
+        await client.TriageSamReportAsync("r 1", 3, status: null, issueNumber: null, unlinkIssue: false);
 
         exchange.Value!.Exchanges.Single().Answer.Should().Be("a");
         exchange.Value.OpenedCount.Should().Be(4);
@@ -71,9 +72,10 @@ public sealed class AdminReportsClientTests
             "POST /api/admin/reports/sam/r%201/triage");
         _api.Proofs.Take(3).Should().Equal(null, "the-proof", null);
         _api.Bodies[1].Should().BeNull("opening an exchange sends nothing but the proof");
-        _api.Bodies[2].Should().Be("""{"status":"new"}""", "what is not being changed is left out, and left as it is");
-        _api.Bodies[3].Should().Be("""{"status":"reviewed","issueNumber":7}""");
-        _api.Bodies[4].Should().Be("""{"status":"reviewed","unlinkIssue":true}""");
+        _api.Bodies[2].Should().Be("""{"seenFlagCount":2,"status":"new"}""", "what is not being changed is left out, and left as it is");
+        _api.Bodies[3].Should().Be("""{"seenFlagCount":2,"status":"reviewed","issueNumber":7}""");
+        _api.Bodies[4].Should().Be("""{"seenFlagCount":2,"unlinkIssue":true}""");
+        _api.Bodies[5].Should().Be("""{"seenFlagCount":3}""", "looked at, nothing changed");
     }
 
     [Fact]

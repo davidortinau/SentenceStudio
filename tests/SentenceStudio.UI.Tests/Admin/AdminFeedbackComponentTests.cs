@@ -381,7 +381,8 @@ public sealed class AdminFeedbackComponentTests
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
 
         circuit.Unhandled.Should().BeEmpty();
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted","issueNumber":412}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"seenFlagCount":2,"status":"accepted","issueNumber":412}""",
+            "the save says how many flags the admin was looking at");
         circuit.RenderedText(id).Should().Contain("Saved.");
         _api.Paths.Should().Equal(SamRoute, GitHubRoute, DetailRoute, TriageRoute, SamRoute);
     }
@@ -399,7 +400,7 @@ public sealed class AdminFeedbackComponentTests
         await circuit.ChangeValueByIdAsync(id, "admin-feedback-triage-status", "reviewed");
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
 
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"reviewed"}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"seenFlagCount":2,"status":"reviewed"}""");
     }
 
     [Fact]
@@ -423,17 +424,18 @@ public sealed class AdminFeedbackComponentTests
         await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
         circuit.HasElementWithId(id, "admin-feedback-detail-flagged-again").Should().BeTrue();
 
-        // Saved as it stands: "I have looked". The status is sent, the link is not.
+        // Saved as it stands: "I have looked". Neither the status nor the link is sent, so
+        // neither can undo what somebody else did meanwhile.
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted"}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"seenFlagCount":3}""");
 
         await circuit.InputValueByIdAsync(id, "admin-feedback-triage-issue", "413");
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted","issueNumber":413}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"seenFlagCount":3,"issueNumber":413}""");
 
         await circuit.InputValueByIdAsync(id, "admin-feedback-triage-issue", "");
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted","unlinkIssue":true}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"seenFlagCount":3,"unlinkIssue":true}""");
     }
 
     [Fact]
@@ -483,7 +485,7 @@ public sealed class AdminFeedbackComponentTests
 
     [Theory]
     [InlineData(HttpStatusCode.Conflict, """{"code":"transition_refused"}""", "An accepted report keeps its status")]
-    [InlineData(HttpStatusCode.Conflict, """{"code":"conflict"}""", "changed while this was being saved")]
+    [InlineData(HttpStatusCode.Conflict, """{"code":"conflict"}""", "The report changed since you opened it")]
     [InlineData(HttpStatusCode.InternalServerError, "", "could not be saved")]
     public async Task A_change_the_API_refuses_says_why_and_is_not_shown_as_saved(
         HttpStatusCode status, string body, string expected)
@@ -500,6 +502,34 @@ public sealed class AdminFeedbackComponentTests
 
         circuit.Unhandled.Should().BeEmpty();
         circuit.RenderedText(id).Should().Contain(expected).And.NotContain("Saved.");
+
+        // A refusal that means "what you were looking at is out of date" reads the report again,
+        // so the form shows what is true now.
+        var reloaded = _api.Calls.Count(c => c.Path == DetailRoute) == 2;
+        reloaded.Should().Be(status == HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task A_save_that_fails_after_its_report_was_closed_is_said_at_the_top_of_the_page()
+    {
+        AnswerLists();
+        _api.Answer(TriageRoute, HttpStatusCode.InternalServerError);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminFeedback>();
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
+        await circuit.ChangeValueByIdAsync(id, "admin-feedback-triage-status", "dismissed");
+
+        var release = _api.Hold(TriageRoute);
+        var saving = circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+        await _api.Reached(TriageRoute);
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-detail-close");
+        release.SetResult();
+        await saving;
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-feedback-detail").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("was not saved");
     }
 
     [Fact]

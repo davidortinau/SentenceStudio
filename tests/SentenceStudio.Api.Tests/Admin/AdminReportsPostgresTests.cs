@@ -137,7 +137,7 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
         opened.OpenedCount.Should().Be(1);
 
         var triaged = (await (await agent.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 412)))
+                new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 412)))
             .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
         triaged.Status.Should().Be(AdminReportCodes.StatusAccepted);
         triaged.IssueNumber.Should().Be(412);

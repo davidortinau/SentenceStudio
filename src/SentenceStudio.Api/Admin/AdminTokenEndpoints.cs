@@ -117,7 +117,7 @@ internal static class AdminTokenEndpoints
         foreach (var row in rows)
         {
             var denial = row.RevokedAtUtc is null && row.ExpiresAtUtc > now
-                ? await evaluator.EvaluateTokenCreatorAsync(row, cancellationToken)
+                ? await evaluator.EvaluateTokenCreatorAsync(row, cancellationToken, forDisplay: true)
                 : AdminDenial.None;
             items.Add(Project(row, now, emails.GetValueOrDefault(row.CreatedByUserId), denial));
         }

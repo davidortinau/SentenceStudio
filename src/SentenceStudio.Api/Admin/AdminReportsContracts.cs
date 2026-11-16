@@ -214,14 +214,21 @@ public sealed record AdminSamReportDetail(
     bool FlagsTruncated);
 
 /// <summary>
-/// The body of <c>POST /api/admin/reports/sam/{reportId}/triage</c>. What is left out is left as
-/// it is, so a caller working from an older copy of the report cannot undo what it never saw.
-/// At least one of the three must be given.
+/// The body of <c>POST /api/admin/reports/sam/{reportId}/triage</c>: "I have looked at this
+/// report as it stood with <paramref name="SeenFlagCount"/> flags", and optionally what to change.
+/// What is left out is left as it is, so a caller working from an older copy of the report cannot
+/// undo what it never saw.
 /// </summary>
+/// <param name="SeenFlagCount">
+/// Required: the report's <c>flagCount</c> as the caller read it. When the learner has flagged
+/// again since, the triage is refused (<c>conflict</c>) and nothing is written, so a flag nobody
+/// read is never marked as looked at.
+/// </param>
 /// <param name="Status">A status code from <see cref="AdminReportCodes"/>, or left out to keep the status.</param>
 /// <param name="IssueNumber">The GitHub issue to link, or left out to keep the link as it is.</param>
 /// <param name="UnlinkIssue">True to remove the linked issue. Not together with <paramref name="IssueNumber"/>.</param>
-public sealed record AdminSamTriageRequest(string? Status, int? IssueNumber = null, bool? UnlinkIssue = null);
+public sealed record AdminSamTriageRequest(
+    int? SeenFlagCount, string? Status = null, int? IssueNumber = null, bool? UnlinkIssue = null);
 
 /// <summary>One flagged question and the answer the learner flagged. Learner content.</summary>
 public sealed record AdminSamExchange(DateTime? FlaggedAtUtc, string? Question, string? Answer);

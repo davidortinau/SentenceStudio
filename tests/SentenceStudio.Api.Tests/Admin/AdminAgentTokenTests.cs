@@ -322,7 +322,7 @@ public sealed class AdminAgentTokenTests : IDisposable
             (() => client.PostAsync($"/api/admin/reports/sam/{reportId}/exchange", null), mayOpen),
             (() => client.PostAsync("/api/admin/reports/github/screen-states/fs-000000000000", null), mayOpen),
             (() => client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(AdminReportCodes.StatusReviewed, null)), mayTriage)
+                new AdminSamTriageRequest(1, AdminReportCodes.StatusReviewed, null)), mayTriage)
         };
 
         foreach (var (send, allowed) in expectations)

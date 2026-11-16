@@ -30,14 +30,17 @@ starts after the first production deploy of the portal. Until then the check has
       language, or nothing to act on.
    4. Search the open GitHub issues for the same problem. Link the existing one, or file a new
       one (rules below).
-   5. `scripts/admin-api.sh sam-triage <id> <status> [issue]`:
+   5. `scripts/admin-api.sh sam-triage <id> <flagCount> <status|keep> [issue]`, where
+      `<flagCount>` is the report's `flagCount` as you just read it. It is how the API knows
+      which flags you looked at: if the learner flagged again meanwhile the command fails with
+      `409 conflict` and you read the report again.
       - `accepted` with the issue number, when an issue now tracks it. An accepted report keeps
         its status for good, so use it only with an issue.
       - `reviewed` when it was read and needs the Captain's decision.
       - `dismissed` when there is nothing to act on (say why in the summary).
       - `deferred` is the Captain's to choose; do not set it.
       - For a report that already has a status and was flagged again: read the new exchange, then
-        send its present status again (no issue argument leaves the link as it is). That records
+        send `keep` as the status (no issue argument leaves the link as it is). That records
         that the new flag was looked at. If the new flag is a different problem, say so in the
         summary; one report holds one issue number.
       - Never pass `none` as the issue. Unlinking is the Captain's.
@@ -88,8 +91,8 @@ every week for want of a credential and nobody noticed.
 | `FAIL: 404` from `whoami` | The token is not accepted: expired, revoked, or the admin who created it is no longer an admin or has changed their password. A new token is needed. |
 | `FAIL: 403 not_allowed_for_token` | The token lacks a permission. Say which command was refused. |
 | `FAIL: 409 key_ring_not_durable` from `sam-exchange` | The server cannot decrypt stored messages. This is a production fault; report it at once. |
-| `FAIL: 409 transition_refused` from `sam-triage` | The report was already accepted. Read it again; link the issue with the status `accepted`. |
-| `FAIL: 409 conflict` from `sam-triage` | The report changed meanwhile. Read it again and decide again. |
+| `FAIL: 409 transition_refused` from `sam-triage` | The report was already accepted. Read it again; use `keep` or `accepted` as the status. |
+| `FAIL: 409 conflict` from `sam-triage` | The learner flagged again, or someone else saved, since you read the report. Read it again (`sam-show`, `sam-exchange`) and send the new `flagCount`. Not a failure to report unless it keeps happening. |
 | Anything else, or the API not answering | Report the command and the status. Do not retry in a loop. |
 
 ## What it must never do

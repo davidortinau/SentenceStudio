@@ -503,18 +503,22 @@ public sealed class AdminApiClient
             body: null, proof, cancellationToken);
 
     /// <summary>
-    /// Sets the status, and the issue link only when asked to: a null <paramref name="issueNumber"/>
-    /// leaves the link as it is, so a form opened before somebody else linked an issue cannot
-    /// remove it. <paramref name="unlinkIssue"/> removes it.
+    /// Says the report was looked at as it stood with <paramref name="seenFlagCount"/> flags, and
+    /// changes only what is given: a null <paramref name="status"/> keeps the status and a null
+    /// <paramref name="issueNumber"/> keeps the link, so a form opened before somebody else's
+    /// change cannot undo it. <paramref name="unlinkIssue"/> removes the link. The API refuses
+    /// (<c>conflict</c>) when the learner has flagged again since the count was read.
     /// </summary>
     public Task<AdminApiResult<AdminSamReportRow>> TriageSamReportAsync(
-        string reportId, string status, int? issueNumber, bool unlinkIssue, CancellationToken cancellationToken = default) =>
+        string reportId, int seenFlagCount, string? status, int? issueNumber, bool unlinkIssue,
+        CancellationToken cancellationToken = default) =>
         SendAsync<AdminSamReportRow>(
             HttpMethod.Post, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}/triage",
-            JsonContent.Create(new TriageBody(status, issueNumber, unlinkIssue ? true : null), options: TriageOptions),
+            JsonContent.Create(
+                new TriageBody(seenFlagCount, status, issueNumber, unlinkIssue ? true : null), options: TriageOptions),
             proof: null, cancellationToken);
 
-    private sealed record TriageBody(string Status, int? IssueNumber, bool? UnlinkIssue);
+    private sealed record TriageBody(int SeenFlagCount, string? Status, int? IssueNumber, bool? UnlinkIssue);
 
     // What is null is left out of the body: left out means "leave it as it is".
     private static readonly JsonSerializerOptions TriageOptions = new(JsonSerializerDefaults.Web)

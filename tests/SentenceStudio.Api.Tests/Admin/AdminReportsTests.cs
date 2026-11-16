@@ -97,7 +97,7 @@ public sealed class AdminReportsTests : IDisposable
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), route.Replace("{id}", reportId))
             {
-                Content = JsonContent.Create(new AdminSamTriageRequest(AdminReportCodes.StatusDismissed, 1))
+                Content = JsonContent.Create(new AdminSamTriageRequest(1, AdminReportCodes.StatusDismissed, 1))
             };
             var response = await client.SendAsync(request);
 
@@ -208,7 +208,7 @@ public sealed class AdminReportsTests : IDisposable
 
         (await client.GetAsync($"/api/admin/reports/sam/{automatic}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.PostAsJsonAsync($"/api/admin/reports/sam/{automatic}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusDismissed, 7))).StatusCode.Should().Be(HttpStatusCode.NotFound);
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusDismissed, 7))).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         var opened = await client.PostAsync($"/api/admin/reports/sam/{automatic}/exchange", null);
         opened.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -230,7 +230,7 @@ public sealed class AdminReportsTests : IDisposable
         var second = await _factory.SeedFlaggedAnswerAsync(learner, Question, Answer);
         using var client = _factory.CreateClientFor(admin);
         (await client.PostAsJsonAsync($"/api/admin/reports/sam/{first}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusDeferred, null))).StatusCode.Should().Be(HttpStatusCode.OK);
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusDeferred, null))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var deferred = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?status=deferred"))!;
         var fresh = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?status=new"))!;
@@ -319,7 +319,7 @@ public sealed class AdminReportsTests : IDisposable
         (await _factory.ReadAuditAsync()).Count.Should().Be(auditBefore);
 
         await client.PostAsJsonAsync($"/api/admin/reports/sam/{first}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusReviewed));
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusReviewed));
         (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(2);
     }
 
@@ -333,7 +333,7 @@ public sealed class AdminReportsTests : IDisposable
         var (admin, learner, reportId) = await SeedOneAsync();
         using var client = _factory.CreateClientFor(admin);
         await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 412));
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 412));
         (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?attention=true"))!
             .Items.Should().BeEmpty();
 
@@ -351,11 +351,22 @@ public sealed class AdminReportsTests : IDisposable
 
         // Looking again is a triage that changes nothing else: the same status, the link left alone.
         _factory.Time.Advance(TimeSpan.FromMinutes(1));
+        // A caller that read the report before the new flag is refused, and nothing is marked.
+        var stale = await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 999));
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeOf(stale)).Should().Be(AdminFailureCodes.Conflict);
+        (await client.GetFromJsonAsync<AdminSamReportDetail>($"/api/admin/reports/sam/{reportId}"))!.Report
+            .Should().Match<AdminSamReportRow>(r => r.NeedsAttention && r.IssueNumber == 412,
+                "a flag nobody read is never marked as looked at, and a refused triage writes nothing");
+
+        // Having read it with both flags, saying so is enough: no status, no issue.
         var looked = (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(AdminReportCodes.StatusAccepted)))
+                new AdminSamTriageRequest(2)))
             .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
 
         looked.NeedsAttention.Should().BeFalse();
+        looked.Status.Should().Be(AdminReportCodes.StatusAccepted);
         looked.IssueNumber.Should().Be(412);
         (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(0);
     }
@@ -643,7 +654,7 @@ public sealed class AdminReportsTests : IDisposable
         using var client = _factory.CreateClientFor(admin);
 
         var response = await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 412));
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 412));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var updated = (await response.Content.ReadFromJsonAsync<AdminSamReportRow>())!;
@@ -662,6 +673,29 @@ public sealed class AdminReportsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_triage_that_names_a_flag_count_the_report_does_not_have_is_refused_and_writes_nothing()
+    {
+        var (admin, _, reportId) = await SeedOneAsync();
+        using var client = _factory.CreateClientFor(admin);
+
+        var response = await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
+            new AdminSamTriageRequest(2, AdminReportCodes.StatusDismissed, 7));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeOf(response)).Should().Be(AdminFailureCodes.Conflict);
+        await _factory.WithCoachDbAsync(async db =>
+        {
+            var row = await db.CoachOpportunities.AsNoTracking().SingleAsync();
+            row.Status.Should().Be(CoachOpportunityStatus.New);
+            row.LinkedIssueNumber.Should().BeNull();
+            row.ReviewedAtUtc.Should().BeNull();
+            row.Version.Should().Be(0);
+        });
+        (await _factory.ReadAuditAsync()).Single(r => r.Action == AdminActions.ReportsSamTriage)
+            .FailureCode.Should().Be(AdminFailureCodes.Conflict);
+    }
+
+    [Fact]
     public async Task A_token_with_the_triage_permission_does_the_same()
     {
         var (admin, _, reportId) = await SeedOneAsync();
@@ -669,7 +703,7 @@ public sealed class AdminReportsTests : IDisposable
         using var client = _factory.CreateClientForToken(token.Token);
 
         var updated = (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(AdminReportCodes.StatusReviewed, 9)))
+                new AdminSamTriageRequest(1, AdminReportCodes.StatusReviewed, 9)))
             .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
 
         updated.Status.Should().Be(AdminReportCodes.StatusReviewed);
@@ -687,20 +721,20 @@ public sealed class AdminReportsTests : IDisposable
             (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage", body))
                 .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
 
-        var linked = await TriageAsync(new { status = "reviewed", issueNumber = 5 });
+        var linked = await TriageAsync(new { seenFlagCount = 1, status = "reviewed", issueNumber = 5 });
         (linked.Status, linked.IssueNumber).Should().Be((AdminReportCodes.StatusReviewed, 5));
 
         // A caller that read the report before the link was made saves a status only: the link stays.
-        var statusOnly = await TriageAsync(new { status = "dismissed" });
+        var statusOnly = await TriageAsync(new { seenFlagCount = 1, status = "dismissed" });
         (statusOnly.Status, statusOnly.IssueNumber).Should().Be((AdminReportCodes.StatusDismissed, 5));
 
-        var nullIsLeftOut = await TriageAsync(new { status = "deferred", issueNumber = (int?)null });
+        var nullIsLeftOut = await TriageAsync(new { seenFlagCount = 1, status = "deferred", issueNumber = (int?)null });
         (nullIsLeftOut.Status, nullIsLeftOut.IssueNumber).Should().Be((AdminReportCodes.StatusDeferred, 5));
 
-        var issueOnly = await TriageAsync(new { issueNumber = 9 });
+        var issueOnly = await TriageAsync(new { seenFlagCount = 1, issueNumber = 9 });
         (issueOnly.Status, issueOnly.IssueNumber).Should().Be((AdminReportCodes.StatusDeferred, 9));
 
-        var unlinked = await TriageAsync(new { unlinkIssue = true });
+        var unlinked = await TriageAsync(new { seenFlagCount = 1, unlinkIssue = true });
         (unlinked.Status, unlinked.IssueNumber, unlinked.IssueUrl).Should().Be((AdminReportCodes.StatusDeferred, null, null));
     }
 
@@ -710,7 +744,7 @@ public sealed class AdminReportsTests : IDisposable
         var (admin, _, reportId) = await SeedOneAsync();
         using var client = _factory.CreateClientFor(admin);
         await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 5));
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 5));
 
         foreach (var status in new[]
                  {
@@ -719,7 +753,7 @@ public sealed class AdminReportsTests : IDisposable
                  })
         {
             var refused = await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(status, 6));
+                new AdminSamTriageRequest(1, status, 6));
 
             refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
             (await CodeOf(refused)).Should().Be(AdminFailureCodes.TransitionRefused);
@@ -733,20 +767,23 @@ public sealed class AdminReportsTests : IDisposable
         });
 
         (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 6))).StatusCode.Should().Be(HttpStatusCode.OK);
+            new AdminSamTriageRequest(1, AdminReportCodes.StatusAccepted, 6))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Theory]
-    [InlineData("""{"status":"Accepted"}""")]
-    [InlineData("""{"status":"closed"}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"Accepted"}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"closed"}""")]
+    [InlineData("""{"status":"reviewed"}""")]
+    [InlineData("""{"seenFlagCount":0,"status":"reviewed"}""")]
+    [InlineData("""{"seenFlagCount":-1,"status":"reviewed"}""")]
+    [InlineData("""{"seenFlagCount":null,"status":"reviewed"}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"reviewed","issueNumber":0}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"reviewed","issueNumber":-4}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"reviewed","issueNumber":10000000}""")]
+    [InlineData("""{"seenFlagCount":1,"status":2}""")]
+    [InlineData("""{"seenFlagCount":1,"unlinkIssue":true,"issueNumber":3}""")]
+    [InlineData("""{"seenFlagCount":1,"status":"reviewed","unlinkIssue":"yes"}""")]
     [InlineData("""{}""")]
-    [InlineData("""{"unlinkIssue":false}""")]
-    [InlineData("""{"unlinkIssue":true,"issueNumber":3}""")]
-    [InlineData("""{"status":"reviewed","unlinkIssue":"yes"}""")]
-    [InlineData("""{"status":"reviewed","issueNumber":0}""")]
-    [InlineData("""{"status":"reviewed","issueNumber":-4}""")]
-    [InlineData("""{"status":"reviewed","issueNumber":10000000}""")]
-    [InlineData("""{"status":2}""")]
     [InlineData("""null""")]
     [InlineData("""not json""")]
     public async Task A_triage_body_that_is_not_exactly_right_changes_nothing(string body)

@@ -117,9 +117,14 @@ internal sealed class AdminAccessEvaluator(
     /// <see cref="AdminDenial.None"/> when they are an admin now and their password is the one
     /// they had when they created it.
     /// </summary>
-    public async Task<AdminDenial> EvaluateTokenCreatorAsync(AdminAgentToken token, CancellationToken cancellationToken)
+    /// <param name="forDisplay">
+    /// True when nobody is asking to be admitted: the Tokens page is working out what to show.
+    /// Nothing is logged then, or each load of that page would read as a refused access attempt.
+    /// </param>
+    public async Task<AdminDenial> EvaluateTokenCreatorAsync(
+        AdminAgentToken token, CancellationToken cancellationToken, bool forDisplay = false)
     {
-        var creator = await EvaluateAccountAsync(token.CreatedByUserId, cancellationToken);
+        var creator = await EvaluateAccountAsync(token.CreatedByUserId, cancellationToken, logDenials: !forDisplay);
         if (creator.Actor is null)
         {
             return AdminDenial.TokenCreatorNotAdmin;
@@ -132,7 +137,8 @@ internal sealed class AdminAccessEvaluator(
             : AdminDenial.TokenCreatorPasswordChanged;
     }
 
-    private async Task<AdminAccessResult> EvaluateAccountAsync(string userId, CancellationToken cancellationToken)
+    private async Task<AdminAccessResult> EvaluateAccountAsync(
+        string userId, CancellationToken cancellationToken, bool logDenials = true)
     {
         var account = await db.Users
             .AsNoTracking()
@@ -172,7 +178,7 @@ internal sealed class AdminAccessEvaluator(
             // An ordinary learner reaching an admin route is not an event (the web app asks on
             // every page load whether to show the link). Half an admin is: it is either a grant in
             // progress or somebody holding one of the two keys.
-            if (denial is not AdminDenial.NeitherRoleNorListed)
+            if (logDenials && denial is not AdminDenial.NeitherRoleNorListed)
             {
                 logger.LogWarning("Admin access refused for user {UserId}: {Denial}", account.Id, denial);
             }
@@ -183,7 +189,11 @@ internal sealed class AdminAccessEvaluator(
         // The list names addresses, so the address has to be one the account has proved it owns.
         if (!account.EmailConfirmed)
         {
-            logger.LogWarning("Admin access refused for user {UserId}: {Denial}", account.Id, AdminDenial.EmailNotConfirmed);
+            if (logDenials)
+            {
+                logger.LogWarning("Admin access refused for user {UserId}: {Denial}", account.Id, AdminDenial.EmailNotConfirmed);
+            }
+
             return new AdminAccessResult(null, AdminDenial.EmailNotConfirmed);
         }
 

@@ -168,54 +168,58 @@ internal sealed class AdminReportsService(
     /// that had arrived by then.
     /// </para>
     /// </remarks>
+    /// <param name="seenFlagCount">How many flags the report had when the caller read it.</param>
     /// <param name="status">The new status, or null to keep it.</param>
     /// <param name="issueNumber">The issue to link, or null to leave the link alone.</param>
     /// <param name="unlinkIssue">True to remove the linked issue.</param>
     public async Task<AdminReportResult<AdminSamReportRow>> TriageSamAsync(
-        string id, CoachOpportunityStatus? status, int? issueNumber, bool unlinkIssue, CancellationToken cancellationToken)
+        string id, int seenFlagCount, CoachOpportunityStatus? status, int? issueNumber, bool unlinkIssue,
+        CancellationToken cancellationToken)
     {
-        var row = await FlaggedRows.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        var row = await FlaggedRows.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
         if (row is null)
         {
             return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.NotFound);
         }
 
-        if (status is { } wanted)
+        // The learner flagged again after the caller read the report. Saying "looked at" now
+        // would take a flag nobody read off the list, so nothing is written: the caller reads the
+        // report again. The recorder adds a flag by raising this count and leaves the version
+        // alone, which is why the count is what is compared.
+        if (row.OccurrenceCount != seenFlagCount)
         {
-            if (!CoachOpportunityReviewTransitions.IsAllowed(row.Status, wanted))
-            {
-                // Read tracked and not changed; cleared so nothing on this scope saves it later.
-                coachDb.ChangeTracker.Clear();
-                return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.TransitionRefused);
-            }
-
-            row.Status = wanted;
-        }
-
-        if (unlinkIssue)
-        {
-            row.LinkedIssueNumber = null;
-        }
-        else if (issueNumber is { } issue)
-        {
-            row.LinkedIssueNumber = issue;
-        }
-
-        row.ReviewedAtUtc = time.GetUtcNow().UtcDateTime;
-        row.Version++;
-
-        try
-        {
-            await coachDb.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Another triage, an opened exchange or a new flag on the same row got there first.
-            // Nothing was written; the caller reads the report again and decides again.
-            coachDb.ChangeTracker.Clear();
             return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.Conflict);
         }
 
+        if (status is { } wanted && !CoachOpportunityReviewTransitions.IsAllowed(row.Status, wanted))
+        {
+            return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.TransitionRefused);
+        }
+
+        var newStatus = status ?? row.Status;
+        var newIssue = unlinkIssue ? null : issueNumber ?? row.LinkedIssueNumber;
+        var now = time.GetUtcNow().UtcDateTime;
+
+        // One statement, conditional on the row still being the one that was read: the same
+        // version (no other triage, no opened exchange since) and the same number of flags (no
+        // new flag since). Either having moved, nothing is written.
+        var written = await FlaggedRows
+            .Where(r => r.Id == id && r.Version == row.Version && r.OccurrenceCount == seenFlagCount)
+            .ExecuteUpdateAsync(
+                update => update
+                    .SetProperty(r => r.Status, newStatus)
+                    .SetProperty(r => r.LinkedIssueNumber, newIssue)
+                    .SetProperty(r => r.ReviewedAtUtc, (DateTime?)now)
+                    .SetProperty(r => r.Version, r => r.Version + 1),
+                cancellationToken);
+        if (written == 0)
+        {
+            return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.Conflict);
+        }
+
+        row.Status = newStatus;
+        row.LinkedIssueNumber = newIssue;
+        row.ReviewedAtUtc = now;
         return AdminReportResult<AdminSamReportRow>.Ok(Project(row));
     }
 

@@ -54,7 +54,7 @@ usage, or create, list or revoke tokens.
 | 403 | `{"code":"not_allowed_for_token", ...}` | The token is live and lacks the permission this route needs, or the route takes no token at all. |
 | 400 | `{"code":"invalid_request", "detail":"..."}` | A query value or the body is wrong. `detail` says what is expected. |
 | 409 | `{"code":"transition_refused"}` | Triage: the report is `accepted` and keeps that status. |
-| 409 | `{"code":"conflict"}` | Triage: the report changed while this was being saved. Read it again. |
+| 409 | `{"code":"conflict"}` | Triage: the report changed since it was read (the learner flagged again, or someone else saved). Nothing was written. Read it again. |
 | 409 | `{"code":"key_ring_not_durable"}` | The server cannot decrypt stored Sam messages reliably. A server fault. |
 
 A refusal body is a problem document (`application/problem+json`); read `code`, not the text.
@@ -206,24 +206,27 @@ turn only. Each call is recorded and counted on the report.
 ### `POST /api/admin/reports/sam/{reportId}/triage`
 
 ```json
-{ "status": "accepted", "issueNumber": 412 }
+{ "seenFlagCount": 1, "status": "accepted", "issueNumber": 412 }
 ```
 
-Records that the report was looked at, and sets what is given. **What is left out stays as it
-is**, so a caller working from an older copy cannot undo what it never saw. At least one of:
+Says "this report was looked at as it stood with `seenFlagCount` flags", and changes what is
+given. **What is left out stays as it is**, so a caller working from an older copy cannot undo
+what it never saw.
 
 | Field | Meaning |
 |---|---|
+| `seenFlagCount` | Required. The report's `flagCount` as you read it. If the learner has flagged again since, the answer is 409 `conflict` and nothing is written: read the report again, look at the new flag, and send the new count. |
 | `status` | The new status. Left out, the status stays. |
 | `issueNumber` | 1 to 9999999: link this GitHub issue. Left out or null, the link stays as it is. |
 | `unlinkIssue` | `true`: remove the linked issue. Not together with `issueNumber`. |
 
-Returns the report as in the list, with `issueUrl` filled in for a linked issue and
+`{"seenFlagCount": 2}` alone is valid: it records that the report was looked at and changes
+nothing else, which is how a report flagged again after it was triaged leaves the attention
+list. Returns the report as in the list, with `issueUrl` filled in for a linked issue and
 `needsAttention` false.
 
 Nothing leaves `accepted`: a report that an issue tracks keeps that status. Its issue can still
-be changed, and sending `{"status":"accepted"}` again is how to say "the new flag has been
-looked at". Every other move is allowed.
+be changed. Every other move is allowed.
 
 ### `GET /api/admin/reports/github`
 

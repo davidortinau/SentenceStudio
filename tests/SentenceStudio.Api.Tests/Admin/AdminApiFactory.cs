@@ -352,10 +352,13 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         }
         else
         {
-            var row = await db.CoachOpportunities.SingleAsync(o => o.Id == reportId);
-            row.OccurrenceCount++;
-            row.LastObservedAtUtc = at;
-            row.Version++;
+            // As the recorder's upsert does for a later flag: the count and the last-observed
+            // time move, and nothing else (not the status, and not the version).
+            await db.CoachOpportunities
+                .Where(o => o.Id == reportId)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(o => o.OccurrenceCount, o => o.OccurrenceCount + 1)
+                    .SetProperty(o => o.LastObservedAtUtc, at));
         }
 
         db.CoachResponseReports.Add(new CoachResponseReport

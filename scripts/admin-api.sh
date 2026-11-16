@@ -8,10 +8,13 @@
 #                                                        accepted, deferred, dismissed
 #   scripts/admin-api.sh sam-show <reportId>             one report and each flag on it, in codes
 #   scripts/admin-api.sh sam-exchange <reportId>         the flagged question and answer (LEARNER CONTENT)
-#   scripts/admin-api.sh sam-triage <reportId> <status> [issueNumber|none]
-#                                                        set the status; with a number, link that GitHub
-#                                                        issue; with none, unlink it; with neither, the
-#                                                        link stays as it is
+#   scripts/admin-api.sh sam-triage <reportId> <flagCount> <status|keep> [issueNumber|none]
+#                                                        say the report was looked at as it stood with
+#                                                        <flagCount> flags (its flagCount as you read
+#                                                        it; refused if the learner has flagged again
+#                                                        since). Set the status, or keep it; with a
+#                                                        number, link that GitHub issue; with none,
+#                                                        unlink it; with neither, the link stays
 #   scripts/admin-api.sh github                          reports filed to GitHub from the app
 #   scripts/admin-api.sh screen-state <reference>        a GitHub report's saved screen state (LEARNER CONTENT)
 #
@@ -29,11 +32,30 @@ set -euo pipefail
 
 VAULT=dbkv-rsn72awybem6s
 SECRET=admin-agent-token
-PROD=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io
-BASE="${ADMIN_API_BASE:-$PROD}"
-BASE="${BASE%/}"
+PROD_HOST=api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io
+PROD="https://$PROD_HOST"
 
-usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+# Where the request goes. Anything that names the production host, however it is spelled (upper
+# case, a port, extra slashes), is production and is reached only as $PROD: the choice of token
+# below turns on this, and must not turn on spelling.
+BASE="${ADMIN_API_BASE:-$PROD}"
+BASE_HOST="$(python3 -I -c 'import sys
+from urllib.parse import urlsplit
+try:
+    print((urlsplit(sys.argv[1]).hostname or "").lower())
+except ValueError:
+    print("")' "$BASE")"
+if [ -z "$BASE_HOST" ]; then
+  echo "STOP: ADMIN_API_BASE is not a URL with a host (for example http://localhost:5081)." >&2
+  exit 2
+fi
+if [ "$BASE_HOST" = "$PROD_HOST" ]; then
+  BASE="$PROD"
+else
+  while [ "${BASE%/}" != "$BASE" ]; do BASE="${BASE%/}"; done
+fi
+
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 # An id travels in the URL path, so it is held to the characters a real id uses.
 check_id() {
@@ -56,21 +78,26 @@ case "${1:-}" in
   sam-show) [ $# -eq 2 ] || usage; check_id "$2"; ROUTE="/api/admin/reports/sam/$2" ;;
   sam-exchange) [ $# -eq 2 ] || usage; check_id "$2"; METHOD=POST; ROUTE="/api/admin/reports/sam/$2/exchange" ;;
   sam-triage)
-    [ $# -eq 3 ] || [ $# -eq 4 ] || usage
+    [ $# -eq 4 ] || [ $# -eq 5 ] || usage
     check_id "$2"
     case "$3" in
-      new|reviewed|accepted|deferred|dismissed) ;;
-      *) echo "STOP: status must be new, reviewed, accepted, deferred or dismissed" >&2; exit 2 ;;
+      ""|*[!0-9]*|0*) echo "STOP: flagCount must be the report's flagCount as you read it (a whole number)" >&2; exit 2 ;;
     esac
     METHOD=POST; ROUTE="/api/admin/reports/sam/$2/triage"
-    BODY="{\"status\":\"$3\"}"
-    if [ $# -eq 4 ]; then
-      case "$4" in
-        none) BODY="{\"status\":\"$3\",\"unlinkIssue\":true}" ;;
+    BODY="{\"seenFlagCount\":$3"
+    case "$4" in
+      keep) ;;
+      new|reviewed|accepted|deferred|dismissed) BODY="$BODY,\"status\":\"$4\"" ;;
+      *) echo "STOP: status must be keep, new, reviewed, accepted, deferred or dismissed" >&2; exit 2 ;;
+    esac
+    if [ $# -eq 5 ]; then
+      case "$5" in
+        none) BODY="$BODY,\"unlinkIssue\":true" ;;
         ""|*[!0-9]*|0*) echo "STOP: the issue must be a whole number, or none to unlink" >&2; exit 2 ;;
-        *) BODY="{\"status\":\"$3\",\"issueNumber\":$4}" ;;
+        *) BODY="$BODY,\"issueNumber\":$5" ;;
       esac
-    fi ;;
+    fi
+    BODY="$BODY}" ;;
   github) [ $# -eq 1 ] || usage; ROUTE="/api/admin/reports/github?take=200" ;;
   screen-state) [ $# -eq 2 ] || usage; check_id "$2"; METHOD=POST; ROUTE="/api/admin/reports/github/screen-states/$2" ;;
   *) usage ;;
@@ -80,7 +107,7 @@ esac
 # sign in: the production one must never reach another host, nor a local one reach production.
 if [ "$BASE" = "$PROD" ]; then
   if [ -n "${ADMIN_AGENT_TOKEN:-}" ]; then
-    echo "STOP: ADMIN_AGENT_TOKEN is set but ADMIN_API_BASE is not. Set both for a local stack, or neither for production." >&2
+    echo "STOP: ADMIN_AGENT_TOKEN is set and the API is production. Production takes only the Key Vault token: unset ADMIN_AGENT_TOKEN, or point ADMIN_API_BASE at the local stack." >&2
     exit 2
   fi
   if ! TOKEN="$(az keyvault secret show --vault-name "$VAULT" --name "$SECRET" --query value -o tsv 2>/dev/null)" \
@@ -129,7 +156,7 @@ try:
 except Exception:
     print("")' "$OUT")"
 case "$STATUS" in
-  404) echo "FAIL: 404 from $METHOD ${ROUTE%%\?*}: the token is not accepted (missing, expired, revoked, or its creator is no longer an admin), or there is nothing at that id." >&2 ;;
+  404) echo "FAIL: 404 from $METHOD ${ROUTE%%\?*}: the token is not accepted (expired, revoked, or its creator is no longer an admin or changed their password), or there is nothing at that id." >&2 ;;
   403) echo "FAIL: 403 ${CODE:-refused} from $METHOD ${ROUTE%%\?*}: the token lacks the permission this needs." >&2 ;;
   *) echo "FAIL: $STATUS ${CODE:-} from $METHOD ${ROUTE%%\?*}" >&2 ;;
 esac
