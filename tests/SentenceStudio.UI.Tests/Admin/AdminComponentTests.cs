@@ -367,6 +367,21 @@ public sealed class AdminComponentTests
     }
 
     [Fact]
+    public async Task The_confirm_button_is_not_disabled_while_the_field_is_empty()
+    {
+        // Found on the running stack: a password filled and submitted with Enter in one go did
+        // nothing. The server had not yet heard the field was filled, the button was still
+        // disabled, and a browser ignores Enter in a form whose submit button is disabled.
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminPasswordCard>();
+
+        circuit.HasElementWithId(id, "admin-password-confirm").Should().BeTrue();
+        circuit.AttributesOfElementWithId(id, "admin-password-confirm").Should().NotContain("disabled");
+    }
+
+    [Fact]
     public async Task Being_refused_as_no_longer_an_admin_tells_the_page()
     {
         _api.Answer("/api/admin/step-up", HttpStatusCode.NotFound);
