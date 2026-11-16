@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Data;
@@ -68,14 +69,33 @@ internal static class AdminSyncHealthEndpoints
         [FromQuery] string? take = null) =>
         LearnersAsync(http, db, after, take, q: null, cancellationToken);
 
-    private static Task<IResult> SearchLearnersAsync(
-        [FromBody] AdminLearnerSearchRequest request,
+    private static async Task<IResult> SearchLearnersAsync(
         HttpContext http,
         [FromServices] ApplicationDbContext db,
         CancellationToken cancellationToken,
         [FromQuery] string? after = null,
-        [FromQuery] string? take = null) =>
-        LearnersAsync(http, db, after, take, request.Q, cancellationToken);
+        [FromQuery] string? take = null)
+    {
+        // Read here rather than bound by the framework, for the same reason the query values
+        // are: a body that is not the expected JSON is this route's own 400 in every environment.
+        AdminLearnerSearchRequest? request = null;
+        try
+        {
+            request = await http.Request.ReadFromJsonAsync<AdminLearnerSearchRequest>(cancellationToken);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or BadHttpRequestException)
+        {
+            // Not JSON, not an object with a text q, or not sent as JSON at all.
+        }
+
+        if (request is null)
+        {
+            return AdminRefusal.Create(http, StatusCodes.Status400BadRequest,
+                AdminFailureCodes.InvalidRequest, "The body must be JSON: {\"q\": \"text\"}.");
+        }
+
+        return await LearnersAsync(http, db, after, take, request.Q, cancellationToken);
+    }
 
     private static async Task<IResult> LearnersAsync(
         HttpContext http, ApplicationDbContext db, string? after, string? take, string? q,

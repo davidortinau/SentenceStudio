@@ -7,6 +7,7 @@ using CoreSync.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Api.Admin;
+using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -229,6 +230,43 @@ public sealed class AdminSyncHealthTests : IDisposable
             AdminActions.SyncHealthLearnersSearch,
             AdminActions.SyncHealthLearnersSearch);
         rows.Should().OnlyContain(r => r.TargetId == null, "what was searched for is not written to the audit log either");
+    }
+
+    [Theory]
+    [InlineData("null", "application/json")]
+    [InlineData("{ \"q\": ", "application/json")]
+    [InlineData("{ \"q\": 5 }", "application/json")]
+    [InlineData("[]", "application/json")]
+    [InlineData("q=alpha", "application/x-www-form-urlencoded")]
+    public async Task A_search_body_that_is_not_the_expected_JSON_is_the_routes_own_400(string body, string contentType)
+    {
+        var (admin, _, _) = await SeedAdminAndTwoLearnersAsync();
+        using var client = _factory.CreateClientFor(admin);
+
+        var response = await client.PostAsync("/api/admin/sync-health/learners/search",
+            new StringContent(body, System.Text.Encoding.UTF8, contentType));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var row = (await _factory.ReadAuditAsync()).Should().ContainSingle().Subject;
+        row.Action.Should().Be(AdminActions.SyncHealthLearnersSearch);
+        row.Outcome.Should().Be(AdminAuditOutcome.Failed);
+        row.FailureCode.Should().Be(AdminFailureCodes.InvalidRequest);
+    }
+
+    [Fact]
+    public async Task A_search_for_nothing_or_for_wildcards_is_not_a_search_for_everything()
+    {
+        var (admin, _, _) = await SeedAdminAndTwoLearnersAsync();
+        using var client = _factory.CreateClientFor(admin);
+
+        async Task<int> FoundAsync(string? q) =>
+            (await (await client.PostAsJsonAsync("/api/admin/sync-health/learners/search", new AdminLearnerSearchRequest(q)))
+                .Content.ReadFromJsonAsync<AdminLearnerPage>())!.Items.Count;
+
+        (await FoundAsync("%")).Should().Be(0, "a wildcard is looked for as itself");
+        (await FoundAsync("_")).Should().Be(0);
+        (await FoundAsync(null)).Should().BeGreaterThan(1, "no text is the whole list, as the unfiltered route gives");
+        (await FoundAsync("   ")).Should().BeGreaterThan(1);
     }
 
     [Fact]
