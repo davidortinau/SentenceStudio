@@ -200,18 +200,6 @@ builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
 
-// The Sam opportunity operator client. Development-only, matching the API routes it calls, which
-// are not mapped outside Development at all. Registering it conditionally means the operator page
-// cannot resolve it in any other environment even if its route registration survived — two
-// independent mechanisms rather than one, because this client can put learner text on a screen.
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services
-        .AddHttpClient<SentenceStudio.WebApp.Operator.SamOpportunityOperatorClient>(client =>
-            client.BaseAddress = new Uri(apiBaseUrl))
-        .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
-}
-
 // The admin portal (docs/admin-portal-plan.md). Registered in every environment: the API decides
 // per request who is an admin, and answers everyone else 404. No resilience pipeline, because
 // every admitted call leaves an audit row and a failed password check counts toward lockout, so

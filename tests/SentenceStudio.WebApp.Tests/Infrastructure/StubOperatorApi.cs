@@ -11,21 +11,20 @@ using SentenceStudio.Contracts.Startup;
 namespace SentenceStudio.WebApp.Tests.Infrastructure;
 
 /// <summary>
-/// A stand-in for the Development-only coach operator API, running on a real loopback port.
+/// A stand-in for the API, running on a real loopback port.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The WebApp reaches the operator surface over HTTP through <c>SamOpportunityOperatorClient</c>,
-/// and the thing under test is what that client puts on the wire and what the WebApp does with the
-/// answer. A stub is used rather than the real API because these tests need to control the answer
-/// — the same request has to be able to return rows, a 404, and a 401 — and because a test that
-/// booted the API too could not tell a WebApp token-forwarding bug apart from an API cohort bug.
+/// It answers the startup readiness route the WebApp waits on, and records every request it
+/// receives, so a test can prove what the WebApp did or did not put on the wire (an admin page's
+/// first HTML must spend no admin request, for instance). A stub is used rather than the real API
+/// because these tests are about the WebApp's side, and one that booted the API too could not
+/// tell a WebApp fault from an API one.
 /// </para>
 /// <para>
-/// It records the <c>Authorization</c> header of every request, which is how the token-forwarding
-/// assertions are made. It records the header's <em>shape</em> and the bearer token, because the
-/// tests must be able to prove the token names the signed-in learner; the recording lives in
-/// memory for the lifetime of one test and is never logged.
+/// It records the <c>Authorization</c> header's shape and the bearer token of each request. The
+/// recording lives in memory for the lifetime of one test and is never logged. (The name is from
+/// the Sam operator page this stub first served; that page is now the admin feedback inbox.)
 /// </para>
 /// </remarks>
 public sealed class StubOperatorApi : IAsyncDisposable
@@ -34,15 +33,6 @@ public sealed class StubOperatorApi : IAsyncDisposable
     private readonly ConcurrentQueue<RecordedRequest> _requests = new();
 
     private StubOperatorApi(WebApplication app) => _app = app;
-
-    /// <summary>What the operator routes answer with. Mutable between requests.</summary>
-    public HttpStatusCode RollupStatus { get; set; } = HttpStatusCode.OK;
-
-    /// <summary>The JSON body the rollup route returns when it answers 200.</summary>
-    public string RollupBody { get; set; } = "[]";
-
-    /// <summary>What the list route answers with.</summary>
-    public HttpStatusCode ListStatus { get; set; } = HttpStatusCode.OK;
 
     /// <summary>What the public API startup/readiness route answers with.</summary>
     public HttpStatusCode VersionStatus { get; set; } = HttpStatusCode.OK;
@@ -55,9 +45,6 @@ public sealed class StubOperatorApi : IAsyncDisposable
 
     /// <summary>Optional redirect target for the readiness client's real HTTP handler test.</summary>
     public string? VersionRedirectTarget { get; set; }
-
-    /// <summary>The JSON body the list route returns when it answers 200.</summary>
-    public string ListBody { get; set; } = """{"items":[],"total":0,"skip":0,"take":50}""";
 
     /// <summary>The base address the WebApp should be pointed at.</summary>
     public string BaseAddress { get; private set; } = string.Empty;
@@ -88,8 +75,6 @@ public sealed class StubOperatorApi : IAsyncDisposable
             await next();
         });
 
-        const string prefix = "/api/v1/coach/operator/opportunities";
-
         app.MapGet("/api/version/info", (HttpContext http) =>
         {
             if (stub.VersionRedirectTarget is not null)
@@ -103,15 +88,6 @@ public sealed class StubOperatorApi : IAsyncDisposable
         });
         app.MapGet("/api/version/ready-after-redirect", (HttpContext http) =>
             stub.Answer(http, HttpStatusCode.OK, stub.VersionBody()));
-
-        app.MapGet($"{prefix}/rollup", (HttpContext http) =>
-            stub.Answer(http, stub.RollupStatus, stub.RollupBody));
-
-        app.MapGet(prefix, (HttpContext http) =>
-            stub.Answer(http, stub.ListStatus, stub.ListBody));
-
-        app.MapGet($"{prefix}/", (HttpContext http) =>
-            stub.Answer(http, stub.ListStatus, stub.ListBody));
 
         await app.StartAsync();
 

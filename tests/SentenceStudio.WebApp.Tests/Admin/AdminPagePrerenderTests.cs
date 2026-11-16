@@ -20,7 +20,7 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
 {
     private const string Password = "IntegrationTest1!";
 
-    // Production, because the admin portal ships there, unlike the Development-only operator page.
+    // Production, because the admin portal ships there.
     private readonly OperatorWebAppFactory _factory =
         new(nameof(AdminPagePrerenderTests), Environments.Production);
 
@@ -34,6 +34,8 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
     [InlineData("/admin/sync-health")]
     [InlineData("/admin/sync-health/some-profile-id")]
     [InlineData("/admin/usage")]
+    [InlineData("/admin/feedback")]
+    [InlineData("/admin/tokens")]
     public async Task An_anonymous_visitor_is_sent_to_sign_in(string path)
     {
         var client = _factory.CreateBrowserClient();
@@ -53,6 +55,8 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
     [InlineData("/admin/sync-health")]
     [InlineData("/admin/sync-health/some-profile-id")]
     [InlineData("/admin/usage")]
+    [InlineData("/admin/feedback")]
+    [InlineData("/admin/tokens")]
     public async Task The_first_response_holds_no_admin_content_and_asks_the_API_nothing(string path)
     {
         var learner = await _factory.SeedLearnerAsync($"admin-prerender-{Guid.NewGuid():N}@sentencestudio.test", Password);
@@ -70,6 +74,10 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
             .And.NotContain("admin-audit-table")
             .And.NotContain("admin-sync")
             .And.NotContain("admin-usage")
+            .And.NotContain("admin-feedback")
+            .And.NotContain("admin-tokens")
+            .And.NotContain("<title>Feedback")
+            .And.NotContain("<title>Agent tokens")
             .And.NotContain("<title>AI usage")
             .And.NotContain("<title>Sync")
             .And.NotContain("Signed in as")

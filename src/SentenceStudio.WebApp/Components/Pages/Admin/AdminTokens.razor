@@ -1,0 +1,415 @@
+@page "/admin/tokens"
+@using System.Globalization
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+@*
+    Agent tokens: what the maintenance agent signs in to the admin API with. An admin creates one
+    (password confirmed), sees it once, and can revoke it. A token reads the feedback inbox and sets
+    a report's status and issue link, as far as its permissions go; it can never use an account
+    tool, see this page's data or make another token. Loaded in the live circuit only.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>Agent tokens</PageTitle>
+    <PageHeader Title="Agent tokens" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
+        <ToolbarActions>
+            <button id="admin-tokens-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_busy" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-tokens">
+        <p class="text-secondary" id="admin-tokens-intro">
+            A token lets the maintenance agent read the feedback inbox through the API, without a
+            password and without database access. It lasts @(_tokens?.LifetimeDays ?? 30) days, stops
+            at once when revoked, and stops if the admin who created it stops being an admin.
+            Everything it does is recorded in the audit log under its id.
+        </p>
+
+        @* ------------------------------------------------------------ the new token, once *@
+        @if (_created is { } created)
+        {
+            <div class="alert alert-success" role="status" id="admin-tokens-created">
+                <h2 class="h6">Token created: @created.Row.Name</h2>
+                <p class="mb-2">
+                    Copy it now. It is shown this once and cannot be read again; only a digest of it is
+                    stored. For the weekday check, store it in Key Vault as the secret
+                    <code>admin-agent-token</code>.
+                </p>
+                <label class="form-label" for="admin-tokens-created-value">The token</label>
+                <input id="admin-tokens-created-value" class="form-control font-monospace" readonly
+                       value="@created.Token" autocomplete="off" spellcheck="false" />
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="admin-tokens-created-dismiss"
+                        @onclick="DismissCreated">
+                    I have copied it
+                </button>
+            </div>
+        }
+
+        @* ------------------------------------------------------------ create *@
+        <section class="mb-5" aria-labelledby="admin-tokens-create-heading" id="admin-tokens-create">
+            <h2 class="h5" id="admin-tokens-create-heading">Create a token</h2>
+
+            @if (State.PasswordConfirmedUntilUtc is null)
+            {
+                <p class="text-secondary">A token is a way to sign in, so creating one needs your password confirmed.</p>
+                <div class="mb-3" style="max-width: 36rem;">
+                    <AdminPasswordCard OnNotAdmin="CloseGate" />
+                </div>
+            }
+
+            <form id="admin-tokens-form" @onsubmit="CreateAsync" @onsubmit:preventDefault style="max-width: 36rem;">
+                <div class="mb-3">
+                    <label class="form-label" for="admin-tokens-name">Name</label>
+                    <input id="admin-tokens-name" class="form-control" maxlength="64" autocomplete="off"
+                           placeholder="For example: weekday check" @bind="_name" @bind:event="oninput" disabled="@_busy" />
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="form-label fs-6">What it may do</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="admin-tokens-permission-reports"
+                               @bind="_reports" disabled="@_busy" />
+                        <label class="form-check-label" for="admin-tokens-permission-reports">
+                            Read the inbox: the lists and each report's codes, counts and times
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="admin-tokens-permission-learner-content"
+                               @bind="_learnerContent" disabled="@_busy" />
+                        <label class="form-check-label" for="admin-tokens-permission-learner-content">
+                            Read learner content: the flagged question and answer, and saved screen state
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="admin-tokens-permission-triage"
+                               @bind="_triage" disabled="@_busy" />
+                        <label class="form-check-label" for="admin-tokens-permission-triage">
+                            Set a report's status and its GitHub issue number
+                        </label>
+                    </div>
+                </fieldset>
+                @if (_createMessage is not null)
+                {
+                    <div class="alert alert-warning" role="alert" id="admin-tokens-create-message">@_createMessage</div>
+                }
+                @* Never disabled for an unconfirmed password or an empty form: a browser ignores
+                   Enter in a form whose submit button is disabled. CreateAsync says what is missing. *@
+                <button type="submit" class="btn btn-primary" id="admin-tokens-create-submit" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                    }
+                    Create token
+                </button>
+            </form>
+        </section>
+
+        @* ------------------------------------------------------------ the list *@
+        <section class="mb-5" aria-labelledby="admin-tokens-list-heading" id="admin-tokens-list">
+            <h2 class="h5" id="admin-tokens-list-heading">Tokens</h2>
+
+            @if (_listMessage is not null)
+            {
+                <div class="alert alert-warning" role="alert" id="admin-tokens-list-message">@_listMessage</div>
+            }
+
+            @if (_failed)
+            {
+                <div class="alert alert-warning" role="alert" id="admin-tokens-failed">
+                    The tokens could not be loaded. Use Refresh to try again.
+                </div>
+            }
+            else if (_tokens is { } tokens)
+            {
+                @if (tokens.Items.Count == 0)
+                {
+                    <p class="text-secondary" id="admin-tokens-empty">No token has been created.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-tokens-table">
+                            <caption class="visually-hidden">Agent tokens, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">May</th>
+                                    <th scope="col">State</th>
+                                    <th scope="col">Created (UTC)</th>
+                                    <th scope="col">Expires (UTC)</th>
+                                    <th scope="col">Last used (UTC)</th>
+                                    <th scope="col"><span class="visually-hidden">Revoke</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var token in tokens.Items)
+                                {
+                                    <tr @key="token.Id" data-token-id="@token.Id" data-state="@token.State">
+                                        <th scope="row">
+                                            @token.Name
+                                            <div class="text-secondary small fw-normal">@token.Id</div>
+                                        </th>
+                                        <td>@string.Join(", ", token.Permissions.Select(PermissionText))</td>
+                                        <td>
+                                            @StateText(token.State)@(token.RevokedAtUtc is { } revokedAt ? $" {When(revokedAt)}" : "")
+                                        </td>
+                                        <td>
+                                            @When(token.CreatedAtUtc)
+                                            <div class="text-secondary small">by @(token.CreatedByEmail ?? token.CreatedByUserId)</div>
+                                        </td>
+                                        <td>@When(token.ExpiresAtUtc)</td>
+                                        <td>@(token.LastUsedAtUtc is { } usedAt ? When(usedAt) : "Never")</td>
+                                        <td class="text-end">
+                                            @if (token.State == AdminTokenCodes.StateLive)
+                                            {
+                                                @if (_confirmingRevoke == token.Id)
+                                                {
+                                                    <span class="me-2" role="status">Revoke @token.Name?</span>
+                                                    <button type="button" class="btn btn-sm btn-danger me-1" id="@($"admin-tokens-revoke-confirm-{token.Id}")"
+                                                            disabled="@_busy" @onclick="() => RevokeAsync(token.Id)">
+                                                        Revoke
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="@($"admin-tokens-revoke-cancel-{token.Id}")"
+                                                            disabled="@_busy" @onclick="() => _confirmingRevoke = null">
+                                                        Keep
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" id="@($"admin-tokens-revoke-{token.Id}")"
+                                                            disabled="@_busy" aria-label="@($"Revoke the token {token.Name}")"
+                                                            @onclick="() => _confirmingRevoke = token.Id">
+                                                        <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Revoke
+                                                    </button>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-secondary small">
+                        The last-used time is written at most once in five minutes. At most @tokens.MaxLive tokens can be live at once.
+                    </p>
+                }
+            }
+        </section>
+    </div>
+</AdminGate>
+
+@code {
+    private AdminGate? _gate;
+    private AdminTokenList? _tokens;
+    private AdminTokenCreated? _created;
+    private string _name = string.Empty;
+    private bool _reports = true;
+    private bool _learnerContent;
+    private bool _triage;
+    private string? _createMessage;
+    private string? _listMessage;
+    private string? _confirmingRevoke;
+    private bool _busy;
+    private bool _failed;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    // The password card comes and goes with the confirmation.
+    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+
+    private static string When(DateTime value) => value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+
+    // Every code is said in words; one this page does not know is shown as that.
+    private static string PermissionText(string code) => code switch
+    {
+        AdminTokenCodes.PermissionReports => "read the inbox",
+        AdminTokenCodes.PermissionLearnerContent => "read learner content",
+        AdminTokenCodes.PermissionTriage => "set status and issue",
+        _ => $"unknown ({code})"
+    };
+
+    private static string StateText(string code) => code switch
+    {
+        AdminTokenCodes.StateLive => "Live",
+        AdminTokenCodes.StateExpired => "Expired",
+        AdminTokenCodes.StateRevoked => "Revoked",
+        _ => $"Unknown ({code})"
+    };
+
+    private void CloseGate() => _gate?.Close();
+
+    private void DismissCreated() => _created = null;
+
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        var result = await Api.GetTokensAsync();
+        _failed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+        if (result.Status == AdminApiStatus.NotFound)
+        {
+            State.MarkNotAdmin();
+            _tokens = null;
+        }
+        else if (result.Value is { } list)
+        {
+            _tokens = list;
+        }
+
+        return result.Status;
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _listMessage = null;
+        try
+        {
+            if (await LoadAsync() == AdminApiStatus.NotFound)
+            {
+                _gate?.Close();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        var name = _name.Trim();
+        var permissions = new List<string>();
+        if (_reports)
+        {
+            permissions.Add(AdminTokenCodes.PermissionReports);
+        }
+
+        if (_learnerContent)
+        {
+            permissions.Add(AdminTokenCodes.PermissionLearnerContent);
+        }
+
+        if (_triage)
+        {
+            permissions.Add(AdminTokenCodes.PermissionTriage);
+        }
+
+        if (name.Length == 0)
+        {
+            _createMessage = "Give the token a name.";
+            return;
+        }
+
+        if (permissions.Count == 0)
+        {
+            _createMessage = "Choose at least one thing the token may do.";
+            return;
+        }
+
+        if (State.CurrentProof is not { } proof)
+        {
+            _createMessage = "Confirm your password first.";
+            return;
+        }
+
+        _busy = true;
+        _createMessage = null;
+        try
+        {
+            var result = await Api.CreateTokenAsync(name, permissions, proof);
+            switch (result.Status)
+            {
+                case AdminApiStatus.Ok when result.Value is { } created:
+                    _created = created;
+                    _name = string.Empty;
+                    if (await LoadAsync() == AdminApiStatus.NotFound)
+                    {
+                        _gate?.Close();
+                    }
+
+                    break;
+
+                case AdminApiStatus.NotFound:
+                    State.MarkNotAdmin();
+                    _gate?.Close();
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureStepUpRequired:
+                    // The API no longer honours the confirmation this tab held.
+                    State.Reconcile(null);
+                    _createMessage = "Confirm your password again to create a token.";
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureTooManyTokens:
+                    _createMessage = "There are already as many live tokens as are allowed. Revoke one first.";
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureInvalidRequest:
+                    _createMessage = "That name cannot be used. Use up to 64 ordinary characters.";
+                    break;
+
+                default:
+                    _createMessage = "The token could not be created. Try again.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RevokeAsync(string tokenId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _listMessage = null;
+        try
+        {
+            var result = await Api.RevokeTokenAsync(tokenId);
+            _confirmingRevoke = null;
+
+            // Whatever the answer, the list is what is true now. A 404 here is either a token
+            // that is gone or an admin who no longer is one; the reload settles which.
+            var list = await LoadAsync();
+            if (list == AdminApiStatus.NotFound)
+            {
+                _gate?.Close();
+            }
+            else if (!result.IsOk)
+            {
+                _listMessage = result.Status == AdminApiStatus.NotFound
+                    ? "That token is no longer there."
+                    : "The token could not be revoked. Try again.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

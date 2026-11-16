@@ -1,0 +1,991 @@
+@page "/admin/feedback"
+@using System.Globalization
+@using System.Text.Json
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+@*
+    The feedback inbox: the Sam answers learners flagged, for every learner, and the reports they
+    filed to GitHub. It replaces the Development-only operator page (/operator/sam-opportunities).
+
+    The lists and the detail show ids, codes, counts and times. Learner content appears in two
+    places only, each after an explicit click and a confirmed password: the flagged question and
+    answer, and a GitHub report's saved screen state. Both are drawn as plain text, and both are
+    dropped when their panel is closed. Loaded in the live circuit only.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>Feedback inbox</PageTitle>
+    <PageHeader Title="Feedback inbox" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
+        <ToolbarActions>
+            <button id="admin-feedback-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-feedback">
+
+        @* ------------------------------------------------------------ flagged Sam answers *@
+        <section class="mb-5" aria-labelledby="admin-feedback-sam-heading" id="admin-feedback-sam">
+            <h2 class="h5" id="admin-feedback-sam-heading">Sam answers learners flagged</h2>
+
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-auto">
+                    <label class="form-label" for="admin-feedback-status">Show</label>
+                    <select id="admin-feedback-status" class="form-select" value="@_statusFilter"
+                            @onchange="StatusFilterChangedAsync" disabled="@_loading">
+                        <option value="@AllStatuses" selected="@(_statusFilter == AllStatuses)">Every status</option>
+                        @foreach (var status in AdminReportCodes.Statuses)
+                        {
+                            <option value="@status" selected="@(_statusFilter == status)">@StatusText(status)</option>
+                        }
+                    </select>
+                </div>
+                @if (_sam is { } counted)
+                {
+                    <div class="col-auto">
+                        <p class="mb-2" id="admin-feedback-new-count" role="status">
+                            @Count(counted.NewCount) new in all.
+                        </p>
+                    </div>
+                }
+            </div>
+
+            @if (_notice is not null)
+            {
+                <div class="alert alert-warning d-flex align-items-center" role="alert" id="admin-feedback-notice">
+                    <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                    <span>@_notice</span>
+                </div>
+            }
+
+            @if (_samFailed)
+            {
+                <div class="alert alert-warning" role="alert" id="admin-feedback-sam-failed">
+                    The flagged answers could not be loaded. Use Refresh to try again.
+                </div>
+            }
+            else if (_sam is { } sam)
+            {
+                @if (sam.UnlistedFlagCount > 0)
+                {
+                    <div class="alert alert-warning" role="alert" id="admin-feedback-unlisted">
+                        @Count(sam.UnlistedFlagCount) @(sam.UnlistedFlagCount == 1 ? "flag was" : "flags were")
+                        recorded without an inbox row, so @(sam.UnlistedFlagCount == 1 ? "it is" : "they are") not
+                        in this list. The flags are stored (table CoachResponseReport); only the inbox row is missing.
+                    </div>
+                }
+
+                @if (sam.Truncated)
+                {
+                    <div class="alert alert-warning" role="alert" id="admin-feedback-sam-truncated">
+                        Only the newest @Count(sam.Items.Count) are listed. Choose one status to see fewer.
+                    </div>
+                }
+
+                @if (sam.Items.Count == 0)
+                {
+                    <p class="text-secondary" id="admin-feedback-sam-empty">
+                        @(_statusFilter == AllStatuses
+                            ? "No learner has flagged a Sam answer."
+                            : $"No flagged answers with the status {StatusText(_statusFilter)}.")
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-feedback-sam-table">
+                            <caption class="visually-hidden">Flagged Sam answers, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Last flagged (UTC)</th>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col">Reason</th>
+                                    <th scope="col" class="text-end">Flags</th>
+                                    <th scope="col">Failure code</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Issue</th>
+                                    <th scope="col"><span class="visually-hidden">Open</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in sam.Items)
+                                {
+                                    <tr @key="row.Id" data-report-id="@row.Id"
+                                        class="@(row.Id == _detail?.Report.Id ? "table-active" : "")">
+                                        <td>@When(row.LastFlaggedAtUtc)</td>
+                                        <th scope="row">@LearnerLabel(sam.Learners, row.LearnerId)</th>
+                                        <td>@ReasonText(row.Reason)</td>
+                                        <td class="text-end">@Count(row.FlagCount)</td>
+                                        <td>@(row.FailureCode ?? "None")</td>
+                                        <td>@StatusText(row.Status)</td>
+                                        <td>
+                                            @if (row.IssueNumber is { } issue)
+                                            {
+                                                @if (SafeIssueUrl(row.IssueUrl) is { } url)
+                                                {
+                                                    <a href="@url" target="_blank" rel="noopener noreferrer">#@issue</a>
+                                                }
+                                                else
+                                                {
+                                                    <span>#@issue</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-secondary">None</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                    id="@($"admin-feedback-open-{row.Id}")" disabled="@_busy"
+                                                    aria-label="@($"Open the report from {LearnerLabel(sam.Learners, row.LearnerId)}, last flagged {When(row.LastFlaggedAtUtc)}")"
+                                                    @onclick="() => SelectAsync(row.Id)">
+                                                <i class="bi bi-eye me-1" aria-hidden="true"></i>Open
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+
+            @if (_detail is { } detail)
+            {
+                var report = detail.Report;
+                <div class="card mt-3" id="admin-feedback-detail" data-report-id="@report.Id">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="h6 mb-0">
+                            @ReasonText(report.Reason), flagged by @LearnerLabel(detail.Learner, report.LearnerId)
+                        </h3>
+                        <button type="button" id="admin-feedback-detail-close" class="btn-close"
+                                aria-label="Close this report" @onclick="CloseDetail"></button>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-3">
+                            <dt class="col-sm-4 col-lg-3">Learner</dt>
+                            <dd class="col-sm-8 col-lg-9" id="admin-feedback-detail-learner">
+                                @LearnerLabel(detail.Learner, report.LearnerId)
+                                <span class="text-secondary small">(@report.LearnerId)</span>
+                            </dd>
+                            <dt class="col-sm-4 col-lg-3">Flagged (UTC)</dt>
+                            <dd class="col-sm-8 col-lg-9">
+                                @(report.FlagCount == 1
+                                    ? When(report.LastFlaggedAtUtc)
+                                    : $"{Count(report.FlagCount)} times, {When(report.FirstFlaggedAtUtc)} to {When(report.LastFlaggedAtUtc)}")
+                            </dd>
+                            <dt class="col-sm-4 col-lg-3">How the turn ended</dt>
+                            <dd class="col-sm-8 col-lg-9">@CodeText(report.StopReason)</dd>
+                            <dt class="col-sm-4 col-lg-3">Failure code</dt>
+                            <dd class="col-sm-8 col-lg-9">@(report.FailureCode ?? "None")</dd>
+                            <dt class="col-sm-4 col-lg-3">Exchange opened</dt>
+                            <dd class="col-sm-8 col-lg-9" id="admin-feedback-detail-opened">
+                                @(report.ExchangeOpenedCount == 0
+                                    ? "Never"
+                                    : $"{Count(report.ExchangeOpenedCount)} {(report.ExchangeOpenedCount == 1 ? "time" : "times")}, last {WhenOrNone(report.ExchangeLastOpenedAtUtc)} UTC")
+                            </dd>
+                        </dl>
+
+                        @* ---------------------------------------------- each flag, in codes *@
+                        <h4 class="h6">Flags on this report</h4>
+                        @if (detail.Flags.Count == 0)
+                        {
+                            <p class="text-secondary" id="admin-feedback-flags-empty">
+                                The flags themselves are no longer stored (they are kept 180 days). The report
+                                and the exchange it points at remain.
+                            </p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle" id="admin-feedback-flags">
+                                    <caption class="visually-hidden">Each flag on this report, newest first</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Flagged (UTC)</th>
+                                            <th scope="col">Kind of response</th>
+                                            <th scope="col">Turn</th>
+                                            <th scope="col">Tools run</th>
+                                            <th scope="col">Proposed change</th>
+                                            <th scope="col">Answer check</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var flag in detail.Flags)
+                                        {
+                                            <tr>
+                                                <td>@When(flag.FlaggedAtUtc)</td>
+                                                <td>@CodeText(flag.ResponseKind)</td>
+                                                <td>
+                                                    @CodeText(flag.TurnStatus)@(flag.TurnAttempts is > 1 and var attempts ? $", {attempts} attempts" : "")@(flag.TurnErrorCode is { Length: > 0 } turnError ? $", {turnError}" : "")
+                                                </td>
+                                                <td>@(flag.ToolsInvoked is { Length: > 0 } tools ? tools : "None")</td>
+                                                <td>
+                                                    @(flag.WriteStatus is null ? "None" : CodeText(flag.WriteStatus))@(flag.WriteFailureCode is { Length: > 0 } writeFailure ? $", {writeFailure}" : "")
+                                                </td>
+                                                <td>@GroundingText(flag)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (detail.FlagsTruncated)
+                            {
+                                <p class="text-secondary">Only the newest @detail.Flags.Count flags are listed.</p>
+                            }
+                        }
+
+                        @* ---------------------------------------------- the flagged exchange *@
+                        <h4 class="h6 mt-4">The flagged question and answer</h4>
+                        @if (!report.HasExchange)
+                        {
+                            <p class="text-secondary" id="admin-feedback-exchange-none">
+                                This report points at no messages.
+                            </p>
+                        }
+                        else if (_exchange is { } exchange)
+                        {
+                            <div id="admin-feedback-exchange" data-state="@exchange.State">
+                                @if (exchange.State == AdminReportCodes.ExchangeAvailable)
+                                {
+                                    @foreach (var item in exchange.Exchanges)
+                                    {
+                                        <div class="border rounded p-3 mb-2" data-part="exchange">
+                                            @if (item.FlaggedAtUtc is { } flaggedAt)
+                                            {
+                                                <p class="text-secondary small mb-2">Flagged @When(flaggedAt) UTC</p>
+                                            }
+                                            <p class="fw-semibold mb-1">The learner asked</p>
+                                            <p style="white-space: pre-wrap;" data-part="question">@(item.Question ?? "This message can no longer be read.")</p>
+                                            <p class="fw-semibold mb-1">Sam answered</p>
+                                            <p class="mb-0" style="white-space: pre-wrap;" data-part="answer">@(item.Answer ?? "This message can no longer be read.")</p>
+                                        </div>
+                                    }
+                                    @if (exchange.Truncated)
+                                    {
+                                        <p class="text-secondary">Only the newest @exchange.Exchanges.Count flagged exchanges were read.</p>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="text-secondary mb-2">
+                                        The messages can no longer be read, usually because the learner deleted
+                                        the conversation. The report stands without them.
+                                    </p>
+                                }
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="admin-feedback-exchange-hide"
+                                        @onclick="HideExchange">
+                                    <i class="bi bi-eye-slash me-1" aria-hidden="true"></i>Hide
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-secondary" id="admin-feedback-exchange-note">
+                                Opening it shows what this learner wrote to Sam and what Sam answered, for the
+                                flagged turn only. It needs your password confirmed, and it is recorded in the
+                                audit log.
+                            </p>
+                            @if (_exchangeMessage is not null)
+                            {
+                                <div class="alert alert-warning" role="alert" id="admin-feedback-exchange-message">@_exchangeMessage</div>
+                            }
+                            @if (State.PasswordConfirmedUntilUtc is null)
+                            {
+                                <div class="mb-3" style="max-width: 36rem;">
+                                    <AdminPasswordCard OnNotAdmin="CloseGate" />
+                                </div>
+                            }
+                            <button type="button" class="btn btn-outline-primary" id="admin-feedback-exchange-open"
+                                    disabled="@(_busy || State.PasswordConfirmedUntilUtc is null)" @onclick="OpenExchangeAsync">
+                                <i class="bi bi-eye me-1" aria-hidden="true"></i>Open the question and answer
+                            </button>
+                        }
+
+                        @* ---------------------------------------------- status and issue *@
+                        <h4 class="h6 mt-4">Status and GitHub issue</h4>
+                        <form id="admin-feedback-triage" class="row g-2 align-items-end" @onsubmit="SaveTriageAsync" @onsubmit:preventDefault>
+                            <div class="col-auto">
+                                <label class="form-label" for="admin-feedback-triage-status">Status</label>
+                                <select id="admin-feedback-triage-status" class="form-select" @bind="_triageStatus" disabled="@_busy">
+                                    @foreach (var status in AdminReportCodes.Statuses)
+                                    {
+                                        <option value="@status">@StatusText(status)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label" for="admin-feedback-triage-issue">GitHub issue number</label>
+                                <input id="admin-feedback-triage-issue" class="form-control" inputmode="numeric" autocomplete="off"
+                                       placeholder="None" aria-describedby="admin-feedback-triage-help"
+                                       @bind="_triageIssue" @bind:event="oninput" disabled="@_busy" />
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-primary" id="admin-feedback-triage-save" disabled="@_busy">
+                                    @if (_busy)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                                    }
+                                    Save
+                                </button>
+                            </div>
+                        </form>
+                        <p class="form-text" id="admin-feedback-triage-help">
+                            The issue is one you or the agent filed; it must carry none of the learner's text.
+                            Leave the number empty for none. An accepted report keeps its status.
+                        </p>
+                        @if (_triageMessage is not null)
+                        {
+                            <div class="alert @(_triageSaved ? "alert-success" : "alert-warning")" role="@(_triageSaved ? "status" : "alert")"
+                                 id="admin-feedback-triage-message">@_triageMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+
+        @* ------------------------------------------------------------ GitHub reports *@
+        <section class="mb-5" aria-labelledby="admin-feedback-github-heading" id="admin-feedback-github">
+            <h2 class="h5" id="admin-feedback-github-heading">Reports filed to GitHub</h2>
+
+            @if (_gitHubFailed)
+            {
+                <div class="alert alert-warning" role="alert" id="admin-feedback-github-failed">
+                    The GitHub reports could not be loaded. Use Refresh to try again.
+                </div>
+            }
+            else if (_gitHub is { } gitHub)
+            {
+                @if (gitHub.Items.Count == 0)
+                {
+                    <p class="text-secondary" id="admin-feedback-github-empty">No report has been filed to GitHub from the app.</p>
+                }
+                else
+                {
+                    @if (gitHub.Truncated)
+                    {
+                        <div class="alert alert-warning" role="alert" id="admin-feedback-github-truncated">
+                            Only the newest @Count(gitHub.Items.Count) are listed.
+                        </div>
+                    }
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-feedback-github-table">
+                            <caption class="visually-hidden">Reports filed to GitHub from the app, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Filed (UTC)</th>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col">Issue</th>
+                                    <th scope="col">App</th>
+                                    <th scope="col">Screen</th>
+                                    <th scope="col">Outcome</th>
+                                    <th scope="col">Saved screen state</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in gitHub.Items)
+                                {
+                                    <tr data-issue="@row.IssueNumber" data-reference="@row.ScreenStateReference">
+                                        <td>@When(row.CreatedAtUtc)</td>
+                                        <th scope="row">@LearnerLabel(gitHub.Learners, row.LearnerId)</th>
+                                        <td>
+                                            @if (row.IssueNumber is { } issue)
+                                            {
+                                                @if (SafeIssueUrl(row.IssueUrl) is { } url)
+                                                {
+                                                    <a href="@url" target="_blank" rel="noopener noreferrer">#@issue</a>
+                                                }
+                                                else
+                                                {
+                                                    <span>#@issue</span>
+                                                }
+                                                <span> @row.IssueTitle</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-secondary">None</span>
+                                            }
+                                        </td>
+                                        <td>@CodeText(row.Platform) @row.AppVersion</td>
+                                        <td>@CodeText(row.Screen)</td>
+                                        <td>@GitHubStatusText(row.Status)@(row.FailureCode is { Length: > 0 } failure ? $" ({failure})" : "")</td>
+                                        <td>
+                                            @if (row.ScreenStateReference is { } reference)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                        id="@($"admin-feedback-screen-open-{reference}")"
+                                                        disabled="@_busy" aria-label="@($"Show the saved screen state {reference}")"
+                                                        @onclick="() => SelectScreenState(reference)">
+                                                    <i class="bi bi-eye me-1" aria-hidden="true"></i>@reference
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-secondary">None saved</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (_screenReference is { } selected)
+                {
+                    <div class="card mt-3" id="admin-feedback-screen-state" data-reference="@selected">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="h6 mb-0">Saved screen state @selected</h3>
+                            <button type="button" id="admin-feedback-screen-state-close" class="btn-close"
+                                    aria-label="Close the saved screen state" @onclick="CloseScreenState"></button>
+                        </div>
+                        <div class="card-body">
+                            @if (_screenState is { } state)
+                            {
+                                <p class="text-secondary small">Saved @When(state.CreatedAtUtc) UTC. This is the part of the report that was not published.</p>
+                                <pre class="mb-0" id="admin-feedback-screen-state-json" style="white-space: pre-wrap;">@Pretty(state.Context)</pre>
+                            }
+                            else
+                            {
+                                <p class="text-secondary">
+                                    The route and screen state the learner was on. It can hold what they were
+                                    studying, so it needs your password confirmed, and it is recorded in the audit log.
+                                </p>
+                                @if (_screenMessage is not null)
+                                {
+                                    <div class="alert alert-warning" role="alert" id="admin-feedback-screen-state-message">@_screenMessage</div>
+                                }
+                                @if (State.PasswordConfirmedUntilUtc is null)
+                                {
+                                    <div class="mb-3" style="max-width: 36rem;">
+                                        <AdminPasswordCard OnNotAdmin="CloseGate" />
+                                    </div>
+                                }
+                                <button type="button" class="btn btn-outline-primary" id="admin-feedback-screen-state-open"
+                                        disabled="@(_busy || State.PasswordConfirmedUntilUtc is null)" @onclick="OpenScreenStateAsync">
+                                    <i class="bi bi-eye me-1" aria-hidden="true"></i>Show the saved screen state
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </section>
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    private const int PageSize = 200;
+    private const string AllStatuses = "all";
+    private const int MaxIssueNumber = 9_999_999;
+
+    private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+
+    private AdminGate? _gate;
+    private AdminSamReportList? _sam;
+    private AdminGitHubReportList? _gitHub;
+    private AdminSamReportDetail? _detail;
+    private AdminSamExchangeResponse? _exchange;
+    private AdminScreenState? _screenState;
+    private string? _screenReference;
+    private string _statusFilter = AdminReportCodes.StatusNew;
+    private string _triageStatus = AdminReportCodes.StatusNew;
+    private string _triageIssue = string.Empty;
+    private string? _notice;
+    private string? _exchangeMessage;
+    private string? _screenMessage;
+    private string? _triageMessage;
+    private bool _triageSaved;
+    private bool _loading;
+    private bool _busy;
+    private bool _samFailed;
+    private bool _gitHubFailed;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    // The password card and the two "open" buttons follow the confirmation as it starts and ends.
+    private void OnStateChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+
+    private static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string When(DateTime value) => value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+
+    private static string WhenOrNone(DateTime? value) => value is { } at ? When(at) : "unknown";
+
+    private static string LearnerLabel(AdminLearnerSummary? learner, string profileId) =>
+        learner?.Email ?? learner?.DisplayName ?? profileId;
+
+    private static string LearnerLabel(IReadOnlyList<AdminLearnerSummary> learners, string profileId) =>
+        LearnerLabel(learners.FirstOrDefault(l => l.ProfileId == profileId), profileId);
+
+    // Every code is said in words; one this page does not know is shown as that.
+    private static string StatusText(string code) => code switch
+    {
+        AdminReportCodes.StatusNew => "New",
+        AdminReportCodes.StatusReviewed => "Reviewed",
+        AdminReportCodes.StatusAccepted => "Accepted",
+        AdminReportCodes.StatusDeferred => "Deferred",
+        AdminReportCodes.StatusDismissed => "Dismissed",
+        _ => $"Unknown ({code})"
+    };
+
+    private static string ReasonText(string code) => code switch
+    {
+        "did_not_answer" => "Did not answer the question",
+        "incorrect_or_misleading" => "Incorrect or misleading",
+        "expected_app_action" => "Expected the app to do something",
+        "confusing" => "Confusing",
+        "other" => "Another reason",
+        _ => $"Unknown ({code})"
+    };
+
+    private static string GitHubStatusText(string code) => code switch
+    {
+        AdminReportCodes.GitHubSubmitted => "Filed",
+        AdminReportCodes.GitHubFailed => "Not filed",
+        AdminReportCodes.GitHubClaimed => "In doubt: an issue may exist",
+        AdminReportCodes.GitHubCommitted => "Filed, but the issue number was not recorded",
+        _ => $"Unknown ({code})"
+    };
+
+    /// <summary>A descriptive code as words: <c>pedagogical_answer</c> reads "Pedagogical answer".</summary>
+    private static string CodeText(string? code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            return "Not recorded";
+        }
+
+        var words = code.Replace('_', ' ');
+        return char.ToUpperInvariant(words[0]) + words[1..];
+    }
+
+    private static string GroundingText(AdminSamReportFlag flag)
+    {
+        if (flag.GroundingStage is null)
+        {
+            return "Not measured";
+        }
+
+        var parts = new List<string> { CodeText(flag.GroundingStage) };
+        if (flag.GroundingRefused == true)
+        {
+            parts.Add("answer withheld");
+        }
+
+        if (flag.GroundingAltered == true)
+        {
+            parts.Add("answer repaired");
+        }
+
+        if (flag.GroundingRepairSuppressed == true)
+        {
+            parts.Add("repair held back (language)");
+        }
+
+        if (flag.GroundingFindingCount is { } findings)
+        {
+            parts.Add($"{findings} {(findings == 1 ? "finding" : "findings")}");
+        }
+
+        if (flag.GroundingRuleCodes is { Length: > 0 } rules)
+        {
+            parts.Add(rules);
+        }
+
+        if (flag.GroundingLimitation is { Length: > 0 } limitation)
+        {
+            parts.Add(CodeText(limitation).ToLowerInvariant());
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>
+    /// The issue link when it is an https link to github.com, otherwise nothing: a stored address
+    /// is never turned into a link to anywhere else.
+    /// </summary>
+    private static string? SafeIssueUrl(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttps
+        && string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)
+            ? uri.AbsoluteUri
+            : null;
+
+    private static string Pretty(JsonElement element) => JsonSerializer.Serialize(element, Indented);
+
+    private void CloseGate() => _gate?.Close();
+
+    private async Task RefreshAsync()
+    {
+        _notice = null;
+        CloseIfRefused(await LoadAsync());
+    }
+
+    private async Task StatusFilterChangedAsync(ChangeEventArgs args)
+    {
+        var chosen = args.Value?.ToString();
+        if (chosen != AllStatuses && !AdminReportCodes.Statuses.Contains(chosen))
+        {
+            return;
+        }
+
+        _statusFilter = chosen!;
+        _notice = null;
+        CloseDetail();
+        _loading = true;
+        try
+        {
+            CloseIfRefused(await LoadSamAsync());
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// The flagged answers (the gate's request), then the GitHub reports. A later request the API
+    /// answers 404 closes the page; one that fails is said so in its own section.
+    /// </summary>
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var sam = await LoadSamAsync();
+            if (sam is AdminApiStatus.Ok or AdminApiStatus.Refused)
+            {
+                var gitHub = await Api.GetGitHubReportsAsync(PageSize);
+                if (gitHub.Status == AdminApiStatus.NotFound)
+                {
+                    State.MarkNotAdmin();
+                    return gitHub.Status;
+                }
+
+                _gitHubFailed = !gitHub.IsOk;
+                _gitHub = gitHub.Value ?? _gitHub;
+            }
+
+            return sam;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<AdminApiStatus> LoadSamAsync()
+    {
+        var result = await Api.GetSamReportsAsync(_statusFilter == AllStatuses ? null : _statusFilter, PageSize);
+        _samFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+        if (result.Status == AdminApiStatus.NotFound)
+        {
+            State.MarkNotAdmin();
+            _sam = null;
+        }
+        else if (result.Value is { } list)
+        {
+            _sam = list;
+            State.SetNewReportCount(list.NewCount);
+        }
+
+        return result.Status;
+    }
+
+    private void CloseIfRefused(AdminApiStatus status)
+    {
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+    }
+
+    /// <summary>
+    /// A request about one report or one screen state was answered 404. That is either "it is no
+    /// longer there" or "you are no longer an admin", and the list settles which: it closes the
+    /// page for the second and says the first.
+    /// </summary>
+    private async Task GoneAsync(string what)
+    {
+        CloseDetail();
+        CloseScreenState();
+        var status = await LoadAsync();
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+        else
+        {
+            _notice = $"{what} is no longer there. The list has been reloaded.";
+        }
+    }
+
+    // ------------------------------------------------------------------ one report
+
+    private async Task SelectAsync(string reportId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _notice = null;
+        try
+        {
+            var result = await Api.GetSamReportAsync(reportId);
+            if (result.Status == AdminApiStatus.NotFound)
+            {
+                await GoneAsync("That report");
+            }
+            else if (result.Value is { } detail)
+            {
+                Show(detail);
+            }
+            else
+            {
+                _notice = "The report could not be opened. Try again.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Show(AdminSamReportDetail detail)
+    {
+        // A different report: whatever was read from the one before is dropped.
+        if (_detail?.Report.Id != detail.Report.Id)
+        {
+            _exchange = null;
+            _exchangeMessage = null;
+            _triageMessage = null;
+        }
+
+        _detail = detail;
+        _triageStatus = detail.Report.Status;
+        _triageIssue = detail.Report.IssueNumber?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private void CloseDetail()
+    {
+        _detail = null;
+        _exchange = null;
+        _exchangeMessage = null;
+        _triageMessage = null;
+    }
+
+    private void HideExchange() => _exchange = null;
+
+    private async Task OpenExchangeAsync()
+    {
+        if (_busy || _detail is not { } detail)
+        {
+            return;
+        }
+
+        // The button is disabled without a confirmed password. Checked here as well, so nothing
+        // is asked for if a click arrives anyway.
+        if (State.CurrentProof is not { } proof)
+        {
+            _exchangeMessage = "Confirm your password first.";
+            return;
+        }
+
+        _busy = true;
+        _exchangeMessage = null;
+        try
+        {
+            var result = await Api.OpenSamExchangeAsync(detail.Report.Id, proof);
+            switch (result.Status)
+            {
+                case AdminApiStatus.Ok when result.Value is { } exchange:
+                    _exchange = exchange;
+                    _detail = detail with
+                    {
+                        Report = detail.Report with
+                        {
+                            ExchangeOpenedCount = exchange.OpenedCount,
+                            ExchangeLastOpenedAtUtc = DateTime.UtcNow
+                        }
+                    };
+                    break;
+
+                case AdminApiStatus.NotFound:
+                    await GoneAsync("That report");
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureStepUpRequired:
+                    // The API no longer honours the confirmation this tab held.
+                    State.Reconcile(null);
+                    _exchangeMessage = "Confirm your password again to open it.";
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureKeyRingNotDurable:
+                    _exchangeMessage = "This server cannot read stored Sam messages reliably, because its encryption keys are not kept between restarts.";
+                    break;
+
+                default:
+                    _exchangeMessage = "The question and answer could not be opened. Try again.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveTriageAsync()
+    {
+        if (_busy || _detail is not { } detail)
+        {
+            return;
+        }
+
+        _triageSaved = false;
+        int? issue = null;
+        var typed = _triageIssue.Trim().TrimStart('#');
+        if (typed.Length > 0)
+        {
+            if (!int.TryParse(typed, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+                || number < 1 || number > MaxIssueNumber)
+            {
+                _triageMessage = "The issue number must be a whole number, for example 412.";
+                return;
+            }
+
+            issue = number;
+        }
+
+        _busy = true;
+        _triageMessage = null;
+        try
+        {
+            var result = await Api.TriageSamReportAsync(detail.Report.Id, _triageStatus, issue);
+            switch (result.Status)
+            {
+                case AdminApiStatus.Ok when result.Value is { } updated:
+                    Show(detail with { Report = updated });
+                    _triageSaved = true;
+                    _triageMessage = "Saved.";
+
+                    // The list and the count of new reports follow the change.
+                    CloseIfRefused(await LoadSamAsync());
+                    break;
+
+                case AdminApiStatus.NotFound:
+                    await GoneAsync("That report");
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureTransitionRefused:
+                    _triageMessage = "An accepted report keeps its status. Its issue number can still be changed.";
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureConflict:
+                    _triageMessage = "The report changed while this was being saved. It has been reloaded; decide again.";
+                    await ReloadDetailAsync(detail.Report.Id);
+                    break;
+
+                default:
+                    _triageMessage = "The change could not be saved. Try again.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ReloadDetailAsync(string reportId)
+    {
+        var result = await Api.GetSamReportAsync(reportId);
+        if (result.Value is { } detail)
+        {
+            Show(detail);
+        }
+    }
+
+    // ------------------------------------------------------------------ one screen state
+
+    private void SelectScreenState(string reference)
+    {
+        _screenReference = reference;
+        _screenState = null;
+        _screenMessage = null;
+    }
+
+    private void CloseScreenState()
+    {
+        _screenReference = null;
+        _screenState = null;
+        _screenMessage = null;
+    }
+
+    private async Task OpenScreenStateAsync()
+    {
+        if (_busy || _screenReference is not { } reference)
+        {
+            return;
+        }
+
+        if (State.CurrentProof is not { } proof)
+        {
+            _screenMessage = "Confirm your password first.";
+            return;
+        }
+
+        _busy = true;
+        _screenMessage = null;
+        try
+        {
+            var result = await Api.ReadScreenStateAsync(reference, proof);
+            switch (result.Status)
+            {
+                case AdminApiStatus.Ok when result.Value is { } state:
+                    _screenState = state;
+                    break;
+
+                case AdminApiStatus.NotFound:
+                    await GoneAsync("That saved screen state");
+                    break;
+
+                case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureStepUpRequired:
+                    State.Reconcile(null);
+                    _screenMessage = "Confirm your password again to show it.";
+                    break;
+
+                default:
+                    _screenMessage = "The saved screen state could not be shown. Try again.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

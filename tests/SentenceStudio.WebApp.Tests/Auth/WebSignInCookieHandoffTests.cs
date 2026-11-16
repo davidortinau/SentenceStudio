@@ -38,7 +38,7 @@ public sealed class WebSignInCookieHandoffTests : IAsyncLifetime
 
     /// <summary>Every full-document route the reproduced failure covered.</summary>
     public static TheoryData<string> FullDocumentRoutes() =>
-        ["/", "/skills", "/profile", "/operator/sam-opportunities"];
+        ["/", "/skills", "/profile", "/admin/feedback"];
 
     private readonly OperatorWebAppFactory _factory = new(nameof(WebSignInCookieHandoffTests));
 
@@ -174,7 +174,7 @@ public sealed class WebSignInCookieHandoffTests : IAsyncLifetime
         var client = _factory.CreateBrowserClient();
         await CompleteSignInAsync(client);
 
-        foreach (var route in new[] { "/skills", "/profile", "/operator/sam-opportunities" })
+        foreach (var route in new[] { "/skills", "/profile", "/admin/feedback" })
         {
             (await client.GetAsync(route)).StatusCode.Should().Be(
                 HttpStatusCode.OK, $"deep link to {route}");
@@ -206,7 +206,7 @@ public sealed class WebSignInCookieHandoffTests : IAsyncLifetime
 
         await client.GetAsync("/account-action/SignOut");
 
-        foreach (var route in new[] { "/", "/skills", "/operator/sam-opportunities" })
+        foreach (var route in new[] { "/", "/skills", "/admin/feedback" })
         {
             (await client.GetAsync(route)).StatusCode.Should().Be(
                 HttpStatusCode.Redirect, $"{route} after sign-out");

@@ -79,6 +79,24 @@ public sealed class AdminPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task The_token_table_holds_a_digest_and_times_with_a_zone_and_nowhere_to_put_a_token()
+    {
+        (await ScalarAsync<string>(
+            "SELECT string_agg(column_name || ':' || data_type || ':' || is_nullable, ',' ORDER BY column_name) "
+            + "FROM information_schema.columns WHERE table_name = 'AdminAgentToken'"))
+            .Should().Be(
+                "CreatedAtUtc:timestamp with time zone:NO,"
+                + "CreatedByUserId:character varying:NO,"
+                + "ExpiresAtUtc:timestamp with time zone:NO,"
+                + "Id:character varying:NO,"
+                + "LastUsedAtUtc:timestamp with time zone:YES,"
+                + "Name:character varying:NO,"
+                + "Permissions:integer:NO,"
+                + "RevokedAtUtc:timestamp with time zone:YES,"
+                + "SecretHash:character varying:NO");
+    }
+
+    [PostgresFact]
     public async Task Migrating_again_changes_nothing()
     {
         await using var db = new AdminDbContext(_options);
@@ -86,7 +104,7 @@ public sealed class AdminPostgresTests : IAsyncLifetime
         (await db.Database.GetPendingMigrationsAsync()).Should().BeEmpty();
         await db.Database.MigrateAsync();
 
-        (await ScalarAsync<long>("SELECT count(*) FROM \"__AdminMigrationsHistory\"")).Should().Be(1);
+        (await ScalarAsync<long>("SELECT count(*) FROM \"__AdminMigrationsHistory\"")).Should().Be(2);
     }
 
     [PostgresFact]
@@ -144,21 +162,27 @@ public sealed class AdminPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task Rolling_the_migration_back_removes_only_the_admin_table()
+    public async Task Rolling_the_migrations_back_removes_only_the_admin_tables()
     {
         await using var db = new AdminDbContext(_options);
         var migrator = Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions
             .GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(db);
 
+        // Back one step: the token table goes and the audit log stays.
+        await migrator.MigrateAsync("20261115224514_InitialAdminSchema");
+        (await ScalarAsync<long>(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('AdminAuditEntry', 'AdminAgentToken')"))
+            .Should().Be(1);
+
         await migrator.MigrateAsync("0");
 
         (await ScalarAsync<long>(
-            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'AdminAuditEntry'"))
+            "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('AdminAuditEntry', 'AdminAgentToken')"))
             .Should().Be(0);
 
         await migrator.MigrateAsync();
         (await ScalarAsync<long>(
-            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'AdminAuditEntry'"))
-            .Should().Be(1);
+            "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('AdminAuditEntry', 'AdminAgentToken')"))
+            .Should().Be(2);
     }
 }

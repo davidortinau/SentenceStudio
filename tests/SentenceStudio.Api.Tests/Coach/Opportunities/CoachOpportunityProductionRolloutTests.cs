@@ -172,7 +172,7 @@ public class CoachOpportunityProductionRolloutTests
     // ---------------------------------------------------------------- the reviewer path exists
 
     [Fact]
-    public void TheReviewerPathShipsAsAScriptAToolAndAWorkflow()
+    public void TheContentFreeDigestShipsAsAScriptAndAToolAndNoScheduledJob()
     {
         var root = RepositoryRoot();
 
@@ -180,10 +180,14 @@ public class CoachOpportunityProductionRolloutTests
             .Should().BeTrue();
         File.Exists(Path.Combine(root, "tools", "SamOpportunityDigest", "SamOpportunityDigest.csproj"))
             .Should().BeTrue();
-        File.Exists(Path.Combine(root, ".github", "workflows", "sam-opportunity-digest.yml"))
-            .Should().BeTrue();
         File.Exists(Path.Combine(root, "docs", "sam-opportunity-digest.md"))
             .Should().BeTrue();
+
+        // The weekly GitHub job never had a credential or a network path to the database, so it
+        // skipped every week and stayed green. It was removed with the admin portal's feedback
+        // inbox (docs/admin-portal-plan.md), which is where flagged answers are read now.
+        File.Exists(Path.Combine(root, ".github", "workflows", "sam-opportunity-digest.yml"))
+            .Should().BeFalse("a scheduled job that reads nothing and reports success hides that nobody is reading");
     }
 
     [Fact]
@@ -213,7 +217,6 @@ public class CoachOpportunityProductionRolloutTests
     // ---------------------------------------------------------------- no credential anywhere
 
     [Theory]
-    [InlineData(".github/workflows/sam-opportunity-digest.yml")]
     [InlineData("scripts/sam-opportunity-digest.sh")]
     [InlineData("docs/sam-opportunity-digest.md")]
     public void TheReviewerPathEmbedsNoCredential(string relativePath)
@@ -234,31 +237,6 @@ public class CoachOpportunityProductionRolloutTests
         offenders.Should().BeEmpty(
             "credentials arrive from the environment, Key Vault, or an Entra token at run time — " +
             "never from this repository");
-    }
-
-    [Fact]
-    public void TheWorkflowReadsItsConnectionStringFromASecretAndSkipsWithoutOne()
-    {
-        var workflow = File.ReadAllText(Path.Combine(
-            RepositoryRoot(), ".github", "workflows", "sam-opportunity-digest.yml"));
-
-        workflow.Should().Contain("${{ secrets.COACH_DIGEST_CONNECTION_STRING }}",
-            "the only source of the credential is the repository secret");
-
-        workflow.Should().Contain("workflow_dispatch");
-        workflow.Should().Contain("schedule");
-
-        workflow.Should().Contain("configured=false",
-            "an unconfigured run must skip with a notice rather than fail every week");
-        workflow.Should().Contain("skipped",
-            "and it must say so, because a green scheduled job that read nothing is worse than " +
-            "no job at all");
-
-        // The connection string must never be echoed, and the digest step must never be run with
-        // the secret interpolated into the command line, where it would land in the process table
-        // and in the workflow log.
-        workflow.Should().NotContain("echo \"$COACH_DIGEST_CONNECTION_STRING\"");
-        workflow.Should().NotContain("--connection");
     }
 
     [Fact]

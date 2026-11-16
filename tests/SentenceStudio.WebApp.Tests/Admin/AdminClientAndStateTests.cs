@@ -289,8 +289,8 @@ public sealed class AdminClientAndStateTests
 
         first.Should().ContainSingle().Which.Href.Should().Be("/admin");
         second.Should().BeEquivalentTo(first);
-        _api.Requests.Should().ContainSingle("the desktop and mobile menus share one answer")
-            .Which.Path.Should().Be("/api/admin/access");
+        _api.Requests.Where(r => r.Path == "/api/admin/access")
+            .Should().ContainSingle("the desktop and mobile menus share one answer");
     }
 
     [Fact]
@@ -319,7 +319,7 @@ public sealed class AdminClientAndStateTests
 
         _api.Answer(HttpStatusCode.NoContent);
         (await provider.GetItemsAsync()).Should().ContainSingle().Which.Href.Should().Be("/admin");
-        _api.Requests.Should().HaveCount(3);
+        _api.Requests.Where(r => r.Path == "/api/admin/access").Should().HaveCount(3);
     }
 
     // ---------------------------------------------------------------- doubles

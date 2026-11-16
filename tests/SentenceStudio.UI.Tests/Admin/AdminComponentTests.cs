@@ -489,7 +489,51 @@ public sealed class AdminComponentTests
         circuit.Unhandled.Should().BeEmpty();
         circuit.RenderedText(id).Should().Contain("Admin");
         circuit.RenderedHrefs(id).Should().Contain("/admin");
-        _api.Requests.Should().ContainSingle().Which.Path.Should().Be("/api/admin/access");
+        _api.Requests.Select(r => r.Path).Should().Equal("/api/admin/access", "/api/admin/reports/new-count");
+    }
+
+    [Fact]
+    public async Task The_Admin_link_carries_the_number_of_new_flagged_answers_in_figures_and_in_words()
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
+        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":3}""");
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.Unhandled.Should().BeEmpty();
+        var text = circuit.RenderedText(id);
+        text.Should().Contain("Admin").And.Contain("3").And.Contain("3 new flagged answers",
+            "the count is said in words for a screen reader, not only shown as a figure");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, """{"sam":0}""")]
+    [InlineData(HttpStatusCode.InternalServerError, "")]
+    public async Task With_nothing_new_or_no_answer_the_Admin_link_carries_no_number(HttpStatusCode status, string body)
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
+        _api.Answer("/api/admin/reports/new-count", status, body);
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<NavMenu>();
+
+        circuit.RenderedHrefs(id).Should().Contain("/admin");
+        circuit.RenderedText(id).Should().NotContain("flagged answer");
+    }
+
+    [Fact]
+    public async Task A_learners_sidebar_never_asks_for_the_count()
+    {
+        _api.Answer("/api/admin/access", HttpStatusCode.NotFound);
+        await using var services = Services(webAppAdminLink: true);
+        var circuit = Circuit(services);
+
+        await circuit.RenderAsync<NavMenu>();
+
+        _api.Requests.Select(r => r.Path).Should().Equal("/api/admin/access");
     }
 
     [Fact]

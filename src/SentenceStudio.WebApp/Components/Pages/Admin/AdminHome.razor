@@ -35,6 +35,29 @@
 
             <div class="row g-3">
                 <div class="col-12 col-lg-6">
+                    <div class="card" id="admin-feedback-card">
+                        <div class="card-body">
+                            <h2 class="h5 card-title">Feedback inbox</h2>
+                            <p class="text-secondary">
+                                The Sam answers learners flagged, for every learner, and the reports they
+                                filed to GitHub. Opening a flagged question and answer asks for your password.
+                            </p>
+                            <p id="admin-feedback-card-count" role="status">
+                                @(_newReports switch
+                                {
+                                    null => "The number of new flagged answers could not be read.",
+                                    0 => "No new flagged answers.",
+                                    1 => "1 new flagged answer.",
+                                    var count => $"{count} new flagged answers."
+                                })
+                            </p>
+                            <a id="admin-open-feedback" class="btn btn-outline-primary" href="/admin/feedback">
+                                <i class="bi bi-inbox me-1" aria-hidden="true"></i>Open the feedback inbox
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
                     <AdminPasswordCard OnNotAdmin="CloseGate" />
                 </div>
                 <div class="col-12 col-lg-6">
@@ -80,6 +103,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card" id="admin-tokens-card">
+                        <div class="card-body">
+                            <h2 class="h5 card-title">Agent tokens</h2>
+                            <p class="text-secondary">
+                                What the maintenance agent signs in with to read the feedback inbox and set
+                                a report's status and issue. A token can never use an account tool.
+                            </p>
+                            <a id="admin-open-tokens" class="btn btn-outline-primary" href="/admin/tokens">
+                                <i class="bi bi-key me-1" aria-hidden="true"></i>Open agent tokens
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         }
     </div>
@@ -88,6 +125,7 @@
 @code {
     private AdminGate? _gate;
     private AdminSession? _session;
+    private int? _newReports;
 
     private async Task<AdminApiStatus> LoadAsync()
     {
@@ -98,6 +136,10 @@
 
             // The API's word on the proof just sent is the one that counts.
             State.Reconcile(_session!.StepUpExpiresAtUtc);
+
+            // The same number the sidebar shows. Not knowing it is said on the card, and does not
+            // keep the page from opening.
+            _newReports = await State.GetNewReportCountAsync();
         }
         else if (result.Status == AdminApiStatus.NotFound)
         {

@@ -36,8 +36,13 @@
     @foreach (var item in _hostItems)
     {
         <a class="nav-link nav-link-ss rounded px-3 py-2 @(IsHostItemActive(item) ? "active" : "")"
-           href="@item.Href" @onclick="CloseOffcanvas" title="@item.Label">
+           href="@item.Href" @onclick="CloseOffcanvas" title="@(item.BadgeLabel is null ? item.Label : $"{item.Label}: {item.BadgeLabel}")">
             <i class="bi @item.Icon"></i> <span class="nav-label">@item.Label</span>
+            @if (item.Badge is { } badge)
+            {
+                <span class="badge rounded-pill text-bg-primary ms-1" aria-hidden="true">@badge</span>
+                <span class="visually-hidden">@item.BadgeLabel</span>
+            }
         </a>
     }
 

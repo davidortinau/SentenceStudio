@@ -49,7 +49,7 @@ public sealed class LiveWebSignInVerificationTests
 
         foreach (var origin in new[] { HttpsBase!, HttpBase! })
         {
-            foreach (var route in new[] { "/", "/skills", "/profile", "/operator/sam-opportunities" })
+            foreach (var route in new[] { "/", "/skills", "/profile", "/admin/feedback" })
             {
                 var response = await client.GetAsync(origin + route);
 

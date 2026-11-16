@@ -23,6 +23,7 @@ public enum AdminPasswordOutcome
 public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
 {
     private Task<AdminAccess>? _sidebarProbe;
+    private Task<int?>? _newReportCount;
     private string? _proof;
     private DateTimeOffset? _proofExpiresAtUtc;
 
@@ -46,6 +47,32 @@ public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
 
         return access == AdminAccess.Admin;
     }
+
+    /// <summary>
+    /// How many flagged answers are still new, for the sidebar's count, or null when the API did
+    /// not say. Asked once and kept until <see cref="SetNewReportCount"/> replaces it: the
+    /// sidebar asks on every navigation, and shows a changed number on the next one.
+    /// </summary>
+    public async Task<int?> GetNewReportCountAsync()
+    {
+        var ask = _newReportCount ??= AskNewReportCountAsync();
+        var count = await ask;
+        if (count is null && ReferenceEquals(_newReportCount, ask))
+        {
+            _newReportCount = null;
+        }
+
+        return count;
+    }
+
+    private async Task<int?> AskNewReportCountAsync()
+    {
+        var result = await api.GetNewReportCountAsync();
+        return result.IsOk ? result.Value!.Sam : null;
+    }
+
+    /// <summary>The inbox has just read the count for itself; the sidebar shows the same number.</summary>
+    public void SetNewReportCount(int count) => _newReportCount = Task.FromResult<int?>(count);
 
     /// <summary>When the confirmed password stops counting, or null when it does not count now.</summary>
     public DateTimeOffset? PasswordConfirmedUntilUtc =>
@@ -111,6 +138,7 @@ public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
     public void MarkNotAdmin()
     {
         _sidebarProbe = Task.FromResult(AdminAccess.NotAdmin);
+        _newReportCount = null;
         ForgetProof();
     }
 
@@ -127,11 +155,27 @@ public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
 }
 
 /// <summary>Adds the Admin link to the shared sidebar, for an admin only.</summary>
+/// <remarks>
+/// The link carries the number of flagged answers nobody has looked at yet, so an admin notices
+/// them from any page. No number is shown when there are none or the API did not say.
+/// </remarks>
 public sealed class AdminNavItemProvider(AdminSessionState state) : IHostNavItemProvider
 {
     private static readonly IReadOnlyList<HostNavItem> AdminItems =
         [new HostNavItem("/admin", "bi-shield-lock", "Admin")];
 
-    public async ValueTask<IReadOnlyList<HostNavItem>> GetItemsAsync(CancellationToken cancellationToken = default) =>
-        await state.ProbeForSidebarAsync() ? AdminItems : [];
+    public async ValueTask<IReadOnlyList<HostNavItem>> GetItemsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!await state.ProbeForSidebarAsync())
+        {
+            return [];
+        }
+
+        return await state.GetNewReportCountAsync() is > 0 and var count
+            ? [new HostNavItem("/admin", "bi-shield-lock", "Admin", Badge: count, BadgeLabel: NewReportsLabel(count))]
+            : AdminItems;
+    }
+
+    internal static string NewReportsLabel(int count) =>
+        count == 1 ? "1 new flagged answer" : $"{count} new flagged answers";
 }

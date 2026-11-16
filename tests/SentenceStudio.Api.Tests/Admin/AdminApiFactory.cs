@@ -70,6 +70,12 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     public IInterceptor? AccountDatabaseInterceptor { get; init; }
 
     /// <summary>
+    /// Puts the coach and feedback contexts on the same PostgreSQL database as the admin one,
+    /// which the test has already migrated for all three. Needs the connection string.
+    /// </summary>
+    public bool ReportsOnPostgres { get; init; }
+
+    /// <summary>
     /// Whether the host says its Data Protection key ring is durable. A flagged exchange is opened
     /// only when it is; a test sets this false to see the refusal.
     /// </summary>
@@ -121,12 +127,26 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
             }
 
             services.RemoveAll<CoachDbContext>();
-            services.AddDbContext<CoachDbContext>(options => options.UseSqlite($"Data Source={_coachDbPath}"));
 
-            // The reports learners filed to GitHub live in the feedback context; SQLite stands in.
+            // The reports learners filed to GitHub live in the feedback context; SQLite stands in
+            // for it too.
             services.RemoveAll<DbContextOptions<FeedbackDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<FeedbackDbContext>>();
-            services.AddDbContext<FeedbackDbContext>(options => options.UseSqlite($"Data Source={_feedbackDbPath}"));
+
+            if (ReportsOnPostgres)
+            {
+                services.AddDbContext<CoachDbContext>(options => options.UseNpgsql(
+                    _adminConnectionString,
+                    npgsql => npgsql.MigrationsHistoryTable(SentenceStudio.Api.Startup.StartupDbContextFactory.CoachMigrationsHistoryTable)));
+                services.AddDbContext<FeedbackDbContext>(options => options.UseNpgsql(
+                    _adminConnectionString,
+                    npgsql => npgsql.MigrationsHistoryTable(FeedbackSchema.MigrationsHistoryTable)));
+            }
+            else
+            {
+                services.AddDbContext<CoachDbContext>(options => options.UseSqlite($"Data Source={_coachDbPath}"));
+                services.AddDbContext<FeedbackDbContext>(options => options.UseSqlite($"Data Source={_feedbackDbPath}"));
+            }
 
             services.RemoveAll<CoachKeyRingPlan>();
             services.AddSingleton(new CoachKeyRingPlan
@@ -154,14 +174,11 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     {
         var host = base.CreateHost(builder);
         TestApiHostConfigurator.InitializeSqliteDatabaseAndSync(host.Services);
-        using (var coachScope = host.Services.CreateScope())
+        if (!ReportsOnPostgres)
         {
-            coachScope.ServiceProvider.GetRequiredService<CoachDbContext>().Database.EnsureCreated();
-        }
-
-        using (var feedbackScope = host.Services.CreateScope())
-        {
-            feedbackScope.ServiceProvider.GetRequiredService<FeedbackDbContext>().Database.EnsureCreated();
+            using var scope = host.Services.CreateScope();
+            scope.ServiceProvider.GetRequiredService<CoachDbContext>().Database.EnsureCreated();
+            scope.ServiceProvider.GetRequiredService<FeedbackDbContext>().Database.EnsureCreated();
         }
 
         if (_adminConnectionString is null)

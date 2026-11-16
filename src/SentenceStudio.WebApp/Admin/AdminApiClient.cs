@@ -156,6 +156,154 @@ public static class AdminUsageCodes
     public const string ProblemStuck = "stuck";
 }
 
+/// <summary>One flagged Sam answer as the inbox lists it. Mirrors the API's <c>AdminSamReportRow</c>.</summary>
+public sealed record AdminSamReportRow(
+    string Id,
+    string LearnerId,
+    string Status,
+    string Reason,
+    int FlagCount,
+    DateTime FirstFlaggedAtUtc,
+    DateTime LastFlaggedAtUtc,
+    string? FailureCode,
+    string? StopReason,
+    int? IssueNumber,
+    string? IssueUrl,
+    bool HasExchange,
+    int ExchangeOpenedCount,
+    DateTime? ExchangeLastOpenedAtUtc,
+    DateTime? ReviewedAtUtc);
+
+/// <summary>What <c>GET /api/admin/reports/sam</c> reports, newest first.</summary>
+public sealed record AdminSamReportList(
+    IReadOnlyList<AdminSamReportRow> Items,
+    IReadOnlyList<AdminLearnerSummary> Learners,
+    int NewCount,
+    int UnlistedFlagCount,
+    bool Truncated);
+
+/// <summary>One flag on a report, in codes. Mirrors the API's <c>AdminSamReportFlag</c>.</summary>
+public sealed record AdminSamReportFlag(
+    DateTime FlaggedAtUtc,
+    string Reason,
+    string ResponseKind,
+    string? TurnStatus,
+    int? TurnAttempts,
+    string? TurnErrorCode,
+    string? ToolsInvoked,
+    string? WriteStatus,
+    string? WriteFailureCode,
+    string? GroundingStage,
+    bool? GroundingRefused,
+    bool? GroundingAltered,
+    bool? GroundingRepairSuppressed,
+    int? GroundingFindingCount,
+    string? GroundingRuleCodes,
+    string? GroundingLimitation);
+
+/// <summary>What <c>GET /api/admin/reports/sam/{reportId}</c> reports.</summary>
+public sealed record AdminSamReportDetail(
+    AdminSamReportRow Report,
+    AdminLearnerSummary? Learner,
+    IReadOnlyList<AdminSamReportFlag> Flags,
+    bool FlagsTruncated);
+
+/// <summary>One flagged question and the answer the learner flagged. Learner content.</summary>
+public sealed record AdminSamExchange(DateTime? FlaggedAtUtc, string? Question, string? Answer);
+
+/// <summary>What <c>POST /api/admin/reports/sam/{reportId}/exchange</c> reports.</summary>
+public sealed record AdminSamExchangeResponse(
+    string ReportId,
+    string State,
+    IReadOnlyList<AdminSamExchange> Exchanges,
+    bool Truncated,
+    int OpenedCount);
+
+/// <summary>One report a learner filed to GitHub through the app. Mirrors the API's <c>AdminGitHubReportRow</c>.</summary>
+public sealed record AdminGitHubReportRow(
+    string Status,
+    int? IssueNumber,
+    string? IssueUrl,
+    string? IssueTitle,
+    string? FailureCode,
+    string LearnerId,
+    string Platform,
+    string AppVersion,
+    string Screen,
+    DateTime CreatedAtUtc,
+    string? ScreenStateReference);
+
+/// <summary>What <c>GET /api/admin/reports/github</c> reports, newest first.</summary>
+public sealed record AdminGitHubReportList(
+    IReadOnlyList<AdminGitHubReportRow> Items,
+    IReadOnlyList<AdminLearnerSummary> Learners,
+    bool Truncated);
+
+/// <summary>The private screen state saved with one GitHub report. Learner content.</summary>
+public sealed record AdminScreenState(string Reference, string LearnerId, DateTime CreatedAtUtc, JsonElement Context);
+
+/// <summary>What <c>GET /api/admin/reports/new-count</c> reports.</summary>
+public sealed record AdminNewReportCount(int Sam);
+
+/// <summary>The inbox's wire codes. Mirrors the API's <c>AdminReportCodes</c>.</summary>
+public static class AdminReportCodes
+{
+    public const string StatusNew = "new";
+    public const string StatusReviewed = "reviewed";
+    public const string StatusAccepted = "accepted";
+    public const string StatusDeferred = "deferred";
+    public const string StatusDismissed = "dismissed";
+
+    public static readonly IReadOnlyList<string> Statuses =
+        [StatusNew, StatusReviewed, StatusAccepted, StatusDeferred, StatusDismissed];
+
+    public const string ExchangeAvailable = "available";
+    public const string ExchangeUnavailable = "unavailable";
+    public const string ExchangeNotApplicable = "not_applicable";
+
+    public const string GitHubClaimed = "claimed";
+    public const string GitHubSubmitted = "submitted";
+    public const string GitHubFailed = "failed";
+    public const string GitHubCommitted = "committed";
+
+    public const string FailureTransitionRefused = "transition_refused";
+    public const string FailureConflict = "conflict";
+    public const string FailureKeyRingNotDurable = "key_ring_not_durable";
+    public const string FailureStepUpRequired = "step_up_required";
+    public const string FailureTooManyTokens = "too_many_tokens";
+    public const string FailureInvalidRequest = "invalid_request";
+}
+
+/// <summary>One agent token as the Tokens page lists it. Mirrors the API's <c>AdminTokenRow</c>.</summary>
+public sealed record AdminTokenRow(
+    string Id,
+    string Name,
+    IReadOnlyList<string> Permissions,
+    string State,
+    DateTime CreatedAtUtc,
+    string CreatedByUserId,
+    string? CreatedByEmail,
+    DateTime ExpiresAtUtc,
+    DateTime? RevokedAtUtc,
+    DateTime? LastUsedAtUtc);
+
+/// <summary>What <c>GET /api/admin/tokens</c> reports, newest first.</summary>
+public sealed record AdminTokenList(IReadOnlyList<AdminTokenRow> Items, int LifetimeDays, int MaxLive);
+
+/// <summary>A new token. <paramref name="Token"/> is shown once and cannot be read again.</summary>
+public sealed record AdminTokenCreated(string Token, AdminTokenRow Row);
+
+/// <summary>The token pages' wire codes. Mirrors the API's <c>AdminTokenPermissionWire</c> and <c>AdminTokenStates</c>.</summary>
+public static class AdminTokenCodes
+{
+    public const string PermissionReports = "reports";
+    public const string PermissionLearnerContent = "learner_content";
+    public const string PermissionTriage = "triage";
+    public const string StateLive = "live";
+    public const string StateExpired = "expired";
+    public const string StateRevoked = "revoked";
+}
+
 /// <summary>Whether the signed-in person is an admin, as far as one probe could tell.</summary>
 public enum AdminAccess
 {
@@ -318,6 +466,67 @@ public sealed class AdminApiClient
         CancellationToken cancellationToken = default) =>
         SendAsync<AdminPartOfSpeech>(
             HttpMethod.Get, $"{BasePath}/usage/part-of-speech", body: null, proof: null, cancellationToken);
+
+    /// <summary>How many flagged answers are still new. For the sidebar; leaves no audit row.</summary>
+    public Task<AdminApiResult<AdminNewReportCount>> GetNewReportCountAsync(
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AdminNewReportCount>(
+            HttpMethod.Get, $"{BasePath}/reports/new-count", body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminSamReportList>> GetSamReportsAsync(
+        string? status, int take, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSamReportList>(
+            HttpMethod.Get,
+            string.IsNullOrEmpty(status)
+                ? $"{BasePath}/reports/sam?take={take}"
+                : $"{BasePath}/reports/sam?take={take}&status={Uri.EscapeDataString(status)}",
+            body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminSamReportDetail>> GetSamReportAsync(
+        string reportId, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSamReportDetail>(
+            HttpMethod.Get, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}",
+            body: null, proof: null, cancellationToken);
+
+    /// <summary>Reads the flagged question and answer. Learner content: needs a live proof.</summary>
+    public Task<AdminApiResult<AdminSamExchangeResponse>> OpenSamExchangeAsync(
+        string reportId, string? proof, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSamExchangeResponse>(
+            HttpMethod.Post, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}/exchange",
+            body: null, proof, cancellationToken);
+
+    public Task<AdminApiResult<AdminSamReportRow>> TriageSamReportAsync(
+        string reportId, string status, int? issueNumber, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSamReportRow>(
+            HttpMethod.Post, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}/triage",
+            JsonContent.Create(new { status, issueNumber }), proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminGitHubReportList>> GetGitHubReportsAsync(
+        int take, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminGitHubReportList>(
+            HttpMethod.Get, $"{BasePath}/reports/github?take={take}", body: null, proof: null, cancellationToken);
+
+    /// <summary>Reads a GitHub report's saved screen state. Learner content: needs a live proof.</summary>
+    public Task<AdminApiResult<AdminScreenState>> ReadScreenStateAsync(
+        string reference, string? proof, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminScreenState>(
+            HttpMethod.Post, $"{BasePath}/reports/github/screen-states/{Uri.EscapeDataString(reference)}",
+            body: null, proof, cancellationToken);
+
+    public Task<AdminApiResult<AdminTokenList>> GetTokensAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<AdminTokenList>(HttpMethod.Get, $"{BasePath}/tokens", body: null, proof: null, cancellationToken);
+
+    /// <summary>Creates an agent token. The result is a credential: needs a live proof.</summary>
+    public Task<AdminApiResult<AdminTokenCreated>> CreateTokenAsync(
+        string name, IReadOnlyList<string> permissions, string? proof, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminTokenCreated>(
+            HttpMethod.Post, $"{BasePath}/tokens", JsonContent.Create(new { name, permissions }), proof, cancellationToken);
+
+    public Task<AdminApiResult<AdminTokenRow>> RevokeTokenAsync(
+        string tokenId, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminTokenRow>(
+            HttpMethod.Post, $"{BasePath}/tokens/{Uri.EscapeDataString(tokenId)}/revoke",
+            body: null, proof: null, cancellationToken);
 
     private async Task<AdminApiResult<T>> SendAsync<T>(
         HttpMethod method, string path, HttpContent? body, string? proof, CancellationToken cancellationToken)

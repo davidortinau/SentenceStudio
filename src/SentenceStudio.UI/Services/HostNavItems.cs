@@ -4,7 +4,9 @@ namespace SentenceStudio.WebUI.Services;
 /// <param name="Href">The route the entry opens, with a leading slash. Also its active-state prefix.</param>
 /// <param name="Icon">A Bootstrap icon class, for example <c>bi-shield-lock</c>.</param>
 /// <param name="Label">The text shown, already in the language the host wants.</param>
-public sealed record HostNavItem(string Href, string Icon, string Label);
+/// <param name="Badge">A count shown beside the label, or null for none.</param>
+/// <param name="BadgeLabel">What the count means, for a screen reader and the tooltip, in the host's language.</param>
+public sealed record HostNavItem(string Href, string Icon, string Label, int? Badge = null, string? BadgeLabel = null);
 
 /// <summary>
 /// Lets one host add sidebar entries the other hosts must not ship.
