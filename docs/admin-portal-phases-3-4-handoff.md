@@ -251,8 +251,14 @@ point was fixed anyway (`learners/search` above): the learner search sent the na
 admin searched for would have been in the logs. The search text now travels in a POST body, and
 `q` in a URL is ignored. Smaller points from that review were fixed with it: both truncation
 notices can show together, "Load more" waits for a search that is still out, and a table the
-sync stops naming an owner column for is listed as not counted. The search was checked again
-in the browser afterwards.
+sync stops naming an owner column for is listed as not counted.
+
+Checked again on the isolated stack at `e47c21db`: the search by body found the learner, `q` in
+a URL returned everyone, a learner and a caller with no token got 404 on the search route, and
+a null, malformed or non-JSON body was a 400 (it had been a 500 in Development, fixed in that
+commit). The browser check passed again: admin 39 of 39, learner 11 of 11, phone width 32 of 32,
+and phase 0's admin check 24 of 24. That last commit and the one before it were tested and
+checked running, not reviewed a third time.
 
 Not checked: a learner with a device store (no device synced with the isolated stack, so the
 devices table was only seen empty), any MAUI head build, light theme, production.
