@@ -393,5 +393,5 @@ app's sign-up in Development has its email confirmed for it. The grant needs no 
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
 | 1. Feedback inbox, agent access, scheduled check | Not started. |
 | 2. Accounts and the sign-up list | Not started. |
-| 3. Sync and data health | Not started. Worker, after phase 0 merges. |
-| 4. AI usage and jobs | Not started. Worker, after phase 0 merges. |
+| 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; the Captain approved the choices in `docs/admin-portal-phases-3-4-handoff.md`. Not deployed. |
+| 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3. Not deployed. |

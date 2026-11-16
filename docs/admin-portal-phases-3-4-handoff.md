@@ -106,6 +106,10 @@ therefore only holds failures since the last Workers restart. This was not chang
 
 ## Choices the Captain should confirm
 
+Approved by the Captain on 2026-11-16 ("all fine"): 1, 2, 3, 4 and 7, as put to him. For 4 that
+was: unfinished 10 minutes after the import was created, retried imports included. Points 5 and 6
+are limits of what is recorded today, not choices, and were reported to him with the merge.
+
 1. **No password-again on these routes.** They return counts, timestamps, ids and codes, no content,
    so they do not use `.RequireAdminStepUp()`. Each read is still audited, and a per-learner read
    names the learner.
@@ -263,3 +267,9 @@ checked running, not reviewed a third time.
 Not checked: a learner with a device store (no device synced with the isolated stack, so the
 devices table was only seen empty), any MAUI head build, light theme, production.
 
+## Merged (2026-11-16)
+
+The Captain gave the go on 2026-11-16. `admin-ai-usage` went to `main` and
+`native-platform-heads` as a fast-forward, both phases together. No schema change, so nothing
+to migrate. Not deployed: production still needs what the plan lists under "Left for later"
+for phase 0 (`Admin__Emails__*` in the deploy script, the list set, the role granted).
