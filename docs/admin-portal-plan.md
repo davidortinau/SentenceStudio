@@ -1,6 +1,6 @@
 # Admin portal plan
 
-2026-11-15. Approved by the Captain the same day. Phase 0 is built; see "Phase 0 as built".
+2026-11-15. Approved by the Captain the same day. Phase 0 is merged; see "Phase 0 as built".
 
 ## Why
 
@@ -206,10 +206,16 @@ sees no link and gets "Page not found".
   `.RequireAdminStepUp()`; no phase 0 route needs it, and
   `AdminDangerousRoutePipelineTests` drives one through the pipeline.
 - **Guessing the password.** Failed checks count toward the account's lockout (5 wrong, locked
-  5 minutes), the same count and lock sign-in uses. `AdminPasswordCheck` counts each attempt
+  5 minutes), the same count and lock sign-in uses. While the account is locked a check is
+  refused before anything is written to it. `AdminPasswordCheck` counts each attempt
   before looking at it, so a burst of parallel guesses cannot get more than 5 looked at. Once an
-  attempt is counted the check runs to its verdict even if the caller has stopped waiting, so a
-  slow API cannot turn right passwords into counted failures.
+  attempt is counted the check runs to its verdict on its own 10-second clock even if the caller
+  has stopped waiting, and an attempt that reaches no verdict is taken back off the count, so a
+  slow API cannot turn right passwords into counted failures. The stored count never goes below
+  zero (a negative count would be extra guesses after a lock), and each of these writes changes
+  the account's concurrency stamp, so a sign-in that read the account earlier cannot save the
+  old count or the old lock back over them. A caller that left mid-check gets no proof and the
+  audit row says `cancelled`; if the password was wrong, the row says so instead.
 - **New routes** are mapped on `MapAdminGroup()`, which carries the policy, and must declare
   `.WithAdminAction(...)`. `AdminEndpointInventoryTests` fails otherwise.
 - **Audit.** `AdminRequestMiddleware` inserts the row before the handler runs and completes it
@@ -223,8 +229,10 @@ sees no link and gets "Page not found".
 - `AdminGate` wraps each admin page. The page's first API request is the gate, on every visit:
   an answer draws the page, a 404 draws "Page not found", and no answer within 15 seconds draws
   "This page could not be loaded" with a Try again button. Try again asks in the same tab,
-  because a reload would drop a confirmed password. The prerendered HTML is the same waiting
-  mark for everyone; admin content is drawn only in the live circuit.
+  because a reload would drop a confirmed password, and a page's own retry goes the same way
+  (`AdminGate.RetryAsync`). Two asks at once share one request. The prerendered HTML is the same
+  waiting mark for everyone, and neither it nor the could-not-load state carries an id that
+  names the admin portal; admin content is drawn only in the live circuit.
 - The sidebar link comes through `IHostNavItemProvider` (new, in `SentenceStudio.UI`). The web
   app registers one; the MAUI heads register none and their sidebar is unchanged.
 - The proof is kept in the circuit on the server and never reaches the browser. A reload asks for
@@ -301,25 +309,51 @@ headless Chromium and `curl`:
 - No error-level lines in the API or web app logs, and no password, proof or email in either.
   No audit row was left `Started`; none contains an address.
 
-**Checked again after the second review (2026-11-15, commit `17fc2299`)**
+**Reviewed and checked again before the merge (2026-11-15)**
 
-A second `/code-review xhigh`, of the commits made after the first, led to `3c5832a8`. The
-running check that followed found one more fault, fixed in `17fc2299`. On a fresh isolated
-stack with the same accounts:
+More `/code-review xhigh` passes followed, each of the commits made after the one before, with
+a running check between them:
 
-- Learner 12 of 12, admin 23 of 23, phone width 7 of 7, an admin whose role was revoked 12 of 12.
+- The second review led to `3c5832a8` (a caller that stopped waiting left a right password
+  counted as wrong; a first request that threw left the page waiting for ever; a reload was the
+  only way back from "could not be loaded").
+- The running check found that a password filled in one go and submitted with Enter did
+  nothing: the confirm button was still disabled when Enter arrived, and a browser ignores Enter
+  in a form whose submit button is disabled (`17fc2299`).
+- The third review found a security fault in the first review's lockout fix: in a burst,
+  attempts counted before the lock and refused after it drove the stored count below zero,
+  which was that many extra guesses after the lock (`e062c542`).
+- The fourth review found that the fix before it recorded a wrong guess as `cancelled` when
+  its caller dropped the connection, and that a failed sign-in which had read the account
+  earlier could save the old count and the old lock back over these writes (`78461558`).
+- The fifth review found nothing to hold the merge. One point was fixed anyway: `78461558` made
+  every refused attempt write to a locked account, so someone holding the session could keep
+  the admin's own password change from saving. Two points about cases no account is in today
+  went to `docs/native-review-backlog.md`. The review loop stopped there; the last commit was
+  tested and checked running, not reviewed again.
+
+On a fresh isolated stack at the last commit (`7a0daa6e`), same accounts:
+
+- Learner 12 of 12, admin 24 of 24, phone width 7 of 7, an admin whose role was revoked 12 of 12.
 - Outage, 18 of 18. The first HTML of `/admin` is the waiting mark and nothing else. An admin
   with a confirmed password opened the audit log with the API stopped: the waiting mark, then
   "This page could not be loaded" after 15 seconds, and the same again on Try again. With the
   API back, Try again opened the log without reloading the document, and the password was still
   confirmed.
-- A password filled in one go and submitted with Enter was confirmed. Before `17fc2299` it did
-  nothing: the confirm button was still disabled when Enter arrived, and a browser ignores Enter
-  in a form whose submit button is disabled.
-- 12 right-password checks sent straight to the API, 5 of them abandoned by the caller after 15
-  to 35 ms: the account's failed count stayed 0 and all 12 were recorded as succeeded.
-- No error-level lines in the API or web app logs, and no password or proof in either. No audit
-  row was left `Started`.
+- 60 wrong passwords at once: all 60 refused unverified (more in flight than the limit), the
+  account locked, the stored count 0. At `78461558` the same burst had 4 looked at and 56
+  refused. 20 more attempts while locked left the account's concurrency stamp unchanged. With
+  the lock moved into the past on that scratch database, exactly 5 more wrong guesses were
+  looked at before the next lock.
+- Three wrong passwords whose caller dropped the connection after 15 to 35 ms: all three
+  recorded as `password_incorrect`, and counted.
+- Ten right passwords dropped by the caller after 12 to 100 ms: the failed count stayed 0 with
+  no lock; 4 were recorded as succeeded, 5 as `cancelled` and 1 as a 400 (its body was cut
+  off), and no row was left `Started`.
+- No error-level lines in the API or web app logs, and no password or proof in either.
+
+The stale sign-in save is covered by a test only: on the running stack the sign-in route's own
+rate limit refused the wrong sign-ins sent to race the burst.
 
 Not checked: any MAUI head build (they consume the same `SentenceStudio.UI` assembly the web app
 and `SentenceStudio.UI.Tests` built), light theme, and production.
@@ -356,7 +390,7 @@ app's sign-up in Development has its email confirmed for it. The grant needs no 
 
 | Phase | State |
 |---|---|
-| 0. Admin sign-in | Built, reviewed and checked running on `admin-portal` (`ec86ab56`). Not pushed, merged or deployed. Waiting on the Captain: the schema above, then merge. |
+| 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
 | 1. Feedback inbox, agent access, scheduled check | Not started. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Not started. Worker, after phase 0 merges. |

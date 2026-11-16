@@ -385,6 +385,23 @@ findings were fixed; these two are about code the branch did not change:
   seconds, a navigation) does not interrupt it; a stalled web database holds the request until
   Npgsql's own timeouts. Fixing it means a token parameter on the shared auth interface, which
   the MAUI heads implement too.
+- **An attempt caught by a lock that lands mid-burst is counted and then taken back.**
+  `AdminPasswordCheck` refuses a locked account before writing anything, but an attempt counted
+  just before another attempt of the same burst earns the lock still removes itself afterwards,
+  which is why the removal has to stop at zero. One conditional statement (count only `WHERE
+  "LockoutEnd" IS NULL OR "LockoutEnd" <= now`, zero rows meaning locked or no account) would
+  replace the look-then-count pair and leave nothing to take back. It needs the comparison to
+  translate on the SQLite test provider as well as PostgreSQL. (Fourth and fifth reviews,
+  2026-11-15.)
+- **A password that needs rehashing, checked twice at once, can earn a proof that is not
+  honoured.** `UserManager.CheckPasswordAsync` rehashes an old-format password, rotates the
+  security stamp in memory and saves, ignoring the result. The admin check's count now changes
+  the concurrency stamp, so a second attempt counted between the account read and that save
+  makes the save fail, and the proof is bound to a stamp that was never stored: the page says
+  confirmed and the next dangerous request asks again. No account needs a rehash today; a
+  future increase of Identity's default iteration count would make every account need one
+  once. Binding the proof to the stamp as stored after the check would close it. (Fifth
+  review, reproduced on the SQLite test host.)
 - **`RepositoryRoot()` is copied across `SentenceStudio.UI.Tests`.** The same walk up from the
   output folder is in `Feedback/FeedbackApiClientTests.cs`, `Feedback/FeedbackFailureCopyTests.cs`
   and variants under `Layout/`, `Coach/` and `Audio/`; some end in `root!.FullName` and fail
