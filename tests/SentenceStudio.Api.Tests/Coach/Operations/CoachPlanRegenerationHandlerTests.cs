@@ -23,7 +23,7 @@ public class CoachPlanRegenerationHandlerTests
     private static readonly DateOnly Today = new(2026, 11, 16);
 
     [Fact]
-    public async Task TheOffer_SaysWhatIsReplaced_AndThatItCannotBeUndone()
+    public async Task TheOffer_SaysWhatIsReplaced_AndWhatIsKept()
     {
         var plans = new FakePlanService(Today) { Today = Plan(total: 5, completed: 2, generatedAtHour: 8) };
         var handler = Handler(plans);
@@ -33,7 +33,6 @@ public class CoachPlanRegenerationHandlerTests
         preview.Summary.Should().Be("Replace today’s plan with a new one");
         preview.Lines.Should().Contain("Your plan now: 2 of 5 activities done.");
         preview.Lines.Should().Contain(line => line.Contains("stays in your history", StringComparison.Ordinal));
-        preview.Lines.Should().Contain("This cannot be undone.");
         plans.RegenerateCallCount.Should().Be(0, "an offer changes nothing");
     }
 
@@ -45,7 +44,7 @@ public class CoachPlanRegenerationHandlerTests
         var preview = await handler.PrepareAsync(Learner, "{}", CancellationToken.None);
 
         preview.Summary.Should().Be("Make a plan for today");
-        preview.Lines.Should().NotContain("This cannot be undone.", "there is nothing to lose");
+        preview.Lines.Should().ContainSingle().Which.Should().Contain("You have no plan for today yet.");
     }
 
     [Fact]

@@ -220,7 +220,8 @@ public static class CoachInstructions
         - When the learner asks for a new plan, a fresh plan, or another plan for today, or has
           no plan and asks for one, call propose_plan_regeneration with an empty arguments
           object. Do not ask a clarifying question and do not use a plan kind. Then use
-          GeneralAnswer to say in one sentence that the new plan is ready for them to approve.
+          GeneralAnswer to say in one sentence that you have prepared it and that it is made
+          when they approve it just below your reply; they do not approve it on the dashboard.
           Do not describe what the new plan will contain: you have not seen it.
         - A new plan with a condition — "a new 15 minute plan", "a fresh plan with no
           speaking" — is a change to the plan, which rebuilds what is left of it. Do not call

@@ -496,3 +496,28 @@ fix commits were fixed on the branch. These are what was left.
 - **`Coach_ClarificationLimit` ("Choose one option.") shows with nothing to choose.** The web,
   iOS and Android clients show it whenever a turn stops for clarification with none remaining,
   including in a general conversation with no open suggestion.
+
+## Sam makes a new plan (review and running check 2026-11-16, branch `feedback/issue-227`)
+
+Found while checking `propose_plan_regeneration` on an isolated stack. The first two are about a
+brand-new learner and are older than this branch.
+
+- **A new learner who talks to Sam before adding anything loses the Welcome screen.** One plain
+  question to Sam ("How many words do I have?") from a learner with no resources and no words
+  left five "Smart Vocabulary List" resources and an empty plan row for them. The dashboard
+  decides a learner is new by `resources.Count == 0 && vocab.Count == 0` (`Index.razor`), so the
+  Welcome screen with Create Starter Resource is not shown again and the learner sees an empty
+  dashboard. Observed with `testsailor@test.local` on a fresh database.
+- **Smart lists are created more than once.** The same learner then had fourteen resources:
+  "New Words Practice", "Struggling Words" and "Phrases" three times each, "Daily Review"
+  twice. Each plan generation that finds no plan appears to seed them again.
+- **Undo of an earlier Sam revision after a new plan.** Once the session has been read again,
+  Undo of a revision made before the regeneration restores that revision's remaining items onto
+  the new plan. The dashboard's own Regenerate Plan has the same interplay.
+- **A new plan accepted on another device is not noticed here.** The reload is raised when this
+  client's own card moves to executed; a history reload does not raise it.
+- **No test takes `propose_plan_regeneration` through the real ledger** (propose, accept,
+  a failed execution closing as failed). The handler and the plan service are tested apart; the
+  ledger path was exercised on the running stack.
+- **`RegenerateTodayAsync` is on the shared `IPlanService`** and generates with the generator's
+  writes allowed inside a transaction. Only the API calls it. A device must not.

@@ -31,7 +31,8 @@ public sealed record CoachPlanRegenerationArgs(
 /// other change of Sam's uses.
 /// </para>
 /// <para>
-/// Not reversible, and it says so. The plan it replaces is archived rather than deleted, so the
+/// Not reversible, and the card says so (the clients add that line to every change that cannot
+/// be undone). The plan it replaces is archived rather than deleted, so the
 /// practice already logged stays in the learner's history, but nothing puts the old plan back on
 /// the dashboard. The dashboard's own control offers no undo either.
 /// </para>
@@ -84,8 +85,8 @@ public sealed class CoachPlanRegenerationHandler : CoachWriteHandlerBase<CoachPl
             new[]
             {
                 $"Your plan now: {current.CompletedCount} of {current.TotalCount} activities done.",
-                "The new plan starts with nothing done. The practice you already logged stays in your history.",
-                "This cannot be undone."
+                // That it cannot be undone is said by the card itself, for every change that cannot.
+                "The new plan starts with nothing done. The practice you already logged stays in your history."
             },
             EntityId: null,
             canonical);
