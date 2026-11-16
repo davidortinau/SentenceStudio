@@ -671,6 +671,24 @@ every four hours, not on weekdays as the plan had said.
   the three reports to accepted, and left nothing to look at. Both issues were read afterwards
   and carry no learner text.
 
+**The check also resolves what it files (2026-11-16, later the same day)**
+
+The Captain's expectation: "you triage the issues, file the github issues, and then perform the
+diagnosis and resolution. Go as far as you can to resolve the issue. When opening a PR you
+should include your activity log." This replaces the plan's "it triages and reports; real fixes
+go to a full session".
+
+- A second stage in `scripts/admin-feedback-check.sh`, with its instructions in
+  `docs/admin-feedback-fix.md`: one open issue per run (labelled `feedback-check`, not yet
+  `feedback-attempted`), in a worktree of its own from `origin/main` on the branch
+  `feedback/issue-<n>`, by a Fable 5.2 session at high effort with up to three hours. It can
+  edit, build, test, push that branch and open a pull request; it keeps an activity log that
+  goes in the pull request.
+- It never reads learner content (only the triage stage does), and cannot use Azure, the
+  production scripts or a merge. It stops and hands over for anything that changes what Sam
+  says or does, a schema change, a new dependency or anything in production.
+- Issues 226 and 227 were labelled and queued. The first fix run was started by hand on 227.
+
 **Left for later**
 
 - Replace the token before 2026-12-16: create a new one in the portal and write it to Key Vault.
