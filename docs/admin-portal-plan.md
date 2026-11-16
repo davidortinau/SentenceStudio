@@ -146,6 +146,7 @@ Approved for phase 1 (Captain, 2026-11-16): the agent token table; the issue-lin
 on Sam's report rows; and the policy change (Sam's operator routes move from Development-only
 to the admin check, and an admin may open another learner's flagged exchange in production).
 The production settings, the role grant and each deploy still need his go when they come up.
+He also settled where the agent token is kept: see "Phase 1: settled before it starts".
 
 ## Defaults I chose (say if any is wrong)
 
@@ -168,11 +169,9 @@ the MAUI or native apps. Recording AI usage outside Sam.
 2. What the server records per device for sync. Needs a short read of the sync tables. (Phase 3)
 3. Whether 24 hours is acceptable for a switched-off account on a phone. (Phase 2)
 4. Where the scheduled task keeps its token. A cloud task cannot use this Mac's keychain. (Phase 1)
-   This is the portal's own agent token, which phase 1 creates. It is not the GitHub App key in
-   Key Vault (`github-app-private-key`), which only the API uses to file issues. Put to the
-   Captain on 2026-11-16, not yet answered: keep the agent token in the same Key Vault under its
-   own name and run the weekday task on Lilliput, which is signed in to Azure; that needs his
-   standing go for reading that one secret.
+   Settled by the Captain on 2026-11-16: the portal's agent token is kept in Key Vault under
+   its own name, and the weekday task runs on Lilliput and reads it there. See "Phase 1:
+   settled before it starts".
 
 ## Team and how each phase runs (Captain, 2026-11-15)
 
@@ -396,12 +395,68 @@ app's sign-up in Development has its email confirmed for it. The grant needs no 
   (a production database write).
 - Review findings not fixed here: `docs/native-review-backlog.md`, "Admin portal phase 0".
 
+## Phase 1: settled before it starts (2026-11-16)
+
+Phase 1 is the reason the portal exists: the Captain reads the reports learners file in the
+app, and an agent reads the same reports through the API to work them alongside the GitHub
+issues. Read "Phase 0 as built" above first: every route goes on `MapAdminGroup()` with
+`.WithAdminAction(...)`, pages wrap in `AdminGate`, and `AdminEndpointInventoryTests` holds one
+audit action per route. Cut the phase's branch from `admin-portal`, which holds this revision
+of the plan.
+
+Approved by the Captain on 2026-11-16, so do not ask again:
+
+- The agent token table in `AdminDbContext`.
+- One number column for the issue link on Sam's report rows.
+- Sam's operator routes
+  (`src/SentenceStudio.Api/Coach/Opportunities/Endpoints/CoachOpportunityOperatorEndpoints.cs`)
+  move from Development-only to the admin check, and an admin may open another learner's
+  flagged exchange in production. The read is recorded and works only for rows a learner's
+  flag created.
+- Where the agent token is kept: Key Vault `dbkv-rsn72awybem6s`, as its own secret
+  (`admin-agent-token`). The weekday task runs on Lilliput, which is signed in to Azure, and
+  reads the secret with `az keyvault secret show`. The Captain gave a standing go for reading
+  that one secret, by the weekday task or by a session working the reports. Nothing else in
+  Azure is covered by it. Setting or replacing the secret is a write: it stays his, or needs
+  his go at the time. He accepts that the task runs only when Lilliput is on.
+
+What follows from the token decision:
+
+- It is the portal's own token, not the GitHub App key (`github-app-private-key` in the same
+  vault), which only the API uses to file issues.
+- The token lasts 30 days, so the secret has to be replaced each month. The weekday task says
+  so in its summary before the token runs out, and reports a refused or missing token as a
+  failure. It never skips quietly: the digest job it replaces
+  (`.github/workflows/sam-opportunity-digest.yml`) did, and nobody noticed.
+- The first token can only be made in the deployed portal, and the task reads production
+  reports only once the portal is deployed there.
+
+Still needing his go when they come up: each deploy, the `Admin:Emails` production setting, the
+role grant, and each write of the token to Key Vault.
+
+Existing pieces this phase changes: the operator page
+`src/SentenceStudio.WebApp/Components/Pages/Operator/SamOpportunities.razor` and its client
+`src/SentenceStudio.WebApp/Operator/SamOpportunityOperatorClient.cs` become the inbox;
+`src/SentenceStudio.Api/Feedback/Persistence/FeedbackEntities.cs` holds the GitHub reports and
+their screen state; `scripts/sam-opportunity-digest.sh` stays. Phases 3 and 4 already added to
+`AdminEndpoints.cs`, `AdminAudit.cs`, `AdminHome.razor`, `AdminApiClient.cs` and the test
+factory `AdminApiFactory.cs`; add beside what is there.
+
+Carried over from the earlier phases:
+
+- Nothing an admin types to find a person goes in a URL. Production logs the URL of every
+  request, so names and emails travel in a request body
+  (`docs/admin-portal-phases-3-4-handoff.md`). The same holds for anything taken from a report.
+- Review the fix commits too. In phase 0 three of the faults were in the previous fix.
+- The lead of phases 0, 3 and 4 recommends `/security-review` on this phase as well as
+  `/code-review` high, because the agent token is a second way to sign in to the admin API.
+
 ## Status
 
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
-| 1. Feedback inbox, agent access, scheduled check | Not started. |
+| 1. Feedback inbox, agent access, scheduled check | Not started. Next, in a fresh session. Its approvals and the token decision are in "Phase 1: settled before it starts". |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; the Captain approved the choices in `docs/admin-portal-phases-3-4-handoff.md`. Not deployed. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3. Not deployed. |
