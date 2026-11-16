@@ -3388,9 +3388,10 @@ public sealed class CoachSessionService : ICoachSessionService
             // its reason. Without this line a spent budget is the one ending that leaves no
             // trace, so a flagged notice could not be told from a validation failure.
             _logger.LogWarning(
-                "[Coach] Session {SessionId}: the model asked a clarifying question after the session's "
-                + "{ClarificationLimit} clarification(s) were used. The question was withheld and nothing was written.",
-                session.Id, limit);
+                "[Coach] Session {SessionId}: the model asked a clarifying question after "
+                + "{ClarificationCount} of the session's {ClarificationLimit} clarification(s) were used. "
+                + "The question was withheld and nothing was written.",
+                session.Id, session.ClarificationCount, limit);
 
             var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 

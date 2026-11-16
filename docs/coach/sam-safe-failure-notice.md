@@ -19,16 +19,18 @@ All are in `src/SentenceStudio.Api/Coach/Application/CoachSessionService.cs` unl
 | 1 | The model's reply failed a shape or grounding rule (too long, a stray plan change on a general reply, evidence cited with no read) and its kind is not a plan kind. A plan kind shows "Today's Plan is unchanged." instead. | `ReduceAgentResultAsync` | `validation_failed` | warning: `the intent failed N validation rule(s); codes: [kind:code, ...]` |
 | 2 | A plan preview named a resource the learner does not own. | `RejectUnownedPreviewAsync` | `validation_failed` | error: `a preview failed the ownership check` |
 | 3 | The reply repeated a word that is due for review. | `BuildAnswerLeakResponseAsync` | `validation_failed` | warning: `the answer repeated N embargoed item(s)` |
-| 4 | The model asked a clarifying question after the session's clarifying questions were used up. | `ReduceClarificationAsync` | `clarification_requested` | warning: `the model asked a clarifying question after the session's N clarification(s) were used` |
-| 5 | The model's output could not be read as a turn intent. | `IncompleteAsync`; logged in `Agents/CoachAgentTurnRunner.cs` | `validation_failed` | warning: `the model answer did not match the turn-intent schema. FinishReason=...` |
+| 4 | The model asked a clarifying question after the session's clarifying questions were used up. | `ReduceClarificationAsync` | `clarification_requested` | warning: `the model asked a clarifying question after N of the session's M clarification(s) were used` |
+| 5 | The model's output could not be read as a turn intent. (A timeout, a cancel or the output limit ends in a different notice.) | `IncompleteAsync`; logged in `Agents/CoachAgentTurnRunner.cs` | `validation_failed` | warning: `the model answer did not match the turn-intent schema. FinishReason=...` |
 
 ## Telling them apart
 
 - **The report's stop reason** (`scripts/admin-api.sh sam-show <reportId>`, `report.stopReason`)
-  separates ending 4 from the other four. Until the fix that came with this document the report
-  never had one: it looked for the stop reason at the root of the stored turn outcome, and the
-  response has been inside the outcome's `answer` section since outcome version 2. Every report
-  filed before that fix has an empty stop reason, issue 227's included.
+  separates ending 4 from the other four: a flag whose `responseKind` is `notice` and whose
+  report says `clarification_requested` is ending 4. (A question Sam did ask has the same stop
+  reason, with `responseKind` `clarification`.) Until the fix that came with this document the
+  report never had a stop reason: it looked for it at the root of the stored turn outcome, and
+  the response has been inside the outcome's `answer` section since outcome version 2. Every
+  report filed before that fix has an empty stop reason, issue 227's included.
 - **The log line** separates the rest, and its codes say which rule. Ending 4 logged nothing
   before the same fix. The logs are in production's Application Insights, so reading them is the
   Captain's (no Azure commands without his go).

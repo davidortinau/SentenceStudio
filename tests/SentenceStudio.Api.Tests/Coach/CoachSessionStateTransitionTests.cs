@@ -296,7 +296,7 @@ public class CoachSessionStateTransitionTests
 
         third.Value!.Messages.Should().ContainSingle().Which.Kind.Should().Be(CoachMessageKind.Notice);
         log.Lines.Should().ContainSingle(line => line.Contains(
-            "the model asked a clarifying question after the session's 2 clarification(s) were used",
+            "the model asked a clarifying question after 2 of the session's 2 clarification(s) were used",
             StringComparison.Ordinal));
     }
 

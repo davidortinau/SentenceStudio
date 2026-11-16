@@ -460,7 +460,9 @@ public class CoachResponseReportServiceTests
     [InlineData("\"1,2\"")]
     public void AnUndefinedStopReasonIsReadAsAbsent(string json)
     {
-        CoachResponseReportService.ReadStopReason(StoredOutcome(json)).Should().BeNull(
+        var outcome = $$"""{"stopReason": {{json}}}""";
+
+        CoachResponseReportService.ReadStopReason(outcome).Should().BeNull(
             "a value outside the closed set is not a stop reason, and storing one would break " +
             "both the column's contract and the fingerprint the report is linked by");
     }
@@ -468,23 +470,60 @@ public class CoachResponseReportServiceTests
     [Fact]
     public void ADefinedStopReasonIsReadInEitherWireForm()
     {
-        CoachResponseReportService.ReadStopReason(StoredOutcome("\"ClarificationRequested\""))
+        CoachResponseReportService.ReadStopReason("""{"stopReason": "ClarificationRequested"}""")
             .Should().Be(CoachStopReason.ClarificationRequested);
 
-        CoachResponseReportService.ReadStopReason(StoredOutcome($"{(int)CoachStopReason.ToolFailure}"))
+        CoachResponseReportService.ReadStopReason($$"""{"stopReason": {{(int)CoachStopReason.ToolFailure}}}""")
             .Should().Be(CoachStopReason.ToolFailure);
     }
 
     [Fact]
     public void AnUnreadableOutcomeIsAbsentRatherThanAFailure()
     {
-        var version = CoachConversationService.CurrentOutcomeSchemaVersion;
-
-        CoachResponseReportService.ReadStopReason(CoachConversationService.ReadOutcome("not json at all", version))
-            .Should().BeNull();
-        CoachResponseReportService.ReadStopReason(CoachConversationService.ReadOutcome("{}", version))
-            .Should().BeNull();
+        CoachResponseReportService.ReadStopReason("not json at all").Should().BeNull();
+        CoachResponseReportService.ReadStopReason("{}").Should().BeNull();
+        CoachResponseReportService.ReadStopReason("[]").Should().BeNull();
+        CoachResponseReportService.ReadStopReason("""{"answer": "text"}""").Should().BeNull();
         CoachResponseReportService.ReadStopReason(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// The shape every current turn is stored in: the response inside the outcome's answer
+    /// section, with no stop reason at the root.
+    /// </summary>
+    /// <remarks>
+    /// The cases above hand the reader a root-level stop reason, which is the version-1 shape no
+    /// build writes any more. That is how the reader passed its tests while every report in
+    /// production stored an empty stop reason (issue 227).
+    /// </remarks>
+    [Fact]
+    public void TheStopReasonIsReadFromAWrappedOutcomesAnswerSection()
+    {
+        CoachResponseReportService.ReadStopReason(StoredPayload("\"ClarificationRequested\""))
+            .Should().Be(CoachStopReason.ClarificationRequested);
+
+        CoachResponseReportService.ReadStopReason(StoredPayload($"{(int)CoachStopReason.ValidationFailed}"))
+            .Should().Be(CoachStopReason.ValidationFailed);
+
+        CoachResponseReportService.ReadStopReason(StoredPayload("\"NotAStopReason\"")).Should().BeNull();
+        CoachResponseReportService.ReadStopReason(StoredPayload("999")).Should().BeNull();
+    }
+
+    /// <summary>
+    /// One field is read, so a response this build cannot otherwise deserialize still says how
+    /// its turn ended.
+    /// </summary>
+    [Fact]
+    public void TheStopReasonSurvivesAResponseThisBuildCannotOtherwiseRead()
+    {
+        var payload = JsonNode.Parse(StoredPayload("\"ValidationFailed\""))!;
+        payload["answer"]!["status"] = "AStatusFromALaterBuild";
+
+        CoachConversationService.ReadOutcome(payload.ToJsonString(), CoachConversationService.CurrentOutcomeSchemaVersion)
+            .Should().BeNull("the strict reader gives up on the whole response");
+
+        CoachResponseReportService.ReadStopReason(payload.ToJsonString())
+            .Should().Be(CoachStopReason.ValidationFailed);
     }
 
     /// <summary>
@@ -501,11 +540,6 @@ public class CoachResponseReportServiceTests
 
         return payload.ToJsonString();
     }
-
-    /// <summary>The same payload, read back by the conversation layer's own reader.</summary>
-    private static CoachStoredTurnOutcome? StoredOutcome(string stopReasonJson) =>
-        CoachConversationService.ReadOutcome(
-            StoredPayload(stopReasonJson), CoachConversationService.CurrentOutcomeSchemaVersion);
 
     [Fact]
     public async Task TheLedgerRowIsProductReviewableAndCarriesBothMessagePointers()
@@ -556,7 +590,7 @@ public class CoachResponseReportServiceTests
     /// </summary>
     /// <remarks>
     /// The stop reason is part of the ledger row's identity, and the report finds its row again by
-    /// deriving that identity a second time. Before the report could read the stop reason both
+    /// deriving that identity a second time. While the report could not read the stop reason both
     /// derivations saw null and agreed trivially.
     /// </remarks>
     [Fact]
