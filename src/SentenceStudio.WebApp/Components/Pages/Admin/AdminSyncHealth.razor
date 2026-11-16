@@ -1,0 +1,257 @@
+@page "/admin/sync-health"
+@using System.Globalization
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+
+@*
+    Sync and data health, read-only. What is deployed (the API build and the database's newest
+    migration), and a list of learners to open. Numbers and ids only: no learner content.
+    Loaded in the live circuit only, never into the prerendered page.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>Sync and data health</PageTitle>
+    <PageHeader Title="Sync and data health" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
+        <ToolbarActions>
+            <button id="admin-sync-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-sync-health">
+        @if (_appFailed)
+        {
+            <div class="alert alert-warning d-flex align-items-center" role="alert" id="admin-sync-app-failed">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                <span>What is deployed could not be loaded. Use Refresh to try again.</span>
+            </div>
+        }
+        else if (_app is { } app)
+        {
+            <section class="mb-4" aria-labelledby="admin-sync-app-heading" id="admin-sync-app">
+                <h2 class="h5" id="admin-sync-app-heading">What is deployed</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 col-lg-3">API version</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-api-version"><code>@app.ApiVersion</code></dd>
+                    <dt class="col-sm-4 col-lg-3">Newest database migration</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-migration">
+                        @if (app.LatestMigration is null)
+                        {
+                            <span>None recorded</span>
+                        }
+                        else
+                        {
+                            <code>@app.LatestMigration</code>
+                        }
+                    </dd>
+                    <dt class="col-sm-4 col-lg-3">Migrations</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-migration-counts">
+                        @Number(app.AppliedMigrations) applied, @Number(app.PendingMigrations) pending
+                    </dd>
+                    <dt class="col-sm-4 col-lg-3">Sync change log</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-change-log">
+                        @if (app.ServerChangeVersion is null)
+                        {
+                            <span>Empty or not present</span>
+                        }
+                        else
+                        {
+                            <span>Change @Number(app.OldestChangeVersion) to @Number(app.ServerChangeVersion)</span>
+                        }
+                    </dd>
+                </dl>
+            </section>
+        }
+
+        <section aria-labelledby="admin-sync-learners-heading">
+            <h2 class="h5" id="admin-sync-learners-heading">Learners</h2>
+            <form id="admin-sync-search-form" class="row g-2 mb-3" @onsubmit="SearchAsync">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label class="form-label visually-hidden" for="admin-sync-search">Search by name or email</label>
+                    <input id="admin-sync-search" class="form-control" type="search" maxlength="100"
+                           placeholder="Search by name or email" @bind="_search" @bind:event="oninput" />
+                </div>
+                <div class="col-auto">
+                    <button id="admin-sync-search-go" class="btn btn-outline-primary" type="submit">Search</button>
+                </div>
+            </form>
+
+            @if (_learnersFailed)
+            {
+                <div class="alert alert-warning d-flex align-items-center" role="alert" id="admin-sync-learners-failed">
+                    <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                    <span>The learners could not be loaded. Use Refresh to try again.</span>
+                </div>
+            }
+            else if (_learners.Count == 0 && !_loading)
+            {
+                <p class="text-secondary" id="admin-sync-learners-empty">No learners found.</p>
+            }
+            else if (_learners.Count > 0)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle" id="admin-sync-learners-table">
+                        <caption class="visually-hidden">Learners, ordered by profile id</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Email</th>
+                                <th scope="col">Profile id</th>
+                                <th scope="col"><span class="visually-hidden">Open</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var learner in _learners)
+                            {
+                                <tr @key="learner.ProfileId" data-profile-id="@learner.ProfileId">
+                                    <td>@(learner.DisplayName ?? "Not recorded")</td>
+                                    <td>@(learner.Email ?? "Not recorded")</td>
+                                    <td><code class="small">@learner.ProfileId</code></td>
+                                    <td>
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           id="admin-sync-open-@learner.ProfileId"
+                                           href="/admin/sync-health/@Uri.EscapeDataString(learner.ProfileId)">
+                                            Open sync health
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (_nextAfter is not null)
+                {
+                    <button id="admin-sync-more" class="btn btn-outline-secondary mb-3" type="button"
+                            @onclick="LoadMoreAsync" disabled="@_loading">
+                        Load more learners
+                    </button>
+                }
+            }
+        </section>
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    private const int PageSize = 50;
+
+    private AdminGate? _gate;
+    private AdminSyncHealthApp? _app;
+    private readonly List<AdminLearnerSummary> _learners = [];
+    private string? _nextAfter;
+    private string? _search;
+    private string? _appliedSearch;
+    private bool _loading;
+    private bool _appFailed;
+    private bool _learnersFailed;
+
+    private static string Number(long? value) =>
+        value is { } v ? v.ToString("N0", CultureInfo.InvariantCulture) : "none";
+
+    private async Task RefreshAsync() => CloseIfRefused(await LoadAsync());
+
+    private async Task SearchAsync()
+    {
+        _appliedSearch = _search;
+        CloseIfRefused(await LoadLearnersAsync(after: null));
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        if (_nextAfter is { } after)
+        {
+            CloseIfRefused(await LoadLearnersAsync(after));
+        }
+    }
+
+    /// <summary>
+    /// What is deployed, then the first page of learners. The first call is the gate's; later ones
+    /// (Refresh and the rest) close the gate themselves if the API now says 404. The app read decides the gate.
+    /// </summary>
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetSyncHealthAppAsync();
+            _appFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+            if (result.Status == AdminApiStatus.NotFound)
+            {
+                State.MarkNotAdmin();
+                _app = null;
+                return result.Status;
+            }
+
+            _app = result.Value;
+            if (result.Status is AdminApiStatus.Ok or AdminApiStatus.Refused)
+            {
+                var learners = await LoadLearnersAsync(after: null);
+                if (learners == AdminApiStatus.NotFound)
+                {
+                    return learners;
+                }
+            }
+
+            return result.Status;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<AdminApiStatus> LoadLearnersAsync(string? after)
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetSyncHealthLearnersAsync(after, _appliedSearch, PageSize);
+            _learnersFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+            if (result.Status == AdminApiStatus.NotFound)
+            {
+                State.MarkNotAdmin();
+                _learners.Clear();
+                _nextAfter = null;
+            }
+            else if (result.Value is { } page)
+            {
+                if (after is null)
+                {
+                    _learners.Clear();
+                }
+
+                _learners.AddRange(page.Items);
+                _nextAfter = page.NextAfter;
+            }
+
+            return result.Status;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CloseIfRefused(AdminApiStatus status)
+    {
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+    }
+}

@@ -9,6 +9,9 @@ public static class AdminActions
     public const string SessionRead = "session.read";
     public const string StepUpVerify = "step_up.verify";
     public const string AuditRead = "audit.read";
+    public const string SyncHealthAppRead = "sync_health.app_read";
+    public const string SyncHealthLearnersRead = "sync_health.learners_read";
+    public const string SyncHealthLearnerRead = "sync_health.learner_read";
 }
 
 /// <summary>The closed set of things an admin request can act on.</summary>

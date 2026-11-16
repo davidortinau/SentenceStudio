@@ -21,6 +21,17 @@ internal sealed class NativeSyncStoreBindings(
     private const long BindingLockKey = 0x53534E4154495646L;
     private const string MarkerPrefix = "sentencestudio:native-store:v1:";
 
+    /// <summary>The owner-bound cursor id a device store syncs under. Pure; also read by the admin sync-health page.</summary>
+    internal static Guid ScopedStoreId(Guid ownerId, Guid storeId)
+    {
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"SentenceStudio.Native.Store.v3:{ownerId:N}:{storeId:N}"));
+        return new Guid(digest.AsSpan(0, 16));
+    }
+
+    /// <summary>The prefix of the marker row that binds a store to its owner; the owner follows it.</summary>
+    internal const string StoreMarkerPrefix = MarkerPrefix;
+
     internal async Task<Guid> BindAsync(Guid storeId, string owner, CancellationToken ct = default)
     {
         if (storeId == Guid.Empty || !Guid.TryParse(owner, out var ownerId)
@@ -87,9 +98,7 @@ internal sealed class NativeSyncStoreBindings(
         // The review adapter's v1/v2 aliases replayed every row, rewriting
         // mixed SQLite-era local/UTC timestamps. Adopt the pre-adapter cursor
         // once instead; never update the raw cursor or an existing scoped one.
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"SentenceStudio.Native.Store.v3:{ownerId:N}:{storeId:N}"));
-        var scopedStoreId = new Guid(digest.AsSpan(0, 16));
+        var scopedStoreId = ScopedStoreId(ownerId, storeId);
         command.CommandText = """
             INSERT INTO __core_sync_remote_anchor (id, local_version, remote_version)
             SELECT @scoped, local_version, remote_version

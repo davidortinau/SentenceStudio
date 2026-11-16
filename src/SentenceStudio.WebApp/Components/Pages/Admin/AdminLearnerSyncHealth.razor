@@ -1,0 +1,223 @@
+@page "/admin/sync-health/{ProfileId}"
+@using System.Globalization
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+
+@*
+    One learner's sync health, read-only: row counts for each synced table, the newest change, the
+    device stores bound to the learner, and what the server does not record. Numbers and ids only.
+    Reading it is recorded in the audit log against the learner.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>Sync health</PageTitle>
+    <PageHeader Title="Sync health" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin/sync-health")'>
+        <ToolbarActions>
+            <button id="admin-sync-learner-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-sync-learner">
+        @if (_refreshFailed)
+        {
+            <div class="alert alert-warning d-flex align-items-center" role="alert" id="admin-sync-learner-failed">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                <span>The sync health could not be refreshed. What is shown is from the last successful load.</span>
+            </div>
+        }
+
+        @if (_health is { } health)
+        {
+            <section class="mb-4" aria-labelledby="admin-sync-learner-heading">
+                <h2 class="h5" id="admin-sync-learner-heading">Learner</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 col-lg-3">Name</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-learner-name">@(health.Learner.DisplayName ?? "Not recorded")</dd>
+                    <dt class="col-sm-4 col-lg-3">Email</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-learner-email">@(health.Learner.Email ?? "Not recorded")</dd>
+                    <dt class="col-sm-4 col-lg-3">Profile id</dt>
+                    <dd class="col-sm-8 col-lg-9"><code id="admin-sync-learner-id">@health.Learner.ProfileId</code></dd>
+                    <dt class="col-sm-4 col-lg-3">Newest change (UTC)</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-learner-newest">@When(health.NewestChangeUtc)</dd>
+                    <dt class="col-sm-4 col-lg-3">Server change number</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-sync-learner-server-version">@Number(health.ServerChangeVersion)</dd>
+                </dl>
+            </section>
+
+            <section class="mb-4" aria-labelledby="admin-sync-tables-heading">
+                <h2 class="h5" id="admin-sync-tables-heading">Rows on the server, by synced table</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle" id="admin-sync-tables">
+                        <caption class="visually-hidden">Rows the server holds for this learner in each synced table</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Table</th>
+                                <th scope="col" class="text-end">Rows</th>
+                                <th scope="col">Newest change (UTC)</th>
+                                <th scope="col">Read from</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var table in health.Tables)
+                            {
+                                <tr @key="table.Table" data-table="@table.Table">
+                                    <th scope="row"><code>@table.Table</code></th>
+                                    @if (table.Status == AdminSyncCodes.TableCounted)
+                                    {
+                                        <td class="text-end">@Number(table.RowCount)</td>
+                                        <td>@(table.NewestChangeField is null ? "No change column" : When(table.NewestChangeUtc))</td>
+                                        <td>@(table.NewestChangeField ?? "None")</td>
+                                    }
+                                    else if (table.Status == AdminSyncCodes.TableNoOwner)
+                                    {
+                                        <td class="text-end">Not counted</td>
+                                        <td colspan="2">Rows carry no owner, so a learner's share cannot be counted</td>
+                                    }
+                                    else
+                                    {
+                                        <td class="text-end">Unknown</td>
+                                        <td colspan="2">Unknown status (@table.Status)</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="mb-4" aria-labelledby="admin-sync-devices-heading">
+                <h2 class="h5" id="admin-sync-devices-heading">Devices</h2>
+                @if (health.Devices.Count == 0)
+                {
+                    <p class="text-secondary" id="admin-sync-devices-empty">
+                        No device store is bound to this learner on the server.
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-sync-devices">
+                            <caption class="visually-hidden">Device stores bound to this learner</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Store id</th>
+                                    <th scope="col" class="text-end">Downloaded through change</th>
+                                    <th scope="col" class="text-end">Uploaded through change</th>
+                                    <th scope="col" class="text-end">Changes behind</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var device in health.Devices)
+                                {
+                                    <tr @key="device.StoreId" data-store-id="@device.StoreId">
+                                        <th scope="row"><code class="small">@device.StoreId</code></th>
+                                        <td class="text-end">@Number(device.DownloadedThroughVersion)</td>
+                                        <td class="text-end">@Number(device.UploadedThroughVersion)</td>
+                                        <td class="text-end">@Number(device.ChangesBehind)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-secondary small">
+                        Change numbers are positions in the server's sync change log, not times. "Downloaded
+                        through" is the newest server change the device has been sent; "uploaded through" is the
+                        newest of the device's own changes the server has applied. Changes behind counts changes for every
+                        learner, not only this one.
+                    </p>
+                }
+            </section>
+
+            <section aria-labelledby="admin-sync-not-recorded-heading">
+                <h2 class="h5" id="admin-sync-not-recorded-heading">Not recorded by the server</h2>
+                <ul id="admin-sync-not-recorded">
+                    @foreach (var reason in health.NotRecorded)
+                    {
+                        <li data-code="@reason">@NotRecordedText(reason)</li>
+                    }
+                </ul>
+            </section>
+        }
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    [Parameter]
+    public string ProfileId { get; set; } = string.Empty;
+
+    private AdminGate? _gate;
+    private AdminSyncHealthLearner? _health;
+    private bool _loading;
+    private bool _refreshFailed;
+
+    private static string Number(long? value) =>
+        value is { } v ? v.ToString("N0", CultureInfo.InvariantCulture) : "None";
+
+    private static string When(DateTime? value) =>
+        value is { } v ? v.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "None";
+
+    // Every code is said in words; one this page does not know is shown as that.
+    private static string NotRecordedText(string code) => code switch
+    {
+        AdminSyncCodes.NotRecordedLastSyncTime => "Last sync time per device: not recorded. The server keeps change numbers, not times.",
+        AdminSyncCodes.NotRecordedRefusedRows => "Rows the server refused: not recorded. A refusal is written to the API log only.",
+        _ => $"Not recorded: {code}"
+    };
+
+    private async Task RefreshAsync()
+    {
+        var status = await LoadAsync();
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+    }
+
+    /// <summary>The first call is the gate's. A refresh that fails keeps what is shown and says it failed.</summary>
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetSyncHealthLearnerAsync(ProfileId);
+            _refreshFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+            if (result.Status == AdminApiStatus.NotFound)
+            {
+                // An unknown learner is answered 404 too, so a 404 alone does not say the person
+                // stopped being an admin. The probe leaves no audit row.
+                if (await Api.ProbeAsync() == AdminAccess.NotAdmin)
+                {
+                    State.MarkNotAdmin();
+                }
+
+                _health = null;
+            }
+            else if (result.Value is { } health)
+            {
+                _health = health;
+            }
+
+            return result.Status;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

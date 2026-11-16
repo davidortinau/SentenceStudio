@@ -31,6 +31,8 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
     [WebAppPostgresTheory]
     [InlineData("/admin")]
     [InlineData("/admin/audit")]
+    [InlineData("/admin/sync-health")]
+    [InlineData("/admin/sync-health/some-profile-id")]
     public async Task An_anonymous_visitor_is_sent_to_sign_in(string path)
     {
         var client = _factory.CreateBrowserClient();
@@ -47,6 +49,8 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
     [WebAppPostgresTheory]
     [InlineData("/admin")]
     [InlineData("/admin/audit")]
+    [InlineData("/admin/sync-health")]
+    [InlineData("/admin/sync-health/some-profile-id")]
     public async Task The_first_response_holds_no_admin_content_and_asks_the_API_nothing(string path)
     {
         var learner = await _factory.SeedLearnerAsync($"admin-prerender-{Guid.NewGuid():N}@sentencestudio.test", Password);
@@ -62,6 +66,8 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
         body.Should().NotContain("admin-gate", "the first HTML must not say what the mark is waiting for");
         body.Should().NotContain("admin-home")
             .And.NotContain("admin-audit-table")
+            .And.NotContain("admin-sync")
+            .And.NotContain("<title>Sync")
             .And.NotContain("Signed in as")
             .And.NotContain("Password confirmation")
             .And.NotContain("<title>Admin")

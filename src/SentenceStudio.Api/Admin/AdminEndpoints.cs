@@ -65,6 +65,8 @@ public static class AdminEndpoints
             .WithName("ListAdminAudit")
             .WithAdminAction(AdminActions.AuditRead);
 
+        group.MapAdminSyncHealthEndpoints();
+
         // Everything else under the prefix, for every method. Without it a wrong verb on a real
         // route would be answered 405 before authorization ran, which tells anyone the route exists.
         group.Map("/{**rest}", () => Results.NotFound())

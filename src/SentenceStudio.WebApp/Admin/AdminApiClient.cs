@@ -41,6 +41,54 @@ public static class AdminAuditCodes
     public const string OutcomeFailed = "failed";
 }
 
+/// <summary>A learner as the admin pages name one. Mirrors the API's <c>AdminLearnerSummary</c>.</summary>
+public sealed record AdminLearnerSummary(string ProfileId, string? DisplayName, string? Email);
+
+/// <summary>One page of learners, ordered by profile id.</summary>
+public sealed record AdminLearnerPage(IReadOnlyList<AdminLearnerSummary> Items, string? NextAfter);
+
+/// <summary>One synced table for one learner. Mirrors the API's <c>AdminSyncTableHealth</c>.</summary>
+public sealed record AdminSyncTableHealth(
+    string Table,
+    string Status,
+    long? RowCount,
+    string? NewestChangeField,
+    DateTime? NewestChangeUtc);
+
+/// <summary>A device store bound to a learner, with CoreSync change numbers and no times.</summary>
+public sealed record AdminSyncDevice(
+    string StoreId,
+    long? DownloadedThroughVersion,
+    long? UploadedThroughVersion,
+    long? ChangesBehind);
+
+/// <summary>What <c>GET /api/admin/sync-health/learners/{id}</c> reports.</summary>
+public sealed record AdminSyncHealthLearner(
+    AdminLearnerSummary Learner,
+    IReadOnlyList<AdminSyncTableHealth> Tables,
+    DateTime? NewestChangeUtc,
+    IReadOnlyList<AdminSyncDevice> Devices,
+    long? ServerChangeVersion,
+    IReadOnlyList<string> NotRecorded);
+
+/// <summary>What <c>GET /api/admin/sync-health/app</c> reports.</summary>
+public sealed record AdminSyncHealthApp(
+    string ApiVersion,
+    string? LatestMigration,
+    int AppliedMigrations,
+    int PendingMigrations,
+    long? ServerChangeVersion,
+    long? OldestChangeVersion);
+
+/// <summary>The sync health wire codes. Mirrors the API's <c>AdminSyncTableStatus</c> and <c>AdminSyncNotRecorded</c>.</summary>
+public static class AdminSyncCodes
+{
+    public const string TableCounted = "counted";
+    public const string TableNoOwner = "no_owner";
+    public const string NotRecordedLastSyncTime = "last_sync_time";
+    public const string NotRecordedRefusedRows = "refused_rows";
+}
+
 /// <summary>Whether the signed-in person is an admin, as far as one probe could tell.</summary>
 public enum AdminAccess
 {
@@ -158,6 +206,34 @@ public sealed class AdminApiClient
         SendAsync<AdminAuditPage>(
             HttpMethod.Get,
             before is { } cursor ? $"{BasePath}/audit?take={take}&before={cursor}" : $"{BasePath}/audit?take={take}",
+            body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminSyncHealthApp>> GetSyncHealthAppAsync(
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSyncHealthApp>(
+            HttpMethod.Get, $"{BasePath}/sync-health/app", body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminLearnerPage>> GetSyncHealthLearnersAsync(
+        string? after, string? search, int take, CancellationToken cancellationToken = default)
+    {
+        var path = $"{BasePath}/sync-health/learners?take={take}";
+        if (!string.IsNullOrEmpty(after))
+        {
+            path += $"&after={Uri.EscapeDataString(after)}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            path += $"&q={Uri.EscapeDataString(search.Trim())}";
+        }
+
+        return SendAsync<AdminLearnerPage>(HttpMethod.Get, path, body: null, proof: null, cancellationToken);
+    }
+
+    public Task<AdminApiResult<AdminSyncHealthLearner>> GetSyncHealthLearnerAsync(
+        string profileId, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSyncHealthLearner>(
+            HttpMethod.Get, $"{BasePath}/sync-health/learners/{Uri.EscapeDataString(profileId)}",
             body: null, proof: null, cancellationToken);
 
     private async Task<AdminApiResult<T>> SendAsync<T>(
