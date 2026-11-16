@@ -6,8 +6,9 @@
 #
 # Without --yes it builds, checks the phone and stops before installing. The phones are
 # production devices: an agent passes --yes only after the Captain approves the install
-# in that turn. It never uninstalls, and it stops if the app is running on the phone
-# (ask the Captain to close it; the script does not kill it).
+# in that turn. It never uninstalls. If SentenceStudio is running on the phone, --yes ends
+# it (SIGTERM, then SIGKILL if it stays listed) and installs: the Captain's approval of the
+# install covers that, so do not ask him to close the app.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -40,15 +41,34 @@ echo "app: $APP (built $(stat -f '%Sm' "$APP/SentenceStudio.Native.iOS.dll"), co
 # A short query first: it wakes the tunnel that the longer install needs.
 xcrun devicectl device info details --device "$DEVICE" >/dev/null 2>&1 \
   || { echo "STOP: $PHONE is not reachable; wake and unlock it, then rerun"; exit 1; }
-RUNNING=$(xcrun devicectl device info processes --device "$DEVICE" 2>/dev/null \
-  | grep -c 'SentenceStudio.Native.iOS' || true)
-if [ "$RUNNING" != 0 ]; then
-  echo "STOP: SentenceStudio is running on $PHONE; ask the Captain to close it first"; exit 1
+# The first number on a matching row of the process table is the pid.
+app_pids() {
+  xcrun devicectl device info processes --device "$DEVICE" 2>/dev/null \
+    | awk '/SentenceStudio\.Native\.iOS/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) { print $i; break } }' || true
+}
+PIDS=$(app_pids)
+if [ -z "$PIDS" ]; then
+  echo "ok:   $PHONE reachable; the app is not running"
+else
+  echo "ok:   $PHONE reachable; the app is running (--yes ends it before installing)"
 fi
-echo "ok:   $PHONE reachable; the app is not running"
 
 if [ $YES = 0 ]; then
   echo "READY: rerun with --yes --no-build after the Captain approves installing on $PHONE"; exit 2
+fi
+
+if [ -n "$PIDS" ]; then
+  for pid in $PIDS; do
+    xcrun devicectl device process terminate --device "$DEVICE" --pid "$pid" >/dev/null 2>&1 || true
+  done
+  sleep 2
+  # A suspended app can ignore SIGTERM and stay listed (2026-11-10); SIGKILL then ends it.
+  for pid in $(app_pids); do
+    xcrun devicectl device process signal --device "$DEVICE" --pid "$pid" --signal SIGKILL >/dev/null 2>&1 || true
+  done
+  sleep 1
+  [ -z "$(app_pids)" ] || { echo "FAIL: could not end the running app on $PHONE"; exit 1; }
+  echo "ok:   ended the running app"
 fi
 
 # Whole outputs are read before matching: under pipefail, grep -q exits at its first match

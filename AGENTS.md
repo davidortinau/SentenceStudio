@@ -2,25 +2,57 @@
 
 Call the user **Captain**.
 
-This is the authoritative guide for the `native-platform-heads` work. The background behind
-these rules (decision history, quotes, longer explanations, the review checklist) is in
-`docs/engineering-guide-full.md`. Older MAUI/MauiReactor instructions are historical.
+This is the authoritative guide for SentenceStudio. The background behind these rules
+(decision history, quotes, longer explanations, the review checklist) is in
+`docs/engineering-guide-full.md`. Instructions that describe the app as MauiReactor are
+historical.
 
 ## Product direction
 
-- **Android:** .NET for Android + Jetpack Compose (`jonathanpeppers/Microsoft.AndroidX.Compose`).
-- **iOS / macOS:** .NET for iOS/macOS + SwiftUI (`davidortinau/Microsoft.SwiftUI`, a separate
-  repo at `~/work/Microsoft.SwiftUI`). Share feature views between iOS and macOS.
-- **Web:** the Blazor WebApp stays.
-- **MAUI apps still ship** (2026-11-04). API, sync, schema, shared-service and shared Razor UI
-  changes must keep the MAUI heads building, migrating existing device databases without
-  losing rows, and syncing with the same owner checks. No new MAUI-only product UI: MAUI gets
-  features through the shared Razor UI. `SentenceStudio.MauiCompatibility` and
-  `MauiServiceDefaults` must never become dependencies of the WebApp, API, Workers, shared
-  libraries, tests or native heads.
-- Windows and Linux native heads are out of scope until the Captain adds them.
-- Parity covers every client (web, MAUI, native heads, the future Flutter port). Never write
-  "both apps".
+SentenceStudio ships three ways, and all three are current products:
+
+- **Native heads:** platform UI written in C#.
+  - **Android:** .NET for Android + Jetpack Compose (`jonathanpeppers/Microsoft.AndroidX.Compose`).
+  - **iOS:** .NET for iOS + SwiftUI (`davidortinau/Microsoft.SwiftUI`, a separate repo at
+    `~/work/Microsoft.SwiftUI`).
+  - **macOS:** planned, not started. There is no native macOS project yet. The plan is a
+    .NET for macOS + SwiftUI head that reuses the iOS SwiftUI feature views, so keep those
+    views free of iOS-only assumptions where that costs nothing. Do not start it until the
+    Captain asks.
+- **MAUI apps:** .NET MAUI Blazor Hybrid heads that share one Razor UI across Android, iOS,
+  Mac Catalyst, macOS and Windows. They were the first clients and they are not being retired.
+  MAUI gets features through the shared Razor UI, not through MAUI-only screens. API, sync,
+  schema, shared-service and shared Razor UI changes must keep the MAUI heads building,
+  migrating existing device databases without losing rows, and syncing with the same owner
+  checks.
+- **Web:** the Blazor WebApp, using the same shared Razor UI.
+
+Windows and Linux native heads are out of scope until the Captain adds them. Parity covers
+every client (web, MAUI, native heads, the future Flutter port). Never write "both apps".
+
+## Project map
+
+All under `src/`. The project files are the source of truth for target frameworks.
+
+| Project | What it is |
+|---|---|
+| `SentenceStudio.Native` | Shared native layer (`net11.0`): presenters, state, workflows, navigation destinations. No platform UI types. |
+| `SentenceStudio.Native.iOS` | Native iOS head (SwiftUI). |
+| `SentenceStudio.Native.Android` | Native Android head (Compose). |
+| `SentenceStudio.UI` | Shared Razor UI for the WebApp and the MAUI heads. |
+| `SentenceStudio.Android`, `.iOS`, `.MacCatalyst`, `.MacOS`, `.Windows` | MAUI Blazor Hybrid heads. |
+| `SentenceStudio.ShareExtension`, `SentenceStudio.Sharing` | iOS share extension for the MAUI iOS app and its shared code. |
+| `SentenceStudio.MauiCompatibility`, `SentenceStudio.MauiServiceDefaults` | MAUI-head support only. Never a dependency of the WebApp, API, Workers, shared libraries, tests or native heads. |
+| `SentenceStudio.WebApp` | Blazor WebApp. |
+| `SentenceStudio.Api`, `SentenceStudio.Workers` | Web API and background workers (`net10.0`). |
+| `SentenceStudio.Shared` | Data, EF migrations for both providers, repositories, sync and services used by every client and the server (`net10.0`). |
+| `SentenceStudio.AppLib` | Client application services used by the native heads, the MAUI heads and the WebApp (`net11.0`). |
+| `SentenceStudio.Domain`, `.Contracts`, `.Application`, `.Infrastructure` | Domain types, API contracts and server-side layers (`net10.0`). |
+| `SentenceStudio.AppHost`, `.ServiceDefaults`, `.WebServiceDefaults` | Aspire AppHost and service defaults. |
+| `SentenceStudio.Marketing` | Marketing site. |
+
+Tests are under `tests/`; the native ones are `SentenceStudio.Native.Tests`,
+`.Native.iOS.Tests`, `.Native.Android.Tests` and `.Native.SwiftUIViews.Tests`.
 
 ## Native UI rules
 
@@ -37,17 +69,20 @@ these rules (decision history, quotes, longer explanations, the review checklist
   asking. Keep defaults for existing callers, read the framework source and prior art
   (Comet in `~/work/maui-labs`, read-only), add tests, keep the build/review/running-app
   gates. This does not cover new dependencies, architecture changes, upstream publishing or
-  UIKit.
+  UIKit. When the pinned bridge version changes, change it in
+  `src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj` and in both
+  `microsoft.swiftui/<version>` inputs of `.github/validation.json` (the check list the
+  `verify-work` skill runs) in the same change.
 - No MAUI UI stack in native code (`Microsoft.Maui.Controls*`, XAML, Shell, handlers,
   MauiReactor, MAUI Community Toolkit UI, BlazorWebView, Comet). Non-UI `Microsoft.Maui.*`
   packages such as Essentials are allowed after checking their dependency closure.
-- Native code lives under `src/SentenceStudio.Native/`. Shared native projects hold state,
-  workflows, navigation destinations, validation, text keys and service interfaces, with no
-  platform UI types. Reuse the existing domain, sync, grading, progress, localization and AI
-  logic; never copy business rules per platform.
+- Native code lives in the three `src/SentenceStudio.Native*` projects (see the project map).
+  The shared one holds state, workflows, navigation destinations, validation, text keys and
+  service interfaces, with no platform UI types. Reuse the existing domain, sync, grading,
+  progress, localization and AI logic; never copy business rules per platform.
 - Ailoha stays out of reusable libraries and Release builds; Debug app heads only.
 - Compose: Material 3, stable test tags, verify Debug and Release/R8.
-- iPhone/iPad layouts adapt; macOS behaves like a desktop app.
+- iPhone/iPad layouts adapt. When the macOS head exists it behaves like a desktop app.
 - Every control has a role, accessible name, state and stable automation ID. Do not use color
   alone. Lists virtualize. Safe areas are handled once. No emoji in UI, logs or text.
 
@@ -76,8 +111,12 @@ these rules (decision history, quotes, longer explanations, the review checklist
 - **Review before device testing.** Run the code review on the diff before the simulator or
   phone round, fix its findings, then test once.
 - Use the scripts below instead of rebuilding their commands from the runbook.
-- Prefer doing focused work directly over spawning subagents; fan out only for large,
-  independent work with separate file ownership.
+- Do the work directly. Fan out to subagents or parallel worktrees only when the Captain asks
+  for it. When planning, say where parallel work would help (independent pieces with separate
+  file ownership and their own devices) and let him approve it.
+- When a tool blocks the work (Ailoha, MAUI DevFlow, the bridge), fixing the tool is part of
+  the task: find the cause, fix it locally, and open a PR to the tool's repo when the fix is
+  general. Ask before opening the PR.
 - Always pass the active user ID to progress and owner-scoped queries.
 - Add regression tests when a bug recurs. Reuse existing helpers before adding abstractions.
 - Check prior sessions and docs before asking the Captain to repeat context.
@@ -96,7 +135,9 @@ these rules (decision history, quotes, longer explanations, the review checklist
   fresh assemblies, shim, Release has no Ailoha, profile).
 - `scripts/ios-sim.sh [UDID]`: build, install, launch and confirm on a simulator.
 - `scripts/ios-phone.sh Duotopia|DX24 [--yes]`: Release build against production and install
-  over the existing app. Pass `--yes` only after the Captain approves that install.
+  over the existing app. Pass `--yes` only after the Captain approves that install. Once he
+  has, finish it without further questions: the script ends a running SentenceStudio on the
+  phone and installs.
 - `scripts/prod-db-access.sh status|open|close|backup`: production database access and the
   Step 1 backup, with the server lock restored.
 - `scripts/prod-deploy.sh check|deploy|after`: Option A deploy with the Sam settings and
@@ -104,8 +145,9 @@ these rules (decision history, quotes, longer explanations, the review checklist
 
 ## Git
 
-- The Captain is a solo developer. Work on a branch. Run code review before every push and fix
-  its findings. Push only after the Captain approves.
+- The Captain is a solo developer. `main` is the trunk and production deploys from it. Work on
+  one branch at a time, cut from `main`, and merge it before starting the next. Run code review
+  before every push and fix its findings. Push only after the Captain approves.
 - "Merge to main" or "ship it" means merge directly to `main`, no PR unless asked.
 - Autonomous cloud issue work still delivers through a PR.
 - Never rewrite history, force-push, amend, discard uncommitted changes, or use a bare
@@ -123,10 +165,13 @@ these rules (decision history, quotes, longer explanations, the review checklist
 - Native heads: simulator/emulator before a device, Ailoha Debug only, verify app ID,
   process, binary and visible state, act through stable IDs, and confirm state changed.
 - WebApp: run through Aspire with isolated database and storage; drive it with Playwright.
-- Old MAUI heads: reference capture only, through the `maui-devflow-debug` skill.
+- MAUI heads: build, run and inspect through the `maui-devflow-debug` skill (MAUI DevFlow).
+  For desktop MAUI work use the macOS (AppKit) head, `net11.0-macos`, not Mac Catalyst, unless
+  the Captain names Catalyst. A MAUI result does not verify a native head, and the reverse.
+- The `e2e-testing` skill says which tool to use for each kind of project.
 - **Devices:** DX24, Pixel 5, the Captain's Mac and Duotopia are production. Never uninstall,
-  clear, reset or replace their apps without permission in that turn. The macOS proof uses a
-  separate Debug bundle ID and sandbox.
+  clear, reset or replace their apps without permission in that turn. Any future native macOS
+  Debug build uses a separate bundle ID and sandbox from the production app.
 
 ## Validation
 
@@ -157,8 +202,11 @@ these rules (decision history, quotes, longer explanations, the review checklist
   resolves the owner from the trusted user scope. An absent owner means no data and no write,
   logged; never an unfiltered query, never a guessed owner. Prove two-user isolation with real
   database tests.
-- Do not run automatic orphan recovery or enable `enable_automatic_data_recovery` without
-  reading `.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`.
+- Do not run automatic orphan recovery or enable `enable_automatic_data_recovery`. It once
+  retagged the Captain's data to a test account that signed in on his device. The service
+  (`src/SentenceStudio.Shared/Data/DataRecoveryService.cs`) stays off by default and must keep
+  its safeguards: email match, temporal sanity, one run per user, masked logging. Turning it
+  on needs the Captain's approval after a confirmed server wipe.
 
 ## Migrations and sync
 

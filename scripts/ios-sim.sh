@@ -5,7 +5,10 @@
 #
 # With no UDID it uses the one booted simulator (and stops if none or several are booted).
 # Do not point it at a clone of a signed-in simulator: clones share one refresh token.
-# Duo simulators (iOS 27.1) cannot be screenshotted; an iPhone 18 Pro on iOS 27.0 can.
+# Screenshots: a Duo simulator (iOS 27.1) has two displays, so plain
+# `xcrun simctl io <udid> screenshot` fails with "Invalid argument"; pass --display=1 for the
+# outer screen. `ailoha ios ui screenshot` also works when the build carries the Ailoha agent
+# (see the e2e-testing skill for the two build properties).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

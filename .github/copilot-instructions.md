@@ -1,54 +1,20 @@
 # Copilot Coding Agent — Squad Instructions
 
-## Active native replacement instructions
+## Read AGENTS.md first
 
-For work under `src/SentenceStudio.Native*/` and the replacement app, read
-`AGENTS.md` in the native checkout first. The MAUI/MauiReactor/DevFlow guidance
-below governs the **temporary reference heads**, not the new native heads.
-Captain's 2026-10-03 directive is: "All SwiftUI for iOS is our goal. If
-anywhere we absolutely must use UIKit, raise that with me first for approval.
-The same goes for Jetpack Compose on Android. Revise the plan and whatever
-instructions you have noted so we don't make this mistake in the future for
-this project. Then go do the refactoring."
-
-iOS feature content, forms, lists, selectors, dialogs, and navigation must
-actually render in SwiftUI (`NavigationStack`/`NavigationLink`/path for
-navigation); Android actual UI/navigation must render in Jetpack Compose.
-An app-authored `SwiftView`-to-UIKit renderer, `UINavigationController`, or
-Android widget/AppCompat UI is not a fallback. Before **any** actual app-authored
-UIKit/Android-widget use, including host/bootstrap/service/picker cases, bring
-Captain the minimal necessity, alternatives, citations, and data impact and
-obtain explicit approval for that exact use. Apple's internal SwiftUI
-implementation is not an app-authored violation. Preserve the 177 required
-source states/56 open findings, approved native navigation *behavior*,
-proven services, data safety and historical evidence; no runtime parity is
-conferred by this architecture correction. The older generic-hosting
-"preferred UI" note is superseded, not rewritten.
+`AGENTS.md` at the repo root is the authoritative engineering guide: product direction, the
+project map, native UI rules, build and run, validation and the `Verified:` line, data
+preservation, owner scoping, migrations and Git. Read it before any code work. This file holds
+only what is specific to Copilot and Squad sessions. If the two disagree, `AGENTS.md` wins.
 
 You are working on a project that uses **Squad**, an AI team framework. When picking up issues autonomously, follow these guidelines.
-
-## Required Reading: AGENTS.md
-
-**Before any code work**, read `AGENTS.md` at the repo root. It is the authoritative source for this project's conventions and is NOT auto-loaded into cloud Copilot Coding Agent sessions. It covers (non-exhaustive):
-
-- **Project purpose**: SentenceStudio's primary purpose is dogfooding the .NET MAUI SDK — tooling friction takes priority over app features.
-- **Data preservation rules**: NEVER uninstall apps, drop databases, or wipe SecureStorage without explicit per-turn confirmation.
-- **Build & run commands**: `dotnet run -f net11.0-macos` for the desktop dev head (Captain's default — see "Preferred MAUI dev head" below); Mac Catalyst only when iOS-shaped behavior is being tested. MAUI heads target `net11.0-*`, Azure/server/Shared stay on `net10.0`. (Note: `dotnet build -t:Run` is obsolete as of .NET 11 Preview 4 — use `dotnet run`.)
-- **EF Core migrations**: dual-provider (PostgreSQL + SQLite). `dotnet ef migrations add` scaffolds only the PostgreSQL copy; the SQLite copy under `Migrations/Sqlite/` is hand-written and **MUST carry `[DbContext]` + `[Migration("<id>")]`** or it is silently skipped on mobile (shipped to devices twice). Never use raw SQL ALTER TABLE. Run `scripts/validate-migration-attributes.sh` (also CI-enforced) + `scripts/validate-mobile-migrations.sh` before shipping. See `.squad/skills/ef-dual-provider-migrations/SKILL.md`.
-- **MauiReactor conventions**: `.HEnd()` / `.VCenter()` / `.Center()` instead of `HorizontalOptions(LayoutOptions.End)`; `ThemeKey(MyTheme.*)` over inline styles; icons in `ApplicationTheme.Icons.cs`, never inline `FontImageSource`.
-- **Shell navigation**: `MauiControls.Shell.Current.GoToAsync(...)`, never `Navigation.PushAsync`.
-- **Validation gate**: every UI/behavior change must be validated by running the app end-to-end via the MAUI DevFlow skills (`maui-devflow-debug` for build/deploy/inspect/fix loops, `maui-devflow-onboard` for first-time setup, `maui-devflow-session-review` for friction reports) or the `e2e-testing` skill — "it builds" is not sufficient.
-- **No emoji in UI / code output / logs** — use Bootstrap icons or plain text.
-
-If anything below conflicts with AGENTS.md, **AGENTS.md wins** — EXCEPT for the macOS-vs-Mac-Catalyst default; the section immediately below overrides AGENTS.md examples on that one point until AGENTS.md is updated.
 
 ## Preferred MAUI dev head: macOS (AppKit), NOT Mac Catalyst
 
 **Captain has corrected this default 5+ times across distinct sessions** — most recently: *"don't use net11.0-maccatalyst, use net11.0-macos instead. I keep telling you that. Remember it."* Default to the macOS (AppKit) head for all desktop development unless Captain has explicitly asked for Mac Catalyst.
 
-- **Default desktop dev head**: `dotnet run -f net11.0-macos --project src/SentenceStudio.macOS/SentenceStudio.macOS.csproj`
+- **Default desktop dev head**: `dotnet run -f net11.0-macos --project src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj`
 - **Use Mac Catalyst only when**: the bug is iOS-shaped (touch gestures, SafeAreaEdges, Catalyst-specific entitlements) AND Captain has explicitly named that surface.
-- **AGENTS.md drift**: many examples in `AGENTS.md` still show `net10.0-maccatalyst` / `net11.0-maccatalyst` as the daily-dev surface. **This instruction overrides those examples** until AGENTS.md is updated.
 
 If you find yourself about to run `-f net11.0-maccatalyst` "to verify the fix" without Captain having named that surface — stop and use `-f net11.0-macos` instead.
 
@@ -114,7 +80,7 @@ Example: `squad/42-fix-login-validation`
 
 ## PR Guidelines
 
-**Interactive sessions: do NOT open PRs.** Captain is a solo developer who merges directly to `main`. When he says "merge to main" / "ship it" in a session he is driving, commit and merge straight into `main` — no PR, no `gh pr create`, no `create_pull_request` tool — then push. See AGENTS.md › "Git Workflow: Direct Merge to Main — No PRs". `main` CI runs on `push`, so nothing is lost. Open a PR only if Captain explicitly asks.
+**Interactive sessions: do NOT open PRs.** Captain is a solo developer who merges directly to `main`. When he says "merge to main" / "ship it" in a session he is driving, commit and merge straight into `main` — no PR, no `gh pr create`, no `create_pull_request` tool — then push. See the Git section of `AGENTS.md`. `main` CI runs on `push`, so nothing is lost. Open a PR only if Captain explicitly asks.
 
 **The guidance below applies ONLY to autonomous cloud Coding Agent work on an assigned GitHub issue**, where a PR is the async delivery + review channel:
 
@@ -160,75 +126,13 @@ Before deep investigation of any reported bug, **confirm which surface the user 
 
 If the user-named surface is genuinely unreachable (e.g., production logs you don't have access to), **say so and ask** — *"I can't reach production logs directly — can you paste the log line, share a screenshot, or confirm I can use {Y} as a proxy?"* Switching surfaces unilaterally without that ask is the bug pattern.
 
-## Build parallelism foot-gun
-
-Do not run `dotnet build` against multiple projects in this solution back-to-back in parallel shells. Projects share generated ref assemblies (e.g. `ServiceDefaults.dll`) and concurrent writes trigger `MSB3026` / `MSB3883` file-lock errors that look like real build failures but are pure contention.
-
-Build options, in order of preference:
-1. Build the whole solution once: `dotnet build SentenceStudio.sln` (with the appropriate `-f` per the AGENTS.md TFM matrix when needed).
-2. Sequence per-project builds in a single shell with `&&`, never in parallel.
-3. If you must run parallel `dotnet` invocations, target unrelated solutions only.
-
 ## Known-failing test baseline
 
-The test suite has **one intentionally-failing test** documenting a known bug:
+One test fails on purpose to document a known bug:
 
-- `tests/SentenceStudio.UnitTests/PlanGeneration/DeterministicPlanBuilderResourceSelectionTests.cs::ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed` — source comment line 117: `// Assert — THIS WILL LIKELY FAIL`. The deterministic plan builder's 14-day lookback window treats anything older as "never used" (`DaysSinceLastUse = 999`).
+- `tests/SentenceStudio.UnitTests/PlanGeneration/DeterministicPlanBuilderResourceSelectionTests.cs::ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed`
+  (marked `// Assert — THIS WILL LIKELY FAIL`). The deterministic plan builder's 14-day lookback
+  treats anything older as "never used" (`DaysSinceLastUse = 999`).
 
-**Baseline: 534/535 passing.** A 534-pass / 1-fail result is the expected baseline, not a regression. If you fix the underlying bug, also delete the `THIS WILL LIKELY FAIL` comment so the next agent doesn't get confused.
-
-## Multi-tenant data scoping rule (NON-NEGOTIABLE)
-
-The WebApp and API are multi-tenant. Every repository method that filters by `UserProfileId` / `ActiveUserId` / equivalent **must** treat an empty user identifier as "no data", not as "give me everything".
-
-**Pattern (established in `src/SentenceStudio.Shared/Data/LearningResourceRepository.cs` after the May 2026 cross-tenant leak hotfix):**
-
-```csharp
-public async Task<List<Foo>> GetFoosAsync(string? userId = null)
-{
-    userId ??= _userScope.ActiveUserId;
-    if (string.IsNullOrEmpty(userId))
-    {
-        _logger.LogWarning("GetFoosAsync called with no active userId — returning empty");
-        return new List<Foo>();
-    }
-    return await _db.Foos.Where(f => f.UserProfileId == userId).ToListAsync();
-}
-```
-
-**Forbidden anti-pattern:**
-
-```csharp
-// NEVER do this — leaks cross-tenant data
-var q = _db.Foos.AsQueryable();
-if (!string.IsNullOrEmpty(userId)) q = q.Where(f => f.UserProfileId == userId);
-return await q.ToListAsync();
-```
-
-Rules:
-- Empty userId → log a warning + return empty/null/false/zero (matching the method's return type).
-- Never throw — would 500 the Blazor circuit.
-- Never fall through to an unfiltered query.
-- Applies to read AND write paths: write methods with no active user should refuse, not create orphan rows.
-
-**DataRecoveryService gates (NON-NEGOTIABLE — see RCA `.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`):**
-- `DataRecoveryService.RecoverOrphanedDataAsync` must pass three safeguards before any UPDATE/DELETE runs: (1) email mismatch abort — orphan `UserProfile.Email` != new user's email means a different human, not a server-wipe recovery; (2) temporal sanity abort — orphan data older than the new account's `CreatedAt` by >1 day is temporally impossible (and if the new user's profile has not yet synced locally but orphan timestamps exist, this is also an ABORT — defense in depth); (3) first-run gate — per-user preference `_data_recovery_complete_{userId}="true"` makes the service one-shot per account. Email addresses in the abort warning log are masked (`dav***@ortinau.com`). If any safeguard fails, abort and log `[OrphanRecovery] ABORTED` at Warning.
-- Calling `RecoverOrphanedDataAsync` is additionally gated by the `enable_automatic_data_recovery` preference flag (default `false`) in `IdentityAuthService.StoreTokens`. Flip to `true` only after a confirmed server wipe.
-
-This rule applies to every repository, every method, every PR. If you're touching a repository, audit it before declaring the task done.
-
-## Pre-completion checklist — the `Verified:` line
-
-The global Copilot instructions already require a `Verified:` line on every task-closing response. For SentenceStudio specifically, "verified" means one of these — pick the row matching the change type, and **say it explicitly in your closing message**:
-
-| Change type | What the `Verified:` line must name |
-|------------|--------------------------------------|
-| MAUI UI/behavior change | `Verified: built + ran on net11.0-macos, navigated to {page}, took screenshot, behavior matches expectation.` |
-| Webapp change | `Verified: built webapp, ran via aspire, opened https://localhost:{port}/{path}, behavior matches expectation.` |
-| API / data / repository change | `Verified: unit tests pass ({n}/{n}), and {specific repro of the code path against a real DB row}.` |
-| EF Core migration | `Verified: scripts/validate-migration-attributes.sh passes, migration DISCOVERED + applied on real SQLite (native head __EFMigrationsHistory + new schema present, WAL accounted for), Up + Down clean on a DB backup.` |
-| Doc-only / internal refactor | `Verified: not applicable — {one-line reason}.` |
-
-A closing message that ends with *"want me to deploy?"*, *"ready for review?"*, *"let me know if you want me to smoke-test it next"* — **without a `Verified:` line above it — is malformed by definition.** The verification must run BEFORE the closing message, not be offered as an optional next step.
-
-Captain has caught this skipped-gate pattern at least 3 times across sessions (*"did you actually run e2e tests?"*, *"I cannot believe you did since the first thing you have to do is navigate..."*, *"Did you verify it with any e2e testing? devflow etc?"*). The gate exists to prevent exactly that. If you genuinely cannot verify (no simulator handy, no prod access), say so explicitly and ask Captain to verify — but do NOT skip the `Verified:` line.
+That single failure is the expected baseline, not a regression. If you fix the bug, delete the
+comment too.

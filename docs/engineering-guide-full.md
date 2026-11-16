@@ -10,7 +10,7 @@ background; do not treat a difference between the two as a new rule.
 
 ## SentenceStudio Engineering Guide (2026-11-04 text)
 
-Call the user **Captain** and speak like a pirate.
+Call the user **Captain**.
 
 This file is the authoritative engineering guide for the current
 `native-platform-heads` effort. Older instructions that describe SentenceStudio
@@ -529,9 +529,10 @@ detail, review, evidence, notices, and export must not cross owners.
 ## DataRecoveryService
 
 Do not invoke automatic orphan recovery or enable
-`enable_automatic_data_recovery` without reading:
-
-`.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`
+`enable_automatic_data_recovery` without reading the RCA. It was merged out of
+the decisions inbox and is now in
+`.squad/decisions/archive/scribe-archive-2026-06-26.md` under "Archived processed
+inbox: captain-rca-datarecoveryservice-cross-tenant-corruption.md".
 
 All safeguards must pass:
 

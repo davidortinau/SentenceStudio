@@ -6,7 +6,7 @@ description: >
   "does it work", "try it", "make sure", or any variation of testing a feature or fix in a running app.
   Also use after EVERY bug fix or feature implementation as a mandatory final verification step — even
   if you think a build check is enough. Covers: launching via Aspire, interacting with Playwright (webapp)
-  or Ailoha (replacement native heads) or maui-devflow-debug (reference MAUI heads),
+  or Ailoha (native SwiftUI/Compose heads) or maui-devflow-debug (MAUI Blazor Hybrid heads),
   verifying UI state, checking database records, and reading structured logs.
   If someone asks you to test anything in this app, or to verify a fix works, or to run a smoke test,
   or to check that CRUD operations work, or to confirm audio/quiz/import/activity features behave correctly
@@ -25,28 +25,31 @@ The rule is simple: **if you changed it, you test it**.
 - After refactoring — verify existing behavior is preserved
 - When the user asks you to test something
 
-## Testing Platforms
+## Which tool for which project
 
-For the replacement app, use the native checkout's `AGENTS.md` and the
-current rebuild session's persistent `files/native-platform-rebuild.json`
-state matrix. Runtime checks must
-exercise **actual SwiftUI-rendered** iOS screens/navigation and **actual
-Jetpack Compose-rendered** Android screens/navigation. A `SwiftView` declaration
-translated to UIKit, a SwiftUI host around UIKit content, a UIKit navigation
-stack, and an Android widget/AppCompat screen do not meet this gate without
-Captain's prior explicit approval for the exact use. Preserve all source
-controls/behavior; old renderer captures remain historical until recaptured.
-Use Ailoha for replacement-head UI actions; DevFlow is for old MAUI reference
-heads only.
+SentenceStudio ships as a WebApp, as MAUI Blazor Hybrid apps and as native heads. All three are
+current products. Pick the tool by the project that changed, and test that project: a result on
+one kind of client does not verify another.
 
-| Platform | Tool | When to use |
-|----------|------|-------------|
-| **Webapp** (Blazor Server) | Aspire + **Canvas browser** (Playwright fallback) | When the WebApp/shared workflow is changed |
-| **Replacement iOS / Android / macOS** | Ailoha Debug plus current binary and runtime evidence | Test the actual changed platform and required states |
-| **Temporary MAUI reference heads** | maui-devflow-debug skill | Reference capture only, not replacement-head validation |
+| What changed | Projects | Build and run | Drive and inspect |
+|---|---|---|---|
+| WebApp | `src/SentenceStudio.WebApp` | Aspire (see *Webapp Testing Workflow*) | Canvas browser, Playwright as fallback |
+| Native iOS (SwiftUI) | `src/SentenceStudio.Native.iOS` | `scripts/ios-sim.sh [UDID]` | Ailoha (`ailoha ios ...`), `xcrun simctl`, mobile-canvas |
+| Native Android (Compose) | `src/SentenceStudio.Native.Android` | `dotnet build` the project for `net11.0-android`, install on an emulator | Ailoha (`ailoha android ...`, the `ailoha-android-devflow` skill), `adb` |
+| MAUI heads (Blazor Hybrid) | `src/SentenceStudio.MacOS`, `.MacCatalyst`, `.iOS`, `.Android`, `.Windows` | `maui-devflow-debug` skill | MAUI DevFlow (`maui devflow ...`), including its Blazor WebView tools |
+| Shared Razor UI | `src/SentenceStudio.UI` | WebApp first, then one MAUI head | Both rows above |
+| Shared code used by every client | `src/SentenceStudio.Shared`, `src/SentenceStudio.AppLib`, API | Focused tests, then the smallest journey on each kind of client it reaches | The matching rows above |
+| Shared native layer | `src/SentenceStudio.Native` | `tests/SentenceStudio.Native.Tests`, then both native heads | Ailoha |
 
-Test the surface that changed; do not substitute a WebApp or old MAUI result
-for a replacement native-head journey.
+Rules that follow from the table:
+
+- Ailoha is for the native heads. MAUI DevFlow is for the MAUI heads. Neither tool can see the
+  other kind of app, so do not try one because the other is failing.
+- Native runtime checks must exercise actual SwiftUI-rendered iOS screens and actual
+  Compose-rendered Android screens (see `AGENTS.md`, Native UI rules).
+- There is no native macOS head yet. Desktop testing today means the MAUI macOS (AppKit) head.
+- If the tool itself is the blocker, fixing it is part of the task (see `AGENTS.md`, Working
+  style). Check that the app actually carries the agent before blaming the tool.
 
 ## Browser: Canvas First
 
@@ -204,12 +207,62 @@ See [webapp-gotchas.md](references/webapp-gotchas.md) for the full DB verificati
 Stop **only the stack you started**. If you started an isolated agent stack, stop that one and
 leave the human's `https://localhost:7071` running.
 
-## Native App Testing Workflow
+## Native Head Testing Workflow (SwiftUI and Compose)
 
-Use the **maui-devflow-debug** skill for native testing. Key commands:
+### iOS
 
 ```bash
-# Build and run the macOS head (preferred native surface)
+# Build, install, launch and confirm on a simulator (the one booted simulator if no UDID)
+scripts/ios-sim.sh <UDID>
+```
+
+The Ailoha agent is opt-in for Debug builds, so a plain build cannot be driven by Ailoha
+(`ailoha ios diagnose` shows `agent_count: 0` and screenshots fail with "Failed to capture
+screenshot"). To include it, build the Debug shim once and pass both properties:
+
+```bash
+# Once per agent framework. The script refuses to overwrite, so give it a fresh directory.
+AILOHA_DEBUG_BUILD_ROOT=<scratch>/ailoha-debug \
+  bash src/SentenceStudio.Native.iOS/scripts/build-ailoha-debug.sh <path>/AilohaAgent.xcframework
+
+scripts/ios-sim.sh <UDID> -- \
+  -p:AilohaAgentXCFramework=<path>/AilohaAgent.xcframework \
+  -p:AilohaDebugShimXCFramework=<scratch>/ailoha-debug/AilohaDebugShim.xcframework
+
+ailoha ios diagnose                      # agent_count 1, port 9233
+ailoha ios ui tree --depth 3
+ailoha ios ui screenshot --output shot.png
+```
+
+Use an agent framework built from the fork with the SwiftUI fixes
+(`~/work/ailoha-swiftui/artifacts/swift-local-scroll/AilohaAgent.xcframework`); the official
+0.1.13 agent cannot tap SwiftUI controls.
+
+Screenshots without Ailoha: `xcrun simctl io <UDID> screenshot shot.png`. An iPhone Duo
+simulator has two displays, so add `--display=1` (outer screen); without it the command fails
+with "Invalid argument". Both the simctl and the Ailoha screenshot were confirmed on an iPhone
+Duo simulator (iOS 27.1) on 2026-11-15.
+
+The simulator build talks to the local AppHost at `http://localhost:5081`. If it is not
+running, the app shows "Cannot reach the server" on sign-in.
+
+### Android
+
+```bash
+dotnet build src/SentenceStudio.Native.Android/SentenceStudio.Native.Android.csproj \
+  -f net11.0-android -c Debug -m:1
+```
+
+Install on an emulator, then use `ailoha android ...` and the `ailoha-android-devflow` skill.
+Ailoha screenshots do not include popup windows (menus): use `adb exec-out screencap` for
+those. Verify Release/R8 as well as Debug.
+
+## MAUI Head Testing Workflow (Blazor Hybrid)
+
+Use the **maui-devflow-debug** skill. Key commands:
+
+```bash
+# Build and run the macOS (AppKit) head, the default desktop surface
 dotnet run -f net11.0-macos --project src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj
 
 # Verify integration health, then wait for the agent
@@ -223,6 +276,8 @@ maui devflow ui screenshot --output test.png
 # Check logs
 maui devflow logs --limit 20
 ```
+
+Use Mac Catalyst only when the Captain names it.
 
 ## Test Users
 
@@ -281,7 +336,7 @@ Click any 🔊 button and verify:
 2. Button returns to normal (playback complete)
 3. No errors in browser console or Aspire logs
 
-On webapp, audio uses JS interop (`audioInterop.js`). On native, it uses `Plugin.Maui.Audio`.
+On webapp, audio uses JS interop (`audioInterop.js`). On the MAUI heads, it uses `Plugin.Maui.Audio`.
 
 ### AI calls succeed through Aspire
 
@@ -376,7 +431,7 @@ var words = await context.VocabularyWords
 When retagging user IDs (e.g., merging anonymous → authenticated user data):
 1. **Clear CoreSync tracking tables** after retagging — sync won't upload retagged data if the old tracking entries still exist
 2. Handle `UNIQUE` constraint conflicts — the target user may already have some of the same data
-3. Use the `DataRecoveryService` pattern: scan all user-scoped tables, retag orphans, handle conflicts gracefully
+3. Do not run or imitate `DataRecoveryService` to do this. Automatic orphan recovery is off by default and stays off without the Captain's approval (see `AGENTS.md`, Owner scoping): it once retagged his data to a test account
 
 ---
 
@@ -385,9 +440,9 @@ When retagging user IDs (e.g., merging anonymous → authenticated user data):
 **Any PR that adds or modifies an EF Core migration MUST pass `scripts/validate-mobile-migrations.sh` before the author can claim the work item complete.**
 
 This script:
-- Builds the Mac Catalyst Debug head
+- Builds the MAUI macOS (`net11.0-macos`) Debug head
 - Launches it via `maui devflow`
-- Scans the first 15s of native logs for migration failures or schema sanity check errors
+- Scans the first 15s of its logs for migration failures or schema sanity check errors
 - Fails with exit code 1 if any migration errors are detected
 
 **If the script reports failures, FIX THE MIGRATION — do not deploy.** Schema integrity is non-negotiable.
@@ -399,7 +454,7 @@ bash scripts/validate-mobile-migrations.sh
 
 Expected output on success:
 ```
-✅ Mobile migrations validated on net10.0-maccatalyst — no errors found
+(a line reporting that mobile migrations validated with no errors)
 ```
 
 On failure, the script will print the full native log showing the error context. Common failure modes:
