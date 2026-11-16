@@ -7,9 +7,9 @@
     A person the API refuses sees the app's ordinary "Page not found".
 
     The request is made in the live circuit only. A prerender draws the same waiting mark for
-    everyone, so no admin content is ever in the HTML a browser first receives. (That first
-    response is still the app shell with status 200, as for any page of the app; the API routes
-    are where a refusal is a bare 404.)
+    everyone, under an id that says nothing about what it waits for, so no admin content is ever
+    in the HTML a browser first receives. (That first response is still the app shell with
+    status 200, as for any page of the app; the API routes are where a refusal is a bare 404.)
 *@
 
 @switch (_state)
@@ -31,7 +31,7 @@
         break;
 
     default:
-        <div class="d-flex justify-content-center align-items-center py-5" id="admin-gate-loading" role="status">
+        <div class="d-flex justify-content-center align-items-center py-5" id="page-loading" role="status">
             <span class="spinner-border text-primary" aria-hidden="true"></span>
             <span class="visually-hidden">Loading&hellip;</span>
         </div>
@@ -55,15 +55,35 @@
     [Parameter, EditorRequired]
     public Func<Task<AdminApiStatus>> Load { get; set; } = default!;
 
+    private bool _asking;
+
     protected override Task OnInitializedAsync() =>
         RendererInfo.IsInteractive ? AskAsync() : Task.CompletedTask;
 
     /// <summary>
-    /// Asks again in the same circuit. "Try again" comes here rather than to a reload, which
-    /// would start a new circuit and throw away a password the admin has just confirmed.
+    /// Asks again in the same circuit, for a page whose own "Try again" should re-run its first
+    /// request. Not a reload: that starts a new circuit and throws away a password the admin has
+    /// just confirmed.
     /// </summary>
+    public async Task RetryAsync()
+    {
+        var asking = AskAsync();
+        StateHasChanged();
+        await asking;
+        StateHasChanged();
+    }
+
     private async Task AskAsync()
     {
+        // One ask at a time. A second click can still arrive after the button it came from has
+        // been replaced by the waiting mark; two requests would be two audit rows, and the later
+        // answer would decide the gate.
+        if (_asking)
+        {
+            return;
+        }
+
+        _asking = true;
         _state = GateState.Waiting;
         try
         {
@@ -81,6 +101,10 @@
             // tells the admin nothing.
             Logger.LogError(ex, "[Admin] An admin page's first request threw");
             _state = GateState.Unavailable;
+        }
+        finally
+        {
+            _asking = false;
         }
     }
 

@@ -43,10 +43,18 @@ internal readonly record struct AdminPasswordCheckResult(AdminPasswordVerdict Ve
 /// <para>
 /// <b>Once counted, always settled.</b> Counting first means a check that stops half way leaves
 /// a wrong guess on the account whatever the password was. So the caller's cancellation is
-/// honoured only until the attempt is counted; from there the check runs to its verdict and
-/// writes it, even when the caller has stopped waiting. (The web app waits 15 seconds. Without
-/// this, a slow database would cost an admin an attempt for each right password it timed out on,
-/// and five of them a lockout.)
+/// honoured only before the attempt is counted. From there the check runs to its verdict on its
+/// own clock (<see cref="SettleTimeout"/>), even when the caller has stopped waiting, and an
+/// attempt that reaches no verdict (a database fault, the clock running out) is taken back off
+/// the count. Only a password that was looked at and found wrong stays counted. (The web app
+/// waits 15 seconds. Without this, a slow database would cost an admin an attempt for each right
+/// password it timed out on, and five of them a lockout.)
+/// </para>
+/// <para>
+/// <b>The count never goes below zero.</b> An attempt that finds the account locked takes itself
+/// back off the count. In a burst, the attempt that earns the lock also resets the count, so the
+/// attempts counted before it and refused after it have nothing left to take back; subtracting
+/// anyway would leave a negative count, which is that many extra guesses once the lock ends.
 /// </para>
 /// </remarks>
 internal sealed class AdminPasswordCheck(
@@ -56,68 +64,116 @@ internal sealed class AdminPasswordCheck(
     TimeProvider time,
     ILogger<AdminPasswordCheck> logger)
 {
+    /// <summary>How long a counted attempt may take to reach its verdict.</summary>
+    internal static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long taking back an attempt that reached no verdict may take.</summary>
+    internal static readonly TimeSpan UndoTimeout = TimeSpan.FromSeconds(5);
+
     public async Task<AdminPasswordCheckResult> CheckAsync(
         string userId, string password, CancellationToken cancellationToken)
     {
+        // The last moment the caller can leave without a trace: see the remarks.
+        cancellationToken.ThrowIfCancellationRequested();
+
         var lockout = identity.Value.Lockout;
         var now = time.GetUtcNow();
         var account = db.Users.Where(u => u.Id == userId);
 
+        // Not the caller's token, from the count on. A cancellation that lands while the count is
+        // on the wire can still be committed by the database, and then nothing would settle it.
+        using var budget = new CancellationTokenSource(SettleTimeout);
+        var settle = budget.Token;
+
         var counted = await account.ExecuteUpdateAsync(
             update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1),
-            cancellationToken);
+            settle);
         if (counted == 0)
         {
             return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
         }
 
-        // The attempt is on the account now. Nothing below may be abandoned: see the remarks.
-        var settle = CancellationToken.None;
-
-        var state = await account
-            .AsNoTracking()
-            .Select(u => new { u.AccessFailedCount, u.LockoutEnd })
-            .SingleAsync(settle);
-
-        if (state.LockoutEnd > now)
+        var foundWrong = false;
+        try
         {
-            // Already locked: this attempt was never going to be looked at, so it does not count
-            // toward the next lockout either.
-            await account.ExecuteUpdateAsync(
-                update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount - 1),
-                settle);
-            logger.LogWarning("Admin password check refused for user {UserId}: account locked out", userId);
-            return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
-        }
+            var state = await account
+                .AsNoTracking()
+                .Select(u => new { u.AccessFailedCount, u.LockoutEnd })
+                .SingleAsync(settle);
 
-        if (state.AccessFailedCount > lockout.MaxFailedAccessAttempts)
-        {
-            // More attempts are in flight than the limit allows. This one is not verified.
-            await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
-            logger.LogWarning("Admin password check refused for user {UserId}: too many attempts at once", userId);
-            return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
-        }
-
-        var user = await users.FindByIdAsync(userId);
-        if (user is null)
-        {
-            return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
-        }
-
-        if (!await users.CheckPasswordAsync(user, password))
-        {
-            if (state.AccessFailedCount >= lockout.MaxFailedAccessAttempts)
+            if (state.LockoutEnd > now)
             {
-                await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
+                // Already locked: this attempt was never going to be looked at, so it does not
+                // count toward the next lockout either.
+                await UncountAsync(account, settle);
+                logger.LogWarning("Admin password check refused for user {UserId}: account locked out", userId);
+                return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
             }
 
-            logger.LogWarning("Admin password check failed for user {UserId}", userId);
-            return new AdminPasswordCheckResult(AdminPasswordVerdict.Incorrect);
-        }
+            if (state.AccessFailedCount > lockout.MaxFailedAccessAttempts)
+            {
+                // More attempts are in flight than the limit allows. This one is not verified.
+                await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
+                logger.LogWarning("Admin password check refused for user {UserId}: too many attempts at once", userId);
+                return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
+            }
 
-        await account.ExecuteUpdateAsync(
-            update => update.SetProperty(u => u.AccessFailedCount, 0), settle);
-        return new AdminPasswordCheckResult(AdminPasswordVerdict.Correct, user.SecurityStamp);
+            var user = await users.FindByIdAsync(userId);
+            if (user is null)
+            {
+                return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
+            }
+
+            if (!await users.CheckPasswordAsync(user, password))
+            {
+                foundWrong = true;
+                if (state.AccessFailedCount >= lockout.MaxFailedAccessAttempts)
+                {
+                    await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
+                }
+
+                logger.LogWarning("Admin password check failed for user {UserId}", userId);
+                return new AdminPasswordCheckResult(AdminPasswordVerdict.Incorrect);
+            }
+
+            await account.ExecuteUpdateAsync(
+                update => update.SetProperty(u => u.AccessFailedCount, 0), settle);
+            return new AdminPasswordCheckResult(AdminPasswordVerdict.Correct, user.SecurityStamp);
+        }
+        catch when (!foundWrong)
+        {
+            // No verdict, or a right password whose count could not be cleared. A password that
+            // was looked at and found wrong keeps its count whatever failed afterwards.
+            await UndoCountAsync(account, userId);
+            throw;
+        }
+    }
+
+    /// <summary>Takes one attempt back off the count, never below zero (see the remarks).</summary>
+    private static Task UncountAsync(IQueryable<ApplicationUser> account, CancellationToken cancellationToken) =>
+        account
+            .Where(u => u.AccessFailedCount > 0)
+            .ExecuteUpdateAsync(
+                update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount - 1),
+                cancellationToken);
+
+    /// <summary>
+    /// Takes back an attempt that reached no verdict. Never throws: the fault that ended the
+    /// check is the one the caller must see.
+    /// </summary>
+    private async Task UndoCountAsync(IQueryable<ApplicationUser> account, string userId)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(UndoTimeout);
+            await UncountAsync(account, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Admin password check for user {UserId} reached no verdict and its counted attempt could not be taken back",
+                userId);
+        }
     }
 
     /// <summary>Locks the account until <paramref name="until"/> and starts its count again, as Identity does.</summary>

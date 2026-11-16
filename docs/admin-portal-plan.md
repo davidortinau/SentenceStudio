@@ -301,6 +301,26 @@ headless Chromium and `curl`:
 - No error-level lines in the API or web app logs, and no password, proof or email in either.
   No audit row was left `Started`; none contains an address.
 
+**Checked again after the second review (2026-11-15, commit `17fc2299`)**
+
+A second `/code-review xhigh`, of the commits made after the first, led to `3c5832a8`. The
+running check that followed found one more fault, fixed in `17fc2299`. On a fresh isolated
+stack with the same accounts:
+
+- Learner 12 of 12, admin 23 of 23, phone width 7 of 7, an admin whose role was revoked 12 of 12.
+- Outage, 18 of 18. The first HTML of `/admin` is the waiting mark and nothing else. An admin
+  with a confirmed password opened the audit log with the API stopped: the waiting mark, then
+  "This page could not be loaded" after 15 seconds, and the same again on Try again. With the
+  API back, Try again opened the log without reloading the document, and the password was still
+  confirmed.
+- A password filled in one go and submitted with Enter was confirmed. Before `17fc2299` it did
+  nothing: the confirm button was still disabled when Enter arrived, and a browser ignores Enter
+  in a form whose submit button is disabled.
+- 12 right-password checks sent straight to the API, 5 of them abandoned by the caller after 15
+  to 35 ms: the account's failed count stayed 0 and all 12 were recorded as succeeded.
+- No error-level lines in the API or web app logs, and no password or proof in either. No audit
+  row was left `Started`.
+
 Not checked: any MAUI head build (they consume the same `SentenceStudio.UI` assembly the web app
 and `SentenceStudio.UI.Tests` built), light theme, and production.
 

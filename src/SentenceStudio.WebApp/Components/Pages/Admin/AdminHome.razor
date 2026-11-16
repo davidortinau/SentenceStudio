@@ -18,9 +18,12 @@
     <div class="container-fluid" id="admin-home">
         @if (_session is null)
         {
-            <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <div class="alert alert-warning d-flex align-items-center" role="alert" id="admin-home-unexpected">
                 <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
-                <span>The admin service did not answer as expected. Reload the page to try again.</span>
+                <span class="flex-grow-1">The admin service did not answer as expected.</span>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="admin-home-retry" @onclick="RetryAsync">
+                    Try again
+                </button>
             </div>
         }
         else
@@ -76,4 +79,7 @@
     }
 
     private void CloseGate() => _gate?.Close();
+
+    // Through the gate, in this circuit: a reload would drop a confirmed password.
+    private Task RetryAsync() => _gate?.RetryAsync() ?? Task.CompletedTask;
 }

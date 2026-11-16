@@ -54,6 +54,9 @@ public sealed class AdminComponentTests
         services.AddScoped<AuthenticationStateProvider, SignedInState>();
         services.AddScoped<IJSRuntime>(_ => new ModuleAwareJSRuntime());
         services.AddScoped<BlazorLocalizationService>();
+
+        // What the shared page header injects, for a test that renders a whole admin page.
+        services.AddScoped<SentenceStudio.WebUI.Shared.Sam.SamEntryState>();
         if (webAppAdminLink)
         {
             services.AddScoped<IHostNavItemProvider, AdminNavItemProvider>();
@@ -237,6 +240,51 @@ public sealed class AdminComponentTests
         circuit.HasElementWithId(id, "admin-gate-retry").Should().BeFalse();
     }
 
+    [Fact]
+    public async Task A_second_ask_while_one_is_in_flight_makes_no_second_request()
+    {
+        // A second click can still arrive after "Try again" has been replaced by the waiting
+        // mark. Two requests would be two audit rows, and the later answer would decide the gate.
+        var first = true;
+        var loads = 0;
+        var answer = new TaskCompletionSource<AdminApiStatus>();
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminGate>(ParameterView.FromDictionary(new Dictionary<string, object?>
+        {
+            [nameof(AdminGate.ChildContent)] = (RenderFragment)(builder => builder.AddContent(0, "Admin only")),
+            [nameof(AdminGate.Load)] = (Func<Task<AdminApiStatus>>)(() =>
+            {
+                loads++;
+                if (first)
+                {
+                    first = false;
+                    return Task.FromResult(AdminApiStatus.Failed);
+                }
+
+                return answer.Task;
+            })
+        }));
+        var gate = (AdminGate)circuit.LastRootComponent!;
+
+        Task one = Task.CompletedTask, two = Task.CompletedTask;
+        await circuit.Dispatcher.InvokeAsync(() =>
+        {
+            one = gate.RetryAsync();
+            two = gate.RetryAsync();
+        });
+
+        loads.Should().Be(2, "the first render's ask, and one retry for two clicks");
+        circuit.RenderedText(id).Should().Contain("Loading").And.NotContain("Admin only");
+
+        answer.SetResult(AdminApiStatus.Ok);
+        await circuit.Dispatcher.InvokeAsync(() => Task.WhenAll(one, two));
+
+        circuit.Unhandled.Should().BeEmpty();
+        loads.Should().Be(2);
+        circuit.RenderedText(id).Should().Contain("Admin only").And.NotContain("could not be loaded");
+    }
+
     public static TheoryData<Exception> LoadFaults => new()
     {
         new InvalidOperationException("a fault in the page's own loading"),
@@ -290,7 +338,8 @@ public sealed class AdminComponentTests
         var html = await prerender.Dispatcher.InvokeAsync(async () =>
             (await prerender.RenderComponentAsync<AdminGate>(GateParameters(services, () => loads++))).ToHtmlString());
 
-        html.Should().Contain("admin-gate-loading", "everyone gets the same waiting mark until the circuit asks");
+        html.Should().Contain("id=\"page-loading\"", "everyone gets the same waiting mark until the circuit asks");
+        html.Should().NotContain("admin", "the first HTML must not say what the mark is waiting for");
         html.Should().NotContain("secret-admin-content").And.NotContain("Page not found").And.NotContain("could not");
         loads.Should().Be(0);
         _api.Requests.Should().BeEmpty();
@@ -309,6 +358,28 @@ public sealed class AdminComponentTests
 
         circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
         circuit.RenderedText(id).Should().Contain("Page not found");
+    }
+
+    [Fact]
+    public async Task The_front_pages_own_try_again_asks_in_the_same_circuit()
+    {
+        // An answer the page cannot use (here 429) admits the admin and leaves nothing to show.
+        // Its "Try again" goes through the gate, not through a reload that drops a confirmed password.
+        _api.Answer(SessionRoute, HttpStatusCode.TooManyRequests, """{"code":"locked_out"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<SentenceStudio.WebApp.Components.Pages.Admin.AdminHome>();
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-home-retry").Should().BeTrue();
+        circuit.RenderedText(id).Should().Contain("did not answer as expected").And.NotContain("Reload");
+
+        _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
+        await circuit.ClickButtonByIdAsync(id, "admin-home-retry");
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-home-retry").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("Signed in as").And.Contain("captain@example.test");
+        _api.Requests.Count(r => r.Path == SessionRoute).Should().Be(2);
     }
 
     // -------------------------------------------------------- password again
@@ -364,6 +435,8 @@ public sealed class AdminComponentTests
         await circuit.SubmitFormByIdAsync(id, "admin-password-form");
 
         _api.Requests.Should().BeEmpty();
+        circuit.RenderedText(id).Should().Contain("Enter your password",
+            "the button is never disabled, so the card has to say why nothing was sent");
     }
 
     [Fact]

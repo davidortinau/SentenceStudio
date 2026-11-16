@@ -109,6 +109,11 @@ public static class AdminEndpoints
         }
 
         var check = await passwordCheck.CheckAsync(actor.Id, request.Password, cancellationToken);
+
+        // The check settles its count whatever the caller did meanwhile. A caller that has left
+        // gets no proof, and the log says the attempt was abandoned, not that it succeeded.
+        cancellationToken.ThrowIfCancellationRequested();
+
         switch (check.Verdict)
         {
             case AdminPasswordVerdict.Correct:

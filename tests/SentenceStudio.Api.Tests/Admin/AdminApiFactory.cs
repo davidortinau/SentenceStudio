@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -53,6 +54,9 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     /// <summary>The live <c>Admin:Emails</c> list.</summary>
     public TestOptionsMonitor<AdminOptions> AdminList { get; } = new(new AdminOptions());
 
+    /// <summary>Watches the host's commands against the account database, for a test that needs to act between two of them.</summary>
+    public IInterceptor? AccountDatabaseInterceptor { get; init; }
+
     /// <summary>The host's clock. Moves only when a test moves it.</summary>
     public TestTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
 
@@ -78,7 +82,7 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices((context, services) =>
         {
-            TestApiHostConfigurator.ConfigureSqliteDatabaseAndSync(services, _dbPath);
+            TestApiHostConfigurator.ConfigureSqliteDatabaseAndSync(services, _dbPath, AccountDatabaseInterceptor);
             TestApiHostConfigurator.AddStubChatClientWhenAiUnconfigured(services, context.Configuration);
 
             if (_adminConnectionString is null)
