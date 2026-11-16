@@ -270,6 +270,36 @@ public class CoachSessionStateTransitionTests
         row.ClarificationCount.Should().Be(2);
     }
 
+    /// <summary>
+    /// At the cap the learner reads the notice a refused reply shows. Every refusal logs why it
+    /// refused; the cap has to as well, or a flagged notice cannot be traced to it (issue 227).
+    /// </summary>
+    [Fact]
+    public async Task TheClarificationCap_IsLogged()
+    {
+        var log = new Memory.CapturingLoggerProvider();
+        using var harness = new CoachApplicationHarness(loggerProvider: log);
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "How many minutes do you have?"
+        });
+
+        await SubmitAsync(harness, sessionId, "not much time");
+        await SubmitAsync(harness, sessionId, "some time");
+        log.Lines.Should().NotContain(line => line.Contains("clarifying question after", StringComparison.Ordinal),
+            "the first two questions are asked");
+
+        var third = await SubmitAsync(harness, sessionId, "a bit");
+
+        third.Value!.Messages.Should().ContainSingle().Which.Kind.Should().Be(CoachMessageKind.Notice);
+        log.Lines.Should().ContainSingle(line => line.Contains(
+            "the model asked a clarifying question after the session's 2 clarification(s) were used",
+            StringComparison.Ordinal));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static CoachSession Row(CoachApplicationHarness harness) => harness.Db.CoachSessions.Single();

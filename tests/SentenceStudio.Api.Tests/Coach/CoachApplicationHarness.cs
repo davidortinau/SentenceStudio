@@ -184,7 +184,7 @@ internal sealed class CoachApplicationHarness : IDisposable
             Idempotency,
             Telemetry,
             Options,
-            NullLogger<CoachSessionService>.Instance,
+            loggers.CreateLogger<CoachSessionService>(),
             Messages,
             Conversations,
             MemoryCoordinator,

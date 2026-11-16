@@ -3384,6 +3384,14 @@ public sealed class CoachSessionService : ICoachSessionService
         var limit = _options.CurrentValue.MaxClarificationsPerSession;
         if (session.ClarificationCount >= limit)
         {
+            // The learner reads the same notice a refused reply shows, and every refusal logs
+            // its reason. Without this line a spent budget is the one ending that leaves no
+            // trace, so a flagged notice could not be told from a validation failure.
+            _logger.LogWarning(
+                "[Coach] Session {SessionId}: the model asked a clarifying question after the session's "
+                + "{ClarificationLimit} clarification(s) were used. The question was withheld and nothing was written.",
+                session.Id, limit);
+
             var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 
             await RecordTurnOutcomeAsync(

@@ -439,19 +439,21 @@ public sealed class CoachResponseReportService
             // method from becoming a second place that knows how coach content is protected.
             var outcome = await _operations.GetOutcomeAsync(owner, operationId, cancellationToken)
                 .ConfigureAwait(false);
-            stopReason = ReadStopReason(outcome?.Payload);
 
-            // The same decrypted payload, read through the conversation layer's own outcome reader
+            // The decrypted payload, read once through the conversation layer's own outcome reader
             // rather than a second parser. That reader already knows every stored schema version
-            // and already treats an unknown one as absent, which is exactly the null this column
-            // wants — and duplicating it here would produce two answers to "can this row be read".
+            // and already treats an unknown one as absent, which is exactly the null these columns
+            // want — and duplicating it here would produce two answers to "can this row be read".
+            // The stop reason used to have its own parser, which looked at the root of the payload
+            // and so read nothing once the response moved into the outcome's answer section.
             //
             // Deliberately not the request-scoped observation buffer. The buffer belongs to the
             // turn in flight; a learner filing a report is a different request, and reading a
             // buffer here would attach whatever the *reporting* request happened to do.
-            grounding = ProjectGrounding(
-                Application.History.CoachConversationService
-                    .ReadOutcome(outcome?.Payload, outcome?.SchemaVersion)?.Grounding);
+            var stored = Application.History.CoachConversationService
+                .ReadOutcome(outcome?.Payload, outcome?.SchemaVersion);
+            stopReason = ReadStopReason(stored);
+            grounding = ProjectGrounding(stored?.Grounding);
         }
         catch (Exception ex)
         {
@@ -654,55 +656,26 @@ public sealed class CoachResponseReportService
     }
 
     /// <summary>
-    /// Reads only the stop reason out of a turn's replayable outcome.
+    /// Takes only the stop reason from a turn's replayable outcome.
     /// </summary>
     /// <remarks>
-    /// The payload is the same one the poll path already deserializes, and exactly one field is
-    /// taken from it. Nothing else is read into a local, returned, stored, or logged — the
-    /// outcome carries the coach's own words, and this method's contract is that none of them
-    /// leave it.
+    /// <para>
+    /// The outcome is the same one the poll path already deserializes, and exactly one field is
+    /// taken from it. Nothing else is returned, stored, or logged — the outcome carries the
+    /// coach's own words, and this method's contract is that none of them leave it.
+    /// </para>
+    /// <para>
+    /// An outcome this build cannot read arrives here as null and is treated as absent, exactly
+    /// as the replay path treats it: a report is not worth failing over a field that is
+    /// decoration on it. Membership is still checked, because the deserializer accepts any
+    /// integer for an enum, as a number or as numeric text, and an undefined value must not reach
+    /// a column this method's contract says holds one of a closed set.
+    /// </para>
     /// </remarks>
-    internal static CoachStopReason? ReadStopReason(string? storedOutcome)
-    {
-        if (string.IsNullOrWhiteSpace(storedOutcome))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(storedOutcome);
-
-            if (!document.RootElement.TryGetProperty(nameof(CoachTurnResponse.StopReason), out var property)
-                && !document.RootElement.TryGetProperty("stopReason", out property))
-            {
-                return null;
-            }
-
-            return property.ValueKind switch
-            {
-                JsonValueKind.Number when property.TryGetInt32(out var ordinal) && Enum.IsDefined((CoachStopReason)ordinal)
-                    => (CoachStopReason)ordinal,
-
-                // Membership is checked on this arm too, and not only on the numeric one.
-                // Enum.TryParse answers true for numeric text ("999") and for comma-separated
-                // flag lists ("1,2"), neither of which is a declared member — so parsing alone
-                // would let an undefined value reach a column this method's contract says holds
-                // one of a closed set.
-                JsonValueKind.String when Enum.TryParse<CoachStopReason>(property.GetString(), ignoreCase: true, out var parsed)
-                                          && Enum.IsDefined(parsed)
-                    => parsed,
-
-                _ => null
-            };
-        }
-        catch (JsonException)
-        {
-            // An outcome this build cannot read is treated as absent, exactly as the replay path
-            // treats it. A report is not worth failing over a field that is decoration on it.
-            return null;
-        }
-    }
+    internal static CoachStopReason? ReadStopReason(CoachStoredTurnOutcome? storedOutcome) =>
+        storedOutcome?.Answer?.StopReason is { } stopReason && Enum.IsDefined(stopReason)
+            ? stopReason
+            : null;
 
     // ------------------------------------------------------------------ ledger
 

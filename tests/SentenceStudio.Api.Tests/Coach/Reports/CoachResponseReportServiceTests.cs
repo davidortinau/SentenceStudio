@@ -1,8 +1,12 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Api.Coach.Application;
+using SentenceStudio.Api.Coach.Application.History;
 using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Persistence.History;
 using SentenceStudio.Api.Coach.Reports;
+using SentenceStudio.Api.Tests.Coach.History;
 using SentenceStudio.Contracts.Coach;
 
 namespace SentenceStudio.Api.Tests.Coach.Reports;
@@ -456,9 +460,7 @@ public class CoachResponseReportServiceTests
     [InlineData("\"1,2\"")]
     public void AnUndefinedStopReasonIsReadAsAbsent(string json)
     {
-        var outcome = $$"""{"stopReason": {{json}}}""";
-
-        CoachResponseReportService.ReadStopReason(outcome).Should().BeNull(
+        CoachResponseReportService.ReadStopReason(StoredOutcome(json)).Should().BeNull(
             "a value outside the closed set is not a stop reason, and storing one would break " +
             "both the column's contract and the fingerprint the report is linked by");
     }
@@ -466,20 +468,44 @@ public class CoachResponseReportServiceTests
     [Fact]
     public void ADefinedStopReasonIsReadInEitherWireForm()
     {
-        CoachResponseReportService.ReadStopReason("""{"stopReason": "ClarificationRequested"}""")
+        CoachResponseReportService.ReadStopReason(StoredOutcome("\"ClarificationRequested\""))
             .Should().Be(CoachStopReason.ClarificationRequested);
 
-        CoachResponseReportService.ReadStopReason($$"""{"stopReason": {{(int)CoachStopReason.ToolFailure}}}""")
+        CoachResponseReportService.ReadStopReason(StoredOutcome($"{(int)CoachStopReason.ToolFailure}"))
             .Should().Be(CoachStopReason.ToolFailure);
     }
 
     [Fact]
     public void AnUnreadableOutcomeIsAbsentRatherThanAFailure()
     {
-        CoachResponseReportService.ReadStopReason("not json at all").Should().BeNull();
-        CoachResponseReportService.ReadStopReason("{}").Should().BeNull();
+        var version = CoachConversationService.CurrentOutcomeSchemaVersion;
+
+        CoachResponseReportService.ReadStopReason(CoachConversationService.ReadOutcome("not json at all", version))
+            .Should().BeNull();
+        CoachResponseReportService.ReadStopReason(CoachConversationService.ReadOutcome("{}", version))
+            .Should().BeNull();
         CoachResponseReportService.ReadStopReason(null).Should().BeNull();
     }
+
+    /// <summary>
+    /// A stored outcome in the shape the conversation service writes, with the response's stop
+    /// reason replaced by <paramref name="stopReasonJson"/>.
+    /// </summary>
+    private static string StoredPayload(string stopReasonJson)
+    {
+        var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var payload = JsonSerializer.SerializeToNode(
+            new CoachStoredTurnOutcome(CoachGroundingSectionSchemaTests.Answer(), null), web)!;
+
+        payload["answer"]!["stopReason"] = JsonNode.Parse(stopReasonJson);
+
+        return payload.ToJsonString();
+    }
+
+    /// <summary>The same payload, read back by the conversation layer's own reader.</summary>
+    private static CoachStoredTurnOutcome? StoredOutcome(string stopReasonJson) =>
+        CoachConversationService.ReadOutcome(
+            StoredPayload(stopReasonJson), CoachConversationService.CurrentOutcomeSchemaVersion);
 
     [Fact]
     public async Task TheLedgerRowIsProductReviewableAndCarriesBothMessagePointers()
@@ -521,6 +547,36 @@ public class CoachResponseReportServiceTests
         var report = (await harness.RowsAsync()).Should().ContainSingle().Subject;
         var ledger = (await harness.OpportunitiesAsync()).Should().ContainSingle().Subject;
 
+        report.OpportunityId.Should().Be(ledger.Id);
+    }
+
+    /// <summary>
+    /// The link has to hold when the report knows how the turn ended, which is every report on a
+    /// turn whose outcome is still stored.
+    /// </summary>
+    /// <remarks>
+    /// The stop reason is part of the ledger row's identity, and the report finds its row again by
+    /// deriving that identity a second time. Before the report could read the stop reason both
+    /// derivations saw null and agreed trivially.
+    /// </remarks>
+    [Fact]
+    public async Task TheReportPointsAtTheLedgerRowItRaisedWhenTheStopReasonIsKnown()
+    {
+        using var harness = new CoachResponseReportHarness();
+        var turn = await harness.SeedTurnAsync(responseKind: CoachMessageKind.Notice);
+        await harness.CompleteTurnOperationAsync(turn, StoredPayload("\"ValidationFailed\""));
+
+        await using var db = harness.NewContext();
+        var service = harness.NewService(db);
+
+        await service.ReportAsync(turn.ConversationId, turn.ResponseMessageId, Request());
+
+        var report = (await harness.RowsAsync()).Should().ContainSingle().Subject;
+        var ledger = (await harness.OpportunitiesAsync()).Should().ContainSingle().Subject;
+
+        report.TurnStatus.Should().Be(CoachTurnOperationStatus.Completed);
+        report.StopReason.Should().Be(CoachStopReason.ValidationFailed);
+        ledger.StopReason.Should().Be(CoachStopReason.ValidationFailed);
         report.OpportunityId.Should().Be(ledger.Id);
     }
 
