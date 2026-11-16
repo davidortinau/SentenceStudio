@@ -142,6 +142,11 @@ deployed only with the Captain's go.
 - **Production settings and data.** The `Admin:Emails` setting; the one-time role grant.
 - **Each deploy.**
 
+Approved for phase 1 (Captain, 2026-11-16): the agent token table; the issue-link number column
+on Sam's report rows; and the policy change (Sam's operator routes move from Development-only
+to the admin check, and an admin may open another learner's flagged exchange in production).
+The production settings, the role grant and each deploy still need his go when they come up.
+
 ## Defaults I chose (say if any is wrong)
 
 - Agent token lasts 30 days. The password-again proof lasts 10 minutes.
@@ -163,6 +168,11 @@ the MAUI or native apps. Recording AI usage outside Sam.
 2. What the server records per device for sync. Needs a short read of the sync tables. (Phase 3)
 3. Whether 24 hours is acceptable for a switched-off account on a phone. (Phase 2)
 4. Where the scheduled task keeps its token. A cloud task cannot use this Mac's keychain. (Phase 1)
+   This is the portal's own agent token, which phase 1 creates. It is not the GitHub App key in
+   Key Vault (`github-app-private-key`), which only the API uses to file issues. Put to the
+   Captain on 2026-11-16, not yet answered: keep the agent token in the same Key Vault under its
+   own name and run the weekday task on Lilliput, which is signed in to Azure; that needs his
+   standing go for reading that one secret.
 
 ## Team and how each phase runs (Captain, 2026-11-15)
 
