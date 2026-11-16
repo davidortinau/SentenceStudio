@@ -1,6 +1,6 @@
 # Admin portal plan
 
-2026-11-15. Approved by the Captain the same day. Phases 0, 3 and 4 are merged; phase 1 is built and waiting for the merge (see "Phase 1 as built").
+2026-11-15. Approved by the Captain the same day. Phases 0, 3 and 4 are on `main`; phase 1 is merged into `admin-portal` and not yet pushed (see "Phase 1 as built").
 
 ## Why
 
@@ -458,7 +458,7 @@ sidebar carries the number of flagged answers nobody has looked at), sees every 
 flagged Sam answers and the reports filed to GitHub, opens a flagged question and answer after
 confirming their password, and gives the report a status and a GitHub issue number. Under
 **Agent tokens** they create a token for the maintenance agent, see it once, and revoke it. The
-agent reads the same inbox with `scripts/admin-api.sh`. Not merged, not pushed, not deployed.
+agent reads the same inbox with `scripts/admin-api.sh`. Merged into `admin-portal` locally; not pushed, not deployed.
 
 **Routes (`src/SentenceStudio.Api/Admin/AdminReportsEndpoints.cs`, `AdminTokenEndpoints.cs`)**
 
@@ -647,7 +647,7 @@ was tested and not reviewed again. Cleanup left for later is in
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
-| 1. Feedback inbox, agent access, scheduled check | Built, reviewed and checked running on branch `admin-feedback-inbox` (2026-11-16); see "Phase 1 as built". Waiting for the Captain's word on its choices and the merge. Not deployed; the weekday check is not scheduled until it is. |
+| 1. Feedback inbox, agent access, scheduled check | Built, reviewed and checked running (2026-11-16); see "Phase 1 as built". Merged into `admin-portal` on the Captain's word the same day ("merge it and i'll restart"), for him to see on his local stack; not yet pushed to `main`. Its choices are still his to confirm. Not deployed; the weekday check is not scheduled until it is. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; the Captain approved the choices in `docs/admin-portal-phases-3-4-handoff.md`. Not deployed. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3. Not deployed. |
