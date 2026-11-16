@@ -34,6 +34,7 @@ from collections import Counter
 from datetime import datetime
 
 ADMIN_SCRIPTS = ("admin-api.sh", "admin-feedback-issue.sh")
+SHELL_KEYWORDS = ("for", "while", "until", "if", "then", "else", "elif", "do", "done", "fi", "case", "esac", "in", "time", "!")
 
 
 def shell_labels(command):
@@ -68,7 +69,12 @@ def shell_labels(command):
             else:
                 starts_command = False
                 program = os.path.basename(word)
-                if word not in ("export", "cd", "set", "unset") and re.match(r"^[A-Za-z0-9._-]+$", program):
+                if word in ("for", "case"):
+                    # "for name in a b" and "case word in": no command until the next separator.
+                    starts_command = False
+                elif word in SHELL_KEYWORDS:
+                    starts_command = True  # the command follows the keyword
+                elif word not in ("export", "cd", "set", "unset") and re.match(r"^[A-Za-z0-9._-]+$", program):
                     following = words[index + 1] if index + 1 < len(words) else ""
                     named = program in ADMIN_SCRIPTS or program in ("git", "gh", "dotnet", "docker", "aspire")
                     if named and re.match(r"^[a-z][a-z-]*$", following):
@@ -253,7 +259,12 @@ def markdown(record):
         lines.append(f"- Subagent tool calls: {number(record['subagent_tool_calls'])}")
     servers = record.get("mcp_servers") or []
     mcp = record.get("mcp_tools") or {}
-    lines.append("- MCP: " + (", ".join(f"{n} x{c}" for n, c in mcp.items()) if mcp else ("servers loaded, none used" if servers else "no servers loaded, none used")))
+    if mcp:
+        lines.append("- MCP: " + ", ".join(f"{n} x{c}" for n, c in mcp.items()))
+    elif record.get("servers_known", True):
+        lines.append("- MCP: " + ("servers loaded, none used" if servers else "no servers loaded, none used"))
+    else:
+        lines.append("- MCP: none used")
     if record.get("permission_denials"):
         lines.append(f"- Commands refused by the session's permissions: {record['permission_denials']}")
     return "\n".join(lines)
