@@ -480,3 +480,19 @@ fix commits were fixed on the branch. These are what was left.
   this one, a few milliseconds wide on one host. The fix is to store the flag count a triage saw
   (one integer column on `CoachOpportunity`, which needs the Captain's approval) and compare
   counts instead of times.
+
+## Sam's clarification cap (review 2026-11-16, branch `feedback/issue-227`)
+
+- **A refused vocabulary review is recorded as a reply.** `ReduceAgentResultAsync` records the
+  `NoChange` turn through `ClearedStatusAsync`, and `AttachVocabularySetProposalAsync` can then
+  refuse it for naming a due word (`BuildAnswerLeakResponseAsync`, which records nothing). The
+  row keeps a null stop reason for a turn the learner saw refused, and since the cap counts
+  questions in a row it also starts the count again. The fix is to run the embargo check before
+  the turn is recorded.
+- **Two completed exits do not go through `RecordTurnOutcomeAsync`:** a model direct change with
+  no delta (unreachable while the intent validator and the mapper agree) and a client constraint
+  action with no change. They neither clear an old stop reason nor start the clarification
+  count again.
+- **`Coach_ClarificationLimit` ("Choose one option.") shows with nothing to choose.** The web,
+  iOS and Android clients show it whenever a turn stops for clarification with none remaining,
+  including in a general conversation with no open suggestion.

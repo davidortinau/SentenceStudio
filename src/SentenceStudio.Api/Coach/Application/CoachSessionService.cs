@@ -3384,12 +3384,12 @@ public sealed class CoachSessionService : ICoachSessionService
         var limit = _options.CurrentValue.MaxClarificationsPerSession;
         if (session.ClarificationCount >= limit)
         {
-            // The learner reads the same notice a refused reply shows, and every refusal logs
-            // its reason. Without this line a spent budget is the one ending that leaves no
-            // trace, so a flagged notice could not be told from a validation failure.
+            // Every refusal logs its reason. Without this line a spent budget is the one ending
+            // that leaves no trace, so a flagged notice could not be told from a validation
+            // failure.
             _logger.LogWarning(
                 "[Coach] Session {SessionId}: the model asked a clarifying question after "
-                + "{ClarificationCount} of the session's {ClarificationLimit} clarification(s) were used. "
+                + "{ClarificationCount} of the {ClarificationLimit} clarification(s) allowed in a row were used. "
                 + "The question was withheld and nothing was written.",
                 session.Id, session.ClarificationCount, limit);
 
@@ -3403,8 +3403,9 @@ public sealed class CoachSessionService : ICoachSessionService
                 userProfileId, session, plan,
                 CoachTurnStatus.Incomplete, CoachStopReason.ClarificationRequested,
                 StatusWithPending(session),
-                messages: [CoachMessage(CoachMessageKind.Notice,
-                    CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
+                // Not the refused-reply notice: nothing was refused, and "saying it a little
+                // differently" is not what gets the learner past this.
+                messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ClarificationLimitReached)],
                 pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
                 receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
@@ -4339,6 +4340,12 @@ public sealed class CoachSessionService : ICoachSessionService
     /// Every terminal point in a turn goes through here so status and stop reason cannot drift
     /// apart, and so a new terminal path cannot forget one of them.
     /// </para>
+    /// <para>
+    /// A turn that succeeded also starts the clarification count again. The limit is on
+    /// questions asked in a row, which is what stops a loop of them. Counted over the whole
+    /// session it never came back: a conversation that is used every day keeps its session, so
+    /// after two questions, ever, each later one was withheld behind a notice (issue 227).
+    /// </para>
     /// </remarks>
     private Task RecordTurnOutcomeAsync(
         string userProfileId,
@@ -4357,6 +4364,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 Status = status,
                 StopReason = stopReason,
                 ClearStopReason = stopReason is null,
+                ResetClarifications = stopReason is null,
                 ClarificationIncrement = clarificationIncrement,
                 // Constraints and their frozen selection move together, in one column, so a write
                 // cannot leave a focus label describing a set that is no longer stored.

@@ -24,9 +24,9 @@ namespace SentenceStudio.Api.Tests.Coach.Reports;
 /// the outcome's answer section.
 /// </para>
 /// <para>
-/// The stop reason is the one code that separates the two different endings that share that
-/// notice: a reply the server refused, and a clarifying question asked after the session's
-/// questions were used up. So these tests write the outcome with the real conversation service
+/// The stop reason is the one code that separates two different endings that both show a notice
+/// (and, when the report was filed, the same notice): a reply the server refused, and a
+/// clarifying question asked after the clarifying questions were used up. So these tests write the outcome with the real conversation service
 /// and read it with the real report service; a hand-built outcome is what let the two drift
 /// apart.
 /// </para>
@@ -86,7 +86,7 @@ public class CoachResponseReportStopReasonTests
         var row = await ReportLatestResponseAsync(harness, conversationId);
 
         row.ResponseKind.Should().Be(CoachMessageKind.Notice,
-            "the question is withheld and the learner reads a notice, the same one a refused reply shows");
+            "the question is withheld and the learner reads a notice");
         row.StopReason.Should().Be(CoachStopReason.ClarificationRequested,
             "this is the only code that tells a reviewer the notice was not a refused reply");
     }

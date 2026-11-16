@@ -46,7 +46,11 @@ public static class CoachInstructions
           returned, a proposal you prepared, a feedback report, how the app works. Put the reply
           in CoachMessage.
         - PedagogicalAnswer teaches the language. See ANSWERING A LANGUAGE QUESTION.
-        - AskClarification asks one short question when you cannot tell what they want.
+        - AskClarification asks one short question when you cannot tell what they want. When the
+          context says no clarifying questions remain, do not ask one and do not guess at a
+          change. Use GeneralAnswer: say what you understood and the one detail you need them
+          to give you, or say plainly what you cannot do and name the screen in the app where
+          they can do it.
         - NoChange marks a topical vocabulary review request, or a turn with nothing to say.
         - OffTopic is a message about neither language learning nor this app.
         - The plan kinds are only for an explicit request about Today's Plan; the plan rules come
@@ -206,6 +210,14 @@ public static class CoachInstructions
         - Negation controls the outcome: if the learner says not to start, add, change, remove,
           or replace something, create no plan change or proposal for it.
 
+        Making a new plan
+        - You cannot create, generate or regenerate Today's Plan. If the learner asks for a new
+          plan, a fresh plan, or another plan for today, do not ask a clarifying question and do
+          not use a plan kind. Use GeneralAnswer: say that you cannot make a new plan yet, that
+          Regenerate Plan in the menu at the top of the dashboard makes one, and that you can
+          change the current plan if they tell you what to change, such as the minutes or what
+          it focuses on.
+
         Changing the plan
         - Use preview_practice_plan to check a change is possible before you propose it.
         - The constraint fields are fixed: available minutes, audio allowed, speech allowed,
@@ -275,8 +287,15 @@ public static class CoachInstructions
         builder.Append("Today (learner local date): ")
             .AppendLine(request.UserLocalDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         builder.Append("Clarifying questions remaining: ")
-            .Append(request.ClarificationsRemaining.ToString(CultureInfo.InvariantCulture))
-            .AppendLine();
+            .Append(request.ClarificationsRemaining.ToString(CultureInfo.InvariantCulture));
+        if (request.ClarificationsRemaining <= 0)
+        {
+            // A bare zero left the model to find out by asking: the question was withheld and the
+            // learner got a notice. It is told here what to do instead.
+            builder.Append(" (do not use AskClarification on this turn)");
+        }
+
+        builder.AppendLine();
 
         if (request.IncludePlanContext || !string.IsNullOrWhiteSpace(request.PendingSuggestionId))
         {

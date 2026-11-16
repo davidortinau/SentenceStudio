@@ -263,7 +263,7 @@ public class CoachSessionStateTransitionTests
         await SubmitAsync(harness, sessionId, "some time");
         var third = await SubmitAsync(harness, sessionId, "a bit");
 
-        third.Value!.ClarifyingQuestion.Should().BeNull("the cap is two per session");
+        third.Value!.ClarifyingQuestion.Should().BeNull("the cap is two in a row");
 
         var row = Row(harness);
         row.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
@@ -271,8 +271,8 @@ public class CoachSessionStateTransitionTests
     }
 
     /// <summary>
-    /// At the cap the learner reads the notice a refused reply shows. Every refusal logs why it
-    /// refused; the cap has to as well, or a flagged notice cannot be traced to it (issue 227).
+    /// Every refusal logs why it refused; the cap has to as well, or a flagged notice cannot be
+    /// traced to it (issue 227).
     /// </summary>
     [Fact]
     public async Task TheClarificationCap_IsLogged()
@@ -296,8 +296,140 @@ public class CoachSessionStateTransitionTests
 
         third.Value!.Messages.Should().ContainSingle().Which.Kind.Should().Be(CoachMessageKind.Notice);
         log.Lines.Should().ContainSingle(line => line.Contains(
-            "the model asked a clarifying question after 2 of the session's 2 clarification(s) were used",
+            "the model asked a clarifying question after 2 of the 2 clarification(s) allowed in a row were used",
             StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The cap is on questions in a row. Counted over the whole session it never came back, and
+    /// a conversation that is used every day keeps its session: after two questions, ever, each
+    /// later one was withheld behind a notice (issue 227).
+    /// </summary>
+    [Fact]
+    public async Task AReply_StartsTheClarificationCountAgain()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        var question = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "How many minutes do you have?"
+        });
+
+        harness.Coach.NextResult = question;
+        await SubmitAsync(harness, sessionId, "not much time");
+        var second = await SubmitAsync(harness, sessionId, "some time");
+        second.Value!.ClarificationsRemaining.Should().Be(0);
+
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.GeneralAnswer,
+            CoachMessage = "You have 248 words."
+        });
+        var reply = await SubmitAsync(harness, sessionId, "How many words do I have?");
+
+        reply.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        reply.Value.ClarificationsRemaining.Should().Be(2, "a turn that ended in a reply starts the count again");
+        Row(harness).ClarificationCount.Should().Be(0);
+
+        harness.Coach.NextResult = question;
+        var later = await SubmitAsync(harness, sessionId, "change my plan a bit");
+
+        later.Value!.Messages.Should().ContainSingle().Which.Kind.Should().Be(CoachMessageKind.Clarification);
+        later.Value.ClarifyingQuestion.Should().Be("How many minutes do you have?");
+        later.Value.ClarificationsRemaining.Should().Be(1);
+        harness.Coach.Requests[^1].ClarificationsRemaining.Should().Be(2, "the model is told the count started again");
+    }
+
+    /// <summary>A refused reply and a cut-off one leave the count where it was.</summary>
+    [Fact]
+    public async Task ARefusedReply_DoesNotStartTheClarificationCountAgain()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "How many minutes do you have?"
+        });
+        await SubmitAsync(harness, sessionId, "not much time");
+        await SubmitAsync(harness, sessionId, "some time");
+
+        // A direct change with no delta fails the intent-shape rule: a refused reply, recorded
+        // through the same place a successful one is.
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.DirectConstraintChange,
+            CoachMessage = "Changing the plan."
+        });
+        var refused = await SubmitAsync(harness, sessionId, "change something");
+
+        refused.Value!.StopReason.Should().Be(CoachStopReason.ValidationFailed);
+        Row(harness).ClarificationCount.Should().Be(2);
+
+        // A reply that was cut off is recorded by a different path and leaves it too.
+        harness.Coach.NextResult = await OutputLimitResultAsync();
+        var capped = await SubmitAsync(harness, sessionId, "a bit");
+
+        capped.Value!.StopReason.Should().Be(CoachStopReason.OutputTokenLimit);
+        Row(harness).ClarificationCount.Should().Be(2);
+    }
+
+    /// <summary>
+    /// At the cap the learner used to read the refused-reply notice, which told them to say it a
+    /// little differently. Nothing was refused and rewording does not help; the notice now says
+    /// what happened.
+    /// </summary>
+    [Fact]
+    public async Task TheClarificationCap_SaysWhatHappened()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "How many minutes do you have?"
+        });
+        await SubmitAsync(harness, sessionId, "not much time");
+        await SubmitAsync(harness, sessionId, "some time");
+        var third = await SubmitAsync(harness, sessionId, "a bit");
+
+        var notice = third.Value!.Messages.Should().ContainSingle().Subject;
+        notice.Kind.Should().Be(CoachMessageKind.Notice);
+        notice.Text.Should().Be(CoachDeterministicCopy.ClarificationLimitReached);
+        notice.Text.Should().NotBe(CoachDeterministicCopy.ValidationFailedNeutral);
+        third.Value.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+        harness.Coach.Requests[^1].ClarificationsRemaining.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Issue 227: "create a new plan for today". Sam has no way to make a plan, so the reply the
+    /// instructions now ask for is a plain one. This holds the server's side of that: the reply
+    /// is shown, and nothing about the request being about the plan refuses it. It passed
+    /// before the instructions changed; what the model does with them is checked on a running
+    /// Sam.
+    /// </summary>
+    [Fact]
+    public async Task APlainReply_ToARequestForANewPlan_IsShown()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        const string Reply =
+            "I can\u2019t make a new plan yet. Regenerate Plan in the dashboard\u2019s menu makes one. "
+            + "I can change the current plan if you tell me what to change.";
+
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.GeneralAnswer,
+            CoachMessage = Reply
+        });
+        var turn = await SubmitAsync(harness, sessionId, "Create a new plan for today");
+
+        turn.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        turn.Value.Messages.Should().ContainSingle().Which.Text.Should().Be(Reply);
+        harness.Db.CoachPlanRevisions.Should().BeEmpty();
     }
 
     // ---------------------------------------------------------------- helpers
