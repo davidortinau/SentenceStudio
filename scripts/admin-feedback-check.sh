@@ -222,7 +222,7 @@ fix_stage() {
     || { { echo "FIX RESULT: failed #$issue"; echo; echo "The worktree for $branch could not be prepared."; echo; } >> "$RUN"; NOTIFY=yes; FAILED=yes; return; }
 
   : > "$log"
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md and docs/admin-feedback-fix.md in this worktree: together they are your instructions, including where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   ( cd "$tree" && session "$FIX_LIMIT" "$reply" "$errors" "$record" -p "$prompt" \
