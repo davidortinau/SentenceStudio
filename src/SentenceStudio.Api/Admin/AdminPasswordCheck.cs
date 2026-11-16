@@ -46,8 +46,9 @@ internal readonly record struct AdminPasswordCheckResult(AdminPasswordVerdict Ve
 /// honoured only before the attempt is counted. From there the check runs to its verdict on its
 /// own clock (<see cref="SettleTimeout"/>), even when the caller has stopped waiting, and an
 /// attempt that reaches no verdict (a database fault, the clock running out) is taken back off
-/// the count. A password that was looked at and found wrong stays counted whatever fails after
-/// it. (The web app waits 15 seconds. Without this, a slow database would cost an admin an
+/// the count. A password that was looked at and found wrong stays counted and is answered as
+/// wrong whatever fails after it: if the lock it earns cannot be written, the next attempt finds
+/// the count over the limit and writes it. (The web app waits 15 seconds. Without this, a slow database would cost an admin an
 /// attempt for each right password it timed out on, and five of them a lockout.)
 /// </para>
 /// <para>
@@ -63,6 +64,12 @@ internal readonly record struct AdminPasswordCheckResult(AdminPasswordVerdict Ve
 /// Taking back cannot tell whose attempt it removes: after a reset in between it can remove a
 /// later one. That needs a fault at the right moment, which a caller cannot order, and costs one
 /// counted guess.
+/// </para>
+/// <para>
+/// <b>A locked account is not written to.</b> The lock is read before anything is counted, and
+/// an attempt that finds it is refused there. So a caller that keeps asking while locked out
+/// changes nothing on the account; in particular it cannot keep the account's concurrency stamp
+/// moving (below) and so keep the admin's own password change from saving.
 /// </para>
 /// <para>
 /// <b>Every write here changes the account's concurrency stamp.</b> Identity's own writes (a
@@ -95,6 +102,23 @@ internal sealed class AdminPasswordCheck(
         var now = time.GetUtcNow();
         var account = db.Users.Where(u => u.Id == userId);
 
+        // Locked already: refused before anything is written (see the remarks). Nothing is
+        // counted yet, so this read may still be abandoned by the caller.
+        var before = await account
+            .AsNoTracking()
+            .Select(u => new { u.LockoutEnd })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (before is null)
+        {
+            return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
+        }
+
+        if (before.LockoutEnd > now)
+        {
+            logger.LogWarning("Admin password check refused for user {UserId}: account locked out", userId);
+            return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
+        }
+
         // Not the caller's token, from the count on. A cancellation that lands while the count is
         // on the wire can still be committed by the database, and then nothing would settle it.
         using var settleClock = new CancellationTokenSource(SettleTimeout, time);
@@ -111,7 +135,6 @@ internal sealed class AdminPasswordCheck(
             return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
         }
 
-        var foundWrong = false;
         try
         {
             var state = await account
@@ -121,8 +144,8 @@ internal sealed class AdminPasswordCheck(
 
             if (state.LockoutEnd > now)
             {
-                // Already locked: this attempt was never going to be looked at, so it does not
-                // count toward the next lockout either.
+                // Locked since the look above, by another attempt of the same burst. This one
+                // was never going to be looked at, so it does not count toward the next lockout.
                 await UncountAsync(account, settle);
                 logger.LogWarning("Admin password check refused for user {UserId}: account locked out", userId);
                 return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
@@ -151,10 +174,9 @@ internal sealed class AdminPasswordCheck(
 
             if (!correct)
             {
-                foundWrong = true;
                 if (state.AccessFailedCount >= lockout.MaxFailedAccessAttempts)
                 {
-                    await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, verdictClock.Token);
+                    await LockAfterWrongGuessAsync(account, now + lockout.DefaultLockoutTimeSpan, userId, verdictClock.Token);
                 }
 
                 logger.LogWarning("Admin password check failed for user {UserId}", userId);
@@ -169,12 +191,33 @@ internal sealed class AdminPasswordCheck(
                 verdictClock.Token);
             return new AdminPasswordCheckResult(AdminPasswordVerdict.Correct, user.SecurityStamp);
         }
-        catch when (!foundWrong)
+        catch
         {
-            // No verdict, or a right password whose count could not be cleared. A password that
-            // was looked at and found wrong keeps its count whatever failed afterwards.
+            // No verdict, or a right password whose count could not be cleared. (A wrong guess
+            // never gets here: nothing after it throws.)
             await UndoCountAsync(account, userId);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Writes the lock a wrong guess at the limit has earned. Never throws: the guess was looked
+    /// at, found wrong and stays counted, and that is what the caller and the audit log are told.
+    /// A lock that cannot be written now is written by the next attempt, which finds the count
+    /// over the limit before any password is looked at.
+    /// </summary>
+    private async Task LockAfterWrongGuessAsync(
+        IQueryable<ApplicationUser> account, DateTimeOffset until, string userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await LockAsync(account, until, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Admin password check for user {UserId}: the lock earned by a wrong guess could not be written; the next attempt will write it",
+                userId);
         }
     }
 

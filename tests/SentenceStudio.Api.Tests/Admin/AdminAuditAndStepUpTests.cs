@@ -453,10 +453,11 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
     }
 
     [Fact]
-    public async Task A_wrong_guess_stays_counted_when_writing_its_lock_fails()
+    public async Task A_wrong_guess_whose_lock_cannot_be_written_is_still_answered_as_wrong_and_stays_counted()
     {
-        // The fifth wrong guess was looked at; the lock it earns cannot be written. Taking the
-        // attempt back here would be a free guess for anyone who can make that write fail.
+        // The fifth wrong guess was looked at; the lock it earns cannot be written. It is still a
+        // wrong guess, for the caller and for the log, and taking it back off the count would be
+        // a free guess for anyone who could make that write fail.
         var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
         using var client = _factory.CreateClientFor(admin);
         for (var i = 0; i < 4; i++)
@@ -468,14 +469,79 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         await using var db = WatchedDatabase(scope, new FailsTheLockWrite());
         var check = CheckOn(scope, db);
 
-        var act = () => check.CheckAsync(admin.Id, "NotThePassword1!", CancellationToken.None);
+        var result = await check.CheckAsync(admin.Id, "NotThePassword1!", CancellationToken.None);
 
-        (await act.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*simulated*");
+        result.Verdict.Should().Be(AdminPasswordVerdict.Incorrect);
         (await FailedCountInDatabaseAsync(admin)).Should().Be(5);
 
-        // The next attempt finds the count over the limit, locks, and is not looked at.
+        // The next attempt finds the count over the limit, writes the lock, and is not looked at.
         (await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest(AdminApiFactory.Password)))
             .StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task While_locked_out_a_refused_attempt_writes_nothing_so_the_admins_password_change_still_saves()
+    {
+        // Somebody holding the session keeps asking while the account is locked. If each refused
+        // attempt wrote to the account, the admin's own password change, which Identity saves
+        // under the concurrency stamp it read, would fail every time.
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var client = _factory.CreateClientFor(admin);
+        for (var i = 0; i < 5; i++)
+        {
+            await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!"));
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var asReadForTheChange = await users.FindByIdAsync(admin.Id);
+        var resetToken = await users.GeneratePasswordResetTokenAsync(asReadForTheChange!);
+
+        for (var i = 0; i < 3; i++)
+        {
+            (await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!")))
+                .StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        }
+
+        (await users.ResetPasswordAsync(asReadForTheChange!, resetToken, "ANewPassword1234!"))
+            .Succeeded.Should().BeTrue("the refused attempts did not touch the account");
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_slow_look_at_the_password_does_not_stop_the_verdict_being_written(bool rightPassword)
+    {
+        // Reading the account and hashing the password do not watch the check's clock. If that
+        // took the whole of it, the lock for a fifth wrong guess, or the reset for a right
+        // password, must still be written.
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var client = _factory.CreateClientFor(admin);
+        for (var i = 0; i < 4; i++)
+        {
+            await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!"));
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        await using var db = WatchedDatabase(scope, new AfterTheReadThatFollowsTheCount(() =>
+            _factory.Time.Advance(AdminPasswordCheck.SettleTimeout + TimeSpan.FromSeconds(1))));
+        var check = CheckOn(scope, db);
+
+        var result = await check.CheckAsync(
+            admin.Id, rightPassword ? AdminApiFactory.Password : "NotThePassword1!", CancellationToken.None);
+
+        if (rightPassword)
+        {
+            result.Verdict.Should().Be(AdminPasswordVerdict.Correct);
+            (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+        }
+        else
+        {
+            result.Verdict.Should().Be(AdminPasswordVerdict.Incorrect);
+            (await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest(AdminApiFactory.Password)))
+                .StatusCode.Should().Be(HttpStatusCode.TooManyRequests, "the fifth wrong guess wrote its lock");
+        }
     }
 
     [Fact]
@@ -602,6 +668,36 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
             {
                 Fired = true;
                 await then();
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Runs once, right after the read that follows the count: the last step before the password is looked at.</summary>
+    private sealed class AfterTheReadThatFollowsTheCount(Action then) : DbCommandInterceptor
+    {
+        private int _state;   // 0 waiting for the count, 1 counted, 2 done
+
+        public override ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("\"AccessFailedCount\" + 1", StringComparison.Ordinal))
+            {
+                Interlocked.CompareExchange(ref _state, 1, 0);
+            }
+
+            return ValueTask.FromResult(result);
+        }
+
+        // When the reader is put away, not when the command has run: the rows are read in between.
+        public override InterceptionResult DataReaderDisposing(
+            DbCommand command, DataReaderDisposingEventData eventData, InterceptionResult result)
+        {
+            if (Interlocked.CompareExchange(ref _state, 2, 1) == 1)
+            {
+                then();
             }
 
             return result;
