@@ -441,3 +441,35 @@ Correctness findings from `/code-review high` were fixed on the branch. These ar
   resource: the web dashboard logs "Plan generation failed" with a null reference and falls back
   to the basic plan. Seen on the isolated stack with hand-seeded words.
 
+
+## Admin portal phase 1 (reviews 2026-11-16, branch `admin-feedback-inbox`)
+
+Correctness findings from `/code-review high`, the security review and the two reviews of the
+fix commits were fixed on the branch. These are what was left.
+
+- **The old operator service and its switch are dead code.**
+  `src/SentenceStudio.Api/Coach/Opportunities/CoachOpportunityOperatorService.cs` (about 950
+  lines, able to decrypt a learner's messages for their owner), `Endpoints/CoachOpportunityOperatorContracts.cs`,
+  `CoachOpportunityMarkdown.cs`, `CoachOpportunityLimits.EvidenceRevealAcknowledgement`, the
+  `Coach:Opportunities:OperatorSurface` option and the validator rule that fails startup when it
+  is on outside Development. No route calls the service and no host registers it any more; the
+  admin inbox (`Admin/AdminReportsService.cs`) replaced it. It stays only because these tests
+  read the ledger through it: `CoachOpportunityOperatorSurfaceTests`,
+  `CoachOpportunityOwnerIsolationTests`, `CoachResponseReportOperatorSurfaceTests`,
+  `CoachResponseReportAttributionTests`, `CoachNoticeReportServiceTests`,
+  `CoachOpportunityPostgresTests`, `CoachOpportunityContractSerializationTests`, and the two
+  rollout test files. Delete the service, the option and the `OperatorSurface` keys in both
+  `appsettings` files, and move what those tests still prove about the recorder and the report
+  service onto `AdminReportsService` or direct reads.
+- **Two copies of two small rules.** `AdminReportsService` reads a flagged exchange and applies
+  the status transition rule itself, as the old service does (`ResolveAsync`, `ReviewAsync`).
+  The transition rule is the shared `CoachOpportunityReviewTransitions`; the message read is
+  duplicated until the old service goes.
+- **A `triage`-only token gets the report row back** from the triage route without holding
+  `reports`. Ids and codes only, and it needs a report id it could not have listed.
+- **`tests/SentenceStudio.WebApp.Tests/Infrastructure/StubOperatorApi.cs` and
+  `OperatorWebAppFactory.cs` keep the operator name.** They now stand in for the API in general.
+- **`AdminApiFactory.SeedFlaggedAnswerAsync` writes the ledger row itself.** The real path
+  (`CoachResponseReportService` and the recorder's upsert) was driven only in the running check.
+  A test that files a flag through the service inside the admin host would pin that the two
+  agree.

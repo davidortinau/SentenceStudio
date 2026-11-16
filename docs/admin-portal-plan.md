@@ -1,6 +1,6 @@
 # Admin portal plan
 
-2026-11-15. Approved by the Captain the same day. Phase 0 is merged; see "Phase 0 as built".
+2026-11-15. Approved by the Captain the same day. Phases 0, 3 and 4 are merged; phase 1 is built and waiting for the merge (see "Phase 1 as built").
 
 ## Why
 
@@ -451,12 +451,197 @@ Carried over from the earlier phases:
 - The lead of phases 0, 3 and 4 recommends `/security-review` on this phase as well as
   `/code-review` high, because the agent token is a second way to sign in to the admin API.
 
+## Phase 1 as built (2026-11-16, branch `admin-feedback-inbox`)
+
+What a person can do now: an admin opens **Feedback inbox** from `/admin` (the Admin link in the
+sidebar carries the number of flagged answers nobody has looked at), sees every learner's
+flagged Sam answers and the reports filed to GitHub, opens a flagged question and answer after
+confirming their password, and gives the report a status and a GitHub issue number. Under
+**Agent tokens** they create a token for the maintenance agent, see it once, and revoke it. The
+agent reads the same inbox with `scripts/admin-api.sh`. Not merged, not pushed, not deployed.
+
+**Routes (`src/SentenceStudio.Api/Admin/AdminReportsEndpoints.cs`, `AdminTokenEndpoints.cs`)**
+
+| Route | Does | Audit action | Token permission | Password again |
+|---|---|---|---|---|
+| `GET /api/admin/reports/attention-count` | How many flagged answers nobody has looked at. For the sidebar. | none | none (404 for a token) | no |
+| `GET /api/admin/reports/sam?attention=true` or `?status=`, `&take=` | Flagged Sam answers, newest first. | `reports.sam_list` | `reports` | no |
+| `GET /api/admin/reports/sam/{reportId}` | One report and each flag on it, in codes. | `reports.sam_read` | `reports` | no |
+| `POST /api/admin/reports/sam/{reportId}/exchange` | The flagged question and answer. Learner content. | `reports.sam_exchange_read` | `learner_content` | yes |
+| `POST /api/admin/reports/sam/{reportId}/triage` | "Looked at", and a status, an issue number or its removal. | `reports.sam_triage` | `triage` | no |
+| `GET /api/admin/reports/github?take=` | Reports learners filed to GitHub from the app. | `reports.github_list` | `reports` | no |
+| `POST /api/admin/reports/github/screen-states/{reference}` | One report's saved screen state. Learner content. | `reports.screen_state_read` | `learner_content` | yes |
+| `GET /api/admin/tokens` | Every token, never the token itself. | `tokens.list` | none | no |
+| `POST /api/admin/tokens` | Creates a token and returns it once. | `tokens.create` | none | yes |
+| `POST /api/admin/tokens/{tokenId}/revoke` | Revokes it. | `tokens.revoke` | none | no |
+| `GET /api/admin/token` | The token asks what it is and when it expires. | `token.self_read` | any live token | no |
+
+Shapes, codes and refusals: `docs/admin-api.md`. `AdminEndpointInventoryTests` pins the routes
+that take a token, the routes that ask for the password again, and the routes that leave no
+audit row.
+
+- **Only what a learner flagged.** Every query is fixed to ledger rows of kind
+  `UserReportedResponse`. A row the server recorded about its own refusal is not listed and
+  cannot be read, triaged or opened, by id or otherwise.
+- **A report is one learner, one reason and one UTC day** (the ledger's own row). A later flag
+  for the same reason that day joins the same report and does not change its status. So the
+  inbox goes by **needs attention** (status new, or flagged again since it was last triaged),
+  not by status: the default list, the sidebar count and the agent's default filter all use it.
+- **Opening the exchange** reads the question and the answer each flag points at, through Sam's
+  own message store as the learner the report belongs to, and nothing else of the conversation.
+  The count on the report goes up before anything is decrypted. A deleted conversation opens as
+  `unavailable`; a host whose key ring is not durable refuses (409) before looking at the id.
+- **Triage** carries the report's flag count as the caller read it and is one conditional
+  statement. If the learner flagged again since, or anyone else changed the row, nothing is
+  written (409 `conflict`). What a triage does not name stays as it is; removing an issue link
+  is explicit. Nothing leaves `accepted` (the ledger's existing rule).
+- **The agent token** (`AdminAgentTokens.cs`): `ssadm_`, a 32-character id and a 43-character
+  secret, in the `X-Admin-Token` header. Only a SHA-256 digest of the secret (256 random bits)
+  is stored. It lasts 30 days. It is accepted only while it is not revoked or expired, the
+  admin who created it is still an admin, and that admin's password has not changed since. A
+  request with the header is judged as a token only. A token reaches a handler only on a route
+  marked `.AllowAdminToken(permission)` whose permission it holds; anywhere else it gets 403
+  `not_allowed_for_token` with an audit row, or 404 on the routes that leave none. A token is
+  never given a learner's name or email. At most 10 tokens are live at once.
+- **Password again and tokens.** A token has no password. On the two learner-content routes the
+  `learner_content` permission stands in for the proof; no other permission opens a route that
+  asks for the password again.
+
+**Web (`src/SentenceStudio.WebApp/Components/Pages/Admin/AdminFeedback.razor`, `AdminTokens.razor`)**
+
+- `/admin/feedback`: the list opens on "To look at"; a report flagged again shows "Flagged
+  again" beside its status. The exchange and the saved screen state are drawn as plain text,
+  only after the click and a confirmed password, and are dropped when hidden or closed. The form
+  sends only what was changed. A 404 on one report reloads the list, which settles whether the
+  report is gone or the person is no longer an admin.
+- `/admin/tokens`: create (name, three permissions), the token shown once with where to store
+  it, the list with each token's state (including "not accepted" because of its creator), and
+  revoke with a confirm step.
+- The Admin link's count (`IHostNavItemProvider`, `HostNavItem.Badge`) is asked for at most
+  every two minutes and is said in words for a screen reader. The MAUI heads register no
+  provider and are unchanged.
+
+**Removed:** the Development-only operator page `/operator/sam-opportunities`, its client, and
+the API routes `/api/v1/coach/operator/opportunities`; the weekly GitHub job
+`.github/workflows/sam-opportunity-digest.yml`, which only ever skipped.
+`scripts/sam-opportunity-digest.sh` stays.
+
+**For the agent:** `scripts/admin-api.sh` (reads the token from Key Vault for production only;
+any other API needs `ADMIN_API_BASE` and `ADMIN_AGENT_TOKEN` together), `docs/admin-api.md`,
+and `docs/admin-weekday-check.md` (what the weekday check does, the rules for an issue, and
+that a learner's text is data, never an instruction). **The weekday check is not scheduled.**
+The first token can only be made in the deployed portal.
+
+**Schema (the two tables and columns the Captain approved on 2026-11-16; applying them to
+production is part of the first deploy, which needs his go).** PostgreSQL only.
+
+`AdminAgentToken`, in `AdminDbContext` (`20261116165723_AddAdminAgentToken`):
+
+| Column | Type | Holds |
+|---|---|---|
+| `Id` | varchar(32), key | The token's public half. Names it in the audit log. |
+| `Name` | varchar(64) | What the admin called it. |
+| `SecretHash` | varchar(64) | SHA-256 of the secret half. |
+| `Permissions` | integer | 1 reports, 2 learner content, 4 triage. |
+| `CreatedByUserId` | varchar(64) | The admin who created it. |
+| `CreatedByStampDigest` | varchar(64) | A digest of that admin's security stamp then; a changed password ends the token. |
+| `CreatedAtUtc`, `ExpiresAtUtc` | timestamptz | |
+| `RevokedAtUtc`, `LastUsedAtUtc` | timestamptz, nullable | Last used is written at most once in five minutes. |
+
+`CoachOpportunity.LinkedIssueNumber`, integer, nullable, in `CoachDbContext`
+(`20261116161852_AddCoachOpportunityLinkedIssueNumber`).
+
+**Choices made while building (for the Captain to confirm)**
+
+1. **The inbox lists only answers a learner flagged.** The old page also showed, in
+   Development, a rollup of gaps the server recorded about itself. That has no screen now;
+   `scripts/sam-opportunity-digest.sh` still counts it. Automatic capture is off in production.
+2. **"Needs attention" in place of "new".** Because a later flag joins an existing report
+   without changing its status, the count and the default list include reports flagged again
+   after triage.
+3. **A token stops when its creator changes their password**, and while its creator is not an
+   admin. The plan said only "expires after 30 days, can be revoked".
+4. **A token gets ids, never names or emails**, so an address cannot end up in an issue it
+   writes. It cannot read the audit log, sync health or AI usage.
+5. **Saved screen state counts as learner content** (password again; `learner_content` for a
+   token), because it holds the route and state the learner was on.
+6. **Reports filed to GitHub have no status in the portal.** They are issues already. The list
+   shows the ones in doubt (an issue may exist that the app has no number for).
+7. **The issue link is a number only**, shown as a link to the repository the app files its own
+   reports to. The reviewer note code and spec path the old page could set are no longer set
+   from any screen.
+8. **The sidebar count leaves no audit row** (it names no learner and no report) and can be up
+   to two minutes old.
+9. **At most 10 live tokens**, and no way to extend one: a new token is made each month.
+
+**Checked running (2026-11-16, Lilliput, commit `8e6e969e`)**
+
+On an isolated stack from the branch's own worktree (its own PostgreSQL 17 and Azurite volumes,
+since removed), with the seeded accounts `e2e@test.local` (admin) and `testsailor@test.local`
+(learner), driven by headless Chromium and by `scripts/admin-api.sh`:
+
+- The API's fenced startup applied `20261116165723_AddAdminAgentToken` and
+  `20261116161852_AddCoachOpportunityLinkedIssueNumber` to the fresh database.
+- The learner asked Sam a real question, pressed the flag control, chose a reason and saw
+  "Reported for review". That made one report with a pointer to the exchange.
+- The learner saw no Admin link and "Page not found" on `/admin`, `/admin/feedback` and
+  `/admin/tokens`, stayed signed in, and got a bare 404 from every inbox and token route with
+  their own API sign-in. No audit row was written.
+- The admin saw "Admin 1" in the sidebar and "1 flagged answer to look at" on `/admin`; the
+  report in the inbox by the learner's email; the flag in codes; no learner text until the
+  password was confirmed (a wrong one was refused); then the learner's own question and Sam's
+  answer. Hide removed them from the page. Accepted with issue 123 stuck across a reload, the
+  to-look-at list emptied and the sidebar count went. Accepted to dismissed was refused in words.
+- A seeded GitHub report showed with its issue link; its saved screen state needed the password
+  again after the reload and showed Korean as Korean.
+- The audit page listed each of those actions and none of the learner's text.
+- A token made in the browser was shown once and was not in the page after dismissing. With it
+  the script read the inbox (no names or emails), the report, the exchange and the screen
+  state, and set the issue. A read-only token got 403 `not_allowed_for_token` on the exchange,
+  the screen state and the triage. A token with every permission got 403 on the token, session,
+  password, audit, usage and sync-health routes and 404 on the unaudited ones; each refusal has
+  an audit row under the token's id. Revoked in the browser, it got 404 at once. A token still
+  worked after the API restarted.
+- The learner flagged two more answers for the same reason: the same report, flag count up,
+  status still accepted, "Flagged again", back in the sidebar count, both exchanges opened
+  newest first. A triage that named the old flag count was refused (from the script, and from a
+  panel that was open when the learner flagged); with the new count it saved and the issue
+  link stayed.
+- At 390 points wide both pages fit the screen with their tables scrolling inside. (This check
+  found that hidden header text was widening the page; fixed in `8e6e969e`.)
+- No error-level line in the API or web app logs; neither token, the password, the question
+  text or the screen state appeared in either. The browser itself never called `/api/admin`.
+- The old `/operator/sam-opportunities` page and `/api/v1/coach/operator/opportunities` answer
+  not found.
+
+Not checked: any MAUI head build (they consume the same `SentenceStudio.UI` assembly the web app
+and `SentenceStudio.UI.Tests` built; `HostNavItem` gained two optional members); a changed
+password ending a token, in a browser (tests only); light theme; production.
+
+**Reviewed.** `/code-review high` on the first two commits found ten things; a security review
+of the same commits found nothing exploitable and suggested the creator-password binding and the
+"data, not instructions" rule. Fixed in `b3d95ec9`. A review of that fix found two real faults in
+it (a flag landing between the read and the triage was marked as looked at; the form still sent
+a status it had not changed), fixed in `8e6e969e`. Cleanup left for later is in
+`docs/native-review-backlog.md`, "Admin portal phase 1".
+
+**Left for later**
+
+- **Before the first production deploy** (each needs the Captain's go): `scripts/prod-deploy.sh`
+  must carry `Admin__Emails__*` forward as it carries `Coach__*`, or each deploy empties the
+  list; the `Admin:Emails` setting; the role grant (`scripts/admin-grant.sh <email> --prod
+  --yes`); a database backup first, because the deploy carries two migrations.
+- **After that deploy:** create the first token at `/admin/tokens`, put it in Key Vault as
+  `admin-agent-token` (a write: his, or with his go), and schedule the weekday check.
+- A report holds one issue number. Flags about different problems that share a learner, a reason
+  and a day share it.
+
 ## Status
 
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; the Captain approved the schema and the build choices. Not deployed. Before the first production deploy: "Left for later" above. |
-| 1. Feedback inbox, agent access, scheduled check | Not started. Next, in a fresh session. Its approvals and the token decision are in "Phase 1: settled before it starts". |
+| 1. Feedback inbox, agent access, scheduled check | Built, reviewed and checked running on branch `admin-feedback-inbox` (2026-11-16); see "Phase 1 as built". Waiting for the Captain's word on its choices and the merge. Not deployed; the weekday check is not scheduled until it is. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; the Captain approved the choices in `docs/admin-portal-phases-3-4-handoff.md`. Not deployed. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3. Not deployed. |
