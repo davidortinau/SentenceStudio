@@ -203,6 +203,12 @@ internal sealed class AdminReportsService(
         // One statement, conditional on the row still being the one that was read: the same
         // version (no other triage, no opened exchange since) and the same number of flags (no
         // new flag since). Either having moved, nothing is written.
+        //
+        // One window remains, a few milliseconds wide: the recorder takes a flag's time before
+        // it sends its upsert, so a flag stamped just before this statement and applied just
+        // after it lands with an earlier time than the triage and does not show as needing
+        // attention. Closing it needs the triage to store the count it saw, which is a column
+        // (docs/native-review-backlog.md, "Admin portal phase 1").
         var written = await FlaggedRows
             .Where(r => r.Id == id && r.Version == row.Version && r.OccurrenceCount == seenFlagCount)
             .ExecuteUpdateAsync(

@@ -968,14 +968,18 @@
 
                 case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureTransitionRefused:
                     // The form may have been showing an older status: show what is true now.
-                    await ReloadDetailAsync(shown.Id);
-                    _triageMessage = "An accepted report keeps its status. Its issue number can still be changed.";
+                    AfterRefusedSave(
+                        await ReloadDetailAsync(shown.Id),
+                        "An accepted report keeps its status. Its issue number can still be changed.",
+                        "An accepted report keeps its status. Close this report and open it again to see it as it is now.");
                     break;
 
                 case AdminApiStatus.Refused when result.Code == AdminReportCodes.FailureConflict:
-                    await ReloadDetailAsync(shown.Id);
                     _exchange = null;
-                    _triageMessage = "The report changed since you opened it: the learner flagged again, or someone else saved. It has been reloaded; look again and decide again.";
+                    AfterRefusedSave(
+                        await ReloadDetailAsync(shown.Id),
+                        "The report changed since you opened it: the learner flagged again, or someone else saved. It has been reloaded; look again and decide again.",
+                        "The report changed since you opened it, and it could not be read again. Close it and open it again before deciding.");
                     break;
 
                 default:
@@ -989,13 +993,55 @@
         }
     }
 
-    private async Task ReloadDetailAsync(string reportId)
+    private enum Reload { Shown, Failed, PanelClosed, Gone }
+
+    /// <summary>
+    /// Reads the open report again after a save the API refused because the form was out of date.
+    /// Says what became of it, because the panel can be closed, or the report gone, by the time
+    /// the answer arrives.
+    /// </summary>
+    private async Task<Reload> ReloadDetailAsync(string reportId)
     {
         var result = await Api.GetSamReportAsync(reportId);
-        if (result.Value is { } detail && _detail?.Report.Id == reportId)
+        if (result.Status == AdminApiStatus.NotFound)
         {
-            // The same report, read again: Show keeps what belongs to it and resets the form.
-            Show(detail);
+            await GoneAsync("That report");
+            return Reload.Gone;
+        }
+
+        if (_detail?.Report.Id != reportId)
+        {
+            return Reload.PanelClosed;
+        }
+
+        if (result.Value is not { } detail)
+        {
+            return Reload.Failed;
+        }
+
+        // The same report, read again: Show keeps what belongs to it and resets the form.
+        Show(detail);
+        return Reload.Shown;
+    }
+
+    /// <summary>
+    /// Says that a save was refused, wherever there is still somewhere to say it: in the panel
+    /// when it is open (and truthfully about whether it was reloaded), at the top of the page
+    /// when it was closed meanwhile. A report that turned out to be gone has already been said.
+    /// </summary>
+    private void AfterRefusedSave(Reload reload, string reloadedMessage, string notReloadedMessage)
+    {
+        switch (reload)
+        {
+            case Reload.Shown:
+                _triageMessage = reloadedMessage;
+                break;
+            case Reload.Failed:
+                _triageMessage = notReloadedMessage;
+                break;
+            case Reload.PanelClosed:
+                _notice = "The change to the report you closed was not saved. Open it again to retry.";
+                break;
         }
     }
 

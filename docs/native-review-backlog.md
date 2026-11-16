@@ -473,3 +473,10 @@ fix commits were fixed on the branch. These are what was left.
   (`CoachResponseReportService` and the recorder's upsert) was driven only in the running check.
   A test that files a flag through the service inside the admin host would pin that the two
   agree.
+- **A flag stamped just before a triage and written just after it is not shown as needing
+  attention.** The recorder takes a flag's time before it sends its upsert
+  (`CoachOpportunityRecorder.WriteAsync`), and "needs attention" compares that time with the
+  triage's. The triage's own write is conditional on the flag count, which closes every case but
+  this one, a few milliseconds wide on one host. The fix is to store the flag count a triage saw
+  (one integer column on `CoachOpportunity`, which needs the Captain's approval) and compare
+  counts instead of times.

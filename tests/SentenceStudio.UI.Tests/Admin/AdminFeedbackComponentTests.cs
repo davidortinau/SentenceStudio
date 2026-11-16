@@ -510,6 +510,48 @@ public sealed class AdminFeedbackComponentTests
     }
 
     [Fact]
+    public async Task A_refused_save_whose_report_is_closed_while_it_is_read_again_is_said_at_the_top_of_the_page()
+    {
+        AnswerLists();
+        _api.Answer(TriageRoute, HttpStatusCode.Conflict, """{"code":"conflict"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminFeedback>();
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
+        await circuit.ChangeValueByIdAsync(id, "admin-feedback-triage-status", "dismissed");
+
+        // The save is refused at once; the close lands while the report is being read again.
+        var release = _api.Hold(DetailRoute);
+        var saving = circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+        await _api.Reached(DetailRoute);
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-detail-close");
+        release.SetResult();
+        await saving;
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-feedback-detail").Should().BeFalse();
+        circuit.RenderedText(id).Should().Contain("was not saved");
+    }
+
+    [Fact]
+    public async Task A_refused_save_whose_report_cannot_be_read_again_does_not_claim_it_was_reloaded()
+    {
+        AnswerLists();
+        _api.Answer(TriageRoute, HttpStatusCode.Conflict, """{"code":"conflict"}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminFeedback>();
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
+        await circuit.ChangeValueByIdAsync(id, "admin-feedback-triage-status", "dismissed");
+
+        _api.Answer(DetailRoute, HttpStatusCode.InternalServerError);
+        await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.RenderedText(id).Should().Contain("could not be read again").And.NotContain("It has been reloaded");
+    }
+
+    [Fact]
     public async Task A_save_that_fails_after_its_report_was_closed_is_said_at_the_top_of_the_page()
     {
         AnswerLists();

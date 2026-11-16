@@ -40,9 +40,10 @@ PROD="https://$PROD_HOST"
 # below turns on this, and must not turn on spelling.
 BASE="${ADMIN_API_BASE:-$PROD}"
 BASE_HOST="$(python3 -I -c 'import sys
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 try:
-    print((urlsplit(sys.argv[1]).hostname or "").lower())
+    # As curl will read it: percent-escapes decoded, no trailing dot, lower case.
+    print(unquote(urlsplit(sys.argv[1]).hostname or "").rstrip(".").lower())
 except ValueError:
     print("")' "$BASE")"
 if [ -z "$BASE_HOST" ]; then

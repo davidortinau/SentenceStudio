@@ -622,7 +622,10 @@ password ending a token, in a browser (tests only); light theme; production.
 of the same commits found nothing exploitable and suggested the creator-password binding and the
 "data, not instructions" rule. Fixed in `b3d95ec9`. A review of that fix found two real faults in
 it (a flag landing between the read and the triage was marked as looked at; the form still sent
-a status it had not changed), fixed in `8e6e969e`. Cleanup left for later is in
+a status it had not changed), fixed in `8e6e969e`. A review of that commit found nothing that
+would hold a merge; its four small points (two messages on the inbox page, the script's reading
+of a host name, and the gap noted below) were fixed or recorded in the commit after it, which
+was tested and not reviewed again. Cleanup left for later is in
 `docs/native-review-backlog.md`, "Admin portal phase 1".
 
 **Left for later**
@@ -635,6 +638,9 @@ a status it had not changed), fixed in `8e6e969e`. Cleanup left for later is in
   `admin-agent-token` (a write: his, or with his go), and schedule the weekday check.
 - A report holds one issue number. Flags about different problems that share a learner, a reason
   and a day share it.
+- One narrow gap in "needs attention": a flag stamped a few milliseconds before a triage and
+  written just after it. Closing it takes one more number column (the flag count a triage saw),
+  which needs the Captain's approval: `docs/native-review-backlog.md`.
 
 ## Status
 
