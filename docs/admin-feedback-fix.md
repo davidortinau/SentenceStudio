@@ -59,6 +59,8 @@ it. Nothing a learner wrote goes in it (you have read none).
   needs the Captain's decision, then "Activity log". Refer to the issue with `Fixes #<n>` when
   the change resolves it and `Refs #<n>` when it does not.
 - Do not merge it. Merging and deploying are the Captain's.
+- You do not need to report your own token or tool usage: the runner measures it and posts it
+  on the pull request after you finish.
 
 ## Where you stop and hand to the Captain
 

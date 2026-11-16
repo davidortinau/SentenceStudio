@@ -43,6 +43,14 @@ had its go.
   notification is shown when something was triaged, an issue was worked or the run failed, and
   not when there was nothing to do.
 
+- **What each session used is tracked** (the Captain asked on 2026-11-16, to tune the check over
+  time): model, time, turns, tokens, cost at API prices, and how many times each tool, shell
+  command and MCP tool was called. It is in every summary, in
+  `~/sstudio-feedback-check/usage.jsonl`, and in a comment on each pull request the fix stage
+  opens. `scripts/admin-feedback-usage.py report` prints the history and totals by stage. Only
+  names and counts are kept: no command arguments, no paths, no text. The triage session's own
+  transcript is not saved, because it holds what a learner wrote.
+
 To stop it: `launchctl bootout gui/$(id -u)/com.sentencestudio.feedback-check`. To run it once
 by hand: `scripts/admin-feedback-check.sh` (`--triage-only`, `--fix-only [issue]`, or `--probe`,
 which only asks the API what the token is).
