@@ -16,6 +16,16 @@ public static class AdminActions
     public const string UsageSamRead = "usage.sam_read";
     public const string UsageVideoImportsRead = "usage.video_imports_read";
     public const string UsagePartOfSpeechRead = "usage.part_of_speech_read";
+    public const string ReportsSamList = "reports.sam_list";
+    public const string ReportsSamRead = "reports.sam_read";
+    public const string ReportsSamExchangeRead = "reports.sam_exchange_read";
+    public const string ReportsSamTriage = "reports.sam_triage";
+    public const string ReportsGitHubList = "reports.github_list";
+    public const string ReportsScreenStateRead = "reports.screen_state_read";
+    public const string TokensList = "tokens.list";
+    public const string TokensCreate = "tokens.create";
+    public const string TokensRevoke = "tokens.revoke";
+    public const string TokenSelfRead = "token.self_read";
 }
 
 /// <summary>The closed set of things an admin request can act on.</summary>
@@ -23,6 +33,7 @@ public static class AdminTargetKinds
 {
     public const string Learner = "learner";
     public const string Report = "report";
+    public const string Token = "token";
 }
 
 /// <summary>
@@ -146,6 +157,11 @@ internal sealed class AdminAuditWriter(DbContextOptions<AdminDbContext> options,
 /// request fails and nothing is read or changed. A route with neither an action nor an explicit
 /// no-audit marker is refused for the same reason.
 /// </para>
+/// <para>
+/// <b>Tokens.</b> An agent token reaches a handler only on a route marked with
+/// <see cref="AdminTokenAccessMetadata"/> whose permission it holds. Anywhere else it is refused
+/// here, before the handler and its filters run.
+/// </para>
 /// </remarks>
 internal sealed class AdminRequestMiddleware(RequestDelegate next, ILogger<AdminRequestMiddleware> logger)
 {
@@ -185,6 +201,13 @@ internal sealed class AdminRequestMiddleware(RequestDelegate next, ILogger<Admin
                 return;
             }
 
+            // A token is for the routes that say so, and every one of those is audited.
+            if (actor.Kind != AdminActorKind.Admin)
+            {
+                http.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
             await next(http);
             return;
         }
@@ -208,7 +231,20 @@ internal sealed class AdminRequestMiddleware(RequestDelegate next, ILogger<Admin
 
         try
         {
-            await next(http);
+            if (AdminTokenAccess.IsAllowed(endpoint, actor))
+            {
+                await next(http);
+            }
+            else
+            {
+                // A live token on a route it may not use: every account tool, and any route whose
+                // permission it was not given. Recorded, and answered with the reason, because
+                // the token's holder is a known caller and needs to report why it was refused.
+                await AdminRefusal
+                    .Create(http, StatusCodes.Status403Forbidden, AdminFailureCodes.NotAllowedForToken,
+                        "This token is not allowed to do that.")
+                    .ExecuteAsync(http);
+            }
         }
         catch (Exception ex)
         {

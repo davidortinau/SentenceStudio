@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
@@ -13,9 +14,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
+using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Persistence;
+using SentenceStudio.Api.Coach.Persistence.History;
+using SentenceStudio.Api.Coach.Reports;
+using SentenceStudio.Api.Feedback.Persistence;
+using SentenceStudio.Api.Security.DataProtection;
 using SentenceStudio.Api.Tests.Coach;
 using SentenceStudio.Api.Tests.Infrastructure;
+using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -47,6 +54,8 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         Path.GetTempPath(), $"sentencestudio_admin_audit_{Guid.NewGuid():N}.db");
     private readonly string _coachDbPath = Path.Combine(
         Path.GetTempPath(), $"sentencestudio_admin_coach_{Guid.NewGuid():N}.db");
+    private readonly string _feedbackDbPath = Path.Combine(
+        Path.GetTempPath(), $"sentencestudio_admin_feedback_{Guid.NewGuid():N}.db");
     private readonly string? _adminConnectionString;
 
     public AdminApiFactory(string? adminConnectionString = null)
@@ -59,6 +68,12 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
 
     /// <summary>Watches the host's commands against the account database, for a test that needs to act between two of them.</summary>
     public IInterceptor? AccountDatabaseInterceptor { get; init; }
+
+    /// <summary>
+    /// Whether the host says its Data Protection key ring is durable. A flagged exchange is opened
+    /// only when it is; a test sets this false to see the refusal.
+    /// </summary>
+    public bool DurableKeyRing { get; init; } = true;
 
     /// <summary>The host's clock. Moves only when a test moves it.</summary>
     public TestTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
@@ -108,6 +123,20 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<CoachDbContext>();
             services.AddDbContext<CoachDbContext>(options => options.UseSqlite($"Data Source={_coachDbPath}"));
 
+            // The reports learners filed to GitHub live in the feedback context; SQLite stands in.
+            services.RemoveAll<DbContextOptions<FeedbackDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<FeedbackDbContext>>();
+            services.AddDbContext<FeedbackDbContext>(options => options.UseSqlite($"Data Source={_feedbackDbPath}"));
+
+            services.RemoveAll<CoachKeyRingPlan>();
+            services.AddSingleton(new CoachKeyRingPlan
+            {
+                Mode = DurableKeyRing ? CoachKeyRingMode.AzureBlobConnectionString : CoachKeyRingMode.HostDefault,
+                ApplicationName = "SentenceStudio.Coach",
+                ContainerName = "coach-keys",
+                BlobName = "keyring.xml"
+            });
+
             services.RemoveAll<IOptionsMonitor<AdminOptions>>();
             services.AddSingleton<IOptionsMonitor<AdminOptions>>(AdminList);
             services.RemoveAll<TimeProvider>();
@@ -128,6 +157,11 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         using (var coachScope = host.Services.CreateScope())
         {
             coachScope.ServiceProvider.GetRequiredService<CoachDbContext>().Database.EnsureCreated();
+        }
+
+        using (var feedbackScope = host.Services.CreateScope())
+        {
+            feedbackScope.ServiceProvider.GetRequiredService<FeedbackDbContext>().Database.EnsureCreated();
         }
 
         if (_adminConnectionString is null)
@@ -205,6 +239,167 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         return client;
     }
 
+    /// <summary>
+    /// Confirms <paramref name="client"/>'s password with the API and puts the proof on every
+    /// later request it makes.
+    /// </summary>
+    public static async Task ConfirmPasswordAsync(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest(Password));
+        response.EnsureSuccessStatusCode();
+        var proof = await response.Content.ReadFromJsonAsync<AdminStepUpResponse>();
+        client.DefaultRequestHeaders.Remove(AdminStepUpService.HeaderName);
+        client.DefaultRequestHeaders.Add(AdminStepUpService.HeaderName, proof!.Proof);
+    }
+
+    /// <summary>
+    /// Creates an agent token through the real route, as <paramref name="admin"/> with a confirmed
+    /// password, and returns it as the admin is shown it.
+    /// </summary>
+    public async Task<AdminTokenCreated> IssueTokenAsync(ApplicationUser admin, params string[] permissions)
+    {
+        using var client = CreateClientFor(admin);
+        await ConfirmPasswordAsync(client);
+        var response = await client.PostAsJsonAsync(
+            "/api/admin/tokens", new AdminTokenCreateRequest("test agent", permissions));
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<AdminTokenCreated>())!;
+    }
+
+    /// <summary>A client that signs in with an agent token and nothing else.</summary>
+    public HttpClient CreateClientForToken(string token)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add(AdminAgentTokenService.HeaderName, token);
+        return client;
+    }
+
+    /// <summary>
+    /// One Sam answer a learner flagged: a real conversation with the question and the answer
+    /// encrypted in the coach's store, the learner's flag, and the inbox row it raised.
+    /// </summary>
+    /// <returns>The inbox row's id.</returns>
+    public async Task<string> SeedFlaggedAnswerAsync(
+        ApplicationUser learner,
+        string question,
+        string answer,
+        CoachResponseReportReason reason = CoachResponseReportReason.IncorrectOrMisleading,
+        DateTime? flaggedAtUtc = null,
+        string? addToReportId = null)
+    {
+        using var scope = Services.CreateScope();
+        var owner = CoachOwner.ForUser(learner.UserProfileId!);
+        var conversationId = Guid.NewGuid().ToString("n");
+        var conversations = scope.ServiceProvider.GetRequiredService<ICoachConversationStore>();
+        var messages = scope.ServiceProvider.GetRequiredService<ICoachMessageStore>();
+
+        (await conversations.CreateAsync(owner, new CreateCoachConversationRequest(
+            Title: "Grammar",
+            TitleSource: CoachConversationTitleSource.Generated,
+            TargetLanguageCode: "ko",
+            ConversationId: conversationId))).Status.Should().Be(CoachHistoryStatus.Success);
+
+        var asked = await messages.AppendAsync(owner, new AppendCoachMessageRequest(
+            conversationId, CoachMessageRole.Learner, CoachMessageKind.Text, Payload(question), "op-1"));
+        var answered = await messages.AppendAsync(owner, new AppendCoachMessageRequest(
+            conversationId, CoachMessageRole.Coach, CoachMessageKind.Text, Payload(answer), "op-1"));
+        asked.Status.Should().Be(CoachHistoryStatus.Success);
+        answered.Status.Should().Be(CoachHistoryStatus.Success);
+
+        var at = flaggedAtUtc ?? Time.GetUtcNow().UtcDateTime;
+        var db = scope.ServiceProvider.GetRequiredService<CoachDbContext>();
+        var reportId = addToReportId;
+        if (reportId is null)
+        {
+            reportId = Guid.NewGuid().ToString("n");
+            db.CoachOpportunities.Add(new CoachOpportunity
+            {
+                Id = reportId,
+                UserProfileId = learner.UserProfileId!,
+                ConversationId = conversationId,
+                Kind = CoachOpportunityKind.UserReportedResponse,
+                Disposition = CoachOpportunityDisposition.Product,
+                Surface = CoachOpportunitySurface.TurnOutcome,
+                CapabilityCode = CoachOpportunityCapabilityCodes.ForReportReason(reason),
+                StopReason = CoachStopReason.Completed,
+                EvidenceMessageId = asked.Message!.Id,
+                EvidenceMessageSequence = asked.Message.Sequence,
+                EvidenceOfferMessageId = answered.Message!.Id,
+                EvidenceOfferMessageSequence = answered.Message.Sequence,
+                Fingerprint = Guid.NewGuid().ToString("n"),
+                DedupBucketDate = DateOnly.FromDateTime(at),
+                OccurrenceCount = 1,
+                FirstObservedAtUtc = at,
+                LastObservedAtUtc = at
+            });
+        }
+        else
+        {
+            var row = await db.CoachOpportunities.SingleAsync(o => o.Id == reportId);
+            row.OccurrenceCount++;
+            row.LastObservedAtUtc = at;
+            row.Version++;
+        }
+
+        db.CoachResponseReports.Add(new CoachResponseReport
+        {
+            Id = Guid.NewGuid().ToString("n"),
+            UserProfileId = learner.UserProfileId!,
+            ConversationId = conversationId,
+            CoachMessageId = answered.Message!.Id,
+            CoachMessageSequence = answered.Message.Sequence,
+            RequestMessageId = asked.Message!.Id,
+            RequestMessageSequence = asked.Message.Sequence,
+            Reason = reason,
+            ResponseKind = CoachMessageKind.PedagogicalAnswer,
+            StopReason = CoachStopReason.Completed,
+            TurnAttemptCount = 1,
+            OpportunityId = reportId,
+            ReportedAtUtc = at
+        });
+        await db.SaveChangesAsync();
+        return reportId;
+    }
+
+    /// <summary>One more learner message in a conversation, which nobody flags.</summary>
+    public async Task AppendUnflaggedMessageAsync(ApplicationUser learner, string conversationId, string text)
+    {
+        using var scope = Services.CreateScope();
+        var appended = await scope.ServiceProvider.GetRequiredService<ICoachMessageStore>().AppendAsync(
+            CoachOwner.ForUser(learner.UserProfileId!),
+            new AppendCoachMessageRequest(
+                conversationId, CoachMessageRole.Learner, CoachMessageKind.Text, Payload(text), "op-2"));
+        appended.Status.Should().Be(CoachHistoryStatus.Success);
+    }
+
+    private CoachMessagePayload Payload(string text) => new()
+    {
+        Kind = CoachMessagePayloadKind.CoachText,
+        Text = text,
+        CreatedAtUtc = Time.GetUtcNow().UtcDateTime
+    };
+
+    /// <summary>Runs <paramref name="work"/> against the host's coach database.</summary>
+    public async Task WithCoachDbAsync(Func<CoachDbContext, Task> work)
+    {
+        using var scope = Services.CreateScope();
+        await work(scope.ServiceProvider.GetRequiredService<CoachDbContext>());
+    }
+
+    /// <summary>Runs <paramref name="work"/> against the host's feedback database.</summary>
+    public async Task WithFeedbackDbAsync(Func<FeedbackDbContext, Task> work)
+    {
+        using var scope = Services.CreateScope();
+        await work(scope.ServiceProvider.GetRequiredService<FeedbackDbContext>());
+    }
+
+    /// <summary>Runs <paramref name="work"/> against the host's admin database.</summary>
+    public async Task WithAdminDbAsync(Func<AdminDbContext, Task> work)
+    {
+        using var scope = Services.CreateScope();
+        await work(scope.ServiceProvider.GetRequiredService<AdminDbContext>());
+    }
+
     /// <summary>Every audit row, oldest first, read through its own context.</summary>
     public async Task<List<AdminAuditEntry>> ReadAuditAsync()
     {
@@ -216,7 +411,7 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        foreach (var path in new[] { _dbPath, _auditDbPath, _coachDbPath })
+        foreach (var path in new[] { _dbPath, _auditDbPath, _coachDbPath, _feedbackDbPath })
         {
             if (File.Exists(path))
             {

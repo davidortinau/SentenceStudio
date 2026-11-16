@@ -26,6 +26,8 @@ public sealed class AdminDbContext : DbContext
 
     public DbSet<AdminAuditEntry> AuditEntries => Set<AdminAuditEntry>();
 
+    public DbSet<AdminAgentToken> AgentTokens => Set<AdminAgentToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -54,6 +56,21 @@ public sealed class AdminDbContext : DbContext
             // "What has this admin or token done?"
             entity.HasIndex(e => e.ActorId)
                   .HasDatabaseName("IX_AdminAuditEntry_ActorId");
+        });
+
+        modelBuilder.Entity<AdminAgentToken>(entity =>
+        {
+            entity.ToTable("AdminAgentToken");
+
+            // Assigned by the server when the token is created, never by the database: it is half
+            // of the token the admin is shown.
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever().HasMaxLength(AdminAgentTokenLimits.IdLength);
+
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(AdminAgentTokenLimits.MaxNameLength);
+            entity.Property(e => e.SecretHash).IsRequired().HasMaxLength(AdminAgentTokenLimits.SecretHashLength);
+            entity.Property(e => e.Permissions).HasConversion<int>();
+            entity.Property(e => e.CreatedByUserId).IsRequired().HasMaxLength(AdminAuditLimits.MaxIdLength);
         });
 
         PinTimestampsToUtc(modelBuilder);

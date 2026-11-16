@@ -6,7 +6,7 @@ public enum AdminActorKind
     /// <summary>A signed-in account that holds the role and is on the list.</summary>
     Admin = 1,
 
-    /// <summary>The maintenance agent's token (phase 1). It can never use the account tools.</summary>
+    /// <summary>The maintenance agent's token. It can never use the account tools.</summary>
     AgentToken = 2
 }
 
@@ -16,8 +16,8 @@ public enum AdminActorKind
 /// </summary>
 /// <param name="Kind">Admin account or agent token.</param>
 /// <param name="Id">The Identity user id, or the token id. This is what the audit log records.</param>
-/// <param name="Email">The account's address, for display to the admin themself.</param>
-/// <param name="DisplayName">The account's display name.</param>
+/// <param name="Email">The account's address, for display to the admin themself. Null for a token.</param>
+/// <param name="DisplayName">The account's display name, or the name a token was given.</param>
 /// <param name="StampDigest">
 /// <see cref="AdminStepUpService.DigestOf"/> of the account's current Identity security stamp. A
 /// password-again proof is bound to it, so a password change ends every proof issued before it.
@@ -29,7 +29,14 @@ public sealed record AdminActor(
     string Id,
     string? Email,
     string? DisplayName,
-    string? StampDigest);
+    string? StampDigest)
+{
+    /// <summary>What an agent token may do. Always none for an admin account, which needs none.</summary>
+    public AdminTokenPermissions TokenPermissions { get; init; }
+
+    /// <summary>When an agent token stops working. Null for an admin account.</summary>
+    public DateTime? TokenExpiresAtUtc { get; init; }
+}
 
 /// <summary>Carries the resolved <see cref="AdminActor"/> for the rest of the request.</summary>
 internal interface IAdminActorFeature

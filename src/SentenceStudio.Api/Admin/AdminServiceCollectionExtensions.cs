@@ -47,6 +47,8 @@ public static class AdminServiceCollectionExtensions
         });
 
         services.AddScoped<AdminAuditWriter>();
+        services.AddScoped<AdminAgentTokenService>();
+        services.AddScoped<AdminReportsService>();
 
         return services;
     }

@@ -200,64 +200,27 @@ public class CoachOpportunityRolloutTests
         options.OperatorSurface.Enabled.Should().BeTrue();
     }
 
-    // ---------------------------------------------------------------- gate 1: routes
+    // ---------------------------------------------------------------- the routes moved
 
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    [InlineData("Testing")]
-    public void TheOperatorRoutesAreNotMappedOutsideDevelopment(string environmentName)
-    {
-        var app = WebApplication.CreateBuilder().Build();
-
-        app.MapCoachOpportunityOperator(new StubEnvironment { EnvironmentName = environmentName });
-
-        RouteCount(app).Should().Be(0,
-            "the routes must not exist at all, so a request 404s rather than 403s — a 403 on an " +
-            "operator route is an advertisement");
-    }
-
+    /// <summary>
+    /// The Development-only operator routes are gone: the admin portal's feedback inbox
+    /// (<c>/api/admin/reports</c>) replaced them, behind the admin policy in every environment.
+    /// </summary>
     [Fact]
-    public void TheOperatorRoutesAreMappedInDevelopment()
+    public void TheApiNoLongerMapsAnOperatorRouteOfItsOwn()
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.Services.AddAuthorization();
-        var app = builder.Build();
+        var program = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "src", "SentenceStudio.Api", "Program.cs"));
 
-        app.MapCoachOpportunityOperator(
-            new StubEnvironment { EnvironmentName = Environments.Development });
-
-        RouteCount(app).Should().Be(6);
-    }
-
-    [Fact]
-    public void TheEvidenceRouteIsAPost()
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.Services.AddAuthorization();
-        var app = builder.Build();
-
-        app.MapCoachOpportunityOperator(
-            new StubEnvironment { EnvironmentName = Environments.Development });
-
-        var evidence = Endpoints(app)
-            .OfType<RouteEndpoint>()
-            .Single(e => e.RoutePattern.RawText!.EndsWith("/evidence", StringComparison.Ordinal));
-
-        evidence.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods
-            .Should().BeEquivalentTo(["POST"],
-                "a reveal must not be linkable, prefetchable, cacheable, or reachable from a " +
-                "browser history entry");
+        program.Should().NotContain("MapCoachOpportunityOperator");
+        File.Exists(Path.Combine(
+            RepositoryRoot(), "src", "SentenceStudio.Api", "Coach", "Opportunities", "Endpoints",
+            "CoachOpportunityOperatorEndpoints.cs")).Should().BeFalse();
     }
 
     [Fact]
     public void TheAcknowledgementLiteralIsPinned() =>
         CoachOpportunityLimits.EvidenceRevealAcknowledgement.Should().Be("reveal-learner-content");
-
-    private static int RouteCount(WebApplication app) => Endpoints(app).Count;
-
-    private static IReadOnlyList<Endpoint> Endpoints(WebApplication app) =>
-        ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).ToList();
 
     private static string RepositoryRoot()
     {

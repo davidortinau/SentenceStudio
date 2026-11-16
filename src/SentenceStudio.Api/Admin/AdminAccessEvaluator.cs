@@ -16,7 +16,9 @@ internal enum AdminDenial
     EmailNotConfirmed,
     NeitherRoleNorListed,
     RoleWithoutList,
-    ListedWithoutRole
+    ListedWithoutRole,
+    TokenNotLive,
+    TokenCreatorNotAdmin
 }
 
 internal readonly record struct AdminAccessResult(AdminActor? Actor, AdminDenial Denial);
@@ -36,9 +38,15 @@ internal readonly record struct AdminAccessResult(AdminActor? Actor, AdminDenial
 /// confirmation are read from the database on every request, and the list from the live options,
 /// so removing either half takes effect on the next request rather than when a token expires.
 /// </para>
+/// <para>
+/// An agent token is admitted while it is live and the admin who created it still is one, by the
+/// same check. A token therefore stops with its creator: an empty list still means nobody, and
+/// nothing, is admitted.
+/// </para>
 /// </remarks>
 internal sealed class AdminAccessEvaluator(
     ApplicationDbContext db,
+    AdminAgentTokenService tokens,
     IOptionsMonitor<AdminOptions> options,
     ILogger<AdminAccessEvaluator> logger)
 {
@@ -67,6 +75,44 @@ internal sealed class AdminAccessEvaluator(
             return new AdminAccessResult(null, AdminDenial.NotAuthenticated);
         }
 
+        return await EvaluateAccountAsync(userId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Decides whether <paramref name="presented"/> is a live agent token whose creator is still
+    /// an admin. The request's own sign-in, if it has one, plays no part.
+    /// </summary>
+    public async Task<AdminAccessResult> EvaluateTokenAsync(string? presented, CancellationToken cancellationToken)
+    {
+        var token = await tokens.FindLiveAsync(presented, cancellationToken);
+        if (token is null)
+        {
+            return new AdminAccessResult(null, AdminDenial.TokenNotLive);
+        }
+
+        var creator = await EvaluateAccountAsync(token.CreatedByUserId, cancellationToken);
+        if (creator.Actor is null)
+        {
+            logger.LogWarning(
+                "Agent token {TokenId} refused: the account that created it is not an admin ({Denial}).",
+                token.Id, creator.Denial);
+            return new AdminAccessResult(null, AdminDenial.TokenCreatorNotAdmin);
+        }
+
+        await tokens.TouchAsync(token, cancellationToken);
+
+        // No email and no stamp: a token names no person and can hold no password-again proof.
+        return new AdminAccessResult(
+            new AdminActor(AdminActorKind.AgentToken, token.Id, Email: null, token.Name, StampDigest: null)
+            {
+                TokenPermissions = token.Permissions,
+                TokenExpiresAtUtc = token.ExpiresAtUtc
+            },
+            AdminDenial.None);
+    }
+
+    private async Task<AdminAccessResult> EvaluateAccountAsync(string userId, CancellationToken cancellationToken)
+    {
         var account = await db.Users
             .AsNoTracking()
             .Where(u => u.Id == userId)

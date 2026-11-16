@@ -33,11 +33,12 @@ public sealed class AdminModelMigrationParityTests
     }
 
     [Fact]
-    public void The_initial_admin_migration_is_discoverable()
+    public void The_admin_migrations_are_discoverable_in_order()
     {
         using var db = NewContext();
 
-        db.Database.GetMigrations().Should().Contain("20261115224514_InitialAdminSchema");
+        db.Database.GetMigrations().Should().Equal(
+            "20261115224514_InitialAdminSchema", "20261116161851_AddAdminAgentToken");
     }
 
     [Fact]
@@ -61,6 +62,7 @@ public sealed class AdminModelMigrationParityTests
             .ToArray();
 
         applicationEntities.Should().NotContain(typeof(AdminAuditEntry));
+        applicationEntities.Should().NotContain(typeof(AdminAgentToken));
     }
 
     [Fact]
@@ -164,7 +166,7 @@ public sealed class AdminEndpointInventoryTests : IDisposable
     }
 
     [Fact]
-    public void Every_admin_route_declares_an_audit_action_or_is_one_of_the_two_known_exceptions()
+    public void Every_admin_route_declares_an_audit_action_or_is_one_of_the_known_exceptions()
     {
         var adminRoutes = AllEndpoints().Where(IsUnderAdminPrefix).ToList();
 
@@ -188,7 +190,8 @@ public sealed class AdminEndpointInventoryTests : IDisposable
         }
 
         // Adding a route that leaves no audit row means changing this list on purpose.
-        unaudited.Should().BeEquivalentTo("/api/admin/access", "/api/admin/{**rest}");
+        unaudited.Should().BeEquivalentTo(
+            "/api/admin/access", "/api/admin/reports/new-count", "/api/admin/{**rest}");
 
         var known = typeof(AdminActions).GetFields()
             .Where(f => f.IsLiteral)
@@ -200,13 +203,63 @@ public sealed class AdminEndpointInventoryTests : IDisposable
     }
 
     [Fact]
-    public void No_phase_0_route_asks_for_the_password_again_yet()
+    public void The_routes_that_ask_for_the_password_again_are_exactly_these()
     {
         // Pins the list of dangerous routes: each one added later is added here on purpose.
         AllEndpoints()
             .Where(e => e.Metadata.GetMetadata<AdminStepUpMetadata>() is not null)
             .Select(e => e.RoutePattern.RawText)
-            .Should().BeEmpty();
+            .Should().BeEquivalentTo(
+                "/api/admin/reports/sam/{reportId}/exchange",
+                "/api/admin/reports/github/screen-states/{reference}",
+                "/api/admin/tokens");
+    }
+
+    [Fact]
+    public void The_routes_an_agent_token_may_call_are_exactly_these_each_with_its_permission()
+    {
+        // Every other admin route refuses every token. A route is opened to tokens here, on purpose.
+        AllEndpoints()
+            .Where(IsUnderAdminPrefix)
+            .Select(e => (Route: e.RoutePattern.RawText, Access: e.Metadata.GetMetadata<AdminTokenAccessMetadata>()))
+            .Where(e => e.Access is not null)
+            .Select(e => (e.Route, e.Access!.Required))
+            .Should().BeEquivalentTo(new (string?, AdminTokenPermissions)[]
+            {
+                ("/api/admin/token", AdminTokenPermissions.None),
+                ("/api/admin/reports/sam", AdminTokenPermissions.Reports),
+                ("/api/admin/reports/sam/{reportId}", AdminTokenPermissions.Reports),
+                ("/api/admin/reports/github", AdminTokenPermissions.Reports),
+                ("/api/admin/reports/sam/{reportId}/exchange", AdminTokenPermissions.LearnerContent),
+                ("/api/admin/reports/github/screen-states/{reference}", AdminTokenPermissions.LearnerContent),
+                ("/api/admin/reports/sam/{reportId}/triage", AdminTokenPermissions.Triage)
+            });
+    }
+
+    [Fact]
+    public void Every_route_that_returns_learner_content_is_a_POST_that_asks_for_the_password_again()
+    {
+        var learnerContent = AllEndpoints()
+            .Where(e => e.Metadata.GetMetadata<AdminTokenAccessMetadata>()?.Required == AdminTokenPermissions.LearnerContent)
+            .ToList();
+
+        learnerContent.Should().NotBeEmpty();
+        foreach (var endpoint in learnerContent)
+        {
+            endpoint.Metadata.GetMetadata<AdminStepUpMetadata>().Should().NotBeNull(
+                $"{endpoint.DisplayName} returns learner content, so an admin must have just typed their password");
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods
+                .Should().Equal(["POST"], "learner content must not be linkable, prefetchable or replayed from history");
+        }
+    }
+
+    [Fact]
+    public void No_route_outside_the_admin_prefix_serves_the_old_operator_surface()
+    {
+        AllEndpoints()
+            .Select(e => e.RoutePattern.RawText ?? string.Empty)
+            .Where(route => route.Contains("operator", StringComparison.OrdinalIgnoreCase))
+            .Should().BeEmpty("the Sam operator routes moved to /api/admin/reports");
     }
 }
 

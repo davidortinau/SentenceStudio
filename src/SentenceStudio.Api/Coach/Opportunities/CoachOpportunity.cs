@@ -169,6 +169,15 @@ public sealed class CoachOpportunity
     public string? LinkedSpecPath { get; set; }
 
     /// <summary>
+    /// The GitHub issue that tracks this row, when an admin or the maintenance agent linked one.
+    /// </summary>
+    /// <remarks>
+    /// A number, so there is nowhere to put text. The issue itself carries no private text
+    /// (docs/admin-portal-plan.md).
+    /// </remarks>
+    public int? LinkedIssueNumber { get; set; }
+
+    /// <summary>
     /// How many times an operator revealed this row's encrypted evidence.
     /// </summary>
     /// <remarks>

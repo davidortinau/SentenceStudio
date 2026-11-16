@@ -400,12 +400,11 @@ public class CoachOpportunityDigestTests
     public void TheDigestIsNotReachableOverHttp()
     {
         var endpointSource = File.ReadAllText(Path.Combine(
-            RepositoryRoot(), "src", "SentenceStudio.Api", "Coach", "Opportunities", "Endpoints",
-            "CoachOpportunityOperatorEndpoints.cs"));
+            RepositoryRoot(), "src", "SentenceStudio.Api", "Admin", "AdminReportsEndpoints.cs"));
 
         endpointSource.Should().NotContain("Digest",
-            "the digest is an out-of-band operator tool; an admin-shaped HTTP route would need " +
-            "an authorization primitive this codebase does not have");
+            "the digest is an out-of-band tool that reads the database directly; the admin " +
+            "inbox serves its own reads and does not expose it");
 
         var programSource = File.ReadAllText(Path.Combine(
             RepositoryRoot(), "src", "SentenceStudio.Api", "Program.cs"));

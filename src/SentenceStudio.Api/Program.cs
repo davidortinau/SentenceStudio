@@ -849,14 +849,9 @@ app.MapCoachVocabularySets();
 // is indistinguishable from an unknown route rather than advertising itself with a 403.
 app.MapCoachResponseReports();
 
-// The Sam opportunity operator surface. Unlike every other coach group, this one is NOT always
-// mapped: it can decrypt learner messages and this host has no admin authorization primitive, so
-// outside Development the routes simply do not exist. That is gate 1 of four; the options
-// validator refuses to start a non-Development host that enables it at all.
-app.MapCoachOpportunityOperator(app.Environment);
-
 // The admin portal's routes. Always mapped; a caller who is not an admin gets the same 404 as
-// for a path that does not exist.
+// for a path that does not exist. The feedback inbox under /api/admin/reports replaces the
+// Development-only Sam operator routes that used to be mapped here.
 app.MapAdminEndpoints();
 
 // YouTube channel monitoring endpoints

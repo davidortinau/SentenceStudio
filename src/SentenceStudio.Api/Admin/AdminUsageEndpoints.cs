@@ -305,7 +305,7 @@ internal static class AdminUsageEndpoints
     /// Profile id, display name and email for each id, in the order given. A learner with no
     /// account or profile row still appears, with no name or email.
     /// </summary>
-    private static async Task<IReadOnlyList<AdminLearnerSummary>> NamesAsync(
+    internal static async Task<IReadOnlyList<AdminLearnerSummary>> NamesAsync(
         ApplicationDbContext db, IReadOnlyList<string> profileIds, CancellationToken cancellationToken)
     {
         if (profileIds.Count == 0)

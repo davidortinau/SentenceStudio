@@ -8,9 +8,13 @@ public static class AdminPolicy
 {
     public const string Name = "Admin";
 
+    /// <remarks>
+    /// One requirement and no "signed in" rule beside it: an agent token arrives with no account
+    /// sign-in at all. <see cref="AdminAccessEvaluator"/> refuses a caller that is neither a
+    /// signed-in admin nor a live token.
+    /// </remarks>
     internal static AuthorizationPolicy Build() =>
         new AuthorizationPolicyBuilder()
-            .RequireAuthenticatedUser()
             .AddRequirements(new AdminRequirement())
             .Build();
 }
@@ -39,7 +43,12 @@ internal sealed class AdminAuthorizationHandler : AuthorizationHandler<AdminRequ
         }
 
         var evaluator = http.RequestServices.GetRequiredService<AdminAccessEvaluator>();
-        var result = await evaluator.EvaluateAsync(context.User, http.RequestAborted);
+
+        // A request that carries the token header is judged as a token and nothing else. One that
+        // repeats the header names no single token and is refused.
+        var result = http.Request.Headers.TryGetValue(AdminAgentTokenService.HeaderName, out var presented)
+            ? await evaluator.EvaluateTokenAsync(presented.Count == 1 ? presented[0] : null, http.RequestAborted)
+            : await evaluator.EvaluateAsync(context.User, http.RequestAborted);
         if (result.Actor is null)
         {
             return;

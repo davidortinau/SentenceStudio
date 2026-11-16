@@ -345,4 +345,18 @@ public static class CoachOpportunityCapabilityCodes
         CoachResponseReportReason.Confusing => LearnerReportedConfusing,
         _ => LearnerReportedOther
     };
+
+    /// <summary>
+    /// The reason behind a learner-report code, or null for any other code. The inverse of
+    /// <see cref="ForReportReason"/>.
+    /// </summary>
+    public static CoachResponseReportReason? ReportReasonOf(string? capabilityCode) => capabilityCode switch
+    {
+        LearnerReportedDidNotAnswer => CoachResponseReportReason.DidNotAnswer,
+        LearnerReportedIncorrect => CoachResponseReportReason.IncorrectOrMisleading,
+        LearnerReportedExpectedAppAction => CoachResponseReportReason.ExpectedAppAction,
+        LearnerReportedConfusing => CoachResponseReportReason.Confusing,
+        LearnerReportedOther => CoachResponseReportReason.Other,
+        _ => null
+    };
 }

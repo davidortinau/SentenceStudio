@@ -23,8 +23,10 @@ public sealed record AdminStepUpProof(string Token, DateTimeOffset ExpiresAtUtc)
 /// only come from <c>POST /api/admin/step-up</c> with the account's real password.
 /// </para>
 /// <para>
-/// Only an admin account can hold one. The agent token has no password, so it can never pass a
-/// route that asks for this.
+/// Only an admin account can hold one. The agent token has no password, so it passes a route
+/// that asks for this only where the route also names a token permission and the token holds it
+/// (reading a flagged exchange, with <see cref="AdminTokenPermissions.LearnerContent"/>). Every
+/// other such route refuses a token outright.
 /// </para>
 /// </remarks>
 public sealed class AdminStepUpService
@@ -146,6 +148,16 @@ internal sealed class AdminStepUpFilter(AdminStepUpService stepUp) : IEndpointFi
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
+
+        // A token has no password. Where a route that asks for the password again also admits a
+        // token, the permission the route names stands in for the proof: the audit middleware has
+        // already refused a token without it, and this checks again rather than trust the order.
+        if (http.FindAdminActor() is { Kind: AdminActorKind.AgentToken } token
+            && AdminTokenAccess.IsAllowed(http.GetEndpoint(), token))
+        {
+            return await next(context);
+        }
+
         if (stepUp.Validate(http) is null)
         {
             return AdminRefusal.Create(

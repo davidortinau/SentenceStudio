@@ -17,7 +17,7 @@ namespace SentenceStudio.Api.Coach.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -370,6 +370,9 @@ namespace SentenceStudio.Api.Coach.Persistence.Migrations
 
                     b.Property<DateTime>("LastObservedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LinkedIssueNumber")
+                        .HasColumnType("integer");
 
                     b.Property<string>("LinkedSpecPath")
                         .HasMaxLength(200)
