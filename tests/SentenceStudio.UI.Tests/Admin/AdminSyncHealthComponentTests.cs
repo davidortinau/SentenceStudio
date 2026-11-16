@@ -136,6 +136,37 @@ public sealed class AdminSyncHealthComponentTests
     }
 
     [Fact]
+    public async Task An_older_answer_that_arrives_after_a_newer_search_does_not_get_into_the_list()
+    {
+        _api.Answer(AppRoute, HttpStatusCode.OK, AppBody);
+        _api.Answer(LearnersRoute, HttpStatusCode.OK, LearnersBody);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminSyncHealth>();
+
+        // "Load more" is asked and its answer held back...
+        _api.Answer(LearnersRoute, HttpStatusCode.OK,
+            """{"items":[{"profileId":"p3","displayName":"Charlie","email":"c@x.test"}],"nextAfter":"p3"}""");
+        var held = _api.HoldNext();
+        var more = circuit.ClickButtonByIdAsync(id, "admin-sync-more");
+
+        // ...while a search is typed, sent and answered.
+        _api.Answer(LearnersRoute, HttpStatusCode.OK,
+            """{"items":[{"profileId":"p9","displayName":"Nine","email":"nine@x.test"}],"nextAfter":null}""");
+        await circuit.InputValueByIdAsync(id, "admin-sync-search", "nine");
+        await circuit.SubmitFormByIdAsync(id, "admin-sync-search-form");
+        circuit.HasElementWithId(id, "admin-sync-open-p9").Should().BeTrue();
+
+        held.SetResult();
+        await more;
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-sync-open-p3").Should().BeFalse("that page belongs to the list the search replaced");
+        circuit.HasElementWithId(id, "admin-sync-open-p9").Should().BeTrue();
+        circuit.HasElementWithId(id, "admin-sync-more").Should().BeFalse("the search had no more pages, and its cursor stands");
+    }
+
+    [Fact]
     public async Task A_failed_learner_list_says_so_and_is_not_an_empty_table()
     {
         _api.Answer(AppRoute, HttpStatusCode.OK, AppBody);
@@ -277,16 +308,26 @@ public sealed class AdminSyncHealthComponentTests
 
         public void Answer(string path, HttpStatusCode status, string body = "") => _answers[path] = (status, body);
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        private TaskCompletionSource? _hold;
+
+        /// <summary>The next request gets the answer scripted when it is sent, but only once this is completed.</summary>
+        public TaskCompletionSource HoldNext() => _hold = new TaskCompletionSource();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
             Paths.Add(path);
             Queries.Add(request.RequestUri.Query);
             var (status, body) = _answers.TryGetValue(path, out var answer) ? answer : (HttpStatusCode.NotFound, "");
-            return Task.FromResult(new HttpResponseMessage(status)
+            if (Interlocked.Exchange(ref _hold, null) is { } hold)
+            {
+                await hold.Task;
+            }
+
+            return new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")
-            });
+            };
         }
     }
 

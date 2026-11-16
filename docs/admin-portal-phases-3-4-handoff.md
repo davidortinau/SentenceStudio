@@ -182,3 +182,39 @@ on a later request closing the page.
   constants), `AdminHome.razor` (cards), `AdminApiClient.cs` (records and methods), and
   `AdminApiFactory.cs` (this phase added a SQLite coach context so Sam's usage can be read; phase 1
   may add its own contexts beside it).
+
+## Lead's review (2026-11-15)
+
+`/code-review high` on both phases, and the lead's own run of the three test projects, led to
+these changes on `admin-ai-usage` (they cover phase 3's files too, so the two phases merge
+together):
+
+- **Sam's weeks follow the learner's calendar.** The window was counted from UTC's Monday, so a
+  run made on a learner's Sunday evening vanished from "1 week" once UTC reached Monday. It is
+  now counted back from yesterday's UTC week; around a week's turn one week more than asked for
+  can show, and the page says so.
+- **Two different cuts are told apart.** A day list cut at 2,000 rows no longer claims the weeks
+  are short. The imports section now says when its reasons were counted over the first 5,000
+  failures only.
+- **More import failures have a reason.** The texts `YouTubeImportService` writes itself (video
+  not accessible, rate-limited, could not reach YouTube, no audio) each get a code. A test asks
+  that service's own classifiers for their text, so a change of wording there fails the test.
+- **The words section is not the backfill's queue, and now says so.** It counts by the learner a
+  word is recorded to; the backfill picks words through progress rows and resource links.
+- **"Stuck" is the pipeline's own rule and inherits its limit.** A retry keeps the first creation
+  time, so an import retried a moment ago is counted; the page says so.
+- **The learner list keeps only the newest request's answer.** A slow "Load more" that came back
+  after a search used to append its rows and leave its cursor behind.
+- **A failed request's log line carries no query string.** The search text is a learner's name
+  or email.
+- **"What is deployed" names what it covers.** The migration shown is the synced schema's; Sam,
+  feedback and the admin audit keep their own histories and are not shown.
+- **Owner columns come from `SyncRowOwners.OwnerColumn`**, not from a second list beside it.
+- **Test hosts give their connections back.** The three new pages added enough web test hosts
+  that a whole run on a default PostgreSQL (100 connections) failed with "too many clients";
+  each host's pool is now cleared when it is disposed.
+
+Left in `docs/native-review-backlog.md`: the reader's other duplicated helpers, the number of
+round trips in one learner read, the other schemas' migrations, and counting the backfill's real
+queue.
+

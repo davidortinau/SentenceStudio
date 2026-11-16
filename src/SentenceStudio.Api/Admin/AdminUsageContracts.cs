@@ -36,11 +36,15 @@ public sealed record AdminSamUsageWeek(
     int DaysWithRuns);
 
 /// <summary>Sam runs, tokens and estimated cost per learner per day and week.</summary>
-/// <param name="FromLocalDate">The first day read: the Monday of the oldest week asked for.</param>
+/// <param name="FromLocalDate">
+/// The first day read: a Monday. Rows are dated by each learner's own calendar, so the weeks are
+/// counted back from yesterday's UTC week and around a week's turn one more week can appear.
+/// </param>
 /// <param name="Learners">Everyone who appears in <paramref name="Days"/> or <paramref name="Weeks"/>.</param>
 /// <param name="Days">Newest first, then by profile id.</param>
 /// <param name="Weeks">Newest first, then by profile id.</param>
-/// <param name="Truncated">More rows matched than were read; the weeks may be short.</param>
+/// <param name="Truncated">More rows matched than were read; the oldest weeks may be short.</param>
+/// <param name="DaysTruncated">The day list was cut; every week is still whole.</param>
 /// <param name="NotRecorded">Codes from <see cref="AdminUsageNotRecorded"/>.</param>
 public sealed record AdminSamUsage(
     string FromLocalDate,
@@ -49,6 +53,7 @@ public sealed record AdminSamUsage(
     IReadOnlyList<AdminSamUsageDay> Days,
     IReadOnlyList<AdminSamUsageWeek> Weeks,
     bool Truncated,
+    bool DaysTruncated,
     IReadOnlyList<string> NotRecorded);
 
 /// <summary>Codes for <see cref="AdminVideoImportRow.Problem"/>.</summary>
@@ -69,6 +74,17 @@ public static class AdminVideoImportReasons
     public const string Cancelled = "cancelled";
     public const string TimedOut = "timed_out";
     public const string UnexpectedError = "unexpected_error";
+
+    /// <summary>YouTube would not serve the video: private, age-restricted, region-locked or removed.</summary>
+    public const string VideoUnavailable = "video_unavailable";
+
+    /// <summary>YouTube was limiting requests.</summary>
+    public const string RateLimited = "rate_limited";
+
+    /// <summary>YouTube could not be reached.</summary>
+    public const string NetworkError = "network_error";
+
+    public const string NoAudioStream = "no_audio_stream";
 
     /// <summary>Failed with a message this code list does not know.</summary>
     public const string Other = "other";
@@ -110,7 +126,10 @@ public sealed record AdminVideoImportRow(
 public sealed record AdminVideoImportReasonCount(string ReasonCode, int Count);
 
 /// <summary>YouTube imports that failed or are stuck.</summary>
-/// <param name="StuckAfterMinutes">An import not finished this long after it was created counts as stuck.</param>
+/// <param name="StuckAfterMinutes">
+/// An import not finished this long after it was created counts as stuck, the pipeline's own rule.
+/// A retry keeps the first creation time, so an import retried a moment ago counts too.
+/// </param>
 /// <param name="Truncated">The reasons were counted over the first rows only.</param>
 public sealed record AdminVideoImports(
     IReadOnlyList<AdminVideoImportRow> Items,
@@ -129,9 +148,14 @@ public sealed record AdminPartOfSpeechLearner(
     long Unclassified);
 
 /// <summary>
-/// Where the part-of-speech backfill stands, from the data: how many words carry a part of speech.
+/// How many words carry a part of speech, by the learner each word is recorded to.
 /// </summary>
-/// <param name="UnownedWords">Words recorded to no learner. The backfill never touches them.</param>
+/// <remarks>
+/// Not the backfill's queue. The backfill picks a learner's words through their progress rows and
+/// resource links, not through the word's recorded owner, so a word counted here as without one
+/// may never be picked, and a word recorded to no learner may be.
+/// </remarks>
+/// <param name="UnownedWords">Words recorded to no learner.</param>
 /// <param name="Learners">Learners with at least one word, most unclassified first.</param>
 /// <param name="Truncated">More learners matched than are listed.</param>
 /// <param name="NotRecorded">Codes from <see cref="AdminUsageNotRecorded"/>.</param>

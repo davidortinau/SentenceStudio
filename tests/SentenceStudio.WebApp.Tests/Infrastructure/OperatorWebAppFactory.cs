@@ -122,6 +122,10 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
             finally
             {
                 ClearHostSettings();
+                if (_database is { } database)
+                {
+                    WebAppPostgresServer.ReleaseConnections(database);
+                }
             }
         }
     }

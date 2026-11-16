@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Tests.Admin;
@@ -113,6 +115,64 @@ public sealed class AdminUsageTests : IDisposable
         one.Days.Select(d => d.LocalDate).Should().Equal("2026-11-15", "2026-11-14", "2026-11-10");
     }
 
+    [Fact]
+    public async Task A_run_on_a_learners_Sunday_evening_is_still_shown_when_UTC_has_reached_Monday()
+    {
+        // Rows are dated by the learner's own calendar. Alpha's newest row is Sunday the 15th; an
+        // admin looking a few hours later, on UTC's Monday, must still see it under "1 week".
+        var (admin, a, _) = await SeedAsync();
+        using var client = _factory.CreateClientFor(admin);
+        _factory.Time.Advance(TimeSpan.FromHours(13));
+
+        var one = (await client.GetFromJsonAsync<AdminSamUsage>("/api/admin/usage/sam?weeks=1"))!;
+
+        one.FromLocalDate.Should().Be("2026-11-09");
+        one.Days.Should().Contain(d => d.LocalDate == "2026-11-15" && d.ProfileId == a.UserProfileId);
+        one.Weeks.Should().Contain(w => w.WeekKey == "2026-W46" && w.ProfileId == a.UserProfileId);
+    }
+
+    [Fact]
+    public async Task A_long_day_list_is_cut_and_says_so_while_the_weeks_stay_whole()
+    {
+        var admin = await _factory.SeedAdminAsync("captain@usage.local");
+        var today = new DateOnly(2026, 11, 15);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var coach = scope.ServiceProvider.GetRequiredService<CoachDbContext>();
+            for (var learner = 0; learner < 30; learner++)
+            {
+                for (var back = 0; back < 70; back++)
+                {
+                    var day = today.AddDays(-back);
+                    coach.CoachUsages.Add(new CoachUsage
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        UserProfileId = $"many-{learner:D2}",
+                        LocalDate = day,
+                        WeekKey = CoachNormalizedJson.WeekKey(day),
+                        RunCount = 1,
+                        InputTokens = 10,
+                        OutputTokens = 5,
+                        EstimatedCostUsd = 0.001m,
+                        CreatedAt = _factory.Time.GetUtcNow().UtcDateTime,
+                        UpdatedAt = _factory.Time.GetUtcNow().UtcDateTime
+                    });
+                }
+            }
+
+            await coach.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClientFor(admin);
+        var usage = (await client.GetFromJsonAsync<AdminSamUsage>("/api/admin/usage/sam?weeks=10"))!;
+
+        // 30 learners over the 70 days from 2026-09-07 (a Monday) to today: 2,100 rows.
+        usage.Truncated.Should().BeFalse("every row was read");
+        usage.DaysTruncated.Should().BeTrue();
+        usage.Days.Should().HaveCount(2000);
+        usage.Weeks.Sum(w => w.Runs).Should().Be(2100, "the weeks are summed from every row read, not from the days listed");
+    }
+
     [Theory]
     [InlineData("weeks=0")]
     [InlineData("weeks=14")]
@@ -176,12 +236,34 @@ public sealed class AdminUsageTests : IDisposable
     [InlineData("Import timed out — stuck in FetchingTranscript for over 10 minutes.", AdminVideoImportReasons.TimedOut)]
     [InlineData("Import was cancelled.", AdminVideoImportReasons.Cancelled)]
     [InlineData("An unexpected error occurred during import.", AdminVideoImportReasons.UnexpectedError)]
+    [InlineData("An unexpected error occurred while fetching transcripts.", AdminVideoImportReasons.UnexpectedError)]
+    [InlineData("No suitable audio stream found for this video.", AdminVideoImportReasons.NoAudioStream)]
     [InlineData("anything else", AdminVideoImportReasons.Other)]
     [InlineData("", AdminVideoImportReasons.NoneStored)]
     [InlineData(null, AdminVideoImportReasons.NoneStored)]
     public void Stored_failure_text_is_sorted_into_a_fixed_code(string? text, string expected)
     {
         AdminUsageEndpoints.ReasonCodeOf(text).Should().Be(expected);
+    }
+
+    [Fact]
+    public void The_failures_the_YouTube_service_classifies_itself_each_get_a_code_of_their_own()
+    {
+        // Asked of the service's own classifiers, not of copied text: a change of wording there
+        // fails here instead of quietly turning a known reason into "another reason".
+        static string Written(string classifier, Exception? cause) =>
+            ((Exception)typeof(YouTubeImportService)
+                .GetMethod(classifier, BindingFlags.NonPublic | BindingFlags.Static)!
+                .Invoke(null, [cause])!).Message;
+
+        AdminUsageEndpoints.ReasonCodeOf(Written("ClassifyVideoUnavailable", null))
+            .Should().Be(AdminVideoImportReasons.VideoUnavailable);
+        AdminUsageEndpoints.ReasonCodeOf(Written("ClassifyRateLimited", null))
+            .Should().Be(AdminVideoImportReasons.RateLimited);
+        AdminUsageEndpoints.ReasonCodeOf(Written("ClassifyNetwork", new HttpRequestException("x", null, HttpStatusCode.TooManyRequests)))
+            .Should().Be(AdminVideoImportReasons.NetworkError);
+        AdminUsageEndpoints.ReasonCodeOf(Written("ClassifyNetwork", new HttpRequestException("x")))
+            .Should().Be(AdminVideoImportReasons.NetworkError);
     }
 
     [Fact]

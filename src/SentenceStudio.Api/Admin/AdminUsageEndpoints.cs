@@ -9,7 +9,7 @@ namespace SentenceStudio.Api.Admin;
 
 /// <summary>
 /// AI usage and jobs, read-only: Sam's runs, tokens and estimated cost; YouTube imports that
-/// failed or are stuck; and where the part-of-speech backfill stands.
+/// failed or are stuck; and how many words carry a part of speech.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -74,9 +74,13 @@ internal static class AdminUsageEndpoints
                 AdminFailureCodes.InvalidRequest, $"weeks must be 1 to {MaxWeeks}.");
         }
 
-        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
-        var thisMonday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        var from = thisMonday.AddDays(-7 * (weekCount - 1));
+        // Usage rows are dated by each learner's own calendar, which can be a day behind UTC or a
+        // day ahead of it. The weeks are counted back from yesterday's UTC week, so a run made on
+        // a learner's Sunday evening is not dropped while UTC is already on Monday. Around a
+        // week's turn the answer can therefore hold one week more than was asked for.
+        var anchor = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime).AddDays(-1);
+        var anchorMonday = anchor.AddDays(-(((int)anchor.DayOfWeek + 6) % 7));
+        var from = anchorMonday.AddDays(-7 * (weekCount - 1));
 
         // One more than the cap, to know whether anything was left out.
         var rows = await coachDb.CoachUsages.AsNoTracking()
@@ -88,8 +92,10 @@ internal static class AdminUsageEndpoints
                 u.UserProfileId, u.LocalDate, u.WeekKey, u.RunCount, u.InputTokens, u.OutputTokens, u.EstimatedCostUsd))
             .ToListAsync(cancellationToken);
 
-        var truncated = rows.Count > MaxUsageRows;
-        if (truncated)
+        // Two different cuts, told apart: rows that were never read make the oldest weeks short;
+        // days left off the list leave the weeks whole.
+        var rowsTruncated = rows.Count > MaxUsageRows;
+        if (rowsTruncated)
         {
             rows.RemoveAt(rows.Count - 1);
         }
@@ -100,7 +106,7 @@ internal static class AdminUsageEndpoints
                 r.ProfileId, r.LocalDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 r.Runs, r.InputTokens, r.OutputTokens, r.EstimatedCostUsd))
             .ToList();
-        truncated |= rows.Count > MaxDayRowsReturned;
+        var daysTruncated = rows.Count > MaxDayRowsReturned;
 
         var weekRows = rows
             .GroupBy(r => (r.ProfileId, r.WeekKey))
@@ -120,7 +126,8 @@ internal static class AdminUsageEndpoints
             learners,
             dayRows,
             weekRows,
-            truncated,
+            rowsTruncated,
+            daysTruncated,
             [AdminUsageNotRecorded.OtherAiCalls]));
     }
 
@@ -204,6 +211,12 @@ internal static class AdminUsageEndpoints
         DateTime CreatedAt, DateTime? CompletedAt, bool HasResource);
 
     /// <summary>Sorts a stored failure text into one of the fixed codes. The text itself never leaves.</summary>
+    /// <remarks>
+    /// The texts are the ones <c>VideoImportPipelineService</c>, the Workers host and
+    /// <c>YouTubeImportService</c> write. They are matched by their fixed beginnings, since some
+    /// carry a language, a length or an HTTP status. <c>AdminUsageTests</c> pins the YouTube ones
+    /// to that service's own classifiers.
+    /// </remarks>
     internal static string ReasonCodeOf(string? errorMessage)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
@@ -217,23 +230,28 @@ internal static class AdminUsageEndpoints
             return AdminVideoImportReasons.NoTranscript;
         }
 
-        if (errorMessage.StartsWith("Transcript too short", StringComparison.Ordinal))
+        foreach (var (beginning, code) in ReasonsByBeginning)
         {
-            return AdminVideoImportReasons.TranscriptTooShort;
+            if (errorMessage.StartsWith(beginning, StringComparison.Ordinal))
+            {
+                return code;
+            }
         }
 
-        if (errorMessage.StartsWith("Import timed out", StringComparison.Ordinal))
-        {
-            return AdminVideoImportReasons.TimedOut;
-        }
-
-        return errorMessage switch
-        {
-            "Import was cancelled." => AdminVideoImportReasons.Cancelled,
-            "An unexpected error occurred during import." => AdminVideoImportReasons.UnexpectedError,
-            _ => AdminVideoImportReasons.Other
-        };
+        return AdminVideoImportReasons.Other;
     }
+
+    private static readonly (string Beginning, string Code)[] ReasonsByBeginning =
+    [
+        ("Transcript too short", AdminVideoImportReasons.TranscriptTooShort),
+        ("Import timed out", AdminVideoImportReasons.TimedOut),
+        ("Import was cancelled.", AdminVideoImportReasons.Cancelled),
+        ("This video is not accessible.", AdminVideoImportReasons.VideoUnavailable),
+        ("YouTube is temporarily rate-limiting requests.", AdminVideoImportReasons.RateLimited),
+        ("Could not reach YouTube", AdminVideoImportReasons.NetworkError),
+        ("No suitable audio stream found", AdminVideoImportReasons.NoAudioStream),
+        ("An unexpected error occurred", AdminVideoImportReasons.UnexpectedError)
+    ];
 
     internal static string StatusCode(VideoImportStatus status) => status switch
     {

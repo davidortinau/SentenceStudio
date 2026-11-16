@@ -99,7 +99,9 @@ public sealed class AdminUsageComponentTests
         text.Should().Contain("imp-1").And.Contain("imp-2").And.Contain("No transcript in the learner")
             .And.Contain("Recorded to no learner").And.Contain("Still not finished").And.Contain("Not ended");
         text.Should().Contain("Failed").And.Contain("Stuck", "the problem is words, not only an icon");
-        text.Should().Contain("Last run: not recorded").And.Contain("Words").And.Contain("Without one");
+        text.Should().Contain("last run: not recorded").And.Contain("Words").And.Contain("Without one");
+        text.Should().Contain("not the backfill's queue", "the counts are by recorded owner, which is not how the backfill picks words");
+        text.Should().Contain("retried a moment ago", "stuck is counted from creation, which a retry does not reset");
         foreach (var table in new[]
                  {
                      "admin-usage-sam-weeks", "admin-usage-sam-days", "admin-usage-imports-table",

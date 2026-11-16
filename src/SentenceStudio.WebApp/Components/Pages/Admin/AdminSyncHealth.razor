@@ -19,7 +19,7 @@
     <PageHeader Title="Sync and data health" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
         <ToolbarActions>
             <button id="admin-sync-refresh" class="btn btn-sm btn-icon" type="button"
-                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                    @onclick="RefreshAsync" disabled="@Loading" title="Refresh" aria-label="Refresh">
                 <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
             </button>
         </ToolbarActions>
@@ -40,7 +40,7 @@
                 <dl class="row mb-0">
                     <dt class="col-sm-4 col-lg-3">API version</dt>
                     <dd class="col-sm-8 col-lg-9" id="admin-sync-api-version"><code>@app.ApiVersion</code></dd>
-                    <dt class="col-sm-4 col-lg-3">Newest database migration</dt>
+                    <dt class="col-sm-4 col-lg-3">Newest migration of the synced schema</dt>
                     <dd class="col-sm-8 col-lg-9" id="admin-sync-migration">
                         @if (app.LatestMigration is null)
                         {
@@ -51,9 +51,11 @@
                             <code>@app.LatestMigration</code>
                         }
                     </dd>
-                    <dt class="col-sm-4 col-lg-3">Migrations</dt>
+                    <dt class="col-sm-4 col-lg-3">Migrations of the synced schema</dt>
                     <dd class="col-sm-8 col-lg-9" id="admin-sync-migration-counts">
-                        @Number(app.AppliedMigrations) applied, @Number(app.PendingMigrations) pending
+                        @Number(app.AppliedMigrations) applied, @Number(app.PendingMigrations) pending.
+                        <span class="text-secondary">Sam, feedback and the admin audit keep their own
+                        migration histories, which are not shown here.</span>
                     </dd>
                     <dt class="col-sm-4 col-lg-3">Sync change log</dt>
                     <dd class="col-sm-8 col-lg-9" id="admin-sync-change-log">
@@ -90,7 +92,7 @@
                     <span>The learners could not be loaded. Use Refresh to try again.</span>
                 </div>
             }
-            else if (_learners.Count == 0 && !_loading)
+            else if (_learners.Count == 0 && !Loading)
             {
                 <p class="text-secondary" id="admin-sync-learners-empty">No learners found.</p>
             }
@@ -130,14 +132,14 @@
                 @if (_nextAfter is not null)
                 {
                     <button id="admin-sync-more" class="btn btn-outline-secondary mb-3" type="button"
-                            @onclick="LoadMoreAsync" disabled="@_loading">
+                            @onclick="LoadMoreAsync" disabled="@Loading">
                         Load more learners
                     </button>
                 }
             }
         </section>
 
-        @if (_loading)
+        @if (Loading)
         {
             <div class="d-flex align-items-center text-secondary" role="status">
                 <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
@@ -156,9 +158,14 @@
     private string? _nextAfter;
     private string? _search;
     private string? _appliedSearch;
-    private bool _loading;
+    // Loads can overlap (a search typed while "Load more" is still out), so "loading" is a
+    // count of requests in flight, and only the newest learner request may change the list.
+    private int _inFlight;
+    private int _learnersRequest;
     private bool _appFailed;
     private bool _learnersFailed;
+
+    private bool Loading => _inFlight > 0;
 
     private static string Number(long? value) =>
         value is { } v ? v.ToString("N0", CultureInfo.InvariantCulture) : "none";
@@ -185,7 +192,7 @@
     /// </summary>
     private async Task<AdminApiStatus> LoadAsync()
     {
-        _loading = true;
+        _inFlight++;
         try
         {
             var result = await Api.GetSyncHealthAppAsync();
@@ -211,16 +218,26 @@
         }
         finally
         {
-            _loading = false;
+            _inFlight--;
         }
     }
 
     private async Task<AdminApiStatus> LoadLearnersAsync(string? after)
     {
-        _loading = true;
+        var request = ++_learnersRequest;
+        _inFlight++;
         try
         {
             var result = await Api.GetSyncHealthLearnersAsync(after, _appliedSearch, PageSize);
+
+            // An older answer arriving after a newer request must not touch the list: it would
+            // append another search's rows and leave its own cursor behind. A 404 still counts,
+            // whichever request it answers.
+            if (request != _learnersRequest && result.Status != AdminApiStatus.NotFound)
+            {
+                return result.Status;
+            }
+
             _learnersFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
             if (result.Status == AdminApiStatus.NotFound)
             {
@@ -243,7 +260,7 @@
         }
         finally
         {
-            _loading = false;
+            _inFlight--;
         }
     }
 

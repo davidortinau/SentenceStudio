@@ -29,6 +29,37 @@ public sealed class AdminSyncHealthClientTests
     }
 
     [Fact]
+    public async Task What_an_admin_searched_for_is_not_written_to_the_log_when_the_request_fails()
+    {
+        // The search text is a learner's name or email, and it travels in the query string.
+        var log = new CapturedLog();
+        var client = new AdminApiClient(new HttpClient(_api) { BaseAddress = new Uri("http://api.test") }, log);
+
+        _api.Answer(HttpStatusCode.InternalServerError);
+        await client.GetSyncHealthLearnersAsync(after: null, search: "jane@example.com", take: 50);
+        _api.Throw = new HttpRequestException("connection refused");
+        await client.GetSyncHealthLearnersAsync(after: null, search: "jane@example.com", take: 50);
+
+        log.Lines.Should().HaveCount(2);
+        log.Lines.Should().OnlyContain(line => line.Contains("/api/admin/sync-health/learners"));
+        log.Lines.Should().NotContain(line => line.Contains("jane") || line.Contains("q=") || line.Contains('?'));
+    }
+
+    private sealed class CapturedLog : Microsoft.Extensions.Logging.ILogger<AdminApiClient>
+    {
+        public List<string> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Lines.Add(formatter(state, exception));
+    }
+
+    [Fact]
     public async Task The_learner_list_sends_size_cursor_and_search_escaped()
     {
         _api.Answer(HttpStatusCode.OK, """{"items":[{"profileId":"p1","displayName":"A","email":"a@x.test"}],"nextAfter":"p1"}""");
@@ -91,6 +122,9 @@ public sealed class AdminSyncHealthClientTests
 
         public List<string> Paths { get; } = [];
 
+        /// <summary>When set, every request fails with it instead of being answered.</summary>
+        public Exception? Throw { get; set; }
+
         public void Answer(HttpStatusCode status, string body = "")
         {
             _status = status;
@@ -100,6 +134,11 @@ public sealed class AdminSyncHealthClientTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Paths.Add(request.RequestUri!.PathAndQuery);
+            if (Throw is not null)
+            {
+                return Task.FromException<HttpResponseMessage>(Throw);
+            }
+
             return Task.FromResult(new HttpResponseMessage(_status)
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json")

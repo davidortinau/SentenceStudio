@@ -67,6 +67,17 @@ public static class WebAppPostgresServer
         }.ConnectionString;
 
     /// <summary>
+    /// Closes this process's pooled connections to a database this fixture created. Every test
+    /// host has a database, and so a pool, of its own; left to idle out, the pools of one whole
+    /// run add up past PostgreSQL's default limit of 100 connections.
+    /// </summary>
+    public static void ReleaseConnections(string database)
+    {
+        using var connection = new NpgsqlConnection(ConnectionStringFor(database));
+        NpgsqlConnection.ClearPool(connection);
+    }
+
+    /// <summary>
     /// Creates a database dedicated to one test class. Its name retains the full GUID within
     /// PostgreSQL's identifier limit; CREATE DATABASE refuses an existing name.
     /// </summary>

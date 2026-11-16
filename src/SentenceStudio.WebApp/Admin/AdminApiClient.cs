@@ -106,6 +106,7 @@ public sealed record AdminSamUsage(
     IReadOnlyList<AdminSamUsageDay> Days,
     IReadOnlyList<AdminSamUsageWeek> Weeks,
     bool Truncated,
+    bool DaysTruncated,
     IReadOnlyList<string> NotRecorded);
 
 /// <summary>One failed or stuck import. No title, URL or transcript.</summary>
@@ -349,14 +350,15 @@ public sealed class AdminApiClient
                     AdminApiStatus.Refused, default, await ReadCodeAsync(response, deadline.Token));
             }
 
-            _logger.LogWarning("[Admin] {Method} {Path} answered {StatusCode}", method, path, (int)response.StatusCode);
+            _logger.LogWarning("[Admin] {Method} {Path} answered {StatusCode}",
+                method, WithoutQuery(path), (int)response.StatusCode);
             return new AdminApiResult<T>(AdminApiStatus.Failed, default);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            // Shape only: a request body here can hold a password.
+            // Shape only: a request body here can hold a password, and a query a learner's name or email.
             _logger.LogWarning("[Admin] {Method} {Path} failed. ExceptionType={ExceptionType}",
-                method, path, ex.GetType().Name);
+                method, WithoutQuery(path), ex.GetType().Name);
             return new AdminApiResult<T>(AdminApiStatus.Failed, default);
         }
     }
@@ -370,6 +372,13 @@ public sealed class AdminApiClient
         var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(Deadline);
         return deadline;
+    }
+
+    /// <summary>The path as it may be logged: a query can carry what an admin searched for.</summary>
+    private static string WithoutQuery(string path)
+    {
+        var query = path.IndexOf('?', StringComparison.Ordinal);
+        return query < 0 ? path : path[..query];
     }
 
     private static async Task<string?> ReadCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)

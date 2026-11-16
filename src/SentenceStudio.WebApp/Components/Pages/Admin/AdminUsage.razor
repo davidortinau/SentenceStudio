@@ -10,7 +10,7 @@
 
 @*
     AI usage and jobs, read-only: Sam's runs, tokens and estimated cost; YouTube imports that
-    failed or are stuck; and where the part-of-speech backfill stands. Counts, ids and codes only:
+    failed or are stuck; and how many words carry a part of speech. Counts, ids and codes only:
     no conversation, video title, URL or word. Loaded in the live circuit only.
 *@
 
@@ -52,10 +52,21 @@
             {
                 @if (sam.Truncated)
                 {
-                    <div class="alert alert-warning" role="alert">
-                        More rows matched than were read, so the weeks may be short. Choose fewer weeks.
+                    <div class="alert alert-warning" role="alert" id="admin-usage-sam-truncated">
+                        More rows matched than were read, so the oldest weeks may be short. Choose fewer weeks.
                     </div>
                 }
+                else if (sam.DaysTruncated)
+                {
+                    <div class="alert alert-warning" role="alert" id="admin-usage-sam-days-truncated">
+                        The list by day shows the newest @Count(sam.Days.Count) days only. The weeks are complete.
+                    </div>
+                }
+
+                <p class="text-secondary small" id="admin-usage-sam-weeks-note">
+                    Each row is dated by the learner's own calendar, so around a week's turn one week more
+                    than chosen can show.
+                </p>
 
                 @if (sam.Weeks.Count == 0)
                 {
@@ -147,7 +158,8 @@
             {
                 <p id="admin-usage-import-counts">
                     @Count(imports.FailedCount) failed, @Count(imports.StuckCount) stuck
-                    (not finished @imports.StuckAfterMinutes minutes after it was created).
+                    (not finished @imports.StuckAfterMinutes minutes after it was created; a retry keeps
+                    the first creation time, so an import retried a moment ago counts too).
                 </p>
 
                 @if (imports.Items.Count == 0)
@@ -156,6 +168,14 @@
                 }
                 else
                 {
+                    @if (imports.Truncated)
+                    {
+                        <div class="alert alert-warning" role="alert" id="admin-usage-import-reasons-truncated">
+                            There are more failed imports than were sorted by reason, so the counts by reason
+                            add up to less than the total.
+                        </div>
+                    }
+
                     @if (imports.Reasons.Count > 0)
                     {
                         <h3 class="h6">Failed imports by reason</h3>
@@ -224,7 +244,7 @@
 
         @* ------------------------------------------------------------ backfill *@
         <section class="mb-4" aria-labelledby="admin-usage-pos-heading" id="admin-usage-pos">
-            <h2 class="h5" id="admin-usage-pos-heading">Part-of-speech backfill</h2>
+            <h2 class="h5" id="admin-usage-pos-heading">Words and their part of speech</h2>
 
             @if (_posFailed)
             {
@@ -243,9 +263,11 @@
                     <dd class="col-sm-8 col-lg-9" id="admin-usage-pos-unowned">@Count(pos.UnownedWords)</dd>
                 </dl>
                 <p class="text-secondary" id="admin-usage-pos-not-recorded">
-                    Last run: not recorded (its report goes to the Workers log only). Whether the backfill is
-                    switched on: not recorded here (the setting belongs to the Workers host). The counts are
-                    what the data shows now.
+                    The part-of-speech backfill's last run: not recorded (its report goes to the Workers log
+                    only). Whether it is switched on: not recorded here (the setting belongs to the Workers
+                    host). The counts are what the data shows now, by the learner each word is recorded to.
+                    They are not the backfill's queue: it picks a learner's words through their progress and
+                    resources, so a word counted here as without one may never be picked.
                 </p>
 
                 @if (pos.Learners.Count > 0)
@@ -333,6 +355,10 @@
         "transcript_too_short" => "Transcript too short",
         "cancelled" => "Cancelled",
         "timed_out" => "Timed out",
+        "video_unavailable" => "Video not accessible (private, restricted or removed)",
+        "rate_limited" => "YouTube was limiting requests",
+        "network_error" => "YouTube could not be reached",
+        "no_audio_stream" => "No usable audio",
         "unexpected_error" => "Unexpected error",
         "other" => "Another reason (not shown, it can hold content)",
         "none_stored" => "No reason stored",

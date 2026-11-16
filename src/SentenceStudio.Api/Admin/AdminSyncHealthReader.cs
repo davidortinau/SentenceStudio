@@ -5,6 +5,7 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Api.Sync;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Models.Numbers;
 
@@ -25,50 +26,60 @@ internal static class AdminSyncHealthReader
     // Every table SharedSyncRegistration syncs, in its order. A test pins this list to the registration.
     internal static readonly IReadOnlyList<TableSpec> Tables =
     [
-        Direct<LearningResource>("LearningResource", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
+        Direct<LearningResource>("LearningResource", null, r => r.UpdatedAt, "UpdatedAt"),
         Direct<VocabularyWord>("VocabularyWord", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
         Mapping(),
         NoOwner("Challenge"),
-        Direct<Conversation>("Conversation", "UserProfileId", r => r.CreatedAt, "CreatedAt"),
-        Direct<ConversationChunk>("ConversationChunk", "UserProfileId", r => r.SentTime, "SentTime"),
-        Direct<UserProfile>("UserProfile", "Id", r => r.CreatedAt, "CreatedAt"),
-        Direct<SkillProfile>("SkillProfile", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
+        Direct<Conversation>("Conversation", null, r => r.CreatedAt, "CreatedAt"),
+        Direct<ConversationChunk>("ConversationChunk", null, r => r.SentTime, "SentTime"),
+        Direct<UserProfile>("UserProfile", null, r => r.CreatedAt, "CreatedAt"),
+        Direct<SkillProfile>("SkillProfile", null, r => r.UpdatedAt, "UpdatedAt"),
         NoOwner("VocabularyList"),
-        Direct<VocabularyProgress>("VocabularyProgress", "UserId", r => r.UpdatedAt, "UpdatedAt"),
+        Direct<VocabularyProgress>("VocabularyProgress", null, r => r.UpdatedAt, "UpdatedAt"),
         Context(),
-        Direct<MonitoredChannel>("MonitoredChannel", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<VideoImport>("VideoImport", "UserProfileId", r => r.CreatedAt, "CreatedAt"),
-        Direct<DailyPlan>("DailyPlan", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<DailyPlanCompletion>("DailyPlanCompletion", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<UserActivity>("UserActivity", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<DiaryEntry>("DiaryEntry", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
+        Direct<MonitoredChannel>("MonitoredChannel", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<VideoImport>("VideoImport", null, r => r.CreatedAt, "CreatedAt"),
+        Direct<DailyPlan>("DailyPlan", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<DailyPlanCompletion>("DailyPlanCompletion", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<UserActivity>("UserActivity", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<DiaryEntry>("DiaryEntry", null, r => r.UpdatedAt, "UpdatedAt"),
         Phrase(),
-        Direct<NumberAttempt>("NumberAttempt", "UserProfileId", r => r.AttemptedAt, "AttemptedAt"),
-        Direct<NumberMasteryProgress>("NumberMasteryProgress", "UserProfileId", r => r.LastReviewed, "LastReviewed"),
-        Direct<WordAssociationScore>("WordAssociationScore", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<MinimalPair>("MinimalPair", "UserId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<MinimalPairSession>("MinimalPairSession", "UserId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<MinimalPairAttempt>("MinimalPairAttempt", "UserId", r => r.CreatedAt, "CreatedAt"),
-        Direct<StreamHistory>("StreamHistory", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<ConversationMemoryState>("ConversationMemoryState", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<ActivitySession>("ActivitySession", "UserId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<SceneImage>("SceneImage", "UserProfileId", null, null),
-        Direct<ConversationScenario>("ConversationScenario", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<ExampleSentence>("ExampleSentence", "UserProfileId", r => r.UpdatedAt, "UpdatedAt"),
-        Direct<VocabularyLookup>("VocabularyLookup", "UserProfileId", r => r.LastLookedUpAt, "LastLookedUpAt"),
-        Direct<VocabularyDuplicateDecision>("VocabularyDuplicateDecision", "UserProfileId", r => r.DecidedAt, "DecidedAt")
+        Direct<NumberAttempt>("NumberAttempt", null, r => r.AttemptedAt, "AttemptedAt"),
+        Direct<NumberMasteryProgress>("NumberMasteryProgress", null, r => r.LastReviewed, "LastReviewed"),
+        Direct<WordAssociationScore>("WordAssociationScore", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<MinimalPair>("MinimalPair", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<MinimalPairSession>("MinimalPairSession", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<MinimalPairAttempt>("MinimalPairAttempt", null, r => r.CreatedAt, "CreatedAt"),
+        Direct<StreamHistory>("StreamHistory", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<ConversationMemoryState>("ConversationMemoryState", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<ActivitySession>("ActivitySession", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<SceneImage>("SceneImage", null, null, null),
+        Direct<ConversationScenario>("ConversationScenario", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<ExampleSentence>("ExampleSentence", null, r => r.UpdatedAt, "UpdatedAt"),
+        Direct<VocabularyLookup>("VocabularyLookup", null, r => r.LastLookedUpAt, "LastLookedUpAt"),
+        Direct<VocabularyDuplicateDecision>("VocabularyDuplicateDecision", null, r => r.DecidedAt, "DecidedAt")
     ];
 
+    /// <param name="ownerColumn">
+    /// Null takes the column from <see cref="SyncRowOwners.OwnerColumn"/>, the sync's own rule, so
+    /// this page cannot count by a column the sync has stopped using. Only a word names its own:
+    /// the sync resolves a word's owner through a rule of its own.
+    /// </param>
     private static TableSpec Direct<T>(
-        string name, string ownerProperty, Expression<Func<T, DateTime?>>? newest, string? field)
-        where T : class =>
-        new(name, field, async (db, learnerId, ct) =>
+        string name, string? ownerColumn, Expression<Func<T, DateTime?>>? newest, string? field)
+        where T : class
+    {
+        var ownerProperty = ownerColumn
+            ?? SyncRowOwners.OwnerColumn(name)
+            ?? throw new InvalidOperationException($"The sync names no owner column for {name}.");
+        return new(name, field, async (db, learnerId, ct) =>
         {
             var rows = db.Set<T>().AsNoTracking()
                 .Where(row => EF.Property<string?>(row, ownerProperty) == learnerId);
             return (await rows.LongCountAsync(ct),
                 newest is null ? null : await rows.MaxAsync(newest, ct));
         });
+    }
 
     private static TableSpec NoOwner(string name) => new(name, null, null);
 

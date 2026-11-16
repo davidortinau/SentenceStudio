@@ -407,3 +407,31 @@ findings were fixed; these two are about code the branch did not change:
   and variants under `Layout/`, `Coach/` and `Audio/`; some end in `root!.FullName` and fail
   with a bare null reference when the tests run from outside the repository. One shared helper
   that throws "repository root not found" would serve all of them.
+
+## Admin portal phases 3 and 4 (review 2026-11-15, branch `admin-ai-usage`)
+
+Correctness findings from `/code-review high` were fixed on the branch. These are the rest.
+
+- **One learner's sync health takes about 65 database round trips.** `AdminSyncHealthReader`
+  runs a COUNT and a separate MAX per table, then one cursor query per device. One aggregate per
+  table and one `IN` over the cursor ids would cut it to about half.
+- **The reader repeats helpers that exist.** `AsUtc` is a fifth copy of the UTC normaliser
+  (`LatestCopyUploadMerge.Utc`, `ImportEndpoints.Utc`, `VocabularyProgressConcurrentMerge.Utc`);
+  `ConnectionLease` repeats `Database.OpenConnectionAsync` and `CloseConnectionAsync`; the
+  profile-and-account name merge is written three times.
+- **"What is deployed" shows the synced schema's migrations only.** The API also migrates the
+  Sam, feedback and admin audit schemas under their own history tables. A deploy where one of
+  those fell behind still reads "0 pending". The page says what it covers; listing all four
+  would close it.
+- **The words section cannot be reconciled with a backfill run.** It counts by
+  `VocabularyWord.UserProfileId`; `VocabularyPartOfSpeechBackfillService.QueryCandidatesAsync`
+  picks words through progress rows and resource links. Counting with the backfill's own query
+  would show its real queue.
+- **A retried import is "stuck" at once, for the pipeline too.** `VideoImport` has no time later
+  than `CreatedAt` until it ends, and `RetryImportAsync` keeps it, so both the admin page and
+  `CleanupStaleImportsAsync` treat an import retried a moment ago as past the 10 minutes. Telling
+  them apart needs a retry time on the row, which is a schema change.
+- **The Workers host deletes every failed import when it starts** (`Worker.cs`, about line 49),
+  so the failed-imports list only ever holds failures since the last Workers restart. Existing
+  behaviour, not changed; it also deletes rows a learner might want to retry.
+
