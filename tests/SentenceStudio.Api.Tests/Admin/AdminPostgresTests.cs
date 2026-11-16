@@ -86,6 +86,7 @@ public sealed class AdminPostgresTests : IAsyncLifetime
             + "FROM information_schema.columns WHERE table_name = 'AdminAgentToken'"))
             .Should().Be(
                 "CreatedAtUtc:timestamp with time zone:NO,"
+                + "CreatedByStampDigest:character varying:NO,"
                 + "CreatedByUserId:character varying:NO,"
                 + "ExpiresAtUtc:timestamp with time zone:NO,"
                 + "Id:character varying:NO,"

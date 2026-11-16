@@ -161,6 +161,7 @@ public sealed record AdminSamReportRow(
     string Id,
     string LearnerId,
     string Status,
+    bool NeedsAttention,
     string Reason,
     int FlagCount,
     DateTime FirstFlaggedAtUtc,
@@ -178,7 +179,7 @@ public sealed record AdminSamReportRow(
 public sealed record AdminSamReportList(
     IReadOnlyList<AdminSamReportRow> Items,
     IReadOnlyList<AdminLearnerSummary> Learners,
-    int NewCount,
+    int AttentionCount,
     int UnlistedFlagCount,
     bool Truncated);
 
@@ -242,8 +243,8 @@ public sealed record AdminGitHubReportList(
 /// <summary>The private screen state saved with one GitHub report. Learner content.</summary>
 public sealed record AdminScreenState(string Reference, string LearnerId, DateTime CreatedAtUtc, JsonElement Context);
 
-/// <summary>What <c>GET /api/admin/reports/new-count</c> reports.</summary>
-public sealed record AdminNewReportCount(int Sam);
+/// <summary>What <c>GET /api/admin/reports/attention-count</c> reports: flagged answers nobody has looked at yet.</summary>
+public sealed record AdminReportAttentionCount(int Sam);
 
 /// <summary>The inbox's wire codes. Mirrors the API's <c>AdminReportCodes</c>.</summary>
 public static class AdminReportCodes
@@ -302,6 +303,8 @@ public static class AdminTokenCodes
     public const string StateLive = "live";
     public const string StateExpired = "expired";
     public const string StateRevoked = "revoked";
+    public const string StateCreatorNotAdmin = "creator_not_admin";
+    public const string StateCreatorPasswordChanged = "creator_password_changed";
 }
 
 /// <summary>Whether the signed-in person is an admin, as far as one probe could tell.</summary>
@@ -467,19 +470,23 @@ public sealed class AdminApiClient
         SendAsync<AdminPartOfSpeech>(
             HttpMethod.Get, $"{BasePath}/usage/part-of-speech", body: null, proof: null, cancellationToken);
 
-    /// <summary>How many flagged answers are still new. For the sidebar; leaves no audit row.</summary>
-    public Task<AdminApiResult<AdminNewReportCount>> GetNewReportCountAsync(
+    /// <summary>How many flagged answers nobody has looked at yet. For the sidebar; leaves no audit row.</summary>
+    public Task<AdminApiResult<AdminReportAttentionCount>> GetReportAttentionCountAsync(
         CancellationToken cancellationToken = default) =>
-        SendAsync<AdminNewReportCount>(
-            HttpMethod.Get, $"{BasePath}/reports/new-count", body: null, proof: null, cancellationToken);
+        SendAsync<AdminReportAttentionCount>(
+            HttpMethod.Get, $"{BasePath}/reports/attention-count", body: null, proof: null, cancellationToken);
 
+    /// <param name="status">One status code, or null for every status.</param>
+    /// <param name="attentionOnly">Only the reports that need attention. Not together with <paramref name="status"/>.</param>
     public Task<AdminApiResult<AdminSamReportList>> GetSamReportsAsync(
-        string? status, int take, CancellationToken cancellationToken = default) =>
+        string? status, bool attentionOnly, int take, CancellationToken cancellationToken = default) =>
         SendAsync<AdminSamReportList>(
             HttpMethod.Get,
-            string.IsNullOrEmpty(status)
-                ? $"{BasePath}/reports/sam?take={take}"
-                : $"{BasePath}/reports/sam?take={take}&status={Uri.EscapeDataString(status)}",
+            attentionOnly
+                ? $"{BasePath}/reports/sam?take={take}&attention=true"
+                : string.IsNullOrEmpty(status)
+                    ? $"{BasePath}/reports/sam?take={take}"
+                    : $"{BasePath}/reports/sam?take={take}&status={Uri.EscapeDataString(status)}",
             body: null, proof: null, cancellationToken);
 
     public Task<AdminApiResult<AdminSamReportDetail>> GetSamReportAsync(
@@ -495,11 +502,25 @@ public sealed class AdminApiClient
             HttpMethod.Post, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}/exchange",
             body: null, proof, cancellationToken);
 
+    /// <summary>
+    /// Sets the status, and the issue link only when asked to: a null <paramref name="issueNumber"/>
+    /// leaves the link as it is, so a form opened before somebody else linked an issue cannot
+    /// remove it. <paramref name="unlinkIssue"/> removes it.
+    /// </summary>
     public Task<AdminApiResult<AdminSamReportRow>> TriageSamReportAsync(
-        string reportId, string status, int? issueNumber, CancellationToken cancellationToken = default) =>
+        string reportId, string status, int? issueNumber, bool unlinkIssue, CancellationToken cancellationToken = default) =>
         SendAsync<AdminSamReportRow>(
             HttpMethod.Post, $"{BasePath}/reports/sam/{Uri.EscapeDataString(reportId)}/triage",
-            JsonContent.Create(new { status, issueNumber }), proof: null, cancellationToken);
+            JsonContent.Create(new TriageBody(status, issueNumber, unlinkIssue ? true : null), options: TriageOptions),
+            proof: null, cancellationToken);
+
+    private sealed record TriageBody(string Status, int? IssueNumber, bool? UnlinkIssue);
+
+    // What is null is left out of the body: left out means "leave it as it is".
+    private static readonly JsonSerializerOptions TriageOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
 
     public Task<AdminApiResult<AdminGitHubReportList>> GetGitHubReportsAsync(
         int take, CancellationToken cancellationToken = default) =>

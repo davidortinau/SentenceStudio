@@ -22,8 +22,12 @@ public enum AdminPasswordOutcome
 /// </remarks>
 public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
 {
+    /// <summary>How long the sidebar's count is shown before it is asked for again.</summary>
+    public static readonly TimeSpan AttentionCountMaxAge = TimeSpan.FromMinutes(2);
+
     private Task<AdminAccess>? _sidebarProbe;
-    private Task<int?>? _newReportCount;
+    private Task<int?>? _attentionCount;
+    private DateTimeOffset _attentionCountAskedAt;
     private string? _proof;
     private DateTimeOffset? _proofExpiresAtUtc;
 
@@ -49,30 +53,42 @@ public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
     }
 
     /// <summary>
-    /// How many flagged answers are still new, for the sidebar's count, or null when the API did
-    /// not say. Asked once and kept until <see cref="SetNewReportCount"/> replaces it: the
-    /// sidebar asks on every navigation, and shows a changed number on the next one.
+    /// How many flagged answers nobody has looked at yet, for the sidebar's count, or null when
+    /// the API did not say. The sidebar asks on every navigation, so an answer is kept for
+    /// <see cref="AttentionCountMaxAge"/> and then asked for again: a tab left open still learns
+    /// of a learner's new flag on the next navigation after that.
     /// </summary>
-    public async Task<int?> GetNewReportCountAsync()
+    public async Task<int?> GetReportAttentionCountAsync()
     {
-        var ask = _newReportCount ??= AskNewReportCountAsync();
-        var count = await ask;
-        if (count is null && ReferenceEquals(_newReportCount, ask))
+        if (_attentionCount is null || time.GetUtcNow() - _attentionCountAskedAt >= AttentionCountMaxAge)
         {
-            _newReportCount = null;
+            _attentionCountAskedAt = time.GetUtcNow();
+            _attentionCount = AskReportAttentionCountAsync();
+        }
+
+        var ask = _attentionCount;
+        var count = await ask;
+        if (count is null && ReferenceEquals(_attentionCount, ask))
+        {
+            // Not knowing is not remembered: the next ask tries again.
+            _attentionCount = null;
         }
 
         return count;
     }
 
-    private async Task<int?> AskNewReportCountAsync()
+    private async Task<int?> AskReportAttentionCountAsync()
     {
-        var result = await api.GetNewReportCountAsync();
+        var result = await api.GetReportAttentionCountAsync();
         return result.IsOk ? result.Value!.Sam : null;
     }
 
     /// <summary>The inbox has just read the count for itself; the sidebar shows the same number.</summary>
-    public void SetNewReportCount(int count) => _newReportCount = Task.FromResult<int?>(count);
+    public void SetReportAttentionCount(int count)
+    {
+        _attentionCountAskedAt = time.GetUtcNow();
+        _attentionCount = Task.FromResult<int?>(count);
+    }
 
     /// <summary>When the confirmed password stops counting, or null when it does not count now.</summary>
     public DateTimeOffset? PasswordConfirmedUntilUtc =>
@@ -138,7 +154,7 @@ public sealed class AdminSessionState(AdminApiClient api, TimeProvider time)
     public void MarkNotAdmin()
     {
         _sidebarProbe = Task.FromResult(AdminAccess.NotAdmin);
-        _newReportCount = null;
+        _attentionCount = null;
         ForgetProof();
     }
 
@@ -171,11 +187,11 @@ public sealed class AdminNavItemProvider(AdminSessionState state) : IHostNavItem
             return [];
         }
 
-        return await state.GetNewReportCountAsync() is > 0 and var count
-            ? [new HostNavItem("/admin", "bi-shield-lock", "Admin", Badge: count, BadgeLabel: NewReportsLabel(count))]
+        return await state.GetReportAttentionCountAsync() is > 0 and var count
+            ? [new HostNavItem("/admin", "bi-shield-lock", "Admin", Badge: count, BadgeLabel: AttentionLabel(count))]
             : AdminItems;
     }
 
-    internal static string NewReportsLabel(int count) =>
-        count == 1 ? "1 new flagged answer" : $"{count} new flagged answers";
+    internal static string AttentionLabel(int count) =>
+        count == 1 ? "1 flagged answer to look at" : $"{count} flagged answers to look at";
 }

@@ -140,26 +140,19 @@ artifact with a date on it is still an operational record and does not belong in
 
 ---
 
-## Running it in CI
+## Running it on a schedule
 
-`.github/workflows/sam-opportunity-digest.yml` runs `workflow_dispatch` (with a `days` input) and
-weekly on Mondays at 13:00 UTC. It uploads `sam-opportunity-digest.md` as a 30-day artifact and
-mirrors it into the job summary.
+There is no scheduled job. `.github/workflows/sam-opportunity-digest.yml` was removed on
+2026-11-16: it never had the repository secret or a network path to the firewalled database, so
+it skipped every Monday and reported success, and nobody noticed that nothing was being read.
 
-**It needs two prerequisites that are not configured today, and it says so rather than pretending:**
+What replaced it for the answers learners flag is the admin portal's feedback inbox
+(`/admin/feedback`) and its API (`docs/admin-api.md`), which a weekday agent check reads with
+its own token and no database access (`docs/admin-weekday-check.md`). That check reports a
+refused or missing token as a failure; it never skips quietly.
 
-1. A repository secret `COACH_DIGEST_CONNECTION_STRING`. **When the secret is absent the job skips
-   with a notice and exits 0.** It never fabricates a digest and never uploads an artifact it did
-   not read from the database.
-2. Network reachability from a GitHub-hosted runner to `db-rsn72awybem6s`. That server is
-   firewalled and runner IPs are dynamic, so this needs either a firewall rule (broad, and worth
-   thinking about before adding) or a self-hosted runner.
-
-Until both exist, **the local script is the reviewer path** and the workflow is a skipping stub with
-an accurate explanation in its summary. That is deliberate: a green scheduled job that read nothing
-is worse than no job at all.
-
----
+This script is still the way to read the content-free rollup of the whole ledger, by hand, with
+the credentials described above.
 
 ## Running it as a scheduled app workflow
 

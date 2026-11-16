@@ -71,6 +71,7 @@ public sealed class AdminDbContext : DbContext
             entity.Property(e => e.SecretHash).IsRequired().HasMaxLength(AdminAgentTokenLimits.SecretHashLength);
             entity.Property(e => e.Permissions).HasConversion<int>();
             entity.Property(e => e.CreatedByUserId).IsRequired().HasMaxLength(AdminAuditLimits.MaxIdLength);
+            entity.Property(e => e.CreatedByStampDigest).IsRequired().HasMaxLength(AdminAgentTokenLimits.SecretHashLength);
         });
 
         PinTimestampsToUtc(modelBuilder);

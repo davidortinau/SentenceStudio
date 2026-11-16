@@ -489,14 +489,14 @@ public sealed class AdminComponentTests
         circuit.Unhandled.Should().BeEmpty();
         circuit.RenderedText(id).Should().Contain("Admin");
         circuit.RenderedHrefs(id).Should().Contain("/admin");
-        _api.Requests.Select(r => r.Path).Should().Equal("/api/admin/access", "/api/admin/reports/new-count");
+        _api.Requests.Select(r => r.Path).Should().Equal("/api/admin/access", "/api/admin/reports/attention-count");
     }
 
     [Fact]
-    public async Task The_Admin_link_carries_the_number_of_new_flagged_answers_in_figures_and_in_words()
+    public async Task The_Admin_link_carries_the_number_of_flagged_answers_to_look_at_in_figures_and_in_words()
     {
         _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":3}""");
+        _api.Answer("/api/admin/reports/attention-count", HttpStatusCode.OK, """{"sam":3}""");
         await using var services = Services(webAppAdminLink: true);
         var circuit = Circuit(services);
 
@@ -504,7 +504,7 @@ public sealed class AdminComponentTests
 
         circuit.Unhandled.Should().BeEmpty();
         var text = circuit.RenderedText(id);
-        text.Should().Contain("Admin").And.Contain("3").And.Contain("3 new flagged answers",
+        text.Should().Contain("Admin").And.Contain("3").And.Contain("3 flagged answers to look at",
             "the count is said in words for a screen reader, not only shown as a figure");
     }
 
@@ -514,7 +514,7 @@ public sealed class AdminComponentTests
     public async Task With_nothing_new_or_no_answer_the_Admin_link_carries_no_number(HttpStatusCode status, string body)
     {
         _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
-        _api.Answer("/api/admin/reports/new-count", status, body);
+        _api.Answer("/api/admin/reports/attention-count", status, body);
         await using var services = Services(webAppAdminLink: true);
         var circuit = Circuit(services);
 

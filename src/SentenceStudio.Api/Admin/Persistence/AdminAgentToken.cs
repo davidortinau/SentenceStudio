@@ -10,9 +10,9 @@ namespace SentenceStudio.Api.Admin.Persistence;
 /// back into a token and needs no salt or slow hash. A copy of this table lets nobody sign in.
 /// </para>
 /// <para>
-/// A token is live while it is not revoked, not expired, and the admin who created it is still an
-/// admin. It carries only the permissions it was created with, and no route that changes an
-/// account accepts a token at all.
+/// A token is accepted while it is not revoked, not expired, and the admin who created it is
+/// still an admin with the password they had then. It carries only the permissions it was created
+/// with, and no route that changes an account accepts a token at all.
 /// </para>
 /// </remarks>
 public sealed class AdminAgentToken
@@ -30,6 +30,13 @@ public sealed class AdminAgentToken
 
     /// <summary>The Identity user id of the admin who created it.</summary>
     public string CreatedByUserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// <see cref="AdminStepUpService.DigestOf"/> of that admin's security stamp when they created
+    /// it. The token is accepted only while the admin's stamp still has this digest, so changing
+    /// or resetting their password ends every token they made, as it ends a password-again proof.
+    /// </summary>
+    public string CreatedByStampDigest { get; set; } = string.Empty;
 
     public DateTime CreatedAtUtc { get; set; }
 

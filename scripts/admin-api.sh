@@ -2,13 +2,16 @@
 # Calls the admin API as the maintenance agent, with the agent token (docs/admin-api.md).
 #
 #   scripts/admin-api.sh whoami                          the token: id, permissions, when it expires
-#   scripts/admin-api.sh sam [status]                    flagged Sam answers; status is new, reviewed,
-#                                                        accepted, deferred or dismissed (default: all)
+#   scripts/admin-api.sh sam [filter]                    flagged Sam answers. filter is attention (the
+#                                                        default: new, or flagged again since they were
+#                                                        triaged), all, or one status: new, reviewed,
+#                                                        accepted, deferred, dismissed
 #   scripts/admin-api.sh sam-show <reportId>             one report and each flag on it, in codes
 #   scripts/admin-api.sh sam-exchange <reportId>         the flagged question and answer (LEARNER CONTENT)
-#   scripts/admin-api.sh sam-triage <reportId> <status> [issueNumber]
-#                                                        set the status and the linked GitHub issue;
-#                                                        leaving the number out unlinks it
+#   scripts/admin-api.sh sam-triage <reportId> <status> [issueNumber|none]
+#                                                        set the status; with a number, link that GitHub
+#                                                        issue; with none, unlink it; with neither, the
+#                                                        link stays as it is
 #   scripts/admin-api.sh github                          reports filed to GitHub from the app
 #   scripts/admin-api.sh screen-state <reference>        a GitHub report's saved screen state (LEARNER CONTENT)
 #
@@ -16,19 +19,21 @@
 # API's failure code on stderr and exits 1 (2 for a usage or token problem), so a caller can
 # never mistake a refusal for an empty inbox.
 #
-# The token comes from ADMIN_AGENT_TOKEN when it is set (a local stack), otherwise from Key Vault
-# (dbkv-rsn72awybem6s, secret admin-agent-token) through `az`, which must be signed in. Reading
-# that one secret is covered by the Captain's standing go (docs/admin-portal-plan.md); nothing
-# else in Azure is. The API is ADMIN_API_BASE when set, otherwise production. The token is never
-# printed and never placed on a command line.
+# Production: the token is read from Key Vault (dbkv-rsn72awybem6s, secret admin-agent-token)
+# through `az`, which must be signed in. Reading that one secret is covered by the Captain's
+# standing go (docs/admin-portal-plan.md); nothing else in Azure is.
+# Any other API: set ADMIN_API_BASE and ADMIN_AGENT_TOKEN together. The production token is
+# never read for, or sent to, anything but the production API, and ADMIN_AGENT_TOKEN is never
+# sent to production. The token is never printed and never placed on a command line.
 set -euo pipefail
 
 VAULT=dbkv-rsn72awybem6s
 SECRET=admin-agent-token
-BASE="${ADMIN_API_BASE:-https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io}"
+PROD=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io
+BASE="${ADMIN_API_BASE:-$PROD}"
 BASE="${BASE%/}"
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 # An id travels in the URL path, so it is held to the characters a real id uses.
 check_id() {
@@ -42,10 +47,11 @@ case "${1:-}" in
   whoami) [ $# -eq 1 ] || usage; ROUTE=/api/admin/token ;;
   sam)
     [ $# -le 2 ] || usage
-    case "${2:-}" in
-      "") ROUTE="/api/admin/reports/sam?take=200" ;;
+    case "${2:-attention}" in
+      attention) ROUTE="/api/admin/reports/sam?take=200&attention=true" ;;
+      all) ROUTE="/api/admin/reports/sam?take=200" ;;
       new|reviewed|accepted|deferred|dismissed) ROUTE="/api/admin/reports/sam?take=200&status=$2" ;;
-      *) echo "STOP: status must be new, reviewed, accepted, deferred or dismissed" >&2; exit 2 ;;
+      *) echo "STOP: the filter must be attention, all, new, reviewed, accepted, deferred or dismissed" >&2; exit 2 ;;
     esac ;;
   sam-show) [ $# -eq 2 ] || usage; check_id "$2"; ROUTE="/api/admin/reports/sam/$2" ;;
   sam-exchange) [ $# -eq 2 ] || usage; check_id "$2"; METHOD=POST; ROUTE="/api/admin/reports/sam/$2/exchange" ;;
@@ -56,25 +62,36 @@ case "${1:-}" in
       new|reviewed|accepted|deferred|dismissed) ;;
       *) echo "STOP: status must be new, reviewed, accepted, deferred or dismissed" >&2; exit 2 ;;
     esac
-    ISSUE=null
+    METHOD=POST; ROUTE="/api/admin/reports/sam/$2/triage"
+    BODY="{\"status\":\"$3\"}"
     if [ $# -eq 4 ]; then
       case "$4" in
-        ""|*[!0-9]*|0*) echo "STOP: the issue number must be a whole number" >&2; exit 2 ;;
+        none) BODY="{\"status\":\"$3\",\"unlinkIssue\":true}" ;;
+        ""|*[!0-9]*|0*) echo "STOP: the issue must be a whole number, or none to unlink" >&2; exit 2 ;;
+        *) BODY="{\"status\":\"$3\",\"issueNumber\":$4}" ;;
       esac
-      ISSUE="$4"
-    fi
-    METHOD=POST; ROUTE="/api/admin/reports/sam/$2/triage"
-    BODY="{\"status\":\"$3\",\"issueNumber\":$ISSUE}" ;;
+    fi ;;
   github) [ $# -eq 1 ] || usage; ROUTE="/api/admin/reports/github?take=200" ;;
   screen-state) [ $# -eq 2 ] || usage; check_id "$2"; METHOD=POST; ROUTE="/api/admin/reports/github/screen-states/$2" ;;
   *) usage ;;
 esac
 
-TOKEN="${ADMIN_AGENT_TOKEN:-}"
-if [ -z "$TOKEN" ]; then
+# Which token goes where is decided here, before anything is read or sent. A token is a way to
+# sign in: the production one must never reach another host, nor a local one reach production.
+if [ "$BASE" = "$PROD" ]; then
+  if [ -n "${ADMIN_AGENT_TOKEN:-}" ]; then
+    echo "STOP: ADMIN_AGENT_TOKEN is set but ADMIN_API_BASE is not. Set both for a local stack, or neither for production." >&2
+    exit 2
+  fi
   if ! TOKEN="$(az keyvault secret show --vault-name "$VAULT" --name "$SECRET" --query value -o tsv 2>/dev/null)" \
      || [ -z "$TOKEN" ]; then
-    echo "STOP: no agent token. Key Vault $VAULT has no readable secret $SECRET (is az signed in?), and ADMIN_AGENT_TOKEN is not set." >&2
+    echo "STOP: no agent token. Key Vault $VAULT has no readable secret $SECRET (is az signed in?)." >&2
+    exit 2
+  fi
+else
+  TOKEN="${ADMIN_AGENT_TOKEN:-}"
+  if [ -z "$TOKEN" ]; then
+    echo "STOP: ADMIN_API_BASE is set, so ADMIN_AGENT_TOKEN must be too. The production token is not sent to another API." >&2
     exit 2
   fi
 fi

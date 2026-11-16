@@ -871,10 +871,11 @@ az containerapp revision list -g rg-sstudio-prod-biz -n api \
 ./scripts/sam-opportunity-digest.sh --days 7
 ```
 
-The operator review surface (`/operator/sam-opportunities`) is **Development-only** and stays that
-way — `CoachOpportunityOptionsValidator` fails startup if it is enabled outside Development, and
-`AppHost.cs` deliberately does not forward an environment variable that could turn it on. The
-digest above is the production reviewer path. Owner, cadence, and credentials:
+The Development-only operator page (`/operator/sam-opportunities`) and its API routes were
+removed on 2026-11-16. Flagged Sam answers are read in the admin portal's feedback inbox
+(`/admin/feedback`, routes under `/api/admin/reports`; `docs/admin-portal-plan.md`,
+`docs/admin-api.md`), which needs the Admin role and the `Admin:Emails` setting. The digest above
+stays as the content-free count of everything in the ledger. Owner, cadence, and credentials:
 `docs/sam-opportunity-digest.md`.
 
 ### Legacy individual checks (still valid for manual spot-checking)

@@ -200,10 +200,12 @@ makes a `UserReportedResponse` row evidence that a person pressed a button.
 ### Who reviews it in Production, and how
 
 `Coach:Reports:Enabled` ships **true** in Production. That is a promise: a learner who presses the
-flag control is told the report goes somewhere a person looks. The operator surface is not that
-person's tool — it can decrypt learner messages and stays Development-only until this codebase has
-an admin authorization primitive. The production reviewer path is an out-of-band, content-free
-**digest** instead.
+flag control is told the report goes somewhere a person looks. Since 2026-11-16 that place is the
+admin portal's **feedback inbox** (`/admin/feedback`; `docs/admin-portal-plan.md`): an admin sees
+every learner's flagged answers, opens the one flagged question and answer after confirming their
+password, and gives the report a status and a GitHub issue number. A maintenance agent reads the
+same inbox through `docs/admin-api.md`. The out-of-band, content-free **digest** below remains for
+the counts of everything in the ledger, flagged or not.
 
 | Role | Who | What they do |
 |---|---|---|
@@ -290,7 +292,7 @@ These are stated so nobody mistakes an empty rollup for an absence of problems.
 | **Referent loss is detected only when the turn asked the learner what they meant.** The detector fires on `CoachStopReason.ClarificationRequested` and nothing else. A turn that *completed* is treated as having used the learner's answer, because the server has no authoritative signal saying otherwise — and the alternative, assuming loss, classified every ordinary "coach asks, learner answers, coach teaches" exchange as a defect and attached decryptable evidence pointers to it. | A turn that dropped an answer and completed anyway is genuinely indistinguishable from one that used it, without a new server-side signal (an intent naming the offer, or a failed binding attempt). | **Known under-count, deliberately. Widening needs a new signal, not a looser predicate.** |
 | **A turn-level tool failure cannot be attributed to a tool.** `CoachStopReason.ToolFailure` is counted as `turn_tool_failure_unattributed`; the tool boundary records the tool name and failure kind on its own row. The two counts are comparable but not joinable. | The turn boundary genuinely does not know which tool failed. Labelling it `tool_data_access` invented a cause and double-counted the tool boundary's row. | By design. |
 | **Aggregate-only rows cannot be traced to a session.** A harmful, out-of-scope, capacity, or protocol-error refusal is counted with no conversation id and no pointers. | Trading forensics for the guarantee that a refusal never becomes an inspectable dossier. | By design. |
-| **The operator review surface is Development-only.** It can decrypt learner messages and this codebase has no admin authorization primitive. | Shipping it to Production would mean inventing one under time pressure. | **Covered in Production by the content-free digest** (`./scripts/sam-opportunity-digest.sh`, `docs/sam-opportunity-digest.md`), which answers what/how often/how many but never who. Revisit the surface itself when an admin authorization primitive exists. |
+| **Only answers a learner flagged can be opened.** The Development-only operator page and its routes were removed on 2026-11-16; the admin portal's feedback inbox (`/admin/feedback`, `docs/admin-portal-plan.md`) lists learner-flagged answers for every learner and opens the one flagged question and answer, behind the Admin role, the `Admin:Emails` setting, a confirmed password and an audit row. | Rows the server recorded about its own refusals are not listed there and their messages cannot be opened by anyone. | **Their counts are in the content-free digest** (`./scripts/sam-opportunity-digest.sh`, `docs/sam-opportunity-digest.md`), which answers what/how often/how many but never who. |
 | **Production capture is off.** | Capture is provably response-neutral (it runs after the response is computed, inside `try/catch` that swallows every exception including cancellation, with no value a caller can branch on) but "provably" means "after the proof has been reviewed". | Awaiting Captain's approval after `SAM-OPP-01`…`10`. Unchanged by the reports flip. |
 | **Production reports are on, so the ledger is not empty there.** `Coach:Reports:Enabled` is `true` in Production while `Coach:Opportunities:Enabled` is `false`, and the recorder admits `UserReportedResponse` on the report switch alone. | The learner was told the report goes somewhere a person looks; discarding it because automatic capture is off would make that untrue while every test still passed. | By design. Retention is therefore mandatory on **both** sections in Production — a `RetentionSweepEnabled: false` beside an enabled switch fails startup. |
 
@@ -329,3 +331,11 @@ These are stated so nobody mistakes an empty rollup for an absence of problems.
   facts for the response the row's own evidence points at, and always reports the aggregate
   (`ReportCount`, `ReportedResponseCount`, reason breakdown, and whether the facts belong to the
   reported response) so "one turn" is never read as "the row".
+
+- **2026-11-16** — The Development-only operator page and its API routes were replaced by the
+  admin portal's feedback inbox (`/admin/feedback`, `/api/admin/reports/*`), in every
+  environment, behind the admin policy. It lists only the answers a learner flagged
+  (`UserReportedResponse`), for every learner; a report gets a status and a GitHub issue number
+  (`CoachOpportunity.LinkedIssueNumber`). The reviewer note code and linked spec path are no
+  longer set from any screen. Rows the server records about its own refusals have no screen now;
+  the digest still counts them. The weekly GitHub digest job, which only ever skipped, is removed.

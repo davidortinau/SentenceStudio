@@ -79,15 +79,29 @@ internal sealed class AdminReportsService(
         .Where(row => row.Kind == CoachOpportunityKind.UserReportedResponse
             && row.Disposition == CoachOpportunityDisposition.Product);
 
+    /// <summary>
+    /// Reports whose newest flag nobody has looked at: still new, or flagged again after the last
+    /// triage. The recorder adds a learner's later flag to the same row (one learner, one reason,
+    /// one UTC day) and leaves its status alone, so status by itself would hide those flags.
+    /// </summary>
+    private IQueryable<CoachOpportunity> NeedingAttention => FlaggedRows.Where(row =>
+        row.Status == CoachOpportunityStatus.New
+        || (row.ReviewedAtUtc != null && row.LastObservedAtUtc > row.ReviewedAtUtc));
+
+    private static bool NeedsAttention(CoachOpportunity row) =>
+        row.Status == CoachOpportunityStatus.New
+        || (row.ReviewedAtUtc is { } triagedAt && row.LastObservedAtUtc > triagedAt);
+
     // ------------------------------------------------------------------ Sam: read
 
-    public async Task<int> CountNewAsync(CancellationToken cancellationToken) =>
-        await FlaggedRows.CountAsync(row => row.Status == CoachOpportunityStatus.New, cancellationToken);
+    public async Task<int> CountNeedingAttentionAsync(CancellationToken cancellationToken) =>
+        await NeedingAttention.CountAsync(cancellationToken);
 
-    public async Task<(List<AdminSamReportRow> Items, int NewCount, int UnlistedFlagCount, bool Truncated)> ListSamAsync(
-        CoachOpportunityStatus? status, int take, CancellationToken cancellationToken)
+    /// <param name="attentionOnly">Only reports that need attention. Not together with <paramref name="status"/>.</param>
+    public async Task<(List<AdminSamReportRow> Items, int AttentionCount, int UnlistedFlagCount, bool Truncated)> ListSamAsync(
+        CoachOpportunityStatus? status, bool attentionOnly, int take, CancellationToken cancellationToken)
     {
-        var query = FlaggedRows.AsNoTracking();
+        var query = (attentionOnly ? NeedingAttention : FlaggedRows).AsNoTracking();
         if (status is { } wanted)
         {
             query = query.Where(row => row.Status == wanted);
@@ -110,7 +124,7 @@ internal sealed class AdminReportsService(
         // in no list, so the list says how many there are rather than passing for complete.
         var unlisted = await coachDb.CoachResponseReports.CountAsync(r => r.OpportunityId == null, cancellationToken);
 
-        return ([.. rows.Select(Project)], await CountNewAsync(cancellationToken), unlisted, truncated);
+        return ([.. rows.Select(Project)], await CountNeedingAttentionAsync(cancellationToken), unlisted, truncated);
     }
 
     public async Task<(AdminSamReportRow Report, List<AdminSamReportFlag> Flags, bool FlagsTruncated)?> GetSamAsync(
@@ -139,14 +153,26 @@ internal sealed class AdminReportsService(
 
     // ------------------------------------------------------------------ Sam: triage
 
-    /// <summary>Sets the report's status and its linked issue, both as given.</summary>
+    /// <summary>
+    /// Records that someone looked at the report, and sets what they chose: a status, a linked
+    /// issue, or the removal of one. What is not given stays as it is.
+    /// </summary>
     /// <remarks>
+    /// <para>
     /// The status follows the ledger's own rule (<see cref="CoachOpportunityReviewTransitions"/>):
     /// nothing leaves <c>accepted</c>, because an accepted report is one something else now points
     /// at, and a status the retention sweep ages out would delete it.
+    /// </para>
+    /// <para>
+    /// Every triage moves the triaged-at time, which is what ends "needs attention" for the flags
+    /// that had arrived by then.
+    /// </para>
     /// </remarks>
+    /// <param name="status">The new status, or null to keep it.</param>
+    /// <param name="issueNumber">The issue to link, or null to leave the link alone.</param>
+    /// <param name="unlinkIssue">True to remove the linked issue.</param>
     public async Task<AdminReportResult<AdminSamReportRow>> TriageSamAsync(
-        string id, CoachOpportunityStatus status, int? issueNumber, CancellationToken cancellationToken)
+        string id, CoachOpportunityStatus? status, int? issueNumber, bool unlinkIssue, CancellationToken cancellationToken)
     {
         var row = await FlaggedRows.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
         if (row is null)
@@ -154,13 +180,27 @@ internal sealed class AdminReportsService(
             return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.NotFound);
         }
 
-        if (!CoachOpportunityReviewTransitions.IsAllowed(row.Status, status))
+        if (status is { } wanted)
         {
-            return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.TransitionRefused);
+            if (!CoachOpportunityReviewTransitions.IsAllowed(row.Status, wanted))
+            {
+                // Read tracked and not changed; cleared so nothing on this scope saves it later.
+                coachDb.ChangeTracker.Clear();
+                return AdminReportResult<AdminSamReportRow>.Fail(AdminReportOutcome.TransitionRefused);
+            }
+
+            row.Status = wanted;
         }
 
-        row.Status = status;
-        row.LinkedIssueNumber = issueNumber;
+        if (unlinkIssue)
+        {
+            row.LinkedIssueNumber = null;
+        }
+        else if (issueNumber is { } issue)
+        {
+            row.LinkedIssueNumber = issue;
+        }
+
         row.ReviewedAtUtc = time.GetUtcNow().UtcDateTime;
         row.Version++;
 
@@ -193,7 +233,8 @@ internal sealed class AdminReportsService(
     /// </para>
     /// <para>
     /// The count on the report goes up before anything is decrypted. If that write fails the
-    /// request fails and nothing is read.
+    /// request fails and nothing is read. An attempt on messages that turn out to be gone is
+    /// still an attempt and is counted; a report that points at no messages is not.
     /// </para>
     /// </remarks>
     public async Task<AdminReportResult<AdminSamExchangeResponse>> OpenSamExchangeAsync(
@@ -238,6 +279,13 @@ internal sealed class AdminReportsService(
                 row.EvidenceOfferMessageId, row.EvidenceOfferMessageSequence, FlaggedAtUtc: null));
         }
 
+        // Nothing to open is not an opening: it is neither counted nor does it touch the row.
+        if (pointers.Count == 0)
+        {
+            return AdminReportResult<AdminSamExchangeResponse>.Ok(new AdminSamExchangeResponse(
+                row.Id, AdminReportCodes.ExchangeNotApplicable, [], Truncated: false, row.EvidenceRevealCount));
+        }
+
         var now = time.GetUtcNow().UtcDateTime;
         var counted = await coachDb.CoachOpportunities
             .Where(r => r.Id == row.Id)
@@ -260,11 +308,9 @@ internal sealed class AdminReportsService(
             exchanges.Add(new AdminSamExchange(pointer.FlaggedAtUtc, question, answer));
         }
 
-        var state = pointers.Count == 0
-            ? AdminReportCodes.ExchangeNotApplicable
-            : exchanges.Any(e => e.Question is not null || e.Answer is not null)
-                ? AdminReportCodes.ExchangeAvailable
-                : AdminReportCodes.ExchangeUnavailable;
+        var state = exchanges.Any(e => e.Question is not null || e.Answer is not null)
+            ? AdminReportCodes.ExchangeAvailable
+            : AdminReportCodes.ExchangeUnavailable;
 
         // Ids, a count and a code. Nothing a learner or Sam wrote reaches the log.
         logger.LogInformation(
@@ -392,6 +438,7 @@ internal sealed class AdminReportsService(
         new(row.Id,
             row.UserProfileId,
             AdminReportCodes.Of(row.Status),
+            NeedsAttention(row),
             AdminReportCodes.Of(CoachOpportunityCapabilityCodes.ReportReasonOf(row.CapabilityCode)),
             row.OccurrenceCount,
             row.FirstObservedAtUtc,

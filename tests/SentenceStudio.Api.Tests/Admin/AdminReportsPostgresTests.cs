@@ -127,9 +127,9 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
         self.ExpiresAtUtc.Should().Be(now.AddDays(30));
         self.ExpiresAtUtc.Kind.Should().Be(DateTimeKind.Utc);
 
-        var list = (await agent.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?status=new"))!;
+        var list = (await agent.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?attention=true"))!;
         list.Items.Should().ContainSingle().Which.LastFlaggedAtUtc.Should().Be(now);
-        list.NewCount.Should().Be(1);
+        list.AttentionCount.Should().Be(1);
 
         var opened = (await (await agent.PostAsync($"/api/admin/reports/sam/{reportId}/exchange", null))
             .Content.ReadFromJsonAsync<AdminSamExchangeResponse>())!;
@@ -144,6 +144,7 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
         triaged.ReviewedAtUtc.Should().Be(now);
         triaged.ExchangeOpenedCount.Should().Be(1);
         triaged.ExchangeLastOpenedAtUtc.Should().Be(now);
+        triaged.NeedsAttention.Should().BeFalse();
 
         var github = (await agent.GetFromJsonAsync<AdminGitHubReportList>("/api/admin/reports/github"))!;
         github.Items.Should().ContainSingle().Which.ScreenStateReference.Should().Be("fs-0123456789ab");
@@ -170,5 +171,14 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
             AdminActions.TokenSelfRead, AdminActions.ReportsSamList, AdminActions.ReportsSamExchangeRead,
             AdminActions.ReportsSamTriage, AdminActions.ReportsGitHubList, AdminActions.ReportsScreenStateRead);
         audit.Should().OnlyContain(r => r.Outcome == AdminAuditOutcome.Succeeded);
+
+        // A later flag on the same report: its status stays, and it needs attention again. The
+        // comparison of the two stored times runs in PostgreSQL.
+        factory.Time.Advance(TimeSpan.FromMinutes(30));
+        await factory.SeedFlaggedAnswerAsync(learner, "later question", "later answer", addToReportId: reportId);
+        var again = (await adminClient.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?attention=true"))!;
+        again.AttentionCount.Should().Be(1);
+        again.Items.Should().ContainSingle().Which.Should().Match<AdminSamReportRow>(
+            r => r.Status == AdminReportCodes.StatusAccepted && r.NeedsAttention && r.FlagCount == 2);
     }
 }

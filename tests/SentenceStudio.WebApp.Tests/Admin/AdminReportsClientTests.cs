@@ -16,29 +16,34 @@ public sealed class AdminReportsClientTests
     private AdminApiClient Client() =>
         new(new HttpClient(_api) { BaseAddress = new Uri("http://api.test") }, NullLogger<AdminApiClient>.Instance);
 
-    private AdminSessionState State() => new(Client(), TimeProvider.System);
+    private readonly ManualTime _time = new(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
+
+    private AdminSessionState State() => new(Client(), _time);
 
     [Fact]
     public async Task The_flagged_answers_are_asked_for_by_status_and_read_with_their_codes()
     {
         _api.Answer("/api/admin/reports/sam", HttpStatusCode.OK, """
-            {"items":[{"id":"r1","learnerId":"p1","status":"deferred","reason":"confusing","flagCount":1,
+            {"items":[{"id":"r1","learnerId":"p1","status":"deferred","needsAttention":true,"reason":"confusing","flagCount":1,
                        "firstFlaggedAtUtc":"2026-11-15T10:00:00Z","lastFlaggedAtUtc":"2026-11-15T10:00:00Z",
                        "failureCode":null,"stopReason":"completed","issueNumber":9,"issueUrl":"https://github.com/o/r/issues/9",
                        "hasExchange":true,"exchangeOpenedCount":2,"exchangeLastOpenedAtUtc":"2026-11-15T11:00:00Z","reviewedAtUtc":null}],
-             "learners":[],"newCount":3,"unlistedFlagCount":1,"truncated":true}
+             "learners":[],"attentionCount":3,"unlistedFlagCount":1,"truncated":true}
             """);
 
-        var filtered = await Client().GetSamReportsAsync("deferred", 200);
-        await Client().GetSamReportsAsync(null, 50);
+        var filtered = await Client().GetSamReportsAsync("deferred", attentionOnly: false, 200);
+        await Client().GetSamReportsAsync(null, attentionOnly: false, 50);
+        await Client().GetSamReportsAsync(null, attentionOnly: true, 200);
 
         filtered.IsOk.Should().BeTrue();
         var row = filtered.Value!.Items.Single();
-        (row.Id, row.Status, row.Reason, row.IssueNumber, row.ExchangeOpenedCount).Should().Be(("r1", "deferred", "confusing", 9, 2));
-        (filtered.Value.NewCount, filtered.Value.UnlistedFlagCount, filtered.Value.Truncated).Should().Be((3, 1, true));
+        (row.Id, row.Status, row.NeedsAttention, row.Reason, row.IssueNumber, row.ExchangeOpenedCount)
+            .Should().Be(("r1", "deferred", true, "confusing", 9, 2));
+        (filtered.Value.AttentionCount, filtered.Value.UnlistedFlagCount, filtered.Value.Truncated).Should().Be((3, 1, true));
         _api.Lines.Should().Equal(
             "GET /api/admin/reports/sam?take=200&status=deferred",
-            "GET /api/admin/reports/sam?take=50");
+            "GET /api/admin/reports/sam?take=50",
+            "GET /api/admin/reports/sam?take=200&attention=true");
     }
 
     [Fact]
@@ -52,19 +57,23 @@ public sealed class AdminReportsClientTests
 
         await client.GetSamReportAsync("r 1");
         var exchange = await client.OpenSamExchangeAsync("r 1", "the-proof");
-        var triage = await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusNew, null);
+        var triage = await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusNew, issueNumber: null, unlinkIssue: false);
+        await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusReviewed, issueNumber: 7, unlinkIssue: false);
+        await client.TriageSamReportAsync("r 1", AdminReportCodes.StatusReviewed, issueNumber: null, unlinkIssue: true);
 
         exchange.Value!.Exchanges.Single().Answer.Should().Be("a");
         exchange.Value.OpenedCount.Should().Be(4);
         triage.Status.Should().Be(AdminApiStatus.Refused);
         triage.Code.Should().Be(AdminReportCodes.FailureTransitionRefused);
-        _api.Lines.Should().Equal(
+        _api.Lines.Take(3).Should().Equal(
             "GET /api/admin/reports/sam/r%201",
             "POST /api/admin/reports/sam/r%201/exchange",
             "POST /api/admin/reports/sam/r%201/triage");
-        _api.Proofs.Should().Equal(null, "the-proof", null);
+        _api.Proofs.Take(3).Should().Equal(null, "the-proof", null);
         _api.Bodies[1].Should().BeNull("opening an exchange sends nothing but the proof");
-        _api.Bodies[2].Should().Be("""{"status":"new","issueNumber":null}""");
+        _api.Bodies[2].Should().Be("""{"status":"new"}""", "what is not being changed is left out, and left as it is");
+        _api.Bodies[3].Should().Be("""{"status":"reviewed","issueNumber":7}""");
+        _api.Bodies[4].Should().Be("""{"status":"reviewed","unlinkIssue":true}""");
     }
 
     [Fact]
@@ -115,59 +124,67 @@ public sealed class AdminReportsClientTests
 
     // ---------------------------------------------------------------- the sidebar's count
 
+    private const string CountRoute = "/api/admin/reports/attention-count";
+
     [Fact]
-    public async Task The_count_of_new_reports_is_asked_once_and_kept_for_the_tab()
+    public async Task The_count_is_asked_once_and_kept_for_two_minutes_then_asked_again()
     {
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":3}""");
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":3}""");
         var state = State();
 
-        (await state.GetNewReportCountAsync()).Should().Be(3);
-        (await state.GetNewReportCountAsync()).Should().Be(3);
+        (await state.GetReportAttentionCountAsync()).Should().Be(3);
+        _time.Now += AdminSessionState.AttentionCountMaxAge - TimeSpan.FromSeconds(1);
+        (await state.GetReportAttentionCountAsync()).Should().Be(3);
+        _api.Lines.Should().Equal($"GET {CountRoute}");
 
-        _api.Lines.Should().Equal("GET /api/admin/reports/new-count");
+        // A learner flagged another answer while this tab was open.
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":4}""");
+        _time.Now += TimeSpan.FromSeconds(1);
+        (await state.GetReportAttentionCountAsync()).Should().Be(4);
+        _api.Lines.Should().HaveCount(2);
     }
 
     [Fact]
     public async Task A_count_that_could_not_be_read_is_not_remembered_as_none()
     {
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.InternalServerError);
+        _api.Answer(CountRoute, HttpStatusCode.InternalServerError);
         var state = State();
-        (await state.GetNewReportCountAsync()).Should().BeNull();
+        (await state.GetReportAttentionCountAsync()).Should().BeNull();
 
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":0}""");
-        (await state.GetNewReportCountAsync()).Should().Be(0);
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":0}""");
+        (await state.GetReportAttentionCountAsync()).Should().Be(0);
         _api.Lines.Should().HaveCount(2);
     }
 
     [Fact]
     public async Task What_the_inbox_just_read_replaces_the_count_without_a_request()
     {
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":3}""");
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":3}""");
         var state = State();
-        await state.GetNewReportCountAsync();
+        await state.GetReportAttentionCountAsync();
 
-        state.SetNewReportCount(1);
+        state.SetReportAttentionCount(1);
 
-        (await state.GetNewReportCountAsync()).Should().Be(1);
+        (await state.GetReportAttentionCountAsync()).Should().Be(1);
         _api.Lines.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task The_sidebar_link_carries_the_count_only_when_there_is_something_new()
+    public async Task The_sidebar_link_carries_the_count_only_when_there_is_something_to_look_at()
     {
         _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":2}""");
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":2}""");
         var state = State();
         var provider = new AdminNavItemProvider(state);
 
-        var withNew = (await provider.GetItemsAsync()).Single();
-        state.SetNewReportCount(1);
+        var withTwo = (await provider.GetItemsAsync()).Single();
+        state.SetReportAttentionCount(1);
         var withOne = (await provider.GetItemsAsync()).Single();
-        state.SetNewReportCount(0);
+        state.SetReportAttentionCount(0);
         var withNone = (await provider.GetItemsAsync()).Single();
 
-        (withNew.Href, withNew.Badge, withNew.BadgeLabel).Should().Be(("/admin", 2, "2 new flagged answers"));
-        (withOne.Badge, withOne.BadgeLabel).Should().Be((1, "1 new flagged answer"));
+        (withTwo.Href, withTwo.Badge, withTwo.BadgeLabel).Should().Be(("/admin", 2, "2 flagged answers to look at"));
+        (withOne.Badge, withOne.BadgeLabel).Should().Be((1, "1 flagged answer to look at"));
         (withNone.Badge, withNone.BadgeLabel).Should().Be((null, null));
     }
 
@@ -175,7 +192,7 @@ public sealed class AdminReportsClientTests
     public async Task Being_told_this_person_is_no_longer_an_admin_forgets_the_count()
     {
         _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
-        _api.Answer("/api/admin/reports/new-count", HttpStatusCode.OK, """{"sam":2}""");
+        _api.Answer(CountRoute, HttpStatusCode.OK, """{"sam":2}""");
         var state = State();
         var provider = new AdminNavItemProvider(state);
         (await provider.GetItemsAsync()).Should().ContainSingle();
@@ -184,6 +201,13 @@ public sealed class AdminReportsClientTests
 
         (await provider.GetItemsAsync()).Should().BeEmpty();
         _api.Lines.Should().HaveCount(2, "a person who is not an admin is not asked about again");
+    }
+
+    private sealed class ManualTime(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     private sealed class Scripted : HttpMessageHandler

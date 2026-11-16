@@ -43,12 +43,12 @@
                                 filed to GitHub. Opening a flagged question and answer asks for your password.
                             </p>
                             <p id="admin-feedback-card-count" role="status">
-                                @(_newReports switch
+                                @(_reportsToLookAt switch
                                 {
-                                    null => "The number of new flagged answers could not be read.",
-                                    0 => "No new flagged answers.",
-                                    1 => "1 new flagged answer.",
-                                    var count => $"{count} new flagged answers."
+                                    null => "The number of flagged answers to look at could not be read.",
+                                    0 => "No flagged answers to look at.",
+                                    1 => "1 flagged answer to look at.",
+                                    var count => $"{count} flagged answers to look at."
                                 })
                             </p>
                             <a id="admin-open-feedback" class="btn btn-outline-primary" href="/admin/feedback">
@@ -125,7 +125,7 @@
 @code {
     private AdminGate? _gate;
     private AdminSession? _session;
-    private int? _newReports;
+    private int? _reportsToLookAt;
 
     private async Task<AdminApiStatus> LoadAsync()
     {
@@ -139,7 +139,7 @@
 
             // The same number the sidebar shows. Not knowing it is said on the card, and does not
             // keep the page from opening.
-            _newReports = await State.GetNewReportCountAsync();
+            _reportsToLookAt = await State.GetReportAttentionCountAsync();
         }
         else if (result.Status == AdminApiStatus.NotFound)
         {

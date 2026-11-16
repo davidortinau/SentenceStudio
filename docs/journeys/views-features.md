@@ -31,7 +31,7 @@ Platform legend: W = Web (WebApp), iOS / And / MCat / MacOS / Win = MAUI referen
 | 11 | Settings, theme, localization | `Settings`, `ThemeSwatch`, `WhatsNewModal`, culture switch (in `Profile`) | `/settings` | All (culture persistence differs W vs MAUI) |
 | 12 | Sync, offline, updates | `SyncService`, sync overlay, `UpdateAvailableBanner`, `EnvironmentBadge`, `WhatsNewModal` | none | Sync: MAUI only (`NoOpSyncService` on W). Update banner: MAUI only. Env badge: All |
 | 13 | Help, feedback, about | `Feedback`, HelpKit `Help` menu item, Settings About, `DebugHealth` | `/feedback`, `/debug/health` | Feedback: All. HelpKit: iOS and MacCatalyst only. DebugHealth: Debug builds only |
-| 14 | Operator / admin | `Operator/SamOpportunities` | `/operator/sam-opportunities` | W only, Development only (Sam; listed, not audited) |
+| 14 | Admin | `Admin/AdminHome`, `AdminAudit`, `AdminSyncHealth`, `AdminLearnerSyncHealth`, `AdminUsage`, `AdminFeedback`, `AdminTokens` | `/admin`, `/admin/audit`, `/admin/sync-health`, `/admin/usage`, `/admin/feedback`, `/admin/tokens` | W only, admins only (`docs/admin-portal-plan.md`; listed, not audited). `/operator/sam-opportunities` was removed 2026-11-16 |
 | 15 | Adjacent (owned by other agents, referenced only) | Diary (`/diary`, `/diary/today`, `/diary/{Id}`), `VideoWatching`, `FlashcardActivity`, 14 dashboard activities, Minimal Pairs, Coach/Sam overlay | various | n/a |
 
 Counts: 22 in-scope UI page components carrying 24 route templates (`MediaImport` and `ChannelDetail` each have an alias); 8 WebApp account pages plus 1 operator page; 8 `/account-action/*` endpoints; 9 `/api/auth/*` endpoints; 30+ distinct modal, sheet, toast and confirmation surfaces (section 14).
@@ -500,8 +500,8 @@ File: `DebugHealth.razor` (319 lines). Not in navigation. Gated by `#if DEBUG` c
 
 ### 13.5 Operator pages
 
-- `/operator/sam-opportunities` (`WebApp/Components/Pages/Operator/SamOpportunities.razor`, 634 lines): W only, `[Authorize]`, InteractiveServer, Development-only by three independent guards per its header comment. Sam opportunity ledger reviewer. Belongs to the Sam audit.
-- API operator: `MapCoachOpportunityOperator(app.Environment)` (`Api/Program.cs:730`), Development only.
+- `/admin/feedback` (`WebApp/Components/Pages/Admin/AdminFeedback.razor`) replaced `/operator/sam-opportunities` on 2026-11-16: W only, `[Authorize]`, admins only in every environment (`AdminGate`). The feedback inbox. See `docs/admin-portal-plan.md`.
+- API: `MapAdminEndpoints()` (`Api/Program.cs`), routes under `/api/admin`, 404 for everyone but an admin or a live agent token.
 - Server health: `/health` and `/alive` (`Api/Program.cs:695-696`).
 - Server worker: `SentenceStudio.Workers` channel monitor (8.3) and `PartOfSpeechBackfillWorker`.
 

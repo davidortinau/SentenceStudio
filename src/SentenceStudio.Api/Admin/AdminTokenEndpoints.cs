@@ -11,6 +11,18 @@ public static class AdminTokenStates
     public const string Live = "live";
     public const string Expired = "expired";
     public const string Revoked = "revoked";
+
+    /// <summary>
+    /// Neither revoked nor expired, and refused all the same while the admin who created it is
+    /// not an admin. It is accepted again if they become one again.
+    /// </summary>
+    public const string CreatorNotAdmin = "creator_not_admin";
+
+    /// <summary>
+    /// Neither revoked nor expired, and refused for good: the admin who created it has changed
+    /// their password since.
+    /// </summary>
+    public const string CreatorPasswordChanged = "creator_password_changed";
 }
 
 /// <summary>One agent token as the Tokens page lists it. Never the token or its digest.</summary>
@@ -85,6 +97,7 @@ internal static class AdminTokenEndpoints
 
     private static async Task<IResult> ListAsync(
         [FromServices] AdminAgentTokenService tokens,
+        [FromServices] AdminAccessEvaluator evaluator,
         [FromServices] ApplicationDbContext db,
         [FromServices] TimeProvider time,
         CancellationToken cancellationToken)
@@ -97,11 +110,20 @@ internal static class AdminTokenEndpoints
                 .Where(u => creators.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => u.Email, cancellationToken);
 
+        // A token that is live by its dates can still be one the API refuses, because of its
+        // creator. The list says so, or it would show "live" beside a token that does not work.
         var now = time.GetUtcNow().UtcDateTime;
+        var items = new List<AdminTokenRow>(rows.Count);
+        foreach (var row in rows)
+        {
+            var denial = row.RevokedAtUtc is null && row.ExpiresAtUtc > now
+                ? await evaluator.EvaluateTokenCreatorAsync(row, cancellationToken)
+                : AdminDenial.None;
+            items.Add(Project(row, now, emails.GetValueOrDefault(row.CreatedByUserId), denial));
+        }
+
         return Results.Ok(new AdminTokenList(
-            [.. rows.Select(r => Project(r, now, emails.GetValueOrDefault(r.CreatedByUserId)))],
-            (int)AdminAgentTokenLimits.Lifetime.TotalDays,
-            AdminAgentTokenLimits.MaxLiveTokens));
+            items, (int)AdminAgentTokenLimits.Lifetime.TotalDays, AdminAgentTokenLimits.MaxLiveTokens));
     }
 
     private static async Task<IResult> CreateAsync(
@@ -129,10 +151,17 @@ internal static class AdminTokenEndpoints
                 $"There are already {AdminAgentTokenLimits.MaxLiveTokens} live tokens. Revoke one first.");
         }
 
+        // The password-again filter has just accepted a proof bound to this digest, so there is one.
         var actor = http.GetAdminActor();
-        var issued = await tokens.CreateAsync(actor.Id, name, permissions, cancellationToken);
+        if (string.IsNullOrEmpty(actor.StampDigest))
+        {
+            return AdminRefusal.Create(http, StatusCodes.Status409Conflict,
+                AdminFailureCodes.StepUpUnavailable, "This account cannot create a token.");
+        }
+
+        var issued = await tokens.CreateAsync(actor.Id, actor.StampDigest, name, permissions, cancellationToken);
         return Results.Ok(new AdminTokenCreated(
-            issued.Token, Project(issued.Row, time.GetUtcNow().UtcDateTime, actor.Email)));
+            issued.Token, Project(issued.Row, time.GetUtcNow().UtcDateTime, actor.Email, AdminDenial.None)));
     }
 
     private static async Task<IResult> RevokeAsync(
@@ -141,7 +170,7 @@ internal static class AdminTokenEndpoints
         [FromServices] TimeProvider time,
         CancellationToken cancellationToken) =>
         await tokens.RevokeAsync(tokenId, cancellationToken) is { } row
-            ? Results.Ok(Project(row, time.GetUtcNow().UtcDateTime, createdByEmail: null))
+            ? Results.Ok(Project(row, time.GetUtcNow().UtcDateTime, createdByEmail: null, AdminDenial.None))
             : Results.NotFound();
 
     private static IResult GetSelf(HttpContext http, [FromServices] TimeProvider time)
@@ -156,13 +185,15 @@ internal static class AdminTokenEndpoints
             : Results.NotFound();
     }
 
-    private static AdminTokenRow Project(AdminAgentToken row, DateTime now, string? createdByEmail) =>
+    private static AdminTokenRow Project(AdminAgentToken row, DateTime now, string? createdByEmail, AdminDenial creator) =>
         new(row.Id,
             row.Name,
             AdminTokenPermissionWire.Of(row.Permissions),
-            row.RevokedAtUtc is not null
-                ? AdminTokenStates.Revoked
-                : row.ExpiresAtUtc <= now ? AdminTokenStates.Expired : AdminTokenStates.Live,
+            row.RevokedAtUtc is not null ? AdminTokenStates.Revoked
+                : row.ExpiresAtUtc <= now ? AdminTokenStates.Expired
+                : creator == AdminDenial.TokenCreatorNotAdmin ? AdminTokenStates.CreatorNotAdmin
+                : creator == AdminDenial.TokenCreatorPasswordChanged ? AdminTokenStates.CreatorPasswordChanged
+                : AdminTokenStates.Live,
             row.CreatedAtUtc,
             row.CreatedByUserId,
             createdByEmail,

@@ -41,7 +41,8 @@
                 <div class="col-auto">
                     <label class="form-label" for="admin-feedback-status">Show</label>
                     <select id="admin-feedback-status" class="form-select" value="@_statusFilter"
-                            @onchange="StatusFilterChangedAsync" disabled="@_loading">
+                            @onchange="StatusFilterChangedAsync" disabled="@(_loading || _busy)">
+                        <option value="@NeedsAttention" selected="@(_statusFilter == NeedsAttention)">To look at</option>
                         <option value="@AllStatuses" selected="@(_statusFilter == AllStatuses)">Every status</option>
                         @foreach (var status in AdminReportCodes.Statuses)
                         {
@@ -53,7 +54,7 @@
                 {
                     <div class="col-auto">
                         <p class="mb-2" id="admin-feedback-new-count" role="status">
-                            @Count(counted.NewCount) new in all.
+                            @Count(counted.AttentionCount) to look at in all.
                         </p>
                     </div>
                 }
@@ -94,9 +95,12 @@
                 @if (sam.Items.Count == 0)
                 {
                     <p class="text-secondary" id="admin-feedback-sam-empty">
-                        @(_statusFilter == AllStatuses
-                            ? "No learner has flagged a Sam answer."
-                            : $"No flagged answers with the status {StatusText(_statusFilter)}.")
+                        @(_statusFilter switch
+                        {
+                            NeedsAttention => "Nothing to look at: every flagged answer has been triaged since it was last flagged.",
+                            AllStatuses => "No learner has flagged a Sam answer.",
+                            _ => $"No flagged answers with the status {StatusText(_statusFilter)}."
+                        })
                     </p>
                 }
                 else
@@ -126,7 +130,13 @@
                                         <td>@ReasonText(row.Reason)</td>
                                         <td class="text-end">@Count(row.FlagCount)</td>
                                         <td>@(row.FailureCode ?? "None")</td>
-                                        <td>@StatusText(row.Status)</td>
+                                        <td>
+                                            @StatusText(row.Status)
+                                            @if (row.NeedsAttention && row.Status != AdminReportCodes.StatusNew)
+                                            {
+                                                <span class="badge text-bg-warning ms-1">Flagged again</span>
+                                            }
+                                        </td>
                                         <td>
                                             @if (row.IssueNumber is { } issue)
                                             {
@@ -184,6 +194,14 @@
                                     ? When(report.LastFlaggedAtUtc)
                                     : $"{Count(report.FlagCount)} times, {When(report.FirstFlaggedAtUtc)} to {When(report.LastFlaggedAtUtc)}")
                             </dd>
+                            @if (report.NeedsAttention && report.Status != AdminReportCodes.StatusNew)
+                            {
+                                <dt class="col-sm-4 col-lg-3">Since it was triaged</dt>
+                                <dd class="col-sm-8 col-lg-9" id="admin-feedback-detail-flagged-again">
+                                    Flagged again after it was last triaged (@WhenOrNone(report.ReviewedAtUtc) UTC).
+                                    Saving below records that you have looked.
+                                </dd>
+                            }
                             <dt class="col-sm-4 col-lg-3">How the turn ended</dt>
                             <dd class="col-sm-8 col-lg-9">@CodeText(report.StopReason)</dd>
                             <dt class="col-sm-4 col-lg-3">Failure code</dt>
@@ -342,7 +360,7 @@
                         </form>
                         <p class="form-text" id="admin-feedback-triage-help">
                             The issue is one you or the agent filed; it must carry none of the learner's text.
-                            Leave the number empty for none. An accepted report keeps its status.
+                            Clear the number to unlink it. An accepted report keeps its status.
                         </p>
                         @if (_triageMessage is not null)
                         {
@@ -495,9 +513,16 @@
 @code {
     private const int PageSize = 200;
     private const string AllStatuses = "all";
+    private const string NeedsAttention = "attention";
     private const int MaxIssueNumber = 9_999_999;
 
-    private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+    // Shown in a text node, which Blazor encodes, so the JSON itself is left readable: Korean
+    // as Korean and a slash as a slash, not \uXXXX escapes.
+    private static readonly JsonSerializerOptions Indented = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private AdminGate? _gate;
     private AdminSamReportList? _sam;
@@ -506,7 +531,7 @@
     private AdminSamExchangeResponse? _exchange;
     private AdminScreenState? _screenState;
     private string? _screenReference;
-    private string _statusFilter = AdminReportCodes.StatusNew;
+    private string _statusFilter = NeedsAttention;
     private string _triageStatus = AdminReportCodes.StatusNew;
     private string _triageIssue = string.Empty;
     private string? _notice;
@@ -645,7 +670,7 @@
     private async Task StatusFilterChangedAsync(ChangeEventArgs args)
     {
         var chosen = args.Value?.ToString();
-        if (chosen != AllStatuses && !AdminReportCodes.Statuses.Contains(chosen))
+        if (chosen != AllStatuses && chosen != NeedsAttention && !AdminReportCodes.Statuses.Contains(chosen))
         {
             return;
         }
@@ -697,7 +722,10 @@
 
     private async Task<AdminApiStatus> LoadSamAsync()
     {
-        var result = await Api.GetSamReportsAsync(_statusFilter == AllStatuses ? null : _statusFilter, PageSize);
+        var result = await Api.GetSamReportsAsync(
+            _statusFilter is AllStatuses or NeedsAttention ? null : _statusFilter,
+            attentionOnly: _statusFilter == NeedsAttention,
+            PageSize);
         _samFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
         if (result.Status == AdminApiStatus.NotFound)
         {
@@ -707,7 +735,7 @@
         else if (result.Value is { } list)
         {
             _sam = list;
-            State.SetNewReportCount(list.NewCount);
+            State.SetReportAttentionCount(list.AttentionCount);
         }
 
         return result.Status;
@@ -819,6 +847,14 @@
         try
         {
             var result = await Api.OpenSamExchangeAsync(detail.Report.Id, proof);
+
+            // The report was closed, or another one opened, while this was being read. What came
+            // back belongs to a panel that is no longer there, and is dropped unshown.
+            if (_detail?.Report.Id != detail.Report.Id)
+            {
+                return;
+            }
+
             switch (result.Status)
             {
                 case AdminApiStatus.Ok when result.Value is { } exchange:
@@ -880,11 +916,30 @@
             issue = number;
         }
 
+        // Only what this form changed is sent. A number left as it was when the report was opened
+        // is left out, so a link somebody else added meanwhile is not removed by this save.
+        var shown = detail.Report.IssueNumber;
+        var unlink = issue is null && shown is not null;
+        var link = issue is not null && issue != shown ? issue : null;
+
         _busy = true;
         _triageMessage = null;
         try
         {
-            var result = await Api.TriageSamReportAsync(detail.Report.Id, _triageStatus, issue);
+            var result = await Api.TriageSamReportAsync(detail.Report.Id, _triageStatus, link, unlink);
+
+            // Closed, or another report opened, while this was being saved: the answer is for a
+            // panel that is gone. The list still follows the change.
+            if (_detail?.Report.Id != detail.Report.Id)
+            {
+                if (result.Status == AdminApiStatus.Ok)
+                {
+                    CloseIfRefused(await LoadSamAsync());
+                }
+
+                return;
+            }
+
             switch (result.Status)
             {
                 case AdminApiStatus.Ok when result.Value is { } updated:
@@ -892,7 +947,7 @@
                     _triageSaved = true;
                     _triageMessage = "Saved.";
 
-                    // The list and the count of new reports follow the change.
+                    // The list and the count of reports to look at follow the change.
                     CloseIfRefused(await LoadSamAsync());
                     break;
 
@@ -923,7 +978,7 @@
     private async Task ReloadDetailAsync(string reportId)
     {
         var result = await Api.GetSamReportAsync(reportId);
-        if (result.Value is { } detail)
+        if (result.Value is { } detail && _detail?.Report.Id == reportId)
         {
             Show(detail);
         }
@@ -963,6 +1018,13 @@
         try
         {
             var result = await Api.ReadScreenStateAsync(reference, proof);
+
+            // Closed, or another one chosen, while this was being read: dropped unshown.
+            if (_screenReference != reference)
+            {
+                return;
+            }
+
             switch (result.Status)
             {
                 case AdminApiStatus.Ok when result.Value is { } state:

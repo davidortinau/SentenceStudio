@@ -3451,8 +3451,15 @@ legacy `CoachWorkspaceOverlay`; the two surfaces are mutually exclusive so no co
 
 ## 33. Sam opportunity ledger (`SAM-OPP`)
 
-Runtime telemetry for capability gaps: `CoachOpportunity`, its recorder, and the Development-only
-operator surface at `/operator/sam-opportunities`.
+Runtime telemetry for capability gaps: `CoachOpportunity` and its recorder.
+
+> **2026-11-16: the operator surface is gone.** `/operator/sam-opportunities` and
+> `/api/v1/coach/operator/opportunities` were replaced by the admin portal's feedback inbox
+> (`/admin/feedback`, `/api/admin/reports/*`; `docs/admin-portal-plan.md`, `docs/admin-api.md`).
+> The inbox lists only answers a learner flagged, so the capture cases below (`SAM-OPP-01`..`14`)
+> are now checked in the database or with `scripts/sam-opportunity-digest.sh`, and the operator
+> cases in 33.4 (`SAM-OPP-15`..`23`) and `SAM-RPT-11` in 34.11 no longer have a screen to run on.
+> Their replacements are the admin inbox checks in `docs/admin-portal-plan.md`, "Phase 1 as built".
 
 **What this section proves, and what it deliberately does not.** It proves that a real learner gap
 produces exactly one reviewable, content-free row; that a safe refusal becomes a counter and never

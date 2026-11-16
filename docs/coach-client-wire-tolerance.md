@@ -170,7 +170,7 @@ Audited and **correctly left alone**:
 
 | Location | Finding |
 |---|---|
-| `SamOpportunityOperatorClient` (WebApp, `/api/v1/coach/operator/...`) | Coach route, but its DTOs type `Kind`/`Disposition`/`OfferLink` as **strings**. No wire enum crosses it, so it is already tolerant by construction. |
+| `AdminApiClient` (WebApp, `/api/admin/reports/...`; replaced `SamOpportunityOperatorClient` on 2026-11-16) | Not a Coach route. Every status, reason and kind crosses as a fixed lowercase **string** code, and the page shows an unknown code as "Unknown (code)", so it is tolerant by construction. |
 | `IdentityAuthService`, `AiApiClient`, `PlansApiClient`, `SpeechApiClient`, `FeedbackApiClient`, `AiGatewayClient` | Not Coach paths. Out of W1 scope; unchanged. |
 | `WebPreferencesService`, `ElevenLabsSpeechService` | Local storage / cache, not the API wire. No Coach DTO is persisted client-side (the only Coach preference is a `bool`). |
 | MAUI heads (iOS / Android / MacCatalyst / MacOS / Windows) | No direct JSON call on a Coach path; all coach traffic goes through `CoachApiClient`. |

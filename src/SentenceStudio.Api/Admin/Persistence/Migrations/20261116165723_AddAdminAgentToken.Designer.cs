@@ -12,7 +12,7 @@ using SentenceStudio.Api.Admin.Persistence;
 namespace SentenceStudio.Api.Admin.Persistence.Migrations
 {
     [DbContext(typeof(AdminDbContext))]
-    [Migration("20261116161851_AddAdminAgentToken")]
+    [Migration("20261116165723_AddAdminAgentToken")]
     partial class AddAdminAgentToken
     {
         /// <inheritdoc />
@@ -33,6 +33,11 @@ namespace SentenceStudio.Api.Admin.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByStampDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("CreatedByUserId")
                         .IsRequired()

@@ -33,7 +33,7 @@ public sealed class AdminFeedbackComponentTests
     private const string StepUpRoute = "/api/admin/step-up";
 
     private const string Row = """
-        {"id":"r1","learnerId":"p1","status":"new","reason":"incorrect_or_misleading","flagCount":2,
+        {"id":"r1","learnerId":"p1","status":"new","needsAttention":true,"reason":"incorrect_or_misleading","flagCount":2,
          "firstFlaggedAtUtc":"2026-11-14T09:00:00Z","lastFlaggedAtUtc":"2026-11-15T10:30:00Z",
          "failureCode":"tool_failed","stopReason":"completed","issueNumber":null,"issueUrl":null,
          "hasExchange":true,"exchangeOpenedCount":0,"exchangeLastOpenedAtUtc":null,"reviewedAtUtc":null}
@@ -41,7 +41,7 @@ public sealed class AdminFeedbackComponentTests
 
     private static readonly string SamBody = $$"""
         {"items":[{{Row}}],"learners":[{"profileId":"p1","displayName":"Alpha","email":"alpha@x.test"}],
-         "newCount":4,"unlistedFlagCount":0,"truncated":false}
+         "attentionCount":4,"unlistedFlagCount":0,"truncated":false}
         """;
 
     private static readonly string DetailBody = $$"""
@@ -124,7 +124,7 @@ public sealed class AdminFeedbackComponentTests
         circuit.Unhandled.Should().BeEmpty();
         var text = circuit.RenderedText(id);
         text.Should().Contain("alpha@x.test").And.Contain("Incorrect or misleading").And.Contain("2026-11-15 10:30")
-            .And.Contain("tool_failed").And.Contain("New").And.Contain("new in all");
+            .And.Contain("tool_failed").And.Contain("New").And.Contain("to look at in all");
         circuit.AttributeValue(id, "admin-feedback-new-count", "role").Should().Be("status");
         text.Should().Contain("77").And.Contain("The quiz skipped a word").And.Contain("Native").And.Contain("1.4.2")
             .And.Contain("Filed").And.Contain("In doubt: an issue may exist").And.Contain("None saved")
@@ -135,8 +135,8 @@ public sealed class AdminFeedbackComponentTests
         circuit.HasElementWithId(id, "admin-feedback-detail").Should().BeFalse("no report is open until one is chosen");
 
         _api.Paths.Should().Equal(SamRoute, GitHubRoute);
-        _api.Calls[0].Query.Should().Be("?take=200&status=new", "the inbox opens on what nobody has looked at yet");
-        (await services.GetRequiredService<AdminSessionState>().GetNewReportCountAsync()).Should().Be(4,
+        _api.Calls[0].Query.Should().Be("?take=200&attention=true", "the inbox opens on what nobody has looked at yet");
+        (await services.GetRequiredService<AdminSessionState>().GetReportAttentionCountAsync()).Should().Be(4,
             "the sidebar's count follows what the inbox just read, with no request of its own");
         _api.Paths.Should().HaveCount(2);
     }
@@ -152,18 +152,20 @@ public sealed class AdminFeedbackComponentTests
         await circuit.ChangeValueByIdAsync(id, "admin-feedback-status", "all");
         await circuit.ChangeValueByIdAsync(id, "admin-feedback-status", "deferred");
         await circuit.ChangeValueByIdAsync(id, "admin-feedback-status", "made-up");
+        await circuit.ChangeValueByIdAsync(id, "admin-feedback-status", "attention");
 
         circuit.Unhandled.Should().BeEmpty();
-        _api.Paths.Should().Equal(SamRoute, GitHubRoute, SamRoute, SamRoute);
+        _api.Paths.Should().Equal(SamRoute, GitHubRoute, SamRoute, SamRoute, SamRoute);
         _api.Calls[2].Query.Should().Be("?take=200");
         _api.Calls[3].Query.Should().Be("?take=200&status=deferred");
+        _api.Calls[4].Query.Should().Be("?take=200&attention=true");
     }
 
     [Fact]
     public async Task An_empty_inbox_a_cut_list_and_flags_with_no_row_are_each_said_in_words()
     {
         _api.Answer(SamRoute, HttpStatusCode.OK,
-            """{"items":[],"learners":[],"newCount":0,"unlistedFlagCount":2,"truncated":false}""");
+            """{"items":[],"learners":[],"attentionCount":0,"unlistedFlagCount":2,"truncated":false}""");
         _api.Answer(GitHubRoute, HttpStatusCode.OK, """{"items":[],"learners":[],"truncated":false}""");
         await using var services = Services();
         var circuit = Circuit(services);
@@ -171,7 +173,7 @@ public sealed class AdminFeedbackComponentTests
         var id = await circuit.RenderAsync<AdminFeedback>();
 
         var text = circuit.RenderedText(id);
-        text.Should().Contain("No flagged answers with the status New")
+        text.Should().Contain("Nothing to look at")
             .And.Contain("flags were").And.Contain("recorded without an inbox row")
             .And.Contain("No report has been filed to GitHub from the app");
         circuit.HasElementWithId(id, "admin-feedback-sam-table").Should().BeFalse();
@@ -385,7 +387,7 @@ public sealed class AdminFeedbackComponentTests
     }
 
     [Fact]
-    public async Task An_empty_issue_field_unlinks_the_issue()
+    public async Task A_status_saved_with_the_issue_field_untouched_sends_no_issue_so_a_link_made_meanwhile_stays()
     {
         AnswerLists();
         _api.Answer(TriageRoute, HttpStatusCode.OK, Row.Replace("\"status\":\"new\"", "\"status\":\"reviewed\""));
@@ -397,7 +399,65 @@ public sealed class AdminFeedbackComponentTests
         await circuit.ChangeValueByIdAsync(id, "admin-feedback-triage-status", "reviewed");
         await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
 
-        _api.Last(TriageRoute).Body.Should().Be("""{"status":"reviewed","issueNumber":null}""");
+        _api.Last(TriageRoute).Body.Should().Be("""{"status":"reviewed"}""");
+    }
+
+    [Fact]
+    public async Task Clearing_a_linked_issue_number_unlinks_it_and_leaving_it_alone_does_not_send_it()
+    {
+        const string linkedRow = """
+            {"id":"r1","learnerId":"p1","status":"accepted","needsAttention":true,"reason":"confusing","flagCount":3,
+             "firstFlaggedAtUtc":"2026-11-14T09:00:00Z","lastFlaggedAtUtc":"2026-11-15T10:30:00Z",
+             "failureCode":null,"stopReason":"completed","issueNumber":412,"issueUrl":"https://github.com/davidortinau/SentenceStudio/issues/412",
+             "hasExchange":true,"exchangeOpenedCount":0,"exchangeLastOpenedAtUtc":null,"reviewedAtUtc":"2026-11-14T12:00:00Z"}
+            """;
+        AnswerLists();
+        _api.Answer(SamRoute, HttpStatusCode.OK,
+            $$"""{"items":[{{linkedRow}}],"learners":[],"attentionCount":1,"unlistedFlagCount":0,"truncated":false}""");
+        _api.Answer(DetailRoute, HttpStatusCode.OK, $$"""{"report":{{linkedRow}},"learner":null,"flags":[],"flagsTruncated":false}""");
+        _api.Answer(TriageRoute, HttpStatusCode.OK, linkedRow);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminFeedback>();
+        circuit.RenderedText(id).Should().Contain("Flagged again", "a report flagged after it was triaged says so beside its status");
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
+        circuit.HasElementWithId(id, "admin-feedback-detail-flagged-again").Should().BeTrue();
+
+        // Saved as it stands: "I have looked". The status is sent, the link is not.
+        await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted"}""");
+
+        await circuit.InputValueByIdAsync(id, "admin-feedback-triage-issue", "413");
+        await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted","issueNumber":413}""");
+
+        await circuit.InputValueByIdAsync(id, "admin-feedback-triage-issue", "");
+        await circuit.SubmitFormByIdAsync(id, "admin-feedback-triage");
+        _api.Last(TriageRoute).Body.Should().Be("""{"status":"accepted","unlinkIssue":true}""");
+    }
+
+    [Fact]
+    public async Task An_exchange_that_arrives_after_its_report_was_closed_is_dropped_unshown()
+    {
+        AnswerLists();
+        _api.Answer(StepUpRoute, HttpStatusCode.OK, ProofBody);
+        _api.Answer(ExchangeRoute, HttpStatusCode.OK, ExchangeBody);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminFeedback>();
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-open-r1");
+        await ConfirmPasswordAsync(circuit, id);
+
+        var release = _api.Hold(ExchangeRoute);
+        var opening = circuit.ClickButtonByIdAsync(id, "admin-feedback-exchange-open");
+        await _api.Reached(ExchangeRoute);
+        await circuit.ClickButtonByIdAsync(id, "admin-feedback-detail-close");
+        release.SetResult();
+        await opening;
+
+        circuit.Unhandled.Should().BeEmpty();
+        circuit.HasElementWithId(id, "admin-feedback-detail").Should().BeFalse("the report was closed and stays closed");
+        circuit.RenderedText(id).Should().NotContain("It marks the topic");
     }
 
     [Theory]
@@ -497,7 +557,8 @@ public sealed class AdminFeedbackComponentTests
         await circuit.ClickButtonByIdAsync(id, "admin-feedback-screen-state-open");
 
         circuit.Unhandled.Should().BeEmpty();
-        circuit.RenderedText(id).Should().Contain("\"word\"").And.Contain("/quiz/");
+        circuit.RenderedText(id).Should().Contain("\"word\"").And.Contain("/quiz/<script>")
+            .And.Contain("사과", "Korean is shown as Korean, not as \\u escapes");
         _api.Last(ScreenRoute).Proof.Should().Be("sealed-proof");
 
         await circuit.ClickButtonByIdAsync(id, "admin-feedback-screen-state-close");
@@ -525,6 +586,19 @@ public sealed class AdminFeedbackComponentTests
 
         public void AnswerPost(string path, HttpStatusCode status, string body = "") => _answers["POST " + path] = (status, body);
 
+        private readonly Dictionary<string, TaskCompletionSource> _holds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, TaskCompletionSource> _reached = new(StringComparer.Ordinal);
+
+        /// <summary>The next request to <paramref name="path"/> waits until the returned source is completed.</summary>
+        public TaskCompletionSource Hold(string path)
+        {
+            _reached[path] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _holds[path] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        /// <summary>Completes when a held request to <paramref name="path"/> has arrived.</summary>
+        public Task Reached(string path) => _reached[path].Task;
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -534,6 +608,12 @@ public sealed class AdminFeedbackComponentTests
                 request.RequestUri.Query,
                 request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
                 request.Headers.TryGetValues(AdminApiClient.ProofHeader, out var values) ? values.Single() : null));
+
+            if (_holds.Remove(path, out var hold))
+            {
+                _reached[path].SetResult();
+                await hold.Task;
+            }
 
             var (status, body) = _answers.TryGetValue($"{request.Method.Method} {path}", out var exact)
                 ? exact
@@ -725,6 +805,23 @@ public sealed class AdminTokensComponentTests
             $"GET {TokensRoute}", $"POST {RevokeRoute}", $"GET {TokensRoute}");
         circuit.RenderedText(id).Should().Contain("Revoked").And.Contain("2026-11-16 09:00");
         circuit.HasElementWithId(id, $"admin-tokens-revoke-{tokenId}").Should().BeFalse("a revoked token has nothing left to revoke");
+    }
+
+    [Theory]
+    [InlineData("creator_not_admin", "Not accepted while its creator is not an admin")]
+    [InlineData("creator_password_changed", "its creator changed their password")]
+    public async Task A_token_its_creator_no_longer_stands_behind_is_not_shown_as_live_and_can_be_revoked(
+        string state, string expected)
+    {
+        _api.Answer(TokensRoute, HttpStatusCode.OK,
+            $$"""{"items":[{{LiveRow.Replace("\"state\":\"live\"", $"\"state\":\"{state}\"")}}],"lifetimeDays":30,"maxLive":10}""");
+        await using var services = Services();
+        var circuit = Circuit(services);
+
+        var id = await circuit.RenderAsync<AdminTokens>();
+
+        circuit.RenderedText(id).Should().Contain(expected).And.NotContain("Live");
+        circuit.HasElementWithId(id, "admin-tokens-revoke-0123456789abcdef0123456789abcdef").Should().BeTrue();
     }
 
     [Fact]

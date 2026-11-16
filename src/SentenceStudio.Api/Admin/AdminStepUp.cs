@@ -149,10 +149,14 @@ internal sealed class AdminStepUpFilter(AdminStepUpService stepUp) : IEndpointFi
     {
         var http = context.HttpContext;
 
-        // A token has no password. Where a route that asks for the password again also admits a
-        // token, the permission the route names stands in for the proof: the audit middleware has
-        // already refused a token without it, and this checks again rather than trust the order.
+        // A token has no password. On a route that returns learner content and names
+        // AdminTokenPermissions.LearnerContent, that permission stands in for the proof: it is the
+        // one permission an admin grants knowing it reads what a password-again guards. The audit
+        // middleware has already refused a token without it; this checks again rather than trust
+        // the order. No other permission opens a route that asks for the password again.
         if (http.FindAdminActor() is { Kind: AdminActorKind.AgentToken } token
+            && http.GetEndpoint()?.Metadata.GetMetadata<AdminTokenAccessMetadata>()
+                is { Required: AdminTokenPermissions.LearnerContent }
             && AdminTokenAccess.IsAllowed(http.GetEndpoint(), token))
         {
             return await next(context);

@@ -20,6 +20,7 @@ namespace SentenceStudio.Api.Admin.Persistence.Migrations
                     SecretHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     Permissions = table.Column<int>(type: "integer", nullable: false),
                     CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedByStampDigest = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ExpiresAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     RevokedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),

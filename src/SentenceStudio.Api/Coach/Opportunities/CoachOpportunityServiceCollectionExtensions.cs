@@ -53,14 +53,10 @@ public static class CoachOpportunityServiceCollectionExtensions
         services.TryAddScoped<CoachUnboundAnswerDetector>();
         services.TryAddScoped<CoachOpportunityRetentionSweep>();
 
-        // The read/review surface. Registered only in Development, so a host in any other
-        // environment cannot resolve it even if a route registration were reintroduced by
-        // mistake — one more independent way for the surface to be absent rather than merely
-        // switched off.
-        if (environment.IsDevelopment())
-        {
-            services.TryAddScoped<CoachOpportunityOperatorService>();
-        }
+        // CoachOpportunityOperatorService is no longer registered in any environment. Its routes
+        // were replaced by the admin portal's feedback inbox (Admin/AdminReportsService.cs), so
+        // no host can resolve the owner-scoped review service; the class remains only for the
+        // tests that read the ledger through it (docs/native-review-backlog.md).
 
         // Discovered by CoachDataDeletionService, which holds no hand-maintained table list.
         services.TryAddEnumerable(

@@ -78,7 +78,7 @@ public sealed class AdminReportsTests : IDisposable
     // ------------------------------------------------------------------ who gets in
 
     [Theory]
-    [InlineData("GET", "/api/admin/reports/new-count")]
+    [InlineData("GET", "/api/admin/reports/attention-count")]
     [InlineData("GET", "/api/admin/reports/sam")]
     [InlineData("GET", "/api/admin/reports/sam/{id}")]
     [InlineData("POST", "/api/admin/reports/sam/{id}/exchange")]
@@ -147,13 +147,14 @@ public sealed class AdminReportsTests : IDisposable
         var list = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam"))!;
 
         list.Items.Select(i => i.Id).Should().Equal(newer, older);
-        list.NewCount.Should().Be(2);
+        list.AttentionCount.Should().Be(2);
         list.UnlistedFlagCount.Should().Be(0);
         list.Truncated.Should().BeFalse();
 
         var first = list.Items[0];
         first.LearnerId.Should().Be(b.UserProfileId);
         first.Status.Should().Be(AdminReportCodes.StatusNew);
+        first.NeedsAttention.Should().BeTrue();
         first.Reason.Should().Be(AdminReportCodes.ReasonExpectedAppAction);
         first.FlagCount.Should().Be(2);
         first.FirstFlaggedAtUtc.Should().Be(now.AddHours(-1));
@@ -203,7 +204,7 @@ public sealed class AdminReportsTests : IDisposable
 
         var list = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam"))!;
         list.Items.Should().ContainSingle().Which.Id.Should().NotBe(automatic);
-        list.NewCount.Should().Be(1);
+        list.AttentionCount.Should().Be(1);
 
         (await client.GetAsync($"/api/admin/reports/sam/{automatic}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.PostAsJsonAsync($"/api/admin/reports/sam/{automatic}/triage",
@@ -223,7 +224,7 @@ public sealed class AdminReportsTests : IDisposable
     }
 
     [Fact]
-    public async Task The_status_filter_narrows_the_list_and_the_new_count_stays_whole()
+    public async Task The_status_filter_narrows_the_list_and_the_count_to_look_at_stays_whole()
     {
         var (admin, learner, first) = await SeedOneAsync();
         var second = await _factory.SeedFlaggedAnswerAsync(learner, Question, Answer);
@@ -235,7 +236,8 @@ public sealed class AdminReportsTests : IDisposable
         var fresh = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?status=new"))!;
 
         deferred.Items.Select(i => i.Id).Should().Equal(first);
-        deferred.NewCount.Should().Be(1);
+        deferred.AttentionCount.Should().Be(1);
+        deferred.Items.Single().NeedsAttention.Should().BeFalse();
         fresh.Items.Select(i => i.Id).Should().Equal(second);
     }
 
@@ -262,6 +264,9 @@ public sealed class AdminReportsTests : IDisposable
     [InlineData("take=0")]
     [InlineData("take=201")]
     [InlineData("take=ten")]
+    [InlineData("attention=false")]
+    [InlineData("attention=1")]
+    [InlineData("attention=true&status=new")]
     public async Task A_bad_list_query_is_the_routes_own_400(string query)
     {
         var (admin, _, _) = await SeedOneAsync();
@@ -302,7 +307,7 @@ public sealed class AdminReportsTests : IDisposable
     }
 
     [Fact]
-    public async Task The_sidebar_count_is_the_number_of_new_flagged_answers_and_leaves_no_audit_row()
+    public async Task The_sidebar_count_is_the_reports_nobody_has_looked_at_and_leaves_no_audit_row()
     {
         var (admin, learner, first) = await SeedOneAsync();
         await _factory.SeedFlaggedAnswerAsync(learner, Question, Answer);
@@ -310,12 +315,49 @@ public sealed class AdminReportsTests : IDisposable
         using var client = _factory.CreateClientFor(admin);
         var auditBefore = (await _factory.ReadAuditAsync()).Count;
 
-        (await client.GetFromJsonAsync<AdminNewReportCount>("/api/admin/reports/new-count"))!.Sam.Should().Be(3);
+        (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(3);
         (await _factory.ReadAuditAsync()).Count.Should().Be(auditBefore);
 
         await client.PostAsJsonAsync($"/api/admin/reports/sam/{first}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusReviewed, null));
-        (await client.GetFromJsonAsync<AdminNewReportCount>("/api/admin/reports/new-count"))!.Sam.Should().Be(2);
+            new AdminSamTriageRequest(AdminReportCodes.StatusReviewed));
+        (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(2);
+    }
+
+    /// <summary>
+    /// A learner's later flag lands on the report they already have for that reason and day, and
+    /// the report keeps the status it was given. It must not disappear behind that status.
+    /// </summary>
+    [Fact]
+    public async Task A_report_flagged_again_after_it_was_triaged_needs_attention_until_someone_looks_again()
+    {
+        var (admin, learner, reportId) = await SeedOneAsync();
+        using var client = _factory.CreateClientFor(admin);
+        await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
+            new AdminSamTriageRequest(AdminReportCodes.StatusAccepted, 412));
+        (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?attention=true"))!
+            .Items.Should().BeEmpty();
+
+        _factory.Time.Advance(TimeSpan.FromHours(2));
+        await _factory.SeedFlaggedAnswerAsync(learner, "later question", "later answer", addToReportId: reportId);
+
+        var attention = (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?attention=true"))!;
+        attention.AttentionCount.Should().Be(1);
+        var row = attention.Items.Should().ContainSingle().Subject;
+        row.Status.Should().Be(AdminReportCodes.StatusAccepted, "an accepted report keeps its status");
+        row.NeedsAttention.Should().BeTrue();
+        row.FlagCount.Should().Be(2);
+        (await client.GetFromJsonAsync<AdminSamReportList>("/api/admin/reports/sam?status=new"))!.Items.Should().BeEmpty();
+        (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(1);
+
+        // Looking again is a triage that changes nothing else: the same status, the link left alone.
+        _factory.Time.Advance(TimeSpan.FromMinutes(1));
+        var looked = (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
+                new AdminSamTriageRequest(AdminReportCodes.StatusAccepted)))
+            .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
+
+        looked.NeedsAttention.Should().BeFalse();
+        looked.IssueNumber.Should().Be(412);
+        (await client.GetFromJsonAsync<AdminReportAttentionCount>("/api/admin/reports/attention-count"))!.Sam.Should().Be(0);
     }
 
     // ------------------------------------------------------------------ the detail
@@ -505,6 +547,37 @@ public sealed class AdminReportsTests : IDisposable
         var opened = (await response.Content.ReadFromJsonAsync<AdminSamExchangeResponse>())!;
         opened.State.Should().Be(AdminReportCodes.ExchangeUnavailable);
         opened.Exchanges.Should().ContainSingle().Which.Question.Should().BeNull();
+        opened.OpenedCount.Should().Be(1, "an attempt on messages that turn out to be gone is still counted");
+    }
+
+    [Fact]
+    public async Task A_report_that_points_at_no_messages_opens_as_not_applicable_and_is_not_counted_as_opened()
+    {
+        var (admin, _, reportId) = await SeedOneAsync();
+        await _factory.WithCoachDbAsync(async db =>
+        {
+            await db.CoachResponseReports.ExecuteDeleteAsync();
+            var row = await db.CoachOpportunities.SingleAsync();
+            row.ConversationId = null;
+            row.EvidenceMessageId = row.EvidenceOfferMessageId = null;
+            row.EvidenceMessageSequence = row.EvidenceOfferMessageSequence = null;
+            await db.SaveChangesAsync();
+        });
+        using var client = _factory.CreateClientFor(admin);
+        await AdminApiFactory.ConfirmPasswordAsync(client);
+
+        var opened = (await (await client.PostAsync($"/api/admin/reports/sam/{reportId}/exchange", null))
+            .Content.ReadFromJsonAsync<AdminSamExchangeResponse>())!;
+
+        opened.State.Should().Be(AdminReportCodes.ExchangeNotApplicable);
+        opened.Exchanges.Should().BeEmpty();
+        opened.OpenedCount.Should().Be(0);
+        await _factory.WithCoachDbAsync(async db =>
+        {
+            var row = await db.CoachOpportunities.AsNoTracking().SingleAsync();
+            row.EvidenceRevealCount.Should().Be(0, "nothing was opened");
+            row.EvidenceLastRevealedAtUtc.Should().BeNull();
+        });
     }
 
     [Fact]
@@ -606,19 +679,29 @@ public sealed class AdminReportsTests : IDisposable
     }
 
     [Fact]
-    public async Task Leaving_the_issue_out_unlinks_it()
+    public async Task What_a_triage_leaves_out_stays_as_it_is_and_an_issue_is_removed_only_when_asked()
     {
         var (admin, _, reportId) = await SeedOneAsync();
         using var client = _factory.CreateClientFor(admin);
-        await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-            new AdminSamTriageRequest(AdminReportCodes.StatusReviewed, 5));
+        async Task<AdminSamReportRow> TriageAsync(object body) =>
+            (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage", body))
+                .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
 
-        var updated = (await (await client.PostAsJsonAsync($"/api/admin/reports/sam/{reportId}/triage",
-                new AdminSamTriageRequest(AdminReportCodes.StatusReviewed, null)))
-            .Content.ReadFromJsonAsync<AdminSamReportRow>())!;
+        var linked = await TriageAsync(new { status = "reviewed", issueNumber = 5 });
+        (linked.Status, linked.IssueNumber).Should().Be((AdminReportCodes.StatusReviewed, 5));
 
-        updated.IssueNumber.Should().BeNull();
-        updated.IssueUrl.Should().BeNull();
+        // A caller that read the report before the link was made saves a status only: the link stays.
+        var statusOnly = await TriageAsync(new { status = "dismissed" });
+        (statusOnly.Status, statusOnly.IssueNumber).Should().Be((AdminReportCodes.StatusDismissed, 5));
+
+        var nullIsLeftOut = await TriageAsync(new { status = "deferred", issueNumber = (int?)null });
+        (nullIsLeftOut.Status, nullIsLeftOut.IssueNumber).Should().Be((AdminReportCodes.StatusDeferred, 5));
+
+        var issueOnly = await TriageAsync(new { issueNumber = 9 });
+        (issueOnly.Status, issueOnly.IssueNumber).Should().Be((AdminReportCodes.StatusDeferred, 9));
+
+        var unlinked = await TriageAsync(new { unlinkIssue = true });
+        (unlinked.Status, unlinked.IssueNumber, unlinked.IssueUrl).Should().Be((AdminReportCodes.StatusDeferred, null, null));
     }
 
     [Fact]
@@ -656,7 +739,10 @@ public sealed class AdminReportsTests : IDisposable
     [Theory]
     [InlineData("""{"status":"Accepted"}""")]
     [InlineData("""{"status":"closed"}""")]
-    [InlineData("""{"issueNumber":3}""")]
+    [InlineData("""{}""")]
+    [InlineData("""{"unlinkIssue":false}""")]
+    [InlineData("""{"unlinkIssue":true,"issueNumber":3}""")]
+    [InlineData("""{"status":"reviewed","unlinkIssue":"yes"}""")]
     [InlineData("""{"status":"reviewed","issueNumber":0}""")]
     [InlineData("""{"status":"reviewed","issueNumber":-4}""")]
     [InlineData("""{"status":"reviewed","issueNumber":10000000}""")]

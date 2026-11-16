@@ -44,8 +44,12 @@ internal sealed class AdminAgentTokenService(AdminDbContext db, TimeProvider tim
     /// Creates a token for <paramref name="createdByUserId"/> and returns it with its row. The
     /// token cannot be read back afterwards.
     /// </summary>
+    /// <param name="createdByStampDigest">
+    /// The digest of the creator's security stamp, as the admin policy read it for this request.
+    /// </param>
     public async Task<AdminIssuedToken> CreateAsync(
-        string createdByUserId, string name, AdminTokenPermissions permissions, CancellationToken cancellationToken)
+        string createdByUserId, string createdByStampDigest, string name, AdminTokenPermissions permissions,
+        CancellationToken cancellationToken)
     {
         var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(AdminAgentTokenLimits.IdLength / 2));
         var secret = Base64UrlEncode(RandomNumberGenerator.GetBytes(SecretBytes));
@@ -58,6 +62,7 @@ internal sealed class AdminAgentTokenService(AdminDbContext db, TimeProvider tim
             SecretHash = HashOf(secret),
             Permissions = permissions,
             CreatedByUserId = createdByUserId,
+            CreatedByStampDigest = createdByStampDigest,
             CreatedAtUtc = now,
             ExpiresAtUtc = now.Add(AdminAgentTokenLimits.Lifetime)
         };
@@ -70,7 +75,8 @@ internal sealed class AdminAgentTokenService(AdminDbContext db, TimeProvider tim
 
     /// <summary>
     /// The row behind <paramref name="presented"/> when it is a real token that is neither revoked
-    /// nor expired; otherwise null. Says nothing about whether its creator is still an admin.
+    /// nor expired; otherwise null. Says nothing about its creator: see
+    /// <see cref="AdminAccessEvaluator.EvaluateTokenAsync"/>.
     /// </summary>
     public async Task<AdminAgentToken?> FindLiveAsync(string? presented, CancellationToken cancellationToken)
     {

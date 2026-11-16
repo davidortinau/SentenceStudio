@@ -144,12 +144,18 @@ public static class AdminReportCodes
 /// <param name="FailureCode">The turn's or the write's own failure code, when it failed.</param>
 /// <param name="StopReason">How the turn ended, for example <c>completed</c>.</param>
 /// <param name="IssueNumber">The linked GitHub issue, when one is linked.</param>
+/// <param name="NeedsAttention">
+/// True while nobody has looked at the newest flag: the report is <c>new</c>, or the learner
+/// flagged again after it was last triaged. A learner's later flag lands on the same report and
+/// does not change its status, so this, not the status, says whether there is something unread.
+/// </param>
 /// <param name="HasExchange">Whether there is a question and answer to open.</param>
 /// <param name="ExchangeOpenedCount">How many times anyone has opened it.</param>
 public sealed record AdminSamReportRow(
     string Id,
     string LearnerId,
     string Status,
+    bool NeedsAttention,
     string Reason,
     int FlagCount,
     DateTime FirstFlaggedAtUtc,
@@ -165,7 +171,7 @@ public sealed record AdminSamReportRow(
 
 /// <summary>What <c>GET /api/admin/reports/sam</c> returns, newest first.</summary>
 /// <param name="Learners">Names for the learners in <paramref name="Items"/>. Empty for an agent token, which gets ids only.</param>
-/// <param name="NewCount">How many flagged answers are still <c>new</c>, whatever the filter.</param>
+/// <param name="AttentionCount">How many reports need attention, whatever the filter.</param>
 /// <param name="UnlistedFlagCount">
 /// Flags that were recorded without an inbox row, so they are in no list. Normally zero.
 /// </param>
@@ -173,7 +179,7 @@ public sealed record AdminSamReportRow(
 public sealed record AdminSamReportList(
     IReadOnlyList<AdminSamReportRow> Items,
     IReadOnlyList<AdminLearnerSummary> Learners,
-    int NewCount,
+    int AttentionCount,
     int UnlistedFlagCount,
     bool Truncated);
 
@@ -207,10 +213,15 @@ public sealed record AdminSamReportDetail(
     IReadOnlyList<AdminSamReportFlag> Flags,
     bool FlagsTruncated);
 
-/// <summary>The body of <c>POST /api/admin/reports/sam/{reportId}/triage</c>. Both are set as given.</summary>
-/// <param name="Status">A status code from <see cref="AdminReportCodes"/>. Required.</param>
-/// <param name="IssueNumber">The GitHub issue to link, or null for none.</param>
-public sealed record AdminSamTriageRequest(string? Status, int? IssueNumber);
+/// <summary>
+/// The body of <c>POST /api/admin/reports/sam/{reportId}/triage</c>. What is left out is left as
+/// it is, so a caller working from an older copy of the report cannot undo what it never saw.
+/// At least one of the three must be given.
+/// </summary>
+/// <param name="Status">A status code from <see cref="AdminReportCodes"/>, or left out to keep the status.</param>
+/// <param name="IssueNumber">The GitHub issue to link, or left out to keep the link as it is.</param>
+/// <param name="UnlinkIssue">True to remove the linked issue. Not together with <paramref name="IssueNumber"/>.</param>
+public sealed record AdminSamTriageRequest(string? Status, int? IssueNumber = null, bool? UnlinkIssue = null);
 
 /// <summary>One flagged question and the answer the learner flagged. Learner content.</summary>
 public sealed record AdminSamExchange(DateTime? FlaggedAtUtc, string? Question, string? Answer);
@@ -254,5 +265,5 @@ public sealed record AdminScreenStateResponse(
     DateTime CreatedAtUtc,
     JsonElement Context);
 
-/// <summary>What <c>GET /api/admin/reports/new-count</c> returns.</summary>
-public sealed record AdminNewReportCount(int Sam);
+/// <summary>What <c>GET /api/admin/reports/attention-count</c> returns: flagged Sam answers nobody has looked at yet.</summary>
+public sealed record AdminReportAttentionCount(int Sam);

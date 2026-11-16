@@ -31,7 +31,8 @@
         <p class="text-secondary" id="admin-tokens-intro">
             A token lets the maintenance agent read the feedback inbox through the API, without a
             password and without database access. It lasts @(_tokens?.LifetimeDays ?? 30) days, stops
-            at once when revoked, and stops if the admin who created it stops being an admin.
+            at once when revoked, and is not accepted once the admin who created it changes their
+            password or stops being an admin.
             Everything it does is recorded in the audit log under its id.
         </p>
 
@@ -169,7 +170,8 @@
                                         <td>@When(token.ExpiresAtUtc)</td>
                                         <td>@(token.LastUsedAtUtc is { } usedAt ? When(usedAt) : "Never")</td>
                                         <td class="text-end">
-                                            @if (token.State == AdminTokenCodes.StateLive)
+                                            @if (token.State is AdminTokenCodes.StateLive
+                                                or AdminTokenCodes.StateCreatorNotAdmin or AdminTokenCodes.StateCreatorPasswordChanged)
                                             {
                                                 @if (_confirmingRevoke == token.Id)
                                                 {
@@ -244,6 +246,8 @@
         AdminTokenCodes.StateLive => "Live",
         AdminTokenCodes.StateExpired => "Expired",
         AdminTokenCodes.StateRevoked => "Revoked",
+        AdminTokenCodes.StateCreatorNotAdmin => "Not accepted while its creator is not an admin",
+        AdminTokenCodes.StateCreatorPasswordChanged => "Not accepted: its creator changed their password. Revoke it and create a new one",
         _ => $"Unknown ({code})"
     };
 

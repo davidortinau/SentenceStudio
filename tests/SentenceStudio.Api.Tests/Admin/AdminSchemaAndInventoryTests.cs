@@ -38,7 +38,7 @@ public sealed class AdminModelMigrationParityTests
         using var db = NewContext();
 
         db.Database.GetMigrations().Should().Equal(
-            "20261115224514_InitialAdminSchema", "20261116161851_AddAdminAgentToken");
+            "20261115224514_InitialAdminSchema", "20261116165723_AddAdminAgentToken");
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class AdminEndpointInventoryTests : IDisposable
 
         // Adding a route that leaves no audit row means changing this list on purpose.
         unaudited.Should().BeEquivalentTo(
-            "/api/admin/access", "/api/admin/reports/new-count", "/api/admin/{**rest}");
+            "/api/admin/access", "/api/admin/reports/attention-count", "/api/admin/{**rest}");
 
         var known = typeof(AdminActions).GetFields()
             .Where(f => f.IsLiteral)

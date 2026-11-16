@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Shared.Models;
@@ -67,6 +70,7 @@ public sealed class AdminAgentTokenTests : IDisposable
             var row = await db.AgentTokens.AsNoTracking().SingleAsync();
             row.Id.Should().Be(created.Row.Id);
             row.SecretHash.Should().HaveLength(64).And.NotContain(secret);
+            row.CreatedByStampDigest.Should().HaveLength(64);
             row.Name.Should().NotContain(secret);
         });
 
@@ -286,7 +290,7 @@ public sealed class AdminAgentTokenTests : IDisposable
 
     [Theory]
     [InlineData("/api/admin/access")]
-    [InlineData("/api/admin/reports/new-count")]
+    [InlineData("/api/admin/reports/attention-count")]
     [InlineData("/api/admin/no-such-route")]
     public async Task A_token_gets_404_on_the_routes_that_leave_no_audit_row(string route)
     {
@@ -415,6 +419,61 @@ public sealed class AdminAgentTokenTests : IDisposable
     }
 
     [Fact]
+    public async Task A_token_stops_for_good_when_its_creator_changes_their_password()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var created = await _factory.IssueTokenAsync(admin, AdminTokenPermissionWire.Reports);
+        using var client = _factory.CreateClientForToken(created.Token);
+        (await client.GetAsync("/api/admin/token")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        const string newPassword = "AnotherAdminTest5678!";
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var account = await users.FindByIdAsync(admin.Id);
+            (await users.ChangePasswordAsync(account!, AdminApiFactory.Password, newPassword)).Succeeded.Should().BeTrue();
+        }
+
+        (await client.GetAsync("/api/admin/token")).StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "a password changed because it may have been stolen ends every token made with it");
+
+        // The list says why, so "live" is never shown beside a token that does not work.
+        using var adminClient = _factory.CreateClientFor(admin);
+        (await adminClient.GetFromJsonAsync<AdminTokenList>("/api/admin/tokens"))!.Items.Single().State
+            .Should().Be(AdminTokenStates.CreatorPasswordChanged);
+
+        // Changing it back does not bring the token back: the stamp is new each time.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var account = await users.FindByIdAsync(admin.Id);
+            (await users.ChangePasswordAsync(account!, newPassword, AdminApiFactory.Password)).Succeeded.Should().BeTrue();
+        }
+
+        (await client.GetAsync("/api/admin/token")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task The_list_says_when_a_token_is_not_accepted_because_of_its_creator()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var other = await _factory.SeedAdminAsync("mate@admin-tests.local");
+        await _factory.IssueTokenAsync(admin, AdminTokenPermissionWire.Reports);
+        using var otherClient = _factory.CreateClientFor(other);
+
+        (await otherClient.GetFromJsonAsync<AdminTokenList>("/api/admin/tokens"))!.Items.Single().State
+            .Should().Be(AdminTokenStates.Live);
+
+        await _factory.RevokeRoleAsync(admin);
+        (await otherClient.GetFromJsonAsync<AdminTokenList>("/api/admin/tokens"))!.Items.Single().State
+            .Should().Be(AdminTokenStates.CreatorNotAdmin);
+
+        await _factory.GrantRoleAsync(admin);
+        (await otherClient.GetFromJsonAsync<AdminTokenList>("/api/admin/tokens"))!.Items.Single().State
+            .Should().Be(AdminTokenStates.Live);
+    }
+
+    [Fact]
     public async Task The_last_used_time_is_written_at_most_once_in_five_minutes()
     {
         var admin = await _factory.SeedAdminAsync(AdminEmail);
@@ -465,6 +524,44 @@ public sealed class AdminTokenPermissionTests
         parsed.Should().Be(AdminTokenPermissions.Reports | AdminTokenPermissions.Triage);
         AdminTokenPermissionWire.Of(parsed).Should().Equal("reports", "triage");
         AdminTokenPermissionWire.Of((AdminTokenPermissions)8).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A token passes a route that asks for the password again only where the route names the
+    /// learner-content permission. A route marked with any other permission still refuses it.
+    /// </summary>
+    [Theory]
+    [InlineData(AdminTokenPermissions.LearnerContent, true)]
+    [InlineData(AdminTokenPermissions.Triage, false)]
+    [InlineData(AdminTokenPermissions.Reports, false)]
+    [InlineData(AdminTokenPermissions.None, false)]
+    [InlineData(AdminTokenPermissions.LearnerContent | AdminTokenPermissions.Triage, false)]
+    public async Task Only_the_learner_content_permission_stands_in_for_the_password(
+        AdminTokenPermissions routeNeeds, bool passes)
+    {
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        http.SetEndpoint(new Microsoft.AspNetCore.Http.Endpoint(
+            _ => Task.CompletedTask,
+            new Microsoft.AspNetCore.Http.EndpointMetadataCollection(new AdminTokenAccessMetadata(routeNeeds)),
+            "test"));
+        http.Features.Set<IAdminActorFeature>(new AdminActorFeature(
+            new AdminActor(AdminActorKind.AgentToken, "t1", null, "agent", null)
+            {
+                TokenPermissions = AdminTokenPermissionWire.All
+            }));
+        var filter = new AdminStepUpFilter(new AdminStepUpService(
+            Microsoft.AspNetCore.DataProtection.DataProtectionProvider.Create("tests"), TimeProvider.System));
+        var reached = false;
+
+        await filter.InvokeAsync(
+            Microsoft.AspNetCore.Http.EndpointFilterInvocationContext.Create(http),
+            _ =>
+            {
+                reached = true;
+                return ValueTask.FromResult<object?>(null);
+            });
+
+        reached.Should().Be(passes);
     }
 
     [Fact]

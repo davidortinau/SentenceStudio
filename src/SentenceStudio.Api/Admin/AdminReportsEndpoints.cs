@@ -28,9 +28,9 @@ internal static class AdminReportsEndpoints
 
     public static RouteGroupBuilder MapAdminReportsEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet($"{Prefix}/new-count", GetNewCountAsync)
-            .WithName("GetAdminNewReportCount")
-            .WithoutAdminAudit("A count of new flagged answers for the sidebar; names no learner and no report.");
+        group.MapGet($"{Prefix}/attention-count", GetAttentionCountAsync)
+            .WithName("GetAdminReportAttentionCount")
+            .WithoutAdminAudit("A count of flagged answers nobody has looked at, for the sidebar; names no learner and no report.");
 
         group.MapGet($"{Prefix}/sam", ListSamAsync)
             .WithName("ListAdminSamReports")
@@ -67,9 +67,9 @@ internal static class AdminReportsEndpoints
         return group;
     }
 
-    private static async Task<IResult> GetNewCountAsync(
+    private static async Task<IResult> GetAttentionCountAsync(
         [FromServices] AdminReportsService reports, CancellationToken cancellationToken) =>
-        Results.Ok(new AdminNewReportCount(await reports.CountNewAsync(cancellationToken)));
+        Results.Ok(new AdminReportAttentionCount(await reports.CountNeedingAttentionAsync(cancellationToken)));
 
     private static async Task<IResult> ListSamAsync(
         HttpContext http,
@@ -77,6 +77,7 @@ internal static class AdminReportsEndpoints
         [FromServices] ApplicationDbContext db,
         CancellationToken cancellationToken,
         [FromQuery] string? status = null,
+        [FromQuery] string? attention = null,
         [FromQuery] string? take = null)
     {
         // Bound as text and parsed here, so a malformed value is this route's own 400 in every
@@ -92,14 +93,21 @@ internal static class AdminReportsEndpoints
             wanted = parsed;
         }
 
+        // One question at a time: the reports that need attention, or the reports with one status.
+        if (attention is not null && (attention != "true" || status is not null))
+        {
+            return Invalid(http, "attention must be true, and not together with status.");
+        }
+
         if (!TryParseTake(take, out var pageSize))
         {
             return Invalid(http, $"take must be 1 to {AdminReportsService.MaxPageSize}.");
         }
 
-        var (items, newCount, unlisted, truncated) = await reports.ListSamAsync(wanted, pageSize, cancellationToken);
+        var (items, attentionCount, unlisted, truncated) = await reports.ListSamAsync(
+            wanted, attention is not null, pageSize, cancellationToken);
         var learners = await NamesForAsync(http, db, [.. items.Select(i => i.LearnerId)], cancellationToken);
-        return Results.Ok(new AdminSamReportList(items, learners, newCount, unlisted, truncated));
+        return Results.Ok(new AdminSamReportList(items, learners, attentionCount, unlisted, truncated));
     }
 
     private static async Task<IResult> GetSamAsync(
@@ -132,14 +140,22 @@ internal static class AdminReportsEndpoints
         [FromServices] AdminReportsService reports,
         CancellationToken cancellationToken)
     {
+        const string shape =
+            "The body must be JSON with at least one of: {\"status\": \"reviewed\", \"issueNumber\": 123, \"unlinkIssue\": true}.";
         if (await AdminRequestBody.ReadAsync<AdminSamTriageRequest>(http, cancellationToken) is not { } request)
         {
-            return Invalid(http, "The body must be JSON: {\"status\": \"reviewed\", \"issueNumber\": 123}.");
+            return Invalid(http, shape);
         }
 
-        if (!AdminReportCodes.TryParseStatus(request.Status, out var status))
+        CoachOpportunityStatus? status = null;
+        if (request.Status is not null)
         {
-            return Invalid(http, "status must be new, reviewed, accepted, deferred or dismissed.");
+            if (!AdminReportCodes.TryParseStatus(request.Status, out var parsed))
+            {
+                return Invalid(http, "status must be new, reviewed, accepted, deferred or dismissed.");
+            }
+
+            status = parsed;
         }
 
         if (request.IssueNumber is < 1 or > AdminReportsService.MaxIssueNumber)
@@ -147,7 +163,18 @@ internal static class AdminReportsEndpoints
             return Invalid(http, $"issueNumber must be 1 to {AdminReportsService.MaxIssueNumber}, or left out.");
         }
 
-        return ToResult(http, await reports.TriageSamAsync(reportId, status, request.IssueNumber, cancellationToken));
+        var unlink = request.UnlinkIssue == true;
+        if (unlink && request.IssueNumber is not null)
+        {
+            return Invalid(http, "Send issueNumber to link an issue or unlinkIssue to remove one, not both.");
+        }
+
+        if (status is null && request.IssueNumber is null && !unlink)
+        {
+            return Invalid(http, shape);
+        }
+
+        return ToResult(http, await reports.TriageSamAsync(reportId, status, request.IssueNumber, unlink, cancellationToken));
     }
 
     private static async Task<IResult> ListGitHubAsync(

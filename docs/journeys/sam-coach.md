@@ -64,9 +64,9 @@ Model of the codebase: one Sam (Coach) runtime that grows (decision 2026-11-07, 
 | S18 | State notices (stage rows, offline, failed, incomplete, limited, plan changed elsewhere, expired, stopped) | Status/alert cards with retry / keep / stop | Learner | `CoachStateNotice.razor` |
 | S19 | Repair disclosure note and dispute notice | Per-message note ("Sam adjusted part of this answer...") and head-of-log correction status | Learner | `CoachRepairDisclosureNotice.razor`, `CoachDisputeNotice.razor` |
 | S20 | In-app Help assistant (HelpKit) | "Help" nav item opens an AI Q and A over bundled help articles | Learner, MAUI iOS and Mac Catalyst heads only | `src/SentenceStudio.UI/Layout/NavMenu.razor:40-46,134-155`; `src/Shared/HelpKitIntegration.cs`; registered `src/SentenceStudio.iOS/MauiProgram.cs:38`, `src/SentenceStudio.MacCatalyst/MauiProgram.cs:33` |
-| S21 | Operator page `/operator/sam-opportunities` | Rollup and row views, detail drawer, review form, "Reveal learner content" | OPERATOR / DEV-ONLY (Development env, allowlisted user) | `src/SentenceStudio.WebApp/Components/Pages/Operator/SamOpportunities.razor:1,26,34,368,409` |
-| S22 | Operator API `/api/v1/coach/operator/opportunities` (list, rollup, export, get, review, evidence) | JSON | OPERATOR / DEV-ONLY | `src/SentenceStudio.Api/Coach/Opportunities/Endpoints/CoachOpportunityOperatorEndpoints.cs:67,93-101` |
-| S23 | Weekly opportunity digest (CLI tool + GitHub workflow) | Content-free markdown / NDJSON | OPERATOR / ops only | `tools/SamOpportunityDigest/Program.cs`, `.github/workflows/sam-opportunity-digest.yml`, `scripts/sam-opportunity-digest.sh`, `docs/sam-opportunity-digest.md` |
+| S21 | Admin feedback inbox `/admin/feedback` (replaced the operator page `/operator/sam-opportunities` on 2026-11-16) | Flagged answers for every learner, detail with each flag in codes, the flagged question and answer after a confirmed password, status and GitHub issue number; reports filed to GitHub with their saved screen state | ADMIN only (Admin role and `Admin:Emails`), every environment | `src/SentenceStudio.WebApp/Components/Pages/Admin/AdminFeedback.razor` |
+| S22 | Admin API `/api/admin/reports/*` (list, get, exchange, triage, GitHub list, screen state; replaced `/api/v1/coach/operator/opportunities`) | JSON | ADMIN and the agent token | `src/SentenceStudio.Api/Admin/AdminReportsEndpoints.cs`, `docs/admin-api.md` |
+| S23 | Opportunity digest (CLI tool; the GitHub workflow was removed 2026-11-16) | Content-free markdown / NDJSON | OPERATOR / ops only | `tools/SamOpportunityDigest/Program.cs`, `scripts/sam-opportunity-digest.sh`, `docs/sam-opportunity-digest.md` |
 | S24 | Reported-responses read API | List of message ids the learner already reported (to render "Reported for review" after reload) | Learner (API) | `src/SentenceStudio.Api/Coach/Reports/Endpoints/CoachResponseReportEndpoints.cs:39` |
 
 Surfaces that do NOT exist (searched, none found; stated so the rebuild does not invent them):
@@ -379,15 +379,16 @@ Format: numbered steps "start -> ... -> end". Citations point to the UI/API that
 
 ### Operator-only journeys (mark as dev-only)
 
-**J36. Operator reviews the opportunity ledger (Development only)**
-1. Operator signs in with an account explicitly in `Coach:AllowedUserProfileIds` (`__dev_all__` does NOT open this surface) and opens `/operator/sam-opportunities` (WebApp Development only; standard not-found elsewhere) (`SamOpportunities.razor:26`, `CoachOpportunityOperatorEndpoints.cs:67` 404 outside Development).
-2. Rollup view (counts by capability code and kind) or Rows view; select a row; detail drawer shows closed codes only.
-3. Review the row (status, reviewer note code, linked spec path) -> server returns a paste-ready markdown block with no learner text and writes no file (`CoachOpportunityMarkdown.cs`).
-4. Optionally press "Reveal learner content": explicit acknowledgement literal; durable key ring required; owner-checked; reveal count incremented (SAM-OPP-16..20).
-5. Capture rules: what is and is not recorded (refused destructive requests are aggregate-only; injection attempts record nothing; out-of-the-blue "yes" records nothing) (SAM-OPP-01..14).
+**J36. Admin reads the feedback inbox (replaced the Development-only operator journey on 2026-11-16)**
+1. An admin (Admin role in the database and email on `Admin:Emails`) opens `/admin/feedback`; anyone else sees "Page not found" (`AdminFeedback.razor`, `AdminGate.razor`).
+2. The list shows every learner's flagged answers, new ones first: last flagged, learner, reason, flags, failure code, status, issue. Only rows a learner's flag created are listed (`AdminReportsService.cs`).
+3. Open a report: each flag in closed codes (kind of response, turn outcome, tools run, proposed change, answer check).
+4. "Open the question and answer": needs the password confirmed in the last 10 minutes; shows the flagged turn only; durable key ring required; recorded in the audit log and counted on the report.
+5. Set a status and a GitHub issue number. An accepted report keeps its status.
+6. Capture rules for what the server records about itself are unchanged (SAM-OPP-01..14); those rows are in the digest only.
 
-**J37. Weekly digest**
-1. Scheduled GitHub workflow (Mondays 13:00 UTC) or `scripts/sam-opportunity-digest.sh` reads the production DB read-only and emits content-free markdown/NDJSON; skips if `COACH_DIGEST_CONNECTION_STRING` is unset (`.github/workflows/sam-opportunity-digest.yml`).
+**J37. Digest**
+1. `scripts/sam-opportunity-digest.sh` reads the production DB read-only and emits content-free markdown/NDJSON. The scheduled GitHub workflow was removed on 2026-11-16 (it only ever skipped).
 2. Human commits accepted items into `docs/sam-future-opportunities.md` (process steps 1-6 there).
 
 ## 5. Account, owner scoping, and privacy
@@ -445,7 +446,7 @@ Background work (inside the API process, not `SentenceStudio.Workers`):
 | `Coach:CorrectionState:Enabled` | false | Dispute notices |
 | `Coach:Grounding:Stage` | Off | Claim-rule staging (shadow etc.) |
 | `Coach:Reports:Enabled` | false in options; true in `appsettings.Development.json` and `appsettings.Production.json` | Learner response reports |
-| `Coach:Opportunities:Enabled` / `:OperatorSurface:Enabled` | false; true in Development file, false in Production file | Operator ledger; surface is Development-only regardless |
+| `Coach:Opportunities:Enabled` / `:OperatorSurface:Enabled` | false; true in Development file, false in Production file | Automatic capture into the ledger. `OperatorSurface` gates no route since 2026-11-16 (the admin inbox replaced the operator surface) |
 | `Coach:MaxRunsPerDay` / `MaxRunsPerWeek` | 10 / 40 | Budget |
 | `Coach:MaxOutputTokens` / `ReasoningEffort` / `RequestTimeoutSeconds` / `MaxIterationsPerRequest` | 16000 / minimal / 45 / 6 | |
 | `Coach:SessionExpiryHours` / `RevisionRetentionDays` | 24 / 30 | |
@@ -462,7 +463,7 @@ Client-side: no learner setting toggles Sam. The coach name and persona follow t
 | Web (Blazor WebApp, Blazor Server interactive) | Full Sam (S1-S19). Scope of services is per circuit so account change is a new circuit. |
 | MAUI Blazor Hybrid heads (iOS, Mac Catalyst, Android, Windows; temporary reference heads) | Same Razor UI via `SentenceStudio.UI`, `ICoachApiClient` registered in `src/SentenceStudio.AppLib/ServiceCollectionExtentions.cs:115`; the scope persists for the process lifetime, which is why `CoachAccountBoundary` exists and native re-runs are required (`learning-coach.md:3331-3345`). HelpKit (J33) only on iOS and Mac Catalyst. |
 | Native SwiftUI (iOS/macOS) and Jetpack Compose (Android) on T | No Sam implementation. See section 10. |
-| Operator surfaces | WebApp Development only. |
+| Admin surfaces | WebApp only, every environment, admins only (`/admin/*`). |
 
 ## 10. Target branch (T) state for the rebuild
 

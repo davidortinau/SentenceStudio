@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Data;
 
@@ -18,7 +19,8 @@ internal enum AdminDenial
     RoleWithoutList,
     ListedWithoutRole,
     TokenNotLive,
-    TokenCreatorNotAdmin
+    TokenCreatorNotAdmin,
+    TokenCreatorPasswordChanged
 }
 
 internal readonly record struct AdminAccessResult(AdminActor? Actor, AdminDenial Denial);
@@ -39,9 +41,10 @@ internal readonly record struct AdminAccessResult(AdminActor? Actor, AdminDenial
 /// so removing either half takes effect on the next request rather than when a token expires.
 /// </para>
 /// <para>
-/// An agent token is admitted while it is live and the admin who created it still is one, by the
-/// same check. A token therefore stops with its creator: an empty list still means nobody, and
-/// nothing, is admitted.
+/// An agent token is admitted while it is live, the admin who created it still is one by the
+/// same check, and that admin's password has not changed since. A token therefore stops with its
+/// creator: an empty list still means nobody, and nothing, is admitted, and an admin who changes
+/// a password they fear was stolen ends every token made with it.
 /// </para>
 /// </remarks>
 internal sealed class AdminAccessEvaluator(
@@ -90,13 +93,11 @@ internal sealed class AdminAccessEvaluator(
             return new AdminAccessResult(null, AdminDenial.TokenNotLive);
         }
 
-        var creator = await EvaluateAccountAsync(token.CreatedByUserId, cancellationToken);
-        if (creator.Actor is null)
+        var denial = await EvaluateTokenCreatorAsync(token, cancellationToken);
+        if (denial != AdminDenial.None)
         {
-            logger.LogWarning(
-                "Agent token {TokenId} refused: the account that created it is not an admin ({Denial}).",
-                token.Id, creator.Denial);
-            return new AdminAccessResult(null, AdminDenial.TokenCreatorNotAdmin);
+            logger.LogWarning("Agent token {TokenId} refused: {Denial}.", token.Id, denial);
+            return new AdminAccessResult(null, denial);
         }
 
         await tokens.TouchAsync(token, cancellationToken);
@@ -109,6 +110,26 @@ internal sealed class AdminAccessEvaluator(
                 TokenExpiresAtUtc = token.ExpiresAtUtc
             },
             AdminDenial.None);
+    }
+
+    /// <summary>
+    /// Whether the admin who created <paramref name="token"/> still stands behind it:
+    /// <see cref="AdminDenial.None"/> when they are an admin now and their password is the one
+    /// they had when they created it.
+    /// </summary>
+    public async Task<AdminDenial> EvaluateTokenCreatorAsync(AdminAgentToken token, CancellationToken cancellationToken)
+    {
+        var creator = await EvaluateAccountAsync(token.CreatedByUserId, cancellationToken);
+        if (creator.Actor is null)
+        {
+            return AdminDenial.TokenCreatorNotAdmin;
+        }
+
+        // Both are digests of a security stamp, not secrets, so an ordinary comparison is enough.
+        return string.Equals(creator.Actor.StampDigest, token.CreatedByStampDigest, StringComparison.Ordinal)
+            && token.CreatedByStampDigest.Length > 0
+            ? AdminDenial.None
+            : AdminDenial.TokenCreatorPasswordChanged;
     }
 
     private async Task<AdminAccessResult> EvaluateAccountAsync(string userId, CancellationToken cancellationToken)
