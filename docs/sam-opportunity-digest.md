@@ -148,7 +148,7 @@ it skipped every Monday and reported success, and nobody noticed that nothing wa
 
 What replaced it for the answers learners flag is the admin portal's feedback inbox
 (`/admin/feedback`) and its API (`docs/admin-api.md`), which a weekday agent check reads with
-its own token and no database access (`docs/admin-weekday-check.md`). That check reports a
+its own token and no database access (`docs/admin-feedback-check.md`). That check reports a
 refused or missing token as a failure; it never skips quietly.
 
 This script is still the way to read the content-free rollup of the whole ledger, by hand, with

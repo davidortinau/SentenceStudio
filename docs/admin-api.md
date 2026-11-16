@@ -2,8 +2,8 @@
 
 The routes under `/api/admin` that an agent token may call, what each returns, and how a
 refusal looks. The admin pages in the web app call the same routes as a signed-in admin. The
-design and the Captain's decisions are in `docs/admin-portal-plan.md`; what the weekday check
-does with these routes is in `docs/admin-weekday-check.md`.
+design and the Captain's decisions are in `docs/admin-portal-plan.md`; what the scheduled feedback check
+does with these routes is in `docs/admin-feedback-check.md`.
 
 Source: `src/SentenceStudio.Api/Admin/AdminReportsEndpoints.cs`, `AdminReportsContracts.cs`,
 `AdminTokenEndpoints.cs`. `AdminEndpointInventoryTests` pins the list of routes a token may call.
@@ -82,7 +82,7 @@ with `status`. A list says `truncated: true` when more matched than were returne
 ```json
 {
   "id": "0123456789abcdef0123456789abcdef",
-  "name": "weekday check",
+  "name": "weekly-triage",
   "permissions": ["reports", "learner_content", "triage"],
   "expiresAtUtc": "2026-12-16T15:00:00Z",
   "nowUtc": "2026-11-16T15:00:05Z"
@@ -300,4 +300,4 @@ All times are UTC.
 
 The portal stores only an issue number. The issue itself is written by an admin or the agent, and
 must carry none of the learner's text: see "Rules for a GitHub issue" in
-`docs/admin-weekday-check.md`.
+`docs/admin-feedback-check.md`.
