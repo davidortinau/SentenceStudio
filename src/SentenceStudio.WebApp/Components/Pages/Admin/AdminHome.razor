@@ -80,6 +80,7 @@
 
     private void CloseGate() => _gate?.Close();
 
-    // Through the gate, in this circuit: a reload would drop a confirmed password.
-    private Task RetryAsync() => _gate?.RetryAsync() ?? Task.CompletedTask;
+    // Through the gate, in this circuit: a reload would drop a confirmed password. A click that
+    // arrives after the page has its answer asks nothing.
+    private Task RetryAsync() => _session is null && _gate is { } gate ? gate.RetryAsync() : Task.CompletedTask;
 }

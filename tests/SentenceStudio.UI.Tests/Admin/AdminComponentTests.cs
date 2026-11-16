@@ -199,15 +199,15 @@ public sealed class AdminComponentTests
         var circuit = Circuit(services);
         var loads = 0;
         var id = await circuit.RenderAsync<AdminGate>(GateParameters(services, () => loads++));
-        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+        circuit.HasElementWithId(id, "page-unavailable").Should().BeTrue();
 
         _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
-        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+        await circuit.ClickButtonByIdAsync(id, "page-retry");
 
         circuit.Unhandled.Should().BeEmpty();
         loads.Should().Be(2);
         circuit.HasElementWithId(id, "secret-admin-content").Should().BeTrue();
-        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeFalse();
+        circuit.HasElementWithId(id, "page-unavailable").Should().BeFalse();
     }
 
     [Fact]
@@ -218,9 +218,9 @@ public sealed class AdminComponentTests
         var circuit = Circuit(services);
         var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
 
-        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+        await circuit.ClickButtonByIdAsync(id, "page-retry");
 
-        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+        circuit.HasElementWithId(id, "page-unavailable").Should().BeTrue();
         circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
     }
 
@@ -234,10 +234,10 @@ public sealed class AdminComponentTests
         var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
 
         _api.Answer(SessionRoute, HttpStatusCode.NotFound);
-        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+        await circuit.ClickButtonByIdAsync(id, "page-retry");
 
         circuit.RenderedText(id).Should().Contain("Page not found").And.NotContain("Admin only");
-        circuit.HasElementWithId(id, "admin-gate-retry").Should().BeFalse();
+        circuit.HasElementWithId(id, "page-retry").Should().BeFalse();
     }
 
     [Fact]
@@ -275,6 +275,8 @@ public sealed class AdminComponentTests
         });
 
         loads.Should().Be(2, "the first render's ask, and one retry for two clicks");
+        one.IsCompleted.Should().BeFalse();
+        two.IsCompleted.Should().BeFalse("the second ask joins the first; it does not return before the answer");
         circuit.RenderedText(id).Should().Contain("Loading").And.NotContain("Admin only");
 
         answer.SetResult(AdminApiStatus.Ok);
@@ -310,7 +312,7 @@ public sealed class AdminComponentTests
         var id = await circuit.RenderAsync<AdminGate>(parameters);
 
         circuit.Unhandled.Should().BeEmpty("the gate must not take the circuit down");
-        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+        circuit.HasElementWithId(id, "page-unavailable").Should().BeTrue();
         circuit.RenderedText(id).Should()
             .NotContain("Loading").And.NotContain("Admin only").And.NotContain("Page not found");
     }

@@ -308,14 +308,16 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
 
     // ------------------------------------------- a check that is interrupted
 
-    /// <summary>A check whose account database commands pass through <paramref name="interceptor"/>.</summary>
-    private AdminPasswordCheck CheckWatchedBy(IServiceScope scope, DbCommandInterceptor interceptor) =>
+    /// <summary>An account database context whose commands pass through <paramref name="interceptor"/>.</summary>
+    private static ApplicationDbContext WatchedDatabase(IServiceScope scope, DbCommandInterceptor interceptor) =>
+        new(new DbContextOptionsBuilder<ApplicationDbContext>(
+                scope.ServiceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>())
+            .AddInterceptors(interceptor)
+            .Options);
+
+    private AdminPasswordCheck CheckOn(IServiceScope scope, ApplicationDbContext db) =>
         new(
-            new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>(
-                        scope.ServiceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>())
-                    .AddInterceptors(interceptor)
-                    .Options),
+            db,
             scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
             scope.ServiceProvider.GetRequiredService<IOptions<IdentityOptions>>(),
             _factory.Time,
@@ -330,7 +332,8 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
         using var gaveUp = new CancellationTokenSource();
         using var scope = _factory.Services.CreateScope();
-        var check = CheckWatchedBy(scope, new AfterTheCount(() => { gaveUp.Cancel(); return Task.CompletedTask; }));
+        await using var db = WatchedDatabase(scope, new AfterTheCount(() => { gaveUp.Cancel(); return Task.CompletedTask; }));
+        var check = CheckOn(scope, db);
 
         var result = await check.CheckAsync(admin.Id, AdminApiFactory.Password, gaveUp.Token);
 
@@ -345,7 +348,8 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
         using var gaveUp = new CancellationTokenSource();
         using var scope = _factory.Services.CreateScope();
-        var check = CheckWatchedBy(scope, new AfterTheCount(() => { gaveUp.Cancel(); return Task.CompletedTask; }));
+        await using var db = WatchedDatabase(scope, new AfterTheCount(() => { gaveUp.Cancel(); return Task.CompletedTask; }));
+        var check = CheckOn(scope, db);
 
         var result = await check.CheckAsync(admin.Id, "NotThePassword1!", gaveUp.Token);
 
@@ -375,7 +379,7 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         // a burst of hundreds, hundreds of them.
         var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
         using var scope = _factory.Services.CreateScope();
-        var check = CheckWatchedBy(scope, new AfterTheCount(async () =>
+        await using var db = WatchedDatabase(scope, new AfterTheCount(async () =>
         {
             using var other = _factory.Services.CreateScope();
             await other.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
@@ -384,6 +388,7 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
                     .SetProperty(u => u.LockoutEnd, _factory.Time.GetUtcNow() + TimeSpan.FromMinutes(5))
                     .SetProperty(u => u.AccessFailedCount, 0));
         }));
+        var check = CheckOn(scope, db);
 
         var result = await check.CheckAsync(admin.Id, "NotThePassword1!", CancellationToken.None);
 
@@ -420,12 +425,116 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         // guessed; left counted, five such faults would lock an admin out.
         var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
         using var scope = _factory.Services.CreateScope();
-        var check = CheckWatchedBy(scope, new FailsTheReadAfterTheCount());
+        await using var db = WatchedDatabase(scope, new FailsTheReadAfterTheCount());
+        var check = CheckOn(scope, db);
 
         var act = () => check.CheckAsync(admin.Id, AdminApiFactory.Password, CancellationToken.None);
 
         (await act.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*simulated*");
         (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_clock_running_out_before_a_verdict_takes_the_attempt_back_off_the_count()
+    {
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var scope = _factory.Services.CreateScope();
+        await using var db = WatchedDatabase(scope, new AfterTheCount(() =>
+        {
+            _factory.Time.Advance(AdminPasswordCheck.SettleTimeout + TimeSpan.FromSeconds(1));
+            return Task.CompletedTask;
+        }));
+        var check = CheckOn(scope, db);
+
+        var act = () => check.CheckAsync(admin.Id, AdminApiFactory.Password, CancellationToken.None);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_wrong_guess_stays_counted_when_writing_its_lock_fails()
+    {
+        // The fifth wrong guess was looked at; the lock it earns cannot be written. Taking the
+        // attempt back here would be a free guess for anyone who can make that write fail.
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var client = _factory.CreateClientFor(admin);
+        for (var i = 0; i < 4; i++)
+        {
+            await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!"));
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        await using var db = WatchedDatabase(scope, new FailsTheLockWrite());
+        var check = CheckOn(scope, db);
+
+        var act = () => check.CheckAsync(admin.Id, "NotThePassword1!", CancellationToken.None);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*simulated*");
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(5);
+
+        // The next attempt finds the count over the limit, locks, and is not looked at.
+        (await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest(AdminApiFactory.Password)))
+            .StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task A_sign_in_that_read_the_account_earlier_cannot_put_back_the_old_count_or_erase_a_lock()
+    {
+        // Identity saves the whole account row as it read it. A failed sign-in that read the
+        // account before these guesses and saved after them would forget them, and the lock too.
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var signInScope = _factory.Services.CreateScope();
+        var signInUsers = signInScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var asReadBySignIn = await signInUsers.FindByIdAsync(admin.Id);
+
+        using var client = _factory.CreateClientFor(admin);
+        for (var i = 0; i < 5; i++)
+        {
+            await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!"));
+        }
+
+        var staleSave = await signInUsers.AccessFailedAsync(asReadBySignIn!);
+
+        staleSave.Succeeded.Should().BeFalse("the row changed under the sign-in since it read it");
+        staleSave.Errors.Should().Contain(e => e.Code == "ConcurrencyFailure");
+        (await client.PostAsJsonAsync("/api/admin/step-up", new AdminStepUpRequest(AdminApiFactory.Password)))
+            .StatusCode.Should().Be(HttpStatusCode.TooManyRequests, "the lock earned by five wrong guesses is still there");
+    }
+
+    [Fact]
+    public async Task A_caller_that_leaves_after_a_wrong_guess_is_still_recorded_as_a_wrong_guess()
+    {
+        // Dropping the connection must not hide a guess from the log.
+        using var gaveUp = new CancellationTokenSource();
+        var watcher = new AfterTheCount(() => { gaveUp.Cancel(); return Task.CompletedTask; }) { Armed = false };
+        using var factory = new AdminApiFactory { AccountDatabaseInterceptor = watcher };
+        var admin = await factory.SeedAdminAsync("captain@admin-tests.local");
+        using var client = factory.CreateClientFor(admin);
+        watcher.Armed = true;
+
+        var act = () => client.PostAsJsonAsync(
+            "/api/admin/step-up", new AdminStepUpRequest("NotThePassword1!"), gaveUp.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        watcher.Fired.Should().BeTrue();
+
+        AdminAuditEntry? row = null;
+        for (var i = 0; i < 100 && row?.Outcome is null or AdminAuditOutcome.Started; i++)
+        {
+            await Task.Delay(50);
+            row = (await factory.ReadAuditAsync()).SingleOrDefault(e => e.Action == AdminActions.StepUpVerify);
+        }
+
+        row.Should().NotBeNull();
+        row!.Outcome.Should().Be(AdminAuditOutcome.Failed);
+        row.StatusCode.Should().Be(403);
+        row.FailureCode.Should().Be(AdminFailureCodes.PasswordIncorrect);
+
+        using var scope = factory.Services.CreateScope();
+        (await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
+            .AsNoTracking().Where(u => u.Id == admin.Id).Select(u => u.AccessFailedCount).SingleAsync())
+            .Should().Be(1);
     }
 
     [Fact]
@@ -497,6 +606,17 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
 
             return result;
         }
+    }
+
+    /// <summary>Fails the statement that writes a lock.</summary>
+    private sealed class FailsTheLockWrite : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) =>
+            command.CommandText.Contains("\"LockoutEnd\" =", StringComparison.Ordinal)
+                ? throw new InvalidOperationException("simulated database fault")
+                : ValueTask.FromResult(result);
     }
 
     /// <summary>Fails the first read that follows the count, once.</summary>

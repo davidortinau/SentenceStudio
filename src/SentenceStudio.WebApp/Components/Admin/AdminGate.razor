@@ -7,8 +7,8 @@
     A person the API refuses sees the app's ordinary "Page not found".
 
     The request is made in the live circuit only. A prerender draws the same waiting mark for
-    everyone, under an id that says nothing about what it waits for, so no admin content is ever
-    in the HTML a browser first receives. (That first response is still the app shell with
+    everyone, so no admin content is ever in the HTML a browser first receives. The waiting mark
+    and the could-not-load state are drawn for anyone, so their ids say nothing about admins. (That first response is still the app shell with
     status 200, as for any page of the app; the API routes are where a refusal is a bare 404.)
 *@
 
@@ -23,10 +23,10 @@
         break;
 
     case GateState.Unavailable:
-        <div class="container text-center mt-5" id="admin-gate-unavailable" role="alert">
+        <div class="container text-center mt-5" id="page-unavailable" role="alert">
             <h1>This page could not be loaded</h1>
             <p class="text-secondary">The service did not answer.</p>
-            <button type="button" class="btn btn-primary" id="admin-gate-retry" @onclick="AskAsync">Try again</button>
+            <button type="button" class="btn btn-primary" id="page-retry" @onclick="TryAgainAsync">Try again</button>
         </div>
         break;
 
@@ -55,7 +55,9 @@
     [Parameter, EditorRequired]
     public Func<Task<AdminApiStatus>> Load { get; set; } = default!;
 
-    private bool _asking;
+    // The ask in flight, shared by everyone who asks meanwhile (single flight). All of this runs
+    // on the circuit's own dispatcher, so the field needs no lock.
+    private Task? _inFlight;
 
     protected override Task OnInitializedAsync() =>
         RendererInfo.IsInteractive ? AskAsync() : Task.CompletedTask;
@@ -63,7 +65,7 @@
     /// <summary>
     /// Asks again in the same circuit, for a page whose own "Try again" should re-run its first
     /// request. Not a reload: that starts a new circuit and throws away a password the admin has
-    /// just confirmed.
+    /// just confirmed. Completes when the answer is in.
     /// </summary>
     public async Task RetryAsync()
     {
@@ -73,17 +75,30 @@
         StateHasChanged();
     }
 
-    private async Task AskAsync()
+    // The gate's own button. A click can still arrive after the button has been replaced: while
+    // an ask is in flight it joins that ask, and once the page is drawn it asks nothing.
+    private Task TryAgainAsync() =>
+        _state is GateState.Unavailable or GateState.Waiting ? AskAsync() : Task.CompletedTask;
+
+    /// <summary>One ask at a time: two would be two audit rows, and the later answer would decide the gate.</summary>
+    private Task AskAsync()
     {
-        // One ask at a time. A second click can still arrive after the button it came from has
-        // been replaced by the waiting mark; two requests would be two audit rows, and the later
-        // answer would decide the gate.
-        if (_asking)
+        if (_inFlight is { } running)
         {
-            return;
+            return running;
         }
 
-        _asking = true;
+        var ask = AskOnceAsync();
+        if (!ask.IsCompleted)
+        {
+            _inFlight = ask;
+        }
+
+        return ask;
+    }
+
+    private async Task AskOnceAsync()
+    {
         _state = GateState.Waiting;
         try
         {
@@ -104,7 +119,7 @@
         }
         finally
         {
-            _asking = false;
+            _inFlight = null;
         }
     }
 

@@ -46,15 +46,30 @@ internal readonly record struct AdminPasswordCheckResult(AdminPasswordVerdict Ve
 /// honoured only before the attempt is counted. From there the check runs to its verdict on its
 /// own clock (<see cref="SettleTimeout"/>), even when the caller has stopped waiting, and an
 /// attempt that reaches no verdict (a database fault, the clock running out) is taken back off
-/// the count. Only a password that was looked at and found wrong stays counted. (The web app
-/// waits 15 seconds. Without this, a slow database would cost an admin an attempt for each right
-/// password it timed out on, and five of them a lockout.)
+/// the count. A password that was looked at and found wrong stays counted whatever fails after
+/// it. (The web app waits 15 seconds. Without this, a slow database would cost an admin an
+/// attempt for each right password it timed out on, and five of them a lockout.)
+/// </para>
+/// <para>
+/// One case is left as it falls: when the counting statement itself fails, nobody knows whether
+/// the database applied it. It is not taken back, because taking back an attempt that was never
+/// counted would remove somebody's real wrong guess.
 /// </para>
 /// <para>
 /// <b>The count never goes below zero.</b> An attempt that finds the account locked takes itself
 /// back off the count. In a burst, the attempt that earns the lock also resets the count, so the
 /// attempts counted before it and refused after it have nothing left to take back; subtracting
 /// anyway would leave a negative count, which is that many extra guesses once the lock ends.
+/// Taking back cannot tell whose attempt it removes: after a reset in between it can remove a
+/// later one. That needs a fault at the right moment, which a caller cannot order, and costs one
+/// counted guess.
+/// </para>
+/// <para>
+/// <b>Every write here changes the account's concurrency stamp.</b> Identity's own writes (a
+/// failed sign-in, for one) save the whole account row as it was read, under that stamp. Without
+/// a new stamp, a sign-in that read the account before these statements and saved after them
+/// would put the old count and the old lock back: wrong guesses made here would be forgotten, and
+/// a lock earned here erased. With it, that stale save is refused.
 /// </para>
 /// </remarks>
 internal sealed class AdminPasswordCheck(
@@ -82,11 +97,14 @@ internal sealed class AdminPasswordCheck(
 
         // Not the caller's token, from the count on. A cancellation that lands while the count is
         // on the wire can still be committed by the database, and then nothing would settle it.
-        using var budget = new CancellationTokenSource(SettleTimeout);
-        var settle = budget.Token;
+        using var settleClock = new CancellationTokenSource(SettleTimeout, time);
+        var settle = settleClock.Token;
 
+        var countStamp = NewStamp();
         var counted = await account.ExecuteUpdateAsync(
-            update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1),
+            update => update
+                .SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1)
+                .SetProperty(u => u.ConcurrencyStamp, countStamp),
             settle);
         if (counted == 0)
         {
@@ -124,20 +142,31 @@ internal sealed class AdminPasswordCheck(
                 return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
             }
 
-            if (!await users.CheckPasswordAsync(user, password))
+            var correct = await users.CheckPasswordAsync(user, password);
+
+            // Reading the account and hashing the password do not watch the clock above. What
+            // the verdict has to write gets a clock of its own, so that a slow look at the
+            // password cannot leave a lock unwritten or a right password counted.
+            using var verdictClock = new CancellationTokenSource(SettleTimeout, time);
+
+            if (!correct)
             {
                 foundWrong = true;
                 if (state.AccessFailedCount >= lockout.MaxFailedAccessAttempts)
                 {
-                    await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
+                    await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, verdictClock.Token);
                 }
 
                 logger.LogWarning("Admin password check failed for user {UserId}", userId);
                 return new AdminPasswordCheckResult(AdminPasswordVerdict.Incorrect);
             }
 
+            var clearStamp = NewStamp();
             await account.ExecuteUpdateAsync(
-                update => update.SetProperty(u => u.AccessFailedCount, 0), settle);
+                update => update
+                    .SetProperty(u => u.AccessFailedCount, 0)
+                    .SetProperty(u => u.ConcurrencyStamp, clearStamp),
+                verdictClock.Token);
             return new AdminPasswordCheckResult(AdminPasswordVerdict.Correct, user.SecurityStamp);
         }
         catch when (!foundWrong)
@@ -149,13 +178,21 @@ internal sealed class AdminPasswordCheck(
         }
     }
 
+    /// <summary>A fresh concurrency stamp. Callers take it into a local so the statement carries a value.</summary>
+    private static string NewStamp() => Guid.NewGuid().ToString();
+
     /// <summary>Takes one attempt back off the count, never below zero (see the remarks).</summary>
-    private static Task UncountAsync(IQueryable<ApplicationUser> account, CancellationToken cancellationToken) =>
-        account
+    private static Task UncountAsync(IQueryable<ApplicationUser> account, CancellationToken cancellationToken)
+    {
+        var stamp = NewStamp();
+        return account
             .Where(u => u.AccessFailedCount > 0)
             .ExecuteUpdateAsync(
-                update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount - 1),
+                update => update
+                    .SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount - 1)
+                    .SetProperty(u => u.ConcurrencyStamp, stamp),
                 cancellationToken);
+    }
 
     /// <summary>
     /// Takes back an attempt that reached no verdict. Never throws: the fault that ended the
@@ -165,8 +202,8 @@ internal sealed class AdminPasswordCheck(
     {
         try
         {
-            using var timeout = new CancellationTokenSource(UndoTimeout);
-            await UncountAsync(account, timeout.Token);
+            using var undoClock = new CancellationTokenSource(UndoTimeout, time);
+            await UncountAsync(account, undoClock.Token);
         }
         catch (Exception ex)
         {
@@ -177,10 +214,14 @@ internal sealed class AdminPasswordCheck(
     }
 
     /// <summary>Locks the account until <paramref name="until"/> and starts its count again, as Identity does.</summary>
-    private static Task LockAsync(IQueryable<ApplicationUser> account, DateTimeOffset until, CancellationToken cancellationToken) =>
-        account.ExecuteUpdateAsync(
+    private static Task LockAsync(IQueryable<ApplicationUser> account, DateTimeOffset until, CancellationToken cancellationToken)
+    {
+        var stamp = NewStamp();
+        return account.ExecuteUpdateAsync(
             update => update
                 .SetProperty(u => u.LockoutEnd, until)
-                .SetProperty(u => u.AccessFailedCount, 0),
+                .SetProperty(u => u.AccessFailedCount, 0)
+                .SetProperty(u => u.ConcurrencyStamp, stamp),
             cancellationToken);
+    }
 }
