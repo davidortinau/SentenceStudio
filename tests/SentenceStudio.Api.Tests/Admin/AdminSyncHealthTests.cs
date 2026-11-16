@@ -196,9 +196,53 @@ public sealed class AdminSyncHealthTests : IDisposable
         second.Items.Should().HaveCount(1);
         second.Items[0].ProfileId.Should().NotBe(first.Items[0].ProfileId);
 
-        var found = (await client.GetFromJsonAsync<AdminLearnerPage>(
-            $"/api/admin/sync-health/learners?q={a.Email!.ToUpperInvariant()}"))!;
+        var found = (await (await client.PostAsJsonAsync(
+                "/api/admin/sync-health/learners/search", new AdminLearnerSearchRequest(a.Email!.ToUpperInvariant())))
+            .Content.ReadFromJsonAsync<AdminLearnerPage>())!;
         found.Items.Should().ContainSingle().Which.ProfileId.Should().Be(a.UserProfileId);
+    }
+
+    [Fact]
+    public async Task A_search_travels_in_the_body_and_text_in_the_URL_is_not_a_search()
+    {
+        // A host logs the URL of every request it starts. A learner's name or email in a query
+        // string would be in those logs, so the list route does not read one.
+        var (admin, a, _) = await SeedAdminAndTwoLearnersAsync();
+        using var client = _factory.CreateClientFor(admin);
+
+        var byUrl = (await client.GetFromJsonAsync<AdminLearnerPage>(
+            $"/api/admin/sync-health/learners?q={a.Email}"))!;
+        byUrl.Items.Count.Should().BeGreaterThan(1, "q in the URL is ignored, not applied");
+
+        var paged = (await (await client.PostAsJsonAsync(
+                "/api/admin/sync-health/learners/search?take=1", new AdminLearnerSearchRequest("local")))
+            .Content.ReadFromJsonAsync<AdminLearnerPage>())!;
+        paged.Items.Should().HaveCount(1);
+        paged.NextAfter.Should().NotBeNull("a search pages like the list does");
+
+        (await client.PostAsJsonAsync("/api/admin/sync-health/learners/search", new AdminLearnerSearchRequest(new string('x', 101))))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var rows = await _factory.ReadAuditAsync();
+        rows.Select(r => r.Action).Should().Equal(
+            AdminActions.SyncHealthLearnersRead,
+            AdminActions.SyncHealthLearnersSearch,
+            AdminActions.SyncHealthLearnersSearch);
+        rows.Should().OnlyContain(r => r.TargetId == null, "what was searched for is not written to the audit log either");
+    }
+
+    [Fact]
+    public async Task A_learner_and_a_caller_with_no_token_get_404_on_the_search_too()
+    {
+        var (_, a, _) = await SeedAdminAndTwoLearnersAsync();
+        using var learner = _factory.CreateClientFor(a);
+        using var anonymous = _factory.CreateClient();
+
+        (await learner.PostAsJsonAsync("/api/admin/sync-health/learners/search", new AdminLearnerSearchRequest("x")))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await anonymous.PostAsJsonAsync("/api/admin/sync-health/learners/search", new AdminLearnerSearchRequest("x")))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _factory.ReadAuditAsync()).Should().BeEmpty();
     }
 
     [Theory]

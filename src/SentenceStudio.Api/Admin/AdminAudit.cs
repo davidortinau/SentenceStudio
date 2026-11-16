@@ -11,6 +11,7 @@ public static class AdminActions
     public const string AuditRead = "audit.read";
     public const string SyncHealthAppRead = "sync_health.app_read";
     public const string SyncHealthLearnersRead = "sync_health.learners_read";
+    public const string SyncHealthLearnersSearch = "sync_health.learners_search";
     public const string SyncHealthLearnerRead = "sync_health.learner_read";
     public const string UsageSamRead = "usage.sam_read";
     public const string UsageVideoImportsRead = "usage.video_imports_read";

@@ -63,15 +63,20 @@ internal static class AdminSyncHealthReader
     /// <param name="ownerColumn">
     /// Null takes the column from <see cref="SyncRowOwners.OwnerColumn"/>, the sync's own rule, so
     /// this page cannot count by a column the sync has stopped using. Only a word names its own:
-    /// the sync resolves a word's owner through a rule of its own.
+    /// the sync resolves a word's owner through a rule of its own. A table the sync names no
+    /// column for is listed as not counted (this runs while the type is being set up, where a
+    /// throw would take every route that uses the type down with it).
     /// </param>
     private static TableSpec Direct<T>(
         string name, string? ownerColumn, Expression<Func<T, DateTime?>>? newest, string? field)
         where T : class
     {
-        var ownerProperty = ownerColumn
-            ?? SyncRowOwners.OwnerColumn(name)
-            ?? throw new InvalidOperationException($"The sync names no owner column for {name}.");
+        var ownerProperty = ownerColumn ?? SyncRowOwners.OwnerColumn(name);
+        if (ownerProperty is null)
+        {
+            return NoOwner(name);
+        }
+
         return new(name, field, async (db, learnerId, ct) =>
         {
             var rows = db.Set<T>().AsNoTracking()

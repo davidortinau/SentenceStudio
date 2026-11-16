@@ -34,7 +34,8 @@ password again (see "Choices").
 | Route | Audit action | Audit target |
 |---|---|---|
 | `GET /api/admin/sync-health/app` | `sync_health.app_read` | none |
-| `GET /api/admin/sync-health/learners?take=&after=&q=` | `sync_health.learners_read` | none |
+| `GET /api/admin/sync-health/learners?take=&after=` | `sync_health.learners_read` | none |
+| `POST /api/admin/sync-health/learners/search?take=&after=` with `{"q": "..."}` | `sync_health.learners_search` | none |
 | `GET /api/admin/sync-health/learners/{learnerId}` | `sync_health.learner_read` | `learner`, the route's id |
 | `GET /api/admin/usage/sam?weeks=` | `usage.sam_read` | none |
 | `GET /api/admin/usage/video-imports?take=` | `usage.video_imports_read` | none |
@@ -42,7 +43,8 @@ password again (see "Choices").
 
 `learnerId` is the profile id (`UserProfile.Id`, the id the sync owner columns hold). An unknown
 learner, or an id over 64 characters, is a 404. Query parameters are bound as text and parsed in
-the handler: a bad `take`, `weeks`, `after` or `q` is the route's own 400 (`invalid_request`).
+the handler: a bad `take`, `weeks` or `after`, or a search text over 100 characters, is the
+route's own 400 (`invalid_request`).
 Caps: learners `take` 1 to 200 (default 50), `q` 100 characters, `weeks` 1 to 13 (default 4),
 imports `take` 1 to 200 (default 50). Wire values are fixed lowercase codes (`counted`,
 `no_owner`, `failed`, `stuck`, `no_transcript` ...), never enum names. Timestamps are UTC.
@@ -242,6 +244,15 @@ the 16th at the time, the exact turn of a week.
 - The API log had no error-level lines. The web app log had the plan-generation null reference
   now in `docs/native-review-backlog.md`, from the hand-seeded words; nothing from the admin
   pages. No password, proof, seeded content or search text in either log.
+
+A second `/code-review high`, of the lead's own fix commit, found nothing to hold a merge. One
+point was fixed anyway (`learners/search` above): the learner search sent the name or email as
+`?q=` on a GET, and the API in production logs the URL of every request it starts, so what an
+admin searched for would have been in the logs. The search text now travels in a POST body, and
+`q` in a URL is ignored. Smaller points from that review were fixed with it: both truncation
+notices can show together, "Load more" waits for a search that is still out, and a table the
+sync stops naming an owner column for is listed as not counted. The search was checked again
+in the browser afterwards.
 
 Not checked: a learner with a device store (no device synced with the isolated stack, so the
 devices table was only seen empty), any MAUI head build, light theme, production.

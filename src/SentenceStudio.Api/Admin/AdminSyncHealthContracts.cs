@@ -77,3 +77,8 @@ public sealed record AdminSyncHealthApp(
     int PendingMigrations,
     long? ServerChangeVersion,
     long? OldestChangeVersion);
+
+/// <summary>A search of the learner list.</summary>
+/// <param name="Q">Part of a name or email. Sent in the body so it is not in a logged URL.</param>
+public sealed record AdminLearnerSearchRequest(string? Q);
+

@@ -60,18 +60,22 @@ public sealed class AdminSyncHealthClientTests
     }
 
     [Fact]
-    public async Task The_learner_list_sends_size_cursor_and_search_escaped()
+    public async Task The_learner_list_sends_size_and_cursor_in_the_URL_and_a_search_in_the_body()
     {
         _api.Answer(HttpStatusCode.OK, """{"items":[{"profileId":"p1","displayName":"A","email":"a@x.test"}],"nextAfter":"p1"}""");
 
         var first = await Client().GetSyncHealthLearnersAsync(after: null, search: null, take: 50);
-        await Client().GetSyncHealthLearnersAsync(after: "p 1", search: "  a&b@x.test ", take: 50);
+        await Client().GetSyncHealthLearnersAsync(after: "p 1", search: "  jane@x.test ", take: 50);
+        await Client().GetSyncHealthLearnersAsync(after: null, search: "   ", take: 50);
 
         first.Value!.Items.Should().ContainSingle().Which.ProfileId.Should().Be("p1");
         first.Value.NextAfter.Should().Be("p1");
-        _api.Paths.Should().Equal(
-            "/api/admin/sync-health/learners?take=50",
-            "/api/admin/sync-health/learners?take=50&after=p%201&q=a%26b%40x.test");
+        _api.Requests.Should().Equal(
+            "GET /api/admin/sync-health/learners?take=50",
+            "POST /api/admin/sync-health/learners/search?take=50&after=p%201",
+            "GET /api/admin/sync-health/learners?take=50");
+        _api.Paths.Should().NotContain(path => path.Contains("jane"), "a name or email never travels in a URL");
+        _api.Bodies[1].Should().Be("""{"q":"jane@x.test"}""");
     }
 
     [Fact]
@@ -122,6 +126,12 @@ public sealed class AdminSyncHealthClientTests
 
         public List<string> Paths { get; } = [];
 
+        /// <summary>Method and path of each request, in order.</summary>
+        public List<string> Requests { get; } = [];
+
+        /// <summary>The body of each request, in order; null for one with none.</summary>
+        public List<string?> Bodies { get; } = [];
+
         /// <summary>When set, every request fails with it instead of being answered.</summary>
         public Exception? Throw { get; set; }
 
@@ -131,15 +141,17 @@ public sealed class AdminSyncHealthClientTests
             _body = body;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Paths.Add(request.RequestUri!.PathAndQuery);
+            Requests.Add($"{request.Method} {request.RequestUri.PathAndQuery}");
+            Bodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
             if (Throw is not null)
             {
-                return Task.FromException<HttpResponseMessage>(Throw);
+                throw Throw;
             }
 
-            return Task.FromResult(new HttpResponseMessage(_status)
+            return await Task.FromResult(new HttpResponseMessage(_status)
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json")
             });

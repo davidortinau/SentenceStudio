@@ -283,18 +283,19 @@ public sealed class AdminApiClient
     public Task<AdminApiResult<AdminLearnerPage>> GetSyncHealthLearnersAsync(
         string? after, string? search, int take, CancellationToken cancellationToken = default)
     {
-        var path = $"{BasePath}/sync-health/learners?take={take}";
+        // The search text is a learner's name or email. It goes in a body, never in the URL: a
+        // host logs the URL of every request it starts, query string included.
+        var searching = !string.IsNullOrWhiteSpace(search);
+        var path = $"{BasePath}/sync-health/learners{(searching ? "/search" : "")}?take={take}";
         if (!string.IsNullOrEmpty(after))
         {
             path += $"&after={Uri.EscapeDataString(after)}";
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            path += $"&q={Uri.EscapeDataString(search.Trim())}";
-        }
-
-        return SendAsync<AdminLearnerPage>(HttpMethod.Get, path, body: null, proof: null, cancellationToken);
+        return searching
+            ? SendAsync<AdminLearnerPage>(
+                HttpMethod.Post, path, JsonContent.Create(new { q = search!.Trim() }), proof: null, cancellationToken)
+            : SendAsync<AdminLearnerPage>(HttpMethod.Get, path, body: null, proof: null, cancellationToken);
     }
 
     public Task<AdminApiResult<AdminSyncHealthLearner>> GetSyncHealthLearnerAsync(

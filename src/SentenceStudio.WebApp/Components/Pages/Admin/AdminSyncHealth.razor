@@ -180,7 +180,9 @@
 
     private async Task LoadMoreAsync()
     {
-        if (_nextAfter is { } after)
+        // Only onto a settled list: a click that lands while a search is still out would be the
+        // newer request, and its page would be appended to the list the search is replacing.
+        if (!Loading && _nextAfter is { } after)
         {
             CloseIfRefused(await LoadLearnersAsync(after));
         }

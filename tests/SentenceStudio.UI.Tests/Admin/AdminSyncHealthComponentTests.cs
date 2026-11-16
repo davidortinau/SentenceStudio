@@ -24,6 +24,7 @@ public sealed class AdminSyncHealthComponentTests
 {
     private const string AppRoute = "/api/admin/sync-health/app";
     private const string LearnersRoute = "/api/admin/sync-health/learners";
+    private const string SearchRoute = "/api/admin/sync-health/learners/search";
     private const string LearnerRoute = "/api/admin/sync-health/learners/p1";
 
     private const string AppBody =
@@ -125,14 +126,16 @@ public sealed class AdminSyncHealthComponentTests
         var circuit = Circuit(services);
         var id = await circuit.RenderAsync<AdminSyncHealth>();
 
-        _api.Answer(LearnersRoute, HttpStatusCode.OK,
+        _api.Answer(SearchRoute, HttpStatusCode.OK,
             """{"items":[{"profileId":"p9","displayName":"Nine","email":"nine@x.test"}],"nextAfter":null}""");
         await circuit.InputValueByIdAsync(id, "admin-sync-search", "nine");
         await circuit.SubmitFormByIdAsync(id, "admin-sync-search-form");
 
         circuit.HasElementWithId(id, "admin-sync-open-p9").Should().BeTrue();
         circuit.HasElementWithId(id, "admin-sync-open-p1").Should().BeFalse();
-        _api.Queries.Last().Should().Contain("q=nine").And.NotContain("after=");
+        _api.Paths.Last().Should().Be(SearchRoute);
+        _api.Queries.Last().Should().NotContain("nine", "what was searched for is not in the URL").And.NotContain("after=");
+        _api.Bodies.Last().Should().Contain("nine");
     }
 
     [Fact]
@@ -151,7 +154,7 @@ public sealed class AdminSyncHealthComponentTests
         var more = circuit.ClickButtonByIdAsync(id, "admin-sync-more");
 
         // ...while a search is typed, sent and answered.
-        _api.Answer(LearnersRoute, HttpStatusCode.OK,
+        _api.Answer(SearchRoute, HttpStatusCode.OK,
             """{"items":[{"profileId":"p9","displayName":"Nine","email":"nine@x.test"}],"nextAfter":null}""");
         await circuit.InputValueByIdAsync(id, "admin-sync-search", "nine");
         await circuit.SubmitFormByIdAsync(id, "admin-sync-search-form");
@@ -306,6 +309,8 @@ public sealed class AdminSyncHealthComponentTests
 
         public List<string> Queries { get; } = [];
 
+        public List<string?> Bodies { get; } = [];
+
         public void Answer(string path, HttpStatusCode status, string body = "") => _answers[path] = (status, body);
 
         private TaskCompletionSource? _hold;
@@ -318,6 +323,7 @@ public sealed class AdminSyncHealthComponentTests
             var path = request.RequestUri!.AbsolutePath;
             Paths.Add(path);
             Queries.Add(request.RequestUri.Query);
+            Bodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
             var (status, body) = _answers.TryGetValue(path, out var answer) ? answer : (HttpStatusCode.NotFound, "");
             if (Interlocked.Exchange(ref _hold, null) is { } hold)
             {

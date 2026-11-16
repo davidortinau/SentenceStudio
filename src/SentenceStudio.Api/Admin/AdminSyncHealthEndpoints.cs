@@ -31,6 +31,12 @@ internal static class AdminSyncHealthEndpoints
             .WithName("ListAdminSyncHealthLearners")
             .WithAdminAction(AdminActions.SyncHealthLearnersRead);
 
+        // A search is a learner's name or email. It is posted in the body, because a host logs
+        // the URL of every request it starts, query string included.
+        group.MapPost($"{Prefix}/learners/search", SearchLearnersAsync)
+            .WithName("SearchAdminSyncHealthLearners")
+            .WithAdminAction(AdminActions.SyncHealthLearnersSearch);
+
         group.MapGet($"{Prefix}/learners/{{learnerId}}", GetLearnerAsync)
             .WithName("GetAdminSyncHealthLearner")
             .WithAdminAction(AdminActions.SyncHealthLearnerRead, AdminTargetKinds.Learner, "learnerId");
@@ -54,13 +60,26 @@ internal static class AdminSyncHealthEndpoints
             oldest));
     }
 
-    private static async Task<IResult> ListLearnersAsync(
+    private static Task<IResult> ListLearnersAsync(
         HttpContext http,
         [FromServices] ApplicationDbContext db,
         CancellationToken cancellationToken,
         [FromQuery] string? after = null,
-        [FromQuery] string? take = null,
-        [FromQuery] string? q = null)
+        [FromQuery] string? take = null) =>
+        LearnersAsync(http, db, after, take, q: null, cancellationToken);
+
+    private static Task<IResult> SearchLearnersAsync(
+        [FromBody] AdminLearnerSearchRequest request,
+        HttpContext http,
+        [FromServices] ApplicationDbContext db,
+        CancellationToken cancellationToken,
+        [FromQuery] string? after = null,
+        [FromQuery] string? take = null) =>
+        LearnersAsync(http, db, after, take, request.Q, cancellationToken);
+
+    private static async Task<IResult> LearnersAsync(
+        HttpContext http, ApplicationDbContext db, string? after, string? take, string? q,
+        CancellationToken cancellationToken)
     {
         // Bound as text and parsed here, so a malformed value is this route's own 400 in every
         // environment rather than the framework's binding failure.

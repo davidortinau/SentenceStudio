@@ -56,10 +56,12 @@
                         More rows matched than were read, so the oldest weeks may be short. Choose fewer weeks.
                     </div>
                 }
-                else if (sam.DaysTruncated)
+
+                @if (sam.DaysTruncated)
                 {
                     <div class="alert alert-warning" role="alert" id="admin-usage-sam-days-truncated">
-                        The list by day shows the newest @Count(sam.Days.Count) days only. The weeks are complete.
+                        The list by day shows the newest @Count(sam.Days.Count) rows only (one row per learner
+                        per day), so its oldest day can be incomplete. The weeks are summed from every row read.
                     </div>
                 }
 
