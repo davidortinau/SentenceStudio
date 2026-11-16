@@ -300,16 +300,23 @@ headless Chromium and `curl`:
 Not checked: any MAUI head build (they consume the same `SentenceStudio.UI` assembly the web app
 and `SentenceStudio.UI.Tests` built), light theme, and production.
 
-**Running a web check on Lilliput.** The everyday stack there has no web app: it runs the
-`https` launch profile, the API's health check fails on the untrusted dev certificate, and the
-web app waits for it for ever. From a separate worktree, `aspire start --isolated -lp http
---no-build` with `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`, fresh `LocalDb__DataVolume` and
+**Running a web check on Lilliput.** The everyday stack is the Captain's, so an agent's check
+runs beside it, not on it. (Until 2026-11-15 that stack also had no web app: Kestrel served an
+untrusted second dev certificate, the API's health check failed and the web app waited for it
+for ever. The Captain removed that certificate; `https://localhost:7071` works again.) From a
+separate worktree, `aspire start --isolated -lp http --no-build` with `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`, fresh `LocalDb__DataVolume` and
 `LocalAzurite__DataVolume` names, scratch `WebApp__AppDataRoot` and
 `SENTENCESTUDIO_APPDATA_ROOT`, throwaway `Parameters__dbUser`, `Parameters__dbPassword`,
 `Parameters__jwtkey` and `Parameters__feedbackhmackey`, and `Admin__Emails__0` brings up the
 whole stack over http on random ports beside it. `aspire describe --apphost <path>` lists the
 URLs; `aspire stop --apphost <path> --force` stops it (never `--all`), and its `db-` and
 `storage-` containers then need `docker rm`.
+
+**Seeing the portal on the everyday stack.** Put the account's email in the AppHost's user
+secrets (`dotnet user-secrets set "Admin:Emails:0" "<email>" --project
+src/SentenceStudio.AppHost`), restart the AppHost so the API gets the list, and run
+`scripts/admin-grant.sh <email>`. The account has to exist already; one made through the web
+app's sign-up in Development has its email confirmed for it. The grant needs no restart.
 
 **Left for later**
 
