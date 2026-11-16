@@ -89,7 +89,10 @@ public readonly record struct AdminApiResult<T>(AdminApiStatus Status, T? Value,
 /// </para>
 /// <para>
 /// Registered without the standard resilience pipeline. Every admitted call leaves an audit row
-/// and a failed password check counts toward lockout, so one click must be one request.
+/// and a failed password check counts toward lockout, so one click must be one request. That
+/// pipeline also held the only short timeout, so the client keeps its own
+/// (<see cref="RequestTimeout"/>): an API that accepts the connection and never answers becomes
+/// "not answered" in seconds, not after HttpClient's default 100.
 /// </para>
 /// </remarks>
 public sealed class AdminApiClient
@@ -99,6 +102,9 @@ public sealed class AdminApiClient
 
     /// <summary>How long one admin request may take before it counts as not answered.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>This client's deadline for one request. Only a test sets it.</summary>
+    public TimeSpan Deadline { get; init; } = RequestTimeout;
 
     private const string BasePath = "/api/admin";
 
@@ -118,7 +124,8 @@ public sealed class AdminApiClient
     {
         try
         {
-            using var response = await _httpClient.GetAsync($"{BasePath}/access", cancellationToken);
+            using var deadline = StartDeadline(cancellationToken);
+            using var response = await _httpClient.GetAsync($"{BasePath}/access", deadline.Token);
             switch (response.StatusCode)
             {
                 case HttpStatusCode.NoContent:
@@ -158,16 +165,17 @@ public sealed class AdminApiClient
     {
         try
         {
+            using var deadline = StartDeadline(cancellationToken);
             using var request = new HttpRequestMessage(method, path) { Content = body };
             if (!string.IsNullOrEmpty(proof))
             {
                 request.Headers.TryAddWithoutValidation(ProofHeader, proof);
             }
 
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await _httpClient.SendAsync(request, deadline.Token);
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                var value = await response.Content.ReadFromJsonAsync<T>(SerializerOptions, cancellationToken);
+                var value = await response.Content.ReadFromJsonAsync<T>(SerializerOptions, deadline.Token);
                 return value is null
                     ? new AdminApiResult<T>(AdminApiStatus.Failed, default)
                     : new AdminApiResult<T>(AdminApiStatus.Ok, value);
@@ -181,7 +189,7 @@ public sealed class AdminApiClient
             if ((int)response.StatusCode is >= 400 and < 500)
             {
                 return new AdminApiResult<T>(
-                    AdminApiStatus.Refused, default, await ReadCodeAsync(response, cancellationToken));
+                    AdminApiStatus.Refused, default, await ReadCodeAsync(response, deadline.Token));
             }
 
             _logger.LogWarning("[Admin] {Method} {Path} answered {StatusCode}", method, path, (int)response.StatusCode);
@@ -194,6 +202,17 @@ public sealed class AdminApiClient
                 method, path, ex.GetType().Name);
             return new AdminApiResult<T>(AdminApiStatus.Failed, default);
         }
+    }
+
+    /// <summary>
+    /// The caller's cancellation plus this client's deadline. A request that runs out of time is
+    /// reported as failed; only the caller's own cancellation is thrown back to the caller.
+    /// </summary>
+    private CancellationTokenSource StartDeadline(CancellationToken cancellationToken)
+    {
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(Deadline);
+        return deadline;
     }
 
     private static async Task<string?> ReadCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)

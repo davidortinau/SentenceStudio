@@ -40,6 +40,14 @@ internal readonly record struct AdminPasswordCheckResult(AdminPasswordVerdict Ve
 /// <c>LockoutEnd</c>, <c>IdentityOptions.Lockout</c>), so a lock earned here also refuses sign-in
 /// and one earned at sign-in also refuses here.
 /// </para>
+/// <para>
+/// <b>Once counted, always settled.</b> Counting first means a check that stops half way leaves
+/// a wrong guess on the account whatever the password was. So the caller's cancellation is
+/// honoured only until the attempt is counted; from there the check runs to its verdict and
+/// writes it, even when the caller has stopped waiting. (The web app waits 15 seconds. Without
+/// this, a slow database would cost an admin an attempt for each right password it timed out on,
+/// and five of them a lockout.)
+/// </para>
 /// </remarks>
 internal sealed class AdminPasswordCheck(
     ApplicationDbContext db,
@@ -63,10 +71,13 @@ internal sealed class AdminPasswordCheck(
             return new AdminPasswordCheckResult(AdminPasswordVerdict.NoAccount);
         }
 
+        // The attempt is on the account now. Nothing below may be abandoned: see the remarks.
+        var settle = CancellationToken.None;
+
         var state = await account
             .AsNoTracking()
             .Select(u => new { u.AccessFailedCount, u.LockoutEnd })
-            .SingleAsync(cancellationToken);
+            .SingleAsync(settle);
 
         if (state.LockoutEnd > now)
         {
@@ -74,7 +85,7 @@ internal sealed class AdminPasswordCheck(
             // toward the next lockout either.
             await account.ExecuteUpdateAsync(
                 update => update.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount - 1),
-                cancellationToken);
+                settle);
             logger.LogWarning("Admin password check refused for user {UserId}: account locked out", userId);
             return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
         }
@@ -82,7 +93,7 @@ internal sealed class AdminPasswordCheck(
         if (state.AccessFailedCount > lockout.MaxFailedAccessAttempts)
         {
             // More attempts are in flight than the limit allows. This one is not verified.
-            await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, cancellationToken);
+            await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
             logger.LogWarning("Admin password check refused for user {UserId}: too many attempts at once", userId);
             return new AdminPasswordCheckResult(AdminPasswordVerdict.LockedOut);
         }
@@ -97,7 +108,7 @@ internal sealed class AdminPasswordCheck(
         {
             if (state.AccessFailedCount >= lockout.MaxFailedAccessAttempts)
             {
-                await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, cancellationToken);
+                await LockAsync(account, now + lockout.DefaultLockoutTimeSpan, settle);
             }
 
             logger.LogWarning("Admin password check failed for user {UserId}", userId);
@@ -105,7 +116,7 @@ internal sealed class AdminPasswordCheck(
         }
 
         await account.ExecuteUpdateAsync(
-            update => update.SetProperty(u => u.AccessFailedCount, 0), cancellationToken);
+            update => update.SetProperty(u => u.AccessFailedCount, 0), settle);
         return new AdminPasswordCheckResult(AdminPasswordVerdict.Correct, user.SecurityStamp);
     }
 

@@ -58,6 +58,7 @@ public sealed class AdminPagePrerenderTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "an admin route must not sign anyone out");
         body.Should().Contain("app-safe-area-top", "the page must have rendered inside the app's layout");
+        body.Should().Contain("admin-gate-loading", "everyone gets the same waiting mark until the circuit asks");
         body.Should().NotContain("admin-home")
             .And.NotContain("admin-audit-table")
             .And.NotContain("Signed in as")

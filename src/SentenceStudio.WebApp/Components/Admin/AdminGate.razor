@@ -1,25 +1,19 @@
 @using SentenceStudio.WebApp.Admin
+@inject ILogger<AdminGate> Logger
 
 @*
     Wraps every admin page. The page's own first admin request is the gate: the API answers it
     only for an admin, on every visit, and until it has answered nothing of the page is drawn.
     A person the API refuses sees the app's ordinary "Page not found".
 
-    The request is made in the live circuit only. A prerender draws nothing here, so no admin
-    content is ever in the HTML a browser first receives. (That first response is still the app
-    shell with status 200, as for any page of the app; the API routes are where a refusal is a
-    bare 404.)
+    The request is made in the live circuit only. A prerender draws the same waiting mark for
+    everyone, so no admin content is ever in the HTML a browser first receives. (That first
+    response is still the app shell with status 200, as for any page of the app; the API routes
+    are where a refusal is a bare 404.)
 *@
 
 @switch (_state)
 {
-    case GateState.Asking:
-        <div class="d-flex justify-content-center align-items-center py-5" role="status">
-            <span class="spinner-border text-primary" aria-hidden="true"></span>
-            <span class="visually-hidden">Loading&hellip;</span>
-        </div>
-        break;
-
     case GateState.Admitted:
         @ChildContent
         break;
@@ -31,14 +25,22 @@
     case GateState.Unavailable:
         <div class="container text-center mt-5" id="admin-gate-unavailable" role="alert">
             <h1>This page could not be loaded</h1>
-            <p class="text-secondary">The service did not answer. Reload the page to try again.</p>
+            <p class="text-secondary">The service did not answer.</p>
+            <button type="button" class="btn btn-primary" id="admin-gate-retry" @onclick="AskAsync">Try again</button>
+        </div>
+        break;
+
+    default:
+        <div class="d-flex justify-content-center align-items-center py-5" id="admin-gate-loading" role="status">
+            <span class="spinner-border text-primary" aria-hidden="true"></span>
+            <span class="visually-hidden">Loading&hellip;</span>
         </div>
         break;
 }
 
 @code {
-    // Undecided is the prerender: nothing is drawn. Asking is the live circuit waiting on the API.
-    private enum GateState { Undecided = 0, Asking, Admitted, NotFound, Unavailable }
+    // Waiting covers the prerender and the live circuit until the API has answered.
+    private enum GateState { Waiting = 0, Admitted, NotFound, Unavailable }
 
     private GateState _state;
 
@@ -53,20 +55,33 @@
     [Parameter, EditorRequired]
     public Func<Task<AdminApiStatus>> Load { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (!RendererInfo.IsInteractive)
-        {
-            return;
-        }
+    protected override Task OnInitializedAsync() =>
+        RendererInfo.IsInteractive ? AskAsync() : Task.CompletedTask;
 
-        _state = GateState.Asking;
-        _state = await Load() switch
+    /// <summary>
+    /// Asks again in the same circuit. "Try again" comes here rather than to a reload, which
+    /// would start a new circuit and throw away a password the admin has just confirmed.
+    /// </summary>
+    private async Task AskAsync()
+    {
+        _state = GateState.Waiting;
+        try
         {
-            AdminApiStatus.Ok or AdminApiStatus.Refused => GateState.Admitted,
-            AdminApiStatus.NotFound => GateState.NotFound,
-            _ => GateState.Unavailable
-        };
+            _state = await Load() switch
+            {
+                AdminApiStatus.Ok or AdminApiStatus.Refused => GateState.Admitted,
+                AdminApiStatus.NotFound => GateState.NotFound,
+                _ => GateState.Unavailable
+            };
+        }
+        catch (Exception ex)
+        {
+            // A failed call arrives as a status. A throw is a cancelled request or a fault in the
+            // page's own loading; either way nobody knows yet, and a mark that waits for ever
+            // tells the admin nothing.
+            Logger.LogError(ex, "[Admin] An admin page's first request threw");
+            _state = GateState.Unavailable;
+        }
     }
 
     /// <summary>

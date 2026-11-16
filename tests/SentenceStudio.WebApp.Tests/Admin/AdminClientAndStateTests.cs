@@ -56,6 +56,48 @@ public sealed class AdminClientAndStateTests
     }
 
     [Fact]
+    public async Task An_API_that_never_answers_is_given_up_on_and_reported_as_no_answer_not_thrown()
+    {
+        // The client has no resilience pipeline, so its own deadline is the only short bound on a
+        // request that hangs. Running out of time must read as "no answer", never as a refusal
+        // and never as an exception in the page or the sidebar.
+        var silent = new NeverAnswers();
+        var client = new AdminApiClient(
+            new HttpClient(silent) { BaseAddress = new Uri("http://api.test") }, NullLogger<AdminApiClient>.Instance)
+        {
+            Deadline = TimeSpan.FromMilliseconds(50)
+        };
+
+        (await client.ProbeAsync()).Should().Be(AdminAccess.Unknown);
+        (await client.GetSessionAsync(proof: null)).Status.Should().Be(AdminApiStatus.Failed);
+        (await client.StepUpAsync("AnyPassword1234!")).Status.Should().Be(AdminApiStatus.Failed);
+        (await client.GetAuditAsync(before: null, take: 50)).Status.Should().Be(AdminApiStatus.Failed);
+        silent.Abandoned.Should().Be(4, "each request was cancelled when its time ran out");
+    }
+
+    [Fact]
+    public async Task A_caller_that_cancels_gets_its_cancellation_back()
+    {
+        var client = new AdminApiClient(
+            new HttpClient(new NeverAnswers()) { BaseAddress = new Uri("http://api.test") },
+            NullLogger<AdminApiClient>.Instance);
+        using var caller = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var session = () => client.GetSessionAsync(proof: null, caller.Token);
+        var probe = () => client.ProbeAsync(caller.Token);
+
+        await session.Should().ThrowAsync<OperationCanceledException>();
+        await probe.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public void An_admin_request_is_given_up_on_in_seconds_not_minutes()
+    {
+        AdminApiClient.RequestTimeout.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(TimeSpan.FromSeconds(30));
+        Client().Deadline.Should().Be(AdminApiClient.RequestTimeout, "the deadline is the client's own, whoever built it");
+    }
+
+    [Fact]
     public void A_result_nobody_filled_in_is_a_failure()
     {
         // The zero value of each result type must never read as success.
@@ -319,6 +361,30 @@ public sealed class AdminClientAndStateTests
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json")
             };
+        }
+    }
+
+    /// <summary>Accepts every request and answers none, until the request is cancelled.</summary>
+    private sealed class NeverAnswers : HttpMessageHandler
+    {
+        private int _abandoned;
+
+        public int Abandoned => Volatile.Read(ref _abandoned);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Interlocked.Increment(ref _abandoned);
+                throw;
+            }
+
+            throw new InvalidOperationException("unreachable");
         }
     }
 

@@ -1,10 +1,16 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
+using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Tests.Admin;
@@ -298,6 +304,93 @@ public sealed class AdminAuditAndStepUpTests : IDisposable
         using var scope = _factory.Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await users.FindByIdAsync(admin.Id))!.AccessFailedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_caller_that_stops_waiting_once_the_attempt_is_counted_does_not_lose_a_right_password()
+    {
+        // The web app stops waiting after 15 seconds. The attempt is counted before the password
+        // is looked at, so a check abandoned half way would leave a wrong guess on the account
+        // for a right password, and five of those would lock an admin out with no wrong guess.
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var gaveUp = new CancellationTokenSource();
+        using var scope = _factory.Services.CreateScope();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>(
+                    scope.ServiceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>())
+                .AddInterceptors(new CancelAfterFirstWrite(gaveUp))
+                .Options);
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var check = new AdminPasswordCheck(
+            db,
+            users,
+            scope.ServiceProvider.GetRequiredService<IOptions<IdentityOptions>>(),
+            _factory.Time,
+            NullLogger<AdminPasswordCheck>.Instance);
+
+        var result = await check.CheckAsync(admin.Id, AdminApiFactory.Password, gaveUp.Token);
+
+        gaveUp.IsCancellationRequested.Should().BeTrue("the caller left as soon as the attempt was counted");
+        result.Verdict.Should().Be(AdminPasswordVerdict.Correct);
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_caller_that_stops_waiting_once_the_attempt_is_counted_still_has_a_wrong_password_counted()
+    {
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var gaveUp = new CancellationTokenSource();
+        using var scope = _factory.Services.CreateScope();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>(
+                    scope.ServiceProvider.GetRequiredService<DbContextOptions<ApplicationDbContext>>())
+                .AddInterceptors(new CancelAfterFirstWrite(gaveUp))
+                .Options);
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var check = new AdminPasswordCheck(
+            db,
+            users,
+            scope.ServiceProvider.GetRequiredService<IOptions<IdentityOptions>>(),
+            _factory.Time,
+            NullLogger<AdminPasswordCheck>.Instance);
+
+        var result = await check.CheckAsync(admin.Id, "NotThePassword1!", gaveUp.Token);
+
+        result.Verdict.Should().Be(AdminPasswordVerdict.Incorrect);
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_caller_already_gone_before_the_check_starts_is_not_counted()
+    {
+        var admin = await _factory.SeedAdminAsync("captain@admin-tests.local");
+        using var scope = _factory.Services.CreateScope();
+        var check = scope.ServiceProvider.GetRequiredService<AdminPasswordCheck>();
+
+        var act = () => check.CheckAsync(admin.Id, "NotThePassword1!", new CancellationToken(canceled: true));
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        (await FailedCountInDatabaseAsync(admin)).Should().Be(0);
+    }
+
+    /// <summary>The count as stored, read in a scope of its own: the check's scope holds the account as it first read it.</summary>
+    private async Task<int> FailedCountInDatabaseAsync(ApplicationUser account)
+    {
+        using var scope = _factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
+            .AsNoTracking().Where(u => u.Id == account.Id).Select(u => u.AccessFailedCount).SingleAsync();
+    }
+
+    /// <summary>Cancels as soon as one write has been executed: the caller leaving mid-check.</summary>
+    private sealed class CancelAfterFirstWrite(CancellationTokenSource source) : DbCommandInterceptor
+    {
+        public override ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            source.Cancel();
+            return ValueTask.FromResult(result);
+        }
     }
 
     [Theory]

@@ -157,7 +157,7 @@ public sealed class AdminComponentTests
     }
 
     [Fact]
-    public async Task While_the_API_has_not_answered_the_gate_shows_it_is_loading_and_nothing_else()
+    public async Task While_the_API_has_not_answered_the_gate_shows_it_is_waiting_and_nothing_else()
     {
         // Found on the running stack: an API that accepts the connection and never answers left
         // the page blank. The page must say it is waiting, and draw no admin content meanwhile.
@@ -174,34 +174,97 @@ public sealed class AdminComponentTests
         // yet. A renderer's first root component is always id 0; the last line checks that.
         const int id = 0;
         var rendering = circuit.RenderAsync<AdminGate>(parameters);
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
 
+        // The waiting mark is static markup, which a renderer holds as one block of text, so it
+        // is found by its words here; the prerender tests find it by id in the real HTML.
         circuit.RenderedText(id).Should()
             .Contain("Loading").And.NotContain("Admin only").And.NotContain("Page not found");
 
         answer.SetResult(AdminApiStatus.Failed);
         (await rendering).Should().Be(id);
-        circuit.RenderedText(id).Should().Contain("could not be loaded").And.NotContain("Admin only");
+        circuit.RenderedText(id).Should()
+            .Contain("could not be loaded").And.NotContain("Loading").And.NotContain("Admin only");
     }
 
     [Fact]
-    public void An_admin_request_gives_up_in_seconds_not_minutes()
+    public async Task Try_again_asks_in_the_same_circuit_and_shows_the_page_once_the_API_answers()
     {
-        // The client has no resilience pipeline, so this is the only bound on a request that hangs.
-        AdminApiClient.RequestTimeout.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(30));
-        var program = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "SentenceStudio.WebApp", "Program.cs"));
-        program.Should().Contain("client.Timeout = SentenceStudio.WebApp.Admin.AdminApiClient.RequestTimeout;");
+        // Not a reload: that would start a new circuit and throw away a confirmed password.
+        _api.Answer(SessionRoute, HttpStatusCode.BadGateway);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var loads = 0;
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services, () => loads++));
+        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+
+        _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
+        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+
+        circuit.Unhandled.Should().BeEmpty();
+        loads.Should().Be(2);
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeTrue();
+        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeFalse();
     }
 
-    private static string RepositoryRoot()
+    [Fact]
+    public async Task Try_again_that_gets_no_answer_either_stays_on_could_not_be_loaded()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "src")))
-        {
-            root = root.Parent;
-        }
+        _api.Answer(SessionRoute, HttpStatusCode.BadGateway);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
 
-        return root!.FullName;
+        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+
+        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+        circuit.HasElementWithId(id, "secret-admin-content").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Try_again_can_end_in_page_not_found()
+    {
+        // The role was removed during the outage: the retry is the API's first real answer.
+        _api.Answer(SessionRoute, HttpStatusCode.BadGateway);
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var id = await circuit.RenderAsync<AdminGate>(GateParameters(services));
+
+        _api.Answer(SessionRoute, HttpStatusCode.NotFound);
+        await circuit.ClickButtonByIdAsync(id, "admin-gate-retry");
+
+        circuit.RenderedText(id).Should().Contain("Page not found").And.NotContain("Admin only");
+        circuit.HasElementWithId(id, "admin-gate-retry").Should().BeFalse();
+    }
+
+    public static TheoryData<Exception> LoadFaults => new()
+    {
+        new InvalidOperationException("a fault in the page's own loading"),
+        new OperationCanceledException("the page cancelled its request"),
+        new TaskCanceledException("the request was cancelled")
+    };
+
+    [Theory]
+    [MemberData(nameof(LoadFaults))]
+    public async Task A_first_request_that_throws_ends_in_could_not_be_loaded_not_a_mark_that_waits_for_ever(
+        Exception fault)
+    {
+        // Every later admin page is wrapped in this gate. The client reports a failed call as a
+        // status, but a page that passes its own cancellation, or has a fault of its own, throws.
+        await using var services = Services();
+        var circuit = Circuit(services);
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+        {
+            [nameof(AdminGate.ChildContent)] = (RenderFragment)(builder => builder.AddContent(0, "Admin only")),
+            [nameof(AdminGate.Load)] = (Func<Task<AdminApiStatus>>)(() => Task.FromException<AdminApiStatus>(fault))
+        });
+
+        var id = await circuit.RenderAsync<AdminGate>(parameters);
+
+        circuit.Unhandled.Should().BeEmpty("the gate must not take the circuit down");
+        circuit.HasElementWithId(id, "admin-gate-unavailable").Should().BeTrue();
+        circuit.RenderedText(id).Should()
+            .NotContain("Loading").And.NotContain("Admin only").And.NotContain("Page not found");
     }
 
     [Fact]
@@ -217,7 +280,7 @@ public sealed class AdminComponentTests
     }
 
     [Fact]
-    public async Task While_prerendering_the_gate_shows_nothing_and_asks_the_API_nothing()
+    public async Task While_prerendering_the_gate_shows_only_that_it_is_waiting_and_asks_the_API_nothing()
     {
         _api.Answer(SessionRoute, HttpStatusCode.OK, SessionBody);
         await using var services = Services();
@@ -227,6 +290,7 @@ public sealed class AdminComponentTests
         var html = await prerender.Dispatcher.InvokeAsync(async () =>
             (await prerender.RenderComponentAsync<AdminGate>(GateParameters(services, () => loads++))).ToHtmlString());
 
+        html.Should().Contain("admin-gate-loading", "everyone gets the same waiting mark until the circuit asks");
         html.Should().NotContain("secret-admin-content").And.NotContain("Page not found").And.NotContain("could not");
         loads.Should().Be(0);
         _api.Requests.Should().BeEmpty();
@@ -351,7 +415,7 @@ public sealed class AdminComponentTests
         services.GetRequiredService<AdminSessionState>().MarkNotAdmin();
         var nav = (SentenceStudio.UI.Tests.Coach.TestNavigationManager)services.GetRequiredService<NavigationManager>();
         await circuit.Dispatcher.InvokeAsync(() => nav.GoTo("/vocabulary"));
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
 
         circuit.Unhandled.Should().BeEmpty();
         circuit.RenderedHrefs(id).Should().NotContain("/admin");
@@ -370,7 +434,7 @@ public sealed class AdminComponentTests
         _api.Answer("/api/admin/access", HttpStatusCode.NoContent);
         var nav = (SentenceStudio.UI.Tests.Coach.TestNavigationManager)services.GetRequiredService<NavigationManager>();
         await circuit.Dispatcher.InvokeAsync(() => nav.GoTo("/vocabulary"));
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
 
         circuit.Unhandled.Should().BeEmpty();
         circuit.RenderedHrefs(id).Should().Contain("/admin");
@@ -512,15 +576,15 @@ public sealed class AdminPasswordCountdownTests
 
         // Nothing else re-renders the card; the tick has to.
         time.Advance(TimeSpan.FromMinutes(6));
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
         circuit.RenderedText(id).Should().Contain("4 more minutes");
 
         time.Advance(TimeSpan.FromMinutes(3) + TimeSpan.FromSeconds(30));
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
         circuit.RenderedText(id).Should().Contain("less than a minute more");
 
         time.Advance(TimeSpan.FromMinutes(1));
-        await circuit.Dispatcher.InvokeAsync(() => Task.Yield());
+        await circuit.Dispatcher.InvokeAsync(async () => await Task.Yield());
         circuit.RenderedText(id).Should().Contain("Not confirmed");
         circuit.HasElementWithId(id, "admin-password").Should().BeTrue("the form is back");
         circuit.Unhandled.Should().BeEmpty();

@@ -374,3 +374,19 @@ findings, and one fault found in code the branch did not change.
 - **The operator page keeps its own copy of "Page not found".**
   `Components/Pages/Operator/SamOpportunities.razor` does not use the new shared
   `NotFoundContent`. Phase 1 replaces that page with the inbox.
+
+From the second review (2026-11-15, of the commits made after the first one). Its correctness
+findings were fixed; these two are about code the branch did not change:
+
+- **The API token step in front of every web request cannot be cancelled.**
+  `AuthenticatedHttpMessageHandler.SendAsync` (`src/SentenceStudio.AppLib/Services/`) awaits
+  `GetAccessTokenAsync(scopes)` with no cancellation token, and on the web that is a database
+  read in `ServerAuthService`. A caller's timeout or cancellation (the admin client's 15
+  seconds, a navigation) does not interrupt it; a stalled web database holds the request until
+  Npgsql's own timeouts. Fixing it means a token parameter on the shared auth interface, which
+  the MAUI heads implement too.
+- **`RepositoryRoot()` is copied across `SentenceStudio.UI.Tests`.** The same walk up from the
+  output folder is in `Feedback/FeedbackApiClientTests.cs`, `Feedback/FeedbackFailureCopyTests.cs`
+  and variants under `Layout/`, `Coach/` and `Audio/`; some end in `root!.FullName` and fail
+  with a bare null reference when the tests run from outside the repository. One shared helper
+  that throws "repository root not found" would serve all of them.

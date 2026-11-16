@@ -207,7 +207,9 @@ sees no link and gets "Page not found".
   `AdminDangerousRoutePipelineTests` drives one through the pipeline.
 - **Guessing the password.** Failed checks count toward the account's lockout (5 wrong, locked
   5 minutes), the same count and lock sign-in uses. `AdminPasswordCheck` counts each attempt
-  before looking at it, so a burst of parallel guesses cannot get more than 5 looked at.
+  before looking at it, so a burst of parallel guesses cannot get more than 5 looked at. Once an
+  attempt is counted the check runs to its verdict even if the caller has stopped waiting, so a
+  slow API cannot turn right passwords into counted failures.
 - **New routes** are mapped on `MapAdminGroup()`, which carries the policy, and must declare
   `.WithAdminAction(...)`. `AdminEndpointInventoryTests` fails otherwise.
 - **Audit.** `AdminRequestMiddleware` inserts the row before the handler runs and completes it
@@ -219,15 +221,17 @@ sees no link and gets "Page not found".
 **Web (`src/SentenceStudio.WebApp/Admin/`, `Components/Admin/`, `Components/Pages/Admin/`)**
 
 - `AdminGate` wraps each admin page. The page's first API request is the gate, on every visit:
-  an answer draws the page, a 404 draws "Page not found", and no answer draws "This page could
-  not be loaded". The prerendered HTML is the same empty shell for everyone; admin content is
-  drawn only in the live circuit.
+  an answer draws the page, a 404 draws "Page not found", and no answer within 15 seconds draws
+  "This page could not be loaded" with a Try again button. Try again asks in the same tab,
+  because a reload would drop a confirmed password. The prerendered HTML is the same waiting
+  mark for everyone; admin content is drawn only in the live circuit.
 - The sidebar link comes through `IHostNavItemProvider` (new, in `SentenceStudio.UI`). The web
   app registers one; the MAUI heads register none and their sidebar is unchanged.
 - The proof is kept in the circuit on the server and never reaches the browser. A reload asks for
   the password again. The page takes the API's word for whether the proof is still live.
 
-**Schema (needs the Captain's approval before merge).** One table, PostgreSQL only, in
+**Schema (approved by the Captain 2026-11-15 for the merge; applying it to production is part
+of the first deploy, which needs his go).** One table, PostgreSQL only, in
 `AdminDbContext` with its own `__AdminMigrationsHistory`
 (`20261115224514_InitialAdminSchema`):
 
@@ -245,7 +249,7 @@ sees no link and gets "Page not found".
 
 Indexes: `OccurredAtUtc`; (`TargetKind`, `TargetId`); `ActorId`. No email, name or content.
 
-**Choices made while building (say if any is wrong)**
+**Choices made while building (approved by the Captain 2026-11-15)**
 
 1. The API checks the password and issues the proof; the web app only collects the password and
    holds the proof. The plan said "the web app re-checks the password".
