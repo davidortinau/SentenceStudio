@@ -27,7 +27,13 @@ result and stop; the Captain will read them.
 ## The work
 
 1. **Restate the problem** in one or two sentences at the top of your activity log.
-2. **Diagnose before changing anything.** Read the code and find the cause. Prefer a failing
+2. **Diagnose before changing anything.** First find out which build answered the learner.
+   `sam-show` gives the time of each flag, and a flag can only follow its turn. The deploy
+   records under `docs/` say what production ran then
+   (`git log -i --grep=deploy --date=short --format='%ad %h %s' -- docs` lists them). A flag
+   can be older than the deploy that fixed what it reports: both reports behind issue 226
+   were, and `main` already had the fix. Read the code as it was in the build that answered
+   (`git show <commit>:<path>`), then as it is now, and find the cause. Prefer a failing
    test that reproduces it. Say plainly what you know and what you are guessing.
 3. **Fix the cause**, with a regression test that fails before the fix and passes after it.
    Keep the change as small as the cause allows. Match the surrounding code.
@@ -38,14 +44,18 @@ result and stop; the Captain will read them.
 
 Go as far as you can. If you can only get part of the way, a pull request with the diagnosis
 and a failing test, or a comment on the issue with the diagnosis and the options, is a good
-result. An honest "not found, here is what I ruled out" is a good result. A guess presented as
-a fix is not.
+result. An honest "not found, here is what I ruled out" is a good result. So is "already fixed
+and deployed": give the flag times, the deploy record and the commit that fixed it, run the
+tests that cover it, and say what is left for the Captain to confirm on a device. Do not invent
+a change to have something to deliver. A guess presented as a fix is not a good result.
 
 ## The activity log
 
 Keep it as you go, not at the end: one short entry per step, with the time, what you ran or
 read, what you found and what you decided. Include dead ends. It is the history of your
-process, so write what happened, including what went wrong.
+process, so write what happened, including what went wrong. Read the clock when you write an
+entry (`date -u +%H:%M`); the first two runs both wrote times they had not read and had to
+correct them.
 
 The pull request carries it under a heading "Activity log". If the log is longer than about
 30,000 characters, put a faithful summary in the pull request and the full log in comments on
