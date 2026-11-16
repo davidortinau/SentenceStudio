@@ -21,12 +21,14 @@ events hold what a learner wrote.
       ~/sstudio-feedback-check/usage.jsonl.
 
 A record never holds a command's arguments, a file path, or any text a session read or wrote:
-only names of tools, of the two admin scripts' subcommands, and of the first word of other shell
-commands, with how many times each was used.
+only names of tools and of the programs a shell call ran (with the subcommand for the two admin
+scripts, git, gh, dotnet, docker and aspire), and how many times each was used. One shell call
+can run several programs, so those counts can add up to more than the number of tool calls.
 """
 import json
 import os
 import re
+import shlex
 import sys
 from collections import Counter
 from datetime import datetime
@@ -34,22 +36,47 @@ from datetime import datetime
 ADMIN_SCRIPTS = ("admin-api.sh", "admin-feedback-issue.sh")
 
 
-def shell_label(command):
-    """A Bash command reduced to a name: the program, and the subcommand for the admin scripts."""
+def shell_labels(command):
+    """A Bash call reduced to names: one per command in it, the program and, for the admin scripts
+    and a few tools, its subcommand. `export X=1 && dotnet test ... | tail` counts as dotnet test
+    and tail; setting a variable or changing directory is not counted.
+
+    Only the first line is read, and quoted text is one word: a here-document's body or a quoted
+    argument (an issue's title or body, say) can never be mistaken for a command and recorded.
+    """
     if not isinstance(command, str):
-        return "Bash"
-    words = command.strip().split()
-    # Skip leading environment assignments (NAME=value).
-    while words and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
-        words = words[1:]
-    if not words:
-        return "Bash"
-    program = os.path.basename(words[0])
-    if program in ADMIN_SCRIPTS and len(words) > 1 and re.match(r"^[a-z-]+$", words[1]):
-        return f"Bash: {program} {words[1]}"
-    if program in ("git", "gh", "dotnet", "docker", "aspire") and len(words) > 1 and re.match(r"^[a-z-]+$", words[1]):
-        return f"Bash: {program} {words[1]}"
-    return f"Bash: {program}" if re.match(r"^[A-Za-z0-9._-]+$", program) else "Bash"
+        return ["Bash"]
+    first_line = command.strip().split("\n", 1)[0]
+    try:
+        lexer = shlex.shlex(first_line, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        words = list(lexer)
+    except ValueError:
+        # An open quote that closes on a later line: only the program can be told safely.
+        words = first_line.split()[:1]
+
+    labels = []
+    starts_command = True
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word in ("&&", "||", ";", "|", "&", "(", ")", "{", "}"):
+            starts_command = True
+        elif starts_command:
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", word):
+                pass  # NAME=value before a command: the command is still to come
+            else:
+                starts_command = False
+                program = os.path.basename(word)
+                if word not in ("export", "cd", "set", "unset") and re.match(r"^[A-Za-z0-9._-]+$", program):
+                    following = words[index + 1] if index + 1 < len(words) else ""
+                    named = program in ADMIN_SCRIPTS or program in ("git", "gh", "dotnet", "docker", "aspire")
+                    if named and re.match(r"^[a-z][a-z-]*$", following):
+                        labels.append(f"Bash: {program} {following}")
+                    else:
+                        labels.append(f"Bash: {program}")
+        index += 1
+    return labels or ["Bash"]
 
 
 class Usage:
@@ -57,6 +84,7 @@ class Usage:
         self.tools = Counter()
         self.subagent_tools = Counter()
         self.seen_blocks = set()
+        self.calls = {False: 0, True: 0}
         self.message_usage = {}
         self.models = Counter()
         self.mcp_servers = []
@@ -83,8 +111,11 @@ class Usage:
                 continue
             self.seen_blocks.add(block_id)
             name = block.get("name") or "unknown"
-            label = shell_label((block.get("input") or {}).get("command")) if name == "Bash" else name
-            (self.subagent_tools if in_subagent else self.tools)[label] += 1
+            labels = shell_labels((block.get("input") or {}).get("command")) if name == "Bash" else [name]
+            counter = self.subagent_tools if in_subagent else self.tools
+            self.calls[in_subagent] += 1
+            for label in labels:
+                counter[label] += 1
 
     def stamp(self, event):
         value = event.get("timestamp")
@@ -150,9 +181,9 @@ class Usage:
             "cost_usd": cost,
             "tokens": tokens,
             "models": by_model,
-            "tool_calls": sum(self.tools.values()),
+            "tool_calls": self.calls[False],
             "tools": dict(self.tools.most_common()),
-            "subagent_tool_calls": sum(self.subagent_tools.values()),
+            "subagent_tool_calls": self.calls[True],
             "subagent_tools": dict(self.subagent_tools.most_common()),
             "mcp_servers": self.mcp_servers,
             "mcp_tools": mcp_tools,
@@ -215,7 +246,7 @@ def markdown(record):
     if tools:
         listed = ", ".join(f"{name} x{count}" for name, count in list(tools.items())[:14])
         more = f", and {len(tools) - 14} more" if len(tools) > 14 else ""
-        lines.append(f"- Tool calls: {number(record.get('tool_calls'))} ({listed}{more})")
+        lines.append(f"- Tool calls: {number(record.get('tool_calls'))}. Commands and tools used: {listed}{more}")
     else:
         lines.append("- Tool calls: none")
     if record.get("subagent_tool_calls"):

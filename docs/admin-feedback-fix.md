@@ -43,8 +43,8 @@ a fix is not.
 
 ## The activity log
 
-Keep it as you go, not at the end: one short entry per step, with the time, what you ran or
-read, what you found and what you decided. Include dead ends. It is the history of your
+Keep it as you go, not at the end: one short entry per step, with the time read from the
+clock (`date`), never estimated, what you ran or read, what you found and what you decided. Include dead ends. It is the history of your
 process, so write what happened, including what went wrong.
 
 The pull request carries it under a heading "Activity log". If the log is longer than about
@@ -58,6 +58,11 @@ it. Nothing a learner wrote goes in it (you have read none).
   commands and their results, including anything that failed or was skipped), anything that
   needs the Captain's decision, then "Activity log". Refer to the issue with `Fixes #<n>` when
   the change resolves it and `Refs #<n>` when it does not.
+- **The repository is public.** A report's codes include the learner's profile id. Never put a
+  profile id, or any part of one, an email or a name in a pull request, a commit, a comment or
+  the activity log. Refer to a report by its own id only. (The first run of this stage put the
+  first characters of a profile id in a pull request description and had to edit it out; the
+  earlier revision stays in the edit history until the Captain deletes it by hand.)
 - Do not merge it. Merging and deploying are the Captain's.
 - You do not need to report your own token or tool usage: the runner measures it and posts it
   on the pull request after you finish.
