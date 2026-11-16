@@ -652,10 +652,29 @@ admin):
 - Not checked: the portal's pages in production. Nobody but the Captain can sign in as the
   admin, so the first look is his.
 
+**The feedback check (2026-11-16)**
+
+The Captain created the first token in production ("weekly-triage", all three permissions,
+expires 2026-12-16), put it in Key Vault as `admin-agent-token`, and asked for the check to run
+every four hours, not on weekdays as the plan had said.
+
+- `scripts/admin-feedback-check.sh`, started by the launchd agent
+  `com.sentencestudio.feedback-check` on Lilliput at seven past every fourth hour. One headless
+  Sonnet 5.5 session at medium effort that may run `scripts/admin-api.sh` and
+  `scripts/admin-feedback-issue.sh` (issues in this repository only) and nothing else. Its
+  instructions are `docs/admin-feedback-check.md`.
+- The summary of each run goes to `~/sstudio-feedback-check/latest.md`, with a desktop
+  notification when something was triaged or the run failed. Where the summary goes was my
+  choice; the plan did not say.
+- A token-only probe ran under launchd. The first full run, started by hand through launchd,
+  triaged the 3 flagged answers in production: it filed issues 226 and 227, linked them, set
+  the three reports to accepted, and left nothing to look at. Both issues were read afterwards
+  and carry no learner text.
+
 **Left for later**
 
-- Create the first token at `/admin/tokens` in production, put it in Key Vault as
-  `admin-agent-token` (a write: the Captain's, or with his go), and schedule the weekday check.
+- Replace the token before 2026-12-16: create a new one in the portal and write it to Key Vault.
+  The check says so in its summary from seven days before.
 - A report holds one issue number. Flags about different problems that share a learner, a reason
   and a day share it.
 - One narrow gap in "needs attention": a flag stamped a few milliseconds before a triage and
@@ -667,7 +686,7 @@ admin):
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; deployed on 2026-11-16 with phases 1, 3 and 4. |
-| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word ("proceed with merge and deploy"); see "Deployed" under "Phase 1 as built". Its nine choices were not discussed one by one. The weekday check is not scheduled: it needs the first token, made in the portal and put in Key Vault. |
+| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word; see "Deployed" and "The feedback check" under "Phase 1 as built". The check runs every four hours on Lilliput. Its nine build choices were not discussed one by one. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; deployed the same day. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3; deployed the same day. |
