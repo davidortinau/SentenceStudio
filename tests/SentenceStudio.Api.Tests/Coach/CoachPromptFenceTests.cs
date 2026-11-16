@@ -69,13 +69,15 @@ public class CoachPromptFenceTests
     }
 
     /// <summary>
-    /// Sam cannot make a plan, and was told to ask a question when a plan request did not fit
-    /// the fields it can change. The instructions now name the request and the reply to give.
+    /// Sam had no way to make a plan, and was told to ask a question when a plan request did not
+    /// fit the fields it can change. The instructions now name the request and the tool for it,
+    /// and say to act when a tool can do what was asked.
     /// </summary>
     [Fact]
     public void Instructions_SayWhatToDoWithARequestForANewPlan()
     {
-        CoachInstructions.Instructions.Should().Contain("You cannot create, generate or regenerate Today's Plan.");
+        CoachInstructions.Instructions.Should().Contain("call propose_plan_regeneration");
+        CoachInstructions.Instructions.Should().Contain("Lean toward doing.");
         CoachInstructions.Instructions.Should().Contain("context says no clarifying questions remain, do not ask one");
     }
 

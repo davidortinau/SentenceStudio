@@ -146,6 +146,52 @@ public class CoachWriteWorkspaceStateTests
         state.ActiveWriteOperation.Should().BeNull("an executed change is no longer awaiting an answer");
     }
 
+    /// <summary>
+    /// Sam can make a new plan for today (issue 227). The dashboard may be on screen behind Sam
+    /// showing the plan that was just replaced, so the page is told once, when the server says
+    /// the change is in place.
+    /// </summary>
+    [Fact]
+    public async Task Accepting_a_new_plan_tells_the_page_to_read_the_plan_again_once()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        raised.Should().Be(0, "a proposal has changed nothing");
+
+        await state.AcceptWriteAsync("op-1");
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+
+        await state.RefreshWriteAsync("op-1");
+
+        raised.Should().Be(1, "a card read again later still says executed, and the plan has not changed again");
+    }
+
+    [Fact]
+    public async Task Declining_a_new_plan_or_accepting_another_change_leaves_the_plan_page_alone()
+    {
+        var client = NewClient();
+        var plan = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, plan);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        await state.RejectWriteAsync("op-1");
+
+        var other = NewClient();
+        var word = other.AddWrite(Conversation, "op-2");
+        var otherState = await OpenWithWriteAsync(other, word);
+        otherState.TodaysPlanReplaced += () => raised++;
+        await otherState.AcceptWriteAsync("op-2");
+
+        raised.Should().Be(0);
+    }
+
     [Fact]
     public async Task Declining_leaves_the_card_declined_and_writes_nothing()
     {

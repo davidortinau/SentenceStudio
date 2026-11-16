@@ -379,6 +379,27 @@ public sealed class PlanService : IPlanService
         }
     }
 
+    public async Task<TodaysPlanDto?> RegenerateTodayAsync(CancellationToken ct = default)
+    {
+        // Asked first and without writing: a learner with nothing to plan from keeps the plan
+        // they have instead of trading it for an empty one.
+        var preview = await PreviewPlanAsync(constraints: null, ct).ConfigureAwait(false);
+        if (!preview.IsSuccess)
+        {
+            return null;
+        }
+
+        // Reset and generate are two saves. Inside one unit a failed generation takes the reset
+        // back with it, so the learner is never left with their plan cleared and nothing in its
+        // place.
+        return await ExecuteRevisionUnitAsync<TodaysPlanDto?>(async token =>
+        {
+            await ResetTodayAsync(token).ConfigureAwait(false);
+            var plan = await GenerateTodayAsync(new GenerateTodaysPlanRequest(), token).ConfigureAwait(false);
+            return plan.Items.Count > 0 ? (plan, true) : (null, false);
+        }, ct).ConfigureAwait(false);
+    }
+
     // ---------- coach plan revision ----------
 
     public async Task<PlanSnapshot> GetTodaySnapshotAsync(CancellationToken ct = default)
@@ -973,8 +994,8 @@ public sealed class PlanService : IPlanService
     /// one, so the caller's other work survives.
     /// </para>
     /// </remarks>
-    private async Task<PlanRevisionResult> ExecuteRevisionUnitAsync(
-        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+    private async Task<TResult> ExecuteRevisionUnitAsync<TResult>(
+        Func<CancellationToken, Task<(TResult Result, bool ShouldCommit)>> unit,
         CancellationToken ct)
     {
         if (_db.Database.CurrentTransaction is { } ambient)
@@ -1046,8 +1067,8 @@ public sealed class PlanService : IPlanService
         }).ConfigureAwait(false);
     }
 
-    private async Task<PlanRevisionResult> ExecuteInAmbientTransactionAsync(
-        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+    private async Task<TResult> ExecuteInAmbientTransactionAsync<TResult>(
+        Func<CancellationToken, Task<(TResult Result, bool ShouldCommit)>> unit,
         IDbContextTransaction ambient,
         CancellationToken ct)
     {

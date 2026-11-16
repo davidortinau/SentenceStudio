@@ -383,6 +383,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
             CoachToolNames.ProposeExampleSentenceEntry => CreateWrite<CoachExampleSentenceEntryArgs>(reg),
             CoachToolNames.ProposeExampleSentenceEdit => CreateWrite<CoachExampleSentenceEditArgs>(reg),
             CoachToolNames.ProposeExampleSentenceRemoval => CreateWrite<CoachExampleSentenceRemovalArgs>(reg),
+            CoachToolNames.ProposePlanRegeneration => CreateWrite<CoachPlanRegenerationArgs>(reg),
             _ => null
         };
     }

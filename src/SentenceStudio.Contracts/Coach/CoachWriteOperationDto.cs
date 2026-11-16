@@ -137,7 +137,10 @@ public enum CoachWriteChangeKind
     ExampleSentenceEdit,
 
     /// <summary>Delete an example sentence.</summary>
-    ExampleSentenceRemove
+    ExampleSentenceRemove,
+
+    /// <summary>Replace today's plan with a newly generated one.</summary>
+    PlanRegenerate
 }
 
 /// <summary>

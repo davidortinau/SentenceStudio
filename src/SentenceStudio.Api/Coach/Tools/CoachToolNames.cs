@@ -47,6 +47,7 @@ public static class CoachToolNames
     public const string ProposeExampleSentenceEntry = "propose_example_sentence_entry";
     public const string ProposeExampleSentenceEdit = "propose_example_sentence_edit";
     public const string ProposeExampleSentenceRemoval = "propose_example_sentence_removal";
+    public const string ProposePlanRegeneration = "propose_plan_regeneration";
 
     /// <summary>The prefix every write-intent tool name carries.</summary>
     /// <remarks>
@@ -142,7 +143,8 @@ public static class CoachToolNames
         ProposeFeedback,
         ProposeExampleSentenceEntry,
         ProposeExampleSentenceEdit,
-        ProposeExampleSentenceRemoval
+        ProposeExampleSentenceRemoval,
+        ProposePlanRegeneration
     ];
 
     /// <summary>Every write-intent tool name, in registration order.</summary>
@@ -163,6 +165,7 @@ public static class CoachToolNames
         ProposeFeedback,
         ProposeExampleSentenceEntry,
         ProposeExampleSentenceEdit,
-        ProposeExampleSentenceRemoval
+        ProposeExampleSentenceRemoval,
+        ProposePlanRegeneration
     ];
 }

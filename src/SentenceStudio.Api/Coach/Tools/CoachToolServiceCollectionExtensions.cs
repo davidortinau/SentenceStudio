@@ -92,6 +92,7 @@ public static class CoachToolServiceCollectionExtensions
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEntryHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEditHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceRemovalHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachPlanRegenerationHandler>();
 
         services.TryAddScoped<Application.ICoachWriteApprovalService, Application.CoachWriteApprovalService>();
 

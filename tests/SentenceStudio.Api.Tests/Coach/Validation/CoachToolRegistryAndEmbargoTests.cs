@@ -32,8 +32,8 @@ public class CoachToolRegistryAndEmbargoTests
         var options = CreateOptions();
         var registry = new CoachToolRegistry(options);
 
-        // Core six, ten Sam read tools, sixteen Sam write proposals.
-        registry.All.Should().HaveCount(32);
+        // Core six, ten Sam read tools, seventeen Sam write proposals.
+        registry.All.Should().HaveCount(33);
         registry.IsRegistered(CoachToolNames.ListUserVocabularies).Should().BeTrue();
         registry.IsRegistered(CoachToolNames.GetCurrentPlanSummary).Should().BeTrue();
     }

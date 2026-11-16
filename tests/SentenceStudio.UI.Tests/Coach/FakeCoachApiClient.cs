@@ -313,7 +313,23 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
             ? ordered
             : ordered.Where(m => m.Sequence < long.Parse(before)).ToList();
 
-        var page = window.Skip(Math.Max(0, window.Count - take)).ToList();
+        // A card on a history page shows what the operation is now, not what it was when the
+        // message was stored: the real route reads the ledger for each page it serves.
+        var page = window.Skip(Math.Max(0, window.Count - take))
+            .Select(m => m.WriteOperation is { } stored && Writes.TryGetValue(stored.OperationId, out var now)
+                ? new CoachHistoryMessageDto
+                {
+                    Message = m.Message,
+                    Sequence = m.Sequence,
+                    Answer = m.Answer,
+                    Receipt = m.Receipt,
+                    Suggestion = m.Suggestion,
+                    NoticeReasonCode = m.NoticeReasonCode,
+                    WriteOperation = now,
+                    IsReadable = m.IsReadable
+                }
+                : m)
+            .ToList();
         var hasOlder = window.Count > page.Count;
 
         return Task.FromResult<CoachMessagePageDto?>(new CoachMessagePageDto

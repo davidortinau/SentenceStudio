@@ -593,6 +593,10 @@ else
     [Inject] private SentenceStudio.Services.ISyncService? SyncService { get; set; }
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private ApplicationDbContext Db { get; set; } = default!;
+    [Inject] private IServiceProvider Services { get; set; } = default!;
+
+    // Sam's state, where the host has Sam. Null elsewhere, and then nothing is listened for.
+    private SentenceStudio.WebUI.Services.CoachWorkspaceState? coachState;
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
@@ -646,6 +650,11 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
+        coachState = Services.GetService<SentenceStudio.WebUI.Services.CoachWorkspaceState>();
+        if (coachState is not null)
+        {
+            coachState.TodaysPlanReplaced += OnTodaysPlanReplaced;
+        }
 
         // If an initial sync is in flight (e.g. just logged in and SyncService.BeginInitialSync
         // was called by IdentityAuthService), don't run the new-user check yet — local DB rows
@@ -1393,9 +1402,41 @@ else
         _ => "bi-123"
     };
 
+    /// <summary>Sam made a new plan while this page was showing the old one: read it again.</summary>
+    private void OnTodaysPlanReplaced() => _ = InvokeAsync(async () =>
+    {
+        if (isNewUser || !isTodaysPlanMode)
+        {
+            return;
+        }
+
+        try
+        {
+            // The new plan is on the server. A BlazorWebView host reads its own database, so it
+            // has to sync before there is anything new to read.
+            if (SyncService != null && BlazorHostKind.IsWebViewHost(NavManager.BaseUri))
+            {
+                await SyncService.TriggerSyncAsync();
+            }
+
+            // A regenerated plan often has the same item identifiers as the one it replaced, and
+            // then the cached copy would be handed back with only its progress refreshed.
+            ProgressService.InvalidateCachedPlan();
+            await LoadPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to reload today's plan after Sam replaced it");
+        }
+    });
+
     public async ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
+        if (coachState is not null)
+        {
+            coachState.TodaysPlanReplaced -= OnTodaysPlanReplaced;
+        }
         if (SyncService is not null)
         {
             SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;

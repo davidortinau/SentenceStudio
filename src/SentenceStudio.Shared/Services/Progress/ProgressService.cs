@@ -544,6 +544,9 @@ public class ProgressService : IProgressService
         return enrichedPlan;
     }
 
+    public void InvalidateCachedPlan(DateTime? date = null) =>
+        _cache.InvalidateTodaysPlan(date ?? ResolveTodayKey());
+
     public async Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default)
     {
         var resolvedDate = date ?? ResolveTodayKey();

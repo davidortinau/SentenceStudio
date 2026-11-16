@@ -717,8 +717,27 @@ internal sealed class FakePlanService : IPlanService
         });
     }
 
+    /// <summary>What <see cref="GetTodayAsync"/> answers. Null: the learner has no plan today.</summary>
+    public TodaysPlanDto? Today { get; set; }
+
+    /// <summary>What <see cref="RegenerateTodayAsync"/> answers. Null: no plan could be built.</summary>
+    public TodaysPlanDto? NextRegenerated { get; set; }
+
+    public int RegenerateCallCount { get; private set; }
+
     public Task<TodaysPlanDto?> GetTodayAsync(CancellationToken ct = default) =>
-        Task.FromResult<TodaysPlanDto?>(null);
+        Task.FromResult(Today);
+
+    public Task<TodaysPlanDto?> RegenerateTodayAsync(CancellationToken ct = default)
+    {
+        RegenerateCallCount++;
+        if (NextRegenerated is not null)
+        {
+            Today = NextRegenerated;
+        }
+
+        return Task.FromResult(NextRegenerated);
+    }
 
     public Task<TodaysPlanDto> GenerateTodayAsync(GenerateTodaysPlanRequest request, CancellationToken ct = default) =>
         throw new NotSupportedException();

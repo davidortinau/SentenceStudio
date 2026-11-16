@@ -36,6 +36,19 @@ public interface IPlanService
     Task ResetTodayAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Replace today's plan with a newly generated one, the way the dashboard's Regenerate Plan
+    /// does: the current plan is reset (its completion rows archived, never deleted) and a new
+    /// one is generated starting at zero, as one unit. Returns null, having changed nothing,
+    /// when no plan can be built for the learner.
+    /// </summary>
+    /// <remarks>
+    /// For the server. It generates with the generator's own writes allowed inside an open
+    /// transaction, which is what <c>GenerateNativeTodayAsync</c> exists to avoid on a device's
+    /// SQLite database. A device regenerates through its own progress service and syncs.
+    /// </remarks>
+    Task<TodaysPlanDto?> RegenerateTodayAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Return the normalized snapshot (and therefore the stable plan version)
     /// of the user's plan for today. Returns an empty snapshot when no plan
     /// exists, so callers always get a comparable version token.

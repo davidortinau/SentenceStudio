@@ -9764,6 +9764,9 @@
   <data name="Coach_WriteKindExampleSentenceRemove" xml:space="preserve">
     <value>예문 삭제</value>
   </data>
+  <data name="Coach_WriteKindPlanRegenerate" xml:space="preserve">
+    <value>오늘 계획 새로 만들기</value>
+  </data>
   <data name="VocabWordEdit_AddToResource" xml:space="preserve">
     <value>리소스에 추가</value>
     <comment>Vocabulary word editor: menu that adds the word to one of the learner's resources</comment>

@@ -81,20 +81,37 @@ iOS and Android clients and is left for the Captain to decide.
 
 ## Creating a plan
 
-Sam cannot create or regenerate Today's Plan: there is no tool or write handler for it
-(`docs/coach/sam-capability-gap.md`, "Today's Plan and dashboard", and item 9 of its list).
-`CoachWriteAuthority` reads "create a new plan for today" as a mention of the plan with no
-supported action ("create", "generate" and "new" are not action words), so the model gets the
-plan's constraints and nothing it can do with them. The instructions told it to ask a question
-when a plan request does not fit the fixed constraint fields, which led to ending 4 once the
-budget was spent.
+**As it was when issue 227 was filed.** Sam could not create or regenerate Today's Plan: there
+was no tool or write handler for it. `CoachWriteAuthority` reads "create a new plan for today"
+as a mention of the plan with no supported action ("create", "generate" and "new" are not action
+words), so the model got the plan's constraints and nothing it could do with them. The
+instructions told it to ask a question when a plan request did not fit the fixed constraint
+fields, which led to ending 4 once the budget was spent.
 
-The instructions now name this request ("Making a new plan" in `CoachInstructions`): no
-question and no plan kind; a plain reply that Sam cannot make a new plan yet, that Regenerate
-Plan in the dashboard's menu does, and that Sam can change the current plan when told what to
-change. `CoachSessionStateTransitionTests.APlainReply_ToARequestForANewPlan_IsShown` holds the
-server's side: such a reply is shown and nothing about the request refuses it. What the model
-does with the instruction is checked by asking a running Sam, not by a test.
+**Now.** Sam makes the plan. The learner can already do this in one tap with Regenerate Plan on
+the dashboard, and the Captain's direction (2026-11-16) is that Sam acts whenever a suitable
+action exists and the learner is permitted to take it:
 
-Giving Sam the ability to regenerate the plan is the real answer and is not in this change: it
-needs a `DailyPlan` write handler and a proposal the learner approves.
+- `propose_plan_regeneration` (`CoachPlanRegenerationHandler`) is one of Sam's write tools. The
+  model calls it with no arguments; the learner sees a card ("Replace today's plan with a new
+  one", how much of the current plan is done, that logged practice stays in history, and that
+  it cannot be undone) and accepts it in one step. With no plan for today the card offers to
+  make one.
+- Accepting runs `IPlanService.RegenerateTodayAsync`: the same reset and generate the plans
+  endpoints already had, as one unit, so a generation that fails takes the reset back with it.
+  When no plan can be built (a learner with nothing to plan from) nothing is offered, and if
+  that only shows at the moment of accepting, the current plan is left as it was.
+- It is not reversible, as the dashboard's control is not. The replaced plan's rows are
+  archived, never deleted.
+- The instructions ("Making a new plan", and "Lean toward doing" under DOING THINGS IN THE APP
+  FOR THE LEARNER) tell the model to call the tool and not to ask or to explain how the learner
+  could do it themselves. Where the write tools are switched off Sam says plainly that it
+  cannot and names Regenerate Plan.
+- When the change lands the clients read the plan again: the web dashboard through
+  `CoachWorkspaceState.TodaysPlanReplaced`, the native dashboards through the presenter's
+  `PlanChanged`, which a plan revision already raised.
+
+Tests: `PlanServiceTests.RegenerateToday_*` (a real database: the plan is replaced at zero,
+history is archived, nothing changes when no plan can be built, another learner's plan and ad
+hoc rows are untouched), `CoachPlanRegenerationHandlerTests`, and the client tests named for
+the plan reload in `CoachWriteWorkspaceStateTests` and `NativeSamPresenterTests`.

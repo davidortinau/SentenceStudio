@@ -405,20 +405,17 @@ public class CoachSessionStateTransitionTests
     }
 
     /// <summary>
-    /// Issue 227: "create a new plan for today". Sam has no way to make a plan, so the reply the
-    /// instructions now ask for is a plain one. This holds the server's side of that: the reply
-    /// is shown, and nothing about the request being about the plan refuses it. It passed
-    /// before the instructions changed; what the model does with them is checked on a running
-    /// Sam.
+    /// Issue 227: "create a new plan for today". Sam now proposes the new plan with a tool and
+    /// says so in a plain reply. This holds the server's side of that reply: it is shown, and
+    /// nothing about the request being about the plan refuses it. It passed before the
+    /// instructions changed; what the model does with them is checked on a running Sam.
     /// </summary>
     [Fact]
     public async Task APlainReply_ToARequestForANewPlan_IsShown()
     {
         using var harness = new CoachApplicationHarness();
         var sessionId = await harness.StartSessionAsync();
-        const string Reply =
-            "I can\u2019t make a new plan yet. Regenerate Plan in the dashboard\u2019s menu makes one. "
-            + "I can change the current plan if you tell me what to change.";
+        const string Reply = "A new plan for today is ready for you to approve.";
 
         harness.Coach.NextResult = Completed(new CoachTurnIntent
         {

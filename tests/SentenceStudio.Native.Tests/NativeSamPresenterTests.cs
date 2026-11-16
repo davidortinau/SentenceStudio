@@ -725,6 +725,70 @@ public sealed class NativeSamPresenterTests
 
     // ------------------------------------------------------------------ writes, memory, reports, management
 
+    /// <summary>
+    /// Sam can make a new plan for today (issue 227): accepting it reloads the dashboard's plan,
+    /// as a plan revision does, and accepting any other change does not.
+    /// </summary>
+    [Fact]
+    public async Task AcceptingANewPlanRaisesPlanChangedOnce()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: new CoachWriteOperationDto
+        {
+            OperationId = "w-plan", ConversationId = conversation,
+            ChangeKind = CoachWriteChangeKind.PlanRegenerate, RiskClass = CoachWriteRiskClass.WriteSoft,
+            Status = CoachWriteStatus.Proposed, ApprovalMode = "accept",
+            Summary = "Replace today\u2019s plan with a new one", ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10),
+            RequiresConfirmation = false, IsReversible = false
+        });
+        var sam = await OpenAsync(fixture, api);
+        var raised = 0;
+        sam.PlanChanged += () => raised++;
+
+        sam.SetDraft("make me a new plan for today");
+        await sam.SendAsync();
+        Assert.Equal(0, raised);
+        var sessionReads = 0;
+        api.Overrides[nameof(ICoachApiClient.StartSessionAsync)] = _ =>
+        {
+            sessionReads++;
+            return Fail<CoachSessionResponse>(new CoachApiException(
+                HttpStatusCode.NotFound, CoachProblemTypes.SessionNotFound, null, null));
+        };
+
+        await sam.AcceptWriteAsync("w-plan");
+
+        Assert.Equal(CoachWriteStatus.Executed,
+            Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write!.Status);
+        Assert.Equal(1, raised);
+        // The session is read again, so the next plan change carries the new plan's version and
+        // is not refused as changed elsewhere.
+        Assert.Equal(1, sessionReads);
+
+        await sam.RefreshWriteAsync("w-plan");
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
+    public async Task AcceptingAnotherChangeDoesNotRaisePlanChanged()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-1", conversation, hard: false));
+        var sam = await OpenAsync(fixture, api);
+        var raised = 0;
+        sam.PlanChanged += () => raised++;
+
+        sam.SetDraft("add 사과 to my words");
+        await sam.SendAsync();
+        await sam.AcceptWriteAsync("w-1");
+
+        Assert.Equal(0, raised);
+    }
+
     [Fact]
     public async Task SoftWriteAppliesOnlyOnAcceptAndOffersTheReceiptUndo()
     {

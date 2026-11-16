@@ -62,7 +62,10 @@ public sealed partial class NativeSamPresenter(
 
     public event Action? Changed;
 
-    /// <summary>Raised after Sam applied or undid a Today's Plan revision on the server.</summary>
+    /// <summary>
+    /// Raised after Sam applied or undid a Today's Plan revision on the server, or made a new
+    /// plan for today.
+    /// </summary>
     public event Action? PlanChanged;
 
     /// <summary>Raised when the learner asks to start Vocab Review on an approved set.</summary>
