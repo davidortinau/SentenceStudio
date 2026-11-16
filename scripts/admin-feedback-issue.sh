@@ -13,6 +13,7 @@
 set -euo pipefail
 
 REPO=davidortinau/SentenceStudio
+LABEL=feedback-check
 MAX_TITLE=120
 MAX_BODY=3000
 
@@ -54,7 +55,11 @@ case "${1:-}" in
       || { echo "STOP: the body must be 1 to $MAX_BODY characters" >&2; exit 2; }
     refuse_private title "$TITLE"
     refuse_private body "$BODY"
-    printf '%s' "$BODY" | gh issue create --repo "$REPO" --title "$TITLE" --body-file -
+    # The label is what puts the issue in the queue for diagnosis and resolution
+    # (docs/admin-feedback-fix.md). Created here if the repository does not have it yet.
+    gh label create "$LABEL" --repo "$REPO" --color 5319e7 \
+      --description "Filed by the feedback check from a learner's flag" >/dev/null 2>&1 || true
+    printf '%s' "$BODY" | gh issue create --repo "$REPO" --title "$TITLE" --body-file - --label "$LABEL"
     ;;
   *) usage ;;
 esac

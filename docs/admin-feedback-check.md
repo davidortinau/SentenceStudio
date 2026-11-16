@@ -4,6 +4,21 @@ What the scheduled agent does with the admin portal's feedback inbox, and what i
 Decided by the Captain on 2026-11-15 and 2026-11-16 (`docs/admin-portal-plan.md`). The API it
 calls is in `docs/admin-api.md`.
 
+Each run has two stages, each its own session (`scripts/admin-feedback-check.sh`):
+
+1. **Triage**, which this document is the instructions for: read what needs attention, file or
+   link a GitHub issue, set each report's status, summarise. It is the only stage that reads
+   what a learner wrote, and it can run two commands and nothing else.
+2. **Fix** (`docs/admin-feedback-fix.md`): take one open issue that triage filed, diagnose it,
+   resolve it as far as it can, and open a pull request with its activity log. The Captain set
+   that expectation on 2026-11-16 ("triage the issues, file the github issues, and then perform
+   the diagnosis and resolution"). It works from the issue and the code, never from learner
+   content, and never merges or deploys.
+
+An issue filed by triage is labelled `feedback-check`. The fix stage takes the oldest one that
+is open and not yet labelled `feedback-attempted`, one per run, and adds that label when it has
+had its go.
+
 ## Where and when it runs
 
 - On Lilliput, **every four hours** (00:07, 04:07, 08:07 and so on, local time), by the launchd
@@ -11,21 +26,26 @@ calls is in `docs/admin-api.md`.
   `~/work/SentenceStudio-native-platform-heads`. The Captain chose the interval on 2026-11-16;
   the plan had said weekdays. It runs only when Lilliput is on and he is logged in; a run missed
   while the Mac slept happens once when it wakes.
-- Model: Sonnet 5.5 at medium effort, as a headless session that can run two commands and
+- Triage: Sonnet 5.5 at medium effort, as a headless session that can run two commands and
   nothing else: `scripts/admin-api.sh` and `scripts/admin-feedback-issue.sh`. It cannot edit
-  files, run other commands or reach the web. It triages and reports. A real fix goes to a
-  full session.
+  files, run other commands or reach the web.
+- Fix: Fable 5.2 at high effort, in a git worktree of its own under
+  `~/work/copilot-worktrees/SentenceStudio/`, with up to three hours. It can edit, build, test,
+  push its own branch and open a pull request. It cannot use Azure, the production scripts, the
+  learner-content commands or a merge.
 - It reads the token from Key Vault `dbkv-rsn72awybem6s`, secret `admin-agent-token`, through
   `scripts/admin-api.sh`. Reading that one secret has the Captain's standing go. Nothing else in
   Azure does: no other secret, no database access, no deploy.
 - The token needs all three permissions: read the inbox, read learner content, set status and
   issue.
 - The summary of each run is written to `~/sstudio-feedback-check/` (`latest.md` is the newest,
-  `history.log` has one line per run). A desktop notification is shown when something was
-  triaged or the run failed, and not when there was nothing new.
+  `history.log` has one line per run, `fix/` holds each issue's activity log). A desktop
+  notification is shown when something was triaged, an issue was worked or the run failed, and
+  not when there was nothing to do.
 
 To stop it: `launchctl bootout gui/$(id -u)/com.sentencestudio.feedback-check`. To run it once
-by hand: `scripts/admin-feedback-check.sh` (`--probe` only asks the API what the token is).
+by hand: `scripts/admin-feedback-check.sh` (`--triage-only`, `--fix-only [issue]`, or `--probe`,
+which only asks the API what the token is).
 
 ## What it does, in order
 
