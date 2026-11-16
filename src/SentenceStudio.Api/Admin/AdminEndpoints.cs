@@ -66,6 +66,7 @@ public static class AdminEndpoints
             .WithAdminAction(AdminActions.AuditRead);
 
         group.MapAdminSyncHealthEndpoints();
+        group.MapAdminUsageEndpoints();
 
         // Everything else under the prefix, for every method. Without it a wrong verb on a real
         // route would be answered 405 before authorization ran, which tells anyone the route exists.

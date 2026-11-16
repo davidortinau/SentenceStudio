@@ -13,6 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
+using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Api.Tests.Coach;
 using SentenceStudio.Api.Tests.Infrastructure;
 using SentenceStudio.Data;
@@ -44,6 +45,8 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         Path.GetTempPath(), $"sentencestudio_admin_{Guid.NewGuid():N}.db");
     private readonly string _auditDbPath = Path.Combine(
         Path.GetTempPath(), $"sentencestudio_admin_audit_{Guid.NewGuid():N}.db");
+    private readonly string _coachDbPath = Path.Combine(
+        Path.GetTempPath(), $"sentencestudio_admin_coach_{Guid.NewGuid():N}.db");
     private readonly string? _adminConnectionString;
 
     public AdminApiFactory(string? adminConnectionString = null)
@@ -92,6 +95,19 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
                 services.AddDbContext<AdminDbContext>(options => options.UseSqlite($"Data Source={_auditDbPath}"));
             }
 
+            // Sam's usage lives in the coach context; SQLite stands in for it, as in CoachApiFactory.
+            foreach (var descriptor in services
+                         .Where(d => d.ServiceType == typeof(DbContextOptions<CoachDbContext>)
+                                     || (d.ServiceType.IsGenericType
+                                         && d.ServiceType.GenericTypeArguments.Contains(typeof(CoachDbContext))))
+                         .ToList())
+            {
+                services.Remove(descriptor);
+            }
+
+            services.RemoveAll<CoachDbContext>();
+            services.AddDbContext<CoachDbContext>(options => options.UseSqlite($"Data Source={_coachDbPath}"));
+
             services.RemoveAll<IOptionsMonitor<AdminOptions>>();
             services.AddSingleton<IOptionsMonitor<AdminOptions>>(AdminList);
             services.RemoveAll<TimeProvider>();
@@ -109,6 +125,11 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     {
         var host = base.CreateHost(builder);
         TestApiHostConfigurator.InitializeSqliteDatabaseAndSync(host.Services);
+        using (var coachScope = host.Services.CreateScope())
+        {
+            coachScope.ServiceProvider.GetRequiredService<CoachDbContext>().Database.EnsureCreated();
+        }
+
         if (_adminConnectionString is null)
         {
             using var scope = host.Services.CreateScope();
@@ -195,7 +216,7 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        foreach (var path in new[] { _dbPath, _auditDbPath })
+        foreach (var path in new[] { _dbPath, _auditDbPath, _coachDbPath })
         {
             if (File.Exists(path))
             {

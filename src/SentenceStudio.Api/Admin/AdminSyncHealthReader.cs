@@ -225,7 +225,7 @@ internal static class AdminSyncHealthReader
 
     // An aggregate over a timestamptz column can come back as local time (the API runs with
     // Npgsql's legacy timestamp behaviour); one with no kind was stored as UTC.
-    private static DateTime? AsUtc(DateTime? value) => value switch
+    internal static DateTime? AsUtc(DateTime? value) => value switch
     {
         null => null,
         { Kind: DateTimeKind.Local } v => v.ToUniversalTime(),

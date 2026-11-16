@@ -1,0 +1,444 @@
+@page "/admin/usage"
+@using System.Globalization
+@using SentenceStudio.WebApp.Admin
+@using SentenceStudio.WebApp.Components.Admin
+@using SentenceStudio.WebUI.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject AdminApiClient Api
+@inject AdminSessionState State
+@inject NavigationManager Nav
+
+@*
+    AI usage and jobs, read-only: Sam's runs, tokens and estimated cost; YouTube imports that
+    failed or are stuck; and where the part-of-speech backfill stands. Counts, ids and codes only:
+    no conversation, video title, URL or word. Loaded in the live circuit only.
+*@
+
+<AdminGate @ref="_gate" Load="LoadAsync">
+    <PageTitle>AI usage and jobs</PageTitle>
+    <PageHeader Title="AI usage and jobs" ShowBack="true" OnBack='() => Nav.NavigateTo("/admin")'>
+        <ToolbarActions>
+            <button id="admin-usage-refresh" class="btn btn-sm btn-icon" type="button"
+                    @onclick="RefreshAsync" disabled="@_loading" title="Refresh" aria-label="Refresh">
+                <i class="bi bi-arrow-clockwise" style="font-size: 1.25rem;" aria-hidden="true"></i>
+            </button>
+        </ToolbarActions>
+    </PageHeader>
+
+    <div class="container-fluid" id="admin-usage">
+
+        @* ------------------------------------------------------------ Sam *@
+        <section class="mb-5" aria-labelledby="admin-usage-sam-heading" id="admin-usage-sam">
+            <h2 class="h5" id="admin-usage-sam-heading">Sam runs, tokens and estimated cost</h2>
+
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-auto">
+                    <label class="form-label" for="admin-usage-weeks">Weeks shown</label>
+                    <select id="admin-usage-weeks" class="form-select" value="@_weeks"
+                            @onchange="WeeksChangedAsync" disabled="@_loading">
+                        @foreach (var option in WeekOptions)
+                        {
+                            <option value="@option" selected="@(option == _weeks)">@option</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (_samFailed)
+            {
+                <div class="alert alert-warning" role="alert">Sam usage could not be loaded. Use Refresh to try again.</div>
+            }
+            else if (_sam is { } sam)
+            {
+                @if (sam.Truncated)
+                {
+                    <div class="alert alert-warning" role="alert">
+                        More rows matched than were read, so the weeks may be short. Choose fewer weeks.
+                    </div>
+                }
+
+                @if (sam.Weeks.Count == 0)
+                {
+                    <p class="text-secondary">No Sam runs recorded from @sam.FromLocalDate.</p>
+                }
+                else
+                {
+                    <h3 class="h6">By week</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-usage-sam-weeks">
+                            <caption class="visually-hidden">Sam usage per learner per week, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col">Week</th>
+                                    <th scope="col" class="text-end">Runs</th>
+                                    <th scope="col" class="text-end">Input tokens</th>
+                                    <th scope="col" class="text-end">Output tokens</th>
+                                    <th scope="col" class="text-end">Estimated cost (USD)</th>
+                                    <th scope="col" class="text-end">Days with runs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var week in sam.Weeks)
+                                {
+                                    <tr @key="(week.ProfileId, week.WeekKey)" data-profile-id="@week.ProfileId" data-week="@week.WeekKey">
+                                        <th scope="row">@LearnerLabel(sam.Learners, week.ProfileId)</th>
+                                        <td>@week.WeekKey</td>
+                                        <td class="text-end">@Count(week.Runs)</td>
+                                        <td class="text-end">@Count(week.InputTokens)</td>
+                                        <td class="text-end">@Count(week.OutputTokens)</td>
+                                        <td class="text-end">@Cost(week.EstimatedCostUsd)</td>
+                                        <td class="text-end">@Count(week.DaysWithRuns)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="h6">By day</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-usage-sam-days">
+                            <caption class="visually-hidden">Sam usage per learner per day, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col">Day (learner's local date)</th>
+                                    <th scope="col" class="text-end">Runs</th>
+                                    <th scope="col" class="text-end">Input tokens</th>
+                                    <th scope="col" class="text-end">Output tokens</th>
+                                    <th scope="col" class="text-end">Estimated cost (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var day in sam.Days)
+                                {
+                                    <tr @key="(day.ProfileId, day.LocalDate)" data-profile-id="@day.ProfileId" data-day="@day.LocalDate">
+                                        <th scope="row">@LearnerLabel(sam.Learners, day.ProfileId)</th>
+                                        <td>@day.LocalDate</td>
+                                        <td class="text-end">@Count(day.Runs)</td>
+                                        <td class="text-end">@Count(day.InputTokens)</td>
+                                        <td class="text-end">@Count(day.OutputTokens)</td>
+                                        <td class="text-end">@Cost(day.EstimatedCostUsd)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (sam.NotRecorded.Contains(AdminUsageCodes.NotRecordedOtherAiCalls))
+                {
+                    <p class="text-secondary" id="admin-usage-other-ai">
+                        Other AI calls: not recorded. Only Sam's completed runs are counted per learner today.
+                    </p>
+                }
+            }
+        </section>
+
+        @* ------------------------------------------------------------ imports *@
+        <section class="mb-5" aria-labelledby="admin-usage-imports-heading" id="admin-usage-imports">
+            <h2 class="h5" id="admin-usage-imports-heading">YouTube imports that failed or are stuck</h2>
+
+            @if (_importsFailed)
+            {
+                <div class="alert alert-warning" role="alert">Imports could not be loaded. Use Refresh to try again.</div>
+            }
+            else if (_imports is { } imports)
+            {
+                <p id="admin-usage-import-counts">
+                    @Count(imports.FailedCount) failed, @Count(imports.StuckCount) stuck
+                    (not finished @imports.StuckAfterMinutes minutes after it was created).
+                </p>
+
+                @if (imports.Items.Count == 0)
+                {
+                    <p class="text-secondary">No failed or stuck imports.</p>
+                }
+                else
+                {
+                    @if (imports.Reasons.Count > 0)
+                    {
+                        <h3 class="h6">Failed imports by reason</h3>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle w-auto" id="admin-usage-import-reasons">
+                                <caption class="visually-hidden">Failed imports by reason</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Reason</th>
+                                        <th scope="col" class="text-end">Imports</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var reason in imports.Reasons)
+                                    {
+                                        <tr @key="reason.ReasonCode" data-reason="@reason.ReasonCode">
+                                            <th scope="row">@ReasonText(reason.ReasonCode)</th>
+                                            <td class="text-end">@Count(reason.Count)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <h3 class="h6">Newest first</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-usage-imports-table">
+                            <caption class="visually-hidden">Failed and stuck imports, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Import id</th>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col">Problem</th>
+                                    <th scope="col">Pipeline step</th>
+                                    <th scope="col">Reason</th>
+                                    <th scope="col">Created (UTC)</th>
+                                    <th scope="col">Ended (UTC)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var import in imports.Items)
+                                {
+                                    <tr @key="import.Id" data-import-id="@import.Id">
+                                        <th scope="row"><code class="small">@import.Id</code></th>
+                                        <td>@(import.ProfileId is null ? "Recorded to no learner" : LearnerLabel(imports.Learners, import.ProfileId))</td>
+                                        <td>
+                                            <i class="bi @(import.Problem == AdminUsageCodes.ProblemFailed ? "bi-x-circle" : "bi-hourglass-split") me-1" aria-hidden="true"></i>@ProblemText(import.Problem)
+                                        </td>
+                                        <td>@StatusText(import.Status)</td>
+                                        <td>@(import.ReasonCode is null ? "Still not finished" : ReasonText(import.ReasonCode))</td>
+                                        <td class="text-nowrap">@When(import.CreatedAtUtc)</td>
+                                        <td class="text-nowrap">@(import.CompletedAtUtc is { } ended ? When(ended) : "Not ended")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (imports.Items.Count < imports.FailedCount + imports.StuckCount)
+                    {
+                        <p class="text-secondary">Showing the newest @imports.Items.Count.</p>
+                    }
+                }
+            }
+        </section>
+
+        @* ------------------------------------------------------------ backfill *@
+        <section class="mb-4" aria-labelledby="admin-usage-pos-heading" id="admin-usage-pos">
+            <h2 class="h5" id="admin-usage-pos-heading">Part-of-speech backfill</h2>
+
+            @if (_posFailed)
+            {
+                <div class="alert alert-warning" role="alert">The part-of-speech counts could not be loaded. Use Refresh to try again.</div>
+            }
+            else if (_pos is { } pos)
+            {
+                <dl class="row mb-2">
+                    <dt class="col-sm-4 col-lg-3">Words</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-usage-pos-total">@Count(pos.TotalWords)</dd>
+                    <dt class="col-sm-4 col-lg-3">With a part of speech</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-usage-pos-classified">@Count(pos.Classified)</dd>
+                    <dt class="col-sm-4 col-lg-3">Without one</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-usage-pos-unclassified">@Count(pos.Unclassified)</dd>
+                    <dt class="col-sm-4 col-lg-3">Recorded to no learner</dt>
+                    <dd class="col-sm-8 col-lg-9" id="admin-usage-pos-unowned">@Count(pos.UnownedWords)</dd>
+                </dl>
+                <p class="text-secondary" id="admin-usage-pos-not-recorded">
+                    Last run: not recorded (its report goes to the Workers log only). Whether the backfill is
+                    switched on: not recorded here (the setting belongs to the Workers host). The counts are
+                    what the data shows now.
+                </p>
+
+                @if (pos.Learners.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="admin-usage-pos-learners">
+                            <caption class="visually-hidden">Words and part-of-speech coverage per learner, most unclassified first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Learner</th>
+                                    <th scope="col" class="text-end">Words</th>
+                                    <th scope="col" class="text-end">With a part of speech</th>
+                                    <th scope="col" class="text-end">Without one</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var learner in pos.Learners)
+                                {
+                                    <tr @key="learner.Learner.ProfileId" data-profile-id="@learner.Learner.ProfileId">
+                                        <th scope="row">@LearnerLabel(learner.Learner)</th>
+                                        <td class="text-end">@Count(learner.Words)</td>
+                                        <td class="text-end">@Count(learner.Classified)</td>
+                                        <td class="text-end">@Count(learner.Unclassified)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (pos.Truncated)
+                    {
+                        <p class="text-secondary">Only the first @pos.Learners.Count learners are listed.</p>
+                    }
+                }
+            }
+        </section>
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+    </div>
+</AdminGate>
+
+@code {
+    private const int ImportPage = 50;
+
+    private static readonly int[] WeekOptions = [1, 2, 4, 8, 13];
+
+    private AdminGate? _gate;
+    private AdminSamUsage? _sam;
+    private AdminVideoImports? _imports;
+    private AdminPartOfSpeech? _pos;
+    private int _weeks = 4;
+    private bool _loading;
+    private bool _samFailed;
+    private bool _importsFailed;
+    private bool _posFailed;
+
+    private static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string Cost(decimal value) => value.ToString("N4", CultureInfo.InvariantCulture);
+
+    private static string When(DateTime value) => value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+    private static string LearnerLabel(AdminLearnerSummary learner) =>
+        learner.Email ?? learner.DisplayName ?? learner.ProfileId;
+
+    private static string LearnerLabel(IReadOnlyList<AdminLearnerSummary> learners, string profileId) =>
+        learners.FirstOrDefault(l => l.ProfileId == profileId) is { } learner ? LearnerLabel(learner) : profileId;
+
+    // Every code is said in words; one this page does not know is shown as that.
+    private static string ProblemText(string code) => code switch
+    {
+        AdminUsageCodes.ProblemFailed => "Failed",
+        AdminUsageCodes.ProblemStuck => "Stuck",
+        _ => $"Unknown ({code})"
+    };
+
+    private static string ReasonText(string code) => code switch
+    {
+        "no_transcript" => "No transcript in the learner's language",
+        "transcript_too_short" => "Transcript too short",
+        "cancelled" => "Cancelled",
+        "timed_out" => "Timed out",
+        "unexpected_error" => "Unexpected error",
+        "other" => "Another reason (not shown, it can hold content)",
+        "none_stored" => "No reason stored",
+        _ => $"Unknown ({code})"
+    };
+
+    private static string StatusText(string code) => code switch
+    {
+        "pending" => "Waiting to start",
+        "fetching_transcript" => "Fetching the transcript",
+        "cleaning_transcript" => "Cleaning the transcript",
+        "generating_vocabulary" => "Generating vocabulary",
+        "saving_resource" => "Saving the resource",
+        "completed" => "Completed",
+        "failed" => "Failed",
+        _ => $"Unknown ({code})"
+    };
+
+    private async Task RefreshAsync() => CloseIfRefused(await LoadAsync());
+
+    private async Task WeeksChangedAsync(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var weeks)
+            && WeekOptions.Contains(weeks))
+        {
+            _weeks = weeks;
+            _loading = true;
+            try
+            {
+                CloseIfRefused(await LoadSamAsync());
+            }
+            finally
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sam's usage (the gate's request), then the imports and the backfill counts. A later request
+    /// that the API answers 404 closes the page; one that fails is said so in its own section.
+    /// </summary>
+    private async Task<AdminApiStatus> LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var sam = await LoadSamAsync();
+            if (sam == AdminApiStatus.NotFound)
+            {
+                return sam;
+            }
+
+            if (sam is AdminApiStatus.Ok or AdminApiStatus.Refused)
+            {
+                var imports = await Api.GetVideoImportsAsync(ImportPage);
+                _importsFailed = !imports.IsOk && imports.Status != AdminApiStatus.NotFound;
+                if (imports.Status == AdminApiStatus.NotFound)
+                {
+                    State.MarkNotAdmin();
+                    return imports.Status;
+                }
+
+                _imports = imports.Value ?? _imports;
+
+                var pos = await Api.GetPartOfSpeechAsync();
+                _posFailed = !pos.IsOk && pos.Status != AdminApiStatus.NotFound;
+                if (pos.Status == AdminApiStatus.NotFound)
+                {
+                    State.MarkNotAdmin();
+                    return pos.Status;
+                }
+
+                _pos = pos.Value ?? _pos;
+            }
+
+            return sam;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<AdminApiStatus> LoadSamAsync()
+    {
+        var result = await Api.GetSamUsageAsync(_weeks);
+        _samFailed = !result.IsOk && result.Status != AdminApiStatus.NotFound;
+        if (result.Status == AdminApiStatus.NotFound)
+        {
+            State.MarkNotAdmin();
+            _sam = null;
+        }
+        else if (result.Value is { } usage)
+        {
+            _sam = usage;
+        }
+
+        return result.Status;
+    }
+
+    private void CloseIfRefused(AdminApiStatus status)
+    {
+        if (status == AdminApiStatus.NotFound)
+        {
+            _gate?.Close();
+        }
+    }
+}

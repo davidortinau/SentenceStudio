@@ -89,6 +89,72 @@ public static class AdminSyncCodes
     public const string NotRecordedRefusedRows = "refused_rows";
 }
 
+/// <summary>One learner's Sam usage for one learner-local day. Mirrors the API's <c>AdminSamUsageDay</c>.</summary>
+public sealed record AdminSamUsageDay(
+    string ProfileId, string LocalDate, int Runs, long InputTokens, long OutputTokens, decimal EstimatedCostUsd);
+
+/// <summary>One learner's Sam usage for one ISO week.</summary>
+public sealed record AdminSamUsageWeek(
+    string ProfileId, string WeekKey, int Runs, long InputTokens, long OutputTokens, decimal EstimatedCostUsd,
+    int DaysWithRuns);
+
+/// <summary>What <c>GET /api/admin/usage/sam</c> reports.</summary>
+public sealed record AdminSamUsage(
+    string FromLocalDate,
+    int WeeksAsked,
+    IReadOnlyList<AdminLearnerSummary> Learners,
+    IReadOnlyList<AdminSamUsageDay> Days,
+    IReadOnlyList<AdminSamUsageWeek> Weeks,
+    bool Truncated,
+    IReadOnlyList<string> NotRecorded);
+
+/// <summary>One failed or stuck import. No title, URL or transcript.</summary>
+public sealed record AdminVideoImportRow(
+    string Id,
+    string? ProfileId,
+    string Status,
+    string Problem,
+    string? ReasonCode,
+    DateTime CreatedAtUtc,
+    DateTime? CompletedAtUtc,
+    bool HasResource);
+
+/// <summary>How many failed imports carry one reason code.</summary>
+public sealed record AdminVideoImportReasonCount(string ReasonCode, int Count);
+
+/// <summary>What <c>GET /api/admin/usage/video-imports</c> reports.</summary>
+public sealed record AdminVideoImports(
+    IReadOnlyList<AdminVideoImportRow> Items,
+    int FailedCount,
+    int StuckCount,
+    IReadOnlyList<AdminVideoImportReasonCount> Reasons,
+    int StuckAfterMinutes,
+    IReadOnlyList<AdminLearnerSummary> Learners,
+    bool Truncated);
+
+/// <summary>One learner's words and how many carry a part of speech.</summary>
+public sealed record AdminPartOfSpeechLearner(AdminLearnerSummary Learner, long Words, long Classified, long Unclassified);
+
+/// <summary>What <c>GET /api/admin/usage/part-of-speech</c> reports.</summary>
+public sealed record AdminPartOfSpeech(
+    long TotalWords,
+    long Classified,
+    long Unclassified,
+    long UnownedWords,
+    IReadOnlyList<AdminPartOfSpeechLearner> Learners,
+    bool Truncated,
+    IReadOnlyList<string> NotRecorded);
+
+/// <summary>The usage pages' wire codes. Mirrors the API's <c>AdminUsageNotRecorded</c>, <c>AdminVideoImportProblems</c> and <c>AdminVideoImportReasons</c>.</summary>
+public static class AdminUsageCodes
+{
+    public const string NotRecordedOtherAiCalls = "other_ai_calls";
+    public const string NotRecordedBackfillLastRun = "backfill_last_run";
+    public const string NotRecordedBackfillEnabled = "backfill_enabled";
+    public const string ProblemFailed = "failed";
+    public const string ProblemStuck = "stuck";
+}
+
 /// <summary>Whether the signed-in person is an admin, as far as one probe could tell.</summary>
 public enum AdminAccess
 {
@@ -235,6 +301,21 @@ public sealed class AdminApiClient
         SendAsync<AdminSyncHealthLearner>(
             HttpMethod.Get, $"{BasePath}/sync-health/learners/{Uri.EscapeDataString(profileId)}",
             body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminSamUsage>> GetSamUsageAsync(
+        int weeks, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminSamUsage>(
+            HttpMethod.Get, $"{BasePath}/usage/sam?weeks={weeks}", body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminVideoImports>> GetVideoImportsAsync(
+        int take, CancellationToken cancellationToken = default) =>
+        SendAsync<AdminVideoImports>(
+            HttpMethod.Get, $"{BasePath}/usage/video-imports?take={take}", body: null, proof: null, cancellationToken);
+
+    public Task<AdminApiResult<AdminPartOfSpeech>> GetPartOfSpeechAsync(
+        CancellationToken cancellationToken = default) =>
+        SendAsync<AdminPartOfSpeech>(
+            HttpMethod.Get, $"{BasePath}/usage/part-of-speech", body: null, proof: null, cancellationToken);
 
     private async Task<AdminApiResult<T>> SendAsync<T>(
         HttpMethod method, string path, HttpContent? body, string? proof, CancellationToken cancellationToken)
