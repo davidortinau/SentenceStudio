@@ -3,10 +3,18 @@
 #
 #   scripts/prod-deploy.sh check    read-only pre-checks; changes nothing
 #   scripts/prod-deploy.sh deploy   check, then azd deploy with the live Sam (Coach__*)
-#                                   settings and the feedback key, then after
+#                                   settings, the live admin list (Admin__*) and the
+#                                   feedback key, then after
 #   scripts/prod-deploy.sh after    revisions healthy, sticky sessions re-applied (azd resets
-#                                   them), Sam settings equal the previous revision's, and
-#                                   scripts/post-deploy-validate.sh --skip-wait
+#                                   them), Sam and admin settings equal the previous
+#                                   revision's, and scripts/post-deploy-validate.sh --skip-wait
+#
+# The admin list (Admin__Emails__N, docs/admin-portal-plan.md): azd rebuilds the API's settings
+# from this shell on every deploy, so the live list is read and carried forward, as Sam's
+# settings are. Without that each deploy would empty it, and an empty list means nobody is an
+# admin. While production has no list yet, and only then, Admin__Emails__N set in this shell
+# becomes the list: that is how the first address is put there, with the Captain's go. To
+# change a list that exists, change it on the container app, not here.
 #
 # Azure commands need the Captain's go, including check. deploy ships this checkout's
 # working tree, so it stops on uncommitted tracked changes. It does not take the database
@@ -21,6 +29,7 @@ RG=rg-sstudio-prod-biz
 SERVER=db-rsn72awybem6s
 VAULT=dbkv-rsn72awybem6s
 COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
+ADMIN_QUERY="properties.template.containers[0].env[?starts_with(name,'Admin__')]"
 
 check() {
   local fails=0
@@ -51,6 +60,17 @@ check() {
     --query "length($COACH_QUERY | [?secretRef])" -o tsv)
   if [ "$names" -gt 0 ] && [ "$secrets" = 0 ]; then ok "$names Sam settings, all plain values"
   else fail "$names Sam settings, $secrets stored as secrets (update the runbook block first)"; fi
+  local admins admin_secrets
+  admins=$(az containerapp show -g "$RG" -n api --subscription "$S" --query "$ADMIN_QUERY.name" -o tsv | grep -c . || true)
+  admin_secrets=$(az containerapp show -g "$RG" -n api --subscription "$S" \
+    --query "length($ADMIN_QUERY | [?secretRef])" -o tsv)
+  if [ "$admin_secrets" != 0 ]; then
+    fail "$admin_secrets admin settings stored as secrets; they cannot be carried forward"
+  elif [ "$admins" -gt 0 ]; then
+    ok "$admins admin settings live; they will be carried forward"
+  else
+    ok "no admin list live: $(env | grep -c '^Admin__Emails__' || true) address(es) in this shell will become it (0 leaves the admin portal closed)"
+  fi
   [ -n "$(az keyvault secret show --vault-name "$VAULT" -n feedback-hmac-key --query value -o tsv)" ] \
     && ok "feedback key in Key Vault" || fail "feedback-hmac-key missing"
   [ -n "$(az keyvault secret show --vault-name "$VAULT" -n github-app-private-key --query value -o tsv)" ] \
@@ -72,6 +92,21 @@ deploy() {
       | python3 -I -c 'import json,shlex,sys; [print("export %s=%s" % (e["name"], shlex.quote(e["value"]))) for e in json.load(sys.stdin) if "value" in e]')"
     EXPORTED_NAMES=$(env | sed -n 's/^\(Coach__[^=]*\)=.*/\1/p' | sort)
     echo "Sam settings live: $(echo "$LIVE_NAMES" | grep -c .) exported: $(echo "$EXPORTED_NAMES" | grep -c .)"
+
+    # The admin list. A live list replaces whatever this shell holds; with none live, what
+    # this shell holds (possibly nothing) is what ships.
+    LIVE_ADMIN_NAMES=$(az containerapp show -g "$RG" -n api --subscription "$S" \
+      --query "$ADMIN_QUERY.name" -o tsv | sort)
+    if [ -n "$LIVE_ADMIN_NAMES" ]; then
+      for name in $(env | sed -n 's/^\(Admin__[^=]*\)=.*/\1/p'); do unset "$name"; done
+      eval "$(az containerapp show -g "$RG" -n api --subscription "$S" --query "$ADMIN_QUERY" -o json \
+        | python3 -I -c 'import json,shlex,sys; [print("export %s=%s" % (e["name"], shlex.quote(e["value"]))) for e in json.load(sys.stdin) if "value" in e]')"
+    fi
+    EXPORTED_ADMIN_NAMES=$(env | sed -n 's/^\(Admin__[^=]*\)=.*/\1/p' | sort)
+    echo "Admin settings live: $(echo "$LIVE_ADMIN_NAMES" | grep -c . || true) exported: $(echo "$EXPORTED_ADMIN_NAMES" | grep -c . || true)"
+    if [ -n "$LIVE_ADMIN_NAMES" ] && [ "$LIVE_ADMIN_NAMES" != "$EXPORTED_ADMIN_NAMES" ]; then
+      echo "STOP: a live admin setting could not be carried forward; do not deploy"; exit 1
+    fi
     FEEDBACK_KEY="$(az keyvault secret show --vault-name "$VAULT" -n feedback-hmac-key --query value -o tsv)"
     GITHUB_APP_KEY="$(az keyvault secret show --vault-name "$VAULT" -n github-app-private-key --query value -o tsv)"
     if [ -n "$FEEDBACK_KEY" ] && [ -n "$GITHUB_APP_KEY" ] && [ -n "$LIVE_NAMES" ] && [ "$LIVE_NAMES" = "$EXPORTED_NAMES" ]; then
@@ -123,6 +158,21 @@ after() {
     diff <(az containerapp revision show -g "$RG" -n api --revision "$prev" --subscription "$S" --query "$COACH_QUERY.name" -o tsv | sort) \
          <(az containerapp revision show -g "$RG" -n api --revision "$latest" --subscription "$S" --query "$COACH_QUERY.name" -o tsv | sort) || true
     fails=$((fails + 1))
+  fi
+
+  # The admin list: equal to the previous revision's when that had one. Fingerprints and a
+  # count only.
+  local aq pa pb pn
+  aq='properties.template.containers[0].env[?starts_with(name,`Admin__`)].[name,value]'
+  pn=$(az containerapp revision show -g "$RG" -n api --revision "$prev" --subscription "$S" --query "$aq" -o tsv | grep -c . || true)
+  pa=$(az containerapp revision show -g "$RG" -n api --revision "$prev" --subscription "$S" --query "$aq" -o tsv | sort | shasum | cut -c1-12)
+  pb=$(az containerapp revision show -g "$RG" -n api --revision "$latest" --subscription "$S" --query "$aq" -o tsv | sort | shasum | cut -c1-12)
+  if [ "$pn" = 0 ]; then
+    echo "ok:   $prev had no admin list; $latest has $(az containerapp revision show -g "$RG" -n api --revision "$latest" --subscription "$S" --query "$aq" -o tsv | grep -c . || true) admin setting(s)"
+  elif [ "$pa" = "$pb" ]; then
+    echo "ok:   admin settings in $latest equal $prev ($pb)"
+  else
+    echo "FAIL: admin settings in $latest differ from $prev"; fails=$((fails + 1))
   fi
 
   ./scripts/post-deploy-validate.sh --skip-wait || fails=$((fails + 1))
