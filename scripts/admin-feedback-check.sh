@@ -28,8 +28,9 @@
 # the Captain has left a comment starting with /revise that no pass has answered yet
 # (scripts/admin-feedback-pr.py). Each such comment is answered once, whatever came of it.
 #
-# A fix session posts through the Captain's GitHub login, so a request that appears while one is
-# running cannot be told from his: the runner sets it aside and says so on the pull request.
+# A fix session posts through the Captain's GitHub login, so a request that appears or changes
+# while one is running cannot be told from his: the runner sets it aside and says so on the pull
+# request. A run that died during its session is reported by the next one.
 #
 # After a fix session the runner reads the pull request's checks and writes what failed into the
 # summary. Every run also says whether main's own checks are green.
@@ -70,11 +71,13 @@ case "$MODE" in
   *) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
-mkdir -p "$OUT/fix" && chmod 700 "$OUT"
+# What the runner keeps for itself is in state/, apart from fix/, the folder a session is given.
+mkdir -p "$OUT/fix" "$OUT/state" && chmod 700 "$OUT"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN="$OUT/run-$STAMP.md"
-HANDLED="$OUT/fix/handled-requests"
-KNOWN="$OUT/fix/requests-before-session"
+HANDLED="$OUT/state/handled-requests"
+KNOWN="$OUT/state/requests-before-session.json"
+INFLIGHT="$OUT/state/session-in-flight"
 : > "$RUN"
 NOTIFY=no
 FAILED=no
@@ -264,14 +267,19 @@ prepare_tree() {
 # What a session left on this machine, said plainly, and the worktree removed when nothing in
 # it would be lost. $1 the branch, $2 the worktree. Writes to the summary.
 leave_tree() {
-  local branch=$1 tree=$2 on_github=no base ahead
+  local branch=$1 tree=$2 on_github base ahead
   git -C "$ROOT" fetch -q origin 2>/dev/null
-  git -C "$ROOT" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 && on_github=yes
+  git -C "$ROOT" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1
+  case $? in 0) on_github=yes ;; 2) on_github=no ;; *) on_github=unknown ;; esac
   base="origin/main"; [ "$on_github" = yes ] && base="origin/$branch"
   # A count that cannot be read is treated as work that might be lost.
   ahead="$(git -C "$tree" rev-list --count "$base..$branch" 2>/dev/null)" || ahead=unknown
   if [ -n "$(git -C "$tree" status --porcelain 2>/dev/null)" ]; then
     echo "The worktree $tree has uncommitted changes and was left as it is."
+  elif [ "$(git -C "$tree" rev-parse HEAD 2>/dev/null)" != "$(git -C "$ROOT" rev-parse "refs/heads/$branch" 2>/dev/null)" ]; then
+    echo "The worktree $tree is not at the tip of $branch, so it may hold commits the branch does not; it was left as it is."
+  elif [ "$on_github" = unknown ]; then
+    echo "GitHub could not be reached, so whether $branch is pushed is not known; the worktree $tree was left as it is."
   elif [ "$ahead" != 0 ]; then
     echo "The branch $branch has commits that were not pushed; the worktree $tree was left as it is."
   else
@@ -294,19 +302,19 @@ report_checks() {
 }
 
 # The command a session runs to wait for its checks. From the runner's checkout, because a
-# branch cut before this script existed does not have it.
-CHECKS_COMMAND="python3 $ROOT/scripts/admin-feedback-pr.py checks <pull request number> --wait 3000 --head \"\$(git rev-parse HEAD)\""
+# branch cut before this script existed does not have it. One call waits nine minutes, under
+# the ten a session's shell call may take.
+CHECKS_COMMAND="python3 $ROOT/scripts/admin-feedback-pr.py checks <pull request number> --wait 540 --head \"\$(git rev-parse HEAD)\""
 
 # Says on the pull request that these requests have had their pass, so they are not taken again.
 # The ids are also kept on this machine, in case the comment cannot be posted. $1 the pull
-# request's number, $2 the request ids joined by commas, $3 a file with the comment's text,
-# $4 when the pass started, only for a pass whose session finished.
+# request's number, $2 the request ids joined by commas, $3 a file with the comment's text.
 answer_requests() {
-  local pr=$1 ids=$2 text=$3 started=${4:-} id
+  local pr=$1 ids=$2 text=$3 id
   for id in ${ids//,/ }; do
     grep -qx "$id" "$HANDLED" 2>/dev/null || printf '%s\n' "$id" >> "$HANDLED"
   done
-  { cat "$text"; echo; python3 -I "$ROOT/scripts/admin-feedback-pr.py" marker ${started:+--started "$started"} ${ids//,/ }; } \
+  { cat "$text"; echo; python3 -I "$ROOT/scripts/admin-feedback-pr.py" marker ${ids//,/ }; } \
     | gh pr comment "$pr" --repo "$REPO" --body-file - >/dev/null 2>&1 \
     || { echo "The closing comment could not be posted on pull request #$pr; the requests are recorded as answered in $HANDLED."; echo; } >> "$RUN"
 }
@@ -315,35 +323,59 @@ answer_requests() {
 # pull request, where he asked, and he can ask again. $1 pr, $2 ids, $3 what to say there,
 # $4 what to say in the summary.
 decline_requests() {
-  local note="$OUT/fix/decline-$STAMP.tmp"
+  local note="$OUT/state/decline-$STAMP.tmp"
   { echo "FIX RESULT: skipped pull request #$1"; echo; echo "$4"; echo; } >> "$RUN"
   printf '%s\n' "$3 Comment \`/revise\` again once that is cleared. The run's summary on Lilliput has the details." > "$note"
   answer_requests "$1" "$2" "$note"
   rm -f "$note"
 }
 
-# Saves which requests are waiting, before a session starts. Fails when GitHub cannot be read.
+# Saves which requests are waiting, and a fingerprint of each one's text, before a session
+# starts. Fails when GitHub cannot be read.
 save_known_requests() {
-  python3 -I "$ROOT/scripts/admin-feedback-pr.py" pending --all --handled "$HANDLED" > "$KNOWN.tmp" 2>/dev/null \
+  python3 -I "$ROOT/scripts/admin-feedback-pr.py" snapshot --handled "$HANDLED" > "$KNOWN.tmp" 2>/dev/null \
     && mv "$KNOWN.tmp" "$KNOWN"
 }
 
-# Requests that appeared while a session ran are not acted on: the session posts through the
-# Captain's login, so they cannot be told from his, and text it read on a public page could
-# have talked it into writing one. They are marked answered and he is told on the pull request.
-# Fails when GitHub cannot be read; the saved list is then kept and this is tried again before
-# any other fix work.
+# A request that appeared, or whose text changed, while a session ran is not acted on: the
+# session posts through the Captain's login, so it cannot be told from his, and text it read on
+# a public page could have talked it into writing one. It is marked answered and he is told on
+# the pull request. Fails when GitHub cannot be read; the saved list is then kept and this is
+# tried again before any other fix work, so what he asks in between is set aside too.
 set_aside_new_requests() {
-  local appeared pr ids note="$OUT/fix/aside-$STAMP.tmp"
+  local appeared pr ids note="$OUT/state/aside-$STAMP.tmp"
   [ -f "$KNOWN" ] || return 0
   appeared="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" appeared --known "$KNOWN" --handled "$HANDLED" 2>/dev/null)" || return 1
   while read -r pr ids; do
     [ -n "$pr" ] && [ -n "$ids" ] || continue
-    printf '%s\n' "A \`/revise\` request appeared here while a fix session was running, and was not taken. A session posts through your login, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
+    printf '%s\n' "A \`/revise\` request appeared or changed here while a fix session was running, or before the check could confirm that the session had ended. It was not taken: a session posts through your login, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
     answer_requests "$pr" "$ids" "$note"
-    { echo "A /revise request appeared on pull request #$pr while a session ran. It was set aside and that is said on the pull request."; echo; } >> "$RUN"
+    { echo "FIX RESULT: set aside a request on pull request #$pr"; echo; echo "A /revise request appeared or changed there while a session ran. It was not taken, and that is said on the pull request."; echo; } >> "$RUN"
+    NOTIFY=yes
   done <<< "$appeared"
   rm -f "$note" "$KNOWN"
+}
+
+# A run that died while its session was running (a shutdown, a logout) wrote no summary and
+# posted nothing. The next run says what was lost. The record is "issue <n> <tree>" or
+# "follow-up <pr> <ids> <tree>".
+settle_interrupted() {
+  local kind what ids tree note="$OUT/state/interrupted-$STAMP.tmp"
+  [ -f "$INFLIGHT" ] || return 0
+  read -r kind what ids tree < "$INFLIGHT"
+  NOTIFY=yes
+  if [ "$kind" = follow-up ]; then
+    { echo "FIX RESULT: interrupted pull request #$what"; echo; echo "An earlier run ended while its follow-up session on pull request #$what was still running. Nothing was posted then. Its worktree $tree $([ -e "$tree" ] && echo "is still there: look at what it holds, then remove it with git worktree remove" || echo "is gone")."; echo; } >> "$RUN"
+    printf '%s\n' "The follow-up pass on your \`/revise\` request was cut off when the run on Lilliput ended early. Its worktree there has to be looked at and removed before another pass can start; the run's summary on Lilliput has the details." > "$note"
+    answer_requests "$what" "$ids" "$note"
+    rm -f "$note"
+  else
+    tree=$ids
+    # Without the label every later run would stop at this issue and take no other.
+    gh issue edit "$what" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
+    { echo "FIX RESULT: interrupted #$what"; echo; echo "An earlier run ended while its fix session on issue #$what was still running. Nothing was posted then. Its worktree $tree $([ -e "$tree" ] && echo "is still there: look at what it holds, then remove it (and the label feedback-attempted) to have the issue worked again" || echo "is gone")."; echo; } >> "$RUN"
+  fi
+  rm -f "$INFLIGHT"
 }
 
 # A pull request of the check's own that the Captain has asked to be changed. Returns 0 when it
@@ -364,8 +396,8 @@ follow_up_stage() {
   local tree="$WORKTREES/feedback-issue-$issue"
   local log="$OUT/fix/issue-$issue-activity.md" reply="$OUT/fix/issue-$issue-result-$STAMP.md"
   local request="$OUT/fix/issue-$issue-request-$STAMP.md" errors="$OUT/fix/issue-$issue-$STAMP.err"
-  local record="$OUT/fix/issue-$issue-usage-$STAMP.json" closing="$OUT/fix/issue-$issue-closing-$STAMP.tmp"
-  local code started pass_started why
+  local record="$OUT/fix/issue-$issue-usage-$STAMP.json" closing="$OUT/state/closing-$STAMP.tmp"
+  local code started why id
 
   # Nothing has been spent yet, so a failure to reach GitHub leaves the request waiting.
   if ! git -C "$ROOT" fetch -q origin 2>/dev/null \
@@ -385,35 +417,40 @@ follow_up_stage() {
       "The local branch $branch has commits that are not on GitHub. Push or remove them."
     return 0
   fi
-  # Read before the request is: what he writes from here on belongs to the next pass.
-  pass_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  if ! python3 -I "$ROOT/scripts/admin-feedback-pr.py" request "$pr" --ids "$ids" --out "$request" 2>/dev/null; then
+  if ! python3 -I "$ROOT/scripts/admin-feedback-pr.py" request "$pr" --ids "$ids" --out "$request" 2>/dev/null \
+     || ! save_known_requests; then
     { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The request could not be read from GitHub. It is still waiting."; echo; } >> "$RUN"
     FAILED=yes
     return 0
   fi
   # A worktree deleted by hand leaves its registration behind; prune clears it.
   git -C "$ROOT" worktree prune 2>/dev/null
-  if ! why="$(git -C "$ROOT" worktree add -q -B "$branch" "$tree" "origin/$branch" 2>&1)" || ! prepare_tree "$tree"; then
+  if ! why="$(git -C "$ROOT" worktree add -q -B "$branch" "$tree" "origin/$branch" 2>&1)"; then
+    rm -f "$KNOWN"
     decline_requests "$pr" "$ids" "The follow-up pass could not start: a worktree for this branch could not be made on Lilliput (the branch may be checked out there)." \
-      "The worktree for $branch could not be prepared: ${why:-no error text}"
+      "The worktree for $branch could not be made: ${why:-no error text}"
     return 0
   fi
-
-  if ! save_known_requests; then
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "GitHub could not be read just before the session, so it was not started. The request is still waiting."; echo; leave_tree "$branch" "$tree"; echo; } >> "$RUN"
+  if ! prepare_tree "$tree"; then
+    # Nothing has run in it, so it holds nothing to keep.
+    git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
+    rm -f "$KNOWN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The package mirror configuration $MIRROR_CONFIG could not be copied into the worktree, so the session was not started. The request is still waiting."; echo; } >> "$RUN"
     FAILED=yes
     return 0
   fi
+
   # It has its pass from here on, whatever comes of it, even if this run dies before the end.
-  printf '%s\n' ${ids//,/ } >> "$HANDLED"
+  for id in ${ids//,/ }; do printf '%s\n' "$id" >> "$HANDLED"; done
+  printf 'follow-up %s %s %s\n' "$pr" "$ids" "$tree" > "$INFLIGHT"
 
   printf '\n## Follow-up pass, %s\n\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$log"
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. After each push, wait for the checks with: $CHECKS_COMMAND. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. After each push, wait for the checks with: $CHECKS_COMMAND (run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
+  rm -f "$INFLIGHT"
   [ -s "$errors" ] || rm -f "$errors"
   local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
   set_aside_new_requests || { echo "Whether a request appeared during the session could not be read from GitHub; it is checked again before any other fix work."; echo; } >> "$RUN"
@@ -440,25 +477,25 @@ follow_up_stage() {
   record_usage "$record" "fix follow-up" "$issue" "$FIX_MODEL" "$FIX_EFFORT" "$(( $(date +%s) - started ))" "${result_line:-RESULT: failed}"
 
   # The closing comment says how the pass ended and what it cost, and marks his requests as
-  # answered. Only a pass that finished records when it started: what he wrote on the diff
-  # before a pass that was cut off is handed to the next one again.
+  # answered. It does not invite another request while the worktree is still in the way.
   {
     if [ "$finished" = no ]; then
-      echo "The follow-up pass on your \`/revise\` request did not finish. The run's summary on Lilliput says why. Comment \`/revise\` again to have it tried once more."
+      echo "The follow-up pass on your \`/revise\` request did not finish. The run's summary on Lilliput says why."
     else
       case "$result_line" in
         "RESULT: pr"*) echo "The follow-up pass on your \`/revise\` request has finished. What changed is in the description above." ;;
         *) echo "The follow-up pass on your \`/revise\` request ended without a change it could deliver. The run's summary on Lilliput says where it stands." ;;
       esac
     fi
+    if [ -e "$tree" ]; then
+      echo "Its worktree was kept on Lilliput because it holds work that is not on GitHub. That has to be looked at and removed before another pass can start here."
+    elif [ "$finished" = no ]; then
+      echo "Comment \`/revise\` again to have it tried once more."
+    fi
     echo
     [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
   } > "$closing"
-  if [ "$finished" = yes ]; then
-    answer_requests "$pr" "$ids" "$closing" "$pass_started"
-  else
-    answer_requests "$pr" "$ids" "$closing"
-  fi
+  answer_requests "$pr" "$ids" "$closing"
   rm -f "$closing"
   report_checks "$pr" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   return 0
@@ -466,7 +503,9 @@ follow_up_stage() {
 
 fix_stage() {
   local issue="$ISSUE_ARG"
-  # A session whose requests could not be checked last time is settled before anything starts.
+  # A run that died mid-session is reported, and a session whose requests could not be checked
+  # last time is settled, before anything starts.
+  settle_interrupted
   if ! set_aside_new_requests; then
     { echo "FIX RESULT: failed"; echo; echo "GitHub could not be read, so no fix work was started this run."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
@@ -506,17 +545,22 @@ fix_stage() {
     && prepare_tree "$tree" \
     || { { echo "FIX RESULT: failed #$issue"; echo; echo "The worktree for $branch could not be prepared."; echo; } >> "$RUN"; NOTIFY=yes; FAILED=yes; return; }
   if ! save_known_requests; then
-    { echo "FIX RESULT: failed #$issue"; echo; echo "GitHub could not be read just before the session, so it was not started. The issue is still waiting."; echo; leave_tree "$branch" "$tree"; echo; } >> "$RUN"
+    # Nothing has run in the worktree, so it and its new branch hold nothing to keep.
+    git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
+    git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+    { echo "FIX RESULT: failed #$issue"; echo; echo "GitHub could not be read just before the session, so it was not started. The issue is still waiting."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return
   fi
+  printf 'issue %s %s\n' "$issue" "$tree" > "$INFLIGHT"
 
   : > "$log"
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. After each push to it, wait for the checks with: $CHECKS_COMMAND. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. After each push to it, wait for the checks with: $CHECKS_COMMAND (run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
+  rm -f "$INFLIGHT"
 
   # It has had its go, whatever came of it: it is not picked again until someone asks.
   gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true

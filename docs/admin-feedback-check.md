@@ -25,9 +25,12 @@ pull request, starting the comment with `/revise` and then saying what you want:
     /revise Make the notice shorter, and keep one confirmation.
 
 The next run takes that before any new issue: a follow-up pass on the same branch, which pushes
-to the same pull request and ends with a comment saying how it ended and what it used. A review
-whose summary starts with `/revise` works the same way. Comments you left on the diff since the
-last pass that finished are handed over with it.
+to the same pull request and ends with a comment saying how it ended and what it used.
+
+To point at lines, leave your comments on the diff in a review and start the review's summary
+with `/revise`: the session is handed the summary and that review's comments. A comment on the
+diff that is not part of such a review is not handed over, and a plain `/revise` comment
+carries only its own text.
 
 - **Each request gets one pass.** Once a session has started on it, it is not taken again,
   whatever came of it; to have it tried again, comment again. A request that cannot get a
@@ -37,11 +40,17 @@ last pass that finished are handed over with it.
 - **Only your comments count.** The repository is public, so a comment by anyone else, or a
   pull request from a fork, is never a request and is never shown to the session
   (`scripts/admin-feedback-pr.py`).
-- **A request made while a fix session is running is not taken.** The session posts through
-  your GitHub login, so the check cannot tell a comment it wrote from one of yours, and text it
-  read on a public page could talk it into writing one. The runner marks such a request as
-  answered and says so on the pull request; if it was yours, comment again. Giving the sessions
-  their own GitHub identity would remove this, and is not done.
+- **A request made or edited while a fix session is running is not taken.** The session posts
+  through your GitHub login, so the check cannot tell what it wrote from what you wrote, and
+  text it read on a public page could talk it into writing a request. The runner fingerprints
+  every waiting request before a session and, after it, marks any that appeared or changed as
+  answered and says so on the pull request; if it was yours, comment again. The same happens
+  to what you ask between a run that died mid-session (or could not read GitHub afterwards) and
+  the next run. This narrows what a misled session can pass on; it is not a boundary, because a
+  fix session has your access to this Mac. Giving the sessions their own GitHub identity is
+  what would let the two be told apart, and is not done.
+- **A run that dies during its session** (a shutdown, a logout) writes no summary. The next run
+  says so, on the pull request too, and names the worktree left behind.
 
 **Checks.** A fix session waits for its pull request's checks itself (they take 25 to 45
 minutes). After it, the runner looks again for up to 15 minutes and writes into the summary
@@ -82,7 +91,7 @@ red for a day because nothing said so.
   issue.
 - The summary of each run is written to `~/sstudio-feedback-check/` (`latest.md` is the newest,
   `history.log` has one line per run, `fix/` holds each issue's activity log and each request
-  handed to a follow-up pass). A desktop notification is shown when something was triaged, an
+  handed to a follow-up pass, `state/` what the runner keeps for itself). A desktop notification is shown when something was triaged, an
   issue or a pull request was worked, `main`'s checks turned red or the run failed, and not
   when there was nothing to do.
 

@@ -703,12 +703,18 @@ Captain chose three changes from the ten proposed:
   session; a pull request from a fork is never the check's own. Each request gets one pass.
   `scripts/admin-feedback-pr.py` finds them; `docs/admin-feedback-fix.md` ("A follow-up pass")
   is what the session follows.
-  - A session posts through his GitHub login, so a request that appears while one is running
-    cannot be told from his. The runner sets it aside and says so on the pull request. The
-    review of this change found that gap; a separate GitHub identity for the sessions would
-    close it properly and is left for later.
-- **Checks.** A fix session waits for its pull request's checks (25 to 45 minutes here) and
-  fixes what is its own. The runner reads them again into the summary, with whether `main`
+  - A session posts through his GitHub login, so what it writes there cannot be told from his.
+    Two reviews of this change pressed on that. What came of it: a session is handed a
+    request's own text and nothing else from the pull request (comments on the diff only as
+    part of a review that is itself a request), and the runner fingerprints every waiting
+    request before a session and sets aside any that appeared or changed during it, saying so
+    on the pull request. That narrows what a misled session can pass on. It is not a boundary:
+    a fix session has his access to the Mac. A separate GitHub identity for the sessions (the
+    GitHub App the API already uses to file issues is one candidate) would let the two be told
+    apart, and is left for him to decide.
+  - A run that dies during its session is reported by the next one, on the pull request too.
+- **Checks.** A fix session waits for its pull request's checks (25 to 45 minutes here, in
+  nine-minute calls) and fixes what is its own. The runner reads them again into the summary, with whether `main`
   fails each one too, and every run reports `main`'s own checks, with a notification when they
   turn red. A cancelled check counts as failed.
   - The unit test that had kept `main` red was a real fault, not a slow runner: a second
@@ -722,12 +728,13 @@ Checked with a dry-run rig (a throwaway repository and stand-ins for `gh`, `clau
 notification, so no session ran and nothing was posted): nothing waiting; `main` red twice
 (one notification); a request with a stranger's `/revise` beside it (only the owner's words
 reached the session, the push landed on the branch, the request was marked answered and not
-taken again); a session that wrote a `/revise` itself (set aside, not taken by the next run);
-a session that crashed (his earlier comment on the diff came back with the next request); the
-branch checked out elsewhere on the machine (declined on the pull request once, with git's
-reason in the summary); GitHub unreadable (reported as a failure, the request kept); a first
-pass on a new issue; and the launcher following `main` while leaving a checkout on a branch
-alone. Not yet seen: a real follow-up session on a real pull request.
+taken again); a session that wrote a `/revise` itself, and one that rewrote a request waiting
+on another pull request (each set aside, not taken by the next run); a session that crashed;
+the branch checked out elsewhere on the machine (declined on the pull request once, with git's
+reason in the summary); GitHub unreadable (reported as a failure, the request kept); a run
+killed during a follow-up session and during a first pass (the next run said so and named the
+worktree); a first pass on a new issue; and the launcher following `main` while leaving a
+checkout on a branch alone. Not yet seen: a real follow-up session on a real pull request.
 
 **Left for later**
 
