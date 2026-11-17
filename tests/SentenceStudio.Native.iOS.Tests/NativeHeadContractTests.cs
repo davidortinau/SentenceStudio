@@ -265,6 +265,21 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
+    public void QuizCorrectionFocus_YieldsToAnOpenSam()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
+
+        // Each Sam keystroke rebuilds the quiz; a correction that always requested focus
+        // pulled the keyboard out of Sam's composer (Captain, 2026-11-17).
+        Assert.Contains("private bool QuizAnswerShouldFocus => _quizInputFocused\n"
+            + "        || (_quizState.RequiresCorrection && !IsSamPresented);",
+            source.ReplaceLineEndings("\n"));
+        Assert.Contains("canRetry, QuizAnswerShouldFocus, _sentenceInput)", source);
+        Assert.DoesNotContain("_quizState.RequiresCorrection || _quizInputFocused", source);
+    }
+
+    [Fact]
     public void TypedAnswer_IsClearedForEveryNewTurnOnManualNextAndAutoAdvance()
     {
         var source = File.ReadAllText(Path.Combine(

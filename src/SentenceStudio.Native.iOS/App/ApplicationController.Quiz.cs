@@ -125,6 +125,15 @@ internal sealed partial class ApplicationController
             turnId, _lifetime.Token));
     }
 
+    /// <summary>
+    /// A correction draws the answer field's focus, but not while Sam is open: every Sam
+    /// keystroke rebuilds the quiz, and a rebuilt field that requests focus takes the keyboard
+    /// from Sam's composer. A field the learner focused keeps its focus either way; closing Sam
+    /// gives a pending correction its focus back.
+    /// </summary>
+    private bool QuizAnswerShouldFocus => _quizInputFocused
+        || (_quizState.RequiresCorrection && !IsSamPresented);
+
     internal SwiftView RenderQuiz(SourceUiStyle style)
     {
         if (_quiz is null)
@@ -153,8 +162,7 @@ internal sealed partial class ApplicationController
                     && _quizLaunch is not null));
         return QuizView.Page(style, QuizViewState,
             new QuizViewInputs(_answer, _quizCorrectionCompleted, _busy,
-                canRetry, _quizState.RequiresCorrection || _quizInputFocused,
-                _sentenceInput),
+                canRetry, QuizAnswerShouldFocus, _sentenceInput),
             Text, new QuizActions(
             AnswerChanged: value => _answer = value,
             AnswerFocusChanged: focused => _quizInputFocused = focused,
