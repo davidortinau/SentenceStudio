@@ -38,13 +38,13 @@ result and stop; the Captain will read them.
 
 Go as far as you can. If you can only get part of the way, a pull request with the diagnosis
 and a failing test, or a comment on the issue with the diagnosis and the options, is a good
-result. An honest "not found, here is what I ruled out" is a good result. A guess presented as
+result when that is truly as far as it goes. An honest "not found, here is what I ruled out" is a good result. A guess presented as
 a fix is not.
 
 ## The activity log
 
-Keep it as you go, not at the end: one short entry per step, with the time, what you ran or
-read, what you found and what you decided. Include dead ends. It is the history of your
+Keep it as you go, not at the end: one short entry per step, with the time read from the
+clock (`date`), never estimated, what you ran or read, what you found and what you decided. Include dead ends. It is the history of your
 process, so write what happened, including what went wrong.
 
 The pull request carries it under a heading "Activity log". If the log is longer than about
@@ -55,22 +55,51 @@ it. Nothing a learner wrote goes in it (you have read none).
 
 - Branch `feedback/issue-<n>`, base `main`. Push only that branch.
 - Title: what the change does. Body: the problem, the cause, the fix, how it was checked (the
-  commands and their results, including anything that failed or was skipped), anything that
-  needs the Captain's decision, then "Activity log". Refer to the issue with `Fixes #<n>` when
+  commands and their results, including anything that failed or was skipped), "For the Captain
+  to decide" (what a learner will now see, and anything left undone and why), then "Activity
+  log". Refer to the issue with `Fixes #<n>` when
   the change resolves it and `Refs #<n>` when it does not.
+- **The repository is public.** A report's codes include the learner's profile id. Never put a
+  profile id, or any part of one, an email or a name in a pull request, a commit, a comment or
+  the activity log. Refer to a report by its own id only. (The first run of this stage put the
+  first characters of a profile id in a pull request description and had to edit it out; the
+  earlier revision stays in the edit history until the Captain deletes it by hand.)
 - Do not merge it. Merging and deploying are the Captain's.
+- You do not need to report your own token or tool usage: the runner measures it and posts it
+  on the pull request after you finish.
 
-## Where you stop and hand to the Captain
+## How far to go
 
-Do the diagnosis, write up the options, and stop (a pull request marked as a draft, or a
-comment on the issue) when the resolution needs any of these:
+The Captain's expectation is a resolution, not a hand-off. The pull request is the hand-off: he
+approves a change by merging it, so a change you are unsure he wants still belongs in the pull
+request, said plainly, and not in a list of questions. (The first run of this stage diagnosed
+issue 227, found two changes that would fix it, and stopped to ask about both. He asked why it
+had not fixed the problem. Do not repeat that.)
 
-- A change to what Sam says or does for a learner: prompts, responses, hints, modes, defaults,
-  empty states. That goes through the Learning Value Gate and the Captain. A draft pull request
-  with the proposed change and its reasoning is welcome; say clearly that it is a proposal.
-- A schema change or a migration.
-- A new dependency, a new capability for Sam, or a change of architecture.
-- Anything in production: settings, data, a deploy.
+**A change to what Sam says or does for a learner** (instructions, replies, notices, limits,
+defaults) is in scope. Make it:
+
+- Choose the option you would recommend, make the change, and test it.
+- Read `.squad/skills/learning-value-gate/SKILL.md`. If the change touches a learning activity's
+  prompts, responses, modes, toggles or defaults, work through the gate and put its artifacts
+  in the pull request. If it does not (a notice, a limit, how Sam answers a request about the
+  app), say so in one line.
+- In the pull request, under "For the Captain to decide", give the exact words a learner will
+  now see and the options you did not take, so he can change the wording before merging.
+
+**Something Sam cannot do yet** that the learner can already do in the app: build it when it
+fits the patterns the code already has for Sam's tools and proposals and needs none of the
+stops below. When it does not fit in one pull request, make Sam say plainly that it cannot and
+where in the app the learner can, and write up what the capability needs.
+
+## Where you stop
+
+Do everything short of these, write up the rest, and say in your result what is waiting:
+
+- A schema change or a migration. (Prepare the code that does not need it; describe the column.)
+- A new package dependency, or a change of architecture.
+- Anything in production: settings, data, a deploy, reading its logs.
+- Merging. Always the Captain's.
 
 ## Hard limits on this machine
 
