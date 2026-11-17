@@ -92,6 +92,49 @@ public sealed class ApplicationOperationConcurrencyTests
         operation.AttemptCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task ASecondConfirmation_AfterTheFirstHasSettled_IsAConflict()
+    {
+        await using var harness = new ApplicationOperationSqliteHarness();
+        var secret = "late-confirmation-secret"u8.ToArray();
+        await using (var seed = harness.NewContext())
+        {
+            var coordinator = harness.NewCoordinator(seed);
+            await coordinator.ProposeAsync(ApplicationOperationSqliteHarness.Proposal(
+                confirmation: ApplicationConfirmationPolicy.ProtectedConfirmation));
+            await coordinator.DecideAsync(
+                ApplicationOperationSqliteHarness.Decision(
+                    confirmationReference: "confirmation-late",
+                    confirmationMaterial: secret,
+                    leaseId: null,
+                    leaseExpiresAtUtc: null));
+        }
+
+        var first = await RunDecisionAsync(harness, ApplicationOperationSqliteHarness.Decision(
+            decision: ApplicationOperationDecision.Confirm,
+            decisionReference: "confirm-late-a",
+            confirmationReference: "confirmation-late",
+            confirmationMaterial: secret,
+            leaseId: "confirm-lease-a",
+            decidedAtUtc: ApplicationOperationSqliteHarness.NowUtc.AddSeconds(2)));
+        var second = await RunDecisionAsync(harness, ApplicationOperationSqliteHarness.Decision(
+            decision: ApplicationOperationDecision.Confirm,
+            decisionReference: "confirm-late-b",
+            confirmationReference: "confirmation-late",
+            confirmationMaterial: secret,
+            leaseId: "confirm-lease-b",
+            decidedAtUtc: ApplicationOperationSqliteHarness.NowUtc.AddSeconds(2)));
+
+        first.Result.Should().NotBeNull();
+        second.Exception.Should().BeOfType<ApplicationOperationConflictException>();
+
+        await using var verification = harness.NewContext();
+        var operation = await verification.ApplicationOperations.AsNoTracking().SingleAsync();
+        operation.Status.Should().Be(ApplicationOperationStatus.Executing);
+        operation.ApplicationVersion.Should().Be(3);
+        operation.LeaseId.Should().Be("confirm-lease-a");
+    }
+
     private static async Task<DecisionOutcome> RunDecisionAsync(
         ApplicationOperationSqliteHarness harness,
         ApplicationOperationDecisionCommand command)
