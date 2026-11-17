@@ -170,7 +170,7 @@ public class CoachCapabilityManifestSnapshotTests
         var presentation = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.PresentationState).ToList();
 
         reads.Should().HaveCount(16);
-        learnerData.Should().HaveCount(14, "fourteen propose_* tools write learner data");
+        learnerData.Should().HaveCount(15, "fifteen propose_* tools write learner data");
         external.Should().HaveCount(2, "the YouTube import and filing feedback on GitHub are the external effects");
         external.Select(c => c.Name).Should().BeEquivalentTo([CoachToolNames.ProposeYouTubeImport, CoachToolNames.ProposeFeedback]);
         presentation.Should().HaveCount(1, "the declared theme capability");

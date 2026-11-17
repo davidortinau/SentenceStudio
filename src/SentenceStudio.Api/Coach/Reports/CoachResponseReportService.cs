@@ -657,10 +657,20 @@ public sealed class CoachResponseReportService
     /// Reads only the stop reason out of a turn's replayable outcome.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The payload is the same one the poll path already deserializes, and exactly one field is
     /// taken from it. Nothing else is read into a local, returned, stored, or logged — the
     /// outcome carries the coach's own words, and this method's contract is that none of them
     /// leave it.
+    /// </para>
+    /// <para>
+    /// <b>Where the field is depends on the outcome's version.</b> A version-1 outcome is the
+    /// response itself, so the stop reason is at the root. Since version 2 the response is the
+    /// outcome's <c>answer</c> section, beside the trace, the dispute and the grounding, and the
+    /// root holds no stop reason. Reading only the root is how every report came to store an
+    /// empty one; <c>CoachResponseReportStopReasonTests</c> writes the outcome with the
+    /// conversation service itself so the two cannot drift apart again unnoticed.
+    /// </para>
     /// </remarks>
     internal static CoachStopReason? ReadStopReason(string? storedOutcome)
     {
@@ -673,8 +683,11 @@ public sealed class CoachResponseReportService
         {
             using var document = JsonDocument.Parse(storedOutcome);
 
-            if (!document.RootElement.TryGetProperty(nameof(CoachTurnResponse.StopReason), out var property)
-                && !document.RootElement.TryGetProperty("stopReason", out property))
+            var root = document.RootElement;
+
+            if (!TryGetMember(root, nameof(CoachTurnResponse.StopReason), out var property)
+                && !(TryGetMember(root, nameof(CoachStoredTurnOutcome.Answer), out var answer)
+                     && TryGetMember(answer, nameof(CoachTurnResponse.StopReason), out property)))
             {
                 return null;
             }
@@ -702,6 +715,19 @@ public sealed class CoachResponseReportService
             // treats it. A report is not worth failing over a field that is decoration on it.
             return null;
         }
+    }
+
+    /// <summary>
+    /// One member of a JSON object, under the declared name or the camel-case name the web
+    /// serializer writes. False for anything that is not an object.
+    /// </summary>
+    private static bool TryGetMember(JsonElement element, string name, out JsonElement member)
+    {
+        member = default;
+
+        return element.ValueKind == JsonValueKind.Object
+            && (element.TryGetProperty(name, out member)
+                || element.TryGetProperty(JsonNamingPolicy.CamelCase.ConvertName(name), out member));
     }
 
     // ------------------------------------------------------------------ ledger

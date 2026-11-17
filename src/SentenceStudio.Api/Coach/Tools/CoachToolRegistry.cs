@@ -615,5 +615,20 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
             Description = "Proposes deleting one of the learner's example sentences, named by the identifier get_vocabulary_example_sentences returned. It cannot be undone, so the learner must confirm. Nothing is deleted until they do."
         });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposePlanRegeneration,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteSoft,
+            EffectClass = CoachCapabilityEffectClass.LearnerData,
+            Reversal = CoachCapabilityReversal.None,
+            Confirmation = CoachCapabilityConfirmation.Accept,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.Semantic,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes making a new Today's Plan for the learner, replacing the one they have, the same as Regenerate Plan on the dashboard. Use it when the learner asks for a new, fresh or another plan for today, or has no plan yet and asks for one. Pass an empty arguments object; the application fills in the rest. Not for a change to the plan's minutes, activities or focus. The new plan starts with nothing done; practice already logged stays in their history. Nothing changes until the learner accepts the proposal."
+        });
     }
 }

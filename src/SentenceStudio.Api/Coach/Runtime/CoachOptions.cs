@@ -252,7 +252,7 @@ public sealed class CoachOptions
     public int MaxIterationsPerRequest { get; set; } = 6;
 
     /// <summary>
-    /// Maximum clarification questions the coach may ask in one session.
+    /// Maximum clarification questions the coach may ask in a row, before a turn ends in a reply.
     /// Must not exceed <see cref="CoachConstraintLimits.MaxClarificationsPerSession"/>, which the
     /// client also enforces.
     /// </summary>

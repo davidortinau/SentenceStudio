@@ -57,6 +57,79 @@ public sealed class NativeDashboardSourceFidelityTests
         Assert.Equal(NativePhase.Empty, progressOnly.Phase);
     }
 
+    /// <summary>
+    /// The app makes the smart lists (Daily Review and the rest) for every learner. A learner who
+    /// has only those has not started, and keeps the Welcome screen with Create Starter Resource
+    /// (seen 2026-11-16 on the web, where one message to Sam made them and the Welcome screen
+    /// never came back).
+    /// </summary>
+    [Fact]
+    public async Task ALearnerWithOnlyTheAppsSmartListsIsStillNew()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.LearningResources.AddRange(
+                new LearningResource
+                {
+                    Id = "smart-daily-a", UserProfileId = NativeSliceFixture.UserA, Title = "Daily Review",
+                    MediaType = "Smart Vocabulary List", Language = "Korean",
+                    IsSmartResource = true, SmartResourceType = "DailyReview"
+                },
+                new LearningResource
+                {
+                    Id = "smart-new-a", UserProfileId = NativeSliceFixture.UserA, Title = "New Words Practice",
+                    MediaType = "Smart Vocabulary List", Language = "Korean",
+                    IsSmartResource = true, SmartResourceType = "NewWords"
+                });
+            await db.SaveChangesAsync();
+        }
+
+        fixture.Activate(NativeSliceFixture.UserA);
+        var state = await fixture.Dashboard.LoadAsync();
+
+        Assert.True(state.IsNewUser);
+        Assert.Equal(NativePhase.Empty, state.Phase);
+    }
+
+    /// <summary>
+    /// A learner with words but only the smart lists (they removed their own resources) is not
+    /// new, and is not held on "waiting for sync" either: something has synced down.
+    /// </summary>
+    [Fact]
+    public async Task ALearnerWithWordsAndOnlySmartListsGetsTheirDashboard()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = "smart-daily-a", UserProfileId = NativeSliceFixture.UserA, Title = "Daily Review",
+                MediaType = "Smart Vocabulary List", Language = "Korean",
+                IsSmartResource = true, SmartResourceType = "DailyReview"
+            });
+            db.VocabularyWords.Add(new VocabularyWord
+            {
+                Id = "word-a", UserProfileId = NativeSliceFixture.UserA,
+                Language = "Korean", TargetLanguageTerm = "물", NativeLanguageTerm = "water"
+            });
+            await db.SaveChangesAsync();
+        }
+        fixture.Sync.Outcome = NativeSyncOutcome.Unconfirmed;
+
+        fixture.Activate(NativeSliceFixture.UserA);
+        var state = await fixture.Dashboard.LoadAsync();
+
+        // Not new and not waiting: the plan step runs. With no resource of their own to draw on it
+        // may find no plan, which is the dashboard's ordinary empty plan, not the Welcome screen.
+        Assert.False(state.IsNewUser);
+        Assert.NotEqual(NativePhase.PendingSync, state.Phase);
+    }
+
     [Fact]
     public async Task StatisticsPublishWhileThePlanIsStillLoading()
     {

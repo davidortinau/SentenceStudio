@@ -98,11 +98,28 @@ public static class CoachStateMachine
         // is written on either path.
         if (asksClarification)
         {
-            // Never loop. Once the per-session budget is spent the UI presents a binary choice
-            // instead of asking again — which is also how the server's "I still could not tell
-            // what to change" turn arrives: same stop reason, but no question attached.
-            return turn.ClarificationsRemaining <= 0 || string.IsNullOrWhiteSpace(turn.ClarifyingQuestion)
-                ? CoachUiState.ClarificationLimitReached
+            // Never loop. Once the budget is spent the UI presents a binary choice instead of
+            // asking again — which is also how the server's "I still could not tell what to
+            // change" turn arrives: same stop reason, but no question attached.
+            //
+            // The choice is the open offer's: accept it or keep the plan. With no offer there is
+            // nothing to choose between, and "Choose one option." beside an ordinary question,
+            // or beside the server's own notice, told the learner to do something they could
+            // not. Then a question is simply a question, and a turn without one leaves them free
+            // to type.
+            var limitReached = turn.ClarificationsRemaining <= 0 || string.IsNullOrWhiteSpace(turn.ClarifyingQuestion);
+            if (!limitReached)
+            {
+                return CoachUiState.Clarification;
+            }
+
+            if (turn.PendingSuggestion is not null)
+            {
+                return CoachUiState.ClarificationLimitReached;
+            }
+
+            return string.IsNullOrWhiteSpace(turn.ClarifyingQuestion)
+                ? CoachUiState.Ready
                 : CoachUiState.Clarification;
         }
 

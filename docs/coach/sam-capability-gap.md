@@ -141,7 +141,7 @@ What this means in practice:
 | Action | Where in app | Sam today | Notes/gap |
 |---|---|---|---|
 | Read today's plan and completion | `UI/Index.razor`; `iOS/Dashboard/TodaysPlanView.cs`; `And/AndroidSliceShell.Dashboard.Compose.cs` | Full: `get_current_plan_summary` (registry 329) | No item text, by design. |
-| Generate / regenerate today's plan | `UI/Index.razor` (GeneratePlanAsync, RegeneratePlanAsync) | Partial: `preview_practice_plan` (registry 197) and the Coach plan pane | Sam builds a preview and revises its own session plan; it never writes today's plan (no `DailyPlan` write handler exists, `Coach/Operations/CoachWriteEnums.cs:207` is unused by handlers). |
+| Generate / regenerate today's plan | `UI/Index.razor` (GeneratePlanAsync, RegeneratePlanAsync) | Full since 2026-11-16: `propose_plan_regeneration` (`CoachPlanRegenerationHandler`, `IPlanService.RegenerateTodayAsync`), accepted in one step; also `preview_practice_plan` and the Coach plan pane for changes | Not reversible, like the dashboard's own control. The plan it replaces is archived, so logged practice stays in history. |
 | Launch a plan item | `UI/Index.razor` (LaunchPlanItem) | None | |
 | Switch to "choose my own" mode and pick a resource/skill | `UI/Index.razor` (SetMode); `iOS/Dashboard/ChooseOwnView.cs` | None | |
 | Vocabulary stats tiles (New, Learning, Familiar, Review, Known, weekly accuracy) | `UI/Index.razor:474-525`; native dashboards | Partial: `get_vocabulary_due_summary` (registry 173) | Bands and lapse rate exist but over a different word population (see the answer above). No 7-day accuracy figure. |
@@ -217,6 +217,7 @@ A suggestion for the Captain to rank, by likely value against effort:
 7. **Launch an activity or plan item** from Sam (a route-catalog destination with a resource or
    word focus), so "quiz me on these" ends in the real quiz.
 8. **Words on a resource:** list a resource's words (non-due) and unlink from one resource.
-9. **Regenerate / adopt today's plan** from Sam's preview (needs a `DailyPlan` handler).
+9. **Regenerate today's plan.** Done 2026-11-16 (issue 227): `propose_plan_regeneration`.
+   Adopting Sam's *preview* as the plan is still open.
 10. **Activity log and diary reads:** per-session list, and diary entry listing with an
     explicit privacy decision first.

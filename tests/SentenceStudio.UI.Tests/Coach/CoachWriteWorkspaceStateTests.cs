@@ -146,6 +146,115 @@ public class CoachWriteWorkspaceStateTests
         state.ActiveWriteOperation.Should().BeNull("an executed change is no longer awaiting an answer");
     }
 
+    /// <summary>
+    /// Sam can make a new plan for today (issue 227). The dashboard may be on screen behind Sam
+    /// showing the plan that was just replaced, so the page is told once, when the server says
+    /// the change is in place.
+    /// </summary>
+    [Fact]
+    public async Task Accepting_a_new_plan_tells_the_page_to_read_the_plan_again_once()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        raised.Should().Be(0, "a proposal has changed nothing");
+
+        await state.AcceptWriteAsync("op-1");
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+
+        await state.RefreshWriteAsync("op-1");
+
+        raised.Should().Be(1, "a card read again later still says executed, and the plan has not changed again");
+    }
+
+    /// <summary>
+    /// The learner accepted the new plan on another device, then touches the card that is still
+    /// waiting here. The server answers that it is applied, and the page is told.
+    /// </summary>
+    [Fact]
+    public async Task A_new_plan_accepted_elsewhere_tells_the_page_when_this_client_learns_of_it()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        // Elsewhere: the same operation, applied.
+        await client.AcceptWriteAsync(Conversation, "op-1");
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Proposed, "this client has not looked yet");
+
+        await state.RefreshWriteAsync("op-1");
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+    }
+
+    /// <summary>
+    /// The learner accepted the new plan on another device and goes on talking to Sam here. The
+    /// turn's read-back of the conversation finds the waiting card applied, and the page is told.
+    /// </summary>
+    [Fact]
+    public async Task A_new_plan_accepted_elsewhere_tells_the_page_when_the_history_is_read_back()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        await client.AcceptWriteAsync(Conversation, "op-1");
+
+        // The turn's operation carries only Sam's row, so the client reads the page back.
+        client.OnSubmitConversationTurn = (conversationId, request) =>
+        {
+            var learner = client.Seed(conversationId, CoachMessageRole.Learner, request.Turn.Text ?? string.Empty);
+            var reply = client.Seed(conversationId, CoachMessageRole.Coach, "Sam replies.");
+            return new CoachTurnOperationDto
+            {
+                OperationId = request.OperationId,
+                ConversationId = conversationId,
+                State = CoachTurnOperationState.Completed,
+                Result = CoachStateMachineTests.Turn(),
+                Messages = new[] { reply },
+                FirstResponseSequence = learner.Sequence,
+                LastResponseSequence = reply.Sequence,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+        };
+        state.Draft = "how many words do I have?";
+        await state.SendDraftAsync();
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Declining_a_new_plan_or_accepting_another_change_leaves_the_plan_page_alone()
+    {
+        var client = NewClient();
+        var plan = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, plan);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        await state.RejectWriteAsync("op-1");
+
+        var other = NewClient();
+        var word = other.AddWrite(Conversation, "op-2");
+        var otherState = await OpenWithWriteAsync(other, word);
+        otherState.TodaysPlanReplaced += () => raised++;
+        await otherState.AcceptWriteAsync("op-2");
+
+        raised.Should().Be(0);
+    }
+
     [Fact]
     public async Task Declining_leaves_the_card_declined_and_writes_nothing()
     {

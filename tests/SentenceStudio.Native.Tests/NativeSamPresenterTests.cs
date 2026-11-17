@@ -725,6 +725,115 @@ public sealed class NativeSamPresenterTests
 
     // ------------------------------------------------------------------ writes, memory, reports, management
 
+    /// <summary>
+    /// Sam can make a new plan for today (issue 227): accepting it reloads the dashboard's plan,
+    /// as a plan revision does, and accepting any other change does not.
+    /// </summary>
+    [Fact]
+    public async Task AcceptingANewPlanRaisesPlanChangedOnce()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: new CoachWriteOperationDto
+        {
+            OperationId = "w-plan", ConversationId = conversation,
+            ChangeKind = CoachWriteChangeKind.PlanRegenerate, RiskClass = CoachWriteRiskClass.WriteSoft,
+            Status = CoachWriteStatus.Proposed, ApprovalMode = "accept",
+            Summary = "Replace today\u2019s plan with a new one", ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10),
+            RequiresConfirmation = false, IsReversible = false
+        });
+        var sam = await OpenAsync(fixture, api);
+        var raised = 0;
+        sam.PlanChanged += () => raised++;
+
+        sam.SetDraft("make me a new plan for today");
+        await sam.SendAsync();
+        Assert.Equal(0, raised);
+        var sessionReads = 0;
+        api.Overrides[nameof(ICoachApiClient.StartSessionAsync)] = _ =>
+        {
+            sessionReads++;
+            return Fail<CoachSessionResponse>(new CoachApiException(
+                HttpStatusCode.NotFound, CoachProblemTypes.SessionNotFound, null, null));
+        };
+
+        await sam.AcceptWriteAsync("w-plan");
+
+        Assert.Equal(CoachWriteStatus.Executed,
+            Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write!.Status);
+        Assert.Equal(1, raised);
+        // The session is read again, so the next plan change carries the new plan's version and
+        // is not refused as changed elsewhere.
+        Assert.Equal(1, sessionReads);
+
+        await sam.RefreshWriteAsync("w-plan");
+        Assert.Equal(1, raised);
+    }
+
+    /// <summary>
+    /// The learner accepted the new plan on another device. When this one reads the conversation
+    /// again the card arrives applied, and the dashboard reads the plan again.
+    /// </summary>
+    [Fact]
+    public async Task ANewPlanAcceptedElsewhereRaisesPlanChangedWhenTheTranscriptIsRead()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.Conversations.Add(Conversation("thread", minutesAgo: 1));
+        api.Messages["thread"] = [PlanCard(CoachWriteStatus.Proposed)];
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        Assert.Equal(CoachWriteStatus.Proposed,
+            Assert.Single(sam.State.SafeEntries, entry => entry.Write is not null).Write!.Status);
+        var raised = 0;
+        sam.PlanChanged += () => raised++;
+
+        api.Messages["thread"] = [PlanCard(CoachWriteStatus.Executed)];
+        await sam.OpenConversationAsync("thread");
+
+        Assert.Equal(1, raised);
+        await sam.OpenConversationAsync("thread");
+        Assert.Equal(1, raised);
+
+        static CoachHistoryMessageDto PlanCard(CoachWriteStatus status) => new()
+        {
+            Message = new CoachMessageDto
+            {
+                MessageId = "m-plan", Role = CoachMessageRole.Coach, Kind = CoachMessageKind.Text,
+                Text = "A new plan for today is ready for you to approve.", CreatedAtUtc = DateTime.UtcNow
+            },
+            Sequence = 1,
+            WriteOperation = new CoachWriteOperationDto
+            {
+                OperationId = "w-plan", ConversationId = "thread",
+                ChangeKind = CoachWriteChangeKind.PlanRegenerate, RiskClass = CoachWriteRiskClass.WriteSoft,
+                Status = status, ApprovalMode = "accept", Summary = "Replace today\u2019s plan with a new one",
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10), RequiresConfirmation = false, IsReversible = false
+            }
+        };
+    }
+
+    [Fact]
+    public async Task AcceptingAnotherChangeDoesNotRaisePlanChanged()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-1", conversation, hard: false));
+        var sam = await OpenAsync(fixture, api);
+        var raised = 0;
+        sam.PlanChanged += () => raised++;
+
+        sam.SetDraft("add 사과 to my words");
+        await sam.SendAsync();
+        await sam.AcceptWriteAsync("w-1");
+
+        Assert.Equal(0, raised);
+    }
+
     [Fact]
     public async Task SoftWriteAppliesOnlyOnAcceptAndOffersTheReceiptUndo()
     {
@@ -1191,6 +1300,35 @@ public sealed class NativeSamPresenterTests
         Assert.Equal(NativeSamStatus.Ready, NativeSamPresenter.FromTurn(Turn(CoachTurnStatus.Rejected,
             CoachStopReason.ValidationFailed,
             limitation: new CoachLimitationDto { Code = CoachLimitationCode.RefusedByDesign })));
+    }
+
+    /// <summary>
+    /// Source CoachStateMachine.FromTurn: the limit card ("Choose one option.") is a choice about
+    /// an open offer. Without one a question is a question, and the server's notice for a
+    /// withheld question leaves the learner ready to type.
+    /// </summary>
+    [Fact]
+    public void TheClarificationLimitCardNeedsAnOfferToChooseAbout()
+    {
+        CoachTurnResponse Asked(bool offer) => Turn(
+            CoachTurnStatus.Incomplete, CoachStopReason.ClarificationRequested,
+            suggestion: offer ? Suggestion("s-1") : null);
+
+        var lastQuestion = Copy(Asked(offer: false), "Which words do you mean?");
+        var withheld = Asked(offer: false);
+        var withOffer = Copy(Asked(offer: true), "Should I update Today's Plan with that change now?");
+
+        Assert.Equal(NativeSamStatus.Clarification, NativeSamPresenter.FromTurn(lastQuestion));
+        Assert.Equal(NativeSamStatus.Ready, NativeSamPresenter.FromTurn(withheld));
+        Assert.Equal(NativeSamStatus.ClarificationLimitReached, NativeSamPresenter.FromTurn(withOffer));
+
+        static CoachTurnResponse Copy(CoachTurnResponse turn, string question) => new()
+        {
+            SessionId = turn.SessionId, TurnId = turn.TurnId, Status = turn.Status, StopReason = turn.StopReason,
+            SessionStatus = CoachSessionStatus.AwaitingClarification, ActiveConstraints = turn.ActiveConstraints,
+            PlanState = turn.PlanState, PendingSuggestion = turn.PendingSuggestion, Evidence = turn.Evidence,
+            ExpiresAtUtc = turn.ExpiresAtUtc, ClarifyingQuestion = question, ClarificationsRemaining = 0
+        };
     }
 
     private static FakeSam WriteEnabled() => new()

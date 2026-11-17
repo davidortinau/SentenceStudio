@@ -1,8 +1,12 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Api.Coach.Application;
+using SentenceStudio.Api.Coach.Application.History;
 using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Persistence.History;
 using SentenceStudio.Api.Coach.Reports;
+using SentenceStudio.Api.Tests.Coach.History;
 using SentenceStudio.Contracts.Coach;
 
 namespace SentenceStudio.Api.Tests.Coach.Reports;
@@ -478,7 +482,63 @@ public class CoachResponseReportServiceTests
     {
         CoachResponseReportService.ReadStopReason("not json at all").Should().BeNull();
         CoachResponseReportService.ReadStopReason("{}").Should().BeNull();
+        CoachResponseReportService.ReadStopReason("[]").Should().BeNull();
+        CoachResponseReportService.ReadStopReason("""{"answer": "text"}""").Should().BeNull();
         CoachResponseReportService.ReadStopReason(null).Should().BeNull();
+    }
+
+    /// <summary>
+    /// The shape every current turn is stored in: the response inside the outcome's answer
+    /// section, with no stop reason at the root.
+    /// </summary>
+    /// <remarks>
+    /// The cases above hand the reader a root-level stop reason, which is the version-1 shape no
+    /// build writes any more. That is how the reader passed its tests while every report in
+    /// production stored an empty stop reason (issue 227).
+    /// </remarks>
+    [Fact]
+    public void TheStopReasonIsReadFromAWrappedOutcomesAnswerSection()
+    {
+        CoachResponseReportService.ReadStopReason(StoredPayload("\"ClarificationRequested\""))
+            .Should().Be(CoachStopReason.ClarificationRequested);
+
+        CoachResponseReportService.ReadStopReason(StoredPayload($"{(int)CoachStopReason.ValidationFailed}"))
+            .Should().Be(CoachStopReason.ValidationFailed);
+
+        CoachResponseReportService.ReadStopReason(StoredPayload("\"NotAStopReason\"")).Should().BeNull();
+        CoachResponseReportService.ReadStopReason(StoredPayload("999")).Should().BeNull();
+    }
+
+    /// <summary>
+    /// One field is read, so a response this build cannot otherwise deserialize still says how
+    /// its turn ended.
+    /// </summary>
+    [Fact]
+    public void TheStopReasonSurvivesAResponseThisBuildCannotOtherwiseRead()
+    {
+        var payload = JsonNode.Parse(StoredPayload("\"ValidationFailed\""))!;
+        payload["answer"]!["status"] = "AStatusFromALaterBuild";
+
+        CoachConversationService.ReadOutcome(payload.ToJsonString(), CoachConversationService.CurrentOutcomeSchemaVersion)
+            .Should().BeNull("the strict reader gives up on the whole response");
+
+        CoachResponseReportService.ReadStopReason(payload.ToJsonString())
+            .Should().Be(CoachStopReason.ValidationFailed);
+    }
+
+    /// <summary>
+    /// A stored outcome in the shape the conversation service writes, with the response's stop
+    /// reason replaced by <paramref name="stopReasonJson"/>.
+    /// </summary>
+    private static string StoredPayload(string stopReasonJson)
+    {
+        var web = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var payload = JsonSerializer.SerializeToNode(
+            new CoachStoredTurnOutcome(CoachGroundingSectionSchemaTests.Answer(), null), web)!;
+
+        payload["answer"]!["stopReason"] = JsonNode.Parse(stopReasonJson);
+
+        return payload.ToJsonString();
     }
 
     [Fact]
@@ -521,6 +581,36 @@ public class CoachResponseReportServiceTests
         var report = (await harness.RowsAsync()).Should().ContainSingle().Subject;
         var ledger = (await harness.OpportunitiesAsync()).Should().ContainSingle().Subject;
 
+        report.OpportunityId.Should().Be(ledger.Id);
+    }
+
+    /// <summary>
+    /// The link has to hold when the report knows how the turn ended, which is every report on a
+    /// turn whose outcome is still stored.
+    /// </summary>
+    /// <remarks>
+    /// The stop reason is part of the ledger row's identity, and the report finds its row again by
+    /// deriving that identity a second time. While the report could not read the stop reason both
+    /// derivations saw null and agreed trivially.
+    /// </remarks>
+    [Fact]
+    public async Task TheReportPointsAtTheLedgerRowItRaisedWhenTheStopReasonIsKnown()
+    {
+        using var harness = new CoachResponseReportHarness();
+        var turn = await harness.SeedTurnAsync(responseKind: CoachMessageKind.Notice);
+        await harness.CompleteTurnOperationAsync(turn, StoredPayload("\"ValidationFailed\""));
+
+        await using var db = harness.NewContext();
+        var service = harness.NewService(db);
+
+        await service.ReportAsync(turn.ConversationId, turn.ResponseMessageId, Request());
+
+        var report = (await harness.RowsAsync()).Should().ContainSingle().Subject;
+        var ledger = (await harness.OpportunitiesAsync()).Should().ContainSingle().Subject;
+
+        report.TurnStatus.Should().Be(CoachTurnOperationStatus.Completed);
+        report.StopReason.Should().Be(CoachStopReason.ValidationFailed);
+        ledger.StopReason.Should().Be(CoachStopReason.ValidationFailed);
         report.OpportunityId.Should().Be(ledger.Id);
     }
 

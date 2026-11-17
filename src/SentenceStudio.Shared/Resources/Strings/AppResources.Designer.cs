@@ -4837,6 +4837,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Make a new plan for today.
+        /// </summary>
+        internal static string Coach_WriteKindPlanRegenerate {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindPlanRegenerate", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Add a resource.
         /// </summary>
         internal static string Coach_WriteKindResourceAdd {

@@ -42,6 +42,7 @@ public static class CoachWriteProjection
         CoachToolNames.ProposeExampleSentenceEntry => CoachWriteChangeKind.ExampleSentenceAdd,
         CoachToolNames.ProposeExampleSentenceEdit => CoachWriteChangeKind.ExampleSentenceEdit,
         CoachToolNames.ProposeExampleSentenceRemoval => CoachWriteChangeKind.ExampleSentenceRemove,
+        CoachToolNames.ProposePlanRegeneration => CoachWriteChangeKind.PlanRegenerate,
         _ => CoachWriteChangeKind.Unknown
     };
 

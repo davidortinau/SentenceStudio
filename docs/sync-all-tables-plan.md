@@ -610,6 +610,60 @@ names another owner or reuses another learner's ID is refused; a row with no own
 out and stays on the device (`NativeOwnerSyncProvider`; MAUI's `OwnerCheckedSyncProvider`
 reads owners from `SyncRowOwners`). It is a late table (`SyncLateTables`), so a device that
 synced with an older app asks for decisions made elsewhere.
+## Smart resources (2026-11-16)
+
+Captain, 2026-11-16: each learner has one set of smart lists (Daily Review, New Words
+Practice, Struggling Words, Phrases, Sentences), with no copies. Smart lists are ordinary
+`LearningResource` rows (`IsSmartResource` true, `SmartResourceType` set) and sync like any
+resource, but every client that seeds them makes them itself: the web, and the MAUI app on
+its own database. A MAUI app that seeded before its first sync made a second set with new
+IDs, which its upload put beside the server's.
+
+**One row per learner and type.** A smart list is created with the ID
+`"sr:" + hex(first 16 bytes of SHA-256(UTF-8(owner U+001F type)))`, lower-case hex, where
+`type` is the stored `SmartResourceType` (`DailyReview`, `NewWords`, `Struggling`, `Phrases`,
+`Sentences`) (`SyncIds.SmartResource`). The learner's profile ID is hashed because resource
+IDs travel in URLs. Test vectors (checked in `SmartResourceCopiesTests`): owner `owner-1`,
+`DailyReview` is `sr:c4e8cc8fdaca586ec9375d2b3727ebce`; owner `owner-1`, `Phrases` is
+`sr:2c9d87bc49541f1fb584a09fc0cda6cb`. A second client's insert of the same row reaches the
+server as an update of it (CoreSync applies an insert whose ID is stored as an update, and the
+owner check accepts it for the same owner: `NativeOwnerSyncPostgresTests`,
+`SmartListMadeOnAPhoneBeforeItsFirstSync_IsTheServersRow`). Lists made before this keep the
+GUID they were made with.
+
+**Copies already stored.** The server folds them: when the web app (the one host that seeds
+smart lists on the server's PostgreSQL database; the API does not seed them) first sets up a
+learner's lists in a process, it keeps one list of each type and folds the others into it
+(`SmartResourceService.MergeExtraCopiesAsync`, `LearningResourceRepository.MergeSmartResourceCopiesAsync`).
+It keeps the list with the lowest ID (ordinal); not the oldest, because lists made before the
+UTC change hold a local wall clock. A list made before the fixed IDs is a GUID, which sorts
+before every `sr:` ID, so the list the learner's devices already use is kept, and a copy a new
+device made before its first sync is the one folded (that device then has the type and does
+not make it again). In one transaction, holding the sync upload lock so no upload interleaves,
+it moves every row that names a copy to the kept list (`ExampleSentence.LearningResourceId`,
+`VideoImport.LearningResourceId`, `VocabularyLookup.ResourceId`,
+`VocabularyLearningContext.LearningResourceId`), deletes the copies and their word links, and
+refills the kept list. The deletion log carries the deletes to the learner's devices. A smart
+list holds nothing the learner wrote (its words are links refilled from their progress), so
+nothing of theirs is lost.
+
+A device never folds. It holds only what it has synced so far, so a fold there could delete
+the server's lists while rows it has not downloaded, or another device has not uploaded, still
+name them. A client that seeds smart lists (the Flutter port included) creates them with the
+fixed ID and leaves copies to the server.
+
+**When it runs.** Once per learner per web process: a learner's copies are folded the first
+time the web app loads their profile after a start (a deploy, a restart). A learner who never
+opens the web app keeps their copies.
+
+**Left as they are.** Plan items (`DailyPlanCompletion.ResourceId`): the plan builder never
+picks a smart list, and a plan item's ID is a hash of its resource, so moving one would make it
+a different item. Also: an unfinished activity run launched from a copy (its ID and launch key
+name the resource) starts again; a copy saved in a device's "choose your own" selection is
+dropped from it; and a row a device wrote offline naming a copy, uploaded before the delete
+reaches the device, is left out of the upload (the owner check refuses a row naming a resource
+that is not the learner's) and stays on that device.
+
 ## Known marks and the Learning mode (2026-11-14)
 
 Captain, 2026-11-14 (`docs/known-words-plan.md`). The contract for every client (web, MAUI,

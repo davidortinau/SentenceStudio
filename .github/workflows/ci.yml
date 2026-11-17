@@ -493,8 +493,7 @@ jobs:
           gated_classes = {
               "SentenceStudio.WebApp.Tests.Auth.WebSignInCookieHandoffTests",
               "SentenceStudio.WebApp.Tests.Auth.ServerAuthCircuitTokenTests",
-              "SentenceStudio.WebApp.Tests.Operator.SamOperatorEnvironmentGateTests",
-              "SentenceStudio.WebApp.Tests.Operator.SamOperatorSurfaceSessionTests",
+              "SentenceStudio.WebApp.Tests.Admin.AdminPagePrerenderTests",
               "SentenceStudio.WebApp.Tests.Infrastructure.WebAppPostgresServerSafetyTests",
           }
           classes_by_id = {}

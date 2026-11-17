@@ -480,3 +480,35 @@ fix commits were fixed on the branch. These are what was left.
   this one, a few milliseconds wide on one host. The fix is to store the flag count a triage saw
   (one integer column on `CoachOpportunity`, which needs the Captain's approval) and compare
   counts instead of times.
+
+## Sam's clarification cap and new plan (reviews 2026-11-16, branch `feedback/issue-227`)
+
+All nine items recorded here on 2026-11-16 were fixed on the same branch on 2026-11-17, at the
+Captain's request:
+
+- A refused vocabulary review was recorded as a reply. The turn is now recorded after its set
+  passes the due-word check, and every answer-leak refusal is recorded as refused
+  (`CoachVocabularySetVerticalSliceTests`).
+- Two completed no-change exits skipped the recorder; both go through it now
+  (`CoachSessionStateTransitionTests.AControlChangeThatChangesNothing_IsRecordedAsAReply`).
+- "Choose one option." showed with nothing to choose. The limit card now needs an open offer;
+  without one a question is a question and a withheld one leaves the learner ready to type
+  (web `CoachStateMachine`, native `NativeSamPresenter.FromTurn`).
+- A new learner who talked to Sam lost the Welcome screen: the app's smart lists counted as
+  their resources. They no longer do, on the web dashboard and the native one.
+- Smart lists were created more than once: seeding is now one at a time per learner, in a
+  process and across app instances on PostgreSQL (`SmartResourceSeedingPostgresTests`; twelve
+  seeds at once made 60 lists before the fix). A MAUI app seeding its own database before its
+  first sync could still add a second set; lists now get one ID per learner and type
+  (`SyncIds.SmartResource`), and the server folds copies already stored into one when it sets
+  up the lists (Captain, 2026-11-16: one set per learner). See `docs/sync-all-tables-plan.md`,
+  "Smart resources". Review cleanup not done: the fold's four reference moves are separate
+  loops (`LearningResourceRepository.MergeSmartResourceCopiesAsync`); a table that names a
+  resource added later has to be added there by hand.
+- Undo of an older Sam change after a new plan: snapshots now carry the plan row's id; such an
+  undo is refused as a plan changed elsewhere and Undo is not offered for it.
+- A new plan accepted on another device is noticed when this client learns of it: its card
+  refreshed or accepted, or the conversation's history read again.
+- `propose_plan_regeneration` is tested through the real ledger on PostgreSQL
+  (`CoachPlanRegenerationLedgerPostgresTests`).
+- `RegenerateTodayAsync` runs the generator read-only on a device's SQLite database.

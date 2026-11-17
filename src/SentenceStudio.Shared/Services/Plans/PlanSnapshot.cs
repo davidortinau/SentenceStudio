@@ -65,6 +65,17 @@ public sealed record PlanSnapshot
     /// <summary>Opaque version token clients echo back. Format: <c>v{format}:{hash}</c>.</summary>
     public required string Version { get; init; }
 
+    /// <summary>
+    /// The <c>DailyPlan</c> row these items belong to, where the reader knew it. Not part of the
+    /// hash or the version.
+    /// </summary>
+    /// <remarks>
+    /// Regenerating a plan (the dashboard's Regenerate Plan, or Sam's) removes the row and makes
+    /// a new one, often with the same item identifiers. Only this tells an undo of a change made
+    /// to the old plan that the plan it would restore is gone.
+    /// </remarks>
+    public string? PlanId { get; init; }
+
     public int TotalEstimatedMinutes => Items.Sum(i => i.EstimatedMinutes);
 
     public int TotalMinutesSpent => Items.Sum(i => i.MinutesSpent);

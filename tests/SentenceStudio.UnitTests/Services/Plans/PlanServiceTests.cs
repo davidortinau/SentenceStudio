@@ -239,6 +239,151 @@ public sealed class PlanServiceTests : IDisposable
         Assert.Null(after);
     }
 
+    // ---------- RegenerateTodayAsync: what Sam and the dashboard's Regenerate Plan do ----------
+
+    [Fact]
+    public async Task RegenerateToday_ReplacesThePlanAtZero_AndKeepsWhatWasLoggedInHistory()
+    {
+        _generator.SetActivities(
+            ("Reading", "resource-1", null, 15, 1),
+            ("VocabularyReview", null, null, 10, 2));
+        var service = NewService();
+        var first = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        var readingId = first.Items.First(i => i.ActivityType == "Reading").Id;
+        await service.MarkCompleteAsync(first.GeneratedForDate, readingId, 8);
+
+        var regenerated = await NewService().RegenerateTodayAsync();
+
+        Assert.NotNull(regenerated);
+        Assert.Equal(2, regenerated!.Items.Count);
+        Assert.Equal(0, regenerated.CompletedCount);
+        Assert.All(regenerated.Items, item =>
+        {
+            Assert.False(item.IsCompleted);
+            Assert.Equal(0, item.MinutesSpent);
+        });
+
+        using var verify = _provider.CreateScope();
+        var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var rows = await db.DailyPlanCompletions.AsNoTracking().Where(c => c.UserProfileId == UserA).ToListAsync();
+        var archived = rows.Where(r => r.IsArchived).ToList();
+        Assert.Equal(2, archived.Count);
+        Assert.Contains(archived, r => r.IsCompleted && r.MinutesSpent == 8);
+        Assert.Equal(2, rows.Count(r => !r.IsArchived));
+        Assert.Single(await db.DailyPlans.AsNoTracking().Where(p => p.UserProfileId == UserA).ToListAsync());
+    }
+
+    [Fact]
+    public async Task RegenerateToday_WithNoPlan_MakesOne()
+    {
+        _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
+
+        var plan = await NewService().RegenerateTodayAsync();
+
+        Assert.NotNull(plan);
+        Assert.Single(plan!.Items);
+        Assert.NotNull(await NewService().GetTodayAsync());
+    }
+
+    [Fact]
+    public async Task RegenerateToday_WithNothingToPlanFrom_ChangesNothing()
+    {
+        _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
+        var service = NewService();
+        var first = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        await service.MarkCompleteAsync(first.GeneratedForDate, first.Items.Single().Id, 9);
+
+        // The learner's content is gone, or was never there: no activity can be planned.
+        _generator.SetActivities();
+        var regenerated = await NewService().RegenerateTodayAsync();
+
+        Assert.Null(regenerated);
+        var still = await NewService().GetTodayAsync();
+        Assert.NotNull(still);
+        var item = Assert.Single(still!.Items);
+        Assert.True(item.IsCompleted);
+        Assert.Equal(9, item.MinutesSpent);
+    }
+
+    /// <summary>
+    /// The preview says a plan can be built and the generation that follows the reset builds
+    /// none. The reset has to come back with it: a learner must never be left with their plan
+    /// cleared and nothing in its place.
+    /// </summary>
+    [Fact]
+    public async Task RegenerateToday_WhenGenerationFailsAfterTheReset_PutsThePlanBack()
+    {
+        _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
+        var service = NewService();
+        var first = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        await service.MarkCompleteAsync(first.GeneratedForDate, first.Items.Single().Id, 9);
+
+        // One more answer with activities (the preview), then nothing (the generation).
+        _generator.ReturnNothingAfter(calls: 1);
+        var regenerated = await NewService().RegenerateTodayAsync();
+
+        Assert.Null(regenerated);
+        Assert.Equal(2, _generator.CallsSinceScript);
+
+        using var verify = _provider.CreateScope();
+        var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var plan = await db.DailyPlans.AsNoTracking().SingleAsync(p => p.UserProfileId == UserA);
+        Assert.Equal(first.GeneratedAtUtc, plan.GeneratedAtUtc);
+        var row = await db.DailyPlanCompletions.AsNoTracking().SingleAsync(c => c.UserProfileId == UserA);
+        Assert.False(row.IsArchived);
+        Assert.True(row.IsCompleted);
+        Assert.Equal(9, row.MinutesSpent);
+    }
+
+    [Fact]
+    public async Task RegenerateToday_TouchesOnlyTheScopedLearnersPlan_AndLeavesAdHocRows()
+    {
+        _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
+
+        _scope.SetUser(UserB);
+        var planB = await NewService().GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        await NewService().MarkCompleteAsync(planB.GeneratedForDate, planB.Items.Single().Id, 7);
+
+        _scope.SetUser(UserA);
+        await NewService().GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        var today = new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc);
+        using (var seed = _provider.CreateScope())
+        {
+            var seedDb = seed.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            seedDb.DailyPlanCompletions.Add(new SentenceStudio.Shared.Models.DailyPlanCompletion
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserProfileId = UserA,
+                Date = today,
+                PlanItemId = "adhoc-" + Guid.NewGuid(),
+                ActivityType = "VocabularyReview",
+                IsCompleted = true,
+                MinutesSpent = 1,
+                EstimatedMinutes = 10,
+                Priority = 1,
+                TitleKey = string.Empty,
+                DescriptionKey = string.Empty,
+                CreatedAt = today,
+                UpdatedAt = today,
+            });
+            seedDb.SaveChanges();
+        }
+
+        Assert.NotNull(await NewService().RegenerateTodayAsync());
+
+        using var verify = _provider.CreateScope();
+        var db = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adHoc = await db.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(c => c.PlanItemId.StartsWith("adhoc-"));
+        Assert.False(adHoc.IsArchived);
+
+        _scope.SetUser(UserB);
+        var stillB = await NewService().GetTodayAsync();
+        Assert.NotNull(stillB);
+        Assert.True(Assert.Single(stillB!.Items).IsCompleted);
+        Assert.Equal(planB.GeneratedAtUtc, stillB.GeneratedAtUtc);
+    }
+
     [Fact]
     public async Task MultiUserIsolation_UserACannotSeeUserBPlan()
     {
@@ -425,11 +570,34 @@ public sealed class PlanServiceTests : IDisposable
             }).ToList();
         }
 
+        private int? _nothingAfter;
+
+        /// <summary>Calls answered since <see cref="ReturnNothingAfter"/> was set.</summary>
+        public int CallsSinceScript { get; private set; }
+
+        /// <summary>The next <paramref name="calls"/> answers have activities; later ones have none.</summary>
+        public void ReturnNothingAfter(int calls)
+        {
+            _nothingAfter = calls;
+            CallsSinceScript = 0;
+        }
+
         public void SetNarrative(PlanNarrative? narrative) => _narrative = narrative;
         public void SetFocusVocabularyIds(params string[] focusVocabularyIds) => _focusVocabularyIds = focusVocabularyIds.ToList();
 
         public Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
         {
+            CallsSinceScript++;
+            if (_nothingAfter is { } limit && CallsSinceScript > limit)
+            {
+                return Task.FromResult<PlanSkeleton?>(new PlanSkeleton
+                {
+                    Activities = new List<PlannedActivity>(),
+                    TotalMinutes = 0,
+                    ResourceSelectionReason = string.Empty,
+                });
+            }
+
             var focusIds = _focusVocabularyIds.ToList();
             return Task.FromResult<PlanSkeleton?>(new PlanSkeleton
             {

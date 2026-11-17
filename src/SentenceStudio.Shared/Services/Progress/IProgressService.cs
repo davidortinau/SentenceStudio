@@ -228,6 +228,16 @@ public interface IProgressService
     /// for tests; production callers should pass <c>null</c> (see <see cref="GetCachedPlanAsync"/>).
     /// </summary>
     Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Forgets the plan held in memory and touches nothing stored, so the next
+    /// <see cref="GetCachedPlanAsync"/> reads the plan from the database again. For when the plan
+    /// was replaced by something other than this service (Sam, on the server): the membership
+    /// check in <see cref="GetCachedPlanAsync"/> cannot see a new plan whose items have the same
+    /// identifiers as the old one's. Never use <see cref="ClearCachedPlanAsync"/> for this: it
+    /// would archive the plan that was just made.
+    /// </summary>
+    void InvalidateCachedPlan(DateTime? date = null);
     Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
 

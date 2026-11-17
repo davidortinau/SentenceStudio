@@ -28,7 +28,7 @@ else
                         @FormatTime(revision.CreatedAtUtc)
                     </div>
                 </div>
-                @if (isLatest && revision.CanUndo && !revision.IsUndone)
+                @if (isLatest && revision.CanUndo && !revision.IsUndone && Coach.PlanState?.CanUndo != false)
                 {
                     <button type="button" class="btn btn-ss-secondary coach-action"
                             disabled="@Coach.IsBusy"

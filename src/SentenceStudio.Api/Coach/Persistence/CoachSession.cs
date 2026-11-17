@@ -62,7 +62,10 @@ public sealed class CoachSession
     /// <summary>Number of learner turns processed in this session.</summary>
     public int TurnCount { get; set; }
 
-    /// <summary>Number of clarification questions the coach asked in this session.</summary>
+    /// <summary>
+    /// Number of clarification questions the coach has asked in a row. A turn that ends in a
+    /// reply sets it back to zero; see <c>CoachSessionService.RecordTurnOutcomeAsync</c>.
+    /// </summary>
     public int ClarificationCount { get; set; }
 
     /// <summary>Number of applied plan revisions produced by this session.</summary>

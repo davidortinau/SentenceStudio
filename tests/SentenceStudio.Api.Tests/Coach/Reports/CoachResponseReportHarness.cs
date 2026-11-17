@@ -210,6 +210,39 @@ internal sealed class CoachResponseReportHarness : IDisposable
             operationId);
     }
 
+    /// <summary>
+    /// Gives a seeded exchange the durable turn operation its messages name, completed with
+    /// <paramref name="outcomePayload"/> as its replayable outcome.
+    /// </summary>
+    public async Task CompleteTurnOperationAsync(SeededTurn turn, string outcomePayload, string owner = "learner-a")
+    {
+        await using var db = NewContext();
+        var operations = NewTurnOperationStore(db);
+        var coachOwner = CoachOwner.ForUser(owner);
+
+        var claim = await operations.ClaimAsync(coachOwner, new ClaimCoachTurnRequest(
+            turn.ConversationId,
+            IdempotencyKey: $"key-{turn.OperationId}",
+            RequestPayload: "{}",
+            LeaseOwner: "worker-a",
+            LeaseDuration: TimeSpan.FromMinutes(2),
+            OperationId: turn.OperationId));
+
+        claim.Outcome.Should().Be(CoachTurnClaimOutcome.Claimed);
+
+        var completed = await operations.CompleteAsync(
+            coachOwner,
+            turn.OperationId,
+            "worker-a",
+            claim.FencingVersion,
+            outcomePayload,
+            SentenceStudio.Api.Coach.Application.History.CoachConversationService.CurrentOutcomeSchemaVersion,
+            firstResponseSequence: null,
+            lastResponseSequence: null);
+
+        completed.Outcome.Should().Be(CoachTurnFinalizeOutcome.Success);
+    }
+
     private static CoachMessagePayload Payload(string text) => new()
     {
         Kind = CoachMessagePayloadKind.CoachText,
