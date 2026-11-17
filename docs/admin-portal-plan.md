@@ -689,6 +689,38 @@ go to a full session".
   says or does, a schema change, a new dependency or anything in production.
 - Issues 226 and 227 were labelled and queued. The first fix run was started by hand on 227.
 
+**What the first issue taught, and what changed (2026-11-17)**
+
+Issue 227 took one unattended run and then four more passes in the Captain's own session,
+about four and a half hours in all, because the check could not continue a pull request it
+had opened. `main`'s checks were also red for a day without anyone being told, and the check
+itself ran from the working checkout's branch, with commits that were not on GitHub. The
+Captain chose three changes from the ten proposed:
+
+- **Follow-up passes.** A comment of his on one of the check's pull requests that starts with
+  `/revise` is taken by the next run, before any new issue, on the same branch. Only the
+  repository owner's comments count and only they are shown to the session; a pull request from
+  a fork is never the check's own. Each request is answered once. `scripts/admin-feedback-pr.py`
+  finds them; `docs/admin-feedback-fix.md` ("A follow-up pass") is what the session follows.
+- **Checks.** A fix session waits for its pull request's checks and fixes what is its own. The
+  runner reads them again into the summary, with whether `main` fails each one too, and every
+  run reports `main`'s own checks, with a notification when they turn red.
+  - The unit test that had kept `main` red was a real fault, not a slow runner: a second
+    confirmation that arrived just after the first had finished was answered as a malformed
+    request, not as a conflict. It is fixed in `EfApplicationOperationStore.TransitionAttemptAsync`
+    with a test that does not depend on timing.
+- **The check runs what is on `main`.** launchd starts `scripts/admin-feedback-run.sh` in a
+  checkout of the check's own, which follows `origin/main`.
+
+Checked with a dry-run rig (a throwaway repository and stand-ins for `gh`, `claude` and the
+notification, so no session ran and nothing was posted): nothing waiting; `main` red twice
+(one notification); a request with a stranger's `/revise` beside it (only the owner's words
+reached the session, the push landed on the branch, the request was marked answered and not
+taken again); a session that crashed; one that committed without pushing (worktree kept, the
+next request declined on the pull request); GitHub unreadable (reported as a failure, not as
+nothing waiting); a first pass on a new issue; and the launcher following `main` while leaving
+a checkout on a branch alone. Not yet seen: a real follow-up session on a real pull request.
+
 **Left for later**
 
 - Replace the token before 2026-12-16: create a new one in the portal and write it to Key Vault.
@@ -704,7 +736,7 @@ go to a full session".
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; deployed on 2026-11-16 with phases 1, 3 and 4. |
-| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word; see "Deployed" and "The feedback check" under "Phase 1 as built". The check runs every four hours on Lilliput. Its nine build choices were not discussed one by one. |
+| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word; see "Deployed" and "The feedback check" under "Phase 1 as built". The check runs every four hours on Lilliput, from `main` since 2026-11-17, and takes `/revise` comments on its own pull requests. Its nine build choices were not discussed one by one. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; deployed the same day. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3; deployed the same day. |
