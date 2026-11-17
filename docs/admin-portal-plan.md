@@ -698,13 +698,19 @@ itself ran from the working checkout's branch, with commits that were not on Git
 Captain chose three changes from the ten proposed:
 
 - **Follow-up passes.** A comment of his on one of the check's pull requests that starts with
-  `/revise` is taken by the next run, before any new issue, on the same branch. Only the
-  repository owner's comments count and only they are shown to the session; a pull request from
-  a fork is never the check's own. Each request is answered once. `scripts/admin-feedback-pr.py`
-  finds them; `docs/admin-feedback-fix.md` ("A follow-up pass") is what the session follows.
-- **Checks.** A fix session waits for its pull request's checks and fixes what is its own. The
-  runner reads them again into the summary, with whether `main` fails each one too, and every
-  run reports `main`'s own checks, with a notification when they turn red.
+  `/revise` (or a review whose summary does) is taken by the next run, before any new issue, on
+  the same branch. Only the repository owner's comments count and only they are shown to the
+  session; a pull request from a fork is never the check's own. Each request gets one pass.
+  `scripts/admin-feedback-pr.py` finds them; `docs/admin-feedback-fix.md` ("A follow-up pass")
+  is what the session follows.
+  - A session posts through his GitHub login, so a request that appears while one is running
+    cannot be told from his. The runner sets it aside and says so on the pull request. The
+    review of this change found that gap; a separate GitHub identity for the sessions would
+    close it properly and is left for later.
+- **Checks.** A fix session waits for its pull request's checks (25 to 45 minutes here) and
+  fixes what is its own. The runner reads them again into the summary, with whether `main`
+  fails each one too, and every run reports `main`'s own checks, with a notification when they
+  turn red. A cancelled check counts as failed.
   - The unit test that had kept `main` red was a real fault, not a slow runner: a second
     confirmation that arrived just after the first had finished was answered as a malformed
     request, not as a conflict. It is fixed in `EfApplicationOperationStore.TransitionAttemptAsync`
@@ -716,10 +722,12 @@ Checked with a dry-run rig (a throwaway repository and stand-ins for `gh`, `clau
 notification, so no session ran and nothing was posted): nothing waiting; `main` red twice
 (one notification); a request with a stranger's `/revise` beside it (only the owner's words
 reached the session, the push landed on the branch, the request was marked answered and not
-taken again); a session that crashed; one that committed without pushing (worktree kept, the
-next request declined on the pull request); GitHub unreadable (reported as a failure, not as
-nothing waiting); a first pass on a new issue; and the launcher following `main` while leaving
-a checkout on a branch alone. Not yet seen: a real follow-up session on a real pull request.
+taken again); a session that wrote a `/revise` itself (set aside, not taken by the next run);
+a session that crashed (his earlier comment on the diff came back with the next request); the
+branch checked out elsewhere on the machine (declined on the pull request once, with git's
+reason in the summary); GitHub unreadable (reported as a failure, the request kept); a first
+pass on a new issue; and the launcher following `main` while leaving a checkout on a branch
+alone. Not yet seen: a real follow-up session on a real pull request.
 
 **Left for later**
 

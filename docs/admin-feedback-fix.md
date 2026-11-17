@@ -54,13 +54,15 @@ it. Nothing a learner wrote goes in it (you have read none).
 
 ## The checks
 
-A pull request whose checks you never looked at is not finished. After every push:
+A pull request whose checks you never looked at is not finished. After every push, run the
+command your prompt gives for this. It is `scripts/admin-feedback-pr.py checks` from the
+runner's own checkout (your branch may be older than that script), with the pull request's
+number, `--wait 3000` and `--head "$(git rev-parse HEAD)"`.
 
-    python3 scripts/admin-feedback-pr.py checks <pull request number> --wait 1500
-
-It waits until every workflow has finished (they register one after another, so a first look
-that shows two green checks proves nothing) and prints each check that failed, with whether
-`main` fails it too.
+It waits until GitHub shows your commit as the head and every workflow has finished (they
+register one after another, so a first look that shows two green checks proves nothing; the
+whole set takes 25 to 45 minutes here) and prints each check that failed, with whether `main`
+fails it too. A check that was cancelled counts as failed: it proved nothing.
 
 - **Fails here and passes on `main`:** yours. Read the job's log (`gh run view --job <id>
   --log-failed`), fix it, push, and wait again. After three attempts at the same failure, stop
@@ -77,8 +79,9 @@ checked. The runner reads the checks again after you finish and puts them in the
 ## A follow-up pass
 
 The Captain reads the pull request and may ask for changes by commenting on it (a comment that
-starts with `/revise`). When he has, the next run starts you on the same branch, at the pull
-request's head, with his request in a file named in your prompt. Then:
+starts with `/revise`, or a review whose summary does). When he has, the next run starts you on
+the same branch, at the pull request's head, with his request in a file named in your prompt.
+Then:
 
 - **His request is the task.** Do what it asks, all of it. If part of it meets one of the stops
   below, do the rest and say which part is waiting and why. If it is unclear, take the reading
@@ -94,10 +97,11 @@ request's head, with his request in a file named in your prompt. Then:
   problem, the fix, how it was checked, and "For the Captain to decide" (mark what he has
   settled as settled, with his answer).
 - Check it as in a first pass: tests, a review of your own diff, then "The checks".
-- **Never write a comment on the pull request that starts with `/revise`.** That is how he asks;
-  a comment of yours that began that way would start another pass.
-- The runner posts the closing comment (what the pass used, and that his request was answered).
-  You do not need to reply to his comment yourself.
+- **Never write a comment or a review that starts with `/revise`, on any pull request.** That is
+  how he asks, and you post through his login. The runner sets aside any request that appears
+  while you are running, so one of yours would only cost him a notice to read.
+- The runner posts the closing comment (how the pass ended and what it used). You do not need to
+  reply to his comment yourself.
 
 ## The pull request
 

@@ -8,8 +8,8 @@
 # The check's own checkout is a git worktree with a detached HEAD
 # (~/work/copilot-worktrees/SentenceStudio/feedback-runner on Lilliput, made with
 # `git worktree add --detach <path> origin/main`). Only such a checkout is ever moved: started
-# from a checkout that is on a branch, or that has changes, this script moves nothing and runs
-# what is there.
+# from a checkout that is on a branch, that has changes, or that is at a commit main does not
+# hold, this script moves nothing and runs what is there.
 #
 # The whole script is one function, read in full before it runs, because the update can replace
 # this file.
@@ -24,6 +24,8 @@ main() {
     note="Not updated: the checkout has uncommitted changes, so it was run as it is."
   elif ! git -C "$root" fetch -q origin main 2>/dev/null; then
     note="Not updated: origin/main could not be fetched, so the last copy was run."
+  elif ! git -C "$root" merge-base --is-ancestor HEAD origin/main 2>/dev/null; then
+    note="Not updated: the checkout is at a commit that is not on main, so it was run as it is."
   elif ! git -C "$root" checkout -q --detach origin/main 2>/dev/null; then
     note="Not updated: origin/main could not be checked out, so the last copy was run."
   fi

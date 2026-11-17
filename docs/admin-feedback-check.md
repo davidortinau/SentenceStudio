@@ -25,17 +25,31 @@ pull request, starting the comment with `/revise` and then saying what you want:
     /revise Make the notice shorter, and keep one confirmation.
 
 The next run takes that before any new issue: a follow-up pass on the same branch, which pushes
-to the same pull request and ends with a comment saying what it used. Each `/revise` comment is
-answered once, whatever came of it; to have it tried again, comment again. Review comments you
-left on the diff since the last pass are handed over with it. Only your comments count: the
-repository is public, so a comment by anyone else, or a pull request from a fork, is never a
-request and is never shown to the session (`scripts/admin-feedback-pr.py`).
+to the same pull request and ends with a comment saying how it ended and what it used. A review
+whose summary starts with `/revise` works the same way. Comments you left on the diff since the
+last pass that finished are handed over with it.
 
-**Checks.** After a fix session the runner waits up to 25 minutes for the pull request's checks
-and writes into the summary which failed, and for each whether `main` fails it too. Every run
-also has one line on `main` itself (`MAIN CI: green`, `red`, or `running`). A red `main` shows
-a notification once per commit and set of failures: it makes every pull request red, and in
-November 2026 it stayed red for a day because nothing said so.
+- **Each request gets one pass.** Once a session has started on it, it is not taken again,
+  whatever came of it; to have it tried again, comment again. A request that cannot get a
+  session (an earlier pass's worktree is still there, or the branch is checked out on Lilliput)
+  is answered on the pull request with the reason. One that could not be reached because GitHub
+  did not answer stays waiting.
+- **Only your comments count.** The repository is public, so a comment by anyone else, or a
+  pull request from a fork, is never a request and is never shown to the session
+  (`scripts/admin-feedback-pr.py`).
+- **A request made while a fix session is running is not taken.** The session posts through
+  your GitHub login, so the check cannot tell a comment it wrote from one of yours, and text it
+  read on a public page could talk it into writing one. The runner marks such a request as
+  answered and says so on the pull request; if it was yours, comment again. Giving the sessions
+  their own GitHub identity would remove this, and is not done.
+
+**Checks.** A fix session waits for its pull request's checks itself (they take 25 to 45
+minutes). After it, the runner looks again for up to 15 minutes and writes into the summary
+which failed, and for each whether `main` fails it too; a cancelled check counts as failed.
+Every run also has one line on `main` itself: `MAIN CI: green`, `red`, `running`, `no checks
+reported` or `unknown` (GitHub did not answer). A red `main` shows a notification once per
+commit and set of failures: it makes every pull request red, and in November 2026 it stayed
+red for a day because nothing said so.
 
 ## Where and when it runs
 
