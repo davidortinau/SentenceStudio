@@ -17,7 +17,9 @@ after it pushes (docs/admin-feedback-fix.md).
       session starts.
   admin-feedback-pr.py appeared --known FILE [--handled FILE]
       Requests waiting now that were not in FILE (a saved snapshot), or whose text has changed
-      since, one line per pull request (pull request, ids). See "Whose words count".
+      since, one line per pull request (pull request, ids, "request"). Also every review the
+      owner has in draft on those pull requests (pull request, ids, "draft"): a session could
+      have added to it, so it is not to be taken once sent. See "Whose words count".
   admin-feedback-pr.py request <pr> --ids ID[,ID...] --out FILE
       Writes those requests to FILE: the text of each, and for a review the comments on the
       diff that are part of it.
@@ -123,11 +125,15 @@ def comments_on(pr):
     return [{**c, "id": str(c["id"])} for c in comments]
 
 
-def reviews_on(pr):
+def reviews_on(pr, drafts=False):
+    """The reviews that have been sent, or with drafts=True the owner's that have not."""
     reviews = gh_lines(
         "api", f"repos/{REPO}/pulls/{pr}/reviews", "--paginate", "--jq",
         ".[] | {id, body, state, created_at: .submitted_at, user: .user.login, assoc: .author_association}")
-    return [{**r, "id": f"r{r['id']}", "review": r["id"]} for r in reviews if r.get("created_at")]
+    reviews = [{**r, "id": f"r{r['id']}", "review": r["id"]} for r in reviews]
+    if drafts:
+        return [r for r in reviews if not r.get("created_at") and owner_wrote(r)]
+    return [r for r in reviews if r.get("created_at")]
 
 
 def inline_on(pr):
@@ -234,7 +240,18 @@ def workflows(sha):
     runs = gh_lines("api", f"repos/{REPO}/actions/runs?head_sha={sha}&per_page=100",
                     "--jq", ".workflow_runs[] | {id, name, status, conclusion, url: .html_url}")
     finished = bool(runs) and all(run.get("status") == "completed" for run in runs)
-    return finished, len(runs), [run for run in runs if run.get("conclusion") in RED]
+    # A workflow can run more than once on a commit; its newest run is the one that counts.
+    newest = {}
+    for run in runs:
+        name = run.get("name") or run["id"]
+        if name not in newest or run["id"] > newest[name]["id"]:
+            newest[name] = run
+    return finished, len(runs), [run for run in newest.values() if run.get("conclusion") in RED]
+
+
+def verdicts_for(ref):
+    """What the checks and workflows on a commit say, for comparing with."""
+    return with_workflows(by_name(check_runs(ref)), workflows(ref)[2])
 
 
 def with_workflows(verdicts, bad):
@@ -257,7 +274,7 @@ def checks(pr, wait, expect_head=None, sleep=time.sleep, clock=time.monotonic):
         finished, count, bad = workflows(head)
         runs = check_runs(head)
         verdicts = with_workflows(by_name(runs), bad)
-        quiet = is_head and finished and runs and all(v["verdict"] != "running" for v in verdicts.values())
+        quiet = is_head and finished and verdicts and all(v["verdict"] != "running" for v in verdicts.values())
         # Workflows register one after another, so one quiet look is not enough: the same
         # finished set has to be there on the next look too.
         signature = (head, count, len(runs)) if quiet else None
@@ -272,7 +289,7 @@ def checks(pr, wait, expect_head=None, sleep=time.sleep, clock=time.monotonic):
     for verdict in verdicts.values():
         tally[verdict["verdict"]] += 1
     where = f"pull request #{pr} at {head[:8]}"
-    still_running = bool(tally["running"] or not finished or not runs or not is_head)
+    still_running = bool(tally["running"] or not finished or not verdicts or not is_head)
     lines = []
     if not is_head:
         lines.append(f"CHECKS: {where}: GitHub does not show {expect_head[:8]} as the head yet, so its checks are not known")
@@ -284,7 +301,7 @@ def checks(pr, wait, expect_head=None, sleep=time.sleep, clock=time.monotonic):
         lines.append(f"CHECKS: {where}: {tally['passed']} passed, {tally['failed']} failed, {tally['skipped']} skipped")
     failed = sorted(name for name, v in verdicts.items() if v["verdict"] == "failed")
     if failed and is_head:
-        on_main = by_name(check_runs("main"))
+        on_main = verdicts_for(gh_lines("api", f"repos/{REPO}/commits/main", "--jq", "{sha}")[0]["sha"])
         for name in failed:
             there = on_main.get(name, {}).get("verdict")
             note = {"failed": "also fails on main", "passed": "passes on main",
@@ -371,10 +388,15 @@ def main(args):
                 return 2
             with open(known_path, encoding="utf-8") as source:
                 known = json.load(source)
-            for found in pending(ids_in(option(args, "--handled")), every=True):
+            handled = ids_in(option(args, "--handled"))
+            for found in pending(handled, every=True):
                 new = [request for request in found["ids"] if known.get(request) != found["prints"][request]]
                 if new:
-                    print(found["pr"], ",".join(new))
+                    print(found["pr"], ",".join(new), "request")
+            for pr in own_pull_requests():
+                drafts = [r["id"] for r in reviews_on(pr["pr"], drafts=True) if r["id"] not in handled]
+                if drafts:
+                    print(pr["pr"], ",".join(drafts), "draft")
             return 0
         if mode == "request" and len(args) >= 2:
             pr = number(args[1], "the pull request")

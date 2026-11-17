@@ -707,8 +707,8 @@ Captain chose three changes from the ten proposed:
     Two reviews of this change pressed on that. What came of it: a session is handed a
     request's own text and nothing else from the pull request (comments on the diff only as
     part of a review that is itself a request), and the runner fingerprints every waiting
-    request before a session and sets aside any that appeared or changed during it, saying so
-    on the pull request. That narrows what a misled session can pass on. It is not a boundary:
+    request before a session and sets aside any that appeared or changed during it, and any
+    review he had in draft, saying so on the pull request. That narrows what a misled session can pass on. It is not a boundary:
     a fix session has his access to the Mac. A separate GitHub identity for the sessions (the
     GitHub App the API already uses to file issues is one candidate) would let the two be told
     apart, and is left for him to decide.

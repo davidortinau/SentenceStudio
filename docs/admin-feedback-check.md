@@ -49,8 +49,12 @@ carries only its own text.
   the next run. This narrows what a misled session can pass on; it is not a boundary, because a
   fix session has your access to this Mac. Giving the sessions their own GitHub identity is
   what would let the two be told apart, and is not done.
+- **A review you have in draft while a fix session runs** is not taken once you send it, for
+  the same reason: a session could have added to it, and nothing would show that. The runner
+  says so on the pull request; discard the draft and write the review again.
 - **A run that dies during its session** (a shutdown, a logout) writes no summary. The next run
-  says so, on the pull request too, and names the worktree left behind.
+  says so and names the worktree left behind; for a follow-up pass it says so on the pull
+  request too, and for a first pass it labels the issue so that later runs move on.
 
 **Checks.** A fix session waits for its pull request's checks itself (they take 25 to 45
 minutes). After it, the runner looks again for up to 15 minutes and writes into the summary

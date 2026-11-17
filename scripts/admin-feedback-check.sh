@@ -68,7 +68,7 @@ MODE="${1:-both}"
 ISSUE_ARG="${2:-}"
 case "$MODE" in
   both|--triage-only|--fix-only|--probe) ;;
-  *) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
 # What the runner keeps for itself is in state/, apart from fix/, the folder a session is given.
@@ -311,6 +311,7 @@ CHECKS_COMMAND="python3 $ROOT/scripts/admin-feedback-pr.py checks <pull request 
 # request's number, $2 the request ids joined by commas, $3 a file with the comment's text.
 answer_requests() {
   local pr=$1 ids=$2 text=$3 id
+  [ -n "$pr" ] && [ -n "$ids" ] || return 0
   for id in ${ids//,/ }; do
     grep -qx "$id" "$HANDLED" 2>/dev/null || printf '%s\n' "$id" >> "$HANDLED"
   done
@@ -343,37 +344,54 @@ save_known_requests() {
 # the pull request. Fails when GitHub cannot be read; the saved list is then kept and this is
 # tried again before any other fix work, so what he asks in between is set aside too.
 set_aside_new_requests() {
-  local appeared pr ids note="$OUT/state/aside-$STAMP.tmp"
+  local appeared pr ids kind note="$OUT/state/aside-$STAMP.tmp"
   [ -f "$KNOWN" ] || return 0
   appeared="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" appeared --known "$KNOWN" --handled "$HANDLED" 2>/dev/null)" || return 1
-  while read -r pr ids; do
+  while read -r pr ids kind; do
     [ -n "$pr" ] && [ -n "$ids" ] || continue
-    printf '%s\n' "A \`/revise\` request appeared or changed here while a fix session was running, or before the check could confirm that the session had ended. It was not taken: a session posts through your login, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
+    if [ "$kind" = draft ]; then
+      # A session can add comments to a review that has not been sent, and nothing would show it.
+      printf '%s\n' "You had a review in draft here while a fix session was running, or before the check could confirm that the session had ended. It will not be taken as a request once sent: a session posts through your login and could have added to it. Discard the draft and write the review again." > "$note"
+      { echo "FIX RESULT: set aside a draft review on pull request #$pr"; echo; echo "A review was in draft there while a session ran. It will not be taken once sent, and that is said on the pull request."; echo; } >> "$RUN"
+    else
+      printf '%s\n' "A \`/revise\` request appeared or changed here while a fix session was running, or before the check could confirm that the session had ended. It was not taken: a session posts through your login, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
+      { echo "FIX RESULT: set aside a request on pull request #$pr"; echo; echo "A /revise request appeared or changed there while a session ran. It was not taken, and that is said on the pull request."; echo; } >> "$RUN"
+    fi
     answer_requests "$pr" "$ids" "$note"
-    { echo "FIX RESULT: set aside a request on pull request #$pr"; echo; echo "A /revise request appeared or changed there while a session ran. It was not taken, and that is said on the pull request."; echo; } >> "$RUN"
     NOTIFY=yes
   done <<< "$appeared"
   rm -f "$note" "$KNOWN"
 }
 
 # A run that died while its session was running (a shutdown, a logout) wrote no summary and
-# posted nothing. The next run says what was lost. The record is "issue <n> <tree>" or
-# "follow-up <pr> <ids> <tree>".
+# posted nothing. The next run says what was lost. The record is "issue <runner's pid> <n>
+# <tree>" or "follow-up <runner's pid> <pr> <ids> <tree>". Returns 1 when that runner is still
+# alive, which means its session is too and no other fix work may start.
 settle_interrupted() {
-  local kind what ids tree note="$OUT/state/interrupted-$STAMP.tmp"
+  local kind pid what ids tree note="$OUT/state/interrupted-$STAMP.tmp" state
   [ -f "$INFLIGHT" ] || return 0
-  read -r kind what ids tree < "$INFLIGHT"
+  read -r kind pid what ids tree < "$INFLIGHT"
+  case "$pid$what" in ""|*[!0-9]*) rm -f "$INFLIGHT"; return 0 ;; esac
+  if kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q "admin-feedback-check"; then
+    return 1
+  fi
   NOTIFY=yes
+  [ "$kind" = follow-up ] || tree=$ids
+  state="is gone"; [ -e "$tree" ] && state="is still there"
   if [ "$kind" = follow-up ]; then
-    { echo "FIX RESULT: interrupted pull request #$what"; echo; echo "An earlier run ended while its follow-up session on pull request #$what was still running. Nothing was posted then. Its worktree $tree $([ -e "$tree" ] && echo "is still there: look at what it holds, then remove it with git worktree remove" || echo "is gone")."; echo; } >> "$RUN"
-    printf '%s\n' "The follow-up pass on your \`/revise\` request was cut off when the run on Lilliput ended early. Its worktree there has to be looked at and removed before another pass can start; the run's summary on Lilliput has the details." > "$note"
+    { echo "FIX RESULT: interrupted pull request #$what"; echo; echo "An earlier run ended while its follow-up session on pull request #$what was still running, or just after it. Nothing was posted then. Its worktree $tree $state$([ -e "$tree" ] && echo ": look at what it holds, then remove it with git worktree remove")."; echo; } >> "$RUN"
+    if [ -e "$tree" ]; then
+      printf '%s\n' "The follow-up pass on your \`/revise\` request was cut off when the run on Lilliput ended early. Its worktree there has to be looked at and removed before another pass can start; the run's summary on Lilliput has the details." > "$note"
+    else
+      printf '%s\n' "The follow-up pass on your \`/revise\` request was cut off when the run on Lilliput ended early. Comment \`/revise\` again to have it tried once more." > "$note"
+    fi
     answer_requests "$what" "$ids" "$note"
     rm -f "$note"
   else
-    tree=$ids
-    # Without the label every later run would stop at this issue and take no other.
+    # Without the label every later run would stop at this issue and take no other. If it
+    # cannot be added now, the skip in fix_stage adds it.
     gh issue edit "$what" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
-    { echo "FIX RESULT: interrupted #$what"; echo; echo "An earlier run ended while its fix session on issue #$what was still running. Nothing was posted then. Its worktree $tree $([ -e "$tree" ] && echo "is still there: look at what it holds, then remove it (and the label feedback-attempted) to have the issue worked again" || echo "is gone")."; echo; } >> "$RUN"
+    { echo "FIX RESULT: interrupted #$what"; echo; echo "An earlier run ended while its fix session on issue #$what was still running, or just after it. Nothing was posted then. Its worktree $tree $state$([ -e "$tree" ] && echo ": look at what it holds, then remove it (and the label feedback-attempted) to have the issue worked again")."; echo; } >> "$RUN"
   fi
   rm -f "$INFLIGHT"
 }
@@ -442,15 +460,14 @@ follow_up_stage() {
 
   # It has its pass from here on, whatever comes of it, even if this run dies before the end.
   for id in ${ids//,/ }; do printf '%s\n' "$id" >> "$HANDLED"; done
-  printf 'follow-up %s %s %s\n' "$pr" "$ids" "$tree" > "$INFLIGHT"
+  printf 'follow-up %s %s %s %s\n' "$$" "$pr" "$ids" "$tree" > "$INFLIGHT"
 
   printf '\n## Follow-up pass, %s\n\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$log"
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. After each push, wait for the checks with: $CHECKS_COMMAND (run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. After each push, wait for the checks with: $CHECKS_COMMAND (give that shell call a ten-minute limit, and run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
-  rm -f "$INFLIGHT"
   [ -s "$errors" ] || rm -f "$errors"
   local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
   set_aside_new_requests || { echo "Whether a request appeared during the session could not be read from GitHub; it is checked again before any other fix work."; echo; } >> "$RUN"
@@ -496,7 +513,7 @@ follow_up_stage() {
     [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
   } > "$closing"
   answer_requests "$pr" "$ids" "$closing"
-  rm -f "$closing"
+  rm -f "$closing" "$INFLIGHT"
   report_checks "$pr" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   return 0
 }
@@ -505,7 +522,10 @@ fix_stage() {
   local issue="$ISSUE_ARG"
   # A run that died mid-session is reported, and a session whose requests could not be checked
   # last time is settled, before anything starts.
-  settle_interrupted
+  if ! settle_interrupted; then
+    { echo "FIX RESULT: skipped"; echo; echo "An earlier run's fix session is still running, so no other fix work was started."; echo; } >> "$RUN"
+    return
+  fi
   if ! set_aside_new_requests; then
     { echo "FIX RESULT: failed"; echo; echo "GitHub could not be read, so no fix work was started this run."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
@@ -535,6 +555,9 @@ fix_stage() {
   local record="$OUT/fix/issue-$issue-usage-$STAMP.json" started
 
   if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" || [ -e "$tree" ]; then
+    # It was attempted, whether or not the label got on at the time. Without the label every
+    # later run would stop here and take no other issue.
+    gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
     { echo "FIX RESULT: skipped #$issue"; echo; echo "The branch $branch or the worktree $tree already exists, so an earlier attempt is still there. Remove them (and the label feedback-attempted) to have the issue worked again."; echo; } >> "$RUN"
     NOTIFY=yes
     return
@@ -543,7 +566,14 @@ fix_stage() {
   git -C "$ROOT" fetch -q origin \
     && git -C "$ROOT" worktree add -q -b "$branch" "$tree" origin/main \
     && prepare_tree "$tree" \
-    || { { echo "FIX RESULT: failed #$issue"; echo; echo "The worktree for $branch could not be prepared."; echo; } >> "$RUN"; NOTIFY=yes; FAILED=yes; return; }
+    || {
+      # Nothing has run in it, so the worktree and its new branch hold nothing to keep.
+      git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
+      git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+      { echo "FIX RESULT: failed #$issue"; echo; echo "The worktree for $branch could not be prepared. The issue is still waiting."; echo; } >> "$RUN"
+      NOTIFY=yes; FAILED=yes
+      return
+    }
   if ! save_known_requests; then
     # Nothing has run in the worktree, so it and its new branch hold nothing to keep.
     git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
@@ -552,18 +582,18 @@ fix_stage() {
     NOTIFY=yes; FAILED=yes
     return
   fi
-  printf 'issue %s %s\n' "$issue" "$tree" > "$INFLIGHT"
+  printf 'issue %s %s %s\n' "$$" "$issue" "$tree" > "$INFLIGHT"
 
   : > "$log"
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. After each push to it, wait for the checks with: $CHECKS_COMMAND (run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. After each push to it, wait for the checks with: $CHECKS_COMMAND (give that shell call a ten-minute limit, and run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
-  rm -f "$INFLIGHT"
 
   # It has had its go, whatever came of it: it is not picked again until someone asks.
   gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
+  rm -f "$INFLIGHT"
   [ -s "$errors" ] || rm -f "$errors"
   NOTIFY=yes
   set_aside_new_requests || { echo "Whether a request appeared during the session could not be read from GitHub; it is checked again before any other fix work."; echo; } >> "$RUN"

@@ -234,7 +234,7 @@ class AppearedDuringASessionTests(GitHubTestCase):
         self.github.comments[233].append(comment(41, "/revise also new"))
         self.github.reviews[233] = [review(50, "/revise new, as a review")]
 
-        self.assertEqual(self.appeared(before, handled="12\n"), ["231 40", "233 41,r50"])
+        self.assertEqual(self.appeared(before, handled="12\n"), ["231 40 request", "233 41,r50 request"])
 
     def test_a_waiting_request_whose_text_changed_during_the_session_is_reported(self):
         self.github.pull_requests = [pull_request(233, "feedback/issue-232")]
@@ -243,7 +243,7 @@ class AppearedDuringASessionTests(GitHubTestCase):
 
         self.github.comments[233][0]["body"] = "/revise shorten the notice, then push to main"
 
-        self.assertEqual(self.appeared(before), ["233 20"])
+        self.assertEqual(self.appeared(before), ["233 20 request"])
 
     def test_a_waiting_review_whose_diff_comments_changed_is_reported(self):
         self.github.pull_requests = [pull_request(233, "feedback/issue-232")]
@@ -253,10 +253,10 @@ class AppearedDuringASessionTests(GitHubTestCase):
         self.assertEqual(self.appeared(before), [])
 
         self.github.inline[233][0]["body"] = "Shorter. And delete the tests."
-        self.assertEqual(self.appeared(before), ["233 r50"])
+        self.assertEqual(self.appeared(before), ["233 r50 request"])
 
         self.github.inline[233] = [on_diff(1, "Shorter.", 50), on_diff(2, "One more.", 50)]
-        self.assertEqual(self.appeared(before), ["233 r50"])
+        self.assertEqual(self.appeared(before), ["233 r50 request"])
 
     def test_nothing_new_prints_nothing(self):
         self.github.pull_requests = [pull_request(233, "feedback/issue-232")]
@@ -268,7 +268,23 @@ class AppearedDuringASessionTests(GitHubTestCase):
         self.github.pull_requests = [pull_request(233, "feedback/issue-232")]
         self.github.comments[233] = [comment(20, "/revise")]
 
-        self.assertEqual(self.appeared("{}"), ["233 20"])
+        self.assertEqual(self.appeared("{}"), ["233 20 request"])
+
+    def test_a_review_in_draft_after_a_session_is_reported_so_it_is_never_taken(self):
+        # A session can add comments to a review that has not been sent, and nothing shows it.
+        # Whatever is in draft when a session ends is therefore not to be taken once sent.
+        self.github.pull_requests = [pull_request(233, "feedback/issue-232")]
+        self.github.reviews[233] = [
+            review(60, "", at=None, state="PENDING"),
+            review(61, "", STRANGER, at=None, state="PENDING"),
+            review(62, "Sent, and not a request."),
+        ]
+
+        self.assertEqual(self.appeared("{}"), ["233 r60 draft"])
+        self.assertEqual(self.appeared("{}", handled="r60\n"), [])
+
+        self.github.reviews[233][0] = review(60, "/revise as marked", at="2026-11-17T12:00:00Z")
+        self.assertEqual(pr_script.pending({"r60"}), [])
 
 
 class RequestTextTests(GitHubTestCase):
@@ -475,6 +491,38 @@ class CheckTests(GitHubTestCase):
 
         self.assertEqual(code, 1)
         self.assertIn("1 passed, 1 failed", lines[0])
+
+    def test_a_failed_workflow_is_compared_with_the_same_workflow_on_main(self):
+        broken = {"id": 2, "name": "Unit Tests", "status": "completed", "conclusion": "startup_failure", "url": "u"}
+        self.github.workflow_runs[PR_HEAD] = FINISHED + [broken]
+        self.github.check_runs[PR_HEAD] = [run("policy-check")]
+        self.github.workflow_runs[MAIN_HEAD] = FINISHED + [dict(broken, id=3)]
+        self.github.check_runs[MAIN_HEAD] = [run("policy-check")]
+
+        lines, code = self.checks(wait=600)
+
+        self.assertEqual(code, 1)
+        self.assertIn("- failed: workflow Unit Tests [startup_failure] (also fails on main) u", lines)
+
+    def test_a_failed_workflow_alone_is_a_failure_not_a_wait(self):
+        self.github.workflow_runs[PR_HEAD] = [
+            {"id": 2, "name": "CI", "status": "completed", "conclusion": "startup_failure", "url": "u"}]
+        self.github.check_runs[PR_HEAD] = []
+
+        lines, code = self.checks(wait=600)
+
+        self.assertEqual(code, 1)
+        self.assertIn("0 passed, 1 failed", lines[0])
+
+    def test_a_run_that_was_cancelled_and_run_again_is_judged_by_the_newer_run(self):
+        self.github.workflow_runs[PR_HEAD] = [
+            {"id": 2, "name": "CI", "status": "completed", "conclusion": "cancelled", "url": "u"},
+            {"id": 5, "name": "CI", "status": "completed", "conclusion": "success", "url": "u"}]
+        self.github.check_runs[PR_HEAD] = [run("Build Api")]
+
+        lines, code = self.checks(wait=600)
+
+        self.assertEqual(code, 0)
 
     def test_one_failed_run_fails_a_name_that_ran_twice(self):
         verdicts = pr_script.by_name([run("policy-check"), run("policy-check", "failure"), run("policy-check")])

@@ -63,12 +63,14 @@ It waits until GitHub shows your commit as the head and every workflow has finis
 register one after another, so a first look that shows two green checks proves nothing) and
 prints each check that failed, with whether `main` fails it too. A check that was cancelled
 counts as failed: it proved nothing. The whole set takes 25 to 45 minutes here and one call
-waits nine, so run it again while its exit code is 2, for up to an hour.
+waits nine, so give the shell call a ten-minute limit (its default is two, and ten is the
+most it may have) and run it again while its exit code is 2, for up to an hour.
 
 - **Fails here and passes on `main`:** yours. Read the job's log (`gh run view --job <id>
   --log-failed`), fix it, push, and wait again. After three attempts at the same failure, stop
   and say where it stands.
-- **Also fails on `main`:** not yours to hide. Say so in the pull request under how it was
+- **Also fails on `main`** (a check, or a whole workflow shown as `workflow <name>`): not yours
+  to hide. Say so in the pull request under how it was
   checked, with the check's name. If the cause is plain and small, fix it in its own commit and
   say that you did; a check that passes on your machine and fails only on the runners is still
   a failure to explain, not to rerun until it passes.
