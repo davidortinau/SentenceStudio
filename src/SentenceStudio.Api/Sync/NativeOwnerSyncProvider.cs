@@ -24,7 +24,7 @@ internal sealed class NativeOwnerSyncProvider(
     ILogger<NativeOwnerSyncProvider> logger,
     SyncAccessOptions access) : ISyncProvider
 {
-    private const long UploadLockKey = 0x53534E4154495645L;
+    private const long UploadLockKey = SentenceStudio.Services.SyncUploadLock.Key;
 
     public string[]? SyncTableNames => provider.SyncTableNames;
 

@@ -498,7 +498,13 @@ Captain's request:
   their resources. They no longer do, on the web dashboard and the native one.
 - Smart lists were created more than once: seeding is now one at a time per learner, in a
   process and across app instances on PostgreSQL (`SmartResourceSeedingPostgresTests`; twelve
-  seeds at once made 60 lists before the fix). Duplicates already stored are not removed.
+  seeds at once made 60 lists before the fix). A MAUI app seeding its own database before its
+  first sync could still add a second set; lists now get one ID per learner and type
+  (`SyncIds.SmartResource`), and the server folds copies already stored into one when it sets
+  up the lists (Captain, 2026-11-16: one set per learner). See `docs/sync-all-tables-plan.md`,
+  "Smart resources". Review cleanup not done: the fold's four reference moves are separate
+  loops (`LearningResourceRepository.MergeSmartResourceCopiesAsync`); a table that names a
+  resource added later has to be added there by hand.
 - Undo of an older Sam change after a new plan: snapshots now carry the plan row's id; such an
   undo is refused as a plan changed elsewhere and Undo is not offered for it.
 - A new plan accepted on another device is noticed when this client learns of it: its card
