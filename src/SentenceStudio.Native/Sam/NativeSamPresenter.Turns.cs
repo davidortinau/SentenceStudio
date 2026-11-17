@@ -730,8 +730,16 @@ public sealed partial class NativeSamPresenter
             || turn.SessionStatus == CoachSessionStatus.AwaitingClarification
             || !string.IsNullOrWhiteSpace(turn.ClarifyingQuestion);
         if (asks)
-            return turn.ClarificationsRemaining <= 0 || string.IsNullOrWhiteSpace(turn.ClarifyingQuestion)
-                ? NativeSamStatus.ClarificationLimitReached : NativeSamStatus.Clarification;
+        {
+            // Source CoachStateMachine.FromTurn: the limit card is a choice about the open offer.
+            // Without an offer a question is a question, and a turn without one is ready.
+            if (turn.ClarificationsRemaining > 0 && !string.IsNullOrWhiteSpace(turn.ClarifyingQuestion))
+                return NativeSamStatus.Clarification;
+            if (turn.PendingSuggestion is not null)
+                return NativeSamStatus.ClarificationLimitReached;
+            return string.IsNullOrWhiteSpace(turn.ClarifyingQuestion)
+                ? NativeSamStatus.Ready : NativeSamStatus.Clarification;
+        }
         if (turn.Status == CoachTurnStatus.Rejected)
             return NativeSamStatus.Failed;
         if (turn.Status == CoachTurnStatus.Incomplete)

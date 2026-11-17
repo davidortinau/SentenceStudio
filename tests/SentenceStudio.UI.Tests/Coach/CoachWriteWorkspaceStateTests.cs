@@ -172,6 +172,29 @@ public class CoachWriteWorkspaceStateTests
         raised.Should().Be(1, "a card read again later still says executed, and the plan has not changed again");
     }
 
+    /// <summary>
+    /// The learner accepted the new plan on another device, then touches the card that is still
+    /// waiting here. The server answers that it is applied, and the page is told.
+    /// </summary>
+    [Fact]
+    public async Task A_new_plan_accepted_elsewhere_tells_the_page_when_this_client_learns_of_it()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        // Elsewhere: the same operation, applied.
+        await client.AcceptWriteAsync(Conversation, "op-1");
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Proposed, "this client has not looked yet");
+
+        await state.RefreshWriteAsync("op-1");
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+    }
+
     [Fact]
     public async Task Declining_a_new_plan_or_accepting_another_change_leaves_the_plan_page_alone()
     {

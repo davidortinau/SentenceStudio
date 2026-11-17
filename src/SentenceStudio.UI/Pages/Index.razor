@@ -782,7 +782,11 @@ else
             var skills = await SkillRepo.ListAsync();
             var vocab = await ResourceRepo.GetAllVocabularyWordsAsync();
 
-            isNewUser = resources.Count == 0 && vocab.Count == 0;
+            // The smart lists (Daily Review, New Words Practice and the rest) are made by the app
+            // for every learner, the first time anything reads their profile. Counting them made a
+            // learner who had only talked to Sam look like one who had started, and the Welcome
+            // screen with Create Starter Resource never came back.
+            isNewUser = resources.Count(resource => !resource.IsSmartResource) == 0 && vocab.Count == 0;
         }
         catch (Exception ex)
         {

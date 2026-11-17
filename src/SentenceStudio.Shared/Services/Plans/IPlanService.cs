@@ -42,9 +42,9 @@ public interface IPlanService
     /// when no plan can be built for the learner.
     /// </summary>
     /// <remarks>
-    /// For the server. It generates with the generator's own writes allowed inside an open
-    /// transaction, which is what <c>GenerateNativeTodayAsync</c> exists to avoid on a device's
-    /// SQLite database. A device regenerates through its own progress service and syncs.
+    /// Sam's new plan uses it on the server. On a device's SQLite database the generator runs
+    /// read-only inside the transaction, as <c>GenerateNativeTodayAsync</c> runs it, so its own
+    /// writes cannot wait on the transaction's writer lock.
     /// </remarks>
     Task<TodaysPlanDto?> RegenerateTodayAsync(CancellationToken ct = default);
 

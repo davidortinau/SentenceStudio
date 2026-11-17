@@ -56,9 +56,8 @@ is now a general assistant in a long conversation (`docs/coach/sam-single-runtim
 
 - The cap is on questions asked **in a row**. A turn that ends in a reply (any turn recorded
   with no stop reason) sets the count back to zero, in `RecordTurnOutcomeAsync`. A refused or
-  cut-off turn leaves it, with one exception found in review: a vocabulary review whose word
-  set is refused for naming a due word (ending 3 through `AttachVocabularySetProposalAsync`)
-  has already been recorded as a reply by then, so it starts the count again. No column changed: `ClarificationCount` now holds the run, not the
+  cut-off turn leaves it, including a vocabulary review whose word set is refused for naming a
+  due word: that turn is recorded only after its set has passed. No column changed: `ClarificationCount` now holds the run, not the
   session's total.
 - At zero the turn context reads `Clarifying questions remaining: 0 (do not use
   AskClarification on this turn)`, and the instructions say what to do instead: no question and
@@ -74,10 +73,9 @@ learner. They are the Captain's to approve, which he does by merging the pull re
 carries them; the Learning Value Gate was read and its matrix does not apply, because no
 learning activity's prompt, response, mode or default changes.
 
-Not changed: the clients show a card reading "Choose one option." (`Coach_ClarificationLimit`)
-whenever a turn stops for clarification with none remaining, including when there is no open
-suggestion to choose about. That card was written for the plan negotiation. It is in the web,
-iOS and Android clients and is left for the Captain to decide.
+The clients' card "Choose one option." (`Coach_ClarificationLimit`) is shown only when an offer
+is open to choose about. Without one the last question shows as a question, and a withheld one
+leaves the learner ready to type (web `CoachStateMachine`, native `NativeSamPresenter`).
 
 ## Creating a plan
 

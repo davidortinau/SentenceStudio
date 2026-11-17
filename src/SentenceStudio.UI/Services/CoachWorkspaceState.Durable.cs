@@ -1070,7 +1070,13 @@ public sealed partial class CoachWorkspaceState
 
             if (existingIndex >= 0)
             {
+                var heldBefore = _timeline[existingIndex].WriteOperation;
                 _timeline[existingIndex] = _timeline[existingIndex].Reconciled(item);
+
+                // A new plan accepted somewhere else (Sam on another device) arrives here as a
+                // card that was waiting and is now applied.
+                _planReplacedByWrite |= CoachWritePlanEffect.ReplacedPlan(
+                    heldBefore, _timeline[existingIndex].WriteOperation);
                 continue;
             }
 
@@ -1119,6 +1125,15 @@ public sealed partial class CoachWorkspaceState
         ReindexDurable();
         DeduplicateWriteCards();
         RecomputeActiveWrite();
+
+        // The merge found a new plan that was made elsewhere. The page is told here, once. The
+        // plan version is not read again: the next plan change is refused as changed elsewhere,
+        // and that refusal reads the session back, as it does for any plan changed elsewhere.
+        if (_planReplacedByWrite)
+        {
+            _planReplacedByWrite = false;
+            RaiseTodaysPlanReplaced();
+        }
     }
 
     /// <summary>

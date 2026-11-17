@@ -583,7 +583,13 @@ internal sealed class FakePlanService : IPlanService
     /// <summary>The constraints the last preview was planned against.</summary>
     public PlanConstraints? LastPreviewConstraints { get; private set; }
 
-    public PlanSnapshot Current => PlanSnapshot.FromItems(_today, _items);
+    public PlanSnapshot Current => PlanSnapshot.FromItems(_today, _items) with { PlanId = PlanId };
+
+    /// <summary>
+    /// The plan row today's items belong to. Regenerating the plan makes a new row; a test that
+    /// changes this stands for a regeneration.
+    /// </summary>
+    public string? PlanId { get; set; } = "plan-1";
 
     public void SetItems(IEnumerable<PlanSnapshotItem> items) => _items = items.ToList();
 

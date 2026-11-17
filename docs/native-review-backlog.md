@@ -481,43 +481,28 @@ fix commits were fixed on the branch. These are what was left.
   (one integer column on `CoachOpportunity`, which needs the Captain's approval) and compare
   counts instead of times.
 
-## Sam's clarification cap (review 2026-11-16, branch `feedback/issue-227`)
+## Sam's clarification cap and new plan (reviews 2026-11-16, branch `feedback/issue-227`)
 
-- **A refused vocabulary review is recorded as a reply.** `ReduceAgentResultAsync` records the
-  `NoChange` turn through `ClearedStatusAsync`, and `AttachVocabularySetProposalAsync` can then
-  refuse it for naming a due word (`BuildAnswerLeakResponseAsync`, which records nothing). The
-  row keeps a null stop reason for a turn the learner saw refused, and since the cap counts
-  questions in a row it also starts the count again. The fix is to run the embargo check before
-  the turn is recorded.
-- **Two completed exits do not go through `RecordTurnOutcomeAsync`:** a model direct change with
-  no delta (unreachable while the intent validator and the mapper agree) and a client constraint
-  action with no change. They neither clear an old stop reason nor start the clarification
-  count again.
-- **`Coach_ClarificationLimit` ("Choose one option.") shows with nothing to choose.** The web,
-  iOS and Android clients show it whenever a turn stops for clarification with none remaining,
-  including in a general conversation with no open suggestion.
+All nine items recorded here on 2026-11-16 were fixed on the same branch on 2026-11-17, at the
+Captain's request:
 
-## Sam makes a new plan (review and running check 2026-11-16, branch `feedback/issue-227`)
-
-Found while checking `propose_plan_regeneration` on an isolated stack. The first two are about a
-brand-new learner and are older than this branch.
-
-- **A new learner who talks to Sam before adding anything loses the Welcome screen.** One plain
-  question to Sam ("How many words do I have?") from a learner with no resources and no words
-  left five "Smart Vocabulary List" resources and an empty plan row for them. The dashboard
-  decides a learner is new by `resources.Count == 0 && vocab.Count == 0` (`Index.razor`), so the
-  Welcome screen with Create Starter Resource is not shown again and the learner sees an empty
-  dashboard. Observed with `testsailor@test.local` on a fresh database.
-- **Smart lists are created more than once.** The same learner then had fourteen resources:
-  "New Words Practice", "Struggling Words" and "Phrases" three times each, "Daily Review"
-  twice. Each plan generation that finds no plan appears to seed them again.
-- **Undo of an earlier Sam revision after a new plan.** Once the session has been read again,
-  Undo of a revision made before the regeneration restores that revision's remaining items onto
-  the new plan. The dashboard's own Regenerate Plan has the same interplay.
-- **A new plan accepted on another device is not noticed here.** The reload is raised when this
-  client's own card moves to executed; a history reload does not raise it.
-- **No test takes `propose_plan_regeneration` through the real ledger** (propose, accept,
-  a failed execution closing as failed). The handler and the plan service are tested apart; the
-  ledger path was exercised on the running stack.
-- **`RegenerateTodayAsync` is on the shared `IPlanService`** and generates with the generator's
-  writes allowed inside a transaction. Only the API calls it. A device must not.
+- A refused vocabulary review was recorded as a reply. The turn is now recorded after its set
+  passes the due-word check, and every answer-leak refusal is recorded as refused
+  (`CoachVocabularySetVerticalSliceTests`).
+- Two completed no-change exits skipped the recorder; both go through it now
+  (`CoachSessionStateTransitionTests.AControlChangeThatChangesNothing_IsRecordedAsAReply`).
+- "Choose one option." showed with nothing to choose. The limit card now needs an open offer;
+  without one a question is a question and a withheld one leaves the learner ready to type
+  (web `CoachStateMachine`, native `NativeSamPresenter.FromTurn`).
+- A new learner who talked to Sam lost the Welcome screen: the app's smart lists counted as
+  their resources. They no longer do, on the web dashboard and the native one.
+- Smart lists were created more than once: seeding is now one at a time per learner, in a
+  process and across app instances on PostgreSQL (`SmartResourceSeedingPostgresTests`; twelve
+  seeds at once made 60 lists before the fix). Duplicates already stored are not removed.
+- Undo of an older Sam change after a new plan: snapshots now carry the plan row's id; such an
+  undo is refused as a plan changed elsewhere and Undo is not offered for it.
+- A new plan accepted on another device is noticed when this client learns of it: its card
+  refreshed or accepted, or the conversation's history read again.
+- `propose_plan_regeneration` is tested through the real ledger on PostgreSQL
+  (`CoachPlanRegenerationLedgerPostgresTests`).
+- `RegenerateTodayAsync` runs the generator read-only on a device's SQLite database.

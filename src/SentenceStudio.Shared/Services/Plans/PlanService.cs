@@ -389,13 +389,29 @@ public sealed class PlanService : IPlanService
             return null;
         }
 
+        // On a device's SQLite database the unit's transaction holds the writer lock, and the
+        // generator's own writes (seeding the smart lists) go through other connections that would
+        // wait on it. There the generator runs read-only, as GenerateNativeTodayAsync runs it.
+        var onDevice = _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
         // Reset and generate are two saves. Inside one unit a failed generation takes the reset
         // back with it, so the learner is never left with their plan cleared and nothing in its
         // place.
         return await ExecuteRevisionUnitAsync<TodaysPlanDto?>(async token =>
         {
             await ResetTodayAsync(token).ConfigureAwait(false);
-            var plan = await GenerateTodayAsync(new GenerateTodaysPlanRequest(), token).ConfigureAwait(false);
+            TodaysPlanDto plan;
+            try
+            {
+                plan = await GenerateTodayCoreAsync(
+                    new GenerateTodaysPlanRequest(), allowGeneratorWrites: !onDevice, token).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException) when (onDevice)
+            {
+                // The read-only generator answers "no feasible plan" by throwing.
+                return (null, false);
+            }
+
             return plan.Items.Count > 0 ? (plan, true) : (null, false);
         }, ct).ConfigureAwait(false);
     }
@@ -407,8 +423,13 @@ public sealed class PlanService : IPlanService
         var userId = _scope.UserProfileId;
         var todayLocal = _dateContext.UserLocalDate;
 
-        var completions = await LoadCompletionsAsync(userId, ToDateKey(todayLocal), tracked: false, ct);
-        return PlanSnapshot.FromCompletions(todayLocal, completions);
+        var todayKey = ToDateKey(todayLocal);
+        var completions = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
+        var planId = await _db.DailyPlans.AsNoTracking()
+            .Where(p => p.UserProfileId == userId && p.Date == todayKey)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync(ct);
+        return PlanSnapshot.FromCompletions(todayLocal, completions) with { PlanId = planId };
     }
 
     public Task<PlanPreviewResult> PreviewPlanAsync(PlanConstraints? constraints, CancellationToken ct = default)
@@ -494,7 +515,7 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with { PlanId = planRow?.Id };
 
         if (planRow is null)
         {
@@ -602,7 +623,7 @@ public sealed class PlanService : IPlanService
         await _db.SaveChangesAsync(ct);
 
         var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
-        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted) with { PlanId = planRow.Id };
 
         var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
         if (invariantErrors.Count > 0)
@@ -651,7 +672,7 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with { PlanId = planRow?.Id };
 
         if (planRow is null)
         {
@@ -662,6 +683,19 @@ public sealed class PlanService : IPlanService
         {
             _logger.LogInformation(
                 "Coach undo rejected (revision '{RevisionId}'): stale plan version.",
+                request.RevisionId);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
+        }
+
+        // The change being undone was made to a plan that has since been replaced. Restoring its
+        // items onto the new plan would mix two plans, so it is refused as a plan that changed
+        // elsewhere, which it did. Snapshots stored before the plan id was recorded carry none
+        // and are not checked.
+        if (request.TargetSnapshot.PlanId is { } targetPlanId
+            && !string.Equals(targetPlanId, planRow.Id, StringComparison.Ordinal))
+        {
+            _logger.LogInformation(
+                "Coach undo rejected (revision '{RevisionId}'): the plan was regenerated since.",
                 request.RevisionId);
             return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
         }
@@ -753,7 +787,7 @@ public sealed class PlanService : IPlanService
         await _db.SaveChangesAsync(ct);
 
         var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
-        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted) with { PlanId = planRow.Id };
 
         var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
         if (invariantErrors.Count > 0)

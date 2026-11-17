@@ -341,6 +341,36 @@ public class CoachSessionStateTransitionTests
         harness.Coach.Requests[^1].ClarificationsRemaining.Should().Be(2, "the model is told the count started again");
     }
 
+    /// <summary>
+    /// A control's change that changes nothing is a completed turn like any other. It skipped the
+    /// recorder, so it neither cleared an earlier stop reason nor started the count again.
+    /// </summary>
+    [Fact]
+    public async Task AControlChangeThatChangesNothing_IsRecordedAsAReply()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        harness.Coach.NextResult = Completed(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.AskClarification,
+            ClarifyingQuestion = "How many minutes do you have?"
+        });
+        await SubmitAsync(harness, sessionId, "not much time");
+        await SubmitAsync(harness, sessionId, "some time");
+        Row(harness).StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+
+        var unchanged = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        {
+            InputKind = CoachTurnInputKind.ConstraintAction,
+            ConstraintAction = new CoachConstraintDeltaDto()
+        });
+
+        unchanged.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        Row(harness).StopReason.Should().BeNull();
+        Row(harness).ClarificationCount.Should().Be(0);
+        harness.PlanService.ApplyCallCount.Should().Be(0);
+    }
+
     /// <summary>A refused reply and a cut-off one leave the count where it was.</summary>
     [Fact]
     public async Task ARefusedReply_DoesNotStartTheClarificationCountAgain()

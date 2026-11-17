@@ -119,6 +119,98 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
         authority.IsGeneralStudyRequest(prompt).Should().BeTrue();
     }
 
+    /// <summary>
+    /// A review whose set names a due word is refused after the reducer has run. It used to be
+    /// recorded as a reply first: the session lost the reason its turn stopped, and the count of
+    /// clarifying questions started again for a turn the learner saw refused.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_vocabulary_set_is_recorded_as_refused_and_keeps_the_question_count()
+    {
+        using var harness = new CoachApplicationHarness(vocabularySets: new StubVocabularyGenerator());
+        var sessionId = await harness.StartSessionAsync();
+        await AskTwoQuestionsAsync(harness, sessionId);
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem(TargetTerm: "물", NativeTerm: "water")];
+        harness.Coach.NextResult = FoodReview();
+
+        var result = await SubmitAsync(harness, sessionId, "start a vocabulary review activity with words about food");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
+        result.Value.VocabularySetProposal.Should().BeNull();
+        var row = harness.Db.CoachSessions.Single();
+        row.StopReason.Should().Be(CoachStopReason.ValidationFailed);
+        row.ClarificationCount.Should().Be(2, "nothing was answered");
+    }
+
+    [Fact]
+    public async Task A_vocabulary_set_that_passes_is_recorded_as_a_reply()
+    {
+        using var harness = new CoachApplicationHarness(vocabularySets: new StubVocabularyGenerator());
+        var sessionId = await harness.StartSessionAsync();
+        await AskTwoQuestionsAsync(harness, sessionId);
+        harness.Coach.NextResult = FoodReview();
+
+        var result = await SubmitAsync(harness, sessionId, "start a vocabulary review activity with words about food");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.VocabularySetProposal.Should().NotBeNull();
+        var row = harness.Db.CoachSessions.Single();
+        row.StopReason.Should().BeNull();
+        row.ClarificationCount.Should().Be(0);
+    }
+
+    /// <summary>Where the review generator is not configured the turn is a plain reply.</summary>
+    [Fact]
+    public async Task Without_a_vocabulary_generator_the_turn_is_still_recorded()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        await AskTwoQuestionsAsync(harness, sessionId);
+        harness.Coach.NextResult = FoodReview();
+
+        var result = await SubmitAsync(harness, sessionId, "start a vocabulary review activity with words about food");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        var row = harness.Db.CoachSessions.Single();
+        row.StopReason.Should().BeNull();
+        row.ClarificationCount.Should().Be(0);
+    }
+
+    private static async Task AskTwoQuestionsAsync(CoachApplicationHarness harness, string sessionId)
+    {
+        harness.Coach.NextResult = new CoachAgentTurnResult
+        {
+            Outcome = CoachAgentOutcome.Completed,
+            Intent = new CoachTurnIntent
+            {
+                Kind = CoachIntentKind.AskClarification,
+                ClarifyingQuestion = "How many minutes do you have?"
+            }
+        };
+        await SubmitAsync(harness, sessionId, "not much time");
+        await SubmitAsync(harness, sessionId, "some time");
+        harness.Db.CoachSessions.Single().ClarificationCount.Should().Be(2);
+    }
+
+    private static CoachAgentTurnResult FoodReview() => new()
+    {
+        Outcome = CoachAgentOutcome.Completed,
+        Intent = new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.NoChange,
+            CoachMessage = "I prepared a food vocabulary set for your approval.",
+            VocabularySet = new CoachVocabularySetIntent { Topic = "food" }
+        }
+    };
+
+    private static Task<CoachOperationResult<CoachTurnResponse>> SubmitAsync(
+        CoachApplicationHarness harness, string sessionId, string text) =>
+        harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        {
+            InputKind = CoachTurnInputKind.Text,
+            Text = text
+        });
+
     [Fact]
     public async Task Exact_food_prompt_returns_complete_approval_set_without_plan_write()
     {

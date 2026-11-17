@@ -163,6 +163,24 @@ public class CoachSessionServiceTests
 
     // ------------------------------------------------------------------ direct change
 
+    /// <summary>
+    /// After the plan is regenerated (on the dashboard, or by Sam) every change Sam made belongs
+    /// to a plan that is gone. Undo used to stay on offer, and pressing it restored the old plan's
+    /// items onto the new one.
+    /// </summary>
+    [Fact]
+    public async Task AfterThePlanIsRegenerated_UndoIsNoLongerOffered()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        (await ApplyDirectChangeAsync(harness, sessionId)).Value!.PlanState.CanUndo.Should().BeTrue();
+
+        harness.PlanService.PlanId = "plan-2";
+
+        var session = (await harness.Service.GetSessionAsync(sessionId)).Value!;
+        session.PlanState.CanUndo.Should().BeFalse();
+    }
+
     [Fact]
     public async Task DirectConstraintChange_AppliesImmediatelyAndRecordsARevision()
     {

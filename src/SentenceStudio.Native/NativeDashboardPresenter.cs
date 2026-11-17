@@ -280,8 +280,10 @@ public sealed partial class NativeDashboardPresenter(
 
             using var lease = plans.ForOwner(owner);
             var planService = lease.Service;
+            // The app's own smart lists are not the learner's resources (source CheckNewUserAsync).
             var hasResources = await lease.Database.LearningResources.AsNoTracking()
-                .AnyAsync(resource => resource.UserProfileId == owner, cancellationToken);
+                .AnyAsync(resource => resource.UserProfileId == owner && !resource.IsSmartResource,
+                    cancellationToken);
             if (!hasResources)
             {
                 if (!synchronize)
@@ -295,11 +297,12 @@ public sealed partial class NativeDashboardPresenter(
                     pendingSync = readiness != NativeSyncOutcome.Confirmed
                         || pendingWrites.IsPending(owner);
                     hasResources = await lease.Database.LearningResources.AsNoTracking()
-                        .AnyAsync(resource => resource.UserProfileId == owner,
+                        .AnyAsync(resource => resource.UserProfileId == owner && !resource.IsSmartResource,
                             cancellationToken);
                 }
-                // Source CheckNewUserAsync: a new learner owns no resources and no
-                // vocabulary words (Index.razor:778-782); progress rows alone do not count.
+                // Source CheckNewUserAsync: a new learner owns no resources of their own (the
+                // app's smart lists do not count) and no vocabulary words; progress rows alone do
+                // not count either.
                 var hasVocabulary = await lease.Database.VocabularyWords
                     .AsNoTracking()
                     .AnyAsync(word => word.UserProfileId == owner,

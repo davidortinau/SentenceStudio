@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -31,6 +34,9 @@ public class SmartResourceService
     // Mastery threshold (words below this are not graduated)
     private const float MASTERY_THRESHOLD = 0.85f;
 
+    // One seed at a time per learner in this process. See InitializeSmartResourcesAsync.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _seedGates = new(StringComparer.Ordinal);
+
     public SmartResourceService(
         LearningResourceRepository resourceRepo,
         VocabularyProgressRepository progressRepo,
@@ -45,9 +51,76 @@ public class SmartResourceService
 
     /// <summary>
     /// Initialize smart resources on first app launch.
-    /// Creates three default smart resources if they don't exist.
+    /// Creates the default smart resources that don't exist yet.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The check for which types exist and the inserts are separate steps, so two seeds for one
+    /// learner at the same time both found nothing and both inserted. A page load asks for the
+    /// profile from several components at once, and every ask seeded, so a new learner ended up
+    /// with the same list two or three times over (seen 2026-11-16: fourteen lists where there
+    /// should be five).
+    /// </para>
+    /// <para>
+    /// Seeds for one learner now run one at a time: in this process behind a gate per learner,
+    /// and on PostgreSQL also behind a transaction-scoped advisory lock, so two instances of the
+    /// app serving the same learner cannot both seed. The second seed waits, then finds every type
+    /// present and creates nothing.
+    /// </para>
+    /// </remarks>
     public async Task InitializeSmartResourcesAsync(string targetLanguage = "Korean", string userId = "")
+    {
+        var gate = _seedGates.GetOrAdd(userId ?? string.Empty, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await UnderDatabaseSeedLockAsync(userId ?? string.Empty,
+                () => SeedMissingSmartResourcesAsync(targetLanguage, userId ?? string.Empty)).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="seed"/> while holding a PostgreSQL advisory lock for this learner's
+    /// smart resources. Other providers (a device's SQLite database, one process) run it as is.
+    /// </summary>
+    /// <remarks>
+    /// The lock is taken in a transaction of its own and released when it commits. The seed's
+    /// reads and writes go through the repository on their own connections; the lock only makes a
+    /// second seed wait until the first one's rows are committed and visible.
+    /// </remarks>
+    private async Task UnderDatabaseSeedLockAsync(string userId, Func<Task> seed)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetService<ApplicationDbContext>();
+        if (db?.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) != true)
+        {
+            await seed().ConfigureAwait(false);
+            return;
+        }
+
+        var key = SeedLockKey(userId);
+
+        // Under the provider's retrying execution strategy a transaction has to be opened inside
+        // it. A retry runs the seed again, which is safe: it creates only the types still missing.
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock({0})", key).ConfigureAwait(false);
+            await seed().ConfigureAwait(false);
+            await transaction.CommitAsync().ConfigureAwait(false);
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>A stable advisory lock key for one learner's smart resources.</summary>
+    private static long SeedLockKey(string userId) =>
+        BitConverter.ToInt64(SHA256.HashData(Encoding.UTF8.GetBytes("smart-resources:" + userId)), 0);
+
+    private async Task SeedMissingSmartResourcesAsync(string targetLanguage, string userId)
     {
         _logger.LogInformation("🎯 Initializing smart resources for language: {Language}", targetLanguage);
 

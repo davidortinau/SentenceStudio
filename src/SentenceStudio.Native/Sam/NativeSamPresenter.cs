@@ -455,6 +455,9 @@ public sealed partial class NativeSamPresenter(
     {
         var closed = _state.SafeConversations
             .FirstOrDefault(row => row.Id == conversationId)?.IsClosed ?? _state.ConversationClosed;
+        // Taken before adopting, which clears the entries: what this conversation's cards said
+        // last, so the transcript read can tell a card that changed elsewhere.
+        var held = _state.ConversationId == conversationId ? HeldWrites() : null;
         AdoptConversation(conversationId, closed);
         if (!keepStatus)
             Publish(_state with { Status = NativeSamStatus.Resuming });
@@ -472,7 +475,7 @@ public sealed partial class NativeSamPresenter(
         }
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
-        await LoadTranscriptAsync(owner, conversationId, cancellationToken);
+        await LoadTranscriptAsync(owner, conversationId, cancellationToken, held);
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
         await LoadVocabularyStateAsync(owner, conversationId, cancellationToken);
@@ -525,7 +528,7 @@ public sealed partial class NativeSamPresenter(
     }
 
     private async Task LoadTranscriptAsync(string owner, string conversationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IReadOnlyDictionary<string, CoachWriteOperationDto?>? held = null)
     {
         Publish(_state with { TranscriptLoading = true });
         try
@@ -541,6 +544,12 @@ public sealed partial class NativeSamPresenter(
                 return;
             }
             var entries = page.Items.OrderBy(item => item.Sequence).Select(MapHistory).ToList();
+            // A card for a new plan that was waiting here and arrives applied was accepted
+            // somewhere else (Sam on another device): the dashboard reads the plan again.
+            held ??= HeldWrites();
+            var replacedElsewhere = entries.Any(entry => entry.Write is { } write
+                && held.TryGetValue(write.OperationId, out var before)
+                && CoachWritePlanEffect.ReplacedPlan(before, write));
             // Optimistic learner rows not yet in the canonical page stay visible in order.
             foreach (var local in _localEntries)
                 if (!entries.Any(entry => entry.Kind == NativeSamEntryKind.Learner
@@ -554,6 +563,8 @@ public sealed partial class NativeSamPresenter(
                 UnreadableCount = page.UnreadableCount,
                 HasLearnerSpoken = entries.Any(entry => entry.Kind == NativeSamEntryKind.Learner),
             });
+            if (replacedElsewhere)
+                PlanChanged?.Invoke();
             RecomputeActiveWrite();
         }
         catch (CoachApiException ex) when (ex.StatusCode is HttpStatusCode.NotFound
@@ -611,6 +622,12 @@ public sealed partial class NativeSamPresenter(
                 .Where(row => row.Id != conversationId).ToImmutableArray()
         });
     }
+
+    /// <summary>The cards on screen now, by operation.</summary>
+    private Dictionary<string, CoachWriteOperationDto?> HeldWrites() => _state.SafeEntries
+        .Where(entry => entry.Write is not null)
+        .GroupBy(entry => entry.Write!.OperationId, StringComparer.Ordinal)
+        .ToDictionary(group => group.Key, group => group.Last().Write, StringComparer.Ordinal);
 
     private NativeSamEntry MapHistory(CoachHistoryMessageDto item)
     {

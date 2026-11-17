@@ -514,7 +514,10 @@ public sealed partial class CoachWorkspaceState
     /// </summary>
     public event Action? TodaysPlanReplaced;
 
-    /// <summary>Set by <see cref="ApplyWriteState"/>; consumed by <see cref="SettlePlanReplacementAsync"/>.</summary>
+    /// <summary>
+    /// Set when a card for a new plan moves to applied: by <see cref="ApplyWriteState"/> for this
+    /// client's own decision, by the history merge for one made elsewhere.
+    /// </summary>
     private bool _planReplacedByWrite;
 
     /// <summary>
@@ -536,7 +539,12 @@ public sealed partial class CoachWorkspaceState
 
         _planReplacedByWrite = false;
         await RefreshAuthoritativeStateAsync(cancellationToken).ConfigureAwait(false);
+        RaiseTodaysPlanReplaced();
+        Notify();
+    }
 
+    private void RaiseTodaysPlanReplaced()
+    {
         try
         {
             TodaysPlanReplaced?.Invoke();
@@ -545,8 +553,6 @@ public sealed partial class CoachWorkspaceState
         {
             // A subscriber's failure is its own; the change is in place either way.
         }
-
-        Notify();
     }
 
     /// <summary>Replaces the card for one operation with the server's own answer.</summary>
