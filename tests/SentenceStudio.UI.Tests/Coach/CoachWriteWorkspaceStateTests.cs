@@ -195,6 +195,46 @@ public class CoachWriteWorkspaceStateTests
         raised.Should().Be(1);
     }
 
+    /// <summary>
+    /// The learner accepted the new plan on another device and goes on talking to Sam here. The
+    /// turn's read-back of the conversation finds the waiting card applied, and the page is told.
+    /// </summary>
+    [Fact]
+    public async Task A_new_plan_accepted_elsewhere_tells_the_page_when_the_history_is_read_back()
+    {
+        var client = NewClient();
+        var write = client.AddWrite(Conversation, "op-1", isReversible: false, kind: CoachWriteChangeKind.PlanRegenerate);
+        var state = await OpenWithWriteAsync(client, write);
+        var raised = 0;
+        state.TodaysPlanReplaced += () => raised++;
+
+        await client.AcceptWriteAsync(Conversation, "op-1");
+
+        // The turn's operation carries only Sam's row, so the client reads the page back.
+        client.OnSubmitConversationTurn = (conversationId, request) =>
+        {
+            var learner = client.Seed(conversationId, CoachMessageRole.Learner, request.Turn.Text ?? string.Empty);
+            var reply = client.Seed(conversationId, CoachMessageRole.Coach, "Sam replies.");
+            return new CoachTurnOperationDto
+            {
+                OperationId = request.OperationId,
+                ConversationId = conversationId,
+                State = CoachTurnOperationState.Completed,
+                Result = CoachStateMachineTests.Turn(),
+                Messages = new[] { reply },
+                FirstResponseSequence = learner.Sequence,
+                LastResponseSequence = reply.Sequence,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+        };
+        state.Draft = "how many words do I have?";
+        await state.SendDraftAsync();
+
+        CardFor(state, "op-1")!.Status.Should().Be(CoachWriteStatus.Executed);
+        raised.Should().Be(1);
+    }
+
     [Fact]
     public async Task Declining_a_new_plan_or_accepting_another_change_leaves_the_plan_page_alone()
     {

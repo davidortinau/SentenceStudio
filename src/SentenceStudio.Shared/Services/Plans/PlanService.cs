@@ -400,18 +400,11 @@ public sealed class PlanService : IPlanService
         return await ExecuteRevisionUnitAsync<TodaysPlanDto?>(async token =>
         {
             await ResetTodayAsync(token).ConfigureAwait(false);
-            TodaysPlanDto plan;
-            try
-            {
-                plan = await GenerateTodayCoreAsync(
-                    new GenerateTodaysPlanRequest(), allowGeneratorWrites: !onDevice, token).ConfigureAwait(false);
-            }
-            catch (InvalidOperationException) when (onDevice)
-            {
-                // The read-only generator answers "no feasible plan" by throwing.
-                return (null, false);
-            }
-
+            // The read-only generator answers an infeasible plan by throwing; the preview above
+            // has just said one is feasible, so that would be a fault, and it surfaces as one
+            // after the unit has put the plan back.
+            var plan = await GenerateTodayCoreAsync(
+                new GenerateTodaysPlanRequest(), allowGeneratorWrites: !onDevice, token).ConfigureAwait(false);
             return plan.Items.Count > 0 ? (plan, true) : (null, false);
         }, ct).ConfigureAwait(false);
     }

@@ -94,6 +94,42 @@ public sealed class NativeDashboardSourceFidelityTests
         Assert.Equal(NativePhase.Empty, state.Phase);
     }
 
+    /// <summary>
+    /// A learner with words but only the smart lists (they removed their own resources) is not
+    /// new, and is not held on "waiting for sync" either: something has synced down.
+    /// </summary>
+    [Fact]
+    public async Task ALearnerWithWordsAndOnlySmartListsGetsTheirDashboard()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = "smart-daily-a", UserProfileId = NativeSliceFixture.UserA, Title = "Daily Review",
+                MediaType = "Smart Vocabulary List", Language = "Korean",
+                IsSmartResource = true, SmartResourceType = "DailyReview"
+            });
+            db.VocabularyWords.Add(new VocabularyWord
+            {
+                Id = "word-a", UserProfileId = NativeSliceFixture.UserA,
+                Language = "Korean", TargetLanguageTerm = "물", NativeLanguageTerm = "water"
+            });
+            await db.SaveChangesAsync();
+        }
+        fixture.Sync.Outcome = NativeSyncOutcome.Unconfirmed;
+
+        fixture.Activate(NativeSliceFixture.UserA);
+        var state = await fixture.Dashboard.LoadAsync();
+
+        // Not new and not waiting: the plan step runs. With no resource of their own to draw on it
+        // may find no plan, which is the dashboard's ordinary empty plan, not the Welcome screen.
+        Assert.False(state.IsNewUser);
+        Assert.NotEqual(NativePhase.PendingSync, state.Phase);
+    }
+
     [Fact]
     public async Task StatisticsPublishWhileThePlanIsStillLoading()
     {

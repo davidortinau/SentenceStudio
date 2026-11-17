@@ -179,6 +179,8 @@ public class CoachSessionServiceTests
 
         var session = (await harness.Service.GetSessionAsync(sessionId)).Value!;
         session.PlanState.CanUndo.Should().BeFalse();
+        session.Revisions.Should().NotBeEmpty()
+            .And.OnlyContain(revision => !revision.CanUndo, "the web's history rows read this");
     }
 
     [Fact]

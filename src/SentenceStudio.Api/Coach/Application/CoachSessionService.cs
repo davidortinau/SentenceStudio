@@ -3857,7 +3857,7 @@ public sealed class CoachSessionService : ICoachSessionService
         var revisions = await _sessions.GetRevisionsAsync(userProfileId, session.Id, cancellationToken)
             .ConfigureAwait(false);
 
-        var revisionDtos = revisions.Select(ToRevisionDto).ToList();
+        var revisionDtos = revisions.Select(revision => ToRevisionDto(revision, plan)).ToList();
         var last = revisionDtos.LastOrDefault();
         var canUndo = CanUndo(revisions, plan);
         var budget = await _budget.GetSnapshotAsync(userProfileId, _dateContext.UserLocalDate, cancellationToken)
@@ -4029,7 +4029,7 @@ public sealed class CoachSessionService : ICoachSessionService
         var revisions = await _sessions.GetRevisionsAsync(userProfileId, session.Id, cancellationToken)
             .ConfigureAwait(false);
 
-        var last = revisions.Count == 0 ? null : ToRevisionDto(revisions[^1]);
+        var last = revisions.Count == 0 ? null : ToRevisionDto(revisions[^1], plan);
         var canUndo = CanUndo(revisions, plan);
         var budget = await _budget.GetSnapshotAsync(userProfileId, _dateContext.UserLocalDate, cancellationToken)
             .ConfigureAwait(false);
@@ -4373,12 +4373,21 @@ public sealed class CoachSessionService : ICoachSessionService
             return false;
         }
 
+        return MadeToThisPlan(target, plan);
+    }
+
+    /// <summary>
+    /// True when the revision was made to today's plan as it is now, or when either side does not
+    /// say which plan (revisions stored before the plan id was recorded).
+    /// </summary>
+    private static bool MadeToThisPlan(CoachPlanRevision revision, PlanSnapshot plan)
+    {
         if (plan.PlanId is not { } currentPlanId)
         {
             return true;
         }
 
-        var restorePlanId = TryReadRestorePlanId(target.BeforePlanSnapshotJson);
+        var restorePlanId = TryReadRestorePlanId(revision.BeforePlanSnapshotJson);
         return restorePlanId is null || string.Equals(restorePlanId, currentPlanId, StringComparison.Ordinal);
     }
 
@@ -4758,7 +4767,11 @@ public sealed class CoachSessionService : ICoachSessionService
         return CoachValidationResult.From(violations);
     }
 
-    private CoachRevisionDto ToRevisionDto(CoachPlanRevision revision)
+    /// <param name="plan">
+    /// Today's plan as it is now. A change made to a plan that has since been regenerated cannot
+    /// be undone, and its row says so.
+    /// </param>
+    private CoachRevisionDto ToRevisionDto(CoachPlanRevision revision, PlanSnapshot plan)
     {
         var delta = CoachNormalizedJson.Deserialize<CoachConstraintDeltaDto>(revision.AcceptedConstraintDeltaJson)
                     ?? new CoachConstraintDeltaDto();
@@ -4769,7 +4782,8 @@ public sealed class CoachSessionService : ICoachSessionService
             revision.Source == CoachRevisionSource.Undo
                 ? "Restored the previous remaining items."
                 : CoachConstraintMapper.Summarize(delta),
-            canUndo: !revision.IsUndone && revision.Source != CoachRevisionSource.Undo);
+            canUndo: !revision.IsUndone && revision.Source != CoachRevisionSource.Undo
+                     && MadeToThisPlan(revision, plan));
     }
 
     private static CoachRevisionDto ToRevisionDto(

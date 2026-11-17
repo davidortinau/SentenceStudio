@@ -65,7 +65,9 @@
                 <i class="bi bi-list-check me-1" aria-hidden="true"></i>@Localize["Coach_ViewChanges"]
             </button>
 
-            @if (isLatest && receipt.CanUndo && !isUndo)
+            @* A receipt keeps the answer it was given when the change was made. The plan state is
+               read again with the session, and says when the plan has been replaced since. *@
+            @if (isLatest && receipt.CanUndo && !isUndo && Coach.PlanState?.CanUndo != false)
             {
                 <button type="button" class="btn btn-ss-secondary coach-action"
                         disabled="@Coach.IsBusy"

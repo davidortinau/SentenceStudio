@@ -70,12 +70,34 @@ public class SmartResourceService
     /// </remarks>
     public async Task InitializeSmartResourcesAsync(string targetLanguage = "Korean", string userId = "")
     {
-        var gate = _seedGates.GetOrAdd(userId ?? string.Empty, _ => new SemaphoreSlim(1, 1));
+        var learner = userId ?? string.Empty;
+        var gate = _seedGates.GetOrAdd(learner, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await UnderDatabaseSeedLockAsync(userId ?? string.Empty,
-                () => SeedMissingSmartResourcesAsync(targetLanguage, userId ?? string.Empty)).ConfigureAwait(false);
+            // Collected across attempts: a retried seed skips a list an earlier attempt already
+            // committed, and that list still has to be filled.
+            var created = new List<string>();
+            await UnderDatabaseSeedLockAsync(learner,
+                () => CreateMissingSmartResourcesAsync(targetLanguage, learner, created)).ConfigureAwait(false);
+
+            if (created.Count == 0)
+            {
+                return;
+            }
+
+            // Filled after the lock: a second seed only needs the lists to exist to skip them.
+            foreach (var resourceId in created.Distinct(StringComparer.Ordinal))
+            {
+                await RefreshSmartResourceAsync(resourceId, learner).ConfigureAwait(false);
+            }
+
+            _logger.LogInformation("✅ Smart resources initialized and refreshed ({Count} new)", created.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error initializing smart resources");
+            throw;
         }
         finally
         {
@@ -120,7 +142,7 @@ public class SmartResourceService
     private static long SeedLockKey(string userId) =>
         BitConverter.ToInt64(SHA256.HashData(Encoding.UTF8.GetBytes("smart-resources:" + userId)), 0);
 
-    private async Task SeedMissingSmartResourcesAsync(string targetLanguage, string userId)
+    private async Task CreateMissingSmartResourcesAsync(string targetLanguage, string userId, List<string> created)
     {
         _logger.LogInformation("🎯 Initializing smart resources for language: {Language}", targetLanguage);
 
@@ -203,7 +225,6 @@ public class SmartResourceService
                 }
             };
 
-            var createdResources = new List<LearningResource>();
             foreach (var def in definitions)
             {
                 if (existingTypes.Contains(def.SmartResourceType!))
@@ -213,27 +234,18 @@ public class SmartResourceService
                 }
 
                 await _resourceRepo.SaveResourceAsync(def, userId);
-                createdResources.Add(def);
+                created.Add(def.Id);
                 _logger.LogInformation("✅ Created smart resource: {Title} ({Type})", def.Title, def.SmartResourceType);
             }
 
-            if (createdResources.Count == 0)
+            if (created.Count == 0)
             {
                 _logger.LogInformation("✅ All smart resources already exist, no seeding required");
-                return;
             }
-
-            // Perform initial refresh to populate vocabulary for newly created resources only.
-            foreach (var created in createdResources)
-            {
-                await RefreshSmartResourceAsync(created.Id, userId);
-            }
-
-            _logger.LogInformation("✅ Smart resources initialized and refreshed ({Count} new)", createdResources.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error initializing smart resources");
+            _logger.LogError(ex, "❌ Error creating smart resources");
             throw;
         }
     }
