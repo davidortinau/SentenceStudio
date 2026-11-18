@@ -185,8 +185,9 @@ internal sealed partial class ApplicationController
     }
 
     /// <summary>
-    /// What the shell is showing, for a bug report filed through Sam: the most specific open
-    /// screen, shared screen names with Android, and the shell state behind it (private).
+    /// What the shell is showing, for a bug report filed through Sam and for Sam's
+    /// get_current_screen: the most specific open screen, shared screen names with Android, the
+    /// shell state behind it, and what that screen shows (<see cref="NativeSamScreen"/>), all private.
     /// </summary>
     private SentenceStudio.Contracts.Coach.CoachClientScreenContext SamScreenContext()
     {
@@ -211,6 +212,8 @@ internal sealed partial class ApplicationController
                 NativeTabs.Settings => NativeSamScreenContext.SettingsTab,
                 _ => NativeSamScreenContext.StudyTab
             });
+
+        var shown = SamScreenSnapshot(screen);
 
         // The app's own choice first; the system style only when the app follows it, and only on the
         // main thread, where UIKit may be read.
@@ -239,7 +242,33 @@ internal sealed partial class ApplicationController
                 ("tab", _selectedTab.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("activity", _activity?.GetType().Name),
                 ("samPanel", SamState.Size.ToString()),
-            ]);
+            ],
+            shown);
+    }
+
+    /// <summary>
+    /// What <paramref name="screen"/> shows, from the presenter behind it. Chosen from the screen
+    /// name itself, so the description can never be of a different screen from the one named.
+    /// </summary>
+    private NativeSamScreenSnapshot SamScreenSnapshot(string screen)
+    {
+        object? source = screen switch
+        {
+            "vocabulary.word-form" => _vocabulary,
+            "skills.form" => _skills,
+            "resources.form" or "resources.detail" => _resources?.Presenter,
+            "library.minimal-pairs" => _libraryPairs?.SamSource,
+            "activity" => _activity?.SamSource,
+            "vocabulary-quiz" or "quiz-summary" => _quiz,
+            NativeSamScreenContext.StudyTab => _dashboard,
+            _ => null
+        };
+        var shown = NativeSamScreen.Describe(source);
+        if (screen != "activity" || _activity is null || _activityLaunch is not { } launch)
+            return shown;
+        // The activity itself and what it was opened with, after what it shows. Named by its
+        // route, not a localized title, so every client names the same activity the same way.
+        return NativeSamScreen.WithLaunch(shown, launch, null);
     }
 
     private void RefreshSamAvailability()

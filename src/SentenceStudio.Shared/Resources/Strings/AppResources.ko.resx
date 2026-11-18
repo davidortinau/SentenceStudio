@@ -7655,6 +7655,9 @@
   <data name="Coach_EvidenceCoverage_Settings" xml:space="preserve">
     <value>현재 설정</value>
   </data>
+  <data name="Coach_EvidenceCoverage_Screen" xml:space="preserve">
+    <value>화면에 보이던 내용</value>
+  </data>
   <data name="Coach_EvidenceCoverage_Derived" xml:space="preserve">
     <value>학습 데이터로 계산한 결과</value>
   </data>
@@ -8538,6 +8541,10 @@
   </data>
   <data name="Coach_EvidenceDefinition_LatestPracticeSummary" xml:space="preserve">
     <value>가장 최근 연습 세션과 마지막으로 공부한 시점입니다.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_ClientReportedScreen" xml:space="preserve">
+    <value>메시지를 보낼 때 보고 있던 화면입니다.</value>
     <comment>Coach evidence: what was consulted.</comment>
   </data>
   <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">

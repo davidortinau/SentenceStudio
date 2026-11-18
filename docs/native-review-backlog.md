@@ -512,3 +512,14 @@ Captain's request:
 - `propose_plan_regeneration` is tested through the real ledger on PostgreSQL
   (`CoachPlanRegenerationLedgerPostgresTests`).
 - `RegenerateTodayAsync` runs the generator read-only on a device's SQLite database.
+
+## Sam reads the current screen (review 2026-11-17, branch `feat/sam-screen-context`)
+
+- The 18 Razor pages that describe themselves to Sam spell out
+  `SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds...)`
+  in full, and the item factory exists twice (`CoachScreenDescription.Item` in
+  `src/SentenceStudio.UI/Services/CoachScreenSubject.cs` and `NativeSamScreen.Item` in
+  `src/SentenceStudio.Native/Sam/NativeSamScreen.cs`). Cleanup: `@using` lines in `_Imports.razor`
+  and one factory on `CoachClientScreenItem` in Contracts for both clients.
+- Native Reading sends the tapped word without an id (`NativeReadingWordPanel` has none); web
+  Reading sends `selectedVocabWord?.Id`. Sam can still find the word by its label.

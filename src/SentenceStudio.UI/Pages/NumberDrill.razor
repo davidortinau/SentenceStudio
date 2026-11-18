@@ -5,6 +5,7 @@
 @using SentenceStudio.Shared.Models.Numbers
 @using Microsoft.EntityFrameworkCore
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @inject NumberSessionService SessionService
 @inject ApplicationDbContext Db
 @inject UserProfileRepository ProfileRepo
@@ -604,8 +605,22 @@
     private UiSpeechClipCache ClipCache =>
         _clipCache ??= new UiSpeechClipCache(StreamHistoryRepo, FileSystemService, Logger);
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (currentItem is null)
+            return new([], Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("context", selectedContext)]);
+        return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, currentItem.DisplayPrompt, focus: true)],
+            AnswerHidden: !showFeedback,
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("context", currentItem.ContextCode), SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("mode", currentItem.SubModeCode),
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("counter", currentItem.CounterText)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("NumberDrill initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         
@@ -1291,6 +1306,7 @@
     
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         if (_disposed) return;
         _disposed = true;
         try

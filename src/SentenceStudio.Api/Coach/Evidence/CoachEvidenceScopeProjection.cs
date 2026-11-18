@@ -51,7 +51,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeCoverage.SingleDay => CoachEvidenceCoverage.SingleDay,
         CoachScopeCoverage.SettingsSnapshot => CoachEvidenceCoverage.SettingsSnapshot,
         CoachScopeCoverage.DerivedProjection => CoachEvidenceCoverage.DerivedProjection,
-        CoachScopeCoverage.CompleteAggregateWithBreakdown => CoachEvidenceCoverage.CompleteAggregateWithBreakdown
+        CoachScopeCoverage.CompleteAggregateWithBreakdown => CoachEvidenceCoverage.CompleteAggregateWithBreakdown,
+        CoachScopeCoverage.ClientScreenSnapshot => CoachEvidenceCoverage.ClientScreenSnapshot
     };
 
     /// <summary>Projects a scope's order onto the wire vocabulary.</summary>
@@ -86,7 +87,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeDefinition.PlanDaySummary => CoachDefinitionCode.PlanDaySummary,
         CoachScopeDefinition.PracticeWindowBalance => CoachDefinitionCode.PracticeWindowBalance,
         CoachScopeDefinition.DeterministicPlanPreview => CoachDefinitionCode.DeterministicPlanPreview,
-        CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary
+        CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary,
+        CoachScopeDefinition.ClientReportedScreen => CoachDefinitionCode.ClientReportedScreen
     };
 
     /// <summary>Projects a scope's withheld reason onto the wire vocabulary.</summary>

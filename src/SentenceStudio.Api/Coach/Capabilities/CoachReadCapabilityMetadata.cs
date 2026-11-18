@@ -231,6 +231,15 @@ public static class CoachReadCapabilityMetadataTable
             MaxPageSize: VocabularyExampleSentencesTool.MaxResults,
             Source: "SamTools/VocabularyExampleSentencesTool.cs MaxResults; ExcludeDue applied only when the word is due"),
 
+        [CoachToolNames.GetCurrentScreen] = new(
+            CoachScopeCoverage.ClientScreenSnapshot,
+            [CoachScopeOrder.NotApplicable],
+            Owner,
+            CoachReadDateSupport.None,
+            CoachReadRangeSupport.None,
+            MaxPageSize: null,
+            Source: "SamTools/CurrentScreenTool.cs scope block"),
+
         [CoachToolNames.GetPracticeHistorySummary] = new(
             CoachScopeCoverage.DerivedProjection,
             [CoachScopeOrder.NotApplicable],

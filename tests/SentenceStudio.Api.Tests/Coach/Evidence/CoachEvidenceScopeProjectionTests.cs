@@ -40,7 +40,7 @@ public class CoachEvidenceScopeProjectionTests
             CoachScopeCoverage.Unspecified,
             CoachEvidenceCoverage.Unknown);
 
-        swept.Should().Be(9, "CoachScopeCoverage has nine members and every one must be swept");
+        swept.Should().Be(10, "CoachScopeCoverage has ten members and every one must be swept");
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class CoachEvidenceScopeProjectionTests
             CoachScopeDefinition.Unspecified,
             CoachDefinitionCode.Unknown);
 
-        swept.Should().Be(15, "CoachScopeDefinition has fifteen members and every one must be swept");
+        swept.Should().Be(16, "CoachScopeDefinition has sixteen members and every one must be swept");
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class CoachEvidenceScopeProjectionTests
             CoachEvidenceScopeProjection.ToWire, skip: null);
 
         checkedPairs.Should().Be(
-            8 + 9 + 14 + 5,
+            9 + 9 + 15 + 5,
             "the mirror is checked name by name; a mis-wired arm such as SingleItem => SingleDay "
             + "passes every completeness check and is only visible here");
     }
@@ -111,9 +111,9 @@ public class CoachEvidenceScopeProjectionTests
     {
         // Held equal on purpose, so a reviewer can check the mirror by reading two lists side by
         // side. Only WithheldReason departs from this, and it says why in place.
-        AssertOrdinalMirror<CoachScopeCoverage, CoachEvidenceCoverage>(9);
+        AssertOrdinalMirror<CoachScopeCoverage, CoachEvidenceCoverage>(10);
         AssertOrdinalMirror<CoachScopeOrder, CoachEvidenceOrder>(10);
-        AssertOrdinalMirror<CoachScopeDefinition, CoachDefinitionCode>(15);
+        AssertOrdinalMirror<CoachScopeDefinition, CoachDefinitionCode>(16);
     }
 
     [Fact]

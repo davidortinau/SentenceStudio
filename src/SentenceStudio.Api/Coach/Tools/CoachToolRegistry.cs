@@ -351,6 +351,24 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
                 + "for words never practised. When the word is due for review its sentences are hidden: the "
                 + "answer says so and counts them as withheld, and you must not guess them."
         });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetCurrentScreen,
+            ResultType = typeof(CurrentScreenResult),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools"],
+            Description = "Reads what the learner's app is showing right now, as the app reported it with this "
+                + "message: the screen, the things on it (the word being quizzed, the resource or skill open, the "
+                + "activity running), each with the identifier the vocabulary, resource and skill tools take, and "
+                + "short screen state. A snapshot of one screen, not a search: the main thing comes first, the "
+                + "rest in no order you may rely on, and the counts are of items and facts on screen, at most twelve "
+                + "and sixteen. Nothing is read from stored data, so check an item with its own tool before acting. "
+                + "Call it when the learner says this, it, here or this screen, or asks for something without "
+                + "naming what it is about. When AnswerHidden is true the learner is still answering: do not "
+                + "reveal the answer, its meaning or a sentence that gives it away."
+        });
     }
 
     /// <summary>

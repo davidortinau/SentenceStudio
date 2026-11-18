@@ -19,6 +19,8 @@ internal sealed class WordAssociationScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeWordAssociationPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeWordAssociationState _state = new(NativePhase.Loading);
     private SwiftView? _add;
 

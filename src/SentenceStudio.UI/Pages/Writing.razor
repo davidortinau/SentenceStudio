@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -219,8 +220,17 @@ else
     private List<VocabularyWord> allVocabulary = new();
     private bool usingFocusVocabularyIds;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(string.IsNullOrWhiteSpace(userInput) ? [] : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, userInput, focus: true)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("Writing initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
@@ -559,6 +569,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         _leaving = true;
         _generation++;
         Localize.CultureChanged -= OnCultureChanged;

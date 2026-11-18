@@ -22,6 +22,8 @@ internal sealed class DiaryScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeDiaryPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeDiaryState _state = new(NativePhase.Loading);
     private long _childVersion;
     private (NativeDiaryPage Page, bool Loading) _childKey;

@@ -194,3 +194,68 @@ public sealed record CurrentPlanSummary(
     [property: Description("Plan items.")] IReadOnlyList<PlanItemSummary> Items,
     [property: Description("Overall completion percentage, 0 to 100.")] double OverallCompletionPct,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
+
+// ──────────────────────────────────────────────────────
+// Current screen
+// ──────────────────────────────────────────────────────
+
+/// <summary>What kind of thing an on-screen item is, and so which tool takes its identifier.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<CurrentScreenItemKind>))]
+public enum CurrentScreenItemKind
+{
+    /// <summary>A kind this server does not know; its identifier fits no tool.</summary>
+    Other = 0,
+
+    /// <summary>A vocabulary word; its identifier is a word id.</summary>
+    VocabularyWord,
+
+    /// <summary>An example sentence; its identifier is a sentence id.</summary>
+    ExampleSentence,
+
+    /// <summary>A learning resource; its identifier is a resource id.</summary>
+    LearningResource,
+
+    /// <summary>A skill; its identifier is a skill id.</summary>
+    Skill,
+
+    /// <summary>A minimal pair.</summary>
+    MinimalPair,
+
+    /// <summary>A practice activity; its identifier is the activity type.</summary>
+    Activity,
+
+    /// <summary>An item of today's plan.</summary>
+    PlanItem,
+
+    /// <summary>A YouTube channel.</summary>
+    YouTubeChannel,
+
+    /// <summary>Text the learner is reading or writing, with no identifier.</summary>
+    Text
+}
+
+/// <summary>One thing the screen shows.</summary>
+public sealed record CurrentScreenItem(
+    [property: Description("What kind of thing it is. Its identifier goes to the tool for that kind: a word id to the vocabulary tools, a resource id to the resource tools, a skill id to the skill tools.")] CurrentScreenItemKind Kind,
+    [property: Description("Its identifier, or null when it has none yet (a new word still being typed).")] string? Id,
+    [property: Description("What the learner sees for it: the word, the resource title, the activity name.")] string? Label,
+    [property: Description("Secondary text on screen, such as the meaning once the quiz has shown it.")] string? Detail,
+    [property: Description("True for the main thing on screen: what 'this', 'it' or 'here' refers to.")] bool Focus);
+
+/// <summary>One short piece of screen state, such as the open tab or the quiz phase.</summary>
+public sealed record CurrentScreenFact(
+    [property: Description("What the fact is about.")] string Name,
+    [property: Description("Its value.")] string? Value);
+
+/// <summary>
+/// What the learner's app was showing when they sent this message. Reported by the app, never
+/// read from stored data.
+/// </summary>
+public sealed record CurrentScreenResult(
+    [property: Description("False when the app sent no screen with this message; then you do not know what the learner is looking at.")] bool Available,
+    [property: Description("The screen, for example vocabulary-quiz, resources.detail or vocabulary.word-form.")] string? Screen,
+    [property: Description("The app: ios, android, web, maui-ios and so on.")] string? Platform,
+    [property: Description("True while the screen keeps an answer from the learner, such as a quiz question not yet answered. Do not reveal the answer, its meaning or a sentence that gives it away until they have answered.")] bool AnswerHidden,
+    [property: Description("What the screen shows, the main thing first.")] IReadOnlyList<CurrentScreenItem> Items,
+    [property: Description("Short screen state: tab, open sheet, activity mode, quiz phase.")] IReadOnlyList<CurrentScreenFact> Facts,
+    [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;

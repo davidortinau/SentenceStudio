@@ -176,7 +176,8 @@ public class CoachResultScopeContractTests
             ["Unspecified"] = 0, ["CompleteOwnedSet"] = 1, ["PageOfOwnedSet"] = 2,
             ["WindowBounded"] = 3, ["SingleItem"] = 4, ["SingleDay"] = 5,
             ["SettingsSnapshot"] = 6, ["DerivedProjection"] = 7,
-            ["CompleteAggregateWithBreakdown"] = 8
+            ["CompleteAggregateWithBreakdown"] = 8,
+            ["ClientScreenSnapshot"] = 9
         });
 
         Pinned<CoachScopeOrder>(new()
@@ -209,7 +210,8 @@ public class CoachResultScopeContractTests
             ["TrackedVocabularyDetail"] = 8, ["LearnerSettingsSnapshot"] = 9,
             ["LearnerOverviewSummary"] = 10, ["PlanDaySummary"] = 11,
             ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13,
-            ["LatestPracticeSummary"] = 14
+            ["LatestPracticeSummary"] = 14,
+            ["ClientReportedScreen"] = 15
         });
 
         Pinned<CoachScopeMinimumEvidence>(new()
@@ -1355,7 +1357,8 @@ public class CoachResultScopeContractTests
             (CoachToolNames.GetLearnerSettingsSummary, (await fixture.LearnerSettingsSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetCurrentPlanSummary, (await fixture.CurrentPlanSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetPracticeHistorySummary, (await fixture.HistorySummaryTool.GetAsync()).Scope),
-            (CoachToolNames.GetVocabularyExampleSentences, (await fixture.VocabularyExampleSentencesTool.GetAsync(word)).Scope)
+            (CoachToolNames.GetVocabularyExampleSentences, (await fixture.VocabularyExampleSentencesTool.GetAsync(word)).Scope),
+            (CoachToolNames.GetCurrentScreen, (await fixture.CurrentScreenTool.GetAsync()).Scope)
         ];
     }
 

@@ -67,8 +67,10 @@ public sealed class CoachWriteTurnScope
     public bool IsActive => !string.IsNullOrWhiteSpace(ConversationId);
 
     /// <summary>
-    /// What the client said it was showing for this turn, or null. Advisory; read only by the
-    /// feedback handler so a report can say where it happened. Never an authorization source.
+    /// What the client said it was showing for this turn, or null. Advisory and never an
+    /// authorization source. Read by the feedback handler, so a report can say where it happened,
+    /// and by get_current_screen, so Sam can resolve "this". It carries learner text (the word on
+    /// screen, a draft), which is stored only inside a feedback report the learner approves.
     /// </summary>
     public SentenceStudio.Contracts.Coach.CoachClientScreenContext? ClientScreen { get; set; }
 

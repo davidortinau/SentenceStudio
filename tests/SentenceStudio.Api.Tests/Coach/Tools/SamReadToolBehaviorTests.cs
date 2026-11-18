@@ -464,7 +464,8 @@ public class SamReadToolBehaviorTests
         () => fixture.LearningResourceDetailTool.GetAsync("any-id"),
         () => fixture.CurrentProfileSummaryTool.GetAsync(),
         () => fixture.LearnerSettingsSummaryTool.GetAsync(),
-        () => fixture.CurrentPlanSummaryTool.GetAsync()
+        () => fixture.CurrentPlanSummaryTool.GetAsync(),
+        () => fixture.CurrentScreenTool.GetAsync()
     ];
 
     private static string Serialize(object value) =>

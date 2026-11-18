@@ -218,6 +218,9 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
     internal bool IsCreatingWord => IsFormOpen && _creating;
 
+    /// <summary>The word the open form shows, for Sam; null while the form is closed or loading.</summary>
+    internal NativeVocabularyDetail? FormDetail => IsFormOpen ? _detail : null;
+
     /// <summary>Source showDeleteConfirm.</summary>
     internal bool IsDeleteConfirmationPresented => _cleanup.IsDeleteConfirmationPresented;
     internal bool IsDeletePending => IsFormOpen && _cleanup.Deleting;

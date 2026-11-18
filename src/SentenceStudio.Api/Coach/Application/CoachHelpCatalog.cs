@@ -51,16 +51,21 @@ public static class CoachHelpCatalog
 
         var items = new List<HelpItem>(7);
 
-        // 1. Teaching. Always available: it is the coach itself, not a tool.
+        // 1. Teaching. Always available: it is the coach itself, not a tool. Reading the screen
+        // is told here because it changes how every question can be asked ("this word").
+        var screen = Any(CoachToolNames.GetCurrentScreen)
+            ? new Copy(" Ask about what is on your screen, like \"this word\".",
+                " \"이 단어\"처럼 지금 화면에 있는 것에 대해 물어봐도 돼요.").For(ko)
+            : string.Empty;
         items.Add(new HelpItem(
             new Copy("Language questions", "언어 질문").For(ko),
-            context.VocabularyReviewAvailable
+            (context.VocabularyReviewAvailable
                 ? new Copy(
                     "Explain grammar, words and usage, check sentences you write, and make a 10-word review on any topic.",
                     "문법, 단어, 표현을 설명하고, 직접 쓴 문장을 고쳐 드리고, 원하는 주제로 단어 10개 복습을 만들어 드려요.").For(ko)
                 : new Copy(
                     "Explain grammar, words and usage, and check sentences you write.",
-                    "문법, 단어, 표현을 설명하고, 직접 쓴 문장을 고쳐 드려요.").For(ko)));
+                    "문법, 단어, 표현을 설명하고, 직접 쓴 문장을 고쳐 드려요.").For(ko)) + screen));
 
         // 2. Saved vocabulary.
         // Example sentences belong to words, so they are listed with them rather than as a

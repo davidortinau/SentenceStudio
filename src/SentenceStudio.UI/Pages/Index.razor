@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 @implements IAsyncDisposable
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 
 @if (isNewUser)
 {
@@ -647,8 +648,22 @@ else
         new("Activity_NumberDrill", "bi-123", "numberdrill"),
     ];
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (todaysPlan is null)
+            return new([]);
+        return new(todaysPlan.Items.Take(8)
+            .Select(item => SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.PlanItem, item.Id, Localize[item.TitleKey].ToString(),
+                item.ResourceTitle ?? item.SkillName ?? (item.IsCompleted ? "completed" : null)))
+            .ToList());
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         coachState = Services.GetService<SentenceStudio.WebUI.Services.CoachWorkspaceState>();
         if (coachState is not null)
@@ -1436,6 +1451,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
         if (coachState is not null)
         {

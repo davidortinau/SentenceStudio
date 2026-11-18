@@ -336,6 +336,13 @@ public sealed class CoachToolFactory : ICoachToolFactory
                             .GetAsync(ct),
                     reg.Name, reg.Description),
 
+            CoachToolNames.GetCurrentScreen =>
+                Create(
+                    (CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.CurrentScreenTool>()
+                            .GetAsync(ct),
+                    reg.Name, reg.Description),
+
             CoachToolNames.GetVocabularyExampleSentences =>
                 Create(
                     (string wordId, int? maxResults = null, CancellationToken ct = default) =>

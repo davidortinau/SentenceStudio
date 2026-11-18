@@ -2398,6 +2398,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to What your screen showed.
+        /// </summary>
+        internal static string Coach_EvidenceCoverage_Screen {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceCoverage_Screen", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Your current settings.
         /// </summary>
         internal static string Coach_EvidenceCoverage_Settings {
@@ -2457,6 +2466,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_EvidenceDefinition_ActiveSkillList {
             get {
                 return ResourceManager.GetString("Coach_EvidenceDefinition_ActiveSkillList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The screen you were on when you sent the message..
+        /// </summary>
+        internal static string Coach_EvidenceDefinition_ClientReportedScreen {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceDefinition_ClientReportedScreen", resourceCulture);
             }
         }
 

@@ -75,6 +75,9 @@ internal sealed partial class AndroidResourcesCoordinator : IDisposable
     internal const string Tab = "tab";
 
     private readonly NativeResourcePresenter _presenter;
+
+    /// <summary>The presenter behind the open resource, for Sam's description of the screen.</summary>
+    internal NativeResourcePresenter Presenter => _presenter;
     private readonly ILogger _logger;
     private readonly Func<string, string> _text;
     private readonly CancellationTokenSource _lifetime = new();

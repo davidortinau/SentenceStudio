@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -200,8 +201,21 @@ else
     /// <summary>Each sentence in <see cref="sentences"/> with its answer blanked, by index.</summary>
     private List<string> blankedSentences = new();
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (showSessionSummary || string.IsNullOrEmpty(displaySentence))
+            return new([]);
+        return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, displaySentence, hasBeenGraded ? correctWordAnswer : null, focus: true)],
+            AnswerHidden: !hasBeenGraded,
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("translation", translationHint), SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("inputMode", inputMode)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("Cloze initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Cloze", PlanItemId, ResourceIdParam, SkillIdParam);
@@ -471,6 +485,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         return ValueTask.CompletedTask;

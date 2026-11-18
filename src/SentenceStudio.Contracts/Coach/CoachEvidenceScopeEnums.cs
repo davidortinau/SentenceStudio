@@ -64,7 +64,10 @@ public enum CoachEvidenceCoverage
     DerivedProjection = 7,
 
     /// <summary>An aggregate over the complete set, with a bounded breakdown alongside it.</summary>
-    CompleteAggregateWithBreakdown = 8
+    CompleteAggregateWithBreakdown = 8,
+
+    /// <summary>What the learner's app reported it was showing; no stored rows behind it.</summary>
+    ClientScreenSnapshot = 9
 }
 
 /// <summary>
@@ -171,7 +174,10 @@ public enum CoachDefinitionCode
     DeterministicPlanPreview = 13,
 
     /// <summary>The learner's most recent practice date and days-since count.</summary>
-    LatestPracticeSummary = 14
+    LatestPracticeSummary = 14,
+
+    /// <summary>The screen the learner's app reported with the message.</summary>
+    ClientReportedScreen = 15
 }
 
 /// <summary>

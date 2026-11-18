@@ -1843,6 +1843,10 @@ public sealed class CoachSessionService : ICoachSessionService
                 PriorMessages = context.PriorMessages,
                 LearnerText = LearnerTextFor(request),
                 MemoryBlock = memoryBlock,
+                // What the learner is looking at as they send this, in every turn.
+                Screen = request.ClientScreen is { } screen
+                    ? Tools.SamTools.CurrentScreenTool.Read(screen)
+                    : null,
                 ActiveConstraints = constraints,
                 // Plan state only when the learner's message is about the plan or a suggestion
                 // waits for an answer; see CoachAgentTurnRequest.IncludePlanContext.

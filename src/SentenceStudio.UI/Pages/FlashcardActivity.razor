@@ -3,6 +3,8 @@
 @using Microsoft.AspNetCore.Components.Web
 @using SentenceStudio.Services.Progress
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
+@inject IServiceProvider CoachScreenServices
 
 <div class="activity-page-wrapper">
     <PageHeader Title="Flashcard Preview" ShowBack="true" OnBack="GoBack" />
@@ -121,8 +123,21 @@
     private string CardStyle => $"min-height: 280px; touch-action: pan-y; user-select: none; transform: translateX({dragOffsetX:0}px) rotate({CardRotationDegrees:0.0}deg); transition: {(pointerActive ? "none" : "transform 160ms ease-out")};";
     private double CardRotationDegrees => Math.Clamp(dragOffsetX / 18d, -18d, 18d);
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (currentWord is not { } word || showSummary)
+            return new([]);
+        return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord, word.WordId, word.TargetTerm, isFlipped ? word.NativeTerm : null, focus: true)],
+            AnswerHidden: !isFlipped,
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("card", $"{currentIndex + 1}/{words.Count}")]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         isBusy = true;
         try
         {
@@ -248,4 +263,6 @@
     private void GoBack() => NavManager.NavigateTo("/");
 
     private sealed record FlashcardResult(PlanPreviewWord Word, bool WasCorrect);
+
+    public void Dispose() => _coachScreen?.Dispose();
 }

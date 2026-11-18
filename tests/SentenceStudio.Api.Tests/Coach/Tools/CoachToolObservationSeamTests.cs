@@ -40,7 +40,8 @@ internal sealed class FixtureToolServiceProvider : IServiceProvider
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentProfileSummaryTool)] = () => fixture.CurrentProfileSummaryTool,
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.LearnerSettingsSummaryTool)] = () => fixture.LearnerSettingsSummaryTool,
             [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentPlanSummaryTool)] = () => fixture.CurrentPlanSummaryTool,
-            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool)] = () => fixture.VocabularyExampleSentencesTool
+            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.VocabularyExampleSentencesTool)] = () => fixture.VocabularyExampleSentencesTool,
+            [typeof(SentenceStudio.Api.Coach.Tools.SamTools.CurrentScreenTool)] = () => fixture.CurrentScreenTool
         };
     }
 

@@ -26,6 +26,7 @@ public static class CoachToolNames
     public const string GetLearnerSettingsSummary = "get_learner_settings_summary";
     public const string GetCurrentPlanSummary = "get_current_plan_summary";
     public const string GetVocabularyExampleSentences = "get_vocabulary_example_sentences";
+    public const string GetCurrentScreen = "get_current_screen";
 
     // --- Sam write tools (require SamOverlay + SamReadTools + SamWriteTools) ---
     // Every name starts with propose_, and every one of them produces a proposal the learner
@@ -128,6 +129,7 @@ public static class CoachToolNames
         GetLearnerSettingsSummary,
         GetCurrentPlanSummary,
         GetVocabularyExampleSentences,
+        GetCurrentScreen,
         ProposeVocabularyEntry,
         ProposeVocabularyEdit,
         ProposeVocabularyLink,

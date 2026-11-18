@@ -3,6 +3,7 @@
 @using SentenceStudio.Abstractions
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="vocab-quiz-modal-host">
@@ -842,8 +843,40 @@ else
     }
 
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>
+    /// The word on screen for Sam, with its id for the vocabulary tools. Until the answer shows,
+    /// only the prompt the learner sees goes in and Sam is told the answer is hidden.
+    /// </summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        // The resume question or a launch error covers the quiz: the restored word is not on screen.
+        if (currentItem?.Word is not { } word || showResumePrompt || !string.IsNullOrEmpty(launchError))
+            return new([]);
+        var kind = SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord;
+        if (isSentenceShortcutMode)
+            return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(kind, word.Id, word.TargetLanguageTerm, focus: true)],
+                Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("mode", "sentence")]);
+        // The prompt text goes in only when it is the heading the learner reads: an audio or
+        // photo prompt shows an instruction instead, and its word is what they must recognize.
+        var shownPrompt = showAnswer || PromptHeading == questionText ? questionText : null;
+        return new(
+            [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(kind, word.Id, shownPrompt,
+                showAnswer ? correctAnswer : null, focus: true)],
+            AnswerHidden: !showAnswer,
+            Facts:
+            [
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("mode", userMode),
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("turn", $"{currentTurnInRound + 1}/{roundWordOrder.Count}"),
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("promptLanguage", promptUsesNativeLanguage ? "native" : "target"),
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("correctionRequired", requireCorrectTyping ? "true" : null)
+            ]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
 
@@ -2919,6 +2952,7 @@ else
     {
         if (_disposeStarted) return;
         _disposeStarted = true;
+        _coachScreen?.Dispose();
         _audioDisposed = true;
         try
         {

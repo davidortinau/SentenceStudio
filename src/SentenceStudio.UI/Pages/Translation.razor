@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -279,8 +280,21 @@ else
     private IReadOnlyList<string> focusVocabularyIds = Array.Empty<string>();
     private List<string> vocabBlocks = new();
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (showSessionSummary || string.IsNullOrEmpty(currentSentence))
+            return new([]);
+        return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, currentSentence, focus: true)],
+            AnswerHidden: !showFeedback,
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("draft", userInput), SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("item", $"{currentIndex + 1}/{sentences.Count}")]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("Translation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Translation", PlanItemId, ResourceIdParam, SkillIdParam);
@@ -646,6 +660,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         _leaving = true;
         _generation++;
         Localize.CultureChanged -= OnCultureChanged;

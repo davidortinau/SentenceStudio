@@ -151,6 +151,9 @@ public static class CoachRefusalLimitationProjection
             CoachDefinitionCode.LearnerSettingsSnapshot or CoachDefinitionCode.LearnerOverviewSummary
                 => CoachRouteCatalog.Build(CoachRouteName.Settings),
 
+            // The screen the learner reported is the screen they are already on.
+            CoachDefinitionCode.ClientReportedScreen => null,
+
             // Resources have no screen among the six the plan binds. Null, not the nearest thing.
             CoachDefinitionCode.OwnedResourceCatalog
                 or CoachDefinitionCode.OwnedResourceList

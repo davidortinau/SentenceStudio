@@ -8,6 +8,7 @@
 @using SentenceStudio.Services.Timer
 @using SentenceStudio.Abstractions
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="reading-page">
@@ -302,8 +303,24 @@
     // Preferences tracking
     private bool hasShownJumpHint;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        var items = new List<SentenceStudio.Contracts.Coach.CoachClientScreenItem>();
+        if (showWordPanel && !string.IsNullOrEmpty(selectedWord))
+            items.Add(SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord, selectedVocabWord?.Id, selectedWord, selectedVocabWord?.NativeLanguageTerm, focus: true));
+        if (currentSentenceIndex >= 0 && currentSentenceIndex < sentences.Count)
+            items.Add(SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, sentences[currentSentenceIndex], focus: items.Count == 0));
+        if (resource is not null)
+            items.Add(SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.LearningResource, resource.Id, resource.Title, focus: items.Count == 0));
+        return new(items);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Logger.LogInformation("Reading initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Reading", PlanItemId, ResourceIdParam, SkillIdParam);
@@ -1017,6 +1034,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         if (_disposeStarted) return;
         _disposeStarted = true;
         _disposed = true;

@@ -118,7 +118,7 @@ public class CoachCapabilityManifestSnapshotTests
 
         // No read without metadata, and no metadata without a read.
         CoachReadCapabilityMetadataTable.All.Keys.Should().BeEquivalentTo(reads);
-        CoachReadCapabilityMetadataTable.All.Should().HaveCount(reads.Count).And.HaveCount(16);
+        CoachReadCapabilityMetadataTable.All.Should().HaveCount(reads.Count).And.HaveCount(17);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class CoachCapabilityManifestSnapshotTests
         var manifest = CapabilityFixtures.ShippedManifest();
         var reads = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.Read).ToList();
 
-        reads.Should().HaveCount(16);
+        reads.Should().HaveCount(17, "get_current_screen is the seventeenth read");
         reads.Should().OnlyContain(c => c.ReadMetadata != null);
     }
 
@@ -169,7 +169,7 @@ public class CoachCapabilityManifestSnapshotTests
         var external = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.ExternalEffect).ToList();
         var presentation = manifest.All.Where(c => c.EffectClass == CoachCapabilityEffectClass.PresentationState).ToList();
 
-        reads.Should().HaveCount(16);
+        reads.Should().HaveCount(17, "get_current_screen is the seventeenth read");
         learnerData.Should().HaveCount(15, "fifteen propose_* tools write learner data");
         external.Should().HaveCount(2, "the YouTube import and filing feedback on GitHub are the external effects");
         external.Select(c => c.Name).Should().BeEquivalentTo([CoachToolNames.ProposeYouTubeImport, CoachToolNames.ProposeFeedback]);

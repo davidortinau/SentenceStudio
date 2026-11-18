@@ -48,8 +48,9 @@ internal sealed partial class AndroidSliceShell
     }
 
     /// <summary>
-    /// What the shell is showing, for a bug report filed through Sam: the most specific open
-    /// screen, shared screen names with iOS, and the shell state behind it (private).
+    /// What the shell is showing, for a bug report filed through Sam and for Sam's
+    /// get_current_screen: the most specific open screen, shared screen names with iOS, the shell
+    /// state behind it, and what that screen shows (<see cref="NativeSamScreen"/>), all private.
     /// </summary>
     private SentenceStudio.Contracts.Coach.CoachClientScreenContext SamScreenContext()
     {
@@ -90,8 +91,52 @@ internal sealed partial class AndroidSliceShell
                 ("morePage", MorePage.ToString()),
                 ("activityRoute", _activityRoute),
                 ("samPanel", _sam?.State.Size.ToString()),
-            ]);
+            ],
+            SamScreenSnapshot(screen));
     }
+
+    /// <summary>
+    /// What <paramref name="screen"/> shows, from the presenter behind it. Chosen from the screen
+    /// name itself, so the description is always of the screen named; the same description iOS
+    /// sends for the same screen.
+    /// </summary>
+    private NativeSamScreenSnapshot SamScreenSnapshot(string screen)
+    {
+        object? source = screen switch
+        {
+            "vocabulary.word-form" => _vocabulary,
+            "skills.form" => _skills,
+            "resources.form" or "resources.detail" => _resources?.Presenter,
+            "activity" => ActivityPresenter(),
+            "vocabulary-quiz" or "quiz-summary" => _quiz,
+            NativeSamScreenContext.StudyTab => _dashboard,
+            _ => null
+        };
+        var shown = NativeSamScreen.Describe(source);
+        return screen == "activity" && _activityLaunch is { } launch
+            ? NativeSamScreen.WithLaunch(shown, launch, null)
+            : shown;
+    }
+
+    private object? ActivityPresenter() => _activityRoute switch
+    {
+        NativeActivityCatalog.VocabularyMatching => _matching,
+        NativeActivityCatalog.Cloze => _cloze,
+        NativeActivityCatalog.Translation => _translation,
+        NativeActivityCatalog.NumberDrill => _numberDrill,
+        NativeActivityCatalog.Writing => _writing,
+        NativeActivityCatalog.Reading => _reading,
+        NativeActivityCatalog.Shadowing => _shadowing,
+        NativeActivityCatalog.HowDoYouSay => _howDoYouSay,
+        NativeActivityCatalog.WordAssociation => _wordAssociation,
+        NativeActivityCatalog.Conversation => _conversation,
+        NativeActivityCatalog.Diary => _diary,
+        NativeActivityCatalog.VideoWatching => _videoWatching,
+        NativeActivityCatalog.FlashcardPreview => _flashcards,
+        NativeActivityCatalog.Scene => _scene,
+        NativeActivityCatalog.MinimalPairs => _minimalPairs,
+        _ => null
+    };
 
     private void RefreshSamAvailability()
     {

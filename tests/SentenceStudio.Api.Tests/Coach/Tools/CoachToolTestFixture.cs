@@ -264,6 +264,34 @@ internal sealed class CoachToolTestFixture : IDisposable
         new(Scope, History, Dates, NullLogger<SentenceStudio.Api.Coach.Tools.SamTools.CurrentPlanSummaryTool>.Instance);
 
     /// <summary>
+    /// The turn the current-screen tool reads. It starts with a quiz screen so a sweep sees a full
+    /// answer; a test that needs another screen, or none, sets <c>Turn.ClientScreen</c>.
+    /// </summary>
+    public SentenceStudio.Api.Coach.Operations.CoachWriteTurnScope Turn { get; } = new()
+    {
+        ClientScreen = new SentenceStudio.Contracts.Coach.CoachClientScreenContext
+        {
+            ScreenId = "native.vocabulary-quiz",
+            Route = "vocabulary-quiz",
+            Platform = "ios",
+            Items =
+            [
+                new SentenceStudio.Contracts.Coach.CoachClientScreenItem
+                {
+                    Kind = SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord,
+                    Id = "word-on-screen",
+                    Label = "생선",
+                    Focus = true
+                }
+            ],
+            State = [new SentenceStudio.Contracts.Coach.CoachClientScreenStateEntry { Key = "phase", Value = "Ready" }]
+        }
+    };
+
+    public SentenceStudio.Api.Coach.Tools.SamTools.CurrentScreenTool CurrentScreenTool =>
+        new(Scope, Turn, Dates);
+
+    /// <summary>
     /// The plan preview tool, wired to a planner stub that returns <paramref name="skeleton"/>.
     /// </summary>
     /// <remarks>

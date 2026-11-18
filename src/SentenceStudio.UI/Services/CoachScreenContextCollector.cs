@@ -8,8 +8,9 @@ using SentenceStudio.Contracts.Coach;
 namespace SentenceStudio.WebUI.Services;
 
 /// <summary>
-/// Builds the screen context sent with a typed Sam message, so a bug report filed through Sam can
-/// say which screen it was about. Used by the web app and the MAUI heads (shared Razor UI).
+/// Builds the screen context sent with a typed Sam message: which screen a bug report filed through
+/// Sam was about, and what "this" means when the learner asks Sam about the screen. Used by the web
+/// app and the MAUI heads (shared Razor UI).
 /// </summary>
 /// <remarks>
 /// Best effort: a failed snapshot sends a turn without context rather than delaying or failing it.
@@ -23,14 +24,17 @@ public sealed class CoachScreenContextCollector : IAsyncDisposable
     private readonly NavigationManager _nav;
     private readonly IJSRuntime _js;
     private readonly ILogger<CoachScreenContextCollector> _logger;
+    private readonly CoachScreenSubject? _subject;
     private IJSObjectReference? _module;
 
     public CoachScreenContextCollector(
-        NavigationManager nav, IJSRuntime js, ILogger<CoachScreenContextCollector> logger)
+        NavigationManager nav, IJSRuntime js, ILogger<CoachScreenContextCollector> logger,
+        CoachScreenSubject? subject = null)
     {
         _nav = nav;
         _js = js;
         _logger = logger;
+        _subject = subject;
     }
 
     public async Task<CoachClientScreenContext?> CaptureAsync(CancellationToken cancellationToken = default)
@@ -40,6 +44,10 @@ public sealed class CoachScreenContextCollector : IAsyncDisposable
             var relative = _nav.ToBaseRelativePath(_nav.Uri);
             var path = relative.Split('?', '#')[0];
             var isWebView = BlazorHostKind.IsWebViewHost(_nav.BaseUri);
+
+            // The page describes itself while the browser snapshot runs: neither waits on the
+            // other, so a send is held up by at most one timeout.
+            var describing = DescribePageAsync(cancellationToken);
 
             Snapshot? snapshot = null;
             try
@@ -63,9 +71,14 @@ public sealed class CoachScreenContextCollector : IAsyncDisposable
                 state.Add(new CoachClientScreenStateEntry { Key = "viewport", Value = viewport });
             }
 
+            var template = Template(path);
+            var page = await describing.ConfigureAwait(false);
+
             return new CoachClientScreenContext
             {
-                ScreenId = "/" + Template(path),
+                Items = Items(page?.Items ?? [], RouteItems(template, relative)),
+                AnswerHidden = page?.AnswerHidden ?? false,
+                ScreenId = "/" + template,
                 Platform = isWebView ? NativePlatform() : "web",
                 AppVersion = AppVersion(),
                 OsVersion = isWebView ? OsName() + " " + Environment.OSVersion.Version : null,
@@ -74,7 +87,8 @@ public sealed class CoachScreenContextCollector : IAsyncDisposable
                 Theme = snapshot?.Theme,
                 VisibleControlIds = snapshot?.ControlIds,
                 Route = "/" + relative,
-                State = state
+                State = state,
+                Facts = page?.Facts?.Where(fact => fact.Value is not null).ToArray()
             };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -83,6 +97,105 @@ public sealed class CoachScreenContextCollector : IAsyncDisposable
             return null;
         }
     }
+
+    /// <summary>The open page's own description; a page that fails to describe itself sends none.</summary>
+    private async Task<CoachScreenDescription?> DescribePageAsync(CancellationToken cancellationToken)
+    {
+        if (_subject is null)
+            return null;
+        try
+        {
+            // Bounded like the browser snapshot: a busy page must not hold up the message.
+            return await _subject.DescribeAsync().WaitAsync(SnapshotTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogDebug("The open page did not describe itself to Sam in time; sending the screen without it.");
+            return null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "The open page could not describe itself to Sam; sending the screen without it.");
+            return null;
+        }
+    }
+
+    /// <summary>The page's items first, then route items it did not already name.</summary>
+    public static IReadOnlyList<CoachClientScreenItem> Items(
+        IReadOnlyList<CoachClientScreenItem> page, IEnumerable<CoachClientScreenItem> route)
+    {
+        var items = page.ToList();
+        var hasFocus = items.Any(item => item.Focus);
+        foreach (var item in route)
+        {
+            if (items.Any(known => known.Kind == item.Kind && item.Id is not null && known.Id == item.Id))
+                continue;
+            items.Add(hasFocus && item.Focus ? new CoachClientScreenItem
+            {
+                Kind = item.Kind, Id = item.Id, Label = item.Label, Detail = item.Detail, Focus = false
+            } : item);
+            hasFocus |= item.Focus;
+        }
+
+        return items;
+    }
+
+    /// <summary>Activities by route template, so "this activity" names the one open.</summary>
+    private static readonly HashSet<string> ActivityRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cloze", "conversation", "flashcard-activity", "how-do-you-say", "numberdrill", "reading",
+        "scene", "shadowing", "translation", "video-watching", "vocab-matching", "vocab-quiz",
+        "word-association", "writing", "minimal-pairs/session/{Id}", "diary", "diary/{Id}", "diary/today"
+    };
+
+    /// <summary>
+    /// The things the route itself names: the word, resource, skill, pair or channel in the path,
+    /// and the resources and skill an activity was opened with (its query).
+    /// </summary>
+    public static IEnumerable<CoachClientScreenItem> RouteItems(string template, string relative)
+    {
+        var parts = relative.Split('#')[0].Split('?', 2);
+        var segments = parts[0].Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var id = segments.Length > 0 ? Uri.UnescapeDataString(segments[^1]) : null;
+
+        var kind = template.ToLowerInvariant() switch
+        {
+            "vocabulary/edit/{id}" => CoachClientScreenItemKinds.VocabularyWord,
+            "resources/edit/{id}" => CoachClientScreenItemKinds.LearningResource,
+            "skills/edit/{id}" => CoachClientScreenItemKinds.Skill,
+            "minimal-pairs/session/{id}" => CoachClientScreenItemKinds.MinimalPair,
+            "import/channel/{id}" or "media-import/channel/{id}" => CoachClientScreenItemKinds.YouTubeChannel,
+            "diary/{id}" => CoachClientScreenItemKinds.Text,
+            _ => null
+        };
+        if (kind is not null && !string.IsNullOrWhiteSpace(id))
+            yield return CoachScreenDescription.Item(kind, id, null, focus: true);
+
+        var query = parts.Length > 1 ? Query(parts[1]) : [];
+        foreach (var (key, value) in query)
+        {
+            var queryKind = key.ToLowerInvariant() switch
+            {
+                "resourceid" or "resourceids" => CoachClientScreenItemKinds.LearningResource,
+                "skillid" => CoachClientScreenItemKinds.Skill,
+                _ => null
+            };
+            if (queryKind is null) continue;
+            foreach (var one in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(5))
+                yield return CoachScreenDescription.Item(queryKind, one, null);
+        }
+
+        // The activity is what "this" means when the page names nothing more specific; Items
+        // drops this focus when the page marked its own, as native does.
+        if (ActivityRoutes.Contains(template))
+            yield return CoachScreenDescription.Item(CoachClientScreenItemKinds.Activity, template.Split('/')[0], null, focus: true);
+    }
+
+    private static IEnumerable<(string Key, string Value)> Query(string query) =>
+        query.Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair => pair.Split('=', 2))
+            .Where(pair => pair.Length == 2 && pair[1].Length > 0)
+            .Select(pair => (Uri.UnescapeDataString(pair[0]), Uri.UnescapeDataString(pair[1].Replace('+', ' '))));
 
     /// <summary>
     /// The app route template the path matches, for example <c>media-import/channel/{Id}</c>.

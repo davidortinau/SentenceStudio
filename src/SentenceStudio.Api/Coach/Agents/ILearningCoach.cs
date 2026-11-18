@@ -67,6 +67,18 @@ public sealed record CoachAgentTurnRequest
     /// </remarks>
     public string? MemoryBlock { get; init; }
 
+    /// <summary>
+    /// What the learner's app was showing when they sent this message, cleaned the same way
+    /// get_current_screen cleans it, or null when the app sent no screen.
+    /// </summary>
+    /// <remarks>
+    /// Rendered into every turn message as a fenced data block, so Sam always knows what the
+    /// learner is looking at and can tell when "it" might mean the screen rather than the earlier
+    /// topic. The app reads the screen when the message is sent, so it reflects opening Sam and any
+    /// screen change since; it is never stored with the turn.
+    /// </remarks>
+    public SentenceStudio.Api.Coach.Tools.SamTools.CurrentScreenView? Screen { get; init; }
+
     /// <summary>The constraints currently applied to Today's Plan.</summary>
     public required CoachConstraintSetDto ActiveConstraints { get; init; }
 

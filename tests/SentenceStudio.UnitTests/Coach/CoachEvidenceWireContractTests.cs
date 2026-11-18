@@ -94,7 +94,8 @@ public class CoachEvidenceWireContractTests
         {
             ["Unknown"] = 0, ["CompleteOwnedSet"] = 1, ["PageOfOwnedSet"] = 2, ["WindowBounded"] = 3,
             ["SingleItem"] = 4, ["SingleDay"] = 5, ["SettingsSnapshot"] = 6,
-            ["DerivedProjection"] = 7, ["CompleteAggregateWithBreakdown"] = 8
+            ["DerivedProjection"] = 7, ["CompleteAggregateWithBreakdown"] = 8,
+            ["ClientScreenSnapshot"] = 9
         });
 
         Pinned<CoachEvidenceOrder>(new()
@@ -112,7 +113,8 @@ public class CoachEvidenceWireContractTests
             ["TrackedVocabularyDetail"] = 8, ["LearnerSettingsSnapshot"] = 9,
             ["LearnerOverviewSummary"] = 10, ["PlanDaySummary"] = 11,
             ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13,
-            ["LatestPracticeSummary"] = 14
+            ["LatestPracticeSummary"] = 14,
+            ["ClientReportedScreen"] = 15
         });
 
         // The one enum whose ordinals deliberately differ from the server's. None must not sit at
