@@ -426,6 +426,52 @@ public partial class UserProfileRepository : SentenceStudio.Application.Learners
     }
 
     /// <summary>
+    /// Saves the preferred session length alone (a single-column update), so a concurrent change to
+    /// another profile field is never overwritten. Sam's "45 minutes from now on" uses it.
+    /// </summary>
+    public async Task<bool> SavePreferredSessionMinutesAsync(string userId, int minutes, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SavePreferredSessionMinutesAsync called with no userId — returning false");
+            return false;
+        }
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == userId, ct);
+            if (profile is null)
+            {
+                _logger.LogWarning("SavePreferredSessionMinutesAsync: no UserProfile found for the user");
+                return false;
+            }
+
+            if (profile.PreferredSessionMinutes == minutes)
+                return true;
+
+            profile.PreferredSessionMinutes = minutes;
+            var rows = await db.SaveChangesAsync(ct);
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return rows > 0;
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "SavePreferredSessionMinutesAsync: persistence failure");
+            return false;
+        }
+        catch (System.Data.Common.DbException ex)
+        {
+            _logger.LogError(ex, "SavePreferredSessionMinutesAsync: database error");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Persists only the <see cref="UserProfile.VocabQuizShowTextWithPhoto"/> property for
     /// the given user. Unlike <see cref="SaveAsync"/>, this performs a tracked single-property
     /// update and cannot overwrite unrelated concurrent changes.

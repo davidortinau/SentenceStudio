@@ -51,7 +51,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeCoverage.SingleDay => CoachEvidenceCoverage.SingleDay,
         CoachScopeCoverage.SettingsSnapshot => CoachEvidenceCoverage.SettingsSnapshot,
         CoachScopeCoverage.DerivedProjection => CoachEvidenceCoverage.DerivedProjection,
-        CoachScopeCoverage.CompleteAggregateWithBreakdown => CoachEvidenceCoverage.CompleteAggregateWithBreakdown
+        CoachScopeCoverage.CompleteAggregateWithBreakdown => CoachEvidenceCoverage.CompleteAggregateWithBreakdown,
+        CoachScopeCoverage.ClientScreenSnapshot => CoachEvidenceCoverage.ClientScreenSnapshot
     };
 
     /// <summary>Projects a scope's order onto the wire vocabulary.</summary>
@@ -66,7 +67,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeOrder.MinutesDescending => CoachEvidenceOrder.MinutesDescending,
         CoachScopeOrder.PriorityAscending => CoachEvidenceOrder.PriorityAscending,
         CoachScopeOrder.FrequencyDescending => CoachEvidenceOrder.FrequencyDescending,
-        CoachScopeOrder.BandLabelAscending => CoachEvidenceOrder.BandLabelAscending
+        CoachScopeOrder.BandLabelAscending => CoachEvidenceOrder.BandLabelAscending,
+        CoachScopeOrder.MasteryAscending => CoachEvidenceOrder.MasteryAscending
     };
 
     /// <summary>Projects a scope's definition onto the wire vocabulary.</summary>
@@ -86,7 +88,9 @@ public static class CoachEvidenceScopeProjection
         CoachScopeDefinition.PlanDaySummary => CoachDefinitionCode.PlanDaySummary,
         CoachScopeDefinition.PracticeWindowBalance => CoachDefinitionCode.PracticeWindowBalance,
         CoachScopeDefinition.DeterministicPlanPreview => CoachDefinitionCode.DeterministicPlanPreview,
-        CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary
+        CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary,
+        CoachScopeDefinition.ClientReportedScreen => CoachDefinitionCode.ClientReportedScreen,
+        CoachScopeDefinition.PlanVocabulary => CoachDefinitionCode.PlanVocabulary
     };
 
     /// <summary>Projects a scope's withheld reason onto the wire vocabulary.</summary>

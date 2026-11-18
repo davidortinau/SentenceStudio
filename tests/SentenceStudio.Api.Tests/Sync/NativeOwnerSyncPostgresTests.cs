@@ -18,6 +18,7 @@ using SentenceStudio.Api.Sync;
 using SentenceStudio.Api.Tests.AppOperations;
 using SentenceStudio.Api.Tests.Infrastructure;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Tests.Sync;
@@ -106,6 +107,43 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         Assert.All(rows, resource => Assert.Equal(owner, resource.UserProfileId));
         Assert.Equal("After", rows.Single(resource => resource.Id == existingId).Title);
         Assert.Equal("New", rows.Single(resource => resource.Id == newId).Title);
+    }
+
+    // One set of smart lists per learner (Captain, 2026-11-16). A phone that seeds its lists
+    // before its first sync makes them with the learner's fixed IDs (SyncIds.SmartResource), so
+    // its upload lands on the server's rows instead of adding a second set.
+    [ApplicationOperationPostgresFact]
+    public async Task SmartListMadeOnAPhoneBeforeItsFirstSync_IsTheServersRow()
+    {
+        var (owner, _) = await _fixture.SeedOwnersAsync();
+        var listId = SyncIds.SmartResource(owner, SmartResourceService.SmartResourceType_DailyReview);
+        await using (var db = _fixture.NewContext())
+        {
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = listId, UserProfileId = owner, Title = "Daily Review", IsSmartResource = true,
+                SmartResourceType = SmartResourceService.SmartResourceType_DailyReview,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var uploaded = await _fixture.UploadAsync(owner, new SyncItem(
+            "LearningResource", ChangeType.Insert, new Dictionary<string, object?>
+            {
+                ["Id"] = listId, ["UserProfileId"] = owner, ["Title"] = "Daily Review",
+                ["IsSmartResource"] = true,
+                ["SmartResourceType"] = SmartResourceService.SmartResourceType_DailyReview,
+                ["CreatedAt"] = DateTime.UtcNow, ["UpdatedAt"] = DateTime.UtcNow
+            }));
+        Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        var lists = await verified.LearningResources.AsNoTracking()
+            .Where(resource => resource.UserProfileId == owner && resource.IsSmartResource)
+            .Select(resource => resource.Id)
+            .ToListAsync();
+        Assert.Equal([listId], lists);
     }
 
     // A word recorded to this owner that another learner also links and practises (legacy data):

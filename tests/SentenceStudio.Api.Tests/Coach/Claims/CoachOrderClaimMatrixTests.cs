@@ -34,7 +34,8 @@ public sealed class CoachOrderClaimMatrixTests
         CoachEvidenceOrder.MinutesDescending,
         CoachEvidenceOrder.PriorityAscending,
         CoachEvidenceOrder.FrequencyDescending,
-        CoachEvidenceOrder.BandLabelAscending
+        CoachEvidenceOrder.BandLabelAscending,
+        CoachEvidenceOrder.MasteryAscending
     ];
 
     private static readonly CoachEvidenceOrder[] NonRankingOrders =
@@ -393,6 +394,7 @@ public sealed class CoachOrderClaimMatrixTests
         CoachEvidenceOrder.MinutesDescending => "Where you spent the most time.",
         CoachEvidenceOrder.FrequencyDescending => "The ones that come up most often.",
         CoachEvidenceOrder.PriorityAscending => "Your highest priority items.",
+        CoachEvidenceOrder.MasteryAscending => "Your weakest words first.",
         _ => throw new ArgumentOutOfRangeException(nameof(order), order, "no agreement fixture")
     };
 
@@ -404,6 +406,7 @@ public sealed class CoachOrderClaimMatrixTests
         CoachEvidenceOrder.MinutesDescending => "Your strongest words first.",
         CoachEvidenceOrder.FrequencyDescending => "Where you spent the most time.",
         CoachEvidenceOrder.PriorityAscending => "Your oldest words first.",
+        CoachEvidenceOrder.MasteryAscending => "Here are the words you know best.",
         _ => throw new ArgumentOutOfRangeException(nameof(order), order, "no contradiction fixture")
     };
 }

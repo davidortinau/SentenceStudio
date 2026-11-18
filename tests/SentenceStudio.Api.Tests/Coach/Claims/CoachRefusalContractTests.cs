@@ -229,9 +229,9 @@ public sealed class CoachRefusalContractTests
             .Select(definition => CoachRefusalLimitationProjection.DestinationFor(definition))
             .ToList();
 
-        decided.Should().HaveCount(15);
-        decided.Count(destination => destination is not null).Should().Be(11);
-        decided.Count(destination => destination is null).Should().Be(4);
+        decided.Should().HaveCount(17);
+        decided.Count(destination => destination is not null).Should().Be(12);
+        decided.Count(destination => destination is null).Should().Be(5, "the reported screen is where they already are");
     }
 
     [Fact]

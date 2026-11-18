@@ -81,6 +81,9 @@ internal sealed class SkillsCoordinator : IDisposable
     internal event Action? Changed;
     internal bool IsOpen => _open;
     internal bool IsFormOpen => _formOpen;
+
+    /// <summary>The skill the open form edits, for Sam; null on a new skill or a closed form.</summary>
+    internal string? FormSkillId => _formOpen && !_creating ? _formId : null;
     internal bool IsPending => _pending || _listBusy;
 
     /// <summary>

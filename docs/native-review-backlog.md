@@ -480,3 +480,78 @@ fix commits were fixed on the branch. These are what was left.
   this one, a few milliseconds wide on one host. The fix is to store the flag count a triage saw
   (one integer column on `CoachOpportunity`, which needs the Captain's approval) and compare
   counts instead of times.
+
+## Sam's clarification cap and new plan (reviews 2026-11-16, branch `feedback/issue-227`)
+
+All nine items recorded here on 2026-11-16 were fixed on the same branch on 2026-11-17, at the
+Captain's request:
+
+- A refused vocabulary review was recorded as a reply. The turn is now recorded after its set
+  passes the due-word check, and every answer-leak refusal is recorded as refused
+  (`CoachVocabularySetVerticalSliceTests`).
+- Two completed no-change exits skipped the recorder; both go through it now
+  (`CoachSessionStateTransitionTests.AControlChangeThatChangesNothing_IsRecordedAsAReply`).
+- "Choose one option." showed with nothing to choose. The limit card now needs an open offer;
+  without one a question is a question and a withheld one leaves the learner ready to type
+  (web `CoachStateMachine`, native `NativeSamPresenter.FromTurn`).
+- A new learner who talked to Sam lost the Welcome screen: the app's smart lists counted as
+  their resources. They no longer do, on the web dashboard and the native one.
+- Smart lists were created more than once: seeding is now one at a time per learner, in a
+  process and across app instances on PostgreSQL (`SmartResourceSeedingPostgresTests`; twelve
+  seeds at once made 60 lists before the fix). A MAUI app seeding its own database before its
+  first sync could still add a second set; lists now get one ID per learner and type
+  (`SyncIds.SmartResource`), and the server folds copies already stored into one when it sets
+  up the lists (Captain, 2026-11-16: one set per learner). See `docs/sync-all-tables-plan.md`,
+  "Smart resources". Review cleanup not done: the fold's four reference moves are separate
+  loops (`LearningResourceRepository.MergeSmartResourceCopiesAsync`); a table that names a
+  resource added later has to be added there by hand.
+- Undo of an older Sam change after a new plan: snapshots now carry the plan row's id; such an
+  undo is refused as a plan changed elsewhere and Undo is not offered for it.
+- A new plan accepted on another device is noticed when this client learns of it: its card
+  refreshed or accepted, or the conversation's history read again.
+- `propose_plan_regeneration` is tested through the real ledger on PostgreSQL
+  (`CoachPlanRegenerationLedgerPostgresTests`).
+- `RegenerateTodayAsync` runs the generator read-only on a device's SQLite database.
+
+## Sam reads the current screen (review 2026-11-17, branch `feat/sam-screen-context`)
+
+- The 18 Razor pages that describe themselves to Sam spell out
+  `SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds...)`
+  in full, and the item factory exists twice (`CoachScreenDescription.Item` in
+  `src/SentenceStudio.UI/Services/CoachScreenSubject.cs` and `NativeSamScreen.Item` in
+  `src/SentenceStudio.Native/Sam/NativeSamScreen.cs`). Cleanup: `@using` lines in `_Imports.razor`
+  and one factory on `CoachClientScreenItem` in Contracts for both clients.
+- Native Reading sends the tapped word without an id (`NativeReadingWordPanel` has none); web
+  Reading sends `selectedVocabWord?.Id`. Sam can still find the word by its label.
+
+## Sam plan builder (review 2026-11-17, branch `feat/sam-plan-builder`)
+
+- `PlanService.ApplyCoachConstraintsAsync` loads the plan row and today's completions, then
+  `PreviewCoreAsync` reads them again through `TodaysContentAsync`: two extra reads per apply.
+  Cleanup: pass the kept words and resource into the preview.
+
+## Sam default duration (review 2026-11-17, branch `feat/sam-default-duration`)
+
+- Plan writes made through the write ledger (`CoachPreferenceChangeHandler`'s resize, and the
+  existing `CoachPlanRegenerationHandler`) skip the conversation's coach revision pipeline:
+  - no `CoachPlanRevision` row;
+  - the session's `ActiveConstraints` keep the old minutes and any exclusions;
+  - no `ValidateOwnedPreviewAsync` check, although the planner reads owner-scoped data only.
+
+  A later turn ("a bit shorter") reasons from the old minutes. Fix: give ledger handlers the
+  conversation, or reconcile the session's constraints with today's plan version at turn start.
+- `CoachWritePlanEffect.ReplacedPlan` reloads Today's Plan after every setting change, including
+  one that did not resize the plan. The extra reload is harmless; carry a "plan revised" flag on
+  the operation if another setting is approved.
+- The risk class of `propose_preference_change` is written in two places: `CoachToolRegistry`
+  and `CoachPreferenceChangeHandler.RiskClass`. `CoachWriteToolSurfaceTests` pins both.
+
+## Sam topic focus (review 2026-11-17, branch `feat/sam-topic-focus`)
+
+- **Tag splitting exists three times:** `LearnerTopicQueries`,
+  `VocabularyFocusResolver.SplitTags` and `ResourceCatalogTool.SplitTags`. Cleanup: one shared
+  splitter.
+- **A topic turn loads every tagged word twice:** once for the catalog's `WordTags`, once for
+  matching. For the Captain's 4,466 words this is still one query each. Cleanup: cache per request.
+- **`ApplicationOperationConcurrencyTests.ConcurrentConfirmationUse_ConsumesExactlyOnce`** failed
+  once in a full unit run. It passed three times alone.

@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 @implements IAsyncDisposable
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 
 @if (isNewUser)
 {
@@ -593,6 +594,10 @@ else
     [Inject] private SentenceStudio.Services.ISyncService? SyncService { get; set; }
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private ApplicationDbContext Db { get; set; } = default!;
+    [Inject] private IServiceProvider Services { get; set; } = default!;
+
+    // Sam's state, where the host has Sam. Null elsewhere, and then nothing is listened for.
+    private SentenceStudio.WebUI.Services.CoachWorkspaceState? coachState;
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
@@ -643,9 +648,28 @@ else
         new("Activity_NumberDrill", "bi-123", "numberdrill"),
     ];
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (todaysPlan is null)
+            return new([]);
+        return new(todaysPlan.Items.Take(8)
+            .Select(item => SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.PlanItem, item.Id, Localize[item.TitleKey].ToString(),
+                item.ResourceTitle ?? item.SkillName ?? (item.IsCompleted ? "completed" : null)))
+            .ToList());
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
+        coachState = Services.GetService<SentenceStudio.WebUI.Services.CoachWorkspaceState>();
+        if (coachState is not null)
+        {
+            coachState.TodaysPlanReplaced += OnTodaysPlanReplaced;
+        }
 
         // If an initial sync is in flight (e.g. just logged in and SyncService.BeginInitialSync
         // was called by IdentityAuthService), don't run the new-user check yet — local DB rows
@@ -773,7 +797,11 @@ else
             var skills = await SkillRepo.ListAsync();
             var vocab = await ResourceRepo.GetAllVocabularyWordsAsync();
 
-            isNewUser = resources.Count == 0 && vocab.Count == 0;
+            // The smart lists (Daily Review, New Words Practice and the rest) are made by the app
+            // for every learner, the first time anything reads their profile. Counting them made a
+            // learner who had only talked to Sam look like one who had started, and the Welcome
+            // screen with Create Starter Resource never came back.
+            isNewUser = resources.Count(resource => !resource.IsSmartResource) == 0 && vocab.Count == 0;
         }
         catch (Exception ex)
         {
@@ -1393,9 +1421,52 @@ else
         _ => "bi-123"
     };
 
+    /// <summary>Sam made a new plan while this page was showing the old one: read it again.</summary>
+    // Single flight: a regeneration raises the event twice (its receipt and its write), and two
+    // concurrent syncs and reloads would race.
+    private bool _reloadingForSam;
+
+    private void OnTodaysPlanReplaced() => _ = InvokeAsync(async () =>
+    {
+        if (isNewUser || !isTodaysPlanMode || _reloadingForSam)
+        {
+            return;
+        }
+
+        _reloadingForSam = true;
+
+        try
+        {
+            // The new plan is on the server. A BlazorWebView host reads its own database, so it
+            // has to sync before there is anything new to read.
+            if (SyncService != null && BlazorHostKind.IsWebViewHost(NavManager.BaseUri))
+            {
+                await SyncService.TriggerSyncAsync();
+            }
+
+            // A regenerated plan often has the same item identifiers as the one it replaced, and
+            // then the cached copy would be handed back with only its progress refreshed.
+            ProgressService.InvalidateCachedPlan();
+            await LoadPlanAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to reload today's plan after Sam replaced it");
+        }
+        finally
+        {
+            _reloadingForSam = false;
+        }
+    });
+
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
+        if (coachState is not null)
+        {
+            coachState.TodaysPlanReplaced -= OnTodaysPlanReplaced;
+        }
         if (SyncService is not null)
         {
             SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;

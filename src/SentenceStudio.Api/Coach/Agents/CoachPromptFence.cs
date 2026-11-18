@@ -54,13 +54,14 @@ public readonly record struct CoachPromptFence(string Open, string Close)
     /// <param name="priorMessages">Any replayed ledger messages included in this turn.</param>
     public static CoachPromptFence Create(
         string? learnerText,
-        IReadOnlyList<CoachPriorMessage>? priorMessages = null)
+        IReadOnlyList<CoachPriorMessage>? priorMessages = null,
+        IReadOnlyList<string?>? otherFencedText = null)
     {
         for (var attempt = 0; ; attempt++)
         {
             var fence = CreateCandidate();
 
-            if (attempt >= 4 || !Collides(fence, learnerText, priorMessages))
+            if (attempt >= 4 || !Collides(fence, learnerText, priorMessages, otherFencedText))
             {
                 return fence;
             }
@@ -76,9 +77,15 @@ public readonly record struct CoachPromptFence(string Open, string Close)
     private static bool Collides(
         CoachPromptFence fence,
         string? learnerText,
-        IReadOnlyList<CoachPriorMessage>? priorMessages)
+        IReadOnlyList<CoachPriorMessage>? priorMessages,
+        IReadOnlyList<string?>? otherFencedText)
     {
         if (Contains(learnerText))
+        {
+            return true;
+        }
+
+        if (otherFencedText is not null && otherFencedText.Any(Contains))
         {
             return true;
         }

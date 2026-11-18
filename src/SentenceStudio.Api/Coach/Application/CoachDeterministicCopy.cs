@@ -293,6 +293,15 @@ public static class CoachDeterministicCopy
         + "saying it a little differently often helps.";
 
     /// <summary>
+    /// The model asked another clarifying question after asking as many in a row as it is allowed.
+    /// The question is withheld; this says what happened and what gets the learner moving again.
+    /// It does not say how many were asked: the limit is a setting and can be zero.
+    /// </summary>
+    internal const string ClarificationLimitReached =
+        "I still can\u2019t tell what you\u2019d like, so nothing was changed. Tell me the one thing "
+        + "you want me to do, as plainly as you can.";
+
+    /// <summary>
     /// The reply was refused but a proposal was already prepared this turn. The card is shown, and
     /// this says plainly that it is waiting and nothing has happened.
     /// </summary>

@@ -204,7 +204,12 @@ public static class CoachTurnEvidenceProjection
 
         CoachScopeDefinition.PracticeWindowBalance => CoachEvidenceKind.PracticeBalance,
 
-        CoachScopeDefinition.LatestPracticeSummary => CoachEvidenceKind.PracticeBalance
+        CoachScopeDefinition.LatestPracticeSummary => CoachEvidenceKind.PracticeBalance,
+
+        CoachScopeDefinition.PlanVocabulary => CoachEvidenceKind.VocabularyDue,
+
+        // The screen is what the learner is looking at, not their data: no evidence card.
+        CoachScopeDefinition.ClientReportedScreen => null
     };
 
     /// <summary>
@@ -261,6 +266,10 @@ public static class CoachTurnEvidenceProjection
 
         CoachScopeDefinition.PracticeWindowBalance => "Practice you logged over the window.",
 
-        CoachScopeDefinition.LatestPracticeSummary => "Your most recent practice sessions, ordered by completion time."
+        CoachScopeDefinition.LatestPracticeSummary => "Your most recent practice sessions, ordered by completion time.",
+
+        CoachScopeDefinition.PlanVocabulary => "The words in today's plan.",
+
+        CoachScopeDefinition.ClientReportedScreen => string.Empty
     };
 }

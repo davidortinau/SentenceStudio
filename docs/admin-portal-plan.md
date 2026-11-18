@@ -671,6 +671,71 @@ every four hours, not on weekdays as the plan had said.
   the three reports to accepted, and left nothing to look at. Both issues were read afterwards
   and carry no learner text.
 
+**The check also resolves what it files (2026-11-16, later the same day)**
+
+The Captain's expectation: "you triage the issues, file the github issues, and then perform the
+diagnosis and resolution. Go as far as you can to resolve the issue. When opening a PR you
+should include your activity log." This replaces the plan's "it triages and reports; real fixes
+go to a full session".
+
+- A second stage in `scripts/admin-feedback-check.sh`, with its instructions in
+  `docs/admin-feedback-fix.md`: one open issue per run (labelled `feedback-check`, not yet
+  `feedback-attempted`), in a worktree of its own from `origin/main` on the branch
+  `feedback/issue-<n>`, by a Fable 5.2 session at high effort with up to three hours. It can
+  edit, build, test, push that branch and open a pull request; it keeps an activity log that
+  goes in the pull request.
+- It never reads learner content (only the triage stage does), and cannot use Azure, the
+  production scripts or a merge. It stops and hands over for anything that changes what Sam
+  says or does, a schema change, a new dependency or anything in production.
+- Issues 226 and 227 were labelled and queued. The first fix run was started by hand on 227.
+
+**What the first issue taught, and what changed (2026-11-17)**
+
+Issue 227 took one unattended run and then four more passes in the Captain's own session,
+about four and a half hours in all, because the check could not continue a pull request it
+had opened. `main`'s checks were also red for a day without anyone being told, and the check
+itself ran from the working checkout's branch, with commits that were not on GitHub. The
+Captain chose three changes from the ten proposed:
+
+- **Follow-up passes.** A comment of his on one of the check's pull requests that starts with
+  `/revise` (or a review whose summary does) is taken by the next run, before any new issue, on
+  the same branch. Only the repository owner's comments count and only they are shown to the
+  session; a pull request from a fork is never the check's own. Each request gets one pass.
+  `scripts/admin-feedback-pr.py` finds them; `docs/admin-feedback-fix.md` ("A follow-up pass")
+  is what the session follows.
+  - A session posts through his GitHub login, so what it writes there cannot be told from his.
+    Two reviews of this change pressed on that. What came of it: a session is handed a
+    request's own text and nothing else from the pull request (comments on the diff only as
+    part of a review that is itself a request), and the runner fingerprints every waiting
+    request before a session and sets aside any that appeared or changed during it, and any
+    review he had in draft, saying so on the pull request. That narrows what a misled session can pass on. It is not a boundary:
+    a fix session has his access to the Mac. A separate GitHub identity for the sessions (the
+    GitHub App the API already uses to file issues is one candidate) would let the two be told
+    apart, and is left for him to decide.
+  - A run that dies during its session is reported by the next one, on the pull request too.
+- **Checks.** A fix session waits for its pull request's checks (25 to 45 minutes here, in
+  nine-minute calls) and fixes what is its own. The runner reads them again into the summary, with whether `main`
+  fails each one too, and every run reports `main`'s own checks, with a notification when they
+  turn red. A cancelled check counts as failed.
+  - The unit test that had kept `main` red was a real fault, not a slow runner: a second
+    confirmation that arrived just after the first had finished was answered as a malformed
+    request, not as a conflict. It is fixed in `EfApplicationOperationStore.TransitionAttemptAsync`
+    with a test that does not depend on timing.
+- **The check runs what is on `main`.** launchd starts `scripts/admin-feedback-run.sh` in a
+  checkout of the check's own, which follows `origin/main`.
+
+Checked with a dry-run rig (a throwaway repository and stand-ins for `gh`, `claude` and the
+notification, so no session ran and nothing was posted): nothing waiting; `main` red twice
+(one notification); a request with a stranger's `/revise` beside it (only the owner's words
+reached the session, the push landed on the branch, the request was marked answered and not
+taken again); a session that wrote a `/revise` itself, and one that rewrote a request waiting
+on another pull request (each set aside, not taken by the next run); a session that crashed;
+the branch checked out elsewhere on the machine (declined on the pull request once, with git's
+reason in the summary); GitHub unreadable (reported as a failure, the request kept); a run
+killed during a follow-up session and during a first pass (the next run said so and named the
+worktree); a first pass on a new issue; and the launcher following `main` while leaving a
+checkout on a branch alone. Not yet seen: a real follow-up session on a real pull request.
+
 **Left for later**
 
 - Replace the token before 2026-12-16: create a new one in the portal and write it to Key Vault.
@@ -686,7 +751,7 @@ every four hours, not on weekdays as the plan had said.
 | Phase | State |
 |---|---|
 | 0. Admin sign-in | Merged to `main` on 2026-11-15; deployed on 2026-11-16 with phases 1, 3 and 4. |
-| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word; see "Deployed" and "The feedback check" under "Phase 1 as built". The check runs every four hours on Lilliput. Its nine build choices were not discussed one by one. |
+| 1. Feedback inbox, agent access, scheduled check | Merged to `main` and deployed on 2026-11-16 on the Captain's word; see "Deployed" and "The feedback check" under "Phase 1 as built". The check runs every four hours on Lilliput, from `main` since 2026-11-17, and takes `/revise` comments on its own pull requests. Its nine build choices were not discussed one by one. |
 | 2. Accounts and the sign-up list | Not started. |
 | 3. Sync and data health | Merged to `main` on 2026-11-16 with phase 4; deployed the same day. |
 | 4. AI usage and jobs | Merged to `main` on 2026-11-16 with phase 3; deployed the same day. |

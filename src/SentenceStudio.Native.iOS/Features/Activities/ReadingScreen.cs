@@ -21,6 +21,8 @@ internal sealed class ReadingScreen : IActivityScreen
     private static readonly char[] Whitespace = [' ', '\t', '\n', '\r', '\u00A0', '\u3000'];
     private readonly ActivityScreenHost _host;
     private readonly NativeReadingPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeReadingState _state = new(NativePhase.Loading);
 
     public ReadingScreen(ActivityScreenHost host)

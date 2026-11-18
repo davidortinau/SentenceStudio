@@ -174,6 +174,7 @@ public static class SamWritePresentation
         CoachWriteChangeKind.ExampleSentenceAdd => "Coach_WriteKindExampleSentenceAdd",
         CoachWriteChangeKind.ExampleSentenceEdit => "Coach_WriteKindExampleSentenceEdit",
         CoachWriteChangeKind.ExampleSentenceRemove => "Coach_WriteKindExampleSentenceRemove",
+        CoachWriteChangeKind.PlanRegenerate => "Coach_WriteKindPlanRegenerate",
         _ => "Coach_WriteKindUnknown"
     };
 

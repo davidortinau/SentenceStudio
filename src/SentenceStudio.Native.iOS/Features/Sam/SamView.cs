@@ -29,6 +29,10 @@ internal sealed record SamActions(
     Action ApproveSet,
     Action DeclineSet,
     Action StartReview,
+    Action<string> OpenWord,
+    Action StartActivity,
+    Action CancelActivity,
+    Action DismissActivity,
     SamWriteActions Writes,
     SamMemoryActions Memory,
     SamMessageActions Messages,
@@ -197,6 +201,8 @@ internal static class SamView
             items.Add(VocabularySet(style, state, set, text, actions));
         if (state.VocabularySetMessageKey is { } setMessage)
             items.Add(VocabularySetOutcome(style, state, text(setMessage), text, actions));
+        if (state.ActivityLaunch is { } launch)
+            items.Add(ActivityLaunch(style, state, launch, text, actions));
         if (state.ShowStarters)
             items.Add(Starters(style, state, text, actions));
         if (state.ConversationClosed)
@@ -252,6 +258,8 @@ internal static class SamView
                 foreach (var line in entry.ChangeLines.IsDefault ? [] : entry.ChangeLines)
                     parts.Add(style.Text(Views.Text("• " + line), SourceTextRole.Body2,
                         SourceTextTone.Secondary));
+                if (!learner && entry.WordList is { Rows.Count: > 0 } words)
+                    parts.Add(WordList(style, words, index, text, actions.OpenWord));
                 break;
         }
         if (entry.Limitation is { } limitation)
@@ -294,6 +302,50 @@ internal static class SamView
             return exchange;
         }
         return body;
+    }
+
+    /// <summary>
+    /// Source CoachWordList: the words Sam listed, each row opening the word's editor. The rows are
+    /// the server's, never the model's prose.
+    /// </summary>
+    private static SwiftView WordList(SourceUiStyle style, CoachWordListDto list, int index,
+        Func<string, string> text, Action<string> openWord)
+    {
+        var heading = text(list.Order == CoachWordListOrder.WeakestFirst
+            ? "Coach_WordList_PlanWeakest" : "Coach_WordList_Plan");
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(heading), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier($"native.sam.words.{index}.heading")
+        };
+        for (var i = 0; i < list.Rows.Count; i++)
+        {
+            var row = list.Rows[i];
+            var mastery = row.MasteryPercent is { } percent
+                ? string.Format(CultureInfo.CurrentCulture, text("Coach_WordList_Mastery"), percent)
+                : text("Coach_WordList_NotPractised");
+            var terms = Views.VStack(
+                    style.Text(Views.Text(row.TargetTerm), SourceTextRole.Body2Strong).WithLineLimit(1),
+                    style.Text(Views.Text(row.NativeTerm), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                        .WithLineLimit(1))
+                .WithFlexibleWidth();
+            terms.Spacing = 2;
+            var label = Views.HStack(terms,
+                    style.Text(Views.Text(mastery), SourceTextRole.Caption1, SourceTextTone.Secondary))
+                .WithFlexibleWidth();
+            label.Spacing = 8;
+            var wordId = row.WordId;
+            rows.Add(Views.Button(label, () => openWord(wordId))
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithFlexibleWidth()
+                .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+                .WithAccessibilityIdentifier($"native.sam.words.{index}.{i}")
+                .WithAccessibilityLabel($"{row.TargetTerm}, {row.NativeTerm}, {mastery}"));
+        }
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"native.sam.words.{index}");
+        stack.Spacing = 2;
+        return stack;
     }
 
     /// <summary>Source CoachRepairDisclosureNotice: one closed state in, one sentence out.</summary>
@@ -867,6 +919,52 @@ internal static class SamView
         var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
         stack.Spacing = 6;
         return style.InfoAlert(stack, compact: true);
+    }
+
+    /// <summary>
+    /// Source CoachActivityLaunchCard: what Sam is opening. While it counts down, Cancel with a bar
+    /// draining right to left; otherwise Start and Not now.
+    /// </summary>
+    private static SwiftView ActivityLaunch(SourceUiStyle style, NativeSamState state,
+        CoachActivityLaunchDto launch, Func<string, string> text, SamActions actions)
+    {
+        var name = text(CoachActivityRoutes.TitleKey(launch.Activity));
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture, text("Coach_ActivityLaunch_Title"), name)),
+                    SourceTextRole.Body2Strong)
+                .WithAccessibilityIdentifier("native.sam.activity.title")
+        };
+        var details = string.Join(" · ", new[] { launch.Language, launch.ScenarioName }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+        if (details.Length > 0)
+            rows.Add(style.Text(Views.Text(details), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.sam.activity.details"));
+        if (state.ActivityCountdown is { } remaining)
+        {
+            var countdown = string.Format(CultureInfo.CurrentCulture, text("Coach_ActivityLaunch_Countdown"), remaining);
+            rows.Add(style.OutlineButton(Views.Text(text("Common_Cancel")), actions.CancelActivity)
+                .WithAccessibilityIdentifier("native.sam.activity.cancel")
+                .WithAccessibilityLabel(string.Format(CultureInfo.CurrentCulture,
+                    text("Coach_ActivityLaunch_CancelLabel"), name)));
+            rows.Add(style.Progress(Views.Progress(remaining, NativeSamPresenter.ActivityCountdownSeconds, 4, countdown),
+                    completion: false)
+                .WithAccessibilityIdentifier("native.sam.activity.countdown"));
+        }
+        else
+        {
+            var buttons = Views.HStack(
+                style.PrimaryButton(text("Coach_ActivityLaunch_Start"), actions.StartActivity)
+                    .WithAccessibilityIdentifier("native.sam.activity.start"),
+                style.OutlineButton(Views.Text(text("Coach_ActivityLaunch_NotNow")), actions.DismissActivity)
+                    .WithAccessibilityIdentifier("native.sam.activity.dismiss"));
+            buttons.Spacing = 8;
+            rows.Add(buttons);
+        }
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 6;
+        return style.Card(stack.WithPadding(12), radius: 12)
+            .WithAccessibilityIdentifier("native.sam.activity");
     }
 
     private static SwiftView Notice(SourceUiStyle style, string message, string id) =>

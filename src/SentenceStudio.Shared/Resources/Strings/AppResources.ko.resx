@@ -7655,6 +7655,9 @@
   <data name="Coach_EvidenceCoverage_Settings" xml:space="preserve">
     <value>현재 설정</value>
   </data>
+  <data name="Coach_EvidenceCoverage_Screen" xml:space="preserve">
+    <value>화면에 보이던 내용</value>
+  </data>
   <data name="Coach_EvidenceCoverage_Derived" xml:space="preserve">
     <value>학습 데이터로 계산한 결과</value>
   </data>
@@ -8538,6 +8541,10 @@
   </data>
   <data name="Coach_EvidenceDefinition_LatestPracticeSummary" xml:space="preserve">
     <value>가장 최근 연습 세션과 마지막으로 공부한 시점입니다.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_ClientReportedScreen" xml:space="preserve">
+    <value>메시지를 보낼 때 보고 있던 화면입니다.</value>
     <comment>Coach evidence: what was consulted.</comment>
   </data>
   <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">
@@ -9764,6 +9771,9 @@
   <data name="Coach_WriteKindExampleSentenceRemove" xml:space="preserve">
     <value>예문 삭제</value>
   </data>
+  <data name="Coach_WriteKindPlanRegenerate" xml:space="preserve">
+    <value>오늘 계획 새로 만들기</value>
+  </data>
   <data name="VocabWordEdit_AddToResource" xml:space="preserve">
     <value>리소스에 추가</value>
     <comment>Vocabulary word editor: menu that adds the word to one of the learner's resources</comment>
@@ -10261,5 +10271,65 @@
   </data>
   <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
     <value>먼저 단어를 하나 이상 선택하세요.</value>
+  </data>
+  <data name="Coach_EvidenceDefinition_PlanVocabulary" xml:space="preserve">
+    <value>오늘의 학습 계획에 있는 단어입니다.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_MasteryWeakest" xml:space="preserve">
+    <value>숙달도 낮은 순</value>
+    <comment>Coach: evidence ordering claim, lowest mastery score first</comment>
+  </data>
+  <data name="Coach_WordList_Plan" xml:space="preserve">
+    <value>오늘의 계획에 있는 단어</value>
+    <comment>Sam: heading over the plan words Sam listed, in plan order</comment>
+  </data>
+  <data name="Coach_WordList_PlanWeakest" xml:space="preserve">
+    <value>오늘의 계획에 있는 단어 (약한 순)</value>
+    <comment>Sam: heading over the plan words Sam listed, lowest mastery first</comment>
+  </data>
+  <data name="Coach_WordList_Mastery" xml:space="preserve">
+    <value>숙달도 {0}%</value>
+    <comment>Sam: a listed word's mastery. {0} is a whole number from 0 to 100</comment>
+  </data>
+  <data name="Coach_WordList_NotPractised" xml:space="preserve">
+    <value>아직 연습하지 않음</value>
+    <comment>Sam: a listed word that has never been practised</comment>
+  </data>
+  <data name="NativeSam_WordOpenLeaveScreen" xml:space="preserve">
+    <value>지금 보고 있는 화면을 닫은 뒤 이 단어를 여세요.</value>
+    <comment>Sam: a word row was tapped while a quiz or activity is open</comment>
+  </data>
+  <data name="NativeSam_WordOpenFailed" xml:space="preserve">
+    <value>이 단어를 열 수 없어요. 삭제되었을 수 있어요.</value>
+    <comment>Sam: a listed word row was tapped but its editor could not open</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Title" xml:space="preserve">
+    <value>{0} 여는 중</value>
+    <comment>Sam: card title while Sam opens an activity. {0} is the activity name</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Countdown" xml:space="preserve">
+    <value>{0}초 후에 열려요</value>
+    <comment>Sam: countdown beside Cancel. {0} is whole seconds left</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Start" xml:space="preserve">
+    <value>시작</value>
+    <comment>Sam: opens the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_NotNow" xml:space="preserve">
+    <value>나중에</value>
+    <comment>Sam: dismisses the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_CancelLabel" xml:space="preserve">
+    <value>{0} 열기 취소</value>
+    <comment>Sam: accessible name of the countdown Cancel button. {0} is the activity name</comment>
+  </data>
+  <data name="NativeSam_ActivityLeaveScreen" xml:space="preserve">
+    <value>지금 보고 있는 화면을 닫은 뒤 이 활동을 시작하세요.</value>
+    <comment>Sam: the prepared activity cannot open over a quiz or another activity</comment>
+  </data>
+  <data name="NativeSam_ActivityOpenFailed" xml:space="preserve">
+    <value>이 활동을 열 수 없어요. 자료나 기술이 없어졌을 수 있어요.</value>
+    <comment>Sam: the prepared activity could not open</comment>
   </data>
 </root>

@@ -17,6 +17,9 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationController
 {
     private IActivityScreen? _activity;
+
+    /// <summary>The launch of the open activity, so Sam can name it and what it was opened with.</summary>
+    private NativeActivityLaunch? _activityLaunch;
     /// <summary>The screen whose OpenAsync threw: the host shows its shared error with Go Back instead.</summary>
     private IActivityScreen? _activityOpenFailure;
     private IServiceScope? _activityScope;
@@ -193,6 +196,7 @@ internal sealed partial class ApplicationController
         // One DI scope per activity screen, disposed with it, so its presenter,
         // timer and tiles do not live in the root container until app exit.
         _activityScope = _services.Provider.CreateScope();
+        _activityLaunch = launch;
         _activity = ActivityScreens.Create(launch.Route, new ActivityScreenHost(
             _activityScope.ServiceProvider, Text, Publish, Run, ExitActivity, _logger, _lifetime.Token));
         if (_activity is null)

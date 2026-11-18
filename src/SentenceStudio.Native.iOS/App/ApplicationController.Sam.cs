@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using SentenceStudio.Contracts.Coach;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
@@ -71,6 +73,10 @@ internal sealed partial class ApplicationController
         ApproveSet: () => RunSam(sam => sam.ApproveVocabularySetAsync(_lifetime.Token)),
         DeclineSet: () => RunSam(sam => sam.DeclineVocabularySetAsync(_lifetime.Token)),
         StartReview: () => _sam?.StartVocabularyReview(),
+        OpenWord: wordId => _sam?.OpenListedWord(wordId),
+        StartActivity: () => _sam?.StartActivityLaunch(),
+        CancelActivity: () => _sam?.CancelActivityCountdown(),
+        DismissActivity: () => _sam?.DismissActivityLaunch(),
         Writes: new SamWriteActions(
             Accept: id => RunSam(sam => sam.AcceptWriteAsync(id, _lifetime.Token)),
             Review: id => RunSam(sam => sam.BeginWriteConfirmationAsync(id, _lifetime.Token)),
@@ -181,12 +187,19 @@ internal sealed partial class ApplicationController
         _sam.Changed += Publish;
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
+        _sam.WordRequested += OnSamWordRequested;
+        _sam.ActivityRequested += OnSamActivityRequested;
+        // An activity opens by itself only from the Study tab, with nothing else open, and never
+        // under VoiceOver: the reply has to be read before anything moves.
+        _sam.CanAutoOpenActivity = () => !UIKit.UIAccessibility.IsVoiceOverRunning
+            && _destination == NativeDestination.Dashboard && !IsActivityOpen && !NavigationBlocked;
         return _sam;
     }
 
     /// <summary>
-    /// What the shell is showing, for a bug report filed through Sam: the most specific open
-    /// screen, shared screen names with Android, and the shell state behind it (private).
+    /// What the shell is showing, for a bug report filed through Sam and for Sam's
+    /// get_current_screen: the most specific open screen, shared screen names with Android, the
+    /// shell state behind it, and what that screen shows (<see cref="NativeSamScreen"/>), all private.
     /// </summary>
     private SentenceStudio.Contracts.Coach.CoachClientScreenContext SamScreenContext()
     {
@@ -211,6 +224,8 @@ internal sealed partial class ApplicationController
                 NativeTabs.Settings => NativeSamScreenContext.SettingsTab,
                 _ => NativeSamScreenContext.StudyTab
             });
+
+        var shown = SamScreenSnapshot(screen);
 
         // The app's own choice first; the system style only when the app follows it, and only on the
         // main thread, where UIKit may be read.
@@ -239,7 +254,33 @@ internal sealed partial class ApplicationController
                 ("tab", _selectedTab.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("activity", _activity?.GetType().Name),
                 ("samPanel", SamState.Size.ToString()),
-            ]);
+            ],
+            shown);
+    }
+
+    /// <summary>
+    /// What <paramref name="screen"/> shows, from the presenter behind it. Chosen from the screen
+    /// name itself, so the description can never be of a different screen from the one named.
+    /// </summary>
+    private NativeSamScreenSnapshot SamScreenSnapshot(string screen)
+    {
+        object? source = screen switch
+        {
+            "vocabulary.word-form" => _vocabulary,
+            "skills.form" => _skills,
+            "resources.form" or "resources.detail" => _resources?.Presenter,
+            "library.minimal-pairs" => _libraryPairs?.SamSource,
+            "activity" => _activity?.SamSource,
+            "vocabulary-quiz" or "quiz-summary" => _quiz,
+            NativeSamScreenContext.StudyTab => _dashboard,
+            _ => null
+        };
+        var shown = NativeSamScreen.Describe(source);
+        if (screen != "activity" || _activity is null || _activityLaunch is not { } launch)
+            return shown;
+        // The activity itself and what it was opened with, after what it shows. Named by its
+        // route, not a localized title, so every client names the same activity the same way.
+        return NativeSamScreen.WithLaunch(shown, launch, null);
     }
 
     private void RefreshSamAvailability()
@@ -332,6 +373,91 @@ internal sealed partial class ApplicationController
             _selectedTab = NativeTabs.Study;
             await StartQuizAsync(launch);
         });
+    }
+
+    /// <summary>
+    /// The activity Sam prepared opens (the countdown ran out or the learner tapped Start), as
+    /// its Choose My Own tile would, with the resources, skill, scenario and language the server
+    /// checked. Not over a quiz or another activity: Sam says to leave it first.
+    /// </summary>
+    private void OnSamActivityRequested(string owner, CoachActivityLaunchDto launch)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || IsActivityOpen
+            || _services is null || CoachActivityRoutes.Route(launch.Activity) is not { } route)
+        {
+            _sam?.ReportActivityBlockedByScreen();
+            return;
+        }
+        Run(async () =>
+        {
+            var resources = launch.ResourceIds.ToImmutableArray();
+            if (launch.Activity == CoachActivityKind.VocabularyQuiz)
+            {
+                var quiz = await _services.Provider.GetRequiredService<NativeQuizLaunchService>()
+                    .CreateChooseOwnAsync(owner, resources, launch.SkillId, cancellationToken: _lifetime.Token);
+                if (quiz is null)
+                {
+                    _sam?.ReportActivityNotOpened();
+                    return;
+                }
+                _sam?.Close();
+                CloseResourceOpenedFromStudy();
+                _selectedTab = NativeTabs.Study;
+                await StartQuizAsync(quiz);
+                return;
+            }
+            var selection = new NativeQuizLaunch(owner, DateOnly.FromDateTime(DateTime.Today), string.Empty,
+                resources, launch.SkillId, []);
+            var activity = await _services.Provider.GetRequiredService<NativeActivityLaunchService>()
+                .FromChooseOwnAsync(selection, route, _lifetime.Token);
+            if (activity is null)
+            {
+                _sam?.ReportActivityNotOpened();
+                return;
+            }
+            _sam?.Close();
+            CloseResourceOpenedFromStudy();
+            _selectedTab = NativeTabs.Study;
+            StartActivity(activity with { ScenarioId = launch.ScenarioId, Language = launch.Language });
+        });
+    }
+
+    /// <summary>
+    /// A word row in one of Sam's lists: Sam closes and the Library opens that word's editor, as
+    /// a tap on the word in the Vocabulary page would. Not from a quiz or activity, which the
+    /// learner leaves themselves.
+    /// </summary>
+    private void OnSamWordRequested(string owner, string wordId)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || _services is null)
+        {
+            _sam?.ReportWordOpenBlockedByScreen();
+            return;
+        }
+        EnsureResources();
+        EnsureVocabulary();
+        RunLibrary(async () =>
+        {
+            // Read again when already open: the word may be newer than the list on screen.
+            var listed = IsVocabularyOpen
+                ? await ReloadThenTrue(_vocabulary!)
+                : await _vocabulary!.OpenAsync(owner);
+            // Sam stays open, with a notice, until the word's editor has actually opened.
+            if (!listed || !await _vocabulary!.OpenWordAsync(wordId))
+            {
+                _logger?.LogWarning("A word Sam listed could not open in the vocabulary editor.");
+                _sam?.ReportListedWordNotOpened();
+                return;
+            }
+            _sam?.Close();
+            _selectedTab = NativeTabs.Library;
+        });
+
+        static async Task<bool> ReloadThenTrue(SentenceStudio.Native.iOS.Features.Vocabulary.VocabularyCoordinator vocabulary)
+        {
+            await vocabulary.ReloadAsync();
+            return true;
+        }
     }
 
     /// <summary>

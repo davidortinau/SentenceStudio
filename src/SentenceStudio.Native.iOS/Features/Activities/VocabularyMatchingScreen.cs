@@ -16,6 +16,8 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeMatchingPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeMatchingState _state = new(NativePhase.Loading);
 
     public VocabularyMatchingScreen(ActivityScreenHost host)

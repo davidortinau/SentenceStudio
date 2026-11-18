@@ -218,6 +218,9 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
     /// <summary>The open editor is adding a new word (source VocabularyWordEdit add mode).</summary>
     internal bool IsCreatingWord => IsFormOpen && _creating;
 
+    /// <summary>The word the open form shows, for Sam; null while the form is closed or loading.</summary>
+    internal NativeVocabularyDetail? FormDetail => IsFormOpen ? _detail : null;
+
     /// <summary>Source showDeleteConfirm.</summary>
     internal bool IsDeleteConfirmationPresented => _cleanup.IsDeleteConfirmationPresented;
     internal bool IsDeletePending => IsFormOpen && _cleanup.Deleting;
@@ -479,13 +482,14 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         current with { ResourceIds = loaded.ResourceIds } == loaded
         && loaded.ResourceIds.SequenceEqual(current.ResourceIds, StringComparer.Ordinal);
 
-    internal async Task OpenWordAsync(string id)
+    /// <returns>True when the editor opened on the word; false when it could not (not the learner's word, not read yet, or another edit waits).</returns>
+    internal async Task<bool> OpenWordAsync(string id)
     {
         if (!_listOpen || _saving || _listDeleting || !TryOwner(out var owner)
             || string.IsNullOrWhiteSpace(id))
-            return;
+            return false;
         if (!_formOpen && !_catalog.Words.Any(word => word.Id == id))
-            return;
+            return false;
         // Beside the list (the iPad and iPhone Duo split view) another word can be chosen while
         // one is open: unsaved edits stay, and the editor says to save them first.
         if (_formOpen && !string.Equals(id, _selectedWordId, StringComparison.Ordinal)
@@ -493,7 +497,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         {
             _editErrorKey = SaveBeforeOpeningAnotherKey;
             Notify(VocabularyChanges.Form);
-            return;
+            return false;
         }
         _selectedWordId = id;
         var generation = Interlocked.Increment(ref _formGeneration);
@@ -511,11 +515,11 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 owner, id, _lifetimeToken));
             if (generation != Volatile.Read(ref _formGeneration)
                 || !_formOpen || _selectedWordId != id)
-                return;
+                return false;
             if (!TryOwner(out _))
             {
                 Block();
-                return;
+                return false;
             }
             _detail = detail;
             _draft = detail?.Draft;
@@ -527,7 +531,7 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
         }
         catch (OperationCanceledException) when (_disposed)
         {
-            return;
+            return false;
         }
         catch (Exception ex)
         {
@@ -542,10 +546,11 @@ internal partial class VocabularyBrowser : IDisposable, IVocabularyCleanupHost
                 Notify(VocabularyChanges.Form);
             }
         }
+        return true;
     }
 
     internal Task RetryWordAsync() => _creating ? OpenNewWordAsync()
-        : OpenWordAsync(_selectedWordId ?? string.Empty);
+        : (Task)OpenWordAsync(_selectedWordId ?? string.Empty);
 
     /// <summary>
     /// Source Vocabulary Add: the editor opens on a new word in the owner's target language

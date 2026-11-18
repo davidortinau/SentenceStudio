@@ -15,6 +15,9 @@ namespace SentenceStudio.Native.iOS.Features.LearningResources;
 internal sealed partial class LearningResourcesCoordinator : IDisposable
 {
     private readonly NativeResourcePresenter _presenter;
+
+    /// <summary>The presenter behind the open resource, for Sam's description of the screen.</summary>
+    internal NativeResourcePresenter Presenter => _presenter;
     private readonly ILogger<LearningResourcesCoordinator> _logger;
     private readonly Func<string, string> _text;
     private readonly CancellationTokenSource _lifetime = new();

@@ -76,10 +76,45 @@ public class CoachStateMachineTests
     {
         var turn = Turn(
             sessionStatus: CoachSessionStatus.AwaitingClarification,
-            clarifyingQuestion: "Should I add it?",
-            clarificationsRemaining: 0);
+            clarifyingQuestion: "Should I update Today's Plan with that change now?",
+            clarificationsRemaining: 0,
+            suggestion: Suggestion());
 
         CoachStateMachine.FromTurn(turn).Should().Be(CoachUiState.ClarificationLimitReached);
+    }
+
+    /// <summary>
+    /// The limit card ("Choose one option.") is a choice about an open offer. Without one it told
+    /// the learner to choose between options that were not there.
+    /// </summary>
+    [Fact]
+    public void FromTurn_TheLastQuestionWithNoOfferOpen_IsAnOrdinaryQuestion()
+    {
+        var turn = Turn(
+            sessionStatus: CoachSessionStatus.AwaitingClarification,
+            stopReason: CoachStopReason.ClarificationRequested,
+            clarifyingQuestion: "Which words do you mean?",
+            clarificationsRemaining: 0);
+
+        CoachStateMachine.FromTurn(turn).Should().Be(CoachUiState.Clarification);
+    }
+
+    /// <summary>
+    /// The server's notice when a question was withheld at the limit carries no question. With no
+    /// offer open the learner is free to type.
+    /// </summary>
+    [Fact]
+    public void FromTurn_AWithheldQuestionWithNoOfferOpen_LeavesTheLearnerReady()
+    {
+        var turn = Turn(
+            status: CoachTurnStatus.Incomplete,
+            stopReason: CoachStopReason.ClarificationRequested,
+            clarificationsRemaining: 0);
+
+        var state = CoachStateMachine.FromTurn(turn);
+
+        state.Should().Be(CoachUiState.Ready);
+        CoachStateMachine.CanSubmit(state).Should().BeTrue();
     }
 
     [Fact]

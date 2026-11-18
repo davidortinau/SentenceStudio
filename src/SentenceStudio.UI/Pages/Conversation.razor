@@ -6,6 +6,7 @@
 @using SentenceStudio.Services.Timer
 @using SentenceStudio.Abstractions
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="d-flex flex-column h-100">
@@ -171,6 +172,13 @@ else
     [SupplyParameterFromQuery(Name = "scenarioId")]
     public string? ScenarioIdParam { get; set; }
 
+    /// <summary>
+    /// A language to practise other than the profile's, as the language menu would set it. Sam
+    /// opens "a conversation in German" this way; anything not a listed language is ignored.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "language")]
+    public string? LanguageParam { get; set; }
+
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
 
@@ -254,8 +262,21 @@ else
         showQuickPhrases = false;
     }
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        // The latest line, as native sends it, so "what does this mean" has something to point at.
+        var last = chunks.LastOrDefault(chunk => !string.IsNullOrWhiteSpace(chunk.Text));
+        return new(last is null ? [] : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, last.Text, focus: true)],
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("scenario", activeScenario?.Id), SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("scenarioName", activeScenario?.DisplayName),
+                SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("draft", string.IsNullOrWhiteSpace(userInput) ? null : userInput)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
@@ -275,9 +296,29 @@ else
         {
             var profile = await ProfileRepo.GetByIdAsync(_owner);
             targetLanguage = profile?.TargetLanguage ?? "Korean";
+            if (SentenceStudio.Common.Constants.Languages.FirstOrDefault(l =>
+                    string.Equals(l, LanguageParam?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } asked)
+                targetLanguage = asked;
             voiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
 
             scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
+            // The built-ins are seeded by each client at start-up; the web never did, so its
+            // scenario list was empty and a ?scenarioId (Sam's "about getting directions") found
+            // nothing. Adding the missing built-ins is idempotent (fixed ids, never a second copy).
+            if (!scenarios.Any(s => s.IsPredefined))
+            {
+                // Best effort: without the built-ins the conversation still starts, with the
+                // learner's own scenarios or the default persona.
+                try
+                {
+                    await ScenarioSvc.SeedPredefinedScenariosAsync();
+                    scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? scenarios;
+                }
+                catch (Exception seedFailure) when (seedFailure is not (OperationCanceledException or ObjectDisposedException))
+                {
+                    Logger.LogWarning(seedFailure, "The built-in conversation scenarios could not be added.");
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(ScenarioIdParam))
                 activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam);
@@ -614,6 +655,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         if (_disposed) return;
         _disposed = true;
         try

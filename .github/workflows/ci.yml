@@ -50,6 +50,20 @@ jobs:
         # encrypted Coach payload written before an AppHost restart.
         run: bash scripts/validate-azurite-persistence.sh
 
+  feedback-check-scripts:
+    name: Feedback check scripts
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse the runner and its launcher
+        run: bash -n scripts/admin-feedback-check.sh && bash -n scripts/admin-feedback-run.sh
+      - name: Test whose comments count and how checks are read
+        # The check runs unattended with a session that can edit and push. These tests hold
+        # the rule that only the repository owner's comment starts one.
+        run: python3 -m unittest discover -s scripts/tests -p test_admin_feedback_pr.py
+
   platform-neutral-dependencies:
     name: Server and shared dependency closure
     runs-on: ubuntu-latest
@@ -493,8 +507,7 @@ jobs:
           gated_classes = {
               "SentenceStudio.WebApp.Tests.Auth.WebSignInCookieHandoffTests",
               "SentenceStudio.WebApp.Tests.Auth.ServerAuthCircuitTokenTests",
-              "SentenceStudio.WebApp.Tests.Operator.SamOperatorEnvironmentGateTests",
-              "SentenceStudio.WebApp.Tests.Operator.SamOperatorSurfaceSessionTests",
+              "SentenceStudio.WebApp.Tests.Admin.AdminPagePrerenderTests",
               "SentenceStudio.WebApp.Tests.Infrastructure.WebAppPostgresServerSafetyTests",
           }
           classes_by_id = {}

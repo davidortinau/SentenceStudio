@@ -280,11 +280,18 @@ public sealed partial class NativeDashboardPresenter(
 
             using var lease = plans.ForOwner(owner);
             var planService = lease.Service;
-            var hasResources = await lease.Database.LearningResources.AsNoTracking()
+            // Any resource at all says the device has synced something down; only the learner's
+            // own say they have started (the app's smart lists do not count, source
+            // CheckNewUserAsync). The sync below waits on the first, the new-learner screen on
+            // the second, so a learner with words and only smart lists still gets their plan.
+            var hasAnyResources = await lease.Database.LearningResources.AsNoTracking()
                 .AnyAsync(resource => resource.UserProfileId == owner, cancellationToken);
-            if (!hasResources)
+            var hasOwnResources = hasAnyResources && await lease.Database.LearningResources.AsNoTracking()
+                .AnyAsync(resource => resource.UserProfileId == owner && !resource.IsSmartResource,
+                    cancellationToken);
+            if (!hasOwnResources)
             {
-                if (!synchronize)
+                if (!synchronize && !hasAnyResources)
                 {
                     var revision = pendingWrites.Revision(owner);
                     var readiness = await sync.SynchronizeAsync(owner, cancellationToken);
@@ -294,20 +301,22 @@ public sealed partial class NativeDashboardPresenter(
                         pendingWrites.MarkConfirmedIfUnchanged(owner, revision);
                     pendingSync = readiness != NativeSyncOutcome.Confirmed
                         || pendingWrites.IsPending(owner);
-                    hasResources = await lease.Database.LearningResources.AsNoTracking()
-                        .AnyAsync(resource => resource.UserProfileId == owner,
+                    hasAnyResources = await lease.Database.LearningResources.AsNoTracking()
+                        .AnyAsync(resource => resource.UserProfileId == owner, cancellationToken);
+                    hasOwnResources = hasAnyResources && await lease.Database.LearningResources.AsNoTracking()
+                        .AnyAsync(resource => resource.UserProfileId == owner && !resource.IsSmartResource,
                             cancellationToken);
                 }
-                // Source CheckNewUserAsync: a new learner owns no resources and no
-                // vocabulary words (Index.razor:778-782); progress rows alone do not count.
+                // Source CheckNewUserAsync: a new learner owns no resources of their own and no
+                // vocabulary words; progress rows alone do not count.
                 var hasVocabulary = await lease.Database.VocabularyWords
                     .AsNoTracking()
                     .AnyAsync(word => word.UserProfileId == owner,
                         cancellationToken);
-                if (!hasResources && pendingSync)
+                if (!hasAnyResources && pendingSync)
                     return SetState(new(NativePhase.PendingSync,
                         HasPendingSync: true), owner);
-                if (!hasResources && !hasVocabulary)
+                if (!hasOwnResources && !hasVocabulary)
                     return SetState(new(NativePhase.Empty) {
                         IsNewUser = true
                     }, owner);

@@ -71,7 +71,13 @@ public enum CoachScopeCoverage
     /// population <see cref="CoachResultScope.MatchedCount"/> was counting on any given call.
     /// </para>
     /// </remarks>
-    CompleteAggregateWithBreakdown = 8
+    CompleteAggregateWithBreakdown = 8,
+
+    /// <summary>
+    /// What the learner's client said it was showing for this turn. Not read from the learner's
+    /// data at all, so there is no row population behind it.
+    /// </summary>
+    ClientScreenSnapshot = 9
 }
 
 /// <summary>The order the rows came back in.</summary>
@@ -109,7 +115,10 @@ public enum CoachScopeOrder
     FrequencyDescending = 8,
 
     /// <summary>Ordered by the band label itself, not by any measure of the learner.</summary>
-    BandLabelAscending = 9
+    BandLabelAscending = 9,
+
+    /// <summary>Lowest mastery first; words never practised, which have no score, last.</summary>
+    MasteryAscending = 10
 }
 
 /// <summary>
@@ -254,7 +263,13 @@ public enum CoachScopeDefinition
     DeterministicPlanPreview = 13,
 
     /// <summary>The learner's most recent recorded practice, as a single aggregate value.</summary>
-    LatestPracticeSummary = 14
+    LatestPracticeSummary = 14,
+
+    /// <summary>The screen the learner's client reported with this turn.</summary>
+    ClientReportedScreen = 15,
+
+    /// <summary>The words today's plan works on, the ones the dashboard previews.</summary>
+    PlanVocabulary = 16
 }
 
 /// <summary>What a row had to show before it was counted.</summary>

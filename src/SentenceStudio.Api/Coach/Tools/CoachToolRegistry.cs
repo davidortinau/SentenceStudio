@@ -332,11 +332,14 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             EffectClass = CoachCapabilityEffectClass.Read,
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools"],
-            Description = "Reads today's plan: each item's activity type, whether it is done, and minutes planned against "
-                + "minutes spent. Bounded to one calendar day in the learner's own time zone, so an empty answer "
-                + "means no plan exists for today, not that the learner has never had one. Items carry no order the "
-                + "caller may rely on. Counts are plan items. It returns no item text — an activity type is a "
-                + "closed category, and the plan's strategy label is bounded plan metadata."
+            Description = "Reads today's plan as the dashboard shows it: each item's identifier, activity type, "
+                + "whether it is done, minutes planned against minutes spent, the resource it uses (identifier and "
+                + "title), the skill it practises and how many plan words it works on; and for the plan, its total "
+                + "minutes, word count and the mastery figure the dashboard shows. Bounded to one calendar day in "
+                + "the learner's own time zone, so an empty answer means no plan exists for today, not that the "
+                + "learner has never had one. Items come in the plan's own order. Counts are plan items. It returns "
+                + "no item text — an activity type is a closed category, and the plan's strategy label is bounded "
+                + "plan metadata."
         });
         Register(new CoachToolRegistration
         {
@@ -350,6 +353,41 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
                 + "main example first, each with its identifier for the propose_ example sentence tools. Works "
                 + "for words never practised. When the word is due for review its sentences are hidden: the "
                 + "answer says so and counts them as withheld, and you must not guess them."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetPlanVocabulary,
+            ResultType = typeof(PlanVocabularyResult),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools"],
+            Description = "Lists the words today's plan works on, the ones the dashboard previews, bounded to "
+                + "today's plan and the learner's own words: each word's "
+                + "identifier, the word, its meaning, its mastery out of 100 (null if never practised) and days since "
+                + "last practice. Order is plan (the plan's own order) or weakest (lowest mastery first, words never "
+                + "practised last); at most forty. Call it when the learner asks to see, preview or rank today's "
+                + "words. The app shows the list under your reply, each row opening its word, so do not repeat the "
+                + "words in your message: say in one sentence what the list is. A word whose answer is hidden on "
+                + "their screen is left out and only counted; never guess it."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetCurrentScreen,
+            ResultType = typeof(CurrentScreenResult),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools"],
+            Description = "Reads what the learner's app is showing right now, as the app reported it with this "
+                + "message: the screen, the things on it (the word being quizzed, the resource or skill open, the "
+                + "activity running), each with the identifier the vocabulary, resource and skill tools take, and "
+                + "short screen state. A snapshot of one screen, not a search: the main thing comes first, the "
+                + "rest in no order you may rely on, and the counts are of items and facts on screen, at most twelve "
+                + "and sixteen. Nothing is read from stored data, so check an item with its own tool before acting. "
+                + "Call it when the learner says this, it, here or this screen, or asks for something without "
+                + "naming what it is about. When AnswerHidden is true the learner is still answering: do not "
+                + "reveal the answer, its meaning or a sentence that gives it away."
         });
     }
 
@@ -529,16 +567,17 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
         {
             Name = CoachToolNames.ProposePreferenceChange,
             ResultType = typeof(CoachWriteProposalResult),
-            RiskClass = CoachToolRiskClass.WriteHard,
+            // Soft while session length is the only reachable setting (see the handler's RiskClass).
+            RiskClass = CoachToolRiskClass.WriteSoft,
             EffectClass = CoachCapabilityEffectClass.LearnerData,
             Reversal = CoachCapabilityReversal.LedgerUndo,
-            Confirmation = CoachCapabilityConfirmation.Confirm,
+            Confirmation = CoachCapabilityConfirmation.Accept,
             ReceiptKind = CoachCapabilityReceiptKind.Ledger,
             Scope = CoachCapabilityScope.Account,
             RequiredStage = CoachCapabilityStage.Semantic,
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
-            Description = "Proposes changing one of the learner's own settings. No setting is currently approved for change, so this tool declines every request and writes nothing — tell the learner to change it in the app's own settings screen instead. Cannot reach the email address, the account, or any stored key."
+            Description = "Proposes changing one of the learner's own settings. Only session_minutes, the length Today's Plan is made for from now on (5, 10, 15, 20, 30 or 45), can be changed here; approving it also resizes today's plan, keeping its words and resource, and one undo reverts both. Use it when the learner wants a different plan length from now on, not just today (that is a plan change). Every other setting is declined: tell the learner to change it in the app's own settings screen. Cannot reach the email address, the account, or any stored key."
         });
         Register(new CoachToolRegistration
         {
@@ -614,6 +653,21 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
             Description = "Proposes deleting one of the learner's example sentences, named by the identifier get_vocabulary_example_sentences returned. It cannot be undone, so the learner must confirm. Nothing is deleted until they do."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.ProposePlanRegeneration,
+            ResultType = typeof(CoachWriteProposalResult),
+            RiskClass = CoachToolRiskClass.WriteSoft,
+            EffectClass = CoachCapabilityEffectClass.LearnerData,
+            Reversal = CoachCapabilityReversal.None,
+            Confirmation = CoachCapabilityConfirmation.Accept,
+            ReceiptKind = CoachCapabilityReceiptKind.Ledger,
+            Scope = CoachCapabilityScope.Account,
+            RequiredStage = CoachCapabilityStage.Semantic,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
+            Description = "Proposes making a new Today's Plan for the learner, replacing the one they have, the same as Regenerate Plan on the dashboard. Use it when the learner asks for a new, fresh or another plan for today, or has no plan yet and asks for one. Pass an empty arguments object; the application fills in the rest. Not for a change to the plan's minutes, activities or focus. The new plan starts with nothing done; practice already logged stays in their history. Nothing changes until the learner accepts the proposal."
         });
     }
 }

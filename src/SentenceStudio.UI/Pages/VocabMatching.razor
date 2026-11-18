@@ -3,6 +3,7 @@
 @using SentenceStudio.Pages.VocabularyMatching
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <PageHeader Title='@Localize["Activity_VocabMatching"]' ShowBack="true" OnBack="GoBack">
@@ -126,8 +127,21 @@ else
     // and only while it is still the active profile (fail closed).
     private string _owner = string.Empty;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        // The target-language tiles still in play, as native sends them; their pairs stay hidden.
+        return new(tiles.Where(tile => tile.IsVisible && tile.Language == "target").Take(8)
+                .Select(tile => SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord, tile.VocabularyWordId, tile.Text)).ToList(),
+            AnswerHidden: !isGameComplete && tiles.Count > 0,
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("matched", $"{matchedPairs}/{totalPairs}")]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("VocabMatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
@@ -479,6 +493,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         return ValueTask.CompletedTask;

@@ -4,6 +4,7 @@
 @using SentenceStudio.Services.Speech
 @using Microsoft.JSInterop
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <PageHeader Title='@Localize["Activity_HowDoYouSay"]' ShowBack="true" OnBack="GoBack" />
@@ -143,8 +144,17 @@ else if (history.Any())
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(createdAtUtc, DateTimeKind.Utc), LearnerClock.TimeZone)
             .ToString("g", Localize.Culture);
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(string.IsNullOrWhiteSpace(phrase) ? [] : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, phrase, focus: true)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         _useJsAudio = !AudioPlayerFactory.CanPlayLocally;
         var profile = await ProfileRepo.GetAsync();
@@ -465,6 +475,7 @@ else if (history.Any())
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         _disposed = true;
         _audioLifetime.Cancel();
         Localize.CultureChanged -= OnCultureChanged;

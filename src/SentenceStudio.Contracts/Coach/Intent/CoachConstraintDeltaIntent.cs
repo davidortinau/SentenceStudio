@@ -53,8 +53,15 @@ public sealed class CoachConstraintDeltaIntent
     /// contract violation: the server owns the mapping from these words to a canonical focus, and
     /// owns the query that turns a focus into actual vocabulary.
     /// </remarks>
-    [Description("The learner's own words for the kind of word they want to work on, for example \"active verbs\". At most 80 characters and 8 words. Do not name a part of speech tag, a word, a translation, a category, a count, or an identifier. Leave empty if the learner did not ask to focus on a kind of word.")]
+    [Description("The learner's own words for the kind of word or the topic they want to work on, for example \"active verbs\" or \"food and restaurants\". At most 80 characters and 8 words. Do not name a part of speech tag, a word, a translation, a count, or an identifier. For a topic, also fill VocabularyFocusTopics. Leave empty if the learner did not ask to focus on a kind of word or a topic.")]
     public string? VocabularyFocusDescription { get; set; }
+
+    /// <summary>
+    /// For a topic ("food and restaurants"): the learner's own tags and resource titles that match
+    /// it, copied exactly from get_resource_catalog (its WordTags and resource titles). The server keeps only names the learner has.
+    /// </summary>
+    [Description("Only for a topic focus such as \"food and restaurants\": up to 5 tags or resource titles from get_resource_catalog (WordTags, or a resource Title) that match the topic, copied exactly as that tool listed them. Set VocabularyFocusDescription to the learner's words too. Leave empty for a kind of word (\"active verbs\") or when no listed tag or title matches.")]
+    public List<string>? VocabularyFocusTopics { get; set; }
 
     /// <summary>True to clear the vocabulary focus.</summary>
     [Description("True if the learner wants no vocabulary focus. Leave false in all other cases.")]

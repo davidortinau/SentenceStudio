@@ -32,8 +32,9 @@ public class CoachToolRegistryAndEmbargoTests
         var options = CreateOptions();
         var registry = new CoachToolRegistry(options);
 
-        // Core six, ten Sam read tools, sixteen Sam write proposals.
-        registry.All.Should().HaveCount(32);
+        // Core six, eleven Sam read tools (get_current_screen the eleventh), seventeen Sam write
+        // proposals.
+        registry.All.Should().HaveCount(35);
         registry.IsRegistered(CoachToolNames.ListUserVocabularies).Should().BeTrue();
         registry.IsRegistered(CoachToolNames.GetCurrentPlanSummary).Should().BeTrue();
     }
@@ -54,7 +55,7 @@ public class CoachToolRegistryAndEmbargoTests
         var options = CreateOptions(samOverlay: true, samReadTools: true);
         var registry = new CoachToolRegistry(options);
 
-        registry.Enabled.Should().HaveCount(16);
+        registry.Enabled.Should().HaveCount(18);
         registry.IsEnabled(CoachToolNames.ListUserVocabularies).Should().BeTrue();
     }
 

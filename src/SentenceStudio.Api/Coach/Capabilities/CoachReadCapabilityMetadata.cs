@@ -215,7 +215,7 @@ public static class CoachReadCapabilityMetadataTable
 
         [CoachToolNames.GetCurrentPlanSummary] = new(
             CoachScopeCoverage.SingleDay,
-            [CoachScopeOrder.Unordered],
+            [CoachScopeOrder.PriorityAscending],
             Owner | CoachScopeFilters.CalendarDay,
             CoachReadDateSupport.CalendarDay,
             CoachReadRangeSupport.None,
@@ -230,6 +230,24 @@ public static class CoachReadCapabilityMetadataTable
             CoachReadRangeSupport.ResultLimit,
             MaxPageSize: VocabularyExampleSentencesTool.MaxResults,
             Source: "SamTools/VocabularyExampleSentencesTool.cs MaxResults; ExcludeDue applied only when the word is due"),
+
+        [CoachToolNames.GetPlanVocabulary] = new(
+            CoachScopeCoverage.CompleteOwnedSet,
+            [CoachScopeOrder.PriorityAscending, CoachScopeOrder.MasteryAscending],
+            Owner | CoachScopeFilters.CalendarDay,
+            CoachReadDateSupport.CalendarDay,
+            CoachReadRangeSupport.ResultLimit,
+            MaxPageSize: PlanVocabularyTool.MaxResults,
+            Source: "SamTools/PlanVocabularyTool.cs MaxResults and scope block"),
+
+        [CoachToolNames.GetCurrentScreen] = new(
+            CoachScopeCoverage.ClientScreenSnapshot,
+            [CoachScopeOrder.NotApplicable],
+            Owner,
+            CoachReadDateSupport.None,
+            CoachReadRangeSupport.None,
+            MaxPageSize: null,
+            Source: "SamTools/CurrentScreenTool.cs scope block"),
 
         [CoachToolNames.GetPracticeHistorySummary] = new(
             CoachScopeCoverage.DerivedProjection,

@@ -85,11 +85,8 @@ public static class SyncIds
         Require(userId, nameof(userId));
         var normalized = NormalizeLookupText(text);
         Require(normalized, nameof(text));
-        var key = string.Join('\u001f', userId,
+        return HashedId("lk:", userId,
             (language ?? string.Empty).Trim().ToLowerInvariant(), direction.ToString(), normalized);
-        var hash = System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(key));
-        return "lk:" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
     }
 
     /// <summary>
@@ -134,10 +131,7 @@ public static class SyncIds
         Require(termKey, nameof(termKey));
         var copies = DuplicateDecisionCopies(copyIds);
         Require(copies, nameof(copyIds));
-        var key = string.Join('\u001f', userId, kind.ToString(), termKey, copies);
-        var hash = System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(key));
-        return "dd:" + Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+        return HashedId("dd:", userId, kind.ToString(), termKey, copies);
     }
 
     /// <summary>
@@ -147,6 +141,33 @@ public static class SyncIds
     public static string DuplicateDecisionCopies(IEnumerable<string> copyIds) =>
         string.Join(',', copyIds.Select(id => id?.Trim() ?? string.Empty).Where(id => id.Length > 0)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+
+    /// <summary>
+    /// One smart resource (Daily Review, New Words and the rest) per learner and type.
+    /// "sr:" and the first 16 bytes, as lower-case hex, of the SHA-256 of the UTF-8 text
+    /// <c>owner U+001F type</c>, where type is the stored <c>SmartResourceType</c> ("DailyReview",
+    /// "NewWords", "Struggling", "Phrases", "Sentences"). Every client that creates smart
+    /// resources (including the Flutter port) must build it the same way
+    /// (docs/sync-all-tables-plan.md, "Smart resources"). Lists made before 2026-11-16 keep the
+    /// GUID they were made with.
+    /// </summary>
+    public static string SmartResource(string userId, string smartResourceType)
+    {
+        Require(userId, nameof(userId));
+        Require(smartResourceType, nameof(smartResourceType));
+        return HashedId("sr:", userId, smartResourceType);
+    }
+
+    /// <summary>
+    /// <paramref name="prefix"/> and the first 16 bytes, as lower-case hex, of the SHA-256 of the
+    /// UTF-8 text of <paramref name="parts"/> joined with U+001F.
+    /// </summary>
+    private static string HashedId(string prefix, params string[] parts)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(string.Join('\u001f', parts)));
+        return prefix + Convert.ToHexString(hash, 0, 16).ToLowerInvariant();
+    }
 
     private static void Require(string value, string name)
     {

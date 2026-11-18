@@ -67,10 +67,19 @@ public sealed class CoachWriteTurnScope
     public bool IsActive => !string.IsNullOrWhiteSpace(ConversationId);
 
     /// <summary>
-    /// What the client said it was showing for this turn, or null. Advisory; read only by the
-    /// feedback handler so a report can say where it happened. Never an authorization source.
+    /// What the client said it was showing for this turn, or null. Advisory and never an
+    /// authorization source. Read by the feedback handler, so a report can say where it happened,
+    /// and by get_current_screen, so Sam can resolve "this". It carries learner text (the word on
+    /// screen, a draft), which is stored only inside a feedback report the learner approves.
     /// </summary>
     public SentenceStudio.Contracts.Coach.CoachClientScreenContext? ClientScreen { get; set; }
+
+    /// <summary>
+    /// The words a list tool showed the model this turn (<c>get_plan_vocabulary</c>). The reply
+    /// carries them as a list the server built, and the leak scan does not count them: the
+    /// learner asked to see them. Several calls in one turn add up.
+    /// </summary>
+    public Tools.SamTools.CoachListedWords? ListedWords { get; set; }
 
     /// <summary>
     /// Records the conversation and turn for this request.
@@ -105,6 +114,7 @@ public sealed class CoachWriteTurnScope
     public void Enter(string? conversationId, string? turnId = null)
     {
         ClientScreen = null;
+        ListedWords = null;
         ConversationId = string.IsNullOrWhiteSpace(conversationId) ? null : conversationId;
 
         if (ConversationId is null)

@@ -1300,6 +1300,51 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Cancel opening {0}.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_CancelLabel {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_CancelLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opening in {0} s.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Countdown {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Countdown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not now.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_NotNow {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_NotNow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Start {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Start", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opening {0}.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Title {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Export them first, so you can get them back.
         /// </summary>
         internal static string Coach_Alternative_ExportBeforeRemoving {
@@ -2398,6 +2443,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to What your screen showed.
+        /// </summary>
+        internal static string Coach_EvidenceCoverage_Screen {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceCoverage_Screen", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Your current settings.
         /// </summary>
         internal static string Coach_EvidenceCoverage_Settings {
@@ -2457,6 +2511,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_EvidenceDefinition_ActiveSkillList {
             get {
                 return ResourceManager.GetString("Coach_EvidenceDefinition_ActiveSkillList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The screen you were on when you sent the message..
+        /// </summary>
+        internal static string Coach_EvidenceDefinition_ClientReportedScreen {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceDefinition_ClientReportedScreen", resourceCulture);
             }
         }
 
@@ -2529,6 +2592,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_EvidenceDefinition_PlanDaySummary {
             get {
                 return ResourceManager.GetString("Coach_EvidenceDefinition_PlanDaySummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The words in Today&apos;s Plan..
+        /// </summary>
+        internal static string Coach_EvidenceDefinition_PlanVocabulary {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceDefinition_PlanVocabulary", resourceCulture);
             }
         }
 
@@ -2646,6 +2718,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_EvidenceOrder_Mastery {
             get {
                 return ResourceManager.GetString("Coach_EvidenceOrder_Mastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Weakest first.
+        /// </summary>
+        internal static string Coach_EvidenceOrder_MasteryWeakest {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceOrder_MasteryWeakest", resourceCulture);
             }
         }
 
@@ -4639,6 +4720,42 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0}% mastery.
+        /// </summary>
+        internal static string Coach_WordList_Mastery {
+            get {
+                return ResourceManager.GetString("Coach_WordList_Mastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not practised yet.
+        /// </summary>
+        internal static string Coach_WordList_NotPractised {
+            get {
+                return ResourceManager.GetString("Coach_WordList_NotPractised", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words in Today&apos;s Plan.
+        /// </summary>
+        internal static string Coach_WordList_Plan {
+            get {
+                return ResourceManager.GetString("Coach_WordList_Plan", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words in Today&apos;s Plan, weakest first.
+        /// </summary>
+        internal static string Coach_WordList_PlanWeakest {
+            get {
+                return ResourceManager.GetString("Coach_WordList_PlanWeakest", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Apply this change.
         /// </summary>
         internal static string Coach_WriteAccept {
@@ -4833,6 +4950,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_WriteKindFeedbackReport {
             get {
                 return ResourceManager.GetString("Coach_WriteKindFeedbackReport", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Make a new plan for today.
+        /// </summary>
+        internal static string Coach_WriteKindPlanRegenerate {
+            get {
+                return ResourceManager.GetString("Coach_WriteKindPlanRegenerate", resourceCulture);
             }
         }
 
@@ -11884,6 +12010,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Close the screen you are on, then start this activity..
+        /// </summary>
+        internal static string NativeSam_ActivityLeaveScreen {
+            get {
+                return ResourceManager.GetString("NativeSam_ActivityLeaveScreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That activity could not open. Its resource or skill may be gone..
+        /// </summary>
+        internal static string NativeSam_ActivityOpenFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_ActivityOpenFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} could not answer that. Nothing changed. Try again..
         /// </summary>
         internal static string NativeSam_AnswerFailed {
@@ -12042,6 +12186,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeSam_VocabularySetStart {
             get {
                 return ResourceManager.GetString("NativeSam_VocabularySetStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That word could not open. It may have been deleted..
+        /// </summary>
+        internal static string NativeSam_WordOpenFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_WordOpenFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close the screen you are on, then open this word..
+        /// </summary>
+        internal static string NativeSam_WordOpenLeaveScreen {
+            get {
+                return ResourceManager.GetString("NativeSam_WordOpenLeaveScreen", resourceCulture);
             }
         }
 

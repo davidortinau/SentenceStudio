@@ -65,6 +65,37 @@ public sealed record PlanSnapshot
     /// <summary>Opaque version token clients echo back. Format: <c>v{format}:{hash}</c>.</summary>
     public required string Version { get; init; }
 
+    /// <summary>
+    /// The <c>DailyPlan</c> row these items belong to, where the reader knew it. Not part of the
+    /// hash or the version.
+    /// </summary>
+    /// <remarks>
+    /// Regenerating a plan (the dashboard's Regenerate Plan, or Sam's) removes the row and makes
+    /// a new one, often with the same item identifiers. Only this tells an undo of a change made
+    /// to the old plan that the plan it would restore is gone.
+    /// </remarks>
+    public string? PlanId { get; init; }
+
+    /// <summary>
+    /// The plan's focus words, narrative and rationale facts (JSON) as they were, so undoing a
+    /// change that swapped the plan's words restores them too. Not part of <see cref="Hash"/>: the
+    /// hash names the items. Null on snapshots stored before these were kept; undo then restores
+    /// the items only, as it always did.
+    /// </summary>
+    public string? FocusVocabularyFacts { get; init; }
+
+    /// <inheritdoc cref="FocusVocabularyFacts"/>
+    public string? NarrativeFacts { get; init; }
+
+    /// <inheritdoc cref="FocusVocabularyFacts"/>
+    public string? RationaleFacts { get; init; }
+
+    /// <summary>
+    /// True when the facts above were recorded with this snapshot (null then means "none"), false
+    /// for a snapshot stored before they were kept, whose nulls mean "not recorded".
+    /// </summary>
+    public bool FactsRecorded { get; init; }
+
     public int TotalEstimatedMinutes => Items.Sum(i => i.EstimatedMinutes);
 
     public int TotalMinutesSpent => Items.Sum(i => i.MinutesSpent);

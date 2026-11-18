@@ -54,6 +54,33 @@ public class CoachPromptFenceTests
     private static string[] Lines(string message) =>
         message.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
 
+    /// <summary>
+    /// A bare zero left the model to find out by asking: the question was withheld and the
+    /// learner got a notice (issue 227). At zero the context says what not to do.
+    /// </summary>
+    [Fact]
+    public void BuildTurnMessage_AtZeroClarifications_TellsTheModelNotToAsk()
+    {
+        var spent = CoachInstructions.BuildTurnMessage(NewRequest("hello") with { ClarificationsRemaining = 0 });
+        var open = CoachInstructions.BuildTurnMessage(NewRequest("hello"));
+
+        Lines(spent).Should().Contain("Clarifying questions remaining: 0 (do not use AskClarification on this turn)");
+        Lines(open).Should().Contain("Clarifying questions remaining: 2");
+    }
+
+    /// <summary>
+    /// Sam had no way to make a plan, and was told to ask a question when a plan request did not
+    /// fit the fields it can change. The instructions now name the request and the tool for it,
+    /// and say to act when a tool can do what was asked.
+    /// </summary>
+    [Fact]
+    public void Instructions_SayWhatToDoWithARequestForANewPlan()
+    {
+        CoachInstructions.Instructions.Should().Contain("call propose_plan_regeneration");
+        CoachInstructions.Instructions.Should().Contain("Lean toward doing.");
+        CoachInstructions.Instructions.Should().Contain("context says no clarifying questions remain, do not ask one");
+    }
+
     [Fact]
     public void Create_ProducesADifferentTokenEveryTurn()
     {

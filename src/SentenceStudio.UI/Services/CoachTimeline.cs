@@ -263,6 +263,13 @@ public sealed class CoachTimelineEntry
     public CoachWriteOperationDto? WriteOperation { get; init; }
 
     /// <summary>
+    /// The words Sam listed in this turn, shown under the message as rows that open each word.
+    /// Carried on the entry, like <see cref="Evidence"/>, because it belongs to the reply that
+    /// introduced it. Durable history does not keep it: after a reload the sentence stands alone.
+    /// </summary>
+    public CoachWordListDto? WordList { get; init; }
+
+    /// <summary>
     /// The closed-vocabulary reason code explaining a notice. Present on every notice.
     /// </summary>
     /// <remarks>
@@ -368,6 +375,7 @@ public sealed class CoachTimelineEntry
         // The ledger's answer wins whenever history carries one, because it is read fresh on
         // every page load; keeping a local copy would show a stale card after a reload.
         WriteOperation = durable.WriteOperation ?? WriteOperation,
+        WordList = WordList,
         // The durable row wins when it carries a code. A durable row that is not a notice has no
         // code at all, and dropping the local one there would silently unmark a settled refusal.
         NoticeReasonCode = durable.NoticeReasonCode ?? NoticeReasonCode
@@ -445,7 +453,8 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        WordList = WordList
     };
 
     /// <summary>Returns this entry carrying a structured answer, with nothing else changed.</summary>
@@ -468,7 +477,8 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        WordList = WordList
     };
 
     /// <summary>
@@ -497,7 +507,8 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = writeOperation
+        WriteOperation = writeOperation,
+        WordList = WordList
     };
 
     /// <summary>
@@ -526,7 +537,8 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        WordList = WordList
     };
 
     /// <summary>
@@ -567,7 +579,32 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        WordList = WordList
+    };
+
+    /// <summary>Returns this entry carrying the words its turn listed, with nothing else changed.</summary>
+    public CoachTimelineEntry WithWordList(CoachWordListDto wordList) => new()
+    {
+        TurnSequence = TurnSequence,
+        Sequence = Sequence,
+        Kind = Kind,
+        Timestamp = Timestamp,
+        Message = Message,
+        Answer = Answer,
+        Evidence = Evidence,
+        Receipt = Receipt,
+        RepairDisclosure = RepairDisclosure,
+        RepairEvidenceOnScreen = RepairEvidenceOnScreen,
+        MessageId = MessageId,
+        ServerSequence = ServerSequence,
+        ArrivedOnTurn = ArrivedOnTurn,
+        Status = Status,
+        HistoryReceipt = HistoryReceipt,
+        HistorySuggestion = HistorySuggestion,
+        NoticeReasonCode = NoticeReasonCode,
+        WriteOperation = WriteOperation,
+        WordList = wordList
     };
 
     /// <summary>Returns this entry with a different settle status and nothing else changed.</summary>
@@ -589,6 +626,7 @@ public sealed class CoachTimelineEntry
         HistoryReceipt = HistoryReceipt,
         HistorySuggestion = HistorySuggestion,
         NoticeReasonCode = NoticeReasonCode,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        WordList = WordList
     };
 }

@@ -100,7 +100,9 @@ public class DeterministicPlanBuilderCharacterizationTests : IClassFixture<PlanG
     [Fact]
     public async Task UnconstrainedPlan_UsesTenMinuteBlocksForInputAndOutput()
     {
-        SeedStandardScenario(sessionMinutes: 60);
+        // The standard steps' ceiling; above it the long-session fill grows blocks (see
+        // DeterministicPlanBuilderLongSessionTests).
+        SeedStandardScenario(sessionMinutes: 34);
 
         var plan = await _fixture.CreateBuilder().BuildPlanAsync();
 

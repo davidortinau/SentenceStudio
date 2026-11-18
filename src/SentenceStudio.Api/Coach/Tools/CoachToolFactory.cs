@@ -249,7 +249,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
             (int? maxResults = null, CancellationToken ct = default) => _resources.GetAsync(
                 maxResults ?? ResourceCatalogTool.DefaultResults, ct),
             CoachToolNames.GetResourceCatalog,
-            "Reads the resources the learner owns, as metadata only. It returns no transcript and no diary text."),
+            "Reads the resources the learner owns, as metadata only, and the tags on the learner's words. maxResults is 1 to 50. It returns no transcript and no diary text."),
 
         Create(
             (CoachPlanPreviewArguments? constraints = null, CancellationToken ct = default) =>
@@ -336,6 +336,22 @@ public sealed class CoachToolFactory : ICoachToolFactory
                             .GetAsync(ct),
                     reg.Name, reg.Description),
 
+            CoachToolNames.GetPlanVocabulary =>
+                Create(
+                    ([Description("plan for the plan's own order, or weakest for lowest mastery first.")] string? order = null,
+                     [Description("How many words, at most forty. Default twenty.")] int? maxResults = null,
+                     CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.PlanVocabularyTool>()
+                            .GetAsync(order, maxResults, ct),
+                    reg.Name, reg.Description),
+
+            CoachToolNames.GetCurrentScreen =>
+                Create(
+                    (CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.CurrentScreenTool>()
+                            .GetAsync(ct),
+                    reg.Name, reg.Description),
+
             CoachToolNames.GetVocabularyExampleSentences =>
                 Create(
                     (string wordId, int? maxResults = null, CancellationToken ct = default) =>
@@ -383,6 +399,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
             CoachToolNames.ProposeExampleSentenceEntry => CreateWrite<CoachExampleSentenceEntryArgs>(reg),
             CoachToolNames.ProposeExampleSentenceEdit => CreateWrite<CoachExampleSentenceEditArgs>(reg),
             CoachToolNames.ProposeExampleSentenceRemoval => CreateWrite<CoachExampleSentenceRemovalArgs>(reg),
+            CoachToolNames.ProposePlanRegeneration => CreateWrite<CoachPlanRegenerationArgs>(reg),
             _ => null
         };
     }

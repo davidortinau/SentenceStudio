@@ -4,6 +4,7 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -269,8 +270,18 @@ else
     private HashSet<string> selectedImageIds = new();
     private string? currentSceneId;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(string.IsNullOrWhiteSpace(userInput) ? [] : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, userInput, focus: true)],
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("scene", currentSceneId)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Scene initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
@@ -587,6 +598,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         _leaving = true;
         _generation++;
         Localize.CultureChanged -= OnCultureChanged;

@@ -19,17 +19,25 @@ public sealed class PreviewPracticePlanTool : CoachToolBase
     private readonly IDeterministicPlanGenerator _planner;
     private readonly ICoachPlanPreviewFailureAdapter _failureAdapter;
     private readonly IPlanDateContext _dates;
+    private readonly IPlanService? _plans;
 
+    /// <param name="plans">
+    /// When present (the API), the preview is the plan service's revision preview, the same one the
+    /// change is applied from: it keeps today's words and resource, so what Sam previews is what is
+    /// written. Without it (a bare planner in a test) the planner previews a fresh plan.
+    /// </param>
     public PreviewPracticePlanTool(
         IUserScopeProvider userScope,
         IDeterministicPlanGenerator planner,
         ICoachPlanPreviewFailureAdapter failureAdapter,
-        IPlanDateContext dates)
+        IPlanDateContext dates,
+        IPlanService? plans = null)
         : base(userScope)
     {
         _planner = planner;
         _failureAdapter = failureAdapter;
         _dates = dates;
+        _plans = plans;
     }
 
     public override string ToolName => CoachToolNames.PreviewPracticePlan;
@@ -52,8 +60,9 @@ public sealed class PreviewPracticePlanTool : CoachToolBase
         PlanSkeleton? skeleton;
         try
         {
-            skeleton = await _planner.GenerateAsync(
-                PlanBuildRequest.Preview(userProfileId, constraints), ct);
+            skeleton = _plans is not null
+                ? (await _plans.PreviewPlanAsync(constraints, focusVocabularyWordIds: null, ct)).Skeleton
+                : await _planner.GenerateAsync(PlanBuildRequest.Preview(userProfileId, constraints), ct);
         }
         catch (OperationCanceledException)
         {

@@ -441,6 +441,52 @@ public sealed class PlanServiceCoachRevisionTests : IDisposable
             .Should().Equal(original.Items.Select(i => i.PlanItemId));
     }
 
+    /// <summary>
+    /// The plan was regenerated after Sam changed it. Regenerating often keeps the same item
+    /// identifiers, so the version alone did not stop the old plan's items being restored onto
+    /// the new one.
+    /// </summary>
+    [Fact]
+    public async Task Undo_AfterThePlanWasRegenerated_IsRejectedAndWritesNothing()
+    {
+        await SeedPlanAsync();
+        SetConstrainedPlan(_h);
+        var original = await _h.NewService().GetTodaySnapshotAsync();
+        var applied = await _h.NewService().ApplyCoachConstraintsAsync(new CoachPlanRevisionRequest
+        {
+            Constraints = ShortNoAudio,
+            ExpectedPlanVersion = original.Version
+        });
+        applied.Outcome.Should().Be(PlanRevisionOutcome.Applied);
+        applied.Before!.PlanId.Should().NotBeNullOrEmpty();
+
+        (await _h.NewService().RegenerateTodayAsync()).Should().NotBeNull();
+        var regenerated = await _h.NewService().GetTodaySnapshotAsync();
+        regenerated.PlanId.Should().NotBe(applied.Before.PlanId, "regenerating makes a new plan row");
+        var rowsBefore = _h.Rows(CoachPlanRevisionHarness.UserA);
+
+        var undo = await _h.NewService().UndoCoachRevisionAsync(new CoachPlanUndoRequest
+        {
+            TargetSnapshot = applied.Before,
+            ExpectedPlanVersion = regenerated.Version
+        });
+
+        undo.Outcome.Should().Be(PlanRevisionOutcome.StalePlanVersion);
+        _h.Rows(CoachPlanRevisionHarness.UserA).Should().BeEquivalentTo(rowsBefore);
+    }
+
+    [Fact]
+    public async Task TheSnapshot_NamesThePlanRow_AndTheVersionIgnoresIt()
+    {
+        await SeedPlanAsync();
+        var first = await _h.NewService().GetTodaySnapshotAsync();
+        var second = await _h.NewService().GetTodaySnapshotAsync();
+
+        first.PlanId.Should().NotBeNullOrEmpty();
+        second.PlanId.Should().Be(first.PlanId);
+        PlanSnapshot.FromItems(first.PlanDate, first.Items).Version.Should().Be(first.Version);
+    }
+
     [Fact]
     public async Task Undo_WithStaleVersion_IsRejectedAndWritesNothing()
     {

@@ -185,7 +185,8 @@ public class CoachTurnEvidenceProjectionTests
 
             if (definition is CoachScopeDefinition.Unspecified
                 or CoachScopeDefinition.ActiveSkillList
-                or CoachScopeDefinition.ActiveSkillDetail)
+                or CoachScopeDefinition.ActiveSkillDetail
+                or CoachScopeDefinition.ClientReportedScreen)
             {
                 kind.Should().BeNull("{0} has no honest evidence bucket", definition);
                 continue;
@@ -197,8 +198,8 @@ public class CoachTurnEvidenceProjectionTests
             bucketed++;
         }
 
-        classified.Should().Be(15, "every definition must be classified; the sweep must see all of them");
-        bucketed.Should().Be(12, "twelve definitions map to a learner-visible bucket");
+        classified.Should().Be(17, "every definition must be classified; the sweep must see all of them");
+        bucketed.Should().Be(13, "thirteen definitions map to a learner-visible bucket");
 
         var labelled = 0;
         foreach (var kind in Enum.GetValues<CoachEvidenceKind>())

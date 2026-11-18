@@ -35,11 +35,24 @@ public sealed record VocabularyFocusRequest
     /// <summary>Exact normalized category tags (compared whole, case-insensitively).</summary>
     public IReadOnlyList<string> CategoryTags { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// The learner's own resources whose words count as on-topic ("food and restaurants" matches a
+    /// resource titled "At the restaurant"). A word matches a topic by a tag or by one of these
+    /// resources; resources are checked against the learner's scope inside the resolver.
+    /// </summary>
+    public IReadOnlyList<string> ResourceIds { get; init; } = Array.Empty<string>();
+
+    /// <summary>At most this many tags and resources each, so a topic stays a topic.</summary>
+    public const int MaxTopicFilters = 10;
+
     /// <summary>Requested set size. Valid 5..20; defaults to 10.</summary>
     public int RequestedCount { get; init; } = DefaultCount;
 
     /// <summary>True when at least one canonical filter is present.</summary>
-    public bool HasFilter => PartOfSpeech is not null || CategoryTags.Count > 0;
+    public bool HasFilter => PartOfSpeech is not null || CategoryTags.Count > 0 || ResourceIds.Count > 0;
+
+    /// <summary>True when the request names a topic (tags or resources) rather than only a part of speech.</summary>
+    public bool HasTopic => CategoryTags.Count > 0 || ResourceIds.Count > 0;
 
     public bool TryValidate(out IReadOnlyList<string> errors)
     {
@@ -61,9 +74,14 @@ public sealed record VocabularyFocusRequest
             found.Add($"{nameof(PartOfSpeech)} must be a concrete part of speech, not Unknown or Other.");
         }
 
-        if (CategoryTags.Any(string.IsNullOrWhiteSpace))
+        if (CategoryTags.Any(string.IsNullOrWhiteSpace) || ResourceIds.Any(string.IsNullOrWhiteSpace))
         {
-            found.Add("Category tags must be non-blank.");
+            found.Add("Category tags and resource ids must be non-blank.");
+        }
+
+        if (CategoryTags.Count > MaxTopicFilters || ResourceIds.Count > MaxTopicFilters)
+        {
+            found.Add($"A topic takes at most {MaxTopicFilters} tags and {MaxTopicFilters} resources.");
         }
 
         errors = found;

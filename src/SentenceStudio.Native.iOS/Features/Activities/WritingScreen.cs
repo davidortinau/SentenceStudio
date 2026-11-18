@@ -18,6 +18,8 @@ internal sealed class WritingScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeWritingPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private readonly HashSet<int> _expanded = [];
     private NativeWritingState _state = new(NativePhase.Loading);
     private SwiftView? _grade;

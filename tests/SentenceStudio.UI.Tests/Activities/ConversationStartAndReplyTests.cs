@@ -221,7 +221,7 @@ public sealed class ConversationStartAndReplyTests
         public Task<ScenarioCreationState> ParseCreationResponseAsync(string response, ScenarioCreationState state) => throw new NotSupportedException();
         public Task<ConversationScenario> FinalizeScenarioCreationAsync(ScenarioCreationState state) => throw new NotSupportedException();
         public Task<ConversationScenario?> GetScenarioForEditingAsync(string name) => throw new NotSupportedException();
-        public Task SeedPredefinedScenariosAsync() => throw new NotSupportedException();
+        public Task SeedPredefinedScenariosAsync() => Task.CompletedTask;
         public ScenarioIntent DetectScenarioIntent(string message) => throw new NotSupportedException();
     }
 }

@@ -1,0 +1,70 @@
+@inject BlazorLocalizationService Localize
+@inject NavigationManager Navigation
+
+@* The words Sam listed under the reply that introduced them (Captain, 2026-11-17: "a list with
+   the translation, and the ability to navigate directly to the vocabulary word"). Every row comes
+   from the server, never from the model's prose. A row opens the word's own page. *@
+@if (List is { Rows.Count: > 0 } list)
+{
+    <section class="coach-word-list mt-2" aria-labelledby="@HeadingId">
+        <div id="@HeadingId" class="ss-caption1 text-secondary-ss mb-1">
+            @Localize[list.Order == CoachWordListOrder.WeakestFirst ? "Coach_WordList_PlanWeakest" : "Coach_WordList_Plan"]
+        </div>
+        <ul class="list-group">
+            @foreach (var row in list.Rows)
+            {
+                var opens = OpensWord(row);
+                <li class="list-group-item p-0" @key="row.WordId">
+                    <button type="button"
+                            class="btn w-100 text-start d-flex align-items-center gap-2 py-2 px-3"
+                            id="@($"{IdPrefix}-{row.WordId}")"
+                            disabled="@(!opens)"
+                            aria-label="@AccessibleName(row)"
+                            @onclick="() => Open(row)">
+                        <span class="flex-grow-1">
+                            <span class="fw-semibold" lang="@TargetLanguageTag">@row.TargetTerm</span>
+                            <span class="text-secondary-ss"> · @row.NativeTerm</span>
+                        </span>
+                        <span class="ss-caption1 text-secondary-ss text-nowrap">@Mastery(row)</span>
+                        @if (opens)
+                        {
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        }
+                    </button>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    [Parameter] public CoachWordListDto? List { get; set; }
+
+    /// <summary>Distinguishes this list's heading from any other list in the conversation.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "coach-word-list";
+
+    /// <summary>The learner's target language as a BCP 47 tag, so screen readers voice the word.</summary>
+    [Parameter] public string? TargetLanguageTag { get; set; }
+
+    private string HeadingId => $"{IdPrefix}-heading";
+
+    private string Mastery(CoachWordListRowDto row) => row.MasteryPercent is { } percent
+        ? Localize.Get("Coach_WordList_Mastery", percent)
+        : Localize["Coach_WordList_NotPractised"];
+
+    private string AccessibleName(CoachWordListRowDto row) =>
+        $"{row.TargetTerm}, {row.NativeTerm}, {Mastery(row)}";
+
+    /// <summary>The destination the server built for the row: the word's own page.</summary>
+    private static bool OpensWord(CoachWordListRowDto row) =>
+        row.Destination is { Route: CoachRouteName.Vocabulary } destination
+        && destination.Parameters.Any(p => p.Key == CoachRouteParameterKey.VocabularyWordId);
+
+    private void Open(CoachWordListRowDto row)
+    {
+        var id = row.Destination?.Parameters
+            .FirstOrDefault(p => p.Key == CoachRouteParameterKey.VocabularyWordId)?.Value;
+        if (!string.IsNullOrWhiteSpace(id))
+            Navigation.NavigateTo($"/vocabulary/edit/{Uri.EscapeDataString(id)}");
+    }
+}

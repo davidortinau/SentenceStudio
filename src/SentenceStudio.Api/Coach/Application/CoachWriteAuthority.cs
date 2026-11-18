@@ -65,14 +65,23 @@ public sealed class CoachWriteAuthority
         "my plan", "my study plan", "my practice plan"
     ];
 
+    /// <summary>
+    /// "The plan" and its kin name Today's Plan only when it is on the screen; elsewhere they could
+    /// be a trip, a vocabulary set or tomorrow, and must not carry plan authority.
+    /// </summary>
+    private static readonly string[] OnScreenPlanReferences =
+    [
+        "the current plan", "current plan", "this plan", "the plan"
+    ];
+
     private static readonly string[] EnglishPlanActionMarkers =
     [
         "change", "adjust", "update", "revise", "replace", "remove", "clear", "set", "make",
         "shorten", "lengthen", "cut", "extend", "limit", "focus", "add", "include", "put",
-        "suggest", "recommend", "propose", "preview",
+        "suggest", "recommend", "propose", "preview", "expand", "increase",
         "changing", "adjusting", "updating", "revising", "replacing", "removing", "clearing",
         "setting", "making", "shortening", "lengthening", "cutting", "extending", "limiting",
-        "focusing", "adding", "including", "putting"
+        "focusing", "adding", "including", "putting", "expanding", "increasing"
     ];
 
     private static readonly string[] SuggestionActionMarkers =
@@ -178,7 +187,8 @@ public sealed class CoachWriteAuthority
     [
         "later", "someday", "eventually", "hypothetically", "if ", "i would ", "i could ",
         "it would ", "it could ",
-        "might ", "may ", "i plan to ", "나중에", "하려고", "위해", "수 있", "면 "
+        "might ", "may ", "i plan to ", "나중에", "하려고", "위해", "수 있", "면 ",
+        "tomorrow", "next week", "yesterday", "내일", "어제", "다음 주"
     ];
 
     private static readonly string[] ActivityRequestMarkers =
@@ -190,6 +200,21 @@ public sealed class CoachWriteAuthority
     [
         "activity", "vocabulary review", "review activity", "practice activity",
         "활동", "어휘 복습", "단어 복습", "연습"
+    ];
+
+    /// <summary>The activities by name, for <see cref="IsExplicitActivityStart"/>.</summary>
+    private static readonly string[] ActivityNameMarkers =
+    [
+        "conversation", "cloze", "translation", "reading", "writing", "shadowing", "quiz",
+        "vocabulary quiz", "vocab quiz", "flashcards", "number drill", "word association",
+        "describe a scene", "scene", "how do you say", "minimal pairs", "vocabulary matching",
+        "matching", "diary", "activity", "대화", "읽기", "쓰기", "퀴즈", "번역", "일기", "활동"
+    ];
+
+    /// <summary>Only a word that means start: "do" is a question as often as a request.</summary>
+    private static readonly string[] ActivityStartMarkers =
+    [
+        "start", "open", "launch", "begin", "시작", "열어", "실행"
     ];
 
     private static readonly string[] GeneralStudyMarkers =
@@ -244,7 +269,7 @@ public sealed class CoachWriteAuthority
     /// True when the whole message is a conservative, exclusive plan command and may therefore
     /// apply immediately.
     /// </summary>
-    public Denial Evaluate(string? text)
+    public Denial Evaluate(string? text, bool planOnScreen = false)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -291,13 +316,14 @@ public sealed class CoachWriteAuthority
             }
         }
 
-        return ClassifyPlanRouting(trimmed) == PlanRoutingDecision.ExplicitPlanRequest
+        return ClassifyPlanRouting(trimmed, planOnScreen) == PlanRoutingDecision.ExplicitPlanRequest
             ? Denial.None
             : Denial.NamesNoPlanChange;
     }
 
     /// <summary>True when the message may apply a plan change on its own.</summary>
-    public bool AllowsDirectWrite(string? text) => Evaluate(text) == Denial.None;
+    public bool AllowsDirectWrite(string? text, bool planOnScreen = false) =>
+        Evaluate(text, planOnScreen) == Denial.None;
 
     /// <summary>
     /// Classifies whether the learner's own text permits the model result to enter a plan reducer.
@@ -308,7 +334,14 @@ public sealed class CoachWriteAuthority
     /// neighboring clause cannot lend authority to a plan mention. Unknown wording fails closed to
     /// no plan effect; the replacement runtime owns broader multilingual intent classification.
     /// </remarks>
-    internal PlanRoutingDecision ClassifyPlanRouting(string? text)
+    /// <param name="planOnScreen">
+    /// True when the learner sent the message from a screen that shows Today's Plan (the
+    /// dashboard). There the plan is what a bare study request is about, the way a button on
+    /// that screen would be: "I have 45 minutes today", "I want to study food words" and "I'd
+    /// prefer German today" ask for the plan without naming it. It never turns a question, an
+    /// activity launch or a negated request into a plan change.
+    /// </param>
+    internal PlanRoutingDecision ClassifyPlanRouting(string? text, bool planOnScreen = false)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -316,25 +349,138 @@ public sealed class CoachWriteAuthority
         }
 
         var planClauses = SemanticClauses(text)
-            .Where(clause => ContainsPlanReference(clause.Text))
+            .Where(clause => ContainsPlanReference(clause.Text, planOnScreen))
             .ToArray();
         if (planClauses.Length == 0)
         {
-            return PlanRoutingDecision.NoPlanReference;
+            return planOnScreen
+                ? ClassifyOnScreenPlanRequest(text)
+                : PlanRoutingDecision.NoPlanReference;
         }
 
         var currentPlanClauses = planClauses
             .Where(clause => !clause.IsPurpose)
             .ToArray();
 
-        if (currentPlanClauses.Any(HasNegatedPlanAction))
+        if (currentPlanClauses.Any(clause => HasNegatedPlanAction(clause, planOnScreen)))
         {
             return PlanRoutingDecision.NegatedPlanAction;
         }
 
-        return currentPlanClauses.Any(HasExplicitPlanAction)
-            ? PlanRoutingDecision.ExplicitPlanRequest
+        if (currentPlanClauses.Any(clause => HasExplicitPlanAction(clause, planOnScreen)))
+        {
+            return PlanRoutingDecision.ExplicitPlanRequest;
+        }
+
+        // "I've been doing the current plan a while, so increase to 45 minutes": the plan is
+        // named in passing and the request sits in its own words. With the plan on screen, that
+        // request is for it.
+        return planOnScreen && ClassifyOnScreenPlanRequest(text) is var onScreen
+            && onScreen != PlanRoutingDecision.NoPlanReference
+            ? onScreen
             : PlanRoutingDecision.PlanMentionOnly;
+    }
+
+    /// <summary>
+    /// A message that does not name the plan, sent while the plan is on screen. A duration
+    /// ("45 minutes") or a study request ("I want to study", "practice", "공부") in a clause that
+    /// is not a question or a future intention is a request for the plan on screen; a negated
+    /// one ("don't change anything") is a negated plan action. Anything else names no plan.
+    /// </summary>
+    private PlanRoutingDecision ClassifyOnScreenPlanRequest(string text)
+    {
+        if (IsActivityLaunchRequest(text) || IsExplicitActivityStart(text))
+        {
+            return PlanRoutingDecision.NoPlanReference;
+        }
+
+        var requested = false;
+        foreach (var clause in SemanticClauses(text).Where(clause => !clause.IsPurpose))
+        {
+            if (IsInformationalPlanConstruction(clause) || IsNonCurrentPlanConstruction(clause.Text))
+            {
+                continue;
+            }
+
+            // "Don't change anything": a negated change, even with no time or topic named.
+            var changes = FindEnglishActionIndexes(Tokens(clause.Text)).Any();
+            var asks = AsksForTime(clause.Text) || AsksToStudy(clause.Text) || changes;
+            if (!asks)
+            {
+                continue;
+            }
+
+            if (EnglishNegationMarkers.Any(marker => ContainsPhrase(clause.Text, marker))
+                || HasNegatedKoreanPlanAction(clause.Text))
+            {
+                return PlanRoutingDecision.NegatedPlanAction;
+            }
+
+            // An action word alone ("add 생선") is not about the plan; it needs time or study.
+            requested |= AsksForTime(clause.Text) || AsksToStudy(clause.Text);
+        }
+
+        return requested ? PlanRoutingDecision.ExplicitPlanRequest : PlanRoutingDecision.NoPlanReference;
+    }
+
+    /// <summary>
+    /// The learner offers or asks for an amount of time: "I have 45 minutes", "I've got 20 min today", "make it 30 minutes", "increase to 45
+    /// minutes", "30분만 할게". A duration in a statement about something else ("I practiced 30
+    /// minutes", "I have a test in 2 hours") is not one.
+    /// </summary>
+    private static bool AsksForTime(string normalized) =>
+        System.Text.RegularExpressions.Regex.IsMatch(normalized,
+            @"\b(i (only |just )?have|i ve got|i ve only got|i got|i only have|i can do|i can study|i can practice)( only| just| about| around)? [0-9]{1,3} ?(minutes?|mins?|hours?|hrs?)\b"
+            + @"|\b(make it|set it to|change it to|increase( it)? to|expand( it)? to|extend( it)? to|lengthen( it)? to|shorten( it)? to|cut( it)? to|let s do|lets do|give me)( only| just| about)? [0-9]{1,3} ?(minutes?|mins?|hours?|hrs?)\b"
+            + @"|[0-9]{1,3} ?(분|시간)(만|으로|동안)? ?(할게|할래|하자|해줘|해주세요|있어|있어요|공부|연습|학습)");
+
+    /// <summary>
+    /// The learner asks to study something: "I want to study food words", "I'd prefer to study
+    /// German today", "let's practice travel terms", "음식 단어를 공부하고 싶어". A report of past
+    /// study ("I studied for an hour") is not one.
+    /// </summary>
+    private static bool AsksToStudy(string normalized) =>
+        System.Text.RegularExpressions.Regex.IsMatch(normalized,
+            @"\b(i want to|i wanna|i d like to|i would like to|i d prefer to|i would prefer to|i prefer to|i d rather|i would rather|let s|lets|help me|i need to|i don t want to|i do not want to|i dont want to) (study|practice|practise|learn|work on|focus on|review)\b"
+            + @"|(공부|연습|학습)(하고 싶|할래|할게|하자|해야)");
+
+    /// <summary>
+    /// True when the learner's own words ask to see their words: "preview the vocabulary for
+    /// today", "what vocab am I worst at", "list my plan words", "오늘 단어 보여줘". The model
+    /// calling a list tool is not enough to name due words or show the list; this is.
+    /// </summary>
+    internal bool IsWordListRequest(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = Normalize(text);
+        return System.Text.RegularExpressions.Regex.IsMatch(normalized,
+            @"\b(show|list|preview|see|view|which|what|give me|tell me|rank|sort)\b.*\b(words?|vocab|vocabulary|terms)\b"
+            + @"|\b(words?|vocab|vocabulary|terms)\b.*\b(worst|weakest|hardest|lowest|struggl\w*|best|strongest)\b"
+            + @"|(단어|어휘).*(보여|알려|목록|약한|어려운|못하는)");
+    }
+
+    /// <summary>
+    /// True when the learner's own words say to start a named activity now: "start a conversation
+    /// in German", "open a cloze", "let's start reading", "대화 시작해줘". Never a question, and never
+    /// "do" (which starts as many questions as requests). The only thing that lets an activity Sam
+    /// prepared open by itself.
+    /// </summary>
+    internal bool IsExplicitActivityStart(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Contains('?') || text.Contains('？'))
+        {
+            return false;
+        }
+
+        return SemanticClauses(text).Any(clause =>
+            !clause.IsPurpose
+            && !IsInformationalPlanConstruction(clause)
+            && ActivityNameMarkers.Any(marker => ContainsPhrase(clause.Text, marker))
+            && ActivityStartMarkers.Any(marker => IsBoundedActivityImperative(clause.Text, marker)));
     }
 
     /// <summary>
@@ -438,22 +584,23 @@ public sealed class CoachWriteAuthority
         return false;
     }
 
-    private static bool ContainsPlanReference(string normalized) =>
+    private static bool ContainsPlanReference(string normalized, bool planOnScreen = false) =>
         EnglishPlanReferences.Any(reference => ContainsPhrase(normalized, reference))
+        || planOnScreen && OnScreenPlanReferences.Any(reference => ContainsPhrase(normalized, reference))
         || FindKoreanPlanReference(TokenizeKoreanEojol(normalized)) is not null;
 
-    private static bool HasExplicitPlanAction(SemanticClause clause)
+    private static bool HasExplicitPlanAction(SemanticClause clause, bool planOnScreen = false)
     {
         if (IsInformationalPlanConstruction(clause) || IsNonCurrentPlanConstruction(clause.Text))
         {
             return false;
         }
 
-        return HasDirectEnglishPlanAction(clause.Text)
+        return HasDirectEnglishPlanAction(clause.Text, planOnScreen)
             || HasDirectKoreanPlanAction(clause.Text, clause.OriginalText);
     }
 
-    private static bool HasNegatedPlanAction(SemanticClause clause)
+    private static bool HasNegatedPlanAction(SemanticClause clause, bool planOnScreen = false)
     {
         if (HasNegatedKoreanPlanAction(clause.Text))
         {
@@ -461,7 +608,7 @@ public sealed class CoachWriteAuthority
         }
 
         var tokens = Tokens(clause.Text);
-        var plan = FindEnglishPlanReference(tokens);
+        var plan = FindEnglishPlanReference(tokens, planOnScreen);
         if (plan is null)
         {
             return false;
@@ -486,10 +633,10 @@ public sealed class CoachWriteAuthority
         return false;
     }
 
-    private static bool HasDirectEnglishPlanAction(string clause)
+    private static bool HasDirectEnglishPlanAction(string clause, bool planOnScreen = false)
     {
         var tokens = Tokens(clause);
-        var plan = FindEnglishPlanReference(tokens);
+        var plan = FindEnglishPlanReference(tokens, planOnScreen);
         if (plan is null)
         {
             return false;
@@ -829,7 +976,7 @@ public sealed class CoachWriteAuthority
         }
     }
 
-    private static TokenSpan? FindEnglishPlanReference(string[] tokens)
+    private static TokenSpan? FindEnglishPlanReference(string[] tokens, bool planOnScreen = false)
     {
         var references = new[]
         {
@@ -844,6 +991,10 @@ public sealed class CoachWriteAuthority
             ["my", "study", "plan"],
             ["my", "practice", "plan"]
         };
+        if (planOnScreen)
+        {
+            references = [.. references, ["the", "current", "plan"], ["current", "plan"], ["this", "plan"], ["the", "plan"]];
+        }
 
         foreach (var reference in references)
         {

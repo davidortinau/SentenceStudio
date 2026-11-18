@@ -1,6 +1,10 @@
 using System.ComponentModel;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Api.Coach.Tools;
+using SentenceStudio.Contracts.Profiles;
 using SentenceStudio.Data;
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Coach.Operations.Handlers;
@@ -14,15 +18,19 @@ namespace SentenceStudio.Api.Coach.Operations.Handlers;
 /// </remarks>
 public sealed record CoachPreferenceChangeArgs(
     [property: Description(
-        "Which setting to change. No setting is currently approved for change, so this tool "
-        + "declines every value and nothing is written. Tell the learner to change the setting "
-        + "in the app's own settings screen.")]
+        "Which setting to change. Only session_minutes (the length Today's Plan is made for, from "
+        + "now on) can be changed here; it also resizes today's plan to match, keeping its words "
+        + "and resource. Any other setting is declined: tell the learner to change it in the "
+        + "app's own settings screen.")]
     string Setting,
-    [property: Description("The new value, as text. Numbers and true/false are given as text too.")]
+    [property: Description("The new value, as text. For session_minutes one of 5, 10, 15, 20, 30 or 45.")]
     string Value);
 
-/// <summary>The single setting an update replaced.</summary>
-public sealed record CoachPreferencePriorState(string Setting, string? Value);
+/// <summary>The single setting an update replaced, and today's plan as it was before it.</summary>
+/// <param name="PlanBefore">Today's plan before the session length resized it; null when it was not resized.</param>
+/// <param name="PlanAfterVersion">The plan version the resize produced, so undo can tell whether the plan changed since.</param>
+public sealed record CoachPreferencePriorState(
+    string Setting, string? Value, PlanSnapshot? PlanBefore = null, string? PlanAfterVersion = null);
 
 /// <summary>
 /// Changes one learner-owned setting.
@@ -57,8 +65,6 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
     private const string QuizShowTextWithPhoto = "quiz_show_text_with_photo";
 
     private const int ValueMaxLength = 60;
-    private const int SessionMinutesMin = 5;
-    private const int SessionMinutesMax = 180;
 
     /// <summary>
     /// The settings the coach may change. Empty until Captain approves a specific setting.
@@ -82,7 +88,7 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
     /// is a one-line change that a reviewer can read in full.
     /// </para>
     /// </remarks>
-    private static readonly string[] SettableNames = [];
+    private static readonly string[] SettableNames = [SessionMinutes];
 
     /// <summary>
     /// The candidate settings, in the order RFC §6.5 lists them. Not settable — see
@@ -113,32 +119,40 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
 
     private readonly UserProfileRepository _profiles;
     private readonly CoachWriteOwnership _ownership;
+    private readonly IPlanService? _plans;
+    private readonly ILogger<CoachPreferenceChangeHandler> _logger;
 
-    public CoachPreferenceChangeHandler(UserProfileRepository profiles, CoachWriteOwnership ownership)
+    /// <param name="plans">Resizes today's plan with a new session length; absent, only the setting changes.</param>
+    public CoachPreferenceChangeHandler(UserProfileRepository profiles, CoachWriteOwnership ownership,
+        IPlanService? plans = null, ILogger<CoachPreferenceChangeHandler>? logger = null)
     {
         _profiles = profiles;
         _ownership = ownership;
+        _plans = plans;
+        _logger = logger ?? NullLogger<CoachPreferenceChangeHandler>.Instance;
     }
 
     public override string ToolName => CoachToolNames.ProposePreferenceChange;
 
     /// <summary>
-    /// Protected, because the tool can carry a language change.
+    /// Classified by the most consequential setting the tool can reach.
     /// </summary>
     /// <remarks>
-    /// The risk class is per tool, not per call, and a tool that can reach a broad-consequence
-    /// setting has to be classified by its most consequential reachable outcome. Splitting the
-    /// languages into their own tool would let the rest be soft, and is the obvious refinement if
-    /// the extra confirmation proves to be friction; classifying the whole tool downward would
-    /// not be.
+    /// The risk class is per tool, not per call. Session length is the only reachable setting, and
+    /// it is a one-tap change in the profile screen that one undo reverses, so the tool is soft
+    /// (one approval, as the Captain approved on 2026-11-17). Approving a language would reach a
+    /// broad-consequence setting and makes the tool protected again; the guard test pins that.
     /// </remarks>
-    public override CoachToolRiskClass RiskClass => CoachToolRiskClass.WriteHard;
+    public override CoachToolRiskClass RiskClass =>
+        SettableNames.Any(name => ProtectedNames.Contains(name, StringComparer.Ordinal))
+            ? CoachToolRiskClass.WriteHard
+            : CoachToolRiskClass.WriteSoft;
 
     /// <inheritdoc />
     /// <remarks>
-    /// Confirmed because it changes how the whole app behaves, reversible because the previous
-    /// value is a single field that was captured before the change. A learner who confirms a
-    /// language switch and immediately regrets it should not have to go and find the setting.
+    /// Reversible because the previous value is a single field captured before the change, and the
+    /// plan it resized is captured with it. A learner who regrets a change should not have to go and
+    /// find the setting.
     /// </remarks>
     public override CoachWriteUndoKind UndoKind => CoachWriteUndoKind.RestoreFields;
 
@@ -155,6 +169,10 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
         {
             lines.Add("This changes what future practice and plans are generated in.");
         }
+        if (setting == SessionMinutes)
+        {
+            lines.Add($"Today\u2019s Plan is resized to {value} minutes too, keeping its words and resource.");
+        }
 
         return new CoachWritePreview(
             $"Change {Label(setting).ToLowerInvariant()} to {Display(value)}",
@@ -169,14 +187,20 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
         var (profile, setting, value, current) = await ValidateAsync(userProfileId, args, cancellationToken)
             .ConfigureAwait(false);
 
-        var prior = new CoachPreferencePriorState(setting, current);
         await ApplyAsync(profile, setting, value).ConfigureAwait(false);
+
+        var lines = new List<string> { $"{Label(setting)}: {Display(current)} \u2192 {Display(value)}" };
+        PlanSnapshot? planBefore = null;
+        string? planAfter = null;
+        if (setting == SessionMinutes)
+            (planBefore, planAfter) = await ResizeTodaysPlanAsync(int.Parse(value), lines, cancellationToken)
+                .ConfigureAwait(false);
 
         return new CoachWriteExecution(
             $"Changed {Label(setting).ToLowerInvariant()} to {Display(value)}",
-            new[] { $"{Label(setting)}: {Display(current)} \u2192 {Display(value)}" },
+            lines,
             profile.Id,
-            Canonical(prior));
+            Canonical(new CoachPreferencePriorState(setting, current, planBefore, planAfter)));
     }
 
     private async Task<(UserProfile Profile, string Setting, string Value, string? Current)> ValidateAsync(
@@ -232,6 +256,50 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
             _ => throw InvalidArgument("That setting cannot be changed here.")
         };
 
+    /// <summary>
+    /// "From now on" includes today: today's plan is resized to the new length the way "I have 45
+    /// minutes today" resizes it, keeping its words and resource. A day with no plan, or a plan that
+    /// cannot be resized, keeps the setting change and says the plan is unchanged.
+    /// </summary>
+    private async Task<(PlanSnapshot? Before, string? AfterVersion)> ResizeTodaysPlanAsync(
+        int minutes, List<string> lines, CancellationToken cancellationToken)
+    {
+        if (_plans is null)
+            return (null, null);
+
+        // The setting is already saved, so a plan that cannot be resized must not turn the whole
+        // change into a failure: the receipt says the plan is unchanged and undo stays offered.
+        PlanRevisionResult result;
+        try
+        {
+            var snapshot = await _plans.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
+            if (snapshot.Items.Count == 0)
+                return (null, null);
+
+            result = await _plans.ApplyCoachConstraintsAsync(new CoachPlanRevisionRequest
+            {
+                Constraints = new PlanConstraints { AvailableMinutes = minutes },
+                ExpectedPlanVersion = snapshot.Version,
+                OperationKey = "session-minutes:" + Guid.NewGuid().ToString("N")
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Coach] The session length was saved, but today's plan could not be resized.");
+            lines.Add("Today\u2019s Plan is unchanged.");
+            return (null, null);
+        }
+
+        if (result.Outcome != PlanRevisionOutcome.Applied)
+        {
+            lines.Add("Today\u2019s Plan is unchanged.");
+            return (null, null);
+        }
+
+        lines.Add($"Today\u2019s Plan: {result.After?.TotalEstimatedMinutes ?? minutes} minutes");
+        return (result.Before, result.AfterPlanVersion);
+    }
+
     private async Task ApplyAsync(UserProfile profile, string setting, string value)
     {
         // The narrow setters are preferred where they exist: they issue a single-property update
@@ -242,6 +310,16 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
             if (!await _profiles
                     .SaveVocabQuizShowTextWithPhotoAsync(profile.Id, value == "true")
                     .ConfigureAwait(false))
+            {
+                throw DataAccessFailure(new InvalidOperationException("The setting was not saved."));
+            }
+
+            return;
+        }
+
+        if (setting == SessionMinutes)
+        {
+            if (!await _profiles.SavePreferredSessionMinutesAsync(profile.Id, int.Parse(value)).ConfigureAwait(false))
             {
                 throw DataAccessFailure(new InvalidOperationException("The setting was not saved."));
             }
@@ -299,11 +377,48 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
             throw InvalidArgument("The previous setting was empty and cannot be restored.");
         }
 
+        // The learner's own later change wins, for the setting as for the plan: undo restores the
+        // old length only while the setting still holds the value this change set.
+        // Read directly, not through Normalize: the old value may be a length the options list no
+        // longer offers, and it must still be restorable.
+        if (prior.Setting == SessionMinutes
+            && !string.Equals(profile.PreferredSessionMinutes.ToString(), Clean(args.Value, ValueMaxLength), StringComparison.Ordinal))
+        {
+            throw InvalidArgument("The session length was changed again since, so it was left as it is.");
+        }
+
         await ApplyAsync(profile, prior.Setting, restored).ConfigureAwait(false);
+
+        var lines = new List<string> { $"{Label(prior.Setting)}: {Display(restored)}" };
+        // Today's plan goes back as well, unless the learner changed it again since; then their
+        // later change stands and the receipt says so. The setting is already restored, so a plan
+        // that cannot be put back is reported, not turned into a failed undo.
+        if (prior.PlanBefore is { } planBefore && _plans is not null)
+        {
+            string line;
+            try
+            {
+                var undo = await _plans.UndoCoachRevisionAsync(new CoachPlanUndoRequest
+                {
+                    TargetSnapshot = planBefore,
+                    ExpectedPlanVersion = prior.PlanAfterVersion,
+                    OperationKey = "session-minutes-undo:" + Guid.NewGuid().ToString("N")
+                }, cancellationToken).ConfigureAwait(false);
+                line = undo.Outcome == PlanRevisionOutcome.Applied
+                    ? "Today\u2019s Plan is back as it was."
+                    : "Today\u2019s Plan changed since, so it was left as it is.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Coach] The session length was restored, but today's plan could not be put back.");
+                line = "Today\u2019s Plan could not be put back; it keeps the new length.";
+            }
+            lines.Add(line);
+        }
 
         return new CoachWriteExecution(
             $"Put {Label(prior.Setting).ToLowerInvariant()} back to {Display(restored)}",
-            new[] { $"{Label(prior.Setting)}: {Display(restored)}" },
+            lines,
             profile.Id,
             PriorStateJson: null);
     }
@@ -326,12 +441,12 @@ public sealed class CoachPreferenceChangeHandler : CoachWriteHandlerBase<CoachPr
 
     private string Minutes(string value)
     {
+        // The lengths the profile screen offers, so Sam never sets one the app cannot show.
         if (!int.TryParse(value, out var minutes)
-            || minutes < SessionMinutesMin
-            || minutes > SessionMinutesMax)
+            || !LearnerProfileOptions.SessionMinutes.Contains(minutes))
         {
             throw InvalidArgument(
-                $"A session length is a whole number of minutes between {SessionMinutesMin} and {SessionMinutesMax}.");
+                $"A session length is one of: {string.Join(", ", LearnerProfileOptions.SessionMinutes)} minutes.");
         }
 
         return minutes.ToString();

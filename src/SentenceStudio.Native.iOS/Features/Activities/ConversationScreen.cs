@@ -26,6 +26,8 @@ internal sealed class ConversationScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeConversationPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeConversationState _state = new(NativePhase.Loading, IsStarting: true);
     private string? _layoutKey;
     private int _chatKey;

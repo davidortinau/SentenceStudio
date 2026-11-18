@@ -17,6 +17,8 @@ internal sealed class ClozeScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeClozePresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeClozeState _state = new(NativePhase.Loading);
 
     public ClozeScreen(ActivityScreenHost host)

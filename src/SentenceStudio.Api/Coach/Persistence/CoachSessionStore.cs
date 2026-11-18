@@ -213,6 +213,11 @@ public sealed class CoachSessionStore : ICoachSessionStore
         }
 
         session.TurnCount += update.TurnIncrement;
+        if (update.ResetClarifications)
+        {
+            session.ClarificationCount = 0;
+        }
+
         session.ClarificationCount += update.ClarificationIncrement;
         Touch(session);
 

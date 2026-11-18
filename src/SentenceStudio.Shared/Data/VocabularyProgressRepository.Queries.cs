@@ -373,6 +373,44 @@ public partial class VocabularyProgressRepository
         };
     }
 
+    public async Task<IReadOnlyList<VocabularyWordSummary>> GetOwnedWordsAsync(
+        string userProfileId,
+        IReadOnlyCollection<string> wordIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(wordIds);
+        if (!HasWordOwner(userProfileId, nameof(GetOwnedWordsAsync)) || wordIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = wordIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var rows = await (
+            from w in db.VocabularyWords.AsNoTracking().OwnedBy(userProfileId)
+            where ids.Contains(w.Id)
+            join p in db.VocabularyProgresses.AsNoTracking().Where(p => p.UserId == userProfileId)
+                on w.Id equals p.VocabularyWordId into progress
+            from p in progress.DefaultIfEmpty()
+            select new VocabularyWordSummary(
+                w.Id,
+                w.TargetLanguageTerm,
+                w.NativeLanguageTerm,
+                w.Lemma,
+                w.Language,
+                w.Tags,
+                p != null ? p.MasteryScore : 0f,
+                p != null ? (DateTime?)p.LastPracticedAt : null,
+                p != null && p.IsUserDeclared,
+                p != null))
+            .ToListAsync(cancellationToken);
+
+        return rows;
+    }
+
     public async Task<VocabularyWordDetailFacts?> GetTrackedWordAsync(
         string userProfileId,
         string wordId,

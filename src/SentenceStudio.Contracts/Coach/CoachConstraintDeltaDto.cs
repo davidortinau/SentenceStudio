@@ -47,6 +47,12 @@ public sealed class CoachConstraintDeltaDto
     /// </summary>
     public string? VocabularyFocusDescription { get; init; }
 
+    /// <summary>
+    /// The learner's own tags and resource titles a topic focus names, as listed by
+    /// get_resource_catalog. The server keeps only names the learner has.
+    /// </summary>
+    public IReadOnlyList<string>? VocabularyFocusTopics { get; init; }
+
     /// <summary>True to clear the vocabulary focus.</summary>
     public bool ClearVocabularyFocus { get; init; }
 

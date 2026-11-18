@@ -154,16 +154,32 @@ public class DeterministicPlanBuilder
         // minimums, so focusing never removes required review work.
         if (request.FocusVocabularyWordIds is { Count: > 0 } focusIds && vocabReview is not null)
         {
-            var selected = focusIds.Distinct(StringComparer.Ordinal).ToList();
+            // Only the learner's own, existing words: kept words from earlier today can have been
+            // deleted or moved since.
+            var selected = await OwnedWordIdsAsync(focusIds, scopedUserId, ct, limit: int.MaxValue);
             _logger.LogInformation(
                 "Applying trusted vocabulary focus: {SelectedCount} word(s) replace the derived focus set of {DerivedCount}.",
                 selected.Count, vocabReview.FocusVocabularyIds.Count);
-            vocabReview.FocusVocabularyIds = selected;
+            // None left: the derived set stands rather than an empty focus.
+            if (selected.Count > 0)
+                vocabReview.FocusVocabularyIds = selected;
         }
-        else if (request.FocusVocabularyWordIds is { Count: > 0 } && vocabReview is null)
+        else if (request.FocusVocabularyWordIds is { Count: > 0 } focusOnly && vocabReview is null
+            && await OwnedWordIdsAsync(focusOnly, scopedUserId, ct) is { Count: > 0 } selected)
         {
+            // Nothing is due, but the learner chose these words (or today's plan already had
+            // them): review them rather than dropping the focus silently. Only the learner's own
+            // words: a focus set never invents vocabulary work.
+            vocabReview = new VocabularyReviewBlock
+            {
+                WordCount = selected.Count,
+                TotalDue = 0,
+                EstimatedMinutes = Math.Max(1, (int)Math.Ceiling(selected.Count / 3.5)),
+                FocusVocabularyIds = selected
+            };
             _logger.LogInformation(
-                "Vocabulary focus supplied but no review block was generated; the focus set is not applied.");
+                "Vocabulary focus supplied with nothing due: a review block of {SelectedCount} focus word(s) was built.",
+                selected.Count);
         }
 
         if (vocabReview != null)
@@ -174,7 +190,8 @@ public class DeterministicPlanBuilder
         }
 
         // Step 2: Select primary resource (avoid recent, prefer vocab-rich)
-        var primaryResource = await SelectPrimaryResourceAsync(today, vocabReview?.ResourceId, scopedUserId, ct);
+        var primaryResource = await SelectPrimaryResourceAsync(
+            today, vocabReview?.ResourceId, scopedUserId, ct, request.PinnedResourceId);
 
         if (primaryResource == null)
         {
@@ -400,7 +417,8 @@ public class DeterministicPlanBuilder
         DateTime today,
         string? vocabResourceId,
         string userProfileId,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? pinnedResourceId = null)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -474,10 +492,11 @@ public class DeterministicPlanBuilder
         {
             double score = 0;
 
-            // RULE 1: NEVER use yesterday's resource (hard constraint)
+            // RULE 1: NEVER use yesterday's resource (hard constraint). The score must be stored:
+            // a bare continue left it at zero, so yesterday's resource could still win.
             if (candidate.LastUsed == yesterday)
             {
-                score = -1000;
+                candidate.Score = -1000;
                 continue;
             }
 
@@ -516,12 +535,20 @@ public class DeterministicPlanBuilder
             candidate.Score = score;
         }
 
-        // Select best candidate
-        var selected = candidates
-            .Where(c => c.Score > -500) // Filter out disqualified (yesterday's resource)
+        // A pinned resource is today's own (the plan being changed already uses it), so it stays,
+        // whatever the rotation rules would pick for a fresh plan.
+        var pinned = pinnedResourceId is null ? null
+            : candidates.FirstOrDefault(c => string.Equals(c.Resource.Id, pinnedResourceId, StringComparison.Ordinal));
+
+        // Select best candidate. Yesterday's resource is passed over while another exists; a learner
+        // with nothing else still gets it rather than no resource at all.
+        var ranked = candidates
             .OrderByDescending(c => c.Score)
             .ThenBy(c => DeterministicHash.Combine(c.Resource.Id, today)) // Deterministic tiebreaker (process-stable)
-            .FirstOrDefault();
+            .ToList();
+        var selected = pinned
+            ?? ranked.FirstOrDefault(c => c.Score > -500)
+            ?? ranked.FirstOrDefault();
 
         if (selected == null)
         {
@@ -529,7 +556,8 @@ public class DeterministicPlanBuilder
             return null;
         }
 
-        var reason = !selected.DaysSinceLastUse.HasValue
+        var reason = pinned is not null ? "Kept from today's plan"
+            : !selected.DaysSinceLastUse.HasValue
             ? "New resource for today's plan"
             : selected.DaysSinceLastUse.Value > ResourceFreshnessLookbackDays
                 ? "Resource not used recently"
@@ -774,7 +802,104 @@ public class DeterministicPlanBuilder
             }
         }
 
+        // STEP 5: A session longer than the four steps can fill (Captain, 2026-11-17: "I have 45
+        // minutes today", and a 45-minute default). Sessions up to that length come out exactly as
+        // before. Above it every block but the review grows to a longer block, then one more
+        // production activity of a different kind joins (a second Writing would repeat the same
+        // plan item).
+        if (sessionMinutes > StandardSessionCeilingMinutes)
+            FillLongSession(activities, sessionMinutes, resource, skill, focusVocabularyIds,
+                yesterdayActivities, recentActivityTypes, today, constraints, lowEnergy, ref priority);
+
         return activities;
+    }
+
+    /// <summary>The named words the learner owns, in the order given, at most a review's worth.</summary>
+    private async Task<List<string>> OwnedWordIdsAsync(
+        IReadOnlyList<string> wordIds, string userProfileId, CancellationToken ct, int limit = MaxDueVocabularyWords)
+    {
+        var ids = wordIds.Distinct(StringComparer.Ordinal).ToList();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var owned = await db.VocabularyWords
+            .Where(w => w.UserProfileId == userProfileId && ids.Contains(w.Id))
+            .Select(w => w.Id)
+            .ToListAsync(ct);
+        var ownedSet = owned.ToHashSet(StringComparer.Ordinal);
+        return ids.Where(ownedSet.Contains).Take(limit).ToList();
+    }
+
+    /// <summary>The most minutes the four standard steps can fill: review 6, input 10, output 10, closer 8.</summary>
+    internal const int StandardSessionCeilingMinutes = 34;
+
+    /// <summary>The longest one block grows to in a long session.</summary>
+    private const int LongBlockMinutes = 15;
+    private const int LowEnergyLongBlockMinutes = 12;
+
+    private void FillLongSession(
+        List<PlannedActivity> activities,
+        int sessionMinutes,
+        SelectedResource resource,
+        SkillInfo skill,
+        IReadOnlyList<string> focusVocabularyIds,
+        HashSet<string> yesterdayActivities,
+        List<string> recentActivityTypes,
+        DateTime today,
+        PlanConstraints? constraints,
+        bool lowEnergy,
+        ref int priority)
+    {
+        var cap = lowEnergy ? LowEnergyLongBlockMinutes : LongBlockMinutes;
+        var remaining = sessionMinutes - activities.Sum(a => a.EstimatedMinutes);
+
+        // Grow the blocks first: more time with the same material before adding more. The review
+        // keeps its length, which is set by how many words are due.
+        foreach (var block in activities.Where(a => a.ActivityType != "VocabularyReview"))
+        {
+            if (remaining <= 0)
+                break;
+            var grow = Math.Min(remaining, cap - block.EstimatedMinutes);
+            if (grow <= 0)
+                continue;
+            block.EstimatedMinutes += grow;
+            remaining -= grow;
+        }
+
+        // Then one more production activity of a kind the plan does not have yet.
+        if (remaining >= 8)
+        {
+            var used = activities.Select(a => a.ActivityType).ToHashSet(StringComparer.Ordinal);
+            var candidates = new List<string> { "Translation", "Cloze", "Writing" };
+            if (resource.HasAudio)
+                candidates.Add("Shadowing");
+            candidates = ApplyModalityConstraints(candidates, constraints)
+                .Where(a => !used.Contains(a))
+                .ToList();
+            var fresh = candidates.Where(a => !yesterdayActivities.Contains(a)).ToList();
+            if (fresh.Count > 0)
+                candidates = fresh;
+            if (candidates.Count > 0)
+            {
+                var extra = SelectByPreference(candidates, recentActivityTypes, today, constraints);
+                var minutes = Math.Min(cap, remaining);
+                activities.Add(new PlannedActivity
+                {
+                    ActivityType = extra,
+                    ResourceId = extra == "Cloze" ? null : resource.Id,
+                    SkillId = skill?.Id,
+                    EstimatedMinutes = minutes,
+                    Priority = priority++,
+                    Rationale = GetActivityRationale(extra, "output"),
+                    FocusVocabularyIds = GetFocusVocabularyIdsForActivity(extra, focusVocabularyIds)
+                });
+                remaining -= minutes;
+            }
+        }
+
+        if (remaining > 0)
+            _logger.LogInformation(
+                "Long session left {RemainingMinutes} minute(s) unplanned: no further activity fits the resource and constraints.",
+                remaining);
     }
 
     private static string GetVocabularyReviewRationale(VocabularyReviewBlock vocabReview)

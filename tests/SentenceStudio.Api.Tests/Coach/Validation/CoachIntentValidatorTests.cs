@@ -220,6 +220,17 @@ public class CoachIntentValidatorTests
     }
 
     [Fact]
+    public void A_plan_fact_cites_its_one_day_window()
+    {
+        // Today's plan covers one day; the 7/14/30-day rule is practice balance's.
+        var intent = DirectChange();
+        intent.EvidenceReferences =
+            [new CoachEvidenceReferenceIntent { Kind = CoachEvidenceKind.PlanPreview, WindowDays = 1 }];
+
+        _validator.ValidateIntent(intent).Violations.Should().NotContain(v => v.Code == "window_length");
+    }
+
+    [Fact]
     public void A_practice_balance_fact_without_a_window_is_refused()
     {
         var intent = DirectChange();

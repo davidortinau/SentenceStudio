@@ -16,6 +16,9 @@ namespace SentenceStudio.Native.Android;
 internal sealed partial class AndroidSliceShell
 {
     private string? _activityRoute;
+
+    /// <summary>The launch of the open activity, so Sam can name what it was opened with.</summary>
+    private NativeActivityLaunch? _activityLaunch;
     private IServiceScope? _activityScope;
 
     private void OpenPlanCard(string planItemId)
@@ -82,6 +85,7 @@ internal sealed partial class AndroidSliceShell
         Publish(() =>
         {
             _activityRoute = launch.Route;
+            _activityLaunch = launch;
             Destination = NativeDestination.Activity;
         });
         // The presenter opens outside Execute's Busy gate, so Back (in-page and
@@ -272,6 +276,7 @@ internal sealed partial class AndroidSliceShell
         _activityScope?.Dispose();
         _activityScope = null;
         _activityRoute = null;
+        _activityLaunch = null;
         ResetActivityToast();
     }
 }

@@ -128,6 +128,7 @@ public sealed partial class NativeSamPresenter
             {
                 Publish(_state with { ConfirmingWriteId = null, ConfirmationExpiresAtUtc = null });
                 ApplyWriteState(operationId, settled);
+                await SettlePlanReplacementAsync(owner, cancellationToken);
             }
         }
         catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
@@ -161,7 +162,10 @@ public sealed partial class NativeSamPresenter
             var settled = await client.CallAsync(owner,
                 (api, token) => action(api, conversationId, token), cancellationToken);
             if (IsCurrent(owner) && _state.ConversationId == conversationId)
+            {
                 ApplyWriteState(operationId, settled);
+                await SettlePlanReplacementAsync(owner, cancellationToken);
+            }
         }
         catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
         {
@@ -188,7 +192,10 @@ public sealed partial class NativeSamPresenter
                 (api, token) => api.GetWriteOperationAsync(conversationId, operationId, token),
                 cancellationToken);
             if (IsCurrent(owner) && _state.ConversationId == conversationId)
+            {
                 ApplyWriteState(operationId, state, keepError: true);
+                await SettlePlanReplacementAsync(owner, cancellationToken);
+            }
         }
         catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
         {
@@ -242,6 +249,9 @@ public sealed partial class NativeSamPresenter
             RecomputeActiveWrite();
             return;
         }
+        var before = _state.SafeEntries
+            .Select(entry => entry.Write)
+            .FirstOrDefault(write => write?.OperationId == operationId);
         Publish(_state with
         {
             UnavailableWrites = _state.UnavailableWrites?.Remove(operationId),
@@ -251,6 +261,31 @@ public sealed partial class NativeSamPresenter
             WriteErrorKey = keepError ? _state.WriteErrorKey : null,
         });
         RecomputeActiveWrite();
+        _planReplacedByWrite |= CoachWritePlanEffect.ReplacedPlan(before, state);
+    }
+
+    /// <summary>Set by <see cref="ApplyWriteState"/>; consumed by <see cref="SettlePlanReplacementAsync"/>.</summary>
+    private bool _planReplacedByWrite;
+
+    /// <summary>
+    /// After a new plan made by Sam: the dashboard reads the plan again, as it does after a
+    /// revision, and the session is read again so the next plan change carries the new plan's
+    /// version instead of being refused as changed elsewhere.
+    /// </summary>
+    private async Task SettlePlanReplacementAsync(string owner, CancellationToken cancellationToken)
+    {
+        if (!_planReplacedByWrite)
+            return;
+        _planReplacedByWrite = false;
+        PlanChanged?.Invoke();
+        try
+        {
+            await LoadSessionAsync(owner, cancellationToken);
+        }
+        catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
+        {
+            logger.LogInformation(ex, "Sam could not re-read the session after making a new plan.");
+        }
     }
 
     /// <summary>Only the newest open, readable proposal is actionable (source RecomputeActiveWrite).</summary>

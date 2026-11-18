@@ -22,6 +22,8 @@ internal sealed class SceneScreen : IActivityScreen
     private const string KoreanSpeech = "ko-KR";
     private readonly ActivityScreenHost _host;
     private readonly NativeScenePresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeSceneState _state = new(NativePhase.Loading);
     private SwiftView? _grade;
     private SwiftView? _add;

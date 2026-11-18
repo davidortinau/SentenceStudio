@@ -18,6 +18,8 @@ internal sealed class TranslationScreen : IActivityScreen
     private readonly ActivityScreenHost _host;
     private readonly NativeTranslationPresenter _presenter;
 
+    public object? SamSource => _presenter;
+
     public TranslationScreen(ActivityScreenHost host)
     {
         _host = host;

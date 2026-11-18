@@ -19,6 +19,8 @@ internal sealed class ShadowingScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeShadowingPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeShadowingState _state = new(NativePhase.Loading);
     private NativeShadowingState? _rendered;
     private SourceUiStyle? _style;

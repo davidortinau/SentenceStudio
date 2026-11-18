@@ -69,7 +69,7 @@ namespace SentenceStudio.Services
                     persona_description = scenario.PersonaDescription,
                     situation_description = scenario.SituationDescription,
                     conversation_type = scenario.ConversationType.ToString(),
-                    question_bank = scenario.QuestionBank
+                    question_bank = SentenceStudio.Services.ConversationScenarioPrompts.QuestionBankFor(scenario.QuestionBank, targetLanguage)
                 },
                 target_language = targetLanguage
             });
@@ -183,7 +183,7 @@ namespace SentenceStudio.Services
                             persona_description = scenario.PersonaDescription,
                             situation_description = scenario.SituationDescription,
                             conversation_type = scenario.ConversationType.ToString()
-                            // question_bank = scenario.QuestionBank
+                            // question_bank = SentenceStudio.Services.ConversationScenarioPrompts.QuestionBankFor(scenario.QuestionBank, targetLanguage)
                         },
                         chunks = chunks,  // Include ALL chunks including user's latest message
                         target_language = targetLanguage

@@ -4,6 +4,7 @@
 @using Microsoft.EntityFrameworkCore
 @using SentenceStudio.Data
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 @if (isLoading)
@@ -568,8 +569,19 @@ else
         !string.IsNullOrWhiteSpace(targetLanguageTerm) &&
         !string.IsNullOrWhiteSpace(nativeLanguageTerm);
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(string.IsNullOrWhiteSpace(word.TargetLanguageTerm) ? []
+            : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.VocabularyWord, string.IsNullOrEmpty(Id) ? null : word.Id, word.TargetLanguageTerm, word.NativeLanguageTerm, focus: true)],
+            Facts: [SentenceStudio.WebUI.Services.CoachScreenDescription.Fact("status", currentLearningStatus.ToString())]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         await LoadData();
     }
@@ -1207,6 +1219,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         if (_disposed) return;
         _disposed = true;
         try

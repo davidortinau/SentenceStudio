@@ -93,6 +93,13 @@ public sealed class CoachSessionUpdate
 
     /// <summary>Clarifications to add to the clarification counter.</summary>
     public int ClarificationIncrement { get; init; }
+
+    /// <summary>
+    /// True to set the clarification counter back to zero before any increment. The counter is
+    /// the number of clarifying questions asked in a row, so a turn that got the learner a reply
+    /// starts it again.
+    /// </summary>
+    public bool ResetClarifications { get; init; }
 }
 
 /// <summary>The normalized inputs for one revision audit row. No learner text is accepted.</summary>

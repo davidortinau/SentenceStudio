@@ -370,6 +370,7 @@ internal sealed partial class AndroidSliceShell
             AndroidSamRowKind.Outcome => Caption(Localize(state.NoticeKey!), palette, "native.sam.outcome"),
             AndroidSamRowKind.VocabularySet => SamVocabularySet(state, state.VocabularySet!, palette),
             AndroidSamRowKind.VocabularySetOutcome => SamVocabularySetOutcome(state, palette),
+            AndroidSamRowKind.ActivityLaunch => SamActivityLaunch(state, state.ActivityLaunch!, palette),
             AndroidSamRowKind.Chips => SamStarters(state, palette),
             AndroidSamRowKind.Closed => SamNotice(Localize("Coach_ConversationClosedNotice"), palette,
                 "native.sam.closed"),
@@ -387,6 +388,50 @@ internal sealed partial class AndroidSliceShell
         if (danger)
             caption.Color = palette.Danger;
         return caption;
+    }
+
+    /// <summary>
+    /// Source CoachWordList: the words Sam listed, each row opening the word's editor. The rows are
+    /// the server's, never the model's prose.
+    /// </summary>
+    private ComposableNode SamWordList(CoachWordListDto list, int index, AndroidVisualPalette palette)
+    {
+        var column = new Column(Arrangement.SpacedBy(2))
+        {
+            Modifier.FillMaxWidth().TestTag($"native.sam.words.{index}"),
+            Caption(Localize(list.Order == CoachWordListOrder.WeakestFirst
+                ? "Coach_WordList_PlanWeakest" : "Coach_WordList_Plan"), palette, $"native.sam.words.{index}.heading"),
+        };
+        for (var i = 0; i < list.Rows.Count; i++)
+        {
+            var row = list.Rows[i];
+            var mastery = row.MasteryPercent is { } percent
+                ? string.Format(System.Globalization.CultureInfo.CurrentCulture, Localize("Coach_WordList_Mastery"), percent)
+                : Localize("Coach_WordList_NotPractised");
+            var accessible = $"{row.TargetTerm}, {row.NativeTerm}, {mastery}";
+            var wordId = row.WordId;
+            column.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .Clip(Shape.RoundedCorners(AndroidVisualTheme.ControlRadius))
+                    .Clickable(() => _sam?.OpenListedWord(wordId))
+                    .Padding(horizontal: 8, vertical: 4)
+                    .TestTag($"native.sam.words.{index}.{i}")
+                    .Semantics(semantics =>
+                    {
+                        semantics.ContentDescription(accessible);
+                        semantics.Role(SemanticsRole.Button);
+                    }),
+                new Column(Arrangement.SpacedBy(2))
+                {
+                    Modifier.Weight(1f),
+                    Strong(row.TargetTerm, palette),
+                    Body(row.NativeTerm, palette, secondary: true),
+                },
+                Caption(mastery, palette),
+            });
+        }
+        return column;
     }
 
     private static Text Strong(string text, AndroidVisualPalette palette, bool heading = false)
@@ -465,6 +510,8 @@ internal sealed partial class AndroidSliceShell
                     parts.Add(Body(entry.Text, palette));
                 foreach (var line in entry.ChangeLines.IsDefault ? [] : entry.ChangeLines)
                     parts.Add(Body("• " + line, palette, secondary: true));
+                if (entry.Kind != NativeSamEntryKind.Learner && entry.WordList is { Rows.Count: > 0 } words)
+                    parts.Add(SamWordList(words, index, palette));
                 break;
         }
         if (entry.Limitation is { } limitation)
@@ -695,6 +742,45 @@ internal sealed partial class AndroidSliceShell
             Localize("NativeSam_VocabularySetDecline"), "native.sam.vocabset.decline", DeclineSamSet,
             !state.VocabularySetBusy));
         return SamCard(palette, "native.sam.vocabset", SamCardStyle.Sam, rows);
+    }
+
+    /// <summary>
+    /// Source CoachActivityLaunchCard: what Sam is opening. While it counts down, Cancel with a bar
+    /// draining right to left; otherwise Start and Not now.
+    /// </summary>
+    private ComposableNode SamActivityLaunch(NativeSamState state, CoachActivityLaunchDto launch,
+        AndroidVisualPalette palette)
+    {
+        var name = Localize(CoachActivityRoutes.TitleKey(launch.Activity));
+        var rows = new List<ComposableNode>
+        {
+            Strong(string.Format(CultureInfo.CurrentCulture, Localize("Coach_ActivityLaunch_Title"), name), palette),
+        };
+        var details = string.Join(" · ", new[] { launch.Language, launch.ScenarioName }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+        if (details.Length > 0)
+            rows.Add(Caption(details, palette, "native.sam.activity.details"));
+        if (state.ActivityCountdown is { } remaining)
+        {
+            var countdown = string.Format(CultureInfo.CurrentCulture, Localize("Coach_ActivityLaunch_Countdown"), remaining);
+            rows.Add(Action(Localize("Common_Cancel"), "native.sam.activity.cancel",
+                () => _sam?.CancelActivityCountdown(), enabled: true, primary: false));
+            rows.Add(new LinearProgressIndicator
+            {
+                // Drains from full to empty: the filled part shrinks toward the start (right to left).
+                Progress = remaining / (float)NativeSamPresenter.ActivityCountdownSeconds,
+                Modifier = Modifier.FillMaxWidth().Height(4).TestTag("native.sam.activity.countdown")
+                    .Semantics(semantics => semantics.ContentDescription(countdown)),
+            });
+        }
+        else
+        {
+            rows.Add(Action(Localize("Coach_ActivityLaunch_Start"), "native.sam.activity.start",
+                () => _sam?.StartActivityLaunch(), enabled: !Busy.Value));
+            rows.Add(Action(Localize("Coach_ActivityLaunch_NotNow"), "native.sam.activity.dismiss",
+                () => _sam?.DismissActivityLaunch(), enabled: true, primary: false));
+        }
+        return SamCard(palette, "native.sam.activity", SamCardStyle.Sam, rows, spacing: 6);
     }
 
     private ComposableNode SamVocabularySetOutcome(NativeSamState state, AndroidVisualPalette palette)

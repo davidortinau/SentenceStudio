@@ -43,6 +43,13 @@ public sealed record PlanBuildRequest
     public bool AllowWrites { get; init; } = true;
 
     /// <summary>
+    /// A resource to keep as the plan's primary resource (Sam changing today's plan without asking
+    /// for new content keeps what is there). Used only when it is the learner's own and usable;
+    /// otherwise the planner chooses as usual.
+    /// </summary>
+    public string? PinnedResourceId { get; init; }
+
+    /// <summary>
     /// Builds a pure-preview request: explicit user scope, optional
     /// constraints, and no writes. Intended for read-only plan previews such as
     /// the Learning Coach.

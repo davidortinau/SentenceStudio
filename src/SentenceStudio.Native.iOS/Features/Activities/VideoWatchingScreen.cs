@@ -19,6 +19,8 @@ internal sealed class VideoWatchingScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeVideoWatchingPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeVideoWatchingState _state = new(NativePhase.Loading);
 
     public VideoWatchingScreen(ActivityScreenHost host)

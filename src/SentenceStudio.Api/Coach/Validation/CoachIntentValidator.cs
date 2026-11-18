@@ -324,7 +324,10 @@ public sealed class CoachIntentValidator
     {
         foreach (var reference in intent.EvidenceReferences)
         {
-            if (reference.WindowDays is { } days && !CoachPracticeWindows.AllowedDays.Contains(days))
+            // The 7/14/30-day windows are practice balance's. Another read (today's plan is one
+            // day) cites the window it actually covered, which this rule used to refuse.
+            if (reference.Kind == CoachEvidenceKind.PracticeBalance
+                && reference.WindowDays is { } days && !CoachPracticeWindows.AllowedDays.Contains(days))
             {
                 violations.Add(new CoachViolation(
                     CoachViolationKind.EvidenceWindow,

@@ -30,6 +30,7 @@ internal sealed class StubProgressService : IProgressService
     public Task<IReadOnlyList<PracticeHeatPoint>> GetPracticeHeatAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => throw Unused();
     public Task<TodaysPlan> GenerateTodaysPlanAsync(CancellationToken ct = default) => throw Unused();
     public Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default) => throw Unused();
+    public void InvalidateCachedPlan(DateTime? date = null) => throw Unused();
     public Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default) => throw Unused();
     public Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default) => throw Unused();
     public Task<ValidatedPlanItemProgress?> ValidatePlanItemAsync(string userId, string planItemId, PlanActivityType activityType, string? resourceId, string? skillId, IReadOnlyCollection<string>? vocabularyWordIds, CancellationToken ct = default) => throw Unused();

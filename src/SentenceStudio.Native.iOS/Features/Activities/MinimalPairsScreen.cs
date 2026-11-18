@@ -26,6 +26,8 @@ internal sealed class MinimalPairsScreen : IActivityScreen
     private const string SpeechLanguage = "ko-KR";
     private readonly ActivityScreenHost _host;
     private readonly NativeMinimalPairsPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeMinimalPairsState _state = new(NativePhase.Loading);
     private long _childVersion;
     private long _pageVersion;

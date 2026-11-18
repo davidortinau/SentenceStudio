@@ -76,6 +76,7 @@
         CoachEvidenceCoverage.SettingsSnapshot => "Coach_EvidenceCoverage_Settings",
         CoachEvidenceCoverage.DerivedProjection => "Coach_EvidenceCoverage_Derived",
         CoachEvidenceCoverage.CompleteAggregateWithBreakdown => "Coach_EvidenceCoverage_Aggregate",
+        CoachEvidenceCoverage.ClientScreenSnapshot => "Coach_EvidenceCoverage_Screen",
         // Unknown and null both mean "no coverage was stated". Neither gets a line.
         _ => null
     };
@@ -95,6 +96,7 @@
         CoachEvidenceOrder.PriorityAscending => "Coach_EvidenceOrder_Priority",
         CoachEvidenceOrder.FrequencyDescending => "Coach_EvidenceOrder_Frequency",
         CoachEvidenceOrder.BandLabelAscending => "Coach_EvidenceOrder_Band",
+        CoachEvidenceOrder.MasteryAscending => "Coach_EvidenceOrder_MasteryWeakest",
         // Unordered, NotApplicable, Unknown and null all state no ranking, so none is shown.
         _ => null
     };

@@ -108,6 +108,7 @@
 
         Nav.LocationChanged += OnLocationChanged;
         Coach.Changed += OnCoachChanged;
+        Coach.CollapseRequested += OnCollapseRequested;
         Boundary.Changed += OnBoundaryChanged;
         Boundary.Crossed += OnAccountCrossed;
 
@@ -499,6 +500,20 @@
         }
     }
 
+    /// <summary>An activity Sam opened is starting: get out of its way.</summary>
+    private void OnCollapseRequested()
+    {
+        if (_disposed || _visualState == SamOverlayVisualState.Collapsed)
+            return;
+        _ = InvokeAsync(async () =>
+        {
+            if (_disposed)
+                return;
+            await CollapseAsync();
+            StateHasChanged();
+        });
+    }
+
     private void OnCoachChanged()
     {
         if (_disposed) return;
@@ -583,6 +598,7 @@
 
         Nav.LocationChanged -= OnLocationChanged;
         Coach.Changed -= OnCoachChanged;
+        Coach.CollapseRequested -= OnCollapseRequested;
         Boundary.Changed -= OnBoundaryChanged;
         Boundary.Crossed -= OnAccountCrossed;
         Entry.Detach(this);

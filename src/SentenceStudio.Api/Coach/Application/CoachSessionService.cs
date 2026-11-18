@@ -1843,11 +1843,15 @@ public sealed class CoachSessionService : ICoachSessionService
                 PriorMessages = context.PriorMessages,
                 LearnerText = LearnerTextFor(request),
                 MemoryBlock = memoryBlock,
+                // What the learner is looking at as they send this, in every turn.
+                Screen = request.ClientScreen is { } screen
+                    ? Tools.SamTools.CurrentScreenTool.Read(screen)
+                    : null,
                 ActiveConstraints = constraints,
                 // Plan state only when the learner's message is about the plan or a suggestion
                 // waits for an answer; see CoachAgentTurnRequest.IncludePlanContext.
                 IncludePlanContext = !string.IsNullOrWhiteSpace(session.PendingSuggestionId)
-                    || _writeAuthority.ClassifyPlanRouting(LearnerTextFor(request))
+                    || _writeAuthority.ClassifyPlanRouting(LearnerTextFor(request), PlanOnScreen(request))
                         != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference,
                 PendingSuggestionId = session.PendingSuggestionId,
                 PendingSuggestionDelta = pendingDelta,
@@ -1886,7 +1890,7 @@ public sealed class CoachSessionService : ICoachSessionService
             if (surfaced.Count > 0)
             {
                 var leak = await ValidateNoAnswerLeakAsync(
-                    userProfileId, session, surfaced, cancellationToken).ConfigureAwait(false);
+                    userProfileId, session, surfaced, TurnEmbargo(request), cancellationToken).ConfigureAwait(false);
                 if (leak is not null)
                 {
                     return leak;
@@ -1971,11 +1975,12 @@ public sealed class CoachSessionService : ICoachSessionService
         var isTextPlanIntent = request.InputKind == CoachTurnInputKind.Text
             && intent.Kind is CoachIntentKind.DirectConstraintChange or CoachIntentKind.SuggestConstraintChange;
         var planRouting = isTextPlanIntent
-            ? _writeAuthority.ClassifyPlanRouting(request.Text)
+            ? _writeAuthority.ClassifyPlanRouting(request.Text, PlanOnScreen(request))
             : CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest;
         var activityLaunchRequested = isTextPlanIntent
             && planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest
-            && _writeAuthority.IsActivityLaunchRequest(request.Text);
+            && (_writeAuthority.IsActivityLaunchRequest(request.Text)
+                || _writeAuthority.IsExplicitActivityStart(request.Text));
 
         if (activityLaunchRequested
             || planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest)
@@ -2006,11 +2011,14 @@ public sealed class CoachSessionService : ICoachSessionService
                     await ReduceAnswerAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
                 // NoChange, GeneralAnswer and OffTopic never write. Their CoachMessage is shown as
-                // written, after the leak scan in SurfacedModelText.
+                // written, after the leak scan in SurfacedModelText. A vocabulary set is checked
+                // after this, and can still be refused, so its turn is recorded there instead.
                 _ => CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                     userProfileId, session, plan,
                     CoachTurnStatus.Completed, CoachStopReason.Completed,
-                    await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+                    intent.VocabularySet is not null
+                        ? StatusWithPending(session)
+                        : await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
                     messages: [CoachMessage(CoachMessageKind.Text, intent.CoachMessage)],
                     pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
                     receipt: null,
@@ -2026,8 +2034,178 @@ public sealed class CoachSessionService : ICoachSessionService
         var withMemory = await AttachMemoryCandidateAsync(
             userProfileId, session, request, intent, withVocabularySet, cancellationToken).ConfigureAwait(false);
 
-        return await AttachWriteOperationAsync(session, withMemory, cancellationToken)
+        var withWords = _writeAuthority.IsWordListRequest(LearnerTextFor(request))
+            ? AttachWordList(withMemory)
+            : withMemory;
+
+        var withLaunch = await AttachActivityLaunchAsync(
+            userProfileId, request, intent, withWords, cancellationToken).ConfigureAwait(false);
+
+        return await AttachWriteOperationAsync(session, withLaunch, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The activity the model asked to open, checked part by part before the client sees it: the
+    /// activity is one of the app's, the language is a target-language choice, the scenario is a
+    /// built-in one the learner's words describe, and any resource or skill is the learner's own
+    /// (an unchecked part is dropped, never passed on). It may open by itself only when the
+    /// learner's own words asked to start something; text on their screen cannot.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> AttachActivityLaunchAsync(
+        string userProfileId,
+        CoachTurnRequest request,
+        CoachTurnIntent intent,
+        CoachOperationResult<CoachTurnResponse> reduced,
+        CancellationToken cancellationToken)
+    {
+        if (intent.ActivityLaunch is not { } asked
+            || !reduced.IsOk || reduced.Value is not { } response
+            || response.Status != CoachTurnStatus.Completed
+            || ParseActivity(asked.Activity) is not { } activity)
+        {
+            return reduced;
+        }
+
+        // A language only for a conversation (the one activity that takes one), only a listed
+        // target language, and never the learner's own: a native-language prompt with a
+        // native-language reply teaches nothing (Learning Value Gate). Their usual target
+        // language needs no change, so it is left out too.
+        string? language = null;
+        if (activity == CoachActivityKind.Conversation
+            && SentenceStudio.Contracts.Profiles.LearnerProfileOptions.TargetLanguages
+                .FirstOrDefault(choice => string.Equals(choice, asked.Language?.Trim(), StringComparison.OrdinalIgnoreCase))
+                is { } listed)
+        {
+            var learner = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+            var tag = CoachLanguageResolver.ToTag(listed, string.Empty);
+            if (tag.Length > 0 && tag != learner.NativeLanguageTag && tag != learner.TargetLanguageTag)
+                language = listed;
+        }
+
+        var scenario = activity == CoachActivityKind.Conversation
+            ? SentenceStudio.Services.BuiltInConversationScenarios.Match(asked.Scenario)
+            : null;
+
+        IReadOnlyList<string> resources = [];
+        if (!string.IsNullOrWhiteSpace(asked.ResourceId))
+        {
+            var owned = await _validationData.GetOwnedResourceIdsAsync(userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+            if (owned.Contains(asked.ResourceId.Trim()))
+                resources = [asked.ResourceId.Trim()];
+        }
+
+        string? skill = null;
+        if (!string.IsNullOrWhiteSpace(asked.SkillId))
+        {
+            var owned = await _validationData.GetOwnedSkillIdsAsync(userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+            if (owned.Contains(asked.SkillId.Trim()))
+                skill = asked.SkillId.Trim();
+        }
+
+        var launch = new CoachActivityLaunchDto
+        {
+            Activity = activity,
+            ResourceIds = resources,
+            SkillId = skill,
+            Language = language,
+            ScenarioId = scenario?.Id,
+            ScenarioName = scenario?.Name,
+            AutoStart = request.InputKind == CoachTurnInputKind.Text
+                && _writeAuthority.IsExplicitActivityStart(request.Text)
+        };
+
+        _logger.LogInformation(
+            "[Coach] Turn opens {Activity} (language set: {HasLanguage}, scenario: {Scenario}, resources: {ResourceCount}, auto start: {AutoStart}).",
+            activity, language is not null, scenario?.Id ?? "none", resources.Count, launch.AutoStart);
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response.WithActivityLaunch(launch));
+    }
+
+    /// <summary>The activity the model named, by its enum name or a common alias; null for anything else.</summary>
+    internal static CoachActivityKind? ParseActivity(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+        var key = new string(name.Where(char.IsLetter).ToArray()).ToLowerInvariant();
+        return key switch
+        {
+            "conversation" => CoachActivityKind.Conversation,
+            "vocabularyquiz" or "vocabquiz" or "quiz" or "vocabularyreview" => CoachActivityKind.VocabularyQuiz,
+            "vocabularymatching" or "vocabmatching" or "matching" => CoachActivityKind.VocabularyMatching,
+            "cloze" => CoachActivityKind.Cloze,
+            "translation" or "translate" => CoachActivityKind.Translation,
+            "numberdrill" or "numbers" => CoachActivityKind.NumberDrill,
+            "writing" => CoachActivityKind.Writing,
+            "reading" => CoachActivityKind.Reading,
+            "shadowing" or "listening" => CoachActivityKind.Shadowing,
+            "howdoyousay" => CoachActivityKind.HowDoYouSay,
+            "wordassociation" => CoachActivityKind.WordAssociation,
+            "diary" => CoachActivityKind.Diary,
+            "flashcards" or "flashcard" => CoachActivityKind.Flashcards,
+            "scene" or "describeascene" or "scenedescription" => CoachActivityKind.Scene,
+            "minimalpairs" => CoachActivityKind.MinimalPairs,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// What this reply may repeat beyond the due-word rule (Captain, 2026-11-17): the words the
+    /// learner asked to have listed, and the side of a word on their screen they can already see.
+    /// The side their screen still hides stays withheld, due or not.
+    /// </summary>
+    private CoachTurnEmbargo TurnEmbargo(CoachTurnRequest request)
+    {
+        // Only when the learner's own words asked to see their words: the model choosing to call
+        // the list tool does not lift the embargo.
+        var listed = _writeAuthority.IsWordListRequest(LearnerTextFor(request))
+            ? _writeTurn?.ListedWords?.Words.Select(word => word.WordId) ?? []
+            : [];
+        var screen = request.ClientScreen;
+        var screenWords = (screen?.Items ?? [])
+            .Where(item => item is not null
+                && item.Kind == CoachClientScreenItemKinds.VocabularyWord
+                && !string.IsNullOrWhiteSpace(item.Id))
+            .Select(item => new CoachScreenWord(item.Id!.Trim(), item.Label, screen!.AnswerHidden))
+            .ToList();
+
+        return new CoachTurnEmbargo(listed.ToHashSet(StringComparer.Ordinal), screenWords);
+    }
+
+    /// <summary>
+    /// The words a list tool read this turn, as rows under the reply. Built here from the tool's
+    /// own answer, each row opening its word, so the model never has to type the list. A refused
+    /// turn shows none: its reply did not go out.
+    /// </summary>
+    private CoachOperationResult<CoachTurnResponse> AttachWordList(CoachOperationResult<CoachTurnResponse> reduced)
+    {
+        if (_writeTurn?.ListedWords is not { Words.Count: > 0 } listed
+            || !reduced.IsOk || reduced.Value is not { } response
+            || response.Status != CoachTurnStatus.Completed)
+        {
+            return reduced;
+        }
+
+        var list = new CoachWordListDto
+        {
+            Kind = CoachWordListKind.PlanVocabulary,
+            Order = listed.WeakestFirst ? CoachWordListOrder.WeakestFirst : CoachWordListOrder.PlanOrder,
+            Rows = listed.Words
+                .Take(CoachWordListDto.MaxRows)
+                .Select(word => new CoachWordListRowDto(
+                    word.WordId,
+                    word.TargetTerm,
+                    word.NativeTerm,
+                    word.MasteryPct,
+                    CoachRouteCatalog.Build(
+                        CoachRouteName.Vocabulary,
+                        [new CoachRouteParameterDto(CoachRouteParameterKey.VocabularyWordId, word.WordId)])))
+                .ToList()
+        };
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response.WithWordList(list));
     }
 
     /// <summary>
@@ -2047,7 +2225,7 @@ public sealed class CoachSessionService : ICoachSessionService
             return await AskClarificationAsync(
                 userProfileId,
                 session,
-                "I can't start activities in this version. Would you like help studying that topic here instead?",
+                "Do you want me to open that activity now, or change Today's Plan?",
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -2191,6 +2369,17 @@ public sealed class CoachSessionService : ICoachSessionService
     /// not work would attach a permanent decision to a broken interaction.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// "45 minutes from now on" is the session-length setting this turn's card offers. A study-goal
+    /// memory saying the same would be a second, weaker copy that outlives an undo; any other memory
+    /// on the same turn is kept.
+    /// </summary>
+    internal static bool DuplicatesSessionLengthSetting(CoachMemoryProposalIntent proposal, CoachWriteChangeKind? writeKind) =>
+        writeKind == CoachWriteChangeKind.SettingChange
+        && proposal.Kind == CoachProposedMemoryKind.PersistentStudyGoal
+        && proposal.StudyGoalText is { } goal
+        && System.Text.RegularExpressions.Regex.IsMatch(goal, @"\d+\s*(min|minute|minutes|분)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private async Task<CoachOperationResult<CoachTurnResponse>> AttachMemoryCandidateAsync(
         string userProfileId,
         CoachSession session,
@@ -2203,7 +2392,8 @@ public sealed class CoachSessionService : ICoachSessionService
             || intent.MemoryProposal is null
             || !reduced.IsOk
             || reduced.Value is null
-            || reduced.Value.Status != CoachTurnStatus.Completed)
+            || reduced.Value.Status != CoachTurnStatus.Completed
+            || DuplicatesSessionLengthSetting(intent.MemoryProposal, reduced.Value.WriteOperation?.ChangeKind))
         {
             return reduced;
         }
@@ -2238,11 +2428,19 @@ public sealed class CoachSessionService : ICoachSessionService
         CancellationToken cancellationToken)
     {
         if (intent.VocabularySet is not { } set
-            || _vocabularySets is null
             || !reduced.IsOk
             || reduced.Value is null
             || reduced.Value.Status != CoachTurnStatus.Completed)
         {
+            return reduced;
+        }
+
+        // The reducer left this turn unrecorded, because the set it asks for can still be refused
+        // here. Recording it as a reply first gave a refused review a cleared stop reason, and
+        // started the count of clarifying questions again for a turn the learner saw refused.
+        if (_vocabularySets is null)
+        {
+            await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false);
             return reduced;
         }
 
@@ -2272,6 +2470,8 @@ public sealed class CoachSessionService : ICoachSessionService
                 .IssueAsync(proposal, cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false);
 
         return proposal is null
             ? reduced
@@ -2437,10 +2637,11 @@ public sealed class CoachSessionService : ICoachSessionService
         string userProfileId,
         CoachSession session,
         IReadOnlyList<string?> surfaced,
+        CoachTurnEmbargo turn,
         CancellationToken cancellationToken)
     {
         var embargoed = await _validationData
-            .GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken)
+            .GetTurnEmbargoAsync(userProfileId, turn, cancellationToken)
             .ConfigureAwait(false);
 
         if (embargoed.Count == 0)
@@ -2475,11 +2676,18 @@ public sealed class CoachSessionService : ICoachSessionService
 
         var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
         var stillPending = await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false);
+        var status = stillPending is null ? CoachSessionStatus.Active : CoachSessionStatus.SuggestionPending;
+
+        // Recorded like every other refusal, so the session says why its last turn stopped. It
+        // leaves the count of clarifying questions where it was: nothing was answered.
+        await RecordTurnOutcomeAsync(
+            userProfileId, session, status, CoachStopReason.ValidationFailed, cancellationToken)
+            .ConfigureAwait(false);
 
         return CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
             userProfileId, session, plan,
             CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
-            stillPending is null ? CoachSessionStatus.Active : CoachSessionStatus.SuggestionPending,
+            status,
             messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ValidationFailedNeutral)],
             pendingSuggestion: null, receipt: null, evidence: [], clarifyingQuestion: null,
             cancellationToken).ConfigureAwait(false));
@@ -2932,13 +3140,17 @@ public sealed class CoachSessionService : ICoachSessionService
 
         if (!mapped.HasChange)
         {
+            // A completed turn like any other: recorded, so it clears an earlier stop reason and
+            // starts the count of clarifying questions again, and it leaves an open offer open.
+            var status = await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false);
             var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
             return CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                 userProfileId, session, plan,
-                CoachTurnStatus.Completed, CoachStopReason.Completed, CoachSessionStatus.Active,
+                CoachTurnStatus.Completed, CoachStopReason.Completed, status,
                 // Still a claim about Today's Plan, so the application makes it.
                 messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.NoChange)],
-                pendingSuggestion: null, receipt: null, evidence: BuildEvidence(), clarifyingQuestion: null,
+                pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+                receipt: null, evidence: BuildEvidence(), clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
         }
 
@@ -2948,7 +3160,7 @@ public sealed class CoachSessionService : ICoachSessionService
         // applied. The model calling it a direct change is not enough on its own.
         if (request.InputKind == CoachTurnInputKind.Text)
         {
-            var denial = _writeAuthority.Evaluate(request.Text);
+            var denial = _writeAuthority.Evaluate(request.Text, PlanOnScreen(request));
             if (denial != CoachWriteAuthority.Denial.None)
             {
                 _logger.LogInformation(
@@ -3033,7 +3245,7 @@ public sealed class CoachSessionService : ICoachSessionService
         var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 
         var outcome = await _focus
-            .ResolveAsync(delta.VocabularyFocusDescription, plan.Version, cancellationToken)
+            .ResolveAsync(delta.VocabularyFocusDescription, delta.VocabularyFocusTopics, plan.Version, cancellationToken)
             .ConfigureAwait(false);
 
         if (outcome.IsSuccess)
@@ -3169,7 +3381,10 @@ public sealed class CoachSessionService : ICoachSessionService
         // Preview only. This is a pure read: it never seeds resources and never writes.
         var preview = await _planService
             .PreviewPlanAsync(
-                _mapper.ToPlanConstraints(proposed), suggestionFocus?.VocabularyWordIds, cancellationToken)
+                _mapper.ToPlanConstraints(proposed),
+                // An empty set clears the focus; null keeps today's words (PlanService.PreviewPlanAsync).
+                mapped.Delta!.ClearVocabularyFocus ? [] : suggestionFocus?.VocabularyWordIds,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (!preview.IsSuccess || preview.Snapshot is null)
@@ -3213,7 +3428,12 @@ public sealed class CoachSessionService : ICoachSessionService
 
         // The model wrote the rationale, so the plan — not the rationale — decides whether the
         // suggestion is worth showing.
-        var verdict = _suggestionValidator.Validate(plan, merged, proposedPlanConstraints);
+        // Words change only when the preview's words differ from the ones today's plan has.
+        var todaysWords = (await _planService.GetTodayAsync(cancellationToken).ConfigureAwait(false))
+            ?.FocusVocabularyIds ?? [];
+        var verdict = _suggestionValidator.Validate(plan, merged, proposedPlanConstraints,
+            wordsChange: !todaysWords.ToHashSet(StringComparer.Ordinal)
+                .SetEquals(preview.Skeleton?.FocusVocabularyIds ?? []));
         if (!verdict.IsEffective)
         {
             _logger.LogInformation(
@@ -3384,6 +3604,15 @@ public sealed class CoachSessionService : ICoachSessionService
         var limit = _options.CurrentValue.MaxClarificationsPerSession;
         if (session.ClarificationCount >= limit)
         {
+            // Every refusal logs its reason. Without this line a spent budget is the one ending
+            // that leaves no trace, so a flagged notice could not be told from a validation
+            // failure.
+            _logger.LogWarning(
+                "[Coach] Session {SessionId}: the model asked a clarifying question after "
+                + "{ClarificationCount} of the {ClarificationLimit} clarification(s) allowed in a row were used. "
+                + "The question was withheld and nothing was written.",
+                session.Id, session.ClarificationCount, limit);
+
             var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 
             await RecordTurnOutcomeAsync(
@@ -3394,8 +3623,9 @@ public sealed class CoachSessionService : ICoachSessionService
                 userProfileId, session, plan,
                 CoachTurnStatus.Incomplete, CoachStopReason.ClarificationRequested,
                 StatusWithPending(session),
-                messages: [CoachMessage(CoachMessageKind.Notice,
-                    CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
+                // Not the refused-reply notice: nothing was refused, and "saying it a little
+                // differently" is not what gets the learner past this.
+                messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ClarificationLimitReached)],
                 pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
                 receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
@@ -3455,12 +3685,15 @@ public sealed class CoachSessionService : ICoachSessionService
 
         if (!mapped.HasChange)
         {
+            // Recorded like any other completed turn; see the same branch in ReduceDirectAsync.
+            var status = await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false);
             var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
             return CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                 userProfileId, session, plan,
-                CoachTurnStatus.Completed, CoachStopReason.Completed, CoachSessionStatus.Active,
+                CoachTurnStatus.Completed, CoachStopReason.Completed, status,
                 messages: [CoachMessage(CoachMessageKind.Notice, "Today's Plan is unchanged.")],
-                pendingSuggestion: null, receipt: null, evidence: [], clarifyingQuestion: null,
+                pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+                receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
         }
 
@@ -3516,7 +3749,8 @@ public sealed class CoachSessionService : ICoachSessionService
             ? null
             : focusSelection ?? focusBeforeChange;
 
-        var focusIds = effectiveFocus?.VocabularyWordIds;
+        // An empty set clears the focus; null keeps today's words (PlanService.PreviewPlanAsync).
+        IReadOnlyList<string>? focusIds = delta.ClearVocabularyFocus ? [] : effectiveFocus?.VocabularyWordIds;
 
         // Display comes from the freshly resolved focus when this change set one, and otherwise
         // from the constraint set already stored — which is where the projected words live, so an
@@ -3820,9 +4054,9 @@ public sealed class CoachSessionService : ICoachSessionService
         var revisions = await _sessions.GetRevisionsAsync(userProfileId, session.Id, cancellationToken)
             .ConfigureAwait(false);
 
-        var revisionDtos = revisions.Select(ToRevisionDto).ToList();
+        var revisionDtos = revisions.Select(revision => ToRevisionDto(revision, plan)).ToList();
         var last = revisionDtos.LastOrDefault();
-        var canUndo = revisions.Any(r => !r.IsUndone && r.Source != CoachRevisionSource.Undo);
+        var canUndo = CanUndo(revisions, plan);
         var budget = await _budget.GetSnapshotAsync(userProfileId, _dateContext.UserLocalDate, cancellationToken)
             .ConfigureAwait(false);
 
@@ -3992,8 +4226,8 @@ public sealed class CoachSessionService : ICoachSessionService
         var revisions = await _sessions.GetRevisionsAsync(userProfileId, session.Id, cancellationToken)
             .ConfigureAwait(false);
 
-        var last = revisions.Count == 0 ? null : ToRevisionDto(revisions[^1]);
-        var canUndo = revisions.Any(r => !r.IsUndone && r.Source != CoachRevisionSource.Undo);
+        var last = revisions.Count == 0 ? null : ToRevisionDto(revisions[^1], plan);
+        var canUndo = CanUndo(revisions, plan);
         var budget = await _budget.GetSnapshotAsync(userProfileId, _dateContext.UserLocalDate, cancellationToken)
             .ConfigureAwait(false);
 
@@ -4316,6 +4550,62 @@ public sealed class CoachSessionService : ICoachSessionService
             left.VocabularyFocus?.FocusCode, right.VocabularyFocus?.FocusCode, StringComparison.Ordinal);
 
     /// <summary>
+    /// Whether Undo is offered: there is a change of Sam's to undo, and the plan it was made to is
+    /// still today's plan.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="UndoAsync"/> takes the newest change that has not been undone, so that is the
+    /// one asked about. After the plan is regenerated every earlier change belongs to a plan that
+    /// is gone; offering Undo then led to a refusal, or before the plan id was checked, to the old
+    /// plan's items restored onto the new one. Where either id is unknown it is offered, as it was.
+    /// </remarks>
+    private static bool CanUndo(IReadOnlyList<CoachPlanRevision> revisions, PlanSnapshot plan)
+    {
+        var target = revisions
+            .Where(r => !r.IsUndone && r.Source != CoachRevisionSource.Undo)
+            .OrderByDescending(r => r.RevisionNumber)
+            .FirstOrDefault();
+        if (target is null)
+        {
+            return false;
+        }
+
+        return MadeToThisPlan(target, plan);
+    }
+
+    /// <summary>
+    /// True when the revision was made to today's plan as it is now, or when either side does not
+    /// say which plan (revisions stored before the plan id was recorded).
+    /// </summary>
+    private static bool MadeToThisPlan(CoachPlanRevision revision, PlanSnapshot plan)
+    {
+        if (plan.PlanId is not { } currentPlanId)
+        {
+            return true;
+        }
+
+        var restorePlanId = TryReadRestorePlanId(revision.BeforePlanSnapshotJson);
+        return restorePlanId is null || string.Equals(restorePlanId, currentPlanId, StringComparison.Ordinal);
+    }
+
+    private static string? TryReadRestorePlanId(string? envelopeJson)
+    {
+        if (string.IsNullOrWhiteSpace(envelopeJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return CoachNormalizedJson.Deserialize<CoachRevisionSnapshotEnvelope>(envelopeJson)?.Restore?.PlanId;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Persists how a turn left the session: the status it is now in, and either the reason it
     /// stopped or an explicit clear of a previous one.
     /// </summary>
@@ -4329,6 +4619,12 @@ public sealed class CoachSessionService : ICoachSessionService
     /// <para>
     /// Every terminal point in a turn goes through here so status and stop reason cannot drift
     /// apart, and so a new terminal path cannot forget one of them.
+    /// </para>
+    /// <para>
+    /// A turn that succeeded also starts the clarification count again. The limit is on
+    /// questions asked in a row, which is what stops a loop of them. Counted over the whole
+    /// session it never came back: a conversation that is used every day keeps its session, so
+    /// after two questions, ever, each later one was withheld behind a notice (issue 227).
     /// </para>
     /// </remarks>
     private Task RecordTurnOutcomeAsync(
@@ -4348,6 +4644,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 Status = status,
                 StopReason = stopReason,
                 ClearStopReason = stopReason is null,
+                ResetClarifications = stopReason is null,
                 ClarificationIncrement = clarificationIncrement,
                 // Constraints and their frozen selection move together, in one column, so a write
                 // cannot leave a focus label describing a set that is no longer stored.
@@ -4449,7 +4746,9 @@ public sealed class CoachSessionService : ICoachSessionService
 
         var preview = await _planService
             .PreviewPlanAsync(
-                _mapper.ToPlanConstraints(proposed), storedFocus?.VocabularyWordIds, cancellationToken)
+                _mapper.ToPlanConstraints(proposed),
+                delta.ClearVocabularyFocus ? [] : storedFocus?.VocabularyWordIds,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var diff = preview.IsSuccess && preview.Snapshot is not null
@@ -4485,6 +4784,15 @@ public sealed class CoachSessionService : ICoachSessionService
             ExpiresAtUtc = session.ExpiresAt
         };
     }
+
+    /// <summary>
+    /// True when the learner sent this from a screen showing Today's Plan: the screen reported
+    /// plan items. The screen is advisory, so this only lets the learner's own words count as a
+    /// plan request without naming the plan; it never authorizes a change by itself.
+    /// </summary>
+    private static bool PlanOnScreen(CoachTurnRequest request) =>
+        request.ClientScreen?.Items?.Any(item =>
+            item is not null && item.Kind == CoachClientScreenItemKinds.PlanItem) == true;
 
     private static string LearnerTextFor(CoachTurnRequest request) => request.InputKind switch
     {
@@ -4667,7 +4975,11 @@ public sealed class CoachSessionService : ICoachSessionService
         return CoachValidationResult.From(violations);
     }
 
-    private CoachRevisionDto ToRevisionDto(CoachPlanRevision revision)
+    /// <param name="plan">
+    /// Today's plan as it is now. A change made to a plan that has since been regenerated cannot
+    /// be undone, and its row says so.
+    /// </param>
+    private CoachRevisionDto ToRevisionDto(CoachPlanRevision revision, PlanSnapshot plan)
     {
         var delta = CoachNormalizedJson.Deserialize<CoachConstraintDeltaDto>(revision.AcceptedConstraintDeltaJson)
                     ?? new CoachConstraintDeltaDto();
@@ -4678,7 +4990,8 @@ public sealed class CoachSessionService : ICoachSessionService
             revision.Source == CoachRevisionSource.Undo
                 ? "Restored the previous remaining items."
                 : CoachConstraintMapper.Summarize(delta),
-            canUndo: !revision.IsUndone && revision.Source != CoachRevisionSource.Undo);
+            canUndo: !revision.IsUndone && revision.Source != CoachRevisionSource.Undo
+                     && MadeToThisPlan(revision, plan));
     }
 
     private static CoachRevisionDto ToRevisionDto(

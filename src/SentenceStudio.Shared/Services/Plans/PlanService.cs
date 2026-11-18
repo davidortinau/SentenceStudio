@@ -379,6 +379,36 @@ public sealed class PlanService : IPlanService
         }
     }
 
+    public async Task<TodaysPlanDto?> RegenerateTodayAsync(CancellationToken ct = default)
+    {
+        // Asked first and without writing: a learner with nothing to plan from keeps the plan
+        // they have instead of trading it for an empty one.
+        var preview = await PreviewPlanAsync(constraints: null, ct).ConfigureAwait(false);
+        if (!preview.IsSuccess)
+        {
+            return null;
+        }
+
+        // On a device's SQLite database the unit's transaction holds the writer lock, and the
+        // generator's own writes (seeding the smart lists) go through other connections that would
+        // wait on it. There the generator runs read-only, as GenerateNativeTodayAsync runs it.
+        var onDevice = _db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
+        // Reset and generate are two saves. Inside one unit a failed generation takes the reset
+        // back with it, so the learner is never left with their plan cleared and nothing in its
+        // place.
+        return await ExecuteRevisionUnitAsync<TodaysPlanDto?>(async token =>
+        {
+            await ResetTodayAsync(token).ConfigureAwait(false);
+            // The read-only generator answers an infeasible plan by throwing; the preview above
+            // has just said one is feasible, so that would be a fault, and it surfaces as one
+            // after the unit has put the plan back.
+            var plan = await GenerateTodayCoreAsync(
+                new GenerateTodaysPlanRequest(), allowGeneratorWrites: !onDevice, token).ConfigureAwait(false);
+            return plan.Items.Count > 0 ? (plan, true) : (null, false);
+        }, ct).ConfigureAwait(false);
+    }
+
     // ---------- coach plan revision ----------
 
     public async Task<PlanSnapshot> GetTodaySnapshotAsync(CancellationToken ct = default)
@@ -386,17 +416,37 @@ public sealed class PlanService : IPlanService
         var userId = _scope.UserProfileId;
         var todayLocal = _dateContext.UserLocalDate;
 
-        var completions = await LoadCompletionsAsync(userId, ToDateKey(todayLocal), tracked: false, ct);
-        return PlanSnapshot.FromCompletions(todayLocal, completions);
+        var todayKey = ToDateKey(todayLocal);
+        var completions = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
+        var planId = await _db.DailyPlans.AsNoTracking()
+            .Where(p => p.UserProfileId == userId && p.Date == todayKey)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync(ct);
+        return PlanSnapshot.FromCompletions(todayLocal, completions) with { PlanId = planId };
     }
 
+    /// <summary>A fresh plan's preview (Regenerate): nothing of today's plan is kept.</summary>
     public Task<PlanPreviewResult> PreviewPlanAsync(PlanConstraints? constraints, CancellationToken ct = default)
-        => PreviewPlanAsync(constraints, focusVocabularyWordIds: null, ct);
+        => PreviewCoreAsync(constraints, focusVocabularyWordIds: null, keepToday: false, ct);
 
-    public async Task<PlanPreviewResult> PreviewPlanAsync(
+    /// <summary>
+    /// A revision of today's plan. With no new focus words it keeps what today's plan already
+    /// has, its words and its primary resource, so "I have 45 minutes" lengthens today's plan
+    /// instead of swapping its content (Captain, 2026-11-17). Every caller that previews or applies
+    /// a change (the coach's preview, suggestion and direct paths, and the apply itself) comes
+    /// through here, so what is previewed is what is written.
+    /// </summary>
+    public Task<PlanPreviewResult> PreviewPlanAsync(
         PlanConstraints? constraints,
         IReadOnlyList<string>? focusVocabularyWordIds,
         CancellationToken ct = default)
+        => PreviewCoreAsync(constraints, focusVocabularyWordIds, keepToday: true, ct);
+
+    private async Task<PlanPreviewResult> PreviewCoreAsync(
+        PlanConstraints? constraints,
+        IReadOnlyList<string>? focusVocabularyWordIds,
+        bool keepToday,
+        CancellationToken ct)
     {
         var userId = _scope.UserProfileId;
         var todayLocal = _dateContext.UserLocalDate;
@@ -411,9 +461,18 @@ public sealed class PlanService : IPlanService
 
         // Preview never writes: PlanBuildRequest.Preview suppresses the only
         // write on the generation path (smart-resource seeding).
-        var skeleton = await _deterministic
-            .GenerateAsync(PlanBuildRequest.Preview(userId, constraints, focusVocabularyWordIds), ct)
-            .ConfigureAwait(false);
+        var (keptWords, keptResource) = keepToday
+            ? await TodaysContentAsync(userId, ToDateKey(todayLocal), ct).ConfigureAwait(false)
+            : ([], null);
+        // Null keeps today's words; an empty set clears the focus (the planner then derives one).
+        var focus = focusVocabularyWordIds is null
+            ? (keptWords.Count > 0 ? keptWords : null)
+            : focusVocabularyWordIds.Count > 0 ? focusVocabularyWordIds : null;
+        var request = PlanBuildRequest.Preview(userId, constraints, focus) with
+        {
+            PinnedResourceId = keptResource
+        };
+        var skeleton = await _deterministic.GenerateAsync(request, ct).ConfigureAwait(false);
 
         if (skeleton is null)
         {
@@ -473,7 +532,15 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with
+        {
+            PlanId = planRow?.Id,
+            // Kept so an undo of this revision restores the words it replaced.
+            FocusVocabularyFacts = planRow?.FocusVocabularyFacts,
+            NarrativeFacts = planRow?.NarrativeFacts,
+            RationaleFacts = planRow?.RationaleFacts,
+            FactsRecorded = planRow is not null
+        };
 
         if (planRow is null)
         {
@@ -531,7 +598,13 @@ public sealed class PlanService : IPlanService
 
         var after = PlanSnapshot.FromItems(todayLocal, projectedItems);
 
-        if (string.Equals(after.Hash, before.Hash, StringComparison.Ordinal))
+        // Same items is not the same plan when the words changed: a focus change keeps the shape
+        // and swaps the words, and must be written (the hash names the items only).
+        var focusChanged = !DeserializeFocusVocabularyFacts(planRow?.FocusVocabularyFacts)
+            .ToHashSet(StringComparer.Ordinal)
+            .SetEquals(preview.Skeleton!.FocusVocabularyIds ?? []);
+
+        if (string.Equals(after.Hash, before.Hash, StringComparison.Ordinal) && !focusChanged)
         {
             // Repeating an already-applied revision lands here. Nothing is
             // written, so apply is safely repeatable without a stored key.
@@ -571,7 +644,12 @@ public sealed class PlanService : IPlanService
             added++;
         }
 
-        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(preview.Skeleton!);
+        // A set the learner chose through Sam is marked, and kept marked by a revision that keeps
+        // today's words, so serve-time trimming leaves it alone.
+        var coachFocus = request.FocusVocabularyWordIds is { Count: > 0 }
+            || request.FocusVocabularyWordIds is null && PlanFactsSerializer.IsCoachFocus(planRow.FocusVocabularyFacts);
+        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(
+            preview.Skeleton!, coachFocus ? PlanFactsSerializer.CoachFocusSource : null);
         planRow.GeneratedAtUtc = nowUtc;
         planRow.RationaleFacts = rationaleFactsJson;
         planRow.NarrativeFacts = narrativeFactsJson;
@@ -581,7 +659,7 @@ public sealed class PlanService : IPlanService
         await _db.SaveChangesAsync(ct);
 
         var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
-        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted) with { PlanId = planRow.Id };
 
         var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
         if (invariantErrors.Count > 0)
@@ -630,7 +708,15 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with
+        {
+            PlanId = planRow?.Id,
+            // Kept so undoing this undo restores the words as well as the items.
+            FocusVocabularyFacts = planRow?.FocusVocabularyFacts,
+            NarrativeFacts = planRow?.NarrativeFacts,
+            RationaleFacts = planRow?.RationaleFacts,
+            FactsRecorded = planRow is not null
+        };
 
         if (planRow is null)
         {
@@ -641,6 +727,19 @@ public sealed class PlanService : IPlanService
         {
             _logger.LogInformation(
                 "Coach undo rejected (revision '{RevisionId}'): stale plan version.",
+                request.RevisionId);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
+        }
+
+        // The change being undone was made to a plan that has since been replaced. Restoring its
+        // items onto the new plan would mix two plans, so it is refused as a plan that changed
+        // elsewhere, which it did. Snapshots stored before the plan id was recorded carry none
+        // and are not checked.
+        if (request.TargetSnapshot.PlanId is { } targetPlanId
+            && !string.Equals(targetPlanId, planRow.Id, StringComparison.Ordinal))
+        {
+            _logger.LogInformation(
+                "Coach undo rejected (revision '{RevisionId}'): the plan was regenerated since.",
                 request.RevisionId);
             return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
         }
@@ -687,6 +786,19 @@ public sealed class PlanService : IPlanService
             }
         }
 
+        // The words, narrative and rationale the undone change replaced come back with its items.
+        var factsRestored = request.TargetSnapshot.FactsRecorded
+            && (planRow.FocusVocabularyFacts != request.TargetSnapshot.FocusVocabularyFacts
+                || planRow.NarrativeFacts != request.TargetSnapshot.NarrativeFacts
+                || planRow.RationaleFacts != request.TargetSnapshot.RationaleFacts);
+        if (factsRestored)
+        {
+            planRow.FocusVocabularyFacts = request.TargetSnapshot.FocusVocabularyFacts;
+            planRow.NarrativeFacts = request.TargetSnapshot.NarrativeFacts;
+            planRow.RationaleFacts = request.TargetSnapshot.RationaleFacts;
+            planRow.UpdatedAt = nowUtc;
+        }
+
         foreach (var target in request.TargetSnapshot.Items)
         {
             if (existingById.ContainsKey(target.PlanItemId))
@@ -723,7 +835,7 @@ public sealed class PlanService : IPlanService
             added++;
         }
 
-        if (added == 0 && removed == 0 && adjusted == 0)
+        if (added == 0 && removed == 0 && adjusted == 0 && !factsRestored)
         {
             return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.NoChange, before, request.OperationKey), false);
         }
@@ -732,7 +844,7 @@ public sealed class PlanService : IPlanService
         await _db.SaveChangesAsync(ct);
 
         var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
-        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted) with { PlanId = planRow.Id };
 
         var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
         if (invariantErrors.Count > 0)
@@ -878,6 +990,35 @@ public sealed class PlanService : IPlanService
     }
 
     /// <summary>
+    /// What today's plan already works on: its focus words, and the resource most of its items
+    /// use. Empty when there is no plan today.
+    /// </summary>
+    private async Task<(IReadOnlyList<string> Words, string? Resource)> TodaysContentAsync(
+        string userId, DateTime dateKey, CancellationToken ct)
+    {
+        var plan = await _db.DailyPlans.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == dateKey, ct)
+            .ConfigureAwait(false);
+        if (plan is null)
+            return ([], null);
+
+        var words = DeserializeFocusVocabularyFacts(plan.FocusVocabularyFacts);
+        if (words.Count == 0 && TryDeserializeNarrative(plan.NarrativeFacts)?.VocabInsight?.PreviewWords
+                is { Count: > 0 } previewWords)
+            words = NormalizeFocusVocabularyIds(previewWords.Select(w => w.WordId));
+
+        var completions = await LoadCompletionsAsync(userId, dateKey, tracked: false, ct).ConfigureAwait(false);
+        var resource = completions
+            .Where(c => !string.IsNullOrWhiteSpace(c.ResourceId))
+            .GroupBy(c => c.ResourceId!, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Min(c => c.Priority))
+            .Select(g => g.Key)
+            .FirstOrDefault();
+        return (words, resource);
+    }
+
+    /// <summary>
     /// Maps a skeleton's activities onto stable plan item ids, skipping activity
     /// types the enum doesn't recognize (the same guard
     /// <see cref="GenerateTodayAsync"/> applies).
@@ -973,8 +1114,8 @@ public sealed class PlanService : IPlanService
     /// one, so the caller's other work survives.
     /// </para>
     /// </remarks>
-    private async Task<PlanRevisionResult> ExecuteRevisionUnitAsync(
-        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+    private async Task<TResult> ExecuteRevisionUnitAsync<TResult>(
+        Func<CancellationToken, Task<(TResult Result, bool ShouldCommit)>> unit,
         CancellationToken ct)
     {
         if (_db.Database.CurrentTransaction is { } ambient)
@@ -1046,8 +1187,8 @@ public sealed class PlanService : IPlanService
         }).ConfigureAwait(false);
     }
 
-    private async Task<PlanRevisionResult> ExecuteInAmbientTransactionAsync(
-        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+    private async Task<TResult> ExecuteInAmbientTransactionAsync<TResult>(
+        Func<CancellationToken, Task<(TResult Result, bool ShouldCommit)>> unit,
         IDbContextTransaction ambient,
         CancellationToken ct)
     {
@@ -1351,7 +1492,8 @@ public sealed class PlanService : IPlanService
     /// tags, sample words, etc.) land with the narrative-localization-resx
     /// lane.
     /// </summary>
-    private static (string? Rationale, string? Narrative, string? FocusVocabulary) SerializeFacts(PlanSkeleton skeleton)
+    private static (string? Rationale, string? Narrative, string? FocusVocabulary) SerializeFacts(
+        PlanSkeleton skeleton, string? focusSource = null)
     {
         var rationaleJson = PlanFactsSerializer.SerializeRationaleFacts(skeleton.ResourceSelectionReason);
 
@@ -1399,7 +1541,8 @@ public sealed class PlanService : IPlanService
         }
         var narrativeJson = PlanFactsSerializer.SerializeNarrativeFacts(narrativeDto);
 
-        var focusVocabularyJson = PlanFactsSerializer.SerializeFocusVocabularyFacts(skeleton.FocusVocabularyIds);
+        var focusVocabularyJson = PlanFactsSerializer.SerializeFocusVocabularyFacts(
+            skeleton.FocusVocabularyIds, focusSource ?? PlanFactsSerializer.PlannerFocusSource);
 
         return (rationaleJson, narrativeJson, focusVocabularyJson);
     }

@@ -21,6 +21,8 @@ internal sealed class FlashcardScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeFlashcardPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeFlashcardState _state = new(NativePhase.Loading);
     private SwiftView? _card;
     private SwiftView? _incorrect;

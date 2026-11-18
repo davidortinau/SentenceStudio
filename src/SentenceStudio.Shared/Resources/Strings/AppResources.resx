@@ -8034,6 +8034,10 @@ For example: {0} ...</value>
     <value>Your current settings</value>
     <comment>Coach: evidence coverage. The fact is a snapshot of the learner's preferences rather than a set of rows</comment>
   </data>
+  <data name="Coach_EvidenceCoverage_Screen" xml:space="preserve">
+    <value>What your screen showed</value>
+    <comment>Coach: evidence coverage. The fact is what the learner's app was showing when they sent the message, not their stored data</comment>
+  </data>
   <data name="Coach_EvidenceCoverage_Derived" xml:space="preserve">
     <value>Worked out from your data</value>
     <comment>Coach: evidence coverage. The fact was computed rather than read from stored rows</comment>
@@ -9135,6 +9139,10 @@ For example: {0} ...</value>
   </data>
   <data name="Coach_EvidenceDefinition_LatestPracticeSummary" xml:space="preserve">
     <value>Your most recent practice sessions and when you last studied.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_ClientReportedScreen" xml:space="preserve">
+    <value>The screen you were on when you sent the message.</value>
     <comment>Coach evidence: what was consulted.</comment>
   </data>
   <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">
@@ -10427,6 +10435,10 @@ For example: {0} ...</value>
     <value>Delete an example sentence</value>
     <comment>Sam write: heading for a proposal that deletes an example sentence</comment>
   </data>
+  <data name="Coach_WriteKindPlanRegenerate" xml:space="preserve">
+    <value>Make a new plan for today</value>
+    <comment>Sam write: heading for a proposal that replaces today's plan with a newly generated one</comment>
+  </data>
   <data name="VocabWordEdit_AddToResource" xml:space="preserve">
     <value>Add to Resource</value>
     <comment>Vocabulary word editor: menu that adds the word to one of the learner's resources</comment>
@@ -10741,5 +10753,65 @@ For example: {0} ...</value>
   </data>
   <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
     <value>Choose one or more words first.</value>
+  </data>
+  <data name="Coach_EvidenceDefinition_PlanVocabulary" xml:space="preserve">
+    <value>The words in Today's Plan.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_MasteryWeakest" xml:space="preserve">
+    <value>Weakest first</value>
+    <comment>Coach: evidence ordering claim, lowest mastery score first</comment>
+  </data>
+  <data name="Coach_WordList_Plan" xml:space="preserve">
+    <value>Words in Today's Plan</value>
+    <comment>Sam: heading over the plan words Sam listed, in plan order</comment>
+  </data>
+  <data name="Coach_WordList_PlanWeakest" xml:space="preserve">
+    <value>Words in Today's Plan, weakest first</value>
+    <comment>Sam: heading over the plan words Sam listed, lowest mastery first</comment>
+  </data>
+  <data name="Coach_WordList_Mastery" xml:space="preserve">
+    <value>{0}% mastery</value>
+    <comment>Sam: a listed word's mastery. {0} is a whole number from 0 to 100</comment>
+  </data>
+  <data name="Coach_WordList_NotPractised" xml:space="preserve">
+    <value>Not practised yet</value>
+    <comment>Sam: a listed word that has never been practised</comment>
+  </data>
+  <data name="NativeSam_WordOpenLeaveScreen" xml:space="preserve">
+    <value>Close the screen you are on, then open this word.</value>
+    <comment>Sam: a word row was tapped while a quiz or activity is open</comment>
+  </data>
+  <data name="NativeSam_WordOpenFailed" xml:space="preserve">
+    <value>That word could not open. It may have been deleted.</value>
+    <comment>Sam: a listed word row was tapped but its editor could not open</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Title" xml:space="preserve">
+    <value>Opening {0}</value>
+    <comment>Sam: card title while Sam opens an activity. {0} is the activity name</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Countdown" xml:space="preserve">
+    <value>Opening in {0} s</value>
+    <comment>Sam: countdown beside Cancel. {0} is whole seconds left</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Start" xml:space="preserve">
+    <value>Start</value>
+    <comment>Sam: opens the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_NotNow" xml:space="preserve">
+    <value>Not now</value>
+    <comment>Sam: dismisses the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_CancelLabel" xml:space="preserve">
+    <value>Cancel opening {0}</value>
+    <comment>Sam: accessible name of the countdown Cancel button. {0} is the activity name</comment>
+  </data>
+  <data name="NativeSam_ActivityLeaveScreen" xml:space="preserve">
+    <value>Close the screen you are on, then start this activity.</value>
+    <comment>Sam: the prepared activity cannot open over a quiz or another activity</comment>
+  </data>
+  <data name="NativeSam_ActivityOpenFailed" xml:space="preserve">
+    <value>That activity could not open. Its resource or skill may be gone.</value>
+    <comment>Sam: the prepared activity could not open</comment>
   </data>
 </root>

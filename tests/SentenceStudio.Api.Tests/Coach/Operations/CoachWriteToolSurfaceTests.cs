@@ -48,11 +48,15 @@ public class CoachWriteToolSurfaceTests
         { CoachToolNames.ProposeResourceEntry, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeResourceEdit, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeResourceRemoval, CoachToolRiskClass.WriteHard },
-        { CoachToolNames.ProposePreferenceChange, CoachToolRiskClass.WriteHard },
+        // Soft while session length is its only reachable setting (Captain, 2026-11-17).
+        { CoachToolNames.ProposePreferenceChange, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeYouTubeImport, CoachToolRiskClass.WriteHard },
         { CoachToolNames.ProposeExampleSentenceEntry, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeExampleSentenceEdit, CoachToolRiskClass.WriteSoft },
-        { CoachToolNames.ProposeExampleSentenceRemoval, CoachToolRiskClass.WriteHard }
+        { CoachToolNames.ProposeExampleSentenceRemoval, CoachToolRiskClass.WriteHard },
+        // Accepted in one step although it cannot be undone: it is what Regenerate Plan on the
+        // dashboard does in one tap, and what it replaces is archived, not deleted.
+        { CoachToolNames.ProposePlanRegeneration, CoachToolRiskClass.WriteSoft }
     };
 
     /// <summary>
@@ -81,7 +85,8 @@ public class CoachWriteToolSurfaceTests
         { CoachToolNames.ProposeYouTubeImport, CoachWriteUndoKind.None },
         { CoachToolNames.ProposeExampleSentenceEntry, CoachWriteUndoKind.DeleteCreatedEntity },
         { CoachToolNames.ProposeExampleSentenceEdit, CoachWriteUndoKind.RestoreFields },
-        { CoachToolNames.ProposeExampleSentenceRemoval, CoachWriteUndoKind.None }
+        { CoachToolNames.ProposeExampleSentenceRemoval, CoachWriteUndoKind.None },
+        { CoachToolNames.ProposePlanRegeneration, CoachWriteUndoKind.None }
     };
 
     [Theory]

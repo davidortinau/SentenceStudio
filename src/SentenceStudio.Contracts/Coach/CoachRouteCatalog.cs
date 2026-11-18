@@ -155,14 +155,24 @@ public static class CoachRouteCatalog
         };
     }
 
-    /// <summary>A positive integral server identifier, and nothing else.</summary>
+    /// <summary>
+    /// A server identifier: a positive integer, or a GUID in its canonical 36-character form
+    /// (words, resources and skills are keyed by GUID strings).
+    /// </summary>
     /// <remarks>
     /// No sign, no separators, no leading or trailing space, no exponent. Length-bounded before
     /// parsing so a very long digit string cannot be used to make the check expensive. Zero is
-    /// refused because no row carries it and a zero deep link would land the learner nowhere.
+    /// refused because no row carries it and a zero deep link would land the learner nowhere. A
+    /// GUID must be exactly <c>8-4-4-4-12</c> hexadecimal digits with hyphens, no braces: the
+    /// shape every client writes, and nothing a query or a word could pass for.
     /// </remarks>
     private static bool IsServerIdentifier(string value)
     {
+        if (value.Length == 36)
+        {
+            return Guid.TryParseExact(value, "D", out var guid) && guid != Guid.Empty;
+        }
+
         if (value.Length is 0 or > 19)
         {
             return false;

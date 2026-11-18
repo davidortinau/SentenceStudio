@@ -120,7 +120,10 @@ public class CoachTurnIntentContractTests
             nameof(CoachTurnIntent.MemoryProposal),
             // A topic marker is not an item selection. The application creates the set and
             // requires separate approval; the model cannot supply terms or plan item IDs.
-            nameof(CoachTurnIntent.VocabularySet)
+            nameof(CoachTurnIntent.VocabularySet),
+            // Opening an activity is not a plan item selection either: it changes no plan, and the
+            // server checks the activity, language, scenario and every id before a client sees it.
+            nameof(CoachTurnIntent.ActivityLaunch)
         ], "the deterministic planner owns item selection");
 
         CoachContractTypes.PublicProperties(typeof(CoachVocabularySetIntent))

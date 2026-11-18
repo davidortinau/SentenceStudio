@@ -15,6 +15,8 @@ internal sealed class NumberDrillScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeNumberDrillPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeNumberDrillState _state = new(NativePhase.Loading);
     private bool _hintsOpen;
     private int _focusedItem = -1;

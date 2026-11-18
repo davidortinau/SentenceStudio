@@ -368,6 +368,7 @@ public sealed partial class CoachWorkspaceState
 
             DiscardConfirmation();
             ApplyWriteState(operationId, settled, "Coach_WriteApplied");
+            await SettlePlanReplacementAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -407,6 +408,7 @@ public sealed partial class CoachWorkspaceState
                 .ConfigureAwait(false);
 
             ApplyWriteState(operationId, state, announcementKey: null);
+            await SettlePlanReplacementAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -443,6 +445,7 @@ public sealed partial class CoachWorkspaceState
         {
             var settled = await action(_client, ConversationId!, cancellationToken).ConfigureAwait(false);
             ApplyWriteState(operationId, settled, announcementKey);
+            await SettlePlanReplacementAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -505,6 +508,53 @@ public sealed partial class CoachWorkspaceState
         };
     }
 
+    /// <summary>
+    /// Raised when a change Sam made replaced today's plan, so a page showing the plan can read
+    /// it again. Raised once, when the server first says the change is in place.
+    /// </summary>
+    public event Action? TodaysPlanReplaced;
+
+    /// <summary>
+    /// Set when a card for a new plan moves to applied: by <see cref="ApplyWriteState"/> for this
+    /// client's own decision, by the history merge for one made elsewhere.
+    /// </summary>
+    private bool _planReplacedByWrite;
+
+    /// <summary>
+    /// After a change that replaced today's plan: reads the session again and tells the page.
+    /// </summary>
+    /// <remarks>
+    /// The session read is what moves the plan version this workspace sends with its next plan
+    /// change. Without it that change is refused as "changed somewhere else", by a plan the
+    /// learner replaced from this very conversation. The page is told afterwards and outside the
+    /// write's own error handling, so a page that fails to reload cannot make an applied change
+    /// read as one that did not reach the server.
+    /// </remarks>
+    private async Task SettlePlanReplacementAsync(CancellationToken cancellationToken)
+    {
+        if (!_planReplacedByWrite)
+        {
+            return;
+        }
+
+        _planReplacedByWrite = false;
+        await RefreshAuthoritativeStateAsync(cancellationToken).ConfigureAwait(false);
+        RaiseTodaysPlanReplaced();
+        Notify();
+    }
+
+    private void RaiseTodaysPlanReplaced()
+    {
+        try
+        {
+            TodaysPlanReplaced?.Invoke();
+        }
+        catch (Exception)
+        {
+            // A subscriber's failure is its own; the change is in place either way.
+        }
+    }
+
     /// <summary>Replaces the card for one operation with the server's own answer.</summary>
     private void ApplyWriteState(string operationId, CoachWriteOperationDto? state, string? announcementKey)
     {
@@ -521,8 +571,10 @@ public sealed partial class CoachWorkspaceState
         }
 
         _unavailableWrites.Remove(operationId);
+        var replacedPlan = CoachWritePlanEffect.ReplacedPlan(FindWrite(operationId), state);
         ReplaceWrite(operationId, state);
         RecomputeActiveWrite();
+        _planReplacedByWrite |= replacedPlan;
 
         if (announcementKey is null)
         {

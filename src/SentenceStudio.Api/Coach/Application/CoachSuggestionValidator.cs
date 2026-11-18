@@ -61,13 +61,16 @@ public sealed class CoachSuggestionValidator
     public CoachSuggestionVerdict Validate(
         PlanSnapshot current,
         PlanSnapshot merged,
-        PlanConstraints proposed)
+        PlanConstraints proposed,
+        bool wordsChange = false)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(merged);
         ArgumentNullException.ThrowIfNull(proposed);
 
-        if (string.Equals(merged.Hash, current.Hash, StringComparison.Ordinal))
+        // The hash names the items, not their words: a focus change can keep every item and still
+        // be a real change.
+        if (string.Equals(merged.Hash, current.Hash, StringComparison.Ordinal) && !wordsChange)
         {
             return new CoachSuggestionVerdict(
                 CoachSuggestionRejection.NoEffectiveChange,

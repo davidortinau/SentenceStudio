@@ -48,6 +48,8 @@ public sealed partial class NativeSamPresenter(
     private string? _planVersion;
     private CoachConstraintSetDto? _constraints;
     private readonly Dictionary<string, ImmutableArray<CoachEvidenceDto>> _evidence = new(StringComparer.Ordinal);
+    /// <summary>The words Sam listed, by the reply that introduced them (source CoachTimelineEntry.WordList).</summary>
+    private readonly Dictionary<string, CoachWordListDto> _wordLists = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CoachLimitationDto> _limitations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (CoachRepairDisclosure Disclosure, bool EvidenceOnScreen)> _repairs =
         new(StringComparer.Ordinal);
@@ -62,11 +64,38 @@ public sealed partial class NativeSamPresenter(
 
     public event Action? Changed;
 
-    /// <summary>Raised after Sam applied or undid a Today's Plan revision on the server.</summary>
+    /// <summary>
+    /// Raised after Sam applied or undid a Today's Plan revision on the server, or made a new
+    /// plan for today.
+    /// </summary>
     public event Action? PlanChanged;
 
     /// <summary>Raised when the learner asks to start Vocab Review on an approved set.</summary>
     public event Action<string, string>? VocabularyReviewRequested;
+
+    /// <summary>
+    /// A row of a word list Sam showed was tapped: the head opens that word's editor (owner,
+    /// word id). Raised only for a word one of Sam's lists on screen holds.
+    /// </summary>
+    public event Action<string, string>? WordRequested;
+
+    /// <summary>
+    /// The activity Sam prepared should open now (owner, the server-checked launch): the countdown
+    /// ran out or the learner tapped Start. The head opens it as its tile would.
+    /// </summary>
+    public event Action<string, CoachActivityLaunchDto>? ActivityRequested;
+
+    /// <summary>
+    /// Set by the head: true when an activity may open by itself after the countdown. False while
+    /// a screen reader runs (the reply needs reading first) or an activity is already open; the
+    /// card then offers Start instead.
+    /// </summary>
+    public Func<bool>? CanAutoOpenActivity { get; set; }
+
+    /// <summary>Seconds the countdown runs before an activity the learner asked for opens.</summary>
+    public const int ActivityCountdownSeconds = 3;
+
+    private CancellationTokenSource? _activityCountdown;
 
     /// <summary>
     /// Reads availability for the current owner. Only <c>IsSamOverlayAvailable</c>
@@ -180,8 +209,10 @@ public sealed partial class NativeSamPresenter(
     {
         if (!_state.IsOpen)
             return;
-        // Closing never ends or deletes the conversation (source J3 step 4).
-        Publish(_state with { IsOpen = false, ConversationsOpen = false });
+        // Closing never ends or deletes the conversation (source J3 step 4). A countdown stops:
+        // the learner closed the panel it was in.
+        StopActivityCountdown();
+        Publish(_state with { IsOpen = false, ConversationsOpen = false, ActivityCountdown = null });
     }
 
     public void SetSize(NativeSamPanelSize size)
@@ -193,6 +224,9 @@ public sealed partial class NativeSamPresenter(
     public void SetDraft(string text)
     {
         text ??= string.Empty;
+        // Typing to Sam means the learner is still talking to it: the countdown stops.
+        if (_state.ActivityCountdown is not null && !string.Equals(_state.Draft, text, StringComparison.Ordinal))
+            CancelActivityCountdown();
         if (!string.Equals(_state.Draft, text, StringComparison.Ordinal))
             Publish(_state with { Draft = text }, structural: false);
     }
@@ -395,7 +429,10 @@ public sealed partial class NativeSamPresenter(
         var switching = _state.ConversationId != conversationId;
         if (switching)
         {
+            // A prepared activity belongs to the thread that asked for it.
+            StopActivityCountdown();
             _evidence.Clear();
+            _wordLists.Clear();
             _limitations.Clear();
             _repairs.Clear();
             DiscardConfirmation();
@@ -417,6 +454,8 @@ public sealed partial class NativeSamPresenter(
             VocabularySet = null,
             VocabularySetMessageKey = null,
             ApprovedResourceId = null,
+            ActivityLaunch = switching ? null : _state.ActivityLaunch,
+            ActivityCountdown = switching ? null : _state.ActivityCountdown,
             ExpandedEvidence = null,
             ClarifyingQuestion = null,
             CanRetry = false,
@@ -452,6 +491,9 @@ public sealed partial class NativeSamPresenter(
     {
         var closed = _state.SafeConversations
             .FirstOrDefault(row => row.Id == conversationId)?.IsClosed ?? _state.ConversationClosed;
+        // Taken before adopting, which clears the entries: what this conversation's cards said
+        // last, so the transcript read can tell a card that changed elsewhere.
+        var held = _state.ConversationId == conversationId ? HeldWrites() : null;
         AdoptConversation(conversationId, closed);
         if (!keepStatus)
             Publish(_state with { Status = NativeSamStatus.Resuming });
@@ -469,7 +511,7 @@ public sealed partial class NativeSamPresenter(
         }
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
-        await LoadTranscriptAsync(owner, conversationId, cancellationToken);
+        await LoadTranscriptAsync(owner, conversationId, cancellationToken, held);
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
         await LoadVocabularyStateAsync(owner, conversationId, cancellationToken);
@@ -522,7 +564,7 @@ public sealed partial class NativeSamPresenter(
     }
 
     private async Task LoadTranscriptAsync(string owner, string conversationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IReadOnlyDictionary<string, CoachWriteOperationDto?>? held = null)
     {
         Publish(_state with { TranscriptLoading = true });
         try
@@ -538,6 +580,12 @@ public sealed partial class NativeSamPresenter(
                 return;
             }
             var entries = page.Items.OrderBy(item => item.Sequence).Select(MapHistory).ToList();
+            // A card for a new plan that was waiting here and arrives applied was accepted
+            // somewhere else (Sam on another device): the dashboard reads the plan again.
+            held ??= HeldWrites();
+            var replacedElsewhere = entries.Any(entry => entry.Write is { } write
+                && held.TryGetValue(write.OperationId, out var before)
+                && CoachWritePlanEffect.ReplacedPlan(before, write));
             // Optimistic learner rows not yet in the canonical page stay visible in order.
             foreach (var local in _localEntries)
                 if (!entries.Any(entry => entry.Kind == NativeSamEntryKind.Learner
@@ -551,6 +599,8 @@ public sealed partial class NativeSamPresenter(
                 UnreadableCount = page.UnreadableCount,
                 HasLearnerSpoken = entries.Any(entry => entry.Kind == NativeSamEntryKind.Learner),
             });
+            if (replacedElsewhere)
+                PlanChanged?.Invoke();
             RecomputeActiveWrite();
         }
         catch (CoachApiException ex) when (ex.StatusCode is HttpStatusCode.NotFound
@@ -575,16 +625,20 @@ public sealed partial class NativeSamPresenter(
     private void DropConversation(string conversationId)
     {
         _evidence.Clear();
+        _wordLists.Clear();
         _limitations.Clear();
         _repairs.Clear();
         DiscardConfirmation();
         _localEntries = [];
+        StopActivityCountdown();
         Publish(_state with
         {
             ConversationId = null,
             Entries = [],
             TranscriptLoading = false,
             Suggestion = null,
+            ActivityLaunch = null,
+            ActivityCountdown = null,
             VocabularySet = null,
             ApprovedResourceId = null,
             ActiveWriteId = null,
@@ -608,6 +662,12 @@ public sealed partial class NativeSamPresenter(
                 .Where(row => row.Id != conversationId).ToImmutableArray()
         });
     }
+
+    /// <summary>The cards on screen now, by operation.</summary>
+    private Dictionary<string, CoachWriteOperationDto?> HeldWrites() => _state.SafeEntries
+        .Where(entry => entry.Write is not null)
+        .GroupBy(entry => entry.Write!.OperationId, StringComparer.Ordinal)
+        .ToDictionary(group => group.Key, group => group.Last().Write, StringComparer.Ordinal);
 
     private NativeSamEntry MapHistory(CoachHistoryMessageDto item)
     {
@@ -654,7 +714,8 @@ public sealed partial class NativeSamPresenter(
             changeLines?.ToImmutableArray() ?? [],
             MessageKind: message.Kind,
             Repair: _repairs.TryGetValue(message.MessageId, out var repair) ? repair.Disclosure : null,
-            RepairEvidenceOnScreen: _repairs.TryGetValue(message.MessageId, out var shown) && shown.EvidenceOnScreen);
+            RepairEvidenceOnScreen: _repairs.TryGetValue(message.MessageId, out var shown) && shown.EvidenceOnScreen,
+            WordList: _wordLists.GetValueOrDefault(message.MessageId));
 
     // ---------------------------------------------------------------- owner + plumbing
 
@@ -681,6 +742,7 @@ public sealed partial class NativeSamPresenter(
     /// <summary>Account boundary: nothing of a previous owner survives (source CoachAccountBoundary).</summary>
     private void Reset(string? owner)
     {
+        StopActivityCountdown();
         _run?.Cancel();
         _run = null;
         _owner = owner;
@@ -689,6 +751,7 @@ public sealed partial class NativeSamPresenter(
         _planVersion = null;
         _constraints = null;
         _evidence.Clear();
+        _wordLists.Clear();
         _limitations.Clear();
         _repairs.Clear();
         DiscardConfirmation();

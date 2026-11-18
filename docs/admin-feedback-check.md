@@ -19,13 +19,68 @@ An issue filed by triage is labelled `feedback-check`. The fix stage takes the o
 is open and not yet labelled `feedback-attempted`, one per run, and adds that label when it has
 had its go.
 
+**Asking for changes to a pull request the check opened** (Captain, 2026-11-17). Comment on the
+pull request, starting the comment with `/revise` and then saying what you want:
+
+    /revise Make the notice shorter, and keep one confirmation.
+
+The next run takes that before any new issue: a follow-up pass on the same branch, which pushes
+to the same pull request and ends with a comment saying how it ended and what it used.
+
+To point at lines, leave your comments on the diff in a review and start the review's summary
+with `/revise`: the session is handed the summary and that review's comments. A comment on the
+diff that is not part of such a review is not handed over, and a plain `/revise` comment
+carries only its own text.
+
+- **Each request gets one pass.** Once a session has started on it, it is not taken again,
+  whatever came of it; to have it tried again, comment again. A request that cannot get a
+  session (an earlier pass's worktree is still there, or the branch is checked out on Lilliput)
+  is answered on the pull request with the reason. One that could not be reached because GitHub
+  did not answer stays waiting.
+- **Only your comments count.** The repository is public, so a comment by anyone else, or a
+  pull request from a fork, is never a request and is never shown to the session
+  (`scripts/admin-feedback-pr.py`).
+- **A request made or edited while a fix session is running is not taken.** The session posts
+  through your GitHub login, so the check cannot tell what it wrote from what you wrote, and
+  text it read on a public page could talk it into writing a request. The runner fingerprints
+  every waiting request before a session and, after it, marks any that appeared or changed as
+  answered and says so on the pull request; if it was yours, comment again. The same happens
+  to what you ask between a run that died mid-session (or could not read GitHub afterwards) and
+  the next run. This narrows what a misled session can pass on; it is not a boundary, because a
+  fix session has your access to this Mac. Giving the sessions their own GitHub identity is
+  what would let the two be told apart, and is not done.
+- **A review you have in draft while a fix session runs** is not taken once you send it, for
+  the same reason: a session could have added to it, and nothing would show that. The runner
+  says so on the pull request; discard the draft and write the review again.
+- **A run that dies during its session** (a shutdown, a logout) writes no summary. The next run
+  says so and names the worktree left behind; for a follow-up pass it says so on the pull
+  request too, and for a first pass it labels the issue so that later runs move on.
+
+**Checks.** A fix session waits for its pull request's checks itself (they take 25 to 45
+minutes). After it, the runner looks again for up to 15 minutes and writes into the summary
+which failed, and for each whether `main` fails it too; a cancelled check counts as failed.
+Every run also has one line on `main` itself: `MAIN CI: green`, `red`, `running`, `no checks
+reported` or `unknown` (GitHub did not answer). A red `main` shows a notification once per
+commit and set of failures: it makes every pull request red, and in November 2026 it stayed
+red for a day because nothing said so.
+
 ## Where and when it runs
 
 - On Lilliput, **every four hours** (00:07, 04:07, 08:07 and so on, local time), by the launchd
-  agent `com.sentencestudio.feedback-check`, which runs `scripts/admin-feedback-check.sh` from
-  `~/work/SentenceStudio-native-platform-heads`. The Captain chose the interval on 2026-11-16;
-  the plan had said weekdays. It runs only when Lilliput is on and he is logged in; a run missed
+  agent `com.sentencestudio.feedback-check`. The Captain chose the interval on 2026-11-16; the
+  plan had said weekdays. It runs only when Lilliput is on and he is logged in; a run missed
   while the Mac slept happens once when it wakes.
+- **It runs what is on `main`** (2026-11-17). launchd starts `scripts/admin-feedback-run.sh` in
+  the check's own checkout, `~/work/copilot-worktrees/SentenceStudio/feedback-runner`, a git
+  worktree with a detached HEAD. That script brings the checkout to `origin/main` and then runs
+  `scripts/admin-feedback-check.sh` from it, so a change to the check takes effect when it is
+  merged to `main`, and the branch the working checkout is on does not matter. (Until then the
+  check ran from the working checkout, on whatever branch that was, with commits that were not
+  on GitHub.) Each summary ends with the commit it ran from. If `origin/main` cannot be
+  fetched, the last copy runs and the summary says so.
+- Lilliput reaches packages only through a mirror. The mirror's `NuGet.config` is kept at
+  `~/sstudio-feedback-check/NuGet.config` and copied into each fix worktree, hidden from git.
+  If the working checkout's copy changes, copy it there again.
 - Triage: Sonnet 5.5 at medium effort, as a headless session that can run two commands and
   nothing else: `scripts/admin-api.sh` and `scripts/admin-feedback-issue.sh`. It cannot edit
   files, run other commands or reach the web.
@@ -39,13 +94,26 @@ had its go.
 - The token needs all three permissions: read the inbox, read learner content, set status and
   issue.
 - The summary of each run is written to `~/sstudio-feedback-check/` (`latest.md` is the newest,
-  `history.log` has one line per run, `fix/` holds each issue's activity log). A desktop
-  notification is shown when something was triaged, an issue was worked or the run failed, and
-  not when there was nothing to do.
+  `history.log` has one line per run, `fix/` holds each issue's activity log and each request
+  handed to a follow-up pass, `state/` what the runner keeps for itself). A desktop notification is shown when something was triaged, an
+  issue or a pull request was worked, `main`'s checks turned red or the run failed, and not
+  when there was nothing to do.
+
+- **What each session used is tracked** (the Captain asked on 2026-11-16, to tune the check over
+  time): model, time, turns, tokens, cost at API prices, and how many times each tool, shell
+  command and MCP tool was called. It is in every summary, in
+  `~/sstudio-feedback-check/usage.jsonl`, and in a comment on each pull request the fix stage
+  opens. `scripts/admin-feedback-usage.py report` prints the history and totals by stage. Only
+  names and counts are kept: no command arguments, no paths, no text. The triage session's own
+  transcript is not saved, because it holds what a learner wrote.
 
 To stop it: `launchctl bootout gui/$(id -u)/com.sentencestudio.feedback-check`. To run it once
 by hand: `scripts/admin-feedback-check.sh` (`--triage-only`, `--fix-only [issue]`, or `--probe`,
-which only asks the API what the token is).
+which only asks the API what the token is). Run by hand from a checkout on a branch, it runs
+that branch's copy and moves nothing.
+
+Its own tests: `python3 -m unittest discover -s scripts/tests -p test_admin_feedback_pr.py`
+(whose comments count, which checks are finished, what `main`'s line says). They run in CI.
 
 ## What it does, in order
 

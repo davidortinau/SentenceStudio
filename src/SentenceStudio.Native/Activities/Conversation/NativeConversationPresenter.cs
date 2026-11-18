@@ -584,11 +584,15 @@ public sealed partial class NativeConversationPresenter(
                 .GetByIdAsync(userId);
             _language = string.IsNullOrWhiteSpace(profile?.TargetLanguage) ? "Korean" : profile.TargetLanguage;
         }
+        // Sam's launch may name another language, as the language menu would set it.
+        if (_launch?.Language is { } asked && NativeConversationState.Languages.Contains(asked))
+            _language = asked;
         LoadVoicePace(userId);
         cancellationToken.ThrowIfCancellationRequested();
         _scenarios = [.. await scenarioStore.GetAllAsync(userId, cancellationToken)];
-        // Source: ?scenarioId when present (no native launch carries one), else the first scenario.
-        _active = _scenarios.FirstOrDefault();
+        // Source: ?scenarioId when present (Sam's launch carries one), else the first scenario.
+        _active = _scenarios.FirstOrDefault(scenario => scenario.Id == _launch?.ScenarioId)
+            ?? _scenarios.FirstOrDefault();
         cancellationToken.ThrowIfCancellationRequested();
         if (!owner.IsActive(userId))
             return;

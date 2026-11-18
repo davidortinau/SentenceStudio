@@ -274,7 +274,7 @@ public sealed class CoachProductPolicyContainmentTests
     [Theory]
     [InlineData("Teach me how Korean topic particles work", "studying that directly")]
     [InlineData("I need advice on studying pronunciation", "studying that directly")]
-    [InlineData("start a listening activity now", "can't start activities")]
+    [InlineData("start a listening activity now", "open that activity now")]
     public async Task Non_plan_learning_requests_are_contained_even_when_the_model_selects_a_plan_kind(
         string learnerText,
         string expectedClarification)

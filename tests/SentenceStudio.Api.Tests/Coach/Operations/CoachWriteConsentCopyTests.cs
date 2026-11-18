@@ -221,11 +221,14 @@ public sealed class CoachSkillArchiveConsentCopyTests : IDisposable
 /// </remarks>
 public class CoachPreferenceAllowListTests
 {
+    /// <summary>
+    /// Session length is the one approved setting (Captain, 2026-11-17: "increase to 45 minutes
+    /// from now on"); every other candidate stays unreachable.
+    /// </summary>
     [Fact]
-    public void No_setting_is_approved_for_change()
+    public void Only_the_session_length_is_approved_for_change()
     {
-        CoachPreferenceChangeHandler.IsClosed.Should().BeTrue(
-            "RFC 6.5 keeps the V1 allow-list empty until Captain approves a specific field");
+        CoachPreferenceChangeHandler.IsClosed.Should().BeFalse();
     }
 
     /// <summary>
@@ -240,21 +243,16 @@ public class CoachPreferenceAllowListTests
         ]);
 
     /// <summary>
-    /// The model is told the tool declines, rather than being given a menu.
+    /// The model is told which setting it may change and that every other one is declined, never
+    /// given a menu of the settings it cannot change.
     /// </summary>
-    /// <remarks>
-    /// The argument description used to name every candidate. A model reading that will keep
-    /// choosing one and reporting the refusal as a mistake the learner made. Naming none of them
-    /// and saying plainly that nothing is changeable is the truthful prompt.
-    /// </remarks>
     [Theory]
     [InlineData("target_language")]
     [InlineData("native_language")]
     [InlineData("display_language")]
-    [InlineData("session_minutes")]
     [InlineData("cefr_level")]
     [InlineData("quiz_show_text_with_photo")]
-    public void The_argument_description_does_not_advertise_a_settable_field(string candidate)
+    public void The_argument_description_names_only_the_approved_setting(string unapproved)
     {
         var description = typeof(CoachPreferenceChangeArgs)
             .GetProperty(nameof(CoachPreferenceChangeArgs.Setting))!
@@ -263,7 +261,8 @@ public class CoachPreferenceAllowListTests
             .Single()
             .Description;
 
-        description.Should().NotContain(candidate);
-        description.Should().Contain("declines");
+        description.Should().NotContain(unapproved);
+        description.Should().Contain("session_minutes");
+        description.Should().Contain("declined");
     }
 }

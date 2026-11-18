@@ -60,6 +60,9 @@ public static class CoachToolServiceCollectionExtensions
         services.TryAddScoped<SamTools.LearnerSettingsSummaryTool>();
         services.TryAddScoped<SamTools.CurrentPlanSummaryTool>();
         services.TryAddScoped<SamTools.VocabularyExampleSentencesTool>();
+        services.TryAddScoped<SamTools.CurrentScreenTool>();
+        services.TryAddScoped<SamTools.PlanVocabularyTool>();
+        services.TryAddScoped<SamTools.CoachTodayPlanReader>();
 
         // Sam write tools. One tool class serves every propose_ function; the handlers are what
         // differ. All scoped, because the ownership guard they depend on holds a request-scoped
@@ -92,6 +95,7 @@ public static class CoachToolServiceCollectionExtensions
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEntryHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceEditHandler>();
         services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachExampleSentenceRemovalHandler>();
+        services.AddScoped<Operations.ICoachWriteHandler, Operations.Handlers.CoachPlanRegenerationHandler>();
 
         services.TryAddScoped<Application.ICoachWriteApprovalService, Application.CoachWriteApprovalService>();
 

@@ -63,7 +63,7 @@ public class CoachEvidenceLocalizationTests
         var keys = ExpectedKeys().ToList();
 
         // Census, so a member added later without a string fails here rather than on screen.
-        keys.Should().HaveCount(22, "5 kinds + 14 definitions + 3 value codes");
+        keys.Should().HaveCount(24, "5 kinds + 16 definitions + 3 value codes");
 
         foreach (var key in keys)
         {

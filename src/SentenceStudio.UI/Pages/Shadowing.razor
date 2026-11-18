@@ -7,6 +7,7 @@
 @using SentenceStudio.Services.Timer
 @using SentenceStudio.Abstractions
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -180,8 +181,20 @@ else
     private IUiAudioPlayer? audioPlayer => _nativeAudio.Player;
     private System.Threading.Timer? _playbackTimer;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        if (string.IsNullOrEmpty(currentSentence.TargetLanguageText))
+            return new([]);
+        return new([SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Text, null, currentSentence.TargetLanguageText,
+            showTranslation ? currentSentence.NativeLanguageText : null, focus: true)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Shadowing", PlanItemId, ResourceIdParam, SkillIdParam);
@@ -580,6 +593,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _coachScreen?.Dispose();
         if (_disposed) return;
         _disposed = true;
         try

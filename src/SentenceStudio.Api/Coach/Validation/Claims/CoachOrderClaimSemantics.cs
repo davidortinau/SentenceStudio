@@ -272,6 +272,7 @@ internal static class CoachOrderClaimSemantics
         (claim.Meaning, claim.Direction, order) switch
         {
             (CoachOrderClaimMeaning.Mastery, CoachOrderClaimDirection.Most, CoachEvidenceOrder.MasteryDescending) => true,
+            (CoachOrderClaimMeaning.Mastery, CoachOrderClaimDirection.Least, CoachEvidenceOrder.MasteryAscending) => true,
 
             (CoachOrderClaimMeaning.Recency, CoachOrderClaimDirection.Most, CoachEvidenceOrder.UpdatedDescending) => true,
             (CoachOrderClaimMeaning.Recency, CoachOrderClaimDirection.Most, CoachEvidenceOrder.LastUsedAscending) => true,

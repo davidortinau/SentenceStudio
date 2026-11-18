@@ -39,7 +39,11 @@ public class CoachConstraintMapperTests
         // topical review request. It carries a single bounded Topic string (validated by
         // CoachIntentValidator.CheckVocabularySet, NoChange only); the server generates the terms
         // and nothing persists until a separate authenticated approval gesture.
-        var exempt = new[] { "VocabularyFocusDescription", "ClearVocabularyFocus", "VocabularySet" };
+        //
+        // VocabularyFocusTopics is the third (Captain, 2026-11-17: the model reasons over the
+        // learner's own tags and resource titles). It is a short list of names, never ids: only
+        // names the learner's own data has survive resolution, and the server runs the query.
+        var exempt = new[] { "VocabularyFocusDescription", "ClearVocabularyFocus", "VocabularySet", "VocabularyFocusTopics" };
 
         names.Where(n => !exempt.Contains(n, StringComparer.Ordinal))
             .Should().NotContain(n => forbidden.Any(f => n.Contains(f, StringComparison.OrdinalIgnoreCase)));
@@ -47,6 +51,8 @@ public class CoachConstraintMapperTests
         // The exemption stays a bounded description and never becomes a set of identifiers.
         typeof(CoachConstraintDeltaIntent).GetProperty("VocabularyFocusDescription")!
             .PropertyType.Should().Be<string>();
+        typeof(CoachConstraintDeltaIntent).GetProperty("VocabularyFocusTopics")!
+            .PropertyType.Should().Be<List<string>>("names, matched against the learner's own; no ids");
 
         // Likewise the vocabulary-set marker may carry only a topic, never ids, words, or counts.
         typeof(CoachVocabularySetIntent).GetProperties(BindingFlags.Public | BindingFlags.Instance)

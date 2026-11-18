@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using SentenceStudio.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IDisposable
 
 @if (isLoading)
@@ -378,8 +379,18 @@ else
     private readonly string[] mediaTypes = SentenceStudio.Common.Constants.MediaTypes;
     private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(resource is null ? []
+            : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.LearningResource, resource.Id, resource.Title, resource.MediaType, focus: true)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         Localize.CultureChanged += OnCultureChanged;
         await LoadResource();
     }
@@ -1079,6 +1090,7 @@ Transcript:
 
     public void Dispose()
     {
+        _coachScreen?.Dispose();
         quickAddSearchCts?.Cancel();
         quickAddSearchCts?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;

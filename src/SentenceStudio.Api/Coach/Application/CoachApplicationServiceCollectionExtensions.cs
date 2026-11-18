@@ -55,6 +55,7 @@ public static class CoachApplicationServiceCollectionExtensions
         // Tenant-scoped: the resolver reads the trusted user scope itself, so nothing here — and
         // no model output — can address another learner's vocabulary.
         services.TryAddScoped<IVocabularyFocusResolver, VocabularyFocusResolver>();
+        services.TryAddScoped<ILearnerTopicQueries, LearnerTopicQueries>();
         services.TryAddScoped<CoachVocabularyFocusService>();
         services.TryAddScoped<ICoachVocabularySetGenerator, CoachVocabularySetGenerator>();
 

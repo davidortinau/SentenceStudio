@@ -1,6 +1,7 @@
 @page "/skills/edit/{Id}"
 @attribute [Authorize]
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider CoachScreenServices
 @implements IDisposable
 
 @if (isLoading)
@@ -103,8 +104,18 @@ else
     private string deleteConfirmMessage = "";
     private bool isDeleting;
 
+    private IDisposable? _coachScreen;
+
+    /// <summary>What this page shows, for Sam's get_current_screen.</summary>
+    private SentenceStudio.WebUI.Services.CoachScreenDescription DescribeForSam()
+    {
+        return new(string.IsNullOrWhiteSpace(title) ? []
+            : [SentenceStudio.WebUI.Services.CoachScreenDescription.Item(SentenceStudio.Contracts.Coach.CoachClientScreenItemKinds.Skill, Id, title, focus: true)]);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _coachScreen = SentenceStudio.WebUI.Services.CoachScreenSubject.Publish(CoachScreenServices, InvokeAsync, DescribeForSam);
         await LoadProfile();
     }
 
@@ -227,6 +238,7 @@ else
 
     public void Dispose()
     {
+        _coachScreen?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
     }
 }

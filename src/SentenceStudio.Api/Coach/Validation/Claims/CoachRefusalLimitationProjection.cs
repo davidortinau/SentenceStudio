@@ -141,6 +141,7 @@ public static class CoachRefusalLimitationProjection
             // Practice, history and the day's plan all live on the activity log.
             CoachDefinitionCode.PracticeWindowBalance
                 or CoachDefinitionCode.PlanDaySummary
+                or CoachDefinitionCode.PlanVocabulary
                 or CoachDefinitionCode.DeterministicPlanPreview
                 or CoachDefinitionCode.LatestPracticeSummary
                 => CoachRouteCatalog.Build(CoachRouteName.ActivityLog),
@@ -150,6 +151,9 @@ public static class CoachRefusalLimitationProjection
 
             CoachDefinitionCode.LearnerSettingsSnapshot or CoachDefinitionCode.LearnerOverviewSummary
                 => CoachRouteCatalog.Build(CoachRouteName.Settings),
+
+            // The screen the learner reported is the screen they are already on.
+            CoachDefinitionCode.ClientReportedScreen => null,
 
             // Resources have no screen among the six the plan binds. Null, not the nearest thing.
             CoachDefinitionCode.OwnedResourceCatalog

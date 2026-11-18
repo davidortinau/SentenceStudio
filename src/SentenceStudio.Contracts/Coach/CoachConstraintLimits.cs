@@ -30,6 +30,10 @@ public static class CoachConstraintLimits
     /// <summary>The largest length of a chip identifier.</summary>
     public const int MaxChipIdLength = 64;
 
-    /// <summary>The largest number of clarification questions in one session.</summary>
+    /// <summary>
+    /// The largest number of clarification questions the coach may ask in a row. The name is
+    /// from when the count ran over the whole session; it is part of the configuration surface
+    /// and is kept.
+    /// </summary>
     public const int MaxClarificationsPerSession = 2;
 }

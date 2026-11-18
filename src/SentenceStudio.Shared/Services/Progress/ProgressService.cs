@@ -544,6 +544,9 @@ public class ProgressService : IProgressService
         return enrichedPlan;
     }
 
+    public void InvalidateCachedPlan(DateTime? date = null) =>
+        _cache.InvalidateTodaysPlan(date ?? ResolveTodayKey());
+
     public async Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default)
     {
         var resolvedDate = date ?? ResolveTodayKey();
@@ -1390,8 +1393,10 @@ public class ProgressService : IProgressService
                 continue;
             }
 
-            // Word has been attempted: only keep if still due
-            if (progress.NextReviewDate == null || progress.NextReviewDate.Value <= now)
+            // Word has been attempted: only keep if still due, or if the learner chose this set
+            // through Sam ("study food words today"), where practising one keeps it in the set.
+            if (plan.FocusChosenByLearner
+                || progress.NextReviewDate == null || progress.NextReviewDate.Value <= now)
             {
                 freshIds.Add(wordId);
             }
@@ -1748,6 +1753,14 @@ public class ProgressService : IProgressService
             // are also null/empty → SerializeFocusVocabularyFacts returns null,
             // so the same coalesce protects FocusVocabularyFacts.)
             // Regression-guarded by NarrativeFacts_FallbackPlanDoesNotClobberPreviousFacts_SqliteRoundTrip.
+            // A set the learner chose through Sam keeps its marker when the same words are saved
+            // again, so serve-time trimming keeps treating it as theirs.
+            if (focusVocabularyFactsJson is not null
+                && PlanFactsSerializer.IsCoachFocus(planRow.FocusVocabularyFacts)
+                && DeserializeFocusVocabularyFacts(planRow.FocusVocabularyFacts).SequenceEqual(planFocusVocabularyIds))
+            {
+                focusVocabularyFactsJson = planRow.FocusVocabularyFacts;
+            }
             planRow.FocusVocabularyFacts = focusVocabularyFactsJson ?? planRow.FocusVocabularyFacts;
             planRow.NarrativeFacts = narrativeFactsJson ?? planRow.NarrativeFacts;
             planRow.RationaleFacts = rationaleFactsJson ?? planRow.RationaleFacts;
@@ -2003,7 +2016,8 @@ public class ProgressService : IProgressService
             FocusVocabularyIds: planItems
                 .SelectMany(i => i.FocusVocabularyIds ?? Array.Empty<string>())
                 .Distinct(StringComparer.Ordinal)
-                .ToList()
+                .ToList(),
+            FocusChosenByLearner: PlanFactsSerializer.IsCoachFocus(planFocusVocabularyFacts)
         );
 
         _logger.LogDebug("✅ Reconstructed plan: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);

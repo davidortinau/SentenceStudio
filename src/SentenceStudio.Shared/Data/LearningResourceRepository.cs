@@ -897,6 +897,126 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         return await results.FirstOrDefaultAsync();
     }
 
+    /// <summary>
+    /// Folds extra copies of one of the learner's smart resources into the copy that is kept:
+    /// what names a copy (example sentences, video imports, lookups, learning contexts) is moved
+    /// to <paramref name="keeperId"/>, then the copies are deleted, and the deletes sync to the
+    /// learner's devices. A copy that is already gone, or is not this learner's smart resource of
+    /// the keeper's type, is left out. Returns how many copies were deleted (0 when there was
+    /// nothing to fold or the keeper is not the learner's smart resource), or -1 on failure.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A smart resource holds nothing the learner wrote: its words are links refilled from their
+    /// progress (<see cref="SentenceStudio.Services.SmartResourceService.RefreshSmartResourceAsync"/>),
+    /// so a deleted copy's links go with it and the caller refills the kept one.
+    /// </para>
+    /// <para>
+    /// Plan items are left as they are: the plan builder never picks a smart resource, and a plan
+    /// item's ID is a hash of its resource, so moving one would make it a different item.
+    /// </para>
+    /// <para>
+    /// A row is moved by the copy it names, whatever its own owner column holds (rows saved
+    /// before their table had an owner): the copy is proved the learner's, and so is the kept
+    /// list. On PostgreSQL the fold holds the sync upload lock (<see cref="SyncUploadLock"/>), so
+    /// an upload cannot write a row naming a copy between the move and the delete.
+    /// </para>
+    /// </remarks>
+    public async Task<int> MergeSmartResourceCopiesAsync(
+        string keeperId, IReadOnlyCollection<string> copyIds, string? userProfileId = null,
+        CancellationToken ct = default)
+    {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("MergeSmartResourceCopiesAsync called without an active user — refusing to prevent cross-tenant data changes.");
+            return 0;
+        }
+
+        var copies = copyIds.Where(id => !string.IsNullOrWhiteSpace(id) && id != keeperId)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if (string.IsNullOrWhiteSpace(keeperId) || copies.Length == 0)
+            return 0;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            var removed = await RetryableTransaction.ExecuteAsync(db, async token =>
+            {
+                if (db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+                    await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock({0})",
+                        [SyncUploadLock.Key], token);
+
+                var keeper = await db.LearningResources.AsNoTracking()
+                    .FirstOrDefaultAsync(r => r.Id == keeperId && r.UserProfileId == userId
+                        && r.IsSmartResource, token);
+                if (keeper is null || string.IsNullOrEmpty(keeper.SmartResourceType))
+                {
+                    _logger.LogWarning("MergeSmartResourceCopiesAsync refused a missing or unowned keeper.");
+                    return 0;
+                }
+
+                var owned = await db.LearningResources
+                    .Where(r => copies.Contains(r.Id) && r.UserProfileId == userId
+                        && r.IsSmartResource && r.SmartResourceType == keeper.SmartResourceType)
+                    .ToListAsync(token);
+                if (owned.Count == 0)
+                    return 0;
+                var ownedIds = owned.Select(r => r.Id).ToArray();
+
+                foreach (var row in await db.ExampleSentences
+                    .Where(s => s.LearningResourceId != null && ownedIds.Contains(s.LearningResourceId))
+                    .ToListAsync(token))
+                    row.LearningResourceId = keeperId;
+                foreach (var row in await db.VideoImports
+                    .Where(v => v.LearningResourceId != null && ownedIds.Contains(v.LearningResourceId))
+                    .ToListAsync(token))
+                    row.LearningResourceId = keeperId;
+                foreach (var row in await db.VocabularyLookups
+                    .Where(l => l.ResourceId != null && ownedIds.Contains(l.ResourceId))
+                    .ToListAsync(token))
+                    row.ResourceId = keeperId;
+                foreach (var row in await db.VocabularyLearningContexts
+                    .Where(c => c.LearningResourceId != null && ownedIds.Contains(c.LearningResourceId))
+                    .ToListAsync(token))
+                    row.LearningResourceId = keeperId;
+
+                // The copies' word links cascade with them.
+                db.LearningResources.RemoveRange(owned);
+                await db.SaveChangesAsync(token);
+                return owned.Count;
+            },
+            // A commit whose acknowledgement was lost landed if none of the copies it could fold
+            // is left.
+            async token =>
+            {
+                var type = await db.LearningResources.AsNoTracking()
+                    .Where(r => r.Id == keeperId && r.UserProfileId == userId && r.IsSmartResource)
+                    .Select(r => r.SmartResourceType)
+                    .FirstOrDefaultAsync(token);
+                return type is not null && !await db.LearningResources.AsNoTracking()
+                    .AnyAsync(r => copies.Contains(r.Id) && r.UserProfileId == userId
+                        && r.IsSmartResource && r.SmartResourceType == type, token);
+            },
+            ct);
+
+            if (removed > 0)
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            return removed;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MergeSmartResourceCopiesAsync error for resource {ResourceId}", keeperId);
+            return -1;
+        }
+    }
+
     // Add vocabulary word to a learning resource
     public async Task<bool> AddVocabularyToResourceAsync(
         string resourceId,

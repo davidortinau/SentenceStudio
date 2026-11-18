@@ -5,9 +5,10 @@ using SentenceStudio.Contracts.Coach;
 namespace SentenceStudio.Native;
 
 /// <summary>
-/// Builds the screen context a native head sends with a typed Sam message, so a bug report filed
-/// through Sam says where it happened. The head supplies the screen id and state; this fills in
-/// the build facts the same way on every platform.
+/// Builds the screen context a native head sends with a typed Sam message: where a bug report
+/// filed through Sam happened, and what "this" means when the learner asks Sam about the screen.
+/// The head supplies the screen id, state and <see cref="NativeSamScreen"/> description; this
+/// fills in the build facts the same way on every platform.
 /// </summary>
 public static class NativeSamScreenContext
 {
@@ -23,7 +24,8 @@ public static class NativeSamScreenContext
         string? device,
         string? theme,
         bool debugBuild,
-        IEnumerable<(string Key, string? Value)> state) => new()
+        IEnumerable<(string Key, string? Value)> state,
+        NativeSamScreenSnapshot? screen = null) => new()
     {
         ScreenId = "native." + screenId,
         Platform = platform,
@@ -36,7 +38,14 @@ public static class NativeSamScreenContext
         State = state
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
             .Select(entry => new CoachClientScreenStateEntry { Key = entry.Key, Value = entry.Value })
-            .ToArray()
+            .ToArray(),
+        // Sam only, never stored with a feedback report; a fact with no value says nothing.
+        Facts = (screen?.Facts ?? [])
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key) && entry.Value is not null)
+            .Select(entry => new CoachClientScreenStateEntry { Key = entry.Key, Value = entry.Value })
+            .ToArray(),
+        Items = screen?.Items ?? [],
+        AnswerHidden = screen?.AnswerHidden ?? false
     };
 
     /// <summary>The tab names both heads use: <c>study</c>, <c>library</c>, <c>settings</c>.</summary>

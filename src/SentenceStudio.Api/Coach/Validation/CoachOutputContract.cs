@@ -82,6 +82,10 @@ public static class CoachOutputContract
             [typeof(LearnerSettingsSummary)] = CoachEmbargoScope.ToolResult,
             [typeof(CurrentPlanSummary)] = CoachEmbargoScope.ToolResult,
             [typeof(VocabularyExampleSentencesResult)] = CoachEmbargoScope.ToolResult,
+            // What the learner's app reported it was showing, for this turn only. Learner
+            // content (the word on screen) under the same ToolResult rules as the reads above.
+            [typeof(CurrentScreenResult)] = CoachEmbargoScope.ToolResult,
+            [typeof(PlanVocabularyResult)] = CoachEmbargoScope.ToolResult,
 
             // Sam write tools. Every proposal comes back in this one shape, so the review that
             // approved it covers all twelve. It carries a summary and detail lines the learner is

@@ -13,7 +13,8 @@ public sealed record CoachEmbargoedItem(
     string? NativeTerm = null,
     string? Lemma = null,
     IReadOnlyList<string>? Examples = null,
-    string? MnemonicText = null);
+    string? MnemonicText = null,
+    string? WordId = null);
 
 /// <summary>
 /// Finds a due word, translation, example, or mnemonic in coach text.

@@ -39,6 +39,9 @@ internal interface IActivityScreen : IDisposable
     /// <summary>True once the presenter has stopped its timer and handed control back to the Dashboard.</summary>
     bool HasExited { get; }
 
+    /// <summary>The presenter Sam describes when the learner asks about this screen (<see cref="NativeSamScreen"/>).</summary>
+    object? SamSource => null;
+
     Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken);
 
     /// <summary>Back / Go Back / native pop: stop and save the timer, then return.</summary>

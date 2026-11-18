@@ -19,6 +19,8 @@ internal sealed class HowDoYouSayScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeHowDoYouSayPresenter _presenter;
+
+    public object? SamSource => _presenter;
     private NativeHowDoYouSayState _state = new(NativePhase.Loading);
 
     public HowDoYouSayScreen(ActivityScreenHost host)
