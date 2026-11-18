@@ -126,7 +126,7 @@ public sealed class NativeQuizFeedbackContractTests
     public void SummaryUsesOneSourceCardWithInlineResultRowsAndSuccessMetrics()
     {
         var feature = ReadHead("Features/Quiz/QuizSummaryView.cs");
-        var start = feature.IndexOf("internal static void Add(",
+        var start = feature.IndexOf("internal static SwiftView? Add(",
             StringComparison.Ordinal);
         var end = feature.IndexOf("private static SwiftView Statistic(", start,
             StringComparison.Ordinal);
@@ -139,6 +139,36 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Equal(1, summary.Split("style.Card(", StringSplitOptions.None).Length - 1);
         Assert.Contains("\"mastered\", style, success: true)", summary);
         Assert.Contains(".WithAccessibilityIdentifier($\"{id}.status\")", summary);
+    }
+
+    [Fact]
+    public void Issue225_MultipleChoiceResultShowsOnlyOnTheOptions()
+    {
+        var feature = FeatureSource();
+
+        // The status alert is for text answers; written choices also drop the answer line,
+        // and audio-letter choices keep it because their options show only letters.
+        Assert.Contains("var choicesShowResult = state.Mode == \"MultipleChoice\";", feature);
+        Assert.Contains("&& state.CanPlayAnswerAudio);", feature);
+        Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowAnswer", feature);
+        Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowResult", feature);
+        // The result is not told by color alone: a mark and the spoken name carry it.
+        Assert.Contains("\"checkmark.circle.fill\" : \"xmark.circle.fill\"", feature);
+        Assert.Contains("ChoiceResultCaption(state, answer, text)", feature);
+        Assert.Contains("+ ChoiceResultCaption(state, choice.Text, text)", feature);
+    }
+
+    [Fact]
+    public void Issue225_SummaryContinueAndDoneStayOnScreenInAFooter()
+    {
+        var summary = ReadHead("Features/Quiz/QuizSummaryView.cs");
+        var page = ReadHead("Features/Quiz/QuizView.cs");
+
+        Assert.Contains("internal static SwiftView? Add(", summary);
+        Assert.Contains("\"native.quiz.summary.footer\"", summary);
+        Assert.DoesNotContain("items.Add(style.PrimaryButton(", summary);
+        Assert.Contains("footer = QuizSummaryView.Add(", page);
+        Assert.Contains("Views.BottomInset(page, footer)", page);
     }
 
     [Theory]

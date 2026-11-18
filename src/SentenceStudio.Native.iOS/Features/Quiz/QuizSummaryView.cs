@@ -12,7 +12,11 @@ namespace SentenceStudio.Native.iOS.Features.Quiz;
 
 internal static class QuizSummaryView
 {
-    internal static void Add(
+    /// <summary>
+    /// Adds the summary to <paramref name="items"/> and returns the footer that holds
+    /// Continue and Done, or null when there is none.
+    /// </summary>
+    internal static SwiftView? Add(
         List<SwiftView> items, NativeQuizState state, bool canRetry,
         SourceUiStyle style, Func<string, string> text,
         Action continueRound, Action done, Action retry)
@@ -77,17 +81,31 @@ internal static class QuizSummaryView
             .WithAccessibilityIdentifier(NativeAccess.QuizSummary));
         if (state.Phase == NativePhase.Summary)
         {
+            // Issue 225 (Captain, 2026-11-15): Continue and Done stay on screen below the
+            // scrolling results, so a landscape phone reaches them without scrolling.
+            var actions = new List<SwiftView>();
             if (state.TotalTurns > 0)
-                items.Add(style.PrimaryButton(
+                actions.Add(style.PrimaryButton(
                         text("VocabQuiz_ContinueQuiz"), continueRound)
                     .WithAccessibilityIdentifier("native.quiz.continue"));
-            items.Add(style.SecondaryButton(
+            actions.Add(style.SecondaryButton(
                     text(NativeText.Done), done)
                 .WithAccessibilityIdentifier("native.quiz.done"));
+            var row = Views.HStack(actions.ToArray())
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+                .WithPadding(12, 16, 12, 16);
+            row.Spacing = SourceUiLayout.ItemGap;
+            return Views.VStack(
+                    Views.Divider().WithAccessibilityIdentifier(
+                        "native.quiz.summary.footer.divider"), row)
+                .WithBackgroundColor(style.Appearance.BodyBackground.Light,
+                    style.Appearance.BodyBackground.Dark)
+                .WithAccessibilityIdentifier("native.quiz.summary.footer");
         }
-        else if (canRetry)
+        if (canRetry)
             items.Add(Views.Button(text(NativeText.Retry), retry)
                 .WithAccessibilityIdentifier("native.quiz.retry"));
+        return null;
     }
 
     private static SwiftView Statistic(

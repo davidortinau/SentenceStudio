@@ -161,11 +161,24 @@ internal static class QuizQuestionView
                     .WithFlexibleWidth(560, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.quiz.feedback.mnemonic"));
             }
+        }
+        // Issue 225 (Captain, 2026-11-15): a multiple-choice result shows only on the
+        // options, so the graded question still fits a landscape screen. Audio choices show
+        // letters, so they keep the written answer; text answers keep the whole result.
+        var choicesShowResult = state.Mode == "MultipleChoice";
+        var choicesShowAnswer = choicesShowResult
+            && !(state.Prompt is { IsTargetLanguagePrompt: false }
+                && state.CanPlayAnswerAudio);
+        if (state.Phase == NativePhase.Feedback && !choicesShowAnswer)
+        {
             // Source: the answer sits in the centered prompt block (text-center).
             if (state.CorrectAnswerAfterGrading is { Length: > 0 } correct)
                 items.Add(style.Text(Views.Text(correct), SourceTextRole.Title2)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.quiz.correct-answer"));
+        }
+        if (state.Phase == NativePhase.Feedback && !choicesShowResult)
+        {
             var status = state.CompleteForm is { Length: > 0 } fullForm
                 && state.AnswerWasCorrect == true
                 ? string.Format(CultureInfo.CurrentCulture,
@@ -195,7 +208,7 @@ internal static class QuizQuestionView
                 var choiceButton = QuizChoice(style, state, choice.Text,
                         busy || state.Phase == NativePhase.Ready
                             && !state.CanSubmit,
-                        () => selectChoice(choice.Text),
+                        () => selectChoice(choice.Text), text,
                         audioChoices ? ((char)('A' + index)).ToString() : null)
                     .WithAccessibilityIdentifier(id);
                 if (audioChoices)
@@ -204,7 +217,8 @@ internal static class QuizQuestionView
                     // Source: a letter can be chosen at once; its play button is optional.
                     choiceButton.WithAccessibilityLabel(
                         string.Format(CultureInfo.CurrentCulture,
-                            text("NativeVocabQuiz_ChooseChoice"), letter));
+                            text("NativeVocabQuiz_ChooseChoice"), letter)
+                        + ChoiceResultCaption(state, choice.Text, text));
                     var play = Views.Button(
                             Views.Image("speaker.wave.2"),
                             () => playChoiceAudio(optionIndex))
@@ -277,7 +291,7 @@ internal static class QuizQuestionView
 
     private static SwiftView QuizChoice(
         SourceUiStyle style, NativeQuizState state, string answer, bool busy,
-        Action select, string? audioLetter = null)
+        Action select, Func<string, string> text, string? audioLetter = null)
     {
         var answered = state.Phase is NativePhase.Feedback or NativePhase.Error;
         var correct = answered && string.Equals(answer,
@@ -298,6 +312,17 @@ internal static class QuizQuestionView
                 : style.Appearance.BootstrapButtonBorder;
         var label = style.Text(Views.Text(audioLetter ?? answer),
             SourceTextRole.Title3);
+        // The graded options carry the result, so it is not told by color alone.
+        if (correct || incorrect)
+        {
+            var mark = Views.HStack(label.WithFlexibleWidth(),
+                Views.Image(correct ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .WithAccessibilityIdentifier(correct
+                        ? "native.quiz.choice.result.correct"
+                        : "native.quiz.choice.result.incorrect"));
+            mark.Spacing = SourceUiLayout.ItemGap;
+            label = mark;
+        }
         if (correct || incorrect)
             label.WithForegroundColor("#FFFFFF", "#FFFFFF");
         else if (neutralDisabled && sourceClass)
@@ -320,8 +345,24 @@ internal static class QuizQuestionView
                 .WithButtonBorderWidth(style.Appearance.BootstrapBaseButtonBorderWidth);
             style.WithSketchyBootstrapCorners(button);
         }
+        if (audioLetter is null && (correct || incorrect))
+            button.WithAccessibilityLabel(answer + ChoiceResultCaption(state, answer, text));
         button.IsEnabled = !answered && !busy;
         return button;
+    }
+
+    /// <summary>", Correct" or ", Incorrect" for a graded option, otherwise empty.</summary>
+    private static string ChoiceResultCaption(
+        NativeQuizState state, string answer, Func<string, string> text)
+    {
+        if (state.Phase is not (NativePhase.Feedback or NativePhase.Error))
+            return string.Empty;
+        if (string.Equals(answer, state.CorrectAnswerAfterGrading,
+                StringComparison.OrdinalIgnoreCase))
+            return $", {text(NativeText.QuizCorrect)}";
+        return string.Equals(answer, state.SelectedAnswer,
+                StringComparison.OrdinalIgnoreCase)
+            ? $", {text(NativeText.QuizIncorrect)}" : string.Empty;
     }
 
 }
