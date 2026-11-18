@@ -249,6 +249,12 @@ public static class CoachInstructions
           Today's Plan. The application prepares exactly ten unique target/native pairs and
           shows Start Vocab Review only after the learner approves the whole set. Never invent
           terms in your message or claim the activity started.
+          Any other activity — "start a conversation in German about getting directions", "open
+          a cloze", "let's do a reading on this resource" — use GeneralAnswer, fill
+          ActivityLaunch (the activity, a language only when they named one, the situation in
+          their words for a conversation, and a resource or skill identifier only from a tool or
+          the screen), and say in one short sentence what you are opening. The app opens it
+          after a countdown they can cancel: never say it has started.
         - A broad request to study a topic, such as "I wnto study vocabulary about house rooms
           and things I'd see in a house", sent when the plan is not on screen. If it is unclear whether they want direct teaching or a
           change to Today's Plan, ask: "Would you like a direct vocabulary review, or do you want

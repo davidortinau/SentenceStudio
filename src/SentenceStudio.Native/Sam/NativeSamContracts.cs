@@ -246,7 +246,9 @@ public sealed record NativeSamState(
     NativeSamMemoryState? Memory = null,
     NativeSamSettingsState? Settings = null,
     long Version = 0,
-    NativeSamAvailability Availability = NativeSamAvailability.Unknown)
+    NativeSamAvailability Availability = NativeSamAvailability.Unknown,
+    CoachActivityLaunchDto? ActivityLaunch = null,
+    int? ActivityCountdown = null)
 {
     /// <summary>Source IsWriteSurfaceEnabled: write tools on, durable history on, a thread open.</summary>
     public bool WriteSurfaceEnabled => SamWriteAvailable && IsDurableHistoryAvailable && ConversationId is not null;

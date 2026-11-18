@@ -155,7 +155,9 @@ public sealed record NativeActivityLaunch(
     ImmutableArray<string> FocusVocabularyIds,
     bool DueOnly,
     string? TimerResourceId,
-    PlanActivityType? ActivityType = null)
+    PlanActivityType? ActivityType = null,
+    string? ScenarioId = null,
+    string? Language = null)
 {
     public bool IsPlanItem => !string.IsNullOrWhiteSpace(PlanItemId);
 }

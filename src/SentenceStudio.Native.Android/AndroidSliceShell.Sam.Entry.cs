@@ -125,8 +125,12 @@ internal sealed partial class AndroidSliceShell
             MoveSamEntry();
     }
 
+    /// <summary>TalkBack is on: Sam's prepared activity waits for Start instead of counting down.</summary>
+    private bool _screenReaderRunning;
+
     private void SetSamScreenReader(bool running)
     {
+        _screenReaderRunning = running;
         // Both screens: the one not showing keeps the state for when it returns.
         var changed = _samDashboardEntry.SetScreenReaderRunning(running)
             | _samResourcesEntry.SetScreenReaderRunning(running);

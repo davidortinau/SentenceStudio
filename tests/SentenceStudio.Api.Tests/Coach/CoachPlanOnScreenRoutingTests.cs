@@ -19,6 +19,8 @@ public class CoachPlanOnScreenRoutingTests
     [InlineData("Today I want to study travel terms for things like using the bus, the subway, walking the street, and taxi.")]
     [InlineData("I only have 20 minutes today")]
     [InlineData("오늘은 30분만 공부할게")]
+    [InlineData("let's do 30 minutes of reading")]
+    [InlineData("음식 단어 연습하고 싶어")]
     public void A_study_request_with_the_plan_on_screen_is_a_plan_request(string text)
     {
         _authority.ClassifyPlanRouting(text, planOnScreen: true)

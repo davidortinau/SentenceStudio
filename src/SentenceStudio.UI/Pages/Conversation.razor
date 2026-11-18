@@ -172,6 +172,13 @@ else
     [SupplyParameterFromQuery(Name = "scenarioId")]
     public string? ScenarioIdParam { get; set; }
 
+    /// <summary>
+    /// A language to practise other than the profile's, as the language menu would set it. Sam
+    /// opens "a conversation in German" this way; anything not a listed language is ignored.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "language")]
+    public string? LanguageParam { get; set; }
+
     [SupplyParameterFromQuery(Name = "fromPlan")]
     public bool FromPlanParam { get; set; }
 
@@ -289,9 +296,20 @@ else
         {
             var profile = await ProfileRepo.GetByIdAsync(_owner);
             targetLanguage = profile?.TargetLanguage ?? "Korean";
+            if (SentenceStudio.Common.Constants.Languages.FirstOrDefault(l =>
+                    string.Equals(l, LanguageParam?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } asked)
+                targetLanguage = asked;
             voiceId = VoicePrefs.GetVoiceForLanguage(targetLanguage);
 
             scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
+            // The built-ins are seeded by each client at start-up; the web never did, so its
+            // scenario list was empty and a ?scenarioId (Sam's "about getting directions") found
+            // nothing. Adding the missing built-ins is idempotent (fixed ids, never a second copy).
+            if (!scenarios.Any(s => s.IsPredefined))
+            {
+                await ScenarioSvc.SeedPredefinedScenariosAsync();
+                scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
+            }
 
             if (!string.IsNullOrWhiteSpace(ScenarioIdParam))
                 activeScenario = scenarios.FirstOrDefault(s => s.Id == ScenarioIdParam);

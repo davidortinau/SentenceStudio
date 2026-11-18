@@ -52,6 +52,12 @@ public interface ICoachValidationDataSource
     Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
         string userProfileId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Every skill the learner owns and has not archived, for the ownership check.</summary>
+    Task<IReadOnlyCollection<string>> GetOwnedSkillIdsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<string>>([]);
 }
 
 /// <inheritdoc cref="ICoachValidationDataSource"/>
@@ -242,6 +248,25 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
             .AsNoTracking()
             .Where(r => r.UserProfileId == userProfileId)
             .Select(r => r.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new HashSet<string>(ids, StringComparer.Ordinal);
+    }
+
+    public async Task<IReadOnlyCollection<string>> GetOwnedSkillIdsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasExactOwner(userProfileId, nameof(GetOwnedSkillIdsAsync)))
+        {
+            return [];
+        }
+
+        var ids = await _db.SkillProfiles
+            .AsNoTracking()
+            .Where(s => s.UserProfileId == userProfileId && !s.IsArchived)
+            .Select(s => s.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

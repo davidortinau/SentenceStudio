@@ -370,6 +370,7 @@ internal sealed partial class AndroidSliceShell
             AndroidSamRowKind.Outcome => Caption(Localize(state.NoticeKey!), palette, "native.sam.outcome"),
             AndroidSamRowKind.VocabularySet => SamVocabularySet(state, state.VocabularySet!, palette),
             AndroidSamRowKind.VocabularySetOutcome => SamVocabularySetOutcome(state, palette),
+            AndroidSamRowKind.ActivityLaunch => SamActivityLaunch(state, state.ActivityLaunch!, palette),
             AndroidSamRowKind.Chips => SamStarters(state, palette),
             AndroidSamRowKind.Closed => SamNotice(Localize("Coach_ConversationClosedNotice"), palette,
                 "native.sam.closed"),
@@ -741,6 +742,45 @@ internal sealed partial class AndroidSliceShell
             Localize("NativeSam_VocabularySetDecline"), "native.sam.vocabset.decline", DeclineSamSet,
             !state.VocabularySetBusy));
         return SamCard(palette, "native.sam.vocabset", SamCardStyle.Sam, rows);
+    }
+
+    /// <summary>
+    /// Source CoachActivityLaunchCard: what Sam is opening. While it counts down, Cancel with a bar
+    /// draining right to left; otherwise Start and Not now.
+    /// </summary>
+    private ComposableNode SamActivityLaunch(NativeSamState state, CoachActivityLaunchDto launch,
+        AndroidVisualPalette palette)
+    {
+        var name = Localize(CoachActivityRoutes.TitleKey(launch.Activity));
+        var rows = new List<ComposableNode>
+        {
+            Strong(string.Format(CultureInfo.CurrentCulture, Localize("Coach_ActivityLaunch_Title"), name), palette),
+        };
+        var details = string.Join(" · ", new[] { launch.Language, launch.ScenarioName }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+        if (details.Length > 0)
+            rows.Add(Caption(details, palette, "native.sam.activity.details"));
+        if (state.ActivityCountdown is { } remaining)
+        {
+            var countdown = string.Format(CultureInfo.CurrentCulture, Localize("Coach_ActivityLaunch_Countdown"), remaining);
+            rows.Add(Action(Localize("Common_Cancel"), "native.sam.activity.cancel",
+                () => _sam?.CancelActivityCountdown(), enabled: true, primary: false));
+            rows.Add(new LinearProgressIndicator
+            {
+                // Drains from full to empty: the filled part shrinks toward the start (right to left).
+                Progress = remaining / (float)NativeSamPresenter.ActivityCountdownSeconds,
+                Modifier = Modifier.FillMaxWidth().Height(4).TestTag("native.sam.activity.countdown")
+                    .Semantics(semantics => semantics.ContentDescription(countdown)),
+            });
+        }
+        else
+        {
+            rows.Add(Action(Localize("Coach_ActivityLaunch_Start"), "native.sam.activity.start",
+                () => _sam?.StartActivityLaunch(), enabled: !Busy.Value));
+            rows.Add(Action(Localize("Coach_ActivityLaunch_NotNow"), "native.sam.activity.dismiss",
+                () => _sam?.DismissActivityLaunch(), enabled: true, primary: false));
+        }
+        return SamCard(palette, "native.sam.activity", SamCardStyle.Sam, rows, spacing: 6);
     }
 
     private ComposableNode SamVocabularySetOutcome(NativeSamState state, AndroidVisualPalette palette)

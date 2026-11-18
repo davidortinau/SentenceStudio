@@ -1979,7 +1979,8 @@ public sealed class CoachSessionService : ICoachSessionService
             : CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest;
         var activityLaunchRequested = isTextPlanIntent
             && planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest
-            && _writeAuthority.IsActivityLaunchRequest(request.Text);
+            && (_writeAuthority.IsActivityLaunchRequest(request.Text)
+                || _writeAuthority.IsExplicitActivityStart(request.Text));
 
         if (activityLaunchRequested
             || planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest)
@@ -2037,8 +2038,117 @@ public sealed class CoachSessionService : ICoachSessionService
             ? AttachWordList(withMemory)
             : withMemory;
 
-        return await AttachWriteOperationAsync(session, withWords, cancellationToken)
+        var withLaunch = await AttachActivityLaunchAsync(
+            userProfileId, request, intent, withWords, cancellationToken).ConfigureAwait(false);
+
+        return await AttachWriteOperationAsync(session, withLaunch, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The activity the model asked to open, checked part by part before the client sees it: the
+    /// activity is one of the app's, the language is a target-language choice, the scenario is a
+    /// built-in one the learner's words describe, and any resource or skill is the learner's own
+    /// (an unchecked part is dropped, never passed on). It may open by itself only when the
+    /// learner's own words asked to start something; text on their screen cannot.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> AttachActivityLaunchAsync(
+        string userProfileId,
+        CoachTurnRequest request,
+        CoachTurnIntent intent,
+        CoachOperationResult<CoachTurnResponse> reduced,
+        CancellationToken cancellationToken)
+    {
+        if (intent.ActivityLaunch is not { } asked
+            || !reduced.IsOk || reduced.Value is not { } response
+            || response.Status != CoachTurnStatus.Completed
+            || ParseActivity(asked.Activity) is not { } activity)
+        {
+            return reduced;
+        }
+
+        // A language only for a conversation (the one activity that takes one), only a listed
+        // target language, and never the learner's own: a native-language prompt with a
+        // native-language reply teaches nothing (Learning Value Gate). Their usual target
+        // language needs no change, so it is left out too.
+        string? language = null;
+        if (activity == CoachActivityKind.Conversation
+            && SentenceStudio.Contracts.Profiles.LearnerProfileOptions.TargetLanguages
+                .FirstOrDefault(choice => string.Equals(choice, asked.Language?.Trim(), StringComparison.OrdinalIgnoreCase))
+                is { } listed)
+        {
+            var learner = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+            var tag = CoachLanguageResolver.ToTag(listed, string.Empty);
+            if (tag.Length > 0 && tag != learner.NativeLanguageTag && tag != learner.TargetLanguageTag)
+                language = listed;
+        }
+
+        var scenario = activity == CoachActivityKind.Conversation
+            ? SentenceStudio.Services.BuiltInConversationScenarios.Match(asked.Scenario)
+            : null;
+
+        IReadOnlyList<string> resources = [];
+        if (!string.IsNullOrWhiteSpace(asked.ResourceId))
+        {
+            var owned = await _validationData.GetOwnedResourceIdsAsync(userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+            if (owned.Contains(asked.ResourceId.Trim()))
+                resources = [asked.ResourceId.Trim()];
+        }
+
+        string? skill = null;
+        if (!string.IsNullOrWhiteSpace(asked.SkillId))
+        {
+            var owned = await _validationData.GetOwnedSkillIdsAsync(userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+            if (owned.Contains(asked.SkillId.Trim()))
+                skill = asked.SkillId.Trim();
+        }
+
+        var launch = new CoachActivityLaunchDto
+        {
+            Activity = activity,
+            ResourceIds = resources,
+            SkillId = skill,
+            Language = language,
+            ScenarioId = scenario?.Id,
+            ScenarioName = scenario?.Name,
+            AutoStart = request.InputKind == CoachTurnInputKind.Text
+                && _writeAuthority.IsExplicitActivityStart(request.Text)
+        };
+
+        _logger.LogInformation(
+            "[Coach] Turn opens {Activity} (language set: {HasLanguage}, scenario: {Scenario}, resources: {ResourceCount}, auto start: {AutoStart}).",
+            activity, language is not null, scenario?.Id ?? "none", resources.Count, launch.AutoStart);
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response.WithActivityLaunch(launch));
+    }
+
+    /// <summary>The activity the model named, by its enum name or a common alias; null for anything else.</summary>
+    internal static CoachActivityKind? ParseActivity(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+        var key = new string(name.Where(char.IsLetter).ToArray()).ToLowerInvariant();
+        return key switch
+        {
+            "conversation" => CoachActivityKind.Conversation,
+            "vocabularyquiz" or "vocabquiz" or "quiz" or "vocabularyreview" => CoachActivityKind.VocabularyQuiz,
+            "vocabularymatching" or "vocabmatching" or "matching" => CoachActivityKind.VocabularyMatching,
+            "cloze" => CoachActivityKind.Cloze,
+            "translation" or "translate" => CoachActivityKind.Translation,
+            "numberdrill" or "numbers" => CoachActivityKind.NumberDrill,
+            "writing" => CoachActivityKind.Writing,
+            "reading" => CoachActivityKind.Reading,
+            "shadowing" or "listening" => CoachActivityKind.Shadowing,
+            "howdoyousay" => CoachActivityKind.HowDoYouSay,
+            "wordassociation" => CoachActivityKind.WordAssociation,
+            "diary" => CoachActivityKind.Diary,
+            "flashcards" or "flashcard" => CoachActivityKind.Flashcards,
+            "scene" or "describeascene" or "scenedescription" => CoachActivityKind.Scene,
+            "minimalpairs" => CoachActivityKind.MinimalPairs,
+            _ => null
+        };
     }
 
     /// <summary>
@@ -2115,7 +2225,7 @@ public sealed class CoachSessionService : ICoachSessionService
             return await AskClarificationAsync(
                 userProfileId,
                 session,
-                "I can't start activities in this version. Would you like help studying that topic here instead?",
+                "Do you want me to open that activity now, or change Today's Plan?",
                 cancellationToken).ConfigureAwait(false);
         }
 

@@ -80,6 +80,24 @@ public sealed partial class NativeSamPresenter(
     public event Action<string, string>? WordRequested;
 
     /// <summary>
+    /// The activity Sam prepared should open now (owner, the server-checked launch): the countdown
+    /// ran out or the learner tapped Start. The head opens it as its tile would.
+    /// </summary>
+    public event Action<string, CoachActivityLaunchDto>? ActivityRequested;
+
+    /// <summary>
+    /// Set by the head: true when an activity may open by itself after the countdown. False while
+    /// a screen reader runs (the reply needs reading first) or an activity is already open; the
+    /// card then offers Start instead.
+    /// </summary>
+    public Func<bool>? CanAutoOpenActivity { get; set; }
+
+    /// <summary>Seconds the countdown runs before an activity the learner asked for opens.</summary>
+    public const int ActivityCountdownSeconds = 3;
+
+    private CancellationTokenSource? _activityCountdown;
+
+    /// <summary>
     /// Reads availability for the current owner. Only <c>IsSamOverlayAvailable</c>
     /// shows the entry (source CoachSurfaceGate). A failed read hides Sam, except
     /// that an owner already known to have Sam keeps the entry while offline so
@@ -191,8 +209,10 @@ public sealed partial class NativeSamPresenter(
     {
         if (!_state.IsOpen)
             return;
-        // Closing never ends or deletes the conversation (source J3 step 4).
-        Publish(_state with { IsOpen = false, ConversationsOpen = false });
+        // Closing never ends or deletes the conversation (source J3 step 4). A countdown stops:
+        // the learner closed the panel it was in.
+        StopActivityCountdown();
+        Publish(_state with { IsOpen = false, ConversationsOpen = false, ActivityCountdown = null });
     }
 
     public void SetSize(NativeSamPanelSize size)
@@ -204,6 +224,9 @@ public sealed partial class NativeSamPresenter(
     public void SetDraft(string text)
     {
         text ??= string.Empty;
+        // Typing to Sam means the learner is still talking to it: the countdown stops.
+        if (_state.ActivityCountdown is not null && !string.Equals(_state.Draft, text, StringComparison.Ordinal))
+            CancelActivityCountdown();
         if (!string.Equals(_state.Draft, text, StringComparison.Ordinal))
             Publish(_state with { Draft = text }, structural: false);
     }
@@ -406,6 +429,8 @@ public sealed partial class NativeSamPresenter(
         var switching = _state.ConversationId != conversationId;
         if (switching)
         {
+            // A prepared activity belongs to the thread that asked for it.
+            StopActivityCountdown();
             _evidence.Clear();
             _wordLists.Clear();
             _limitations.Clear();
@@ -429,6 +454,8 @@ public sealed partial class NativeSamPresenter(
             VocabularySet = null,
             VocabularySetMessageKey = null,
             ApprovedResourceId = null,
+            ActivityLaunch = switching ? null : _state.ActivityLaunch,
+            ActivityCountdown = switching ? null : _state.ActivityCountdown,
             ExpandedEvidence = null,
             ClarifyingQuestion = null,
             CanRetry = false,
@@ -603,12 +630,15 @@ public sealed partial class NativeSamPresenter(
         _repairs.Clear();
         DiscardConfirmation();
         _localEntries = [];
+        StopActivityCountdown();
         Publish(_state with
         {
             ConversationId = null,
             Entries = [],
             TranscriptLoading = false,
             Suggestion = null,
+            ActivityLaunch = null,
+            ActivityCountdown = null,
             VocabularySet = null,
             ApprovedResourceId = null,
             ActiveWriteId = null,
@@ -712,6 +742,7 @@ public sealed partial class NativeSamPresenter(
     /// <summary>Account boundary: nothing of a previous owner survives (source CoachAccountBoundary).</summary>
     private void Reset(string? owner)
     {
+        StopActivityCountdown();
         _run?.Cancel();
         _run = null;
         _owner = owner;

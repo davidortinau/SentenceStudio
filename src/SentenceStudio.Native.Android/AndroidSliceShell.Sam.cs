@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using SentenceStudio.Contracts.Coach;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Settings;
@@ -45,6 +47,11 @@ internal sealed partial class AndroidSliceShell
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
         _sam.WordRequested += OnSamWordRequested;
+        _sam.ActivityRequested += OnSamActivityRequested;
+        // Opens by itself only from Study with nothing else open, and never under TalkBack.
+        _sam.CanAutoOpenActivity = () => !_screenReaderRunning
+            && Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
+            && !IsMoreScreenOpen && !IsResourceFormOpen;
         return _sam;
     }
 
@@ -175,6 +182,7 @@ internal sealed partial class AndroidSliceShell
         sam.PlanChanged -= OnSamPlanChanged;
         sam.VocabularyReviewRequested -= OnSamVocabularyReview;
         sam.WordRequested -= OnSamWordRequested;
+        sam.ActivityRequested -= OnSamActivityRequested;
     }
 
     // Draft edits re-render synchronously on the UI thread so Compose keeps the
@@ -561,6 +569,53 @@ internal sealed partial class AndroidSliceShell
             return;
         }
         OpenMoreScreen(MoreScreen.Vocabulary, openWordId: wordId);
+    }
+
+    /// <summary>
+    /// The activity Sam prepared opens, as its Choose My Own tile would, with the resources, skill,
+    /// scenario and language the server checked (as on iOS).
+    /// </summary>
+    private void OnSamActivityRequested(string owner, CoachActivityLaunchDto launch)
+    {
+        if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
+            || IsMoreScreenOpen || IsResourceFormOpen || !HasDashboardOwner(owner)
+            || CoachActivityRoutes.Route(launch.Activity) is not { } route)
+        {
+            _sam?.ReportActivityBlockedByScreen();
+            return;
+        }
+        Execute(async cancellationToken =>
+        {
+            if (_scope is null)
+                return;
+            var provider = _scope.ServiceProvider;
+            var resources = launch.ResourceIds.ToImmutableArray();
+            if (launch.Activity == CoachActivityKind.VocabularyQuiz)
+            {
+                var quiz = await provider.GetRequiredService<NativeQuizLaunchService>()
+                    .CreateChooseOwnAsync(owner, resources, launch.SkillId, cancellationToken: cancellationToken);
+                if (quiz is null)
+                {
+                    _sam?.ReportActivityNotOpened();
+                    return;
+                }
+                Post(() => _sam?.Close());
+                await StartQuizAsync(quiz, cancellationToken);
+                return;
+            }
+            var selection = new NativeQuizLaunch(owner, DateOnly.FromDateTime(DateTime.Today), string.Empty,
+                resources, launch.SkillId, []);
+            var activity = await provider.GetRequiredService<NativeActivityLaunchService>()
+                .FromChooseOwnAsync(selection, route, cancellationToken);
+            if (activity is null)
+            {
+                _sam?.ReportActivityNotOpened();
+                return;
+            }
+            Post(() => _sam?.Close());
+            await StartActivityAsync(activity with { ScenarioId = launch.ScenarioId, Language = launch.Language },
+                cancellationToken);
+        });
     }
 
     private void StartSamVocabularyReview(string owner, string resourceId) => Execute(async cancellationToken =>

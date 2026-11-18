@@ -69,7 +69,7 @@ public sealed class NativeConversationVoiceService(
                 situation_description = scenario?.SituationDescription
                     ?? "A casual conversation to practise speaking.",
                 conversation_type = (scenario?.ConversationType ?? ConversationType.OpenEnded).ToString(),
-                question_bank = scenario?.QuestionBank
+                question_bank = SentenceStudio.Services.ConversationScenarioPrompts.QuestionBankFor(scenario?.QuestionBank, request.TargetLanguage)
             },
             target_language = request.TargetLanguage,
             // Scriban treats "" as true, so no turns must be null to leave the section out.

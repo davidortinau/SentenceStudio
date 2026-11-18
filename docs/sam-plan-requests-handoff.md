@@ -8,7 +8,7 @@ wait for the Captain.
 |---|---|---|
 | 0: Sam knows the screen | `feat/sam-screen-context` | Committed 25c46be1. Verified on iOS sim, Android emulator (Pixel_9_Pro) and web. |
 | 1: plan routing, plan reads, word lists | `feat/sam-plan-reads` | Committed. Verified on web, Android and iOS (below). |
-| 2: start an activity | | Not started |
+| 2: start an activity | `feat/sam-start-activity` | Committed. Verified on web, Android and iOS (below). |
 | 3: builder keeps content, fills > 34 min | | Not started |
 | 4: default duration | | Not started |
 | 5: topic focus from tags | | Not started |
@@ -42,10 +42,39 @@ wait for the Captain.
   - **Hidden-answer quiz word:** only its hidden side stays withheld, whether or not it is due.
 - **Route ids**: `CoachRouteCatalog` accepts canonical GUIDs, so word links reach the word.
 
+## Phase 2: what changed
+
+- **Model output:** a routing marker `CoachTurnIntent.ActivityLaunch` (the activity, a language, the
+  situation in the learner's words, a resource or skill id).
+- **Server checks** (`CoachSessionService.AttachActivityLaunchAsync`). Anything unchecked is dropped:
+  - the activity is one of `CoachActivityKind`;
+  - a language is accepted only for Conversation, from `LearnerProfileOptions.TargetLanguages`, and
+    never the learner's native or current target language;
+  - the scenario is matched to a built-in by whole words (`BuiltInConversationScenarios`);
+  - the resource and skill must be the learner's own.
+- **Opening by itself:** `AutoStart` is set only when the learner's own words say start, open, launch
+  or begin with an activity named, and the message is not a question (`IsExplicitActivityStart`).
+- **Clients** (`CoachActivityLaunchCard.razor`; iOS `SamView.ActivityLaunch`; Android `SamActivityLaunch`):
+  - **The card:** "Opening Conversation · German · Asking for Directions" with Cancel. On web, Cancel's
+    fill drains right to left over 3 s; on iOS and Android, a bar under Cancel steps down once a
+    second.
+  - **When it opens:** when the time runs out, as its Choose My Own tile would, and Sam closes.
+  - **What stops the countdown:** Cancel, typing to Sam, closing Sam, switching or starting a
+    conversation, an account change, or (web) focusing Cancel.
+  - **Never auto-opens:** under VoiceOver or TalkBack, over another activity or quiz, for a reply read
+    back from history, or for a recovered operation. Start and Not now show instead.
+- **Native launch:** `NativeActivityLaunch` carries `ScenarioId` and `Language`, and the native
+  conversation opens on them.
+
 ## Known limits
 
 - The word list isn't kept in durable history. Reloading a conversation shows Sam's sentence ("the
   list appears below") without the list.
+- The iOS and Android countdown bar steps down once a second (the SwiftUI bridge has no smooth
+  animation yet); the web fill animates smoothly.
+- The web can't detect a screen reader. Instead, reaching Cancel by keyboard or screen reader stops
+  the countdown, and the countdown is announced in a polite live region.
+- Scenarios are matched to built-ins only. A learner's own custom scenarios are not matched yet.
 - `IsWordListRequest` and the on-screen routing use English and Korean phrase patterns. Other
   wording falls back to the old behavior (clarify, or no list).
 

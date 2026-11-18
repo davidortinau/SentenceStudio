@@ -501,6 +501,80 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task AnActivityTheLearnerAskedForOpensAfterTheCountdown()
+    {
+        var (sam, opened, _) = await SendLaunchAsync(autoStart: true, canAutoOpen: true);
+
+        Assert.Equal(NativeSamPresenter.ActivityCountdownSeconds, sam.State.ActivityCountdown);
+        for (var i = 0; i < 50 && opened.Count == 0; i++)
+            await Task.Delay(100);
+
+        var launch = Assert.Single(opened).Launch;
+        Assert.Equal(CoachActivityKind.Conversation, launch.Activity);
+        Assert.Null(sam.State.ActivityLaunch);
+    }
+
+    [Fact]
+    public async Task TypingStopsTheCountdownAndNothingOpens()
+    {
+        var (sam, opened, _) = await SendLaunchAsync(autoStart: true, canAutoOpen: true);
+
+        sam.SetDraft("wait");
+        await Task.Delay(TimeSpan.FromSeconds(NativeSamPresenter.ActivityCountdownSeconds + 0.5));
+
+        Assert.Empty(opened);
+        Assert.Null(sam.State.ActivityCountdown);
+        Assert.NotNull(sam.State.ActivityLaunch);
+        sam.StartActivityLaunch();
+        Assert.Single(opened);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task WithoutAskingOrWithAScreenReaderTheCardWaitsForStart(bool autoStart, bool canAutoOpen)
+    {
+        var (sam, opened, _) = await SendLaunchAsync(autoStart, canAutoOpen);
+
+        Assert.Null(sam.State.ActivityCountdown);
+        await Task.Delay(TimeSpan.FromSeconds(NativeSamPresenter.ActivityCountdownSeconds + 0.5));
+        Assert.Empty(opened);
+        sam.DismissActivityLaunch();
+        Assert.Null(sam.State.ActivityLaunch);
+    }
+
+    private static async Task<(NativeSamPresenter Sam, List<(string Owner, CoachActivityLaunchDto Launch)> Opened, NativeSliceFixture Fixture)>
+        SendLaunchAsync(bool autoStart, bool canAutoOpen)
+    {
+        var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        api.TurnResult = (_, _) => new CoachTurnResponse
+        {
+            SessionId = "session-1", TurnId = "turn-1", Status = CoachTurnStatus.Completed,
+            StopReason = CoachStopReason.Completed, SessionStatus = CoachSessionStatus.Active,
+            ActiveConstraints = Constraints(), PlanState = Plan(), Evidence = [],
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
+            ActivityLaunch = new CoachActivityLaunchDto
+            {
+                Activity = CoachActivityKind.Conversation, Language = "German",
+                ScenarioId = "scn:asking-for-directions", ScenarioName = "Asking for Directions",
+                AutoStart = autoStart
+            }
+        };
+        var sam = Create(fixture, api);
+        sam.CanAutoOpenActivity = () => canAutoOpen;
+        var opened = new List<(string Owner, CoachActivityLaunchDto Launch)>();
+        sam.ActivityRequested += (owner, launch) => opened.Add((owner, launch));
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        sam.SetDraft("start a conversation in German about getting directions");
+        await sam.SendAsync();
+        return (sam, opened, fixture);
+    }
+
+    [Fact]
     public async Task UnavailableAvailabilityHidesTheEntry()
     {
         using var fixture = new NativeSliceFixture();

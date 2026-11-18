@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using SentenceStudio.Contracts.Coach;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
@@ -72,6 +74,9 @@ internal sealed partial class ApplicationController
         DeclineSet: () => RunSam(sam => sam.DeclineVocabularySetAsync(_lifetime.Token)),
         StartReview: () => _sam?.StartVocabularyReview(),
         OpenWord: wordId => _sam?.OpenListedWord(wordId),
+        StartActivity: () => _sam?.StartActivityLaunch(),
+        CancelActivity: () => _sam?.CancelActivityCountdown(),
+        DismissActivity: () => _sam?.DismissActivityLaunch(),
         Writes: new SamWriteActions(
             Accept: id => RunSam(sam => sam.AcceptWriteAsync(id, _lifetime.Token)),
             Review: id => RunSam(sam => sam.BeginWriteConfirmationAsync(id, _lifetime.Token)),
@@ -183,6 +188,11 @@ internal sealed partial class ApplicationController
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
         _sam.WordRequested += OnSamWordRequested;
+        _sam.ActivityRequested += OnSamActivityRequested;
+        // An activity opens by itself only from the Study tab, with nothing else open, and never
+        // under VoiceOver: the reply has to be read before anything moves.
+        _sam.CanAutoOpenActivity = () => !UIKit.UIAccessibility.IsVoiceOverRunning
+            && _destination == NativeDestination.Dashboard && !IsActivityOpen && !NavigationBlocked;
         return _sam;
     }
 
@@ -362,6 +372,53 @@ internal sealed partial class ApplicationController
             CloseResourceOpenedFromStudy();
             _selectedTab = NativeTabs.Study;
             await StartQuizAsync(launch);
+        });
+    }
+
+    /// <summary>
+    /// The activity Sam prepared opens (the countdown ran out or the learner tapped Start), as
+    /// its Choose My Own tile would, with the resources, skill, scenario and language the server
+    /// checked. Not over a quiz or another activity: Sam says to leave it first.
+    /// </summary>
+    private void OnSamActivityRequested(string owner, CoachActivityLaunchDto launch)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || IsActivityOpen
+            || _services is null || CoachActivityRoutes.Route(launch.Activity) is not { } route)
+        {
+            _sam?.ReportActivityBlockedByScreen();
+            return;
+        }
+        Run(async () =>
+        {
+            var resources = launch.ResourceIds.ToImmutableArray();
+            if (launch.Activity == CoachActivityKind.VocabularyQuiz)
+            {
+                var quiz = await _services.Provider.GetRequiredService<NativeQuizLaunchService>()
+                    .CreateChooseOwnAsync(owner, resources, launch.SkillId, cancellationToken: _lifetime.Token);
+                if (quiz is null)
+                {
+                    _sam?.ReportActivityNotOpened();
+                    return;
+                }
+                _sam?.Close();
+                CloseResourceOpenedFromStudy();
+                _selectedTab = NativeTabs.Study;
+                await StartQuizAsync(quiz);
+                return;
+            }
+            var selection = new NativeQuizLaunch(owner, DateOnly.FromDateTime(DateTime.Today), string.Empty,
+                resources, launch.SkillId, []);
+            var activity = await _services.Provider.GetRequiredService<NativeActivityLaunchService>()
+                .FromChooseOwnAsync(selection, route, _lifetime.Token);
+            if (activity is null)
+            {
+                _sam?.ReportActivityNotOpened();
+                return;
+            }
+            _sam?.Close();
+            CloseResourceOpenedFromStudy();
+            _selectedTab = NativeTabs.Study;
+            StartActivity(activity with { ScenarioId = launch.ScenarioId, Language = launch.Language });
         });
     }
 

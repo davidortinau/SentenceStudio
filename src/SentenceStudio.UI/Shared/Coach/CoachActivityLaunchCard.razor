@@ -1,0 +1,183 @@
+@implements IDisposable
+@inject CoachWorkspaceState Coach
+@inject BlazorLocalizationService Localize
+@inject NavigationManager Navigation
+
+@* Sam opening an activity the learner asked for (Captain, 2026-11-17): a Cancel button whose fill
+   drains over three seconds, then the activity opens as its tile would. It never counts down for a
+   reply the learner did not ask to start, a recovered reply, or over a running activity: then it
+   offers Start instead. Typing in Sam stops the countdown, and so does reaching Cancel: a screen
+   reader or keyboard user who moves to the card is still reading, so it waits for them. *@
+@if (Coach.ActivityLaunch is { } launch && CoachActivityRoutes.Route(launch.Activity) is { } route)
+{
+    <section class="coach-card coach-activity-launch" aria-labelledby="coach-activity-launch-title">
+        <div class="d-flex align-items-start gap-2 mb-2">
+            <i class="bi bi-play-circle" aria-hidden="true"></i>
+            <div>
+                <div id="coach-activity-launch-title" class="ss-body1 fw-semibold">
+                    @Localize.Get("Coach_ActivityLaunch_Title", Localize[CoachActivityRoutes.TitleKey(launch.Activity)])
+                </div>
+                @if (Details(launch) is { Length: > 0 } details)
+                {
+                    <div class="ss-caption1 text-secondary-ss">@details</div>
+                }
+            </div>
+        </div>
+
+        @if (_counting)
+        {
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button type="button" id="coach-activity-cancel"
+                        class="btn btn-ss-secondary coach-action coach-countdown"
+                        style="--coach-countdown: @(CountdownSeconds)s"
+                        @onfocus="Cancel"
+                        aria-label="@Localize.Get("Coach_ActivityLaunch_CancelLabel", Localize[CoachActivityRoutes.TitleKey(launch.Activity)])"
+                        @onclick="Cancel">
+                    <span>@Localize["Common_Cancel"]</span>
+                </button>
+                <span class="ss-caption1 text-secondary-ss" role="status" aria-live="polite">
+                    @Localize.Get("Coach_ActivityLaunch_Countdown", _remaining)
+                </span>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" id="coach-activity-start" class="btn btn-ss-primary coach-action" @onclick="Open">
+                    <i class="bi bi-play-fill me-1" aria-hidden="true"></i>@Localize["Coach_ActivityLaunch_Start"]
+                </button>
+                <button type="button" id="coach-activity-dismiss" class="btn btn-ss-secondary coach-action" @onclick="Dismiss">
+                    @Localize["Coach_ActivityLaunch_NotNow"]
+                </button>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    internal const int CountdownSeconds = 3;
+
+    private CoachActivityLaunchDto? _counted;
+    private bool _counting;
+    private int _remaining;
+    private string _draftAtStart = string.Empty;
+    private CancellationTokenSource? _countdown;
+
+    protected override void OnInitialized()
+    {
+        Coach.Changed += OnCoachChanged;
+        Begin();
+    }
+
+    private void OnCoachChanged() => _ = InvokeAsync(() =>
+    {
+        // Typing in Sam means the learner is still talking to it: stop.
+        if (_counting && !string.Equals(Coach.Draft, _draftAtStart, StringComparison.Ordinal))
+            Cancel();
+        Begin();
+        StateHasChanged();
+    });
+
+    /// <summary>Starts the countdown once per launch, and only when it may open by itself.</summary>
+    private void Begin()
+    {
+        if (Coach.ActivityLaunch is not { } launch || ReferenceEquals(launch, _counted))
+            return;
+        _counted = launch;
+        if (!Coach.ActivityLaunchMayAutoStart || OnActivityPage())
+            return;
+        _countdown?.Cancel();
+        _countdown = new CancellationTokenSource();
+        _counting = true;
+        _remaining = CountdownSeconds;
+        _draftAtStart = Coach.Draft;
+        _ = RunAsync(_countdown.Token);
+    }
+
+    private async Task RunAsync(CancellationToken token)
+    {
+        try
+        {
+            while (_remaining > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), token);
+                _remaining--;
+                await InvokeAsync(StateHasChanged);
+            }
+            await InvokeAsync(Open);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private void Cancel()
+    {
+        _countdown?.Cancel();
+        _counting = false;
+        Coach.SettleActivityLaunch(dismiss: false);
+    }
+
+    private void Dismiss()
+    {
+        Cancel();
+        Coach.SettleActivityLaunch(dismiss: true);
+    }
+
+    private void Open()
+    {
+        if (Coach.ActivityLaunch is not { } launch || CoachActivityRoutes.Route(launch.Activity) is not { } route)
+            return;
+        _countdown?.Cancel();
+        _counting = false;
+        Coach.SettleActivityLaunch(dismiss: true);
+        // Sam steps aside for the activity, as it does on iOS and Android.
+        Coach.RequestCollapse();
+        Navigation.NavigateTo(Url(launch, route));
+    }
+
+    /// <summary>The address the activity's tile opens, with what Sam checked on the server.</summary>
+    public static string Url(CoachActivityLaunchDto launch, string route)
+    {
+        var query = new Dictionary<string, string?>();
+        if (launch.ResourceIds.Count > 0)
+        {
+            if (route is "vocab-quiz" or "vocab-matching" or "word-association")
+                query["resourceIds"] = string.Join(",", launch.ResourceIds);
+            else
+                query["resourceId"] = launch.ResourceIds[0];
+        }
+        if (!string.IsNullOrWhiteSpace(launch.SkillId))
+            query["skillId"] = launch.SkillId;
+        if (launch.Activity == CoachActivityKind.Conversation)
+        {
+            if (!string.IsNullOrWhiteSpace(launch.ScenarioId))
+                query["scenarioId"] = launch.ScenarioId;
+            if (!string.IsNullOrWhiteSpace(launch.Language))
+                query["language"] = launch.Language;
+        }
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/" + route, query);
+    }
+
+    private string Details(CoachActivityLaunchDto launch) => string.Join(" · ",
+        new[] { launch.Language, launch.ScenarioName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>An activity is running: leaving it is the learner's call, so no countdown.</summary>
+    private bool OnActivityPage()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+        return Enum.GetValues<CoachActivityKind>()
+            .Select(CoachActivityRoutes.Route)
+            .Any(route => route is not null && (path == route || path.StartsWith(route + "/", StringComparison.Ordinal)));
+    }
+
+    public void Dispose()
+    {
+        Coach.Changed -= OnCoachChanged;
+        // Sam closed mid-countdown: reopening it later must not start the old launch again.
+        if (_counting)
+            Coach.StopActivityLaunchCountdown();
+        _countdown?.Cancel();
+        _countdown?.Dispose();
+    }
+}

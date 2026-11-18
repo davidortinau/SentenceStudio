@@ -354,6 +354,8 @@ public sealed partial class NativeSamPresenter
             return;
         }
         ApplyTurn(result, answerId);
+        // A live reply only: a transcript read back from history never opens anything.
+        ShowActivityLaunch(result.ActivityLaunch);
         await LoadVocabularyStateAsync(owner, conversationId, cancellationToken,
             result.VocabularySetProposal);
     }
@@ -573,6 +575,92 @@ public sealed partial class NativeSamPresenter
         if (listed)
             WordRequested?.Invoke(owner, wordId);
     }
+
+    // ---------------------------------------------------------------- opening an activity
+
+    /// <summary>
+    /// Shows the activity a live reply opens, and counts down to it when the learner asked to start
+    /// it and the head allows it to open by itself (source CoachActivityLaunchCard).
+    /// </summary>
+    private void ShowActivityLaunch(CoachActivityLaunchDto? launch)
+    {
+        StopActivityCountdown();
+        if (launch is null || CoachActivityRoutes.Route(launch.Activity) is null)
+        {
+            Publish(_state with { ActivityLaunch = null, ActivityCountdown = null });
+            return;
+        }
+        var counts = launch.AutoStart && (CanAutoOpenActivity?.Invoke() ?? false);
+        Publish(_state with { ActivityLaunch = launch, ActivityCountdown = counts ? ActivityCountdownSeconds : null });
+        if (counts)
+            _ = RunActivityCountdownAsync(launch);
+    }
+
+    private async Task RunActivityCountdownAsync(CoachActivityLaunchDto launch)
+    {
+        var countdown = new CancellationTokenSource();
+        _activityCountdown = countdown;
+        try
+        {
+            for (var remaining = ActivityCountdownSeconds; remaining > 0; remaining--)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), countdown.Token);
+                if (!ReferenceEquals(_state.ActivityLaunch, launch))
+                    return;
+                Publish(_state with { ActivityCountdown = remaining - 1 });
+            }
+            StartActivityLaunch();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_activityCountdown, countdown))
+                _activityCountdown = null;
+            countdown.Dispose();
+        }
+    }
+
+    /// <summary>Opens the prepared activity now (the countdown ran out, or Start was tapped).</summary>
+    public void StartActivityLaunch()
+    {
+        StopActivityCountdown();
+        if (!TryOwner(out var owner) || _state.ActivityLaunch is not { } launch)
+            return;
+        Publish(_state with { ActivityLaunch = null, ActivityCountdown = null });
+        ActivityRequested?.Invoke(owner, launch);
+    }
+
+    /// <summary>Cancel: the card stays with Start, and nothing opens by itself.</summary>
+    public void CancelActivityCountdown()
+    {
+        StopActivityCountdown();
+        if (_state.ActivityCountdown is not null)
+            Publish(_state with { ActivityCountdown = null });
+    }
+
+    /// <summary>Not now: the card goes away.</summary>
+    public void DismissActivityLaunch()
+    {
+        StopActivityCountdown();
+        Publish(_state with { ActivityLaunch = null, ActivityCountdown = null });
+    }
+
+    private void StopActivityCountdown()
+    {
+        // Cancelled here, disposed by the countdown itself when it ends.
+        _activityCountdown?.Cancel();
+        _activityCountdown = null;
+    }
+
+    /// <summary>The prepared activity cannot open over the screen behind Sam (a quiz or activity).</summary>
+    public void ReportActivityBlockedByScreen() =>
+        Publish(_state with { NoticeKey = "NativeSam_ActivityLeaveScreen" });
+
+    /// <summary>The prepared activity could not open (its resource or skill is gone).</summary>
+    public void ReportActivityNotOpened() =>
+        Publish(_state with { NoticeKey = "NativeSam_ActivityOpenFailed" });
 
     /// <summary>The word could not open (deleted since Sam listed it, or another edit waits).</summary>
     public void ReportListedWordNotOpened() =>

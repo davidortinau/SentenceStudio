@@ -1300,6 +1300,51 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Cancel opening {0}.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_CancelLabel {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_CancelLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opening in {0} s.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Countdown {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Countdown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not now.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_NotNow {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_NotNow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Start {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Start", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opening {0}.
+        /// </summary>
+        internal static string Coach_ActivityLaunch_Title {
+            get {
+                return ResourceManager.GetString("Coach_ActivityLaunch_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Export them first, so you can get them back.
         /// </summary>
         internal static string Coach_Alternative_ExportBeforeRemoving {
@@ -11961,6 +12006,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeResources_VocabularyPartial {
             get {
                 return ResourceManager.GetString("NativeResources_VocabularyPartial", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close the screen you are on, then start this activity..
+        /// </summary>
+        internal static string NativeSam_ActivityLeaveScreen {
+            get {
+                return ResourceManager.GetString("NativeSam_ActivityLeaveScreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That activity could not open. Its resource or skill may be gone..
+        /// </summary>
+        internal static string NativeSam_ActivityOpenFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_ActivityOpenFailed", resourceCulture);
             }
         }
 

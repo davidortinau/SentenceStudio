@@ -199,6 +199,33 @@ public sealed partial class CoachWorkspaceState : IDisposable
     /// </remarks>
     public CoachLimitationDto? Limitation { get; private set; }
 
+    /// <summary>The activity the last turn opens, until it opens or the learner dismisses it.</summary>
+    public CoachActivityLaunchDto? ActivityLaunch { get; private set; }
+
+    /// <summary>
+    /// True when <see cref="ActivityLaunch"/> may open by itself after the countdown: the learner
+    /// asked to start it in this session's live turn, not a resumed or replayed one.
+    /// </summary>
+    public bool ActivityLaunchMayAutoStart { get; private set; }
+
+    /// <summary>Raised when Sam should step aside (an activity it opened is starting).</summary>
+    public event Action? CollapseRequested;
+
+    /// <summary>Asks the host to collapse Sam's panel, as iOS and Android close Sam for an activity.</summary>
+    public void RequestCollapse() => CollapseRequested?.Invoke();
+
+    /// <summary>The card went away (Sam closed): a launch it showed never counts down again.</summary>
+    public void StopActivityLaunchCountdown() => ActivityLaunchMayAutoStart = false;
+
+    /// <summary>The learner cancelled the countdown or the activity opened: stop counting.</summary>
+    public void SettleActivityLaunch(bool dismiss)
+    {
+        ActivityLaunchMayAutoStart = false;
+        if (dismiss)
+            ActivityLaunch = null;
+        Notify();
+    }
+
     /// <summary>
     /// True when the last turn was withheld rather than answered.
     /// </summary>
@@ -371,6 +398,10 @@ public sealed partial class CoachWorkspaceState : IDisposable
 
     private void ClearConversationVocabularyState()
     {
+        // A prepared activity belongs to the conversation (and the learner) that asked for it: a
+        // new or other conversation, a reset or an account change never inherits it.
+        ActivityLaunch = null;
+        ActivityLaunchMayAutoStart = false;
         PendingVocabularySet = null;
         ApprovedVocabularySet = null;
         IsVocabularySetDecisionBusy = false;
@@ -2273,12 +2304,18 @@ public sealed partial class CoachWorkspaceState : IDisposable
         long turnSequence = 0,
         bool ledgerIsAuthoritative = false,
         bool durableVocabularyStateApplied = false,
-        string? durableConversationId = null)
+        string? durableConversationId = null,
+        bool resumed = false)
     {
         if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
         {
             return;
         }
+
+        // Replaced from every turn, null included. A resumed operation (the reply arrived after a
+        // reconnect) shows the launch but never counts down: the learner may be elsewhere now.
+        ActivityLaunch = turn.ActivityLaunch;
+        ActivityLaunchMayAutoStart = turn.ActivityLaunch is { AutoStart: true } && !resumed;
 
         // Every artifact of this response belongs to the exchange that asked for it, so a slow
         // reply lands beside its own question rather than after a later one.

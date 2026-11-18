@@ -3975,3 +3975,37 @@ body:has(.sam-fab) .shared-ingest-toast {
         animation: none !important;
     }
 }
+
+/* Sam opening an activity: Cancel's fill drains right to left over the countdown (3 s). */
+.coach-countdown {
+    position: relative;
+    overflow: hidden;
+}
+
+.coach-countdown::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--bs-primary);
+    opacity: 0.28;
+    transform-origin: left center;
+    animation: coach-countdown-drain var(--coach-countdown, 3s) linear forwards;
+    pointer-events: none;
+}
+
+.coach-countdown > * {
+    position: relative;
+}
+
+@keyframes coach-countdown-drain {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+/* Reduced motion: no moving fill; the text countdown beside the button says the same. */
+@media (prefers-reduced-motion: reduce) {
+    .coach-countdown::before {
+        animation: none;
+        opacity: 0;
+    }
+}

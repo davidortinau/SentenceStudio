@@ -80,4 +80,11 @@ public sealed class CoachTurnIntent
     /// </summary>
     [Description("Routing marker for an explicit request to start or do a topical vocabulary review activity. Set Kind to NoChange and set only VocabularySet.Topic; the server prepares the terms and approval card. Do not ask whether to replace Today's Plan. Leave empty for broad 'study vocabulary' requests, plan requests, and ordinary questions.")]
     public CoachVocabularySetIntent? VocabularySet { get; set; }
+
+    /// <summary>
+    /// Marks an explicit request to open an activity. The model names it; the application checks
+    /// every part and the client opens it after a short countdown the learner can cancel.
+    /// </summary>
+    [Description("Routing marker for an explicit request to start, open or do an activity now, such as 'start a conversation in German about getting directions' or 'open a cloze on this resource'. Set Kind to GeneralAnswer, say in one short sentence what you are opening, and fill ActivityLaunch. The app opens it after a countdown the learner can cancel; never claim it already started. Leave empty for plan changes, topical vocabulary reviews (use VocabularySet) and questions about activities.")]
+    public CoachActivityLaunchIntent? ActivityLaunch { get; set; }
 }

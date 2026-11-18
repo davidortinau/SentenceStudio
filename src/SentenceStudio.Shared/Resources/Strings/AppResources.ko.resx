@@ -10304,4 +10304,32 @@
     <value>이 단어를 열 수 없어요. 삭제되었을 수 있어요.</value>
     <comment>Sam: a listed word row was tapped but its editor could not open</comment>
   </data>
+  <data name="Coach_ActivityLaunch_Title" xml:space="preserve">
+    <value>{0} 여는 중</value>
+    <comment>Sam: card title while Sam opens an activity. {0} is the activity name</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Countdown" xml:space="preserve">
+    <value>{0}초 후에 열려요</value>
+    <comment>Sam: countdown beside Cancel. {0} is whole seconds left</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_Start" xml:space="preserve">
+    <value>시작</value>
+    <comment>Sam: opens the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_NotNow" xml:space="preserve">
+    <value>나중에</value>
+    <comment>Sam: dismisses the activity Sam prepared</comment>
+  </data>
+  <data name="Coach_ActivityLaunch_CancelLabel" xml:space="preserve">
+    <value>{0} 열기 취소</value>
+    <comment>Sam: accessible name of the countdown Cancel button. {0} is the activity name</comment>
+  </data>
+  <data name="NativeSam_ActivityLeaveScreen" xml:space="preserve">
+    <value>지금 보고 있는 화면을 닫은 뒤 이 활동을 시작하세요.</value>
+    <comment>Sam: the prepared activity cannot open over a quiz or another activity</comment>
+  </data>
+  <data name="NativeSam_ActivityOpenFailed" xml:space="preserve">
+    <value>이 활동을 열 수 없어요. 자료나 기술이 없어졌을 수 있어요.</value>
+    <comment>Sam: the prepared activity could not open</comment>
+  </data>
 </root>

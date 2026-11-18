@@ -179,6 +179,12 @@ public sealed class CoachTurnResponse
     public CoachWordListDto? WordList { get; init; }
 
     /// <summary>
+    /// An activity Sam is opening because the learner asked it to, checked by the server. Null when
+    /// the turn opens nothing. Additive: a client that does not know it shows Sam's sentence alone.
+    /// </summary>
+    public CoachActivityLaunchDto? ActivityLaunch { get; init; }
+
+    /// <summary>
     /// Returns a copy carrying the given write proposal.
     /// </summary>
     /// <remarks>
@@ -210,7 +216,8 @@ public sealed class CoachTurnResponse
         MemoryCandidate = MemoryCandidate,
         WriteOperation = writeOperation,
         VocabularySetProposal = VocabularySetProposal,
-        WordList = WordList
+        WordList = WordList,
+        ActivityLaunch = ActivityLaunch
     };
 
     /// <summary>
@@ -245,7 +252,8 @@ public sealed class CoachTurnResponse
         MemoryCandidate = candidate,
         WriteOperation = WriteOperation,
         VocabularySetProposal = VocabularySetProposal,
-        WordList = WordList
+        WordList = WordList,
+        ActivityLaunch = ActivityLaunch
     };
 
     /// <summary>
@@ -281,7 +289,8 @@ public sealed class CoachTurnResponse
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
         VocabularySetProposal = VocabularySetProposal,
-        WordList = WordList
+        WordList = WordList,
+        ActivityLaunch = ActivityLaunch
     };
 
     /// <summary>Returns a copy carrying an inert whole-set vocabulary proposal.</summary>
@@ -309,7 +318,8 @@ public sealed class CoachTurnResponse
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
         VocabularySetProposal = proposal,
-        WordList = WordList
+        WordList = WordList,
+        ActivityLaunch = ActivityLaunch
     };
 
     /// <summary>Returns a copy with no vocabulary proposal in the client projection.</summary>
@@ -340,7 +350,8 @@ public sealed class CoachTurnResponse
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
         VocabularySetProposal = null,
-        WordList = WordList
+        WordList = WordList,
+        ActivityLaunch = ActivityLaunch
     };
 
     /// <summary>Returns a copy carrying the words Sam listed this turn.</summary>
@@ -368,6 +379,36 @@ public sealed class CoachTurnResponse
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
         VocabularySetProposal = VocabularySetProposal,
-        WordList = wordList
+        WordList = wordList,
+        ActivityLaunch = ActivityLaunch
+    };
+
+    /// <summary>Returns a copy carrying the activity Sam is opening.</summary>
+    public CoachTurnResponse WithActivityLaunch(CoachActivityLaunchDto? launch) => new()
+    {
+        SessionId = SessionId,
+        TurnId = TurnId,
+        Status = Status,
+        StopReason = StopReason,
+        SessionStatus = SessionStatus,
+        Messages = Messages,
+        ActiveConstraints = ActiveConstraints,
+        PlanState = PlanState,
+        PendingSuggestion = PendingSuggestion,
+        ChangeReceipt = ChangeReceipt,
+        Answer = Answer,
+        Evidence = Evidence,
+        Dispute = Dispute,
+        Limitation = Limitation,
+        RepairDisclosure = RepairDisclosure,
+        ClarifyingQuestion = ClarifyingQuestion,
+        ClarificationsRemaining = ClarificationsRemaining,
+        RunsRemainingToday = RunsRemainingToday,
+        ExpiresAtUtc = ExpiresAtUtc,
+        MemoryCandidate = MemoryCandidate,
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = VocabularySetProposal,
+        WordList = WordList,
+        ActivityLaunch = launch
     };
 }

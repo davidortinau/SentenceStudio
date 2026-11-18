@@ -202,6 +202,21 @@ public sealed class CoachWriteAuthority
         "활동", "어휘 복습", "단어 복습", "연습"
     ];
 
+    /// <summary>The activities by name, for <see cref="IsExplicitActivityStart"/>.</summary>
+    private static readonly string[] ActivityNameMarkers =
+    [
+        "conversation", "cloze", "translation", "reading", "writing", "shadowing", "quiz",
+        "vocabulary quiz", "vocab quiz", "flashcards", "number drill", "word association",
+        "describe a scene", "scene", "how do you say", "minimal pairs", "vocabulary matching",
+        "matching", "diary", "activity", "대화", "읽기", "쓰기", "퀴즈", "번역", "일기", "활동"
+    ];
+
+    /// <summary>Only a word that means start: "do" is a question as often as a request.</summary>
+    private static readonly string[] ActivityStartMarkers =
+    [
+        "start", "open", "launch", "begin", "시작", "열어", "실행"
+    ];
+
     private static readonly string[] GeneralStudyMarkers =
     [
         "study", "practice", "learn", "공부", "연습", "학습"
@@ -374,7 +389,7 @@ public sealed class CoachWriteAuthority
     /// </summary>
     private PlanRoutingDecision ClassifyOnScreenPlanRequest(string text)
     {
-        if (IsActivityLaunchRequest(text))
+        if (IsActivityLaunchRequest(text) || IsExplicitActivityStart(text))
         {
             return PlanRoutingDecision.NoPlanReference;
         }
@@ -446,6 +461,26 @@ public sealed class CoachWriteAuthority
             @"\b(show|list|preview|see|view|which|what|give me|tell me|rank|sort)\b.*\b(words?|vocab|vocabulary|terms)\b"
             + @"|\b(words?|vocab|vocabulary|terms)\b.*\b(worst|weakest|hardest|lowest|struggl\w*|best|strongest)\b"
             + @"|(단어|어휘).*(보여|알려|목록|약한|어려운|못하는)");
+    }
+
+    /// <summary>
+    /// True when the learner's own words say to start a named activity now: "start a conversation
+    /// in German", "open a cloze", "let's start reading", "대화 시작해줘". Never a question, and never
+    /// "do" (which starts as many questions as requests). The only thing that lets an activity Sam
+    /// prepared open by itself.
+    /// </summary>
+    internal bool IsExplicitActivityStart(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Contains('?') || text.Contains('？'))
+        {
+            return false;
+        }
+
+        return SemanticClauses(text).Any(clause =>
+            !clause.IsPurpose
+            && !IsInformationalPlanConstruction(clause)
+            && ActivityNameMarkers.Any(marker => ContainsPhrase(clause.Text, marker))
+            && ActivityStartMarkers.Any(marker => IsBoundedActivityImperative(clause.Text, marker)));
     }
 
     /// <summary>

@@ -20,6 +20,7 @@ internal enum AndroidSamRowKind
     Outcome,
     VocabularySet,
     VocabularySetOutcome,
+    ActivityLaunch,
     Chips,
     Closed,
     Status,
@@ -199,6 +200,8 @@ internal static class AndroidSamProjection
             Add(new("vocabset:" + set.ProposalId, AndroidSamRowKind.VocabularySet));
         if (state.VocabularySetMessageKey is not null)
             Add(new("vocabset.outcome", AndroidSamRowKind.VocabularySetOutcome));
+        if (state.ActivityLaunch is { } launch)
+            Add(new("activity:" + launch.Activity, AndroidSamRowKind.ActivityLaunch));
         if (state.ShowStarters)
             Add(new("chips", AndroidSamRowKind.Chips));
         if (state.ConversationClosed)

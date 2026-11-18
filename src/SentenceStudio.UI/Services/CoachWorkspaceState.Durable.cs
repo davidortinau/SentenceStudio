@@ -959,7 +959,8 @@ public sealed partial class CoachWorkspaceState
                             _lastInitiator,
                             _pendingTurnSequence,
                             durableVocabularyStateApplied: durableVocabularyStateApplied,
-                            durableConversationId: conversationId);
+                            durableConversationId: conversationId,
+                            resumed: true);
                     }
                     else
                     {
