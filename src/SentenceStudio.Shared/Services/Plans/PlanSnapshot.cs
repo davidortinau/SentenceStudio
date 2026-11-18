@@ -76,6 +76,26 @@ public sealed record PlanSnapshot
     /// </remarks>
     public string? PlanId { get; init; }
 
+    /// <summary>
+    /// The plan's focus words, narrative and rationale facts (JSON) as they were, so undoing a
+    /// change that swapped the plan's words restores them too. Not part of <see cref="Hash"/>: the
+    /// hash names the items. Null on snapshots stored before these were kept; undo then restores
+    /// the items only, as it always did.
+    /// </summary>
+    public string? FocusVocabularyFacts { get; init; }
+
+    /// <inheritdoc cref="FocusVocabularyFacts"/>
+    public string? NarrativeFacts { get; init; }
+
+    /// <inheritdoc cref="FocusVocabularyFacts"/>
+    public string? RationaleFacts { get; init; }
+
+    /// <summary>
+    /// True when the facts above were recorded with this snapshot (null then means "none"), false
+    /// for a snapshot stored before they were kept, whose nulls mean "not recorded".
+    /// </summary>
+    public bool FactsRecorded { get; init; }
+
     public int TotalEstimatedMinutes => Items.Sum(i => i.EstimatedMinutes);
 
     public int TotalMinutesSpent => Items.Sum(i => i.MinutesSpent);

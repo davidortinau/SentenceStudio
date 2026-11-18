@@ -9,7 +9,7 @@ wait for the Captain.
 | 0: Sam knows the screen | `feat/sam-screen-context` | Committed 25c46be1. Verified on iOS sim, Android emulator (Pixel_9_Pro) and web. |
 | 1: plan routing, plan reads, word lists | `feat/sam-plan-reads` | Committed. Verified on web, Android and iOS (below). |
 | 2: start an activity | `feat/sam-start-activity` | Committed. Verified on web, Android and iOS (below). |
-| 3: builder keeps content, fills > 34 min | | Not started |
+| 3: builder keeps content, fills > 34 min | `feat/sam-plan-builder` | Committed. Verified on web (15 to 45 min) and Android (45 to 30 min); iOS not re-run (the change is server-side, and the dashboard refresh was verified in phase 1). |
 | 4: default duration | | Not started |
 | 5: topic focus from tags | | Not started |
 | 6: another language today | | Not started |
@@ -66,6 +66,27 @@ wait for the Captain.
 - **Native launch:** `NativeActivityLaunch` carries `ScenarioId` and `Language`, and the native
   conversation opens on them.
 
+## Phase 3: what changed
+
+- **Planner** (`DeterministicPlanBuilder`):
+  - **Sessions over 34 minutes:** every block but the review grows to 15 minutes (12 on low
+    energy), then one more production activity of a different kind is added. Sessions of 34 minutes
+    or less are unchanged.
+  - **`PlanBuildRequest.PinnedResourceId`:** keeps today's resource.
+  - **Focus words:** filtered to words the learner owns. With nothing due, they get their own review
+    block.
+  - **"Never yesterday's resource":** now actually applied, unless it is the only resource.
+- **Revisions keep today's content.** `PlanService.PreviewPlanAsync(constraints, focus)` with null
+  focus keeps today's words and resource; an empty set clears the focus. The fresh-plan overload
+  keeps nothing. Sam's preview tool uses the same preview.
+- **Words change counts:** a change of words alone is written, and a suggestion counts as a change
+  only when the words differ from today's.
+- **Undo:** restores the focus, narrative and rationale facts (`PlanSnapshot.FactsRecorded`).
+- **Web dashboard:** reloads after every receipt, with one reload at a time.
+- **Model output check:** the evidence-window length rule (7/14/30 days) now applies to practice
+  balance only. A one-day plan fact was refusing plan changes.
+- **Web conversation:** seeding the built-in scenarios is best effort (a fix to phase 2).
+
 ## Known limits
 
 - The word list isn't kept in durable history. Reloading a conversation shows Sam's sentence ("the
@@ -74,6 +95,9 @@ wait for the Captain.
   animation yet); the web fill animates smoothly.
 - The web can't detect a screen reader. Instead, reaching Cancel by keyboard or screen reader stops
   the countdown, and the countdown is announced in a polite live region.
+- Words chosen by a topic (phase 5) are still trimmed at serve time once practised and not due
+  (`ProgressService.ApplyFocusVocabularyFreshnessAsync`). Phase 5 needs to mark coach-chosen sets
+  so they are kept.
 - Scenarios are matched to built-ins only. A learner's own custom scenarios are not matched yet.
 - `IsWordListRequest` and the on-screen routing use English and Korean phrase patterns. Other
   wording falls back to the old behavior (clarify, or no list).

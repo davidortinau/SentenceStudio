@@ -3369,7 +3369,10 @@ public sealed class CoachSessionService : ICoachSessionService
         // Preview only. This is a pure read: it never seeds resources and never writes.
         var preview = await _planService
             .PreviewPlanAsync(
-                _mapper.ToPlanConstraints(proposed), suggestionFocus?.VocabularyWordIds, cancellationToken)
+                _mapper.ToPlanConstraints(proposed),
+                // An empty set clears the focus; null keeps today's words (PlanService.PreviewPlanAsync).
+                mapped.Delta!.ClearVocabularyFocus ? [] : suggestionFocus?.VocabularyWordIds,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (!preview.IsSuccess || preview.Snapshot is null)
@@ -3413,7 +3416,12 @@ public sealed class CoachSessionService : ICoachSessionService
 
         // The model wrote the rationale, so the plan — not the rationale — decides whether the
         // suggestion is worth showing.
-        var verdict = _suggestionValidator.Validate(plan, merged, proposedPlanConstraints);
+        // Words change only when the preview's words differ from the ones today's plan has.
+        var todaysWords = (await _planService.GetTodayAsync(cancellationToken).ConfigureAwait(false))
+            ?.FocusVocabularyIds ?? [];
+        var verdict = _suggestionValidator.Validate(plan, merged, proposedPlanConstraints,
+            wordsChange: !todaysWords.ToHashSet(StringComparer.Ordinal)
+                .SetEquals(preview.Skeleton?.FocusVocabularyIds ?? []));
         if (!verdict.IsEffective)
         {
             _logger.LogInformation(
@@ -3729,7 +3737,8 @@ public sealed class CoachSessionService : ICoachSessionService
             ? null
             : focusSelection ?? focusBeforeChange;
 
-        var focusIds = effectiveFocus?.VocabularyWordIds;
+        // An empty set clears the focus; null keeps today's words (PlanService.PreviewPlanAsync).
+        IReadOnlyList<string>? focusIds = delta.ClearVocabularyFocus ? [] : effectiveFocus?.VocabularyWordIds;
 
         // Display comes from the freshly resolved focus when this change set one, and otherwise
         // from the constraint set already stored — which is where the projected words live, so an
@@ -4725,7 +4734,9 @@ public sealed class CoachSessionService : ICoachSessionService
 
         var preview = await _planService
             .PreviewPlanAsync(
-                _mapper.ToPlanConstraints(proposed), storedFocus?.VocabularyWordIds, cancellationToken)
+                _mapper.ToPlanConstraints(proposed),
+                delta.ClearVocabularyFocus ? [] : storedFocus?.VocabularyWordIds,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var diff = preview.IsSuccess && preview.Snapshot is not null

@@ -1422,12 +1422,18 @@ else
     };
 
     /// <summary>Sam made a new plan while this page was showing the old one: read it again.</summary>
+    // Single flight: a regeneration raises the event twice (its receipt and its write), and two
+    // concurrent syncs and reloads would race.
+    private bool _reloadingForSam;
+
     private void OnTodaysPlanReplaced() => _ = InvokeAsync(async () =>
     {
-        if (isNewUser || !isTodaysPlanMode)
+        if (isNewUser || !isTodaysPlanMode || _reloadingForSam)
         {
             return;
         }
+
+        _reloadingForSam = true;
 
         try
         {
@@ -1446,6 +1452,10 @@ else
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to reload today's plan after Sam replaced it");
+        }
+        finally
+        {
+            _reloadingForSam = false;
         }
     });
 

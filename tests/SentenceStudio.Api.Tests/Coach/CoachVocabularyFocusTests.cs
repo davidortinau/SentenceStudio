@@ -375,7 +375,8 @@ public class CoachVocabularyFocusTests
         var result = await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         result.Value!.ActiveConstraints.VocabularyFocus.Should().BeNull();
-        harness.PlanService.LastApplyFocusIds.Should().BeNull();
+        // An empty set is the explicit "clear": null now means keep today's words.
+        harness.PlanService.LastApplyFocusIds.Should().NotBeNull().And.BeEmpty();
     }
 
     [Fact]

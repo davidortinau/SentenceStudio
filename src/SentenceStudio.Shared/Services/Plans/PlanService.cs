@@ -425,13 +425,28 @@ public sealed class PlanService : IPlanService
         return PlanSnapshot.FromCompletions(todayLocal, completions) with { PlanId = planId };
     }
 
+    /// <summary>A fresh plan's preview (Regenerate): nothing of today's plan is kept.</summary>
     public Task<PlanPreviewResult> PreviewPlanAsync(PlanConstraints? constraints, CancellationToken ct = default)
-        => PreviewPlanAsync(constraints, focusVocabularyWordIds: null, ct);
+        => PreviewCoreAsync(constraints, focusVocabularyWordIds: null, keepToday: false, ct);
 
-    public async Task<PlanPreviewResult> PreviewPlanAsync(
+    /// <summary>
+    /// A revision of today's plan. With no new focus words it keeps what today's plan already
+    /// has, its words and its primary resource, so "I have 45 minutes" lengthens today's plan
+    /// instead of swapping its content (Captain, 2026-11-17). Every caller that previews or applies
+    /// a change (the coach's preview, suggestion and direct paths, and the apply itself) comes
+    /// through here, so what is previewed is what is written.
+    /// </summary>
+    public Task<PlanPreviewResult> PreviewPlanAsync(
         PlanConstraints? constraints,
         IReadOnlyList<string>? focusVocabularyWordIds,
         CancellationToken ct = default)
+        => PreviewCoreAsync(constraints, focusVocabularyWordIds, keepToday: true, ct);
+
+    private async Task<PlanPreviewResult> PreviewCoreAsync(
+        PlanConstraints? constraints,
+        IReadOnlyList<string>? focusVocabularyWordIds,
+        bool keepToday,
+        CancellationToken ct)
     {
         var userId = _scope.UserProfileId;
         var todayLocal = _dateContext.UserLocalDate;
@@ -446,9 +461,18 @@ public sealed class PlanService : IPlanService
 
         // Preview never writes: PlanBuildRequest.Preview suppresses the only
         // write on the generation path (smart-resource seeding).
-        var skeleton = await _deterministic
-            .GenerateAsync(PlanBuildRequest.Preview(userId, constraints, focusVocabularyWordIds), ct)
-            .ConfigureAwait(false);
+        var (keptWords, keptResource) = keepToday
+            ? await TodaysContentAsync(userId, ToDateKey(todayLocal), ct).ConfigureAwait(false)
+            : ([], null);
+        // Null keeps today's words; an empty set clears the focus (the planner then derives one).
+        var focus = focusVocabularyWordIds is null
+            ? (keptWords.Count > 0 ? keptWords : null)
+            : focusVocabularyWordIds.Count > 0 ? focusVocabularyWordIds : null;
+        var request = PlanBuildRequest.Preview(userId, constraints, focus) with
+        {
+            PinnedResourceId = keptResource
+        };
+        var skeleton = await _deterministic.GenerateAsync(request, ct).ConfigureAwait(false);
 
         if (skeleton is null)
         {
@@ -508,7 +532,15 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with { PlanId = planRow?.Id };
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with
+        {
+            PlanId = planRow?.Id,
+            // Kept so an undo of this revision restores the words it replaced.
+            FocusVocabularyFacts = planRow?.FocusVocabularyFacts,
+            NarrativeFacts = planRow?.NarrativeFacts,
+            RationaleFacts = planRow?.RationaleFacts,
+            FactsRecorded = planRow is not null
+        };
 
         if (planRow is null)
         {
@@ -566,7 +598,13 @@ public sealed class PlanService : IPlanService
 
         var after = PlanSnapshot.FromItems(todayLocal, projectedItems);
 
-        if (string.Equals(after.Hash, before.Hash, StringComparison.Ordinal))
+        // Same items is not the same plan when the words changed: a focus change keeps the shape
+        // and swaps the words, and must be written (the hash names the items only).
+        var focusChanged = !DeserializeFocusVocabularyFacts(planRow?.FocusVocabularyFacts)
+            .ToHashSet(StringComparer.Ordinal)
+            .SetEquals(preview.Skeleton!.FocusVocabularyIds ?? []);
+
+        if (string.Equals(after.Hash, before.Hash, StringComparison.Ordinal) && !focusChanged)
         {
             // Repeating an already-applied revision lands here. Nothing is
             // written, so apply is safely repeatable without a stored key.
@@ -665,7 +703,15 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
         var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
-        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with { PlanId = planRow?.Id };
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing) with
+        {
+            PlanId = planRow?.Id,
+            // Kept so undoing this undo restores the words as well as the items.
+            FocusVocabularyFacts = planRow?.FocusVocabularyFacts,
+            NarrativeFacts = planRow?.NarrativeFacts,
+            RationaleFacts = planRow?.RationaleFacts,
+            FactsRecorded = planRow is not null
+        };
 
         if (planRow is null)
         {
@@ -735,6 +781,19 @@ public sealed class PlanService : IPlanService
             }
         }
 
+        // The words, narrative and rationale the undone change replaced come back with its items.
+        var factsRestored = request.TargetSnapshot.FactsRecorded
+            && (planRow.FocusVocabularyFacts != request.TargetSnapshot.FocusVocabularyFacts
+                || planRow.NarrativeFacts != request.TargetSnapshot.NarrativeFacts
+                || planRow.RationaleFacts != request.TargetSnapshot.RationaleFacts);
+        if (factsRestored)
+        {
+            planRow.FocusVocabularyFacts = request.TargetSnapshot.FocusVocabularyFacts;
+            planRow.NarrativeFacts = request.TargetSnapshot.NarrativeFacts;
+            planRow.RationaleFacts = request.TargetSnapshot.RationaleFacts;
+            planRow.UpdatedAt = nowUtc;
+        }
+
         foreach (var target in request.TargetSnapshot.Items)
         {
             if (existingById.ContainsKey(target.PlanItemId))
@@ -771,7 +830,7 @@ public sealed class PlanService : IPlanService
             added++;
         }
 
-        if (added == 0 && removed == 0 && adjusted == 0)
+        if (added == 0 && removed == 0 && adjusted == 0 && !factsRestored)
         {
             return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.NoChange, before, request.OperationKey), false);
         }
@@ -923,6 +982,35 @@ public sealed class PlanService : IPlanService
             query = query.AsNoTracking();
         }
         return query.OrderBy(c => c.Priority).ThenBy(c => c.PlanItemId).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// What today's plan already works on: its focus words, and the resource most of its items
+    /// use. Empty when there is no plan today.
+    /// </summary>
+    private async Task<(IReadOnlyList<string> Words, string? Resource)> TodaysContentAsync(
+        string userId, DateTime dateKey, CancellationToken ct)
+    {
+        var plan = await _db.DailyPlans.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == dateKey, ct)
+            .ConfigureAwait(false);
+        if (plan is null)
+            return ([], null);
+
+        var words = DeserializeFocusVocabularyFacts(plan.FocusVocabularyFacts);
+        if (words.Count == 0 && TryDeserializeNarrative(plan.NarrativeFacts)?.VocabInsight?.PreviewWords
+                is { Count: > 0 } previewWords)
+            words = NormalizeFocusVocabularyIds(previewWords.Select(w => w.WordId));
+
+        var completions = await LoadCompletionsAsync(userId, dateKey, tracked: false, ct).ConfigureAwait(false);
+        var resource = completions
+            .Where(c => !string.IsNullOrWhiteSpace(c.ResourceId))
+            .GroupBy(c => c.ResourceId!, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Min(c => c.Priority))
+            .Select(g => g.Key)
+            .FirstOrDefault();
+        return (words, resource);
     }
 
     /// <summary>

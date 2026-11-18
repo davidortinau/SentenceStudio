@@ -307,8 +307,17 @@ else
             // nothing. Adding the missing built-ins is idempotent (fixed ids, never a second copy).
             if (!scenarios.Any(s => s.IsPredefined))
             {
-                await ScenarioSvc.SeedPredefinedScenariosAsync();
-                scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? new();
+                // Best effort: without the built-ins the conversation still starts, with the
+                // learner's own scenarios or the default persona.
+                try
+                {
+                    await ScenarioSvc.SeedPredefinedScenariosAsync();
+                    scenarios = await ScenarioSvc.GetAllScenariosAsync() ?? scenarios;
+                }
+                catch (Exception seedFailure) when (seedFailure is not (OperationCanceledException or ObjectDisposedException))
+                {
+                    Logger.LogWarning(seedFailure, "The built-in conversation scenarios could not be added.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(ScenarioIdParam))

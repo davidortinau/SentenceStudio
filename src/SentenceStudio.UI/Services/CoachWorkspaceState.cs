@@ -2487,6 +2487,10 @@ public sealed partial class CoachWorkspaceState : IDisposable
             // The receipt belongs to the turn that produced it, so it renders inside that
             // exchange rather than after whatever message happens to be last.
             AppendTimelineEntry(placement, CoachTimelineKind.Receipt, DateTimeOffset.Now, receipt: receipt);
+
+            // A receipt is a change to Today's Plan (or its undo): the dashboard behind Sam reads it
+            // again. Only a regeneration used to reload it, so a lengthened plan kept its old minutes.
+            RaiseTodaysPlanReplaced();
         }
 
         // A pending suggestion is part of the turn that offered it, so it is anchored there.

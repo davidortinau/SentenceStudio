@@ -523,3 +523,9 @@ Captain's request:
   and one factory on `CoachClientScreenItem` in Contracts for both clients.
 - Native Reading sends the tapped word without an id (`NativeReadingWordPanel` has none); web
   Reading sends `selectedVocabWord?.Id`. Sam can still find the word by its label.
+
+## Sam plan builder (review 2026-11-17, branch `feat/sam-plan-builder`)
+
+- `PlanService.ApplyCoachConstraintsAsync` loads the plan row and today's completions, then
+  `PreviewCoreAsync` reads them again through `TodaysContentAsync`: two extra reads per apply.
+  Cleanup: pass the kept words and resource into the preview.
