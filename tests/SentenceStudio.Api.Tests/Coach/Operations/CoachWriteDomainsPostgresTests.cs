@@ -317,14 +317,16 @@ public sealed class CoachWriteDomainsPostgresTests : IAsyncLifetime
     // ------------------------------------------------------------------ settings
 
     /// <summary>
-    /// No setting is approved for change, so every candidate is refused and nothing is written.
+    /// Only the session length is approved for change, and only to a length the profile screen
+    /// offers, so every other candidate is refused and nothing is written.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// RFC §6.5 pins the V1 allow-list at the empty set until Captain approves a specific field.
-    /// The interesting assertion is not that an unknown name is refused — that was always true —
-    /// but that the names the handler still knows how to apply are refused too. A closed list that
-    /// let its own candidates through would be a list in name only.
+    /// RFC §6.5 keeps the V1 allow-list closed until Captain approves a specific field; he approved
+    /// the session length on 2026-11-17. The interesting assertion is not that an unknown name is
+    /// refused — that was always true — but that the names the handler still knows how to apply are
+    /// refused too, and that the approved one is refused for a length nobody offered. A closed list
+    /// that let its own candidates through would be a list in name only.
     /// </para>
     /// <para>
     /// <c>quiz_show_text_with_photo</c> is the one that matters most. It decides whether a quiz
@@ -334,7 +336,7 @@ public sealed class CoachWriteDomainsPostgresTests : IAsyncLifetime
     /// </para>
     /// </remarks>
     [PostgresTheory]
-    [InlineData("session_minutes", "30")]
+    [InlineData("session_minutes", "25")]
     [InlineData("cefr_level", "B2")]
     [InlineData("display_language", "Korean")]
     [InlineData("target_language", "Spanish")]
@@ -366,7 +368,7 @@ public sealed class CoachWriteDomainsPostgresTests : IAsyncLifetime
     /// </summary>
     /// <remarks>
     /// The refusal happens in the handler's own validation, which the ledger runs before it
-    /// computes an idempotency digest. So a closed tool cannot fill a learner's turn budget with
+    /// computes an idempotency digest. So a refused setting cannot fill a learner's turn budget with
     /// proposals nobody can approve, and cannot leave rows an operator has to explain.
     /// </remarks>
     [PostgresFact]
@@ -380,7 +382,7 @@ public sealed class CoachWriteDomainsPostgresTests : IAsyncLifetime
 
         var act = async () => await ledger.ProposeAsync(
             Conversation, "turn-1", CoachToolNames.ProposePreferenceChange,
-            Json(new CoachPreferenceChangeArgs("session_minutes", "30")));
+            Json(new CoachPreferenceChangeArgs("cefr_level", "B2")));
 
         await act.Should().ThrowAsync<CoachToolException>();
 
