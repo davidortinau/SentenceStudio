@@ -296,6 +296,16 @@ public sealed class EfApplicationOperationStore(
                 request.TargetStatus,
                 request.EffectStarted);
         }
+        if (decision != ApplicationOperationDecision.Unknown
+            && request.TargetStatus != ApplicationOperationStatus.Expired
+            && operation.Status is not ApplicationOperationStatus.Proposed
+                and not ApplicationOperationStatus.AwaitingProtectedConfirmation)
+        {
+            // A decision arrived after another one settled, and it is not a replay of that one
+            // (a replay returned above). The caller lost the race; that is a conflict, not a
+            // malformed request.
+            throw Conflict();
+        }
         ValidateTransitionCeremony(operation, request, decision, isConfirmationRotation);
         if (request.TargetStatus == ApplicationOperationStatus.Reversed)
         {
