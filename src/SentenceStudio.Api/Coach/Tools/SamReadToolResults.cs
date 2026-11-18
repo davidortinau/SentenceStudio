@@ -181,18 +181,42 @@ public sealed record LearnerSettingsSummary(
 
 /// <summary>One item in today's plan summary.</summary>
 public sealed record PlanItemSummary(
+    [property: Description("The plan item's identifier.")] string PlanItemId,
     [property: Description("The activity type.")] string ActivityType,
     [property: Description("True if completed.")] bool IsCompleted,
     [property: Description("Estimated minutes.")] int MinutesPlanned,
-    [property: Description("Minutes spent so far.")] int MinutesSpent);
+    [property: Description("Minutes spent so far.")] int MinutesSpent,
+    [property: Description("The learning resource it uses, for the resource tools. Null if none.")] string? ResourceId,
+    [property: Description("That resource's title. Null if none or unknown.")] string? ResourceTitle,
+    [property: Description("The skill it practises, for the skill tools. Null if none.")] string? SkillId,
+    [property: Description("How many of the plan's words this item works on.")] int FocusWordCount);
 
 /// <summary>Today's plan summary.</summary>
 public sealed record CurrentPlanSummary(
     [property: Description("Whether a plan exists for today.")] bool HasPlan,
     [property: Description("The plan date (yyyy-MM-dd).")] string PlanDate,
     [property: Description("The plan strategy.")] string? Strategy,
-    [property: Description("Plan items.")] IReadOnlyList<PlanItemSummary> Items,
+    [property: Description("Plan items, in the order the plan lists them.")] IReadOnlyList<PlanItemSummary> Items,
     [property: Description("Overall completion percentage, 0 to 100.")] double OverallCompletionPct,
+    [property: Description("Total planned minutes.")] int MinutesPlanned,
+    [property: Description("How many words the plan works on. get_plan_vocabulary lists them.")] int FocusWordCount,
+    [property: Description("The mastery the dashboard shows for the plan, 0 to 100: the average over the plan's due words the learner has already practised, not over every plan word. Null when the dashboard shows none.")] double? AverageMasteryPct,
+    [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
+
+/// <summary>One word in today's plan.</summary>
+public sealed record PlanVocabularyEntry(
+    [property: Description("The word's identifier, for the vocabulary and example sentence tools.")] string WordId,
+    [property: Description("The word in the language being learned.")] string TargetTerm,
+    [property: Description("Its meaning in the learner's own language.")] string NativeTerm,
+    [property: Description("Mastery, 0 to 100. Null if never practised.")] int? MasteryPct,
+    [property: Description("Days since last practised. Null if never practised.")] int? DaysSinceLastPractice);
+
+/// <summary>The words today's plan works on.</summary>
+public sealed record PlanVocabularyResult(
+    [property: Description("Whether a plan exists for today.")] bool HasPlan,
+    [property: Description("How many words the plan works on, including any withheld.")] int TotalCount,
+    [property: Description("The words, in the order asked for. The app shows them to the learner as a list under your reply, each opening its word page.")] IReadOnlyList<PlanVocabularyEntry> Words,
+    [property: Description("Plan words left out because their answer is hidden on the learner's screen right now. Never guess them.")] int WithheldOnScreen,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
 
 // ──────────────────────────────────────────────────────

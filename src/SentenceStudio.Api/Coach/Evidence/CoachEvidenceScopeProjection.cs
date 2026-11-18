@@ -67,7 +67,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeOrder.MinutesDescending => CoachEvidenceOrder.MinutesDescending,
         CoachScopeOrder.PriorityAscending => CoachEvidenceOrder.PriorityAscending,
         CoachScopeOrder.FrequencyDescending => CoachEvidenceOrder.FrequencyDescending,
-        CoachScopeOrder.BandLabelAscending => CoachEvidenceOrder.BandLabelAscending
+        CoachScopeOrder.BandLabelAscending => CoachEvidenceOrder.BandLabelAscending,
+        CoachScopeOrder.MasteryAscending => CoachEvidenceOrder.MasteryAscending
     };
 
     /// <summary>Projects a scope's definition onto the wire vocabulary.</summary>
@@ -88,7 +89,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeDefinition.PracticeWindowBalance => CoachDefinitionCode.PracticeWindowBalance,
         CoachScopeDefinition.DeterministicPlanPreview => CoachDefinitionCode.DeterministicPlanPreview,
         CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary,
-        CoachScopeDefinition.ClientReportedScreen => CoachDefinitionCode.ClientReportedScreen
+        CoachScopeDefinition.ClientReportedScreen => CoachDefinitionCode.ClientReportedScreen,
+        CoachScopeDefinition.PlanVocabulary => CoachDefinitionCode.PlanVocabulary
     };
 
     /// <summary>Projects a scope's withheld reason onto the wire vocabulary.</summary>

@@ -71,6 +71,7 @@ internal sealed partial class ApplicationController
         ApproveSet: () => RunSam(sam => sam.ApproveVocabularySetAsync(_lifetime.Token)),
         DeclineSet: () => RunSam(sam => sam.DeclineVocabularySetAsync(_lifetime.Token)),
         StartReview: () => _sam?.StartVocabularyReview(),
+        OpenWord: wordId => _sam?.OpenListedWord(wordId),
         Writes: new SamWriteActions(
             Accept: id => RunSam(sam => sam.AcceptWriteAsync(id, _lifetime.Token)),
             Review: id => RunSam(sam => sam.BeginWriteConfirmationAsync(id, _lifetime.Token)),
@@ -181,6 +182,7 @@ internal sealed partial class ApplicationController
         _sam.Changed += Publish;
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
+        _sam.WordRequested += OnSamWordRequested;
         return _sam;
     }
 
@@ -361,6 +363,44 @@ internal sealed partial class ApplicationController
             _selectedTab = NativeTabs.Study;
             await StartQuizAsync(launch);
         });
+    }
+
+    /// <summary>
+    /// A word row in one of Sam's lists: Sam closes and the Library opens that word's editor, as
+    /// a tap on the word in the Vocabulary page would. Not from a quiz or activity, which the
+    /// learner leaves themselves.
+    /// </summary>
+    private void OnSamWordRequested(string owner, string wordId)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked || _services is null)
+        {
+            _sam?.ReportWordOpenBlockedByScreen();
+            return;
+        }
+        EnsureResources();
+        EnsureVocabulary();
+        RunLibrary(async () =>
+        {
+            // Read again when already open: the word may be newer than the list on screen.
+            var listed = IsVocabularyOpen
+                ? await ReloadThenTrue(_vocabulary!)
+                : await _vocabulary!.OpenAsync(owner);
+            // Sam stays open, with a notice, until the word's editor has actually opened.
+            if (!listed || !await _vocabulary!.OpenWordAsync(wordId))
+            {
+                _logger?.LogWarning("A word Sam listed could not open in the vocabulary editor.");
+                _sam?.ReportListedWordNotOpened();
+                return;
+            }
+            _sam?.Close();
+            _selectedTab = NativeTabs.Library;
+        });
+
+        static async Task<bool> ReloadThenTrue(SentenceStudio.Native.iOS.Features.Vocabulary.VocabularyCoordinator vocabulary)
+        {
+            await vocabulary.ReloadAsync();
+            return true;
+        }
     }
 
     /// <summary>

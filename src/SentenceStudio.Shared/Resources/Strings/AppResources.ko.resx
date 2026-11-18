@@ -10272,4 +10272,36 @@
   <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
     <value>먼저 단어를 하나 이상 선택하세요.</value>
   </data>
+  <data name="Coach_EvidenceDefinition_PlanVocabulary" xml:space="preserve">
+    <value>오늘의 학습 계획에 있는 단어입니다.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_MasteryWeakest" xml:space="preserve">
+    <value>숙달도 낮은 순</value>
+    <comment>Coach: evidence ordering claim, lowest mastery score first</comment>
+  </data>
+  <data name="Coach_WordList_Plan" xml:space="preserve">
+    <value>오늘의 계획에 있는 단어</value>
+    <comment>Sam: heading over the plan words Sam listed, in plan order</comment>
+  </data>
+  <data name="Coach_WordList_PlanWeakest" xml:space="preserve">
+    <value>오늘의 계획에 있는 단어 (약한 순)</value>
+    <comment>Sam: heading over the plan words Sam listed, lowest mastery first</comment>
+  </data>
+  <data name="Coach_WordList_Mastery" xml:space="preserve">
+    <value>숙달도 {0}%</value>
+    <comment>Sam: a listed word's mastery. {0} is a whole number from 0 to 100</comment>
+  </data>
+  <data name="Coach_WordList_NotPractised" xml:space="preserve">
+    <value>아직 연습하지 않음</value>
+    <comment>Sam: a listed word that has never been practised</comment>
+  </data>
+  <data name="NativeSam_WordOpenLeaveScreen" xml:space="preserve">
+    <value>지금 보고 있는 화면을 닫은 뒤 이 단어를 여세요.</value>
+    <comment>Sam: a word row was tapped while a quiz or activity is open</comment>
+  </data>
+  <data name="NativeSam_WordOpenFailed" xml:space="preserve">
+    <value>이 단어를 열 수 없어요. 삭제되었을 수 있어요.</value>
+    <comment>Sam: a listed word row was tapped but its editor could not open</comment>
+  </data>
 </root>

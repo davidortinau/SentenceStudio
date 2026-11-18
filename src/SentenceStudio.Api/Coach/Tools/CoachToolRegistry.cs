@@ -332,11 +332,14 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             EffectClass = CoachCapabilityEffectClass.Read,
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools"],
-            Description = "Reads today's plan: each item's activity type, whether it is done, and minutes planned against "
-                + "minutes spent. Bounded to one calendar day in the learner's own time zone, so an empty answer "
-                + "means no plan exists for today, not that the learner has never had one. Items carry no order the "
-                + "caller may rely on. Counts are plan items. It returns no item text — an activity type is a "
-                + "closed category, and the plan's strategy label is bounded plan metadata."
+            Description = "Reads today's plan as the dashboard shows it: each item's identifier, activity type, "
+                + "whether it is done, minutes planned against minutes spent, the resource it uses (identifier and "
+                + "title), the skill it practises and how many plan words it works on; and for the plan, its total "
+                + "minutes, word count and the mastery figure the dashboard shows. Bounded to one calendar day in "
+                + "the learner's own time zone, so an empty answer means no plan exists for today, not that the "
+                + "learner has never had one. Items come in the plan's own order. Counts are plan items. It returns "
+                + "no item text — an activity type is a closed category, and the plan's strategy label is bounded "
+                + "plan metadata."
         });
         Register(new CoachToolRegistration
         {
@@ -350,6 +353,23 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
                 + "main example first, each with its identifier for the propose_ example sentence tools. Works "
                 + "for words never practised. When the word is due for review its sentences are hidden: the "
                 + "answer says so and counts them as withheld, and you must not guess them."
+        });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetPlanVocabulary,
+            ResultType = typeof(PlanVocabularyResult),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            EmbargoScope = CoachEmbargoScope.ToolResult,
+            RequiredFeatures = ["SamOverlay", "SamReadTools"],
+            Description = "Lists the words today's plan works on, the ones the dashboard previews, bounded to "
+                + "today's plan and the learner's own words: each word's "
+                + "identifier, the word, its meaning, its mastery out of 100 (null if never practised) and days since "
+                + "last practice. Order is plan (the plan's own order) or weakest (lowest mastery first, words never "
+                + "practised last); at most forty. Call it when the learner asks to see, preview or rank today's "
+                + "words. The app shows the list under your reply, each row opening its word, so do not repeat the "
+                + "words in your message: say in one sentence what the list is. A word whose answer is hidden on "
+                + "their screen is left out and only counted; never guess it."
         });
         Register(new CoachToolRegistration
         {

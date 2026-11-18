@@ -44,6 +44,7 @@ internal sealed partial class AndroidSliceShell
         _sam.Changed += OnSamChanged;
         _sam.PlanChanged += OnSamPlanChanged;
         _sam.VocabularyReviewRequested += OnSamVocabularyReview;
+        _sam.WordRequested += OnSamWordRequested;
         return _sam;
     }
 
@@ -173,6 +174,7 @@ internal sealed partial class AndroidSliceShell
         sam.Changed -= OnSamChanged;
         sam.PlanChanged -= OnSamPlanChanged;
         sam.VocabularyReviewRequested -= OnSamVocabularyReview;
+        sam.WordRequested -= OnSamWordRequested;
     }
 
     // Draft edits re-render synchronously on the UI thread so Compose keeps the
@@ -544,6 +546,21 @@ internal sealed partial class AndroidSliceShell
             return;
         }
         StartSamVocabularyReview(owner, resourceId);
+    }
+
+    /// <summary>
+    /// A word row in one of Sam's lists: Sam closes and the Vocabulary page opens on that word's
+    /// editor, as on iOS. Not over a quiz, an activity or another open page.
+    /// </summary>
+    private void OnSamWordRequested(string owner, string wordId)
+    {
+        if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
+            || IsMoreScreenOpen || IsResourceFormOpen || Busy.Value || !HasDashboardOwner(owner))
+        {
+            _sam?.ReportWordOpenBlockedByScreen();
+            return;
+        }
+        OpenMoreScreen(MoreScreen.Vocabulary, openWordId: wordId);
     }
 
     private void StartSamVocabularyReview(string owner, string resourceId) => Execute(async cancellationToken =>

@@ -2551,6 +2551,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The words in Today&apos;s Plan..
+        /// </summary>
+        internal static string Coach_EvidenceDefinition_PlanVocabulary {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceDefinition_PlanVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Practice you logged over the window..
         /// </summary>
         internal static string Coach_EvidenceDefinition_PracticeWindowBalance {
@@ -2664,6 +2673,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_EvidenceOrder_Mastery {
             get {
                 return ResourceManager.GetString("Coach_EvidenceOrder_Mastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Weakest first.
+        /// </summary>
+        internal static string Coach_EvidenceOrder_MasteryWeakest {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceOrder_MasteryWeakest", resourceCulture);
             }
         }
 
@@ -4653,6 +4671,42 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Coach_VocabularyRemoval_Unlinked {
             get {
                 return ResourceManager.GetString("Coach_VocabularyRemoval_Unlinked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}% mastery.
+        /// </summary>
+        internal static string Coach_WordList_Mastery {
+            get {
+                return ResourceManager.GetString("Coach_WordList_Mastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not practised yet.
+        /// </summary>
+        internal static string Coach_WordList_NotPractised {
+            get {
+                return ResourceManager.GetString("Coach_WordList_NotPractised", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words in Today&apos;s Plan.
+        /// </summary>
+        internal static string Coach_WordList_Plan {
+            get {
+                return ResourceManager.GetString("Coach_WordList_Plan", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Words in Today&apos;s Plan, weakest first.
+        /// </summary>
+        internal static string Coach_WordList_PlanWeakest {
+            get {
+                return ResourceManager.GetString("Coach_WordList_PlanWeakest", resourceCulture);
             }
         }
 
@@ -12069,6 +12123,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeSam_VocabularySetStart {
             get {
                 return ResourceManager.GetString("NativeSam_VocabularySetStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That word could not open. It may have been deleted..
+        /// </summary>
+        internal static string NativeSam_WordOpenFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_WordOpenFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close the screen you are on, then open this word..
+        /// </summary>
+        internal static string NativeSam_WordOpenLeaveScreen {
+            get {
+                return ResourceManager.GetString("NativeSam_WordOpenLeaveScreen", resourceCulture);
             }
         }
 

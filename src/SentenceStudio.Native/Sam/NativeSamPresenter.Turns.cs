@@ -367,6 +367,8 @@ public sealed partial class NativeSamPresenter
         {
             if (result.Evidence.Count > 0)
                 _evidence[answerId] = result.Evidence.ToImmutableArray();
+            if (result.WordList is { Rows.Count: > 0 } words)
+                _wordLists[answerId] = words;
             if (result.Limitation is { } limitation)
                 _limitations[answerId] = limitation;
             // A refused turn discloses nothing: there is no answer to have altered
@@ -390,6 +392,7 @@ public sealed partial class NativeSamPresenter
                     Repair = _repairs.TryGetValue(entry.Id, out var shown) ? shown.Disclosure : null,
                     RepairEvidenceOnScreen = _repairs.TryGetValue(entry.Id, out var pointer)
                         && pointer.EvidenceOnScreen,
+                    WordList = _wordLists.GetValueOrDefault(entry.Id),
                     // The ledger normally carries the card; attach the turn's copy only when it does not.
                     Write = !writeAttached ? fresh : entry.Write,
                 };
@@ -554,6 +557,30 @@ public sealed partial class NativeSamPresenter
         if (TryOwner(out var owner) && _state.ApprovedResourceId is { Length: > 0 } resourceId)
             VocabularyReviewRequested?.Invoke(owner, resourceId);
     }
+
+    /// <summary>
+    /// Opens a word from a list Sam showed (source CoachWordList). Only a word one of the lists on
+    /// screen holds, and only when its row carries the server's word destination.
+    /// </summary>
+    public void OpenListedWord(string wordId)
+    {
+        if (string.IsNullOrWhiteSpace(wordId) || !TryOwner(out var owner))
+            return;
+        var listed = _state.SafeEntries.Any(entry => entry.WordList?.Rows.Any(row =>
+            row.WordId == wordId
+            && row.Destination is { Route: CoachRouteName.Vocabulary } destination
+            && destination.Parameters.Any(p => p.Key == CoachRouteParameterKey.VocabularyWordId && p.Value == wordId)) == true);
+        if (listed)
+            WordRequested?.Invoke(owner, wordId);
+    }
+
+    /// <summary>The word could not open (deleted since Sam listed it, or another edit waits).</summary>
+    public void ReportListedWordNotOpened() =>
+        Publish(_state with { NoticeKey = "NativeSam_WordOpenFailed" });
+
+    /// <summary>The screen behind Sam cannot be left now (a quiz or activity): say how to get there.</summary>
+    public void ReportWordOpenBlockedByScreen() =>
+        Publish(_state with { NoticeKey = "NativeSam_WordOpenLeaveScreen" });
 
     /// <summary>The approved set has not synced to this device yet; keep Start available.</summary>
     public void ReportVocabularyReviewNotReady()

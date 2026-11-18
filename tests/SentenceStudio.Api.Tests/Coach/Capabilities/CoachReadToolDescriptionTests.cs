@@ -37,12 +37,13 @@ public class CoachReadToolDescriptionTests
         var reads = ReadTools();
 
         // get_vocabulary_example_sentences is the fifteenth stored-row read (gap 2), and
-        // get_current_screen relays the client's screen rather than reading stored rows.
-        reads.Should().HaveCount(17);
+        // get_current_screen relays the client's screen rather than reading stored rows;
+        // get_plan_vocabulary is the sixteenth.
+        reads.Should().HaveCount(18);
         reads.Count(r => r.Name == CoachToolNames.PreviewPracticePlan).Should().Be(1);
         reads.Count(r => r.Name == CoachToolNames.GetCurrentScreen).Should().Be(1);
         reads.Count(r => r.Name != CoachToolNames.PreviewPracticePlan && r.Name != CoachToolNames.GetCurrentScreen)
-            .Should().Be(15, "the other fifteen read stored rows");
+            .Should().Be(16, "the other sixteen read stored rows");
     }
 
     [Fact]

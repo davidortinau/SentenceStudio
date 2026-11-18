@@ -111,7 +111,10 @@ public enum CoachEvidenceOrder
     FrequencyDescending = 8,
 
     /// <summary>Ordered by the band label itself, not by any measure of the learner.</summary>
-    BandLabelAscending = 9
+    BandLabelAscending = 9,
+
+    /// <summary>Lowest mastery first; words never practised, which have no score, last.</summary>
+    MasteryAscending = 10
 }
 
 /// <summary>
@@ -177,7 +180,10 @@ public enum CoachDefinitionCode
     LatestPracticeSummary = 14,
 
     /// <summary>The screen the learner's app reported with the message.</summary>
-    ClientReportedScreen = 15
+    ClientReportedScreen = 15,
+
+    /// <summary>The words today's plan works on, the ones the dashboard previews.</summary>
+    PlanVocabulary = 16
 }
 
 /// <summary>

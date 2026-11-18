@@ -160,6 +160,9 @@ public static class CoachHelpCatalog
         // 5. Today's Plan: one capability among the others, listed after them.
         if (Any(CoachToolNames.PreviewPracticePlan, CoachToolNames.GetCurrentPlanSummary))
         {
+            var words = Any(CoachToolNames.GetPlanVocabulary)
+                ? new Copy(" List its words, weakest first if you like.", " 계획의 단어를 약한 순서로도 보여 드려요.")
+                : new Copy(string.Empty, string.Empty);
             var body = Any(CoachToolNames.ProposePlanRegeneration)
                 ? new Copy(
                     "Show Today's Plan, change its time, activities, energy or word focus, or make you a new plan when you ask.",
@@ -167,7 +170,7 @@ public static class CoachHelpCatalog
                 : new Copy(
                     "Show Today's Plan and change its time, activities, energy or word focus when you ask.",
                     "오늘의 계획을 보여 드리고, 요청하시면 시간, 활동, 에너지, 단어 초점을 바꿔 드려요.");
-            items.Add(new HelpItem(new Copy("Today's Plan", "오늘의 계획").For(ko), body.For(ko)));
+            items.Add(new HelpItem(new Copy("Today's Plan", "오늘의 계획").For(ko), body.For(ko) + words.For(ko)));
         }
 
         // 6. Profile, settings and memory.

@@ -177,6 +177,11 @@
                         <div>@entry.Message?.Text</div>
                     }
 
+                    @if (!isLearner && entry.WordList is { } wordList)
+                    {
+                        <CoachWordList List="@wordList" IdPrefix="@($"{MessageAnchorId(entry)}-words")" />
+                    }
+
                     @* W9 P5/P6: what the grounding layer did to the answer directly above.
                        Inside the message, after the answer body, because that is the answer it
                        describes. It used to render once at the head of the log, which meant that

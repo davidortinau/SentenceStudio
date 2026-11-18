@@ -29,6 +29,7 @@ internal sealed record SamActions(
     Action ApproveSet,
     Action DeclineSet,
     Action StartReview,
+    Action<string> OpenWord,
     SamWriteActions Writes,
     SamMemoryActions Memory,
     SamMessageActions Messages,
@@ -252,6 +253,8 @@ internal static class SamView
                 foreach (var line in entry.ChangeLines.IsDefault ? [] : entry.ChangeLines)
                     parts.Add(style.Text(Views.Text("• " + line), SourceTextRole.Body2,
                         SourceTextTone.Secondary));
+                if (!learner && entry.WordList is { Rows.Count: > 0 } words)
+                    parts.Add(WordList(style, words, index, text, actions.OpenWord));
                 break;
         }
         if (entry.Limitation is { } limitation)
@@ -294,6 +297,50 @@ internal static class SamView
             return exchange;
         }
         return body;
+    }
+
+    /// <summary>
+    /// Source CoachWordList: the words Sam listed, each row opening the word's editor. The rows are
+    /// the server's, never the model's prose.
+    /// </summary>
+    private static SwiftView WordList(SourceUiStyle style, CoachWordListDto list, int index,
+        Func<string, string> text, Action<string> openWord)
+    {
+        var heading = text(list.Order == CoachWordListOrder.WeakestFirst
+            ? "Coach_WordList_PlanWeakest" : "Coach_WordList_Plan");
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(heading), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier($"native.sam.words.{index}.heading")
+        };
+        for (var i = 0; i < list.Rows.Count; i++)
+        {
+            var row = list.Rows[i];
+            var mastery = row.MasteryPercent is { } percent
+                ? string.Format(CultureInfo.CurrentCulture, text("Coach_WordList_Mastery"), percent)
+                : text("Coach_WordList_NotPractised");
+            var terms = Views.VStack(
+                    style.Text(Views.Text(row.TargetTerm), SourceTextRole.Body2Strong).WithLineLimit(1),
+                    style.Text(Views.Text(row.NativeTerm), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                        .WithLineLimit(1))
+                .WithFlexibleWidth();
+            terms.Spacing = 2;
+            var label = Views.HStack(terms,
+                    style.Text(Views.Text(mastery), SourceTextRole.Caption1, SourceTextTone.Secondary))
+                .WithFlexibleWidth();
+            label.Spacing = 8;
+            var wordId = row.WordId;
+            rows.Add(Views.Button(label, () => openWord(wordId))
+                .WithButtonStyle(SwiftButtonStyle.Plain)
+                .WithFlexibleWidth()
+                .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+                .WithAccessibilityIdentifier($"native.sam.words.{index}.{i}")
+                .WithAccessibilityLabel($"{row.TargetTerm}, {row.NativeTerm}, {mastery}"));
+        }
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth()
+            .WithAccessibilityIdentifier($"native.sam.words.{index}");
+        stack.Spacing = 2;
+        return stack;
     }
 
     /// <summary>Source CoachRepairDisclosureNotice: one closed state in, one sentence out.</summary>

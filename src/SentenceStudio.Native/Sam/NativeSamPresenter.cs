@@ -48,6 +48,8 @@ public sealed partial class NativeSamPresenter(
     private string? _planVersion;
     private CoachConstraintSetDto? _constraints;
     private readonly Dictionary<string, ImmutableArray<CoachEvidenceDto>> _evidence = new(StringComparer.Ordinal);
+    /// <summary>The words Sam listed, by the reply that introduced them (source CoachTimelineEntry.WordList).</summary>
+    private readonly Dictionary<string, CoachWordListDto> _wordLists = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CoachLimitationDto> _limitations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (CoachRepairDisclosure Disclosure, bool EvidenceOnScreen)> _repairs =
         new(StringComparer.Ordinal);
@@ -70,6 +72,12 @@ public sealed partial class NativeSamPresenter(
 
     /// <summary>Raised when the learner asks to start Vocab Review on an approved set.</summary>
     public event Action<string, string>? VocabularyReviewRequested;
+
+    /// <summary>
+    /// A row of a word list Sam showed was tapped: the head opens that word's editor (owner,
+    /// word id). Raised only for a word one of Sam's lists on screen holds.
+    /// </summary>
+    public event Action<string, string>? WordRequested;
 
     /// <summary>
     /// Reads availability for the current owner. Only <c>IsSamOverlayAvailable</c>
@@ -399,6 +407,7 @@ public sealed partial class NativeSamPresenter(
         if (switching)
         {
             _evidence.Clear();
+            _wordLists.Clear();
             _limitations.Clear();
             _repairs.Clear();
             DiscardConfirmation();
@@ -589,6 +598,7 @@ public sealed partial class NativeSamPresenter(
     private void DropConversation(string conversationId)
     {
         _evidence.Clear();
+        _wordLists.Clear();
         _limitations.Clear();
         _repairs.Clear();
         DiscardConfirmation();
@@ -674,7 +684,8 @@ public sealed partial class NativeSamPresenter(
             changeLines?.ToImmutableArray() ?? [],
             MessageKind: message.Kind,
             Repair: _repairs.TryGetValue(message.MessageId, out var repair) ? repair.Disclosure : null,
-            RepairEvidenceOnScreen: _repairs.TryGetValue(message.MessageId, out var shown) && shown.EvidenceOnScreen);
+            RepairEvidenceOnScreen: _repairs.TryGetValue(message.MessageId, out var shown) && shown.EvidenceOnScreen,
+            WordList: _wordLists.GetValueOrDefault(message.MessageId));
 
     // ---------------------------------------------------------------- owner + plumbing
 
@@ -709,6 +720,7 @@ public sealed partial class NativeSamPresenter(
         _planVersion = null;
         _constraints = null;
         _evidence.Clear();
+        _wordLists.Clear();
         _limitations.Clear();
         _repairs.Clear();
         DiscardConfirmation();

@@ -61,6 +61,8 @@ public static class CoachToolServiceCollectionExtensions
         services.TryAddScoped<SamTools.CurrentPlanSummaryTool>();
         services.TryAddScoped<SamTools.VocabularyExampleSentencesTool>();
         services.TryAddScoped<SamTools.CurrentScreenTool>();
+        services.TryAddScoped<SamTools.PlanVocabularyTool>();
+        services.TryAddScoped<SamTools.CoachTodayPlanReader>();
 
         // Sam write tools. One tool class serves every propose_ function; the handlers are what
         // differ. All scoped, because the ownership guard they depend on holds a request-scoped

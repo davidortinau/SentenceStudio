@@ -389,6 +389,50 @@ internal sealed partial class AndroidSliceShell
         return caption;
     }
 
+    /// <summary>
+    /// Source CoachWordList: the words Sam listed, each row opening the word's editor. The rows are
+    /// the server's, never the model's prose.
+    /// </summary>
+    private ComposableNode SamWordList(CoachWordListDto list, int index, AndroidVisualPalette palette)
+    {
+        var column = new Column(Arrangement.SpacedBy(2))
+        {
+            Modifier.FillMaxWidth().TestTag($"native.sam.words.{index}"),
+            Caption(Localize(list.Order == CoachWordListOrder.WeakestFirst
+                ? "Coach_WordList_PlanWeakest" : "Coach_WordList_Plan"), palette, $"native.sam.words.{index}.heading"),
+        };
+        for (var i = 0; i < list.Rows.Count; i++)
+        {
+            var row = list.Rows[i];
+            var mastery = row.MasteryPercent is { } percent
+                ? string.Format(System.Globalization.CultureInfo.CurrentCulture, Localize("Coach_WordList_Mastery"), percent)
+                : Localize("Coach_WordList_NotPractised");
+            var accessible = $"{row.TargetTerm}, {row.NativeTerm}, {mastery}";
+            var wordId = row.WordId;
+            column.Add(new Row(Arrangement.SpacedBy(8), Alignment.Vertical.CenterVertically)
+            {
+                Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .Clip(Shape.RoundedCorners(AndroidVisualTheme.ControlRadius))
+                    .Clickable(() => _sam?.OpenListedWord(wordId))
+                    .Padding(horizontal: 8, vertical: 4)
+                    .TestTag($"native.sam.words.{index}.{i}")
+                    .Semantics(semantics =>
+                    {
+                        semantics.ContentDescription(accessible);
+                        semantics.Role(SemanticsRole.Button);
+                    }),
+                new Column(Arrangement.SpacedBy(2))
+                {
+                    Modifier.Weight(1f),
+                    Strong(row.TargetTerm, palette),
+                    Body(row.NativeTerm, palette, secondary: true),
+                },
+                Caption(mastery, palette),
+            });
+        }
+        return column;
+    }
+
     private static Text Strong(string text, AndroidVisualPalette palette, bool heading = false)
     {
         var node = Body(text, palette, modifier: heading
@@ -465,6 +509,8 @@ internal sealed partial class AndroidSliceShell
                     parts.Add(Body(entry.Text, palette));
                 foreach (var line in entry.ChangeLines.IsDefault ? [] : entry.ChangeLines)
                     parts.Add(Body("• " + line, palette, secondary: true));
+                if (entry.Kind != NativeSamEntryKind.Learner && entry.WordList is { Rows.Count: > 0 } words)
+                    parts.Add(SamWordList(words, index, palette));
                 break;
         }
         if (entry.Limitation is { } limitation)

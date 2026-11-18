@@ -1851,7 +1851,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 // Plan state only when the learner's message is about the plan or a suggestion
                 // waits for an answer; see CoachAgentTurnRequest.IncludePlanContext.
                 IncludePlanContext = !string.IsNullOrWhiteSpace(session.PendingSuggestionId)
-                    || _writeAuthority.ClassifyPlanRouting(LearnerTextFor(request))
+                    || _writeAuthority.ClassifyPlanRouting(LearnerTextFor(request), PlanOnScreen(request))
                         != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference,
                 PendingSuggestionId = session.PendingSuggestionId,
                 PendingSuggestionDelta = pendingDelta,
@@ -1890,7 +1890,7 @@ public sealed class CoachSessionService : ICoachSessionService
             if (surfaced.Count > 0)
             {
                 var leak = await ValidateNoAnswerLeakAsync(
-                    userProfileId, session, surfaced, cancellationToken).ConfigureAwait(false);
+                    userProfileId, session, surfaced, TurnEmbargo(request), cancellationToken).ConfigureAwait(false);
                 if (leak is not null)
                 {
                     return leak;
@@ -1975,7 +1975,7 @@ public sealed class CoachSessionService : ICoachSessionService
         var isTextPlanIntent = request.InputKind == CoachTurnInputKind.Text
             && intent.Kind is CoachIntentKind.DirectConstraintChange or CoachIntentKind.SuggestConstraintChange;
         var planRouting = isTextPlanIntent
-            ? _writeAuthority.ClassifyPlanRouting(request.Text)
+            ? _writeAuthority.ClassifyPlanRouting(request.Text, PlanOnScreen(request))
             : CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest;
         var activityLaunchRequested = isTextPlanIntent
             && planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest
@@ -2033,8 +2033,69 @@ public sealed class CoachSessionService : ICoachSessionService
         var withMemory = await AttachMemoryCandidateAsync(
             userProfileId, session, request, intent, withVocabularySet, cancellationToken).ConfigureAwait(false);
 
-        return await AttachWriteOperationAsync(session, withMemory, cancellationToken)
+        var withWords = _writeAuthority.IsWordListRequest(LearnerTextFor(request))
+            ? AttachWordList(withMemory)
+            : withMemory;
+
+        return await AttachWriteOperationAsync(session, withWords, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// What this reply may repeat beyond the due-word rule (Captain, 2026-11-17): the words the
+    /// learner asked to have listed, and the side of a word on their screen they can already see.
+    /// The side their screen still hides stays withheld, due or not.
+    /// </summary>
+    private CoachTurnEmbargo TurnEmbargo(CoachTurnRequest request)
+    {
+        // Only when the learner's own words asked to see their words: the model choosing to call
+        // the list tool does not lift the embargo.
+        var listed = _writeAuthority.IsWordListRequest(LearnerTextFor(request))
+            ? _writeTurn?.ListedWords?.Words.Select(word => word.WordId) ?? []
+            : [];
+        var screen = request.ClientScreen;
+        var screenWords = (screen?.Items ?? [])
+            .Where(item => item is not null
+                && item.Kind == CoachClientScreenItemKinds.VocabularyWord
+                && !string.IsNullOrWhiteSpace(item.Id))
+            .Select(item => new CoachScreenWord(item.Id!.Trim(), item.Label, screen!.AnswerHidden))
+            .ToList();
+
+        return new CoachTurnEmbargo(listed.ToHashSet(StringComparer.Ordinal), screenWords);
+    }
+
+    /// <summary>
+    /// The words a list tool read this turn, as rows under the reply. Built here from the tool's
+    /// own answer, each row opening its word, so the model never has to type the list. A refused
+    /// turn shows none: its reply did not go out.
+    /// </summary>
+    private CoachOperationResult<CoachTurnResponse> AttachWordList(CoachOperationResult<CoachTurnResponse> reduced)
+    {
+        if (_writeTurn?.ListedWords is not { Words.Count: > 0 } listed
+            || !reduced.IsOk || reduced.Value is not { } response
+            || response.Status != CoachTurnStatus.Completed)
+        {
+            return reduced;
+        }
+
+        var list = new CoachWordListDto
+        {
+            Kind = CoachWordListKind.PlanVocabulary,
+            Order = listed.WeakestFirst ? CoachWordListOrder.WeakestFirst : CoachWordListOrder.PlanOrder,
+            Rows = listed.Words
+                .Take(CoachWordListDto.MaxRows)
+                .Select(word => new CoachWordListRowDto(
+                    word.WordId,
+                    word.TargetTerm,
+                    word.NativeTerm,
+                    word.MasteryPct,
+                    CoachRouteCatalog.Build(
+                        CoachRouteName.Vocabulary,
+                        [new CoachRouteParameterDto(CoachRouteParameterKey.VocabularyWordId, word.WordId)])))
+                .ToList()
+        };
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response.WithWordList(list));
     }
 
     /// <summary>
@@ -2454,10 +2515,11 @@ public sealed class CoachSessionService : ICoachSessionService
         string userProfileId,
         CoachSession session,
         IReadOnlyList<string?> surfaced,
+        CoachTurnEmbargo turn,
         CancellationToken cancellationToken)
     {
         var embargoed = await _validationData
-            .GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken)
+            .GetTurnEmbargoAsync(userProfileId, turn, cancellationToken)
             .ConfigureAwait(false);
 
         if (embargoed.Count == 0)
@@ -2976,7 +3038,7 @@ public sealed class CoachSessionService : ICoachSessionService
         // applied. The model calling it a direct change is not enough on its own.
         if (request.InputKind == CoachTurnInputKind.Text)
         {
-            var denial = _writeAuthority.Evaluate(request.Text);
+            var denial = _writeAuthority.Evaluate(request.Text, PlanOnScreen(request));
             if (denial != CoachWriteAuthority.Denial.None)
             {
                 _logger.LogInformation(
@@ -4589,6 +4651,15 @@ public sealed class CoachSessionService : ICoachSessionService
             ExpiresAtUtc = session.ExpiresAt
         };
     }
+
+    /// <summary>
+    /// True when the learner sent this from a screen showing Today's Plan: the screen reported
+    /// plan items. The screen is advisory, so this only lets the learner's own words count as a
+    /// plan request without naming the plan; it never authorizes a change by itself.
+    /// </summary>
+    private static bool PlanOnScreen(CoachTurnRequest request) =>
+        request.ClientScreen?.Items?.Any(item =>
+            item is not null && item.Kind == CoachClientScreenItemKinds.PlanItem) == true;
 
     private static string LearnerTextFor(CoachTurnRequest request) => request.InputKind switch
     {

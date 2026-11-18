@@ -185,7 +185,7 @@ public class CoachResultScopeContractTests
             ["Unspecified"] = 0, ["NotApplicable"] = 1, ["Unordered"] = 2,
             ["LastUsedAscending"] = 3, ["UpdatedDescending"] = 4, ["MasteryDescending"] = 5,
             ["MinutesDescending"] = 6, ["PriorityAscending"] = 7, ["FrequencyDescending"] = 8,
-            ["BandLabelAscending"] = 9
+            ["BandLabelAscending"] = 9, ["MasteryAscending"] = 10
         });
 
         Pinned<CoachScopeFilters>(new()
@@ -211,7 +211,7 @@ public class CoachResultScopeContractTests
             ["LearnerOverviewSummary"] = 10, ["PlanDaySummary"] = 11,
             ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13,
             ["LatestPracticeSummary"] = 14,
-            ["ClientReportedScreen"] = 15
+            ["ClientReportedScreen"] = 15, ["PlanVocabulary"] = 16
         });
 
         Pinned<CoachScopeMinimumEvidence>(new()
@@ -680,7 +680,7 @@ public class CoachResultScopeContractTests
     }
 
     [Fact]
-    public async Task The_plan_summary_scopes_itself_to_one_local_day_and_claims_no_order()
+    public async Task The_plan_summary_scopes_itself_to_one_local_day_in_plan_order()
     {
         using var fixture = new CoachToolTestFixture();
         var user = CoachToolTestFixture.UserA;
@@ -695,7 +695,7 @@ public class CoachResultScopeContractTests
         summary.Scope.WindowEndDate.Should().Be(fixture.Today);
         summary.Scope.Filters.Should().Be(CoachScopeFilters.OwnerScoped | CoachScopeFilters.CalendarDay);
         summary.Scope.Order.Should().Be(
-            CoachScopeOrder.Unordered, "the items come back in storage order and nothing claims otherwise");
+            CoachScopeOrder.PriorityAscending, "the items come back in the plan's own order, as the dashboard lists them");
         summary.Scope.ReturnedCount.Should().Be(2);
         summary.Scope.ClockBasis.Should().Be(CoachScopeClockBasis.LearnerLocalDay);
 
@@ -1358,7 +1358,8 @@ public class CoachResultScopeContractTests
             (CoachToolNames.GetCurrentPlanSummary, (await fixture.CurrentPlanSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetPracticeHistorySummary, (await fixture.HistorySummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetVocabularyExampleSentences, (await fixture.VocabularyExampleSentencesTool.GetAsync(word)).Scope),
-            (CoachToolNames.GetCurrentScreen, (await fixture.CurrentScreenTool.GetAsync()).Scope)
+            (CoachToolNames.GetCurrentScreen, (await fixture.CurrentScreenTool.GetAsync()).Scope),
+            (CoachToolNames.GetPlanVocabulary, (await fixture.PlanVocabularyTool.GetAsync()).Scope)
         ];
     }
 

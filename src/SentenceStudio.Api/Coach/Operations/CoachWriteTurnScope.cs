@@ -75,6 +75,13 @@ public sealed class CoachWriteTurnScope
     public SentenceStudio.Contracts.Coach.CoachClientScreenContext? ClientScreen { get; set; }
 
     /// <summary>
+    /// The words a list tool showed the model this turn (<c>get_plan_vocabulary</c>). The reply
+    /// carries them as a list the server built, and the leak scan does not count them: the
+    /// learner asked to see them. Several calls in one turn add up.
+    /// </summary>
+    public Tools.SamTools.CoachListedWords? ListedWords { get; set; }
+
+    /// <summary>
     /// Records the conversation and turn for this request.
     /// </summary>
     /// <remarks>
@@ -107,6 +114,7 @@ public sealed class CoachWriteTurnScope
     public void Enter(string? conversationId, string? turnId = null)
     {
         ClientScreen = null;
+        ListedWords = null;
         ConversationId = string.IsNullOrWhiteSpace(conversationId) ? null : conversationId;
 
         if (ConversationId is null)

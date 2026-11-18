@@ -10754,4 +10754,36 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_SelectFirst" xml:space="preserve">
     <value>Choose one or more words first.</value>
   </data>
+  <data name="Coach_EvidenceDefinition_PlanVocabulary" xml:space="preserve">
+    <value>The words in Today's Plan.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_MasteryWeakest" xml:space="preserve">
+    <value>Weakest first</value>
+    <comment>Coach: evidence ordering claim, lowest mastery score first</comment>
+  </data>
+  <data name="Coach_WordList_Plan" xml:space="preserve">
+    <value>Words in Today's Plan</value>
+    <comment>Sam: heading over the plan words Sam listed, in plan order</comment>
+  </data>
+  <data name="Coach_WordList_PlanWeakest" xml:space="preserve">
+    <value>Words in Today's Plan, weakest first</value>
+    <comment>Sam: heading over the plan words Sam listed, lowest mastery first</comment>
+  </data>
+  <data name="Coach_WordList_Mastery" xml:space="preserve">
+    <value>{0}% mastery</value>
+    <comment>Sam: a listed word's mastery. {0} is a whole number from 0 to 100</comment>
+  </data>
+  <data name="Coach_WordList_NotPractised" xml:space="preserve">
+    <value>Not practised yet</value>
+    <comment>Sam: a listed word that has never been practised</comment>
+  </data>
+  <data name="NativeSam_WordOpenLeaveScreen" xml:space="preserve">
+    <value>Close the screen you are on, then open this word.</value>
+    <comment>Sam: a word row was tapped while a quiz or activity is open</comment>
+  </data>
+  <data name="NativeSam_WordOpenFailed" xml:space="preserve">
+    <value>That word could not open. It may have been deleted.</value>
+    <comment>Sam: a listed word row was tapped but its editor could not open</comment>
+  </data>
 </root>

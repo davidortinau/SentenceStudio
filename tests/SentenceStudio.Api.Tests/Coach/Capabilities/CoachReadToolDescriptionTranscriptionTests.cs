@@ -73,12 +73,14 @@ public class CoachReadToolDescriptionTranscriptionTests
         },
         {
             CoachToolNames.GetCurrentPlanSummary,
-            "Reads today's plan: each item's activity type, whether it is done, and minutes planned "
-            + "against minutes spent. Bounded to one calendar day in the learner's own time zone, so an "
-            + "empty answer means no plan exists for today, not that the learner has never had one. Items "
-            + "carry no order the caller may rely on. Counts are plan items. It returns no item text "
-            + "\u2014 an activity type is a closed category, and the plan's strategy label is bounded plan "
-            + "metadata."
+            "Reads today's plan as the dashboard shows it: each item's identifier, activity type, "
+            + "whether it is done, minutes planned against minutes spent, the resource it uses (identifier and "
+            + "title), the skill it practises and how many plan words it works on; and for the plan, its total "
+            + "minutes, word count and the mastery figure the dashboard shows. Bounded to one calendar day in "
+            + "the learner's own time zone, so an empty answer means no plan exists for today, not that the "
+            + "learner has never had one. Items come in the plan's own order. Counts are plan items. It returns "
+            + "no item text \u2014 an activity type is a closed category, and the plan's strategy label is bounded "
+            + "plan metadata."
         }
     };
 

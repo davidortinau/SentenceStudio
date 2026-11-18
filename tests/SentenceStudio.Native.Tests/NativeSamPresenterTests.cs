@@ -464,6 +464,43 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task AListedWordOpensItsEditorAndNoOtherWordDoes()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var listedId = "0f8fad5b-d9cb-469f-a165-70867728950e";
+        api.TurnResult = (_, _) => new CoachTurnResponse
+        {
+            SessionId = "session-1", TurnId = "turn-1", Status = CoachTurnStatus.Completed,
+            StopReason = CoachStopReason.Completed, SessionStatus = CoachSessionStatus.Active,
+            ActiveConstraints = Constraints(), PlanState = Plan(), Evidence = [],
+            ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
+            WordList = new CoachWordListDto
+            {
+                Kind = CoachWordListKind.PlanVocabulary, Order = CoachWordListOrder.WeakestFirst,
+                Rows = [new CoachWordListRowDto(listedId, "포도", "grape", 8,
+                    CoachRouteCatalog.Build(CoachRouteName.Vocabulary,
+                        [new CoachRouteParameterDto(CoachRouteParameterKey.VocabularyWordId, listedId)]))]
+            }
+        };
+        var sam = Create(fixture, api);
+        var opened = new List<(string Owner, string Word)>();
+        sam.WordRequested += (owner, word) => opened.Add((owner, word));
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        sam.SetDraft("which plan words am I worst at");
+        await sam.SendAsync();
+
+        Assert.Contains(sam.State.SafeEntries, entry => entry.WordList?.Rows.Count == 1);
+        sam.OpenListedWord("not-a-listed-word");
+        sam.OpenListedWord(listedId);
+
+        Assert.Equal([(NativeSliceFixture.UserA, listedId)], opened);
+    }
+
+    [Fact]
     public async Task UnavailableAvailabilityHidesTheEntry()
     {
         using var fixture = new NativeSliceFixture();

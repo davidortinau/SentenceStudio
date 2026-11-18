@@ -73,7 +73,8 @@ internal sealed partial class AndroidSliceShell
     private void OpenActivityLog() => OpenMoreScreen(MoreScreen.ActivityLog);
 
     /// <summary>Opens a page above the current tab root; <paramref name="create"/> opens Skills on its create form.</summary>
-    private void OpenMoreScreen(MoreScreen screen, bool create = false) => Publish(() =>
+    /// <param name="openWordId">Vocabulary only: the word whose editor opens once the list is read (a word Sam listed).</param>
+    private void OpenMoreScreen(MoreScreen screen, bool create = false, string? openWordId = null) => Publish(() =>
     {
         if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
             || Busy.Value || IsMoreScreenOpen || _scope is null)
@@ -112,7 +113,17 @@ internal sealed partial class AndroidSliceShell
                     Localize);
                 vocabulary.Changed += OnMoreChanged;
                 _vocabulary = vocabulary;
-                RunMoreOnUi(() => vocabulary.OpenAsync(owner));
+                RunMoreOnUi(async () =>
+                {
+                    var listed = await vocabulary.OpenAsync(owner);
+                    if (openWordId is null || !ReferenceEquals(_vocabulary, vocabulary))
+                        return;
+                    // A word Sam listed: Sam closes once its editor is open, and says so if it is not.
+                    if (listed && await vocabulary.OpenWordAsync(openWordId))
+                        _sam?.Close();
+                    else
+                        _sam?.ReportListedWordNotOpened();
+                });
                 break;
             case MoreScreen.ActivityLog when owner is not null:
                 var log = new ActivityLogCoordinator(

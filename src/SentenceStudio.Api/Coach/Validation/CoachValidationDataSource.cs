@@ -30,6 +30,24 @@ public interface ICoachValidationDataSource
         IEnumerable<string>? additionalWordIds = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The embargo for one turn's reply: the due words, less the ones the learner asked to see
+    /// this turn and the visible side of the words on their screen, plus the hidden side of any
+    /// word whose answer their screen is keeping from them.
+    /// </summary>
+    /// <remarks>
+    /// The default keeps the due-word embargo and only removes exemptions, so a source that knows
+    /// nothing about screens never loosens it beyond what the learner asked for.
+    /// </remarks>
+    async Task<IReadOnlyList<CoachEmbargoedItem>> GetTurnEmbargoAsync(
+        string userProfileId,
+        CoachTurnEmbargo turn,
+        CancellationToken cancellationToken = default)
+    {
+        var due = await GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return due.Where(item => item.WordId is null || !turn.ExemptWordIds.Contains(item.WordId)).ToList();
+    }
+
     /// <summary>Every resource identifier the learner owns, for the ownership check.</summary>
     Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
         string userProfileId,
@@ -138,8 +156,77 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
                 w.NativeLanguageTerm,
                 w.Lemma,
                 examplesByWord.TryGetValue(w.Id, out var list) ? list : null,
-                w.MnemonicText))
+                w.MnemonicText,
+                w.Id))
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<CoachEmbargoedItem>> GetTurnEmbargoAsync(
+        string userProfileId,
+        CoachTurnEmbargo turn,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(turn);
+        if (!HasExactOwner(userProfileId, nameof(GetTurnEmbargoAsync)))
+        {
+            return [];
+        }
+
+        var onScreen = turn.ScreenWords.Select(word => word.WordId).ToHashSet(StringComparer.Ordinal);
+        var due = await GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var embargo = due
+            .Where(item => item.WordId is null
+                || (!turn.ExemptWordIds.Contains(item.WordId) && !onScreen.Contains(item.WordId)))
+            .ToList();
+
+        var hidden = turn.ScreenWords.Where(word => word.AnswerHidden).ToList();
+        if (hidden.Count == 0)
+        {
+            return embargo;
+        }
+
+        // The word on screen: only the side the learner cannot see yet is withheld, so Sam can use
+        // the prompt in a sentence without giving the answer away.
+        var ids = hidden.Select(word => word.WordId).ToList();
+        var words = await _db.VocabularyWords
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(w => ids.Contains(w.Id))
+            .Select(w => new WordRow(w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.Lemma, w.MnemonicText))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var examples = await _db.ExampleSentences
+            .AsNoTracking()
+            .OwnedBy(userProfileId)
+            .Where(e => ids.Contains(e.VocabularyWordId))
+            .Select(e => new ExampleRow(e.VocabularyWordId, e.TargetSentence, e.NativeSentence))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var word in words)
+        {
+            var shown = hidden.First(h => h.WordId == word.Id).ShownLabel?.Trim();
+            var targetShown = shown is { Length: > 0 } && string.Equals(shown, word.TargetLanguageTerm?.Trim(), StringComparison.Ordinal);
+            var nativeShown = shown is { Length: > 0 } && string.Equals(shown, word.NativeLanguageTerm?.Trim(), StringComparison.Ordinal);
+            var wordExamples = examples.Where(e => e.VocabularyWordId == word.Id).ToList();
+
+            embargo.Add(new CoachEmbargoedItem(
+                TargetTerm: targetShown ? null : word.TargetLanguageTerm,
+                NativeTerm: nativeShown ? null : word.NativeLanguageTerm,
+                Lemma: targetShown ? null : word.Lemma,
+                // A target-language example contains the target word; a native one, its meaning.
+                Examples: wordExamples
+                    .Select(e => targetShown ? e.NativeSentence : nativeShown ? e.TargetSentence : e.TargetSentence)
+                    .Concat(targetShown || nativeShown ? [] : wordExamples.Select(e => e.NativeSentence))
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
+                    .Take(MaxExamplesPerWord)
+                    .ToList(),
+                MnemonicText: word.MnemonicText,
+                WordId: word.Id));
+        }
+
+        return embargo;
     }
 
     public async Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
@@ -185,3 +272,18 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
 
     private sealed record ExampleRow(string VocabularyWordId, string TargetSentence, string? NativeSentence);
 }
+
+/// <summary>What one turn's reply may and may not repeat beyond the due-word embargo.</summary>
+/// <param name="ExemptWordIds">Words a list tool showed this turn because the learner asked to see them.</param>
+/// <param name="ScreenWords">The vocabulary on the learner's screen as they sent the message.</param>
+public sealed record CoachTurnEmbargo(
+    IReadOnlySet<string> ExemptWordIds,
+    IReadOnlyList<CoachScreenWord> ScreenWords)
+{
+    public static CoachTurnEmbargo None { get; } = new(new HashSet<string>(StringComparer.Ordinal), []);
+}
+
+/// <summary>One word on the learner's screen.</summary>
+/// <param name="ShownLabel">The text the screen shows for it, or null when it shows none (an audio prompt).</param>
+/// <param name="AnswerHidden">True while the screen keeps its answer from the learner.</param>
+public sealed record CoachScreenWord(string WordId, string? ShownLabel, bool AnswerHidden);

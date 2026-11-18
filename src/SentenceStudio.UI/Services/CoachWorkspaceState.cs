@@ -2424,6 +2424,13 @@ public sealed partial class CoachWorkspaceState : IDisposable
             AttachEvidenceToTurn(placement, turn.Evidence);
         }
 
+        // The words Sam listed sit under the reply that introduced them.
+        if (turn.WordList is { Rows.Count: > 0 } wordList
+            && FindTurnAnchorIndex(placement) is var wordAnchor && wordAnchor >= 0)
+        {
+            _timeline[wordAnchor] = _timeline[wordAnchor].WithWordList(wordList);
+        }
+
         // After the evidence, so the note and the rows it may point at land on the same message.
         // Reads VisibleRepairDisclosure, so a refused turn attaches nothing at all — refusal
         // precedence is one rule enforced in one place rather than re-derived per renderer.

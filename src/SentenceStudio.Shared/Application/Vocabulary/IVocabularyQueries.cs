@@ -188,6 +188,16 @@ public interface IVocabularyQueries
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the named words the learner owns (the one ownership rule), with their mastery when
+    /// they have practised them, in no particular order. Identifiers the learner does not own,
+    /// or that do not exist, are left out. An empty identifier returns nothing.
+    /// </summary>
+    Task<IReadOnlyList<VocabularyWordSummary>> GetOwnedWordsAsync(
+        string userProfileId,
+        IReadOnlyCollection<string> wordIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the scheduling and scoring facts for every word the learner is tracking, with no
     /// terms attached. An empty identifier returns nothing.
     /// </summary>

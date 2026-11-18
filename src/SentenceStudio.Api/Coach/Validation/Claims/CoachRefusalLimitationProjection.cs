@@ -141,6 +141,7 @@ public static class CoachRefusalLimitationProjection
             // Practice, history and the day's plan all live on the activity log.
             CoachDefinitionCode.PracticeWindowBalance
                 or CoachDefinitionCode.PlanDaySummary
+                or CoachDefinitionCode.PlanVocabulary
                 or CoachDefinitionCode.DeterministicPlanPreview
                 or CoachDefinitionCode.LatestPracticeSummary
                 => CoachRouteCatalog.Build(CoachRouteName.ActivityLog),

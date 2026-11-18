@@ -171,6 +171,14 @@ public sealed class CoachTurnResponse
     public CoachVocabularySetProposal? VocabularySetProposal { get; init; }
 
     /// <summary>
+    /// Words Sam listed this turn because the learner asked to see them ("preview today's words",
+    /// "which am I worst at"), built by the server from what the list tool read, never typed by the
+    /// model. Each row opens its word. Null when the turn listed none. Additive: a client that does
+    /// not know it shows Sam's sentence alone.
+    /// </summary>
+    public CoachWordListDto? WordList { get; init; }
+
+    /// <summary>
     /// Returns a copy carrying the given write proposal.
     /// </summary>
     /// <remarks>
@@ -201,7 +209,8 @@ public sealed class CoachTurnResponse
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
         WriteOperation = writeOperation,
-        VocabularySetProposal = VocabularySetProposal
+        VocabularySetProposal = VocabularySetProposal,
+        WordList = WordList
     };
 
     /// <summary>
@@ -235,7 +244,8 @@ public sealed class CoachTurnResponse
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = candidate,
         WriteOperation = WriteOperation,
-        VocabularySetProposal = VocabularySetProposal
+        VocabularySetProposal = VocabularySetProposal,
+        WordList = WordList
     };
 
     /// <summary>
@@ -270,7 +280,8 @@ public sealed class CoachTurnResponse
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
-        VocabularySetProposal = VocabularySetProposal
+        VocabularySetProposal = VocabularySetProposal,
+        WordList = WordList
     };
 
     /// <summary>Returns a copy carrying an inert whole-set vocabulary proposal.</summary>
@@ -297,7 +308,8 @@ public sealed class CoachTurnResponse
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
-        VocabularySetProposal = proposal
+        VocabularySetProposal = proposal,
+        WordList = WordList
     };
 
     /// <summary>Returns a copy with no vocabulary proposal in the client projection.</summary>
@@ -327,6 +339,35 @@ public sealed class CoachTurnResponse
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
         WriteOperation = WriteOperation,
-        VocabularySetProposal = null
+        VocabularySetProposal = null,
+        WordList = WordList
+    };
+
+    /// <summary>Returns a copy carrying the words Sam listed this turn.</summary>
+    public CoachTurnResponse WithWordList(CoachWordListDto? wordList) => new()
+    {
+        SessionId = SessionId,
+        TurnId = TurnId,
+        Status = Status,
+        StopReason = StopReason,
+        SessionStatus = SessionStatus,
+        Messages = Messages,
+        ActiveConstraints = ActiveConstraints,
+        PlanState = PlanState,
+        PendingSuggestion = PendingSuggestion,
+        ChangeReceipt = ChangeReceipt,
+        Answer = Answer,
+        Evidence = Evidence,
+        Dispute = Dispute,
+        Limitation = Limitation,
+        RepairDisclosure = RepairDisclosure,
+        ClarifyingQuestion = ClarifyingQuestion,
+        ClarificationsRemaining = ClarificationsRemaining,
+        RunsRemainingToday = RunsRemainingToday,
+        ExpiresAtUtc = ExpiresAtUtc,
+        MemoryCandidate = MemoryCandidate,
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = VocabularySetProposal,
+        WordList = wordList
     };
 }

@@ -223,7 +223,7 @@ public class CoachEvidenceScopeRenderTests
             named++;
         }
 
-        named.Should().Be(7, "seven orders are real rankings; the sweep must see all of them");
+        named.Should().Be(8, "eight orders are real rankings; the sweep must see all of them");
     }
 
     [Fact]
@@ -432,7 +432,7 @@ public class CoachEvidenceScopeRenderTests
             named++;
         }
 
-        named.Should().Be(16, "every definition code must be representable; the sweep must see all of them");
+        named.Should().Be(17, "every definition code must be representable; the sweep must see all of them");
     }
 
     // ── Localization ─────────────────────────────────────────────────────────

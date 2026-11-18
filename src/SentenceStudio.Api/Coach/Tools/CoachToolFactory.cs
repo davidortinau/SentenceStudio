@@ -336,6 +336,15 @@ public sealed class CoachToolFactory : ICoachToolFactory
                             .GetAsync(ct),
                     reg.Name, reg.Description),
 
+            CoachToolNames.GetPlanVocabulary =>
+                Create(
+                    ([Description("plan for the plan's own order, or weakest for lowest mastery first.")] string? order = null,
+                     [Description("How many words, at most forty. Default twenty.")] int? maxResults = null,
+                     CancellationToken ct = default) =>
+                        _serviceProvider.GetRequiredService<SamTools.PlanVocabularyTool>()
+                            .GetAsync(order, maxResults, ct),
+                    reg.Name, reg.Description),
+
             CoachToolNames.GetCurrentScreen =>
                 Create(
                     (CancellationToken ct = default) =>

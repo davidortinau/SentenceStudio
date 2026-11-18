@@ -82,7 +82,8 @@ public sealed record NativeSamEntry(
     CoachMessageKind MessageKind = CoachMessageKind.Text,
     CoachWriteOperationDto? Write = null,
     CoachRepairDisclosure? Repair = null,
-    bool RepairEvidenceOnScreen = false)
+    bool RepairEvidenceOnScreen = false,
+    CoachWordListDto? WordList = null)
 {
     public bool HasEvidence => !Evidence.IsDefaultOrEmpty;
 
