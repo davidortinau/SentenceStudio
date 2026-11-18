@@ -32,11 +32,11 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.True(graded >= 0 && correctTerm > graded
             && status > correctTerm && choices > status && textInput > choices);
         Assert.Contains("state.AnswerWasCorrect == true", question);
-        Assert.Contains("state.CompleteForm is { Length: > 0 }", question);
+        Assert.Contains("state.CompleteForm is { Length: > 0 }", feature);
         Assert.Contains("state.FeedbackMnemonicText is { Length: > 0 }", question);
-        Assert.Contains("NativeVocabQuiz_FuzzyFeedback", question);
-        Assert.Contains("NativeVocabQuiz_CorrectFeedback", question);
-        Assert.Contains("NativeVocabQuiz_IncorrectFeedback", question);
+        Assert.Contains("NativeVocabQuiz_FuzzyFeedback", feature);
+        Assert.Contains("NativeVocabQuiz_CorrectFeedback", feature);
+        Assert.Contains("NativeVocabQuiz_IncorrectFeedback", feature);
         Assert.Contains("native.quiz.feedback.mnemonic", question);
         Assert.DoesNotContain("native.quiz.feedback.full-form", feature);
     }
@@ -146,16 +146,20 @@ public sealed class NativeQuizFeedbackContractTests
     {
         var feature = FeatureSource();
 
-        // The status alert is for text answers; written choices also drop the answer line,
-        // and audio-letter choices keep it because their options show only letters.
-        Assert.Contains("var choicesShowResult = state.Mode == \"MultipleChoice\";", feature);
-        Assert.Contains("&& state.CanPlayAnswerAudio);", feature);
-        Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowAnswer", feature);
+        // The banner stays for text answers and for a turn whose answer is not an option;
+        // written choices also drop the answer line, which audio-letter choices keep.
+        Assert.Contains("state.Choices.Any(choice => IsCorrectChoice(state, choice.Text))",
+            feature);
+        Assert.Contains("var showAnswerLine = !choicesShowResult || audioChoices;", feature);
+        Assert.Contains("state.Phase == NativePhase.Feedback && showAnswerLine", feature);
         Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowResult", feature);
-        // The result is not told by color alone: a mark and the spoken name carry it.
-        Assert.Contains("\"checkmark.circle.fill\" : \"xmark.circle.fill\"", feature);
-        Assert.Contains("ChoiceResultCaption(state, answer, text)", feature);
+        // Not by color alone: a mark whose place is always kept, and the spoken result.
+        Assert.Contains("\"xmark.circle.fill\" : \"checkmark.circle.fill\"", feature);
+        Assert.Contains(".WithHidden(!correct && !incorrect)", feature);
+        Assert.Contains("title.WithForegroundColor(\"#FFFFFF\", \"#FFFFFF\")", feature);
+        Assert.Contains("answer + ChoiceResultCaption(state, answer, text)", feature);
         Assert.Contains("+ ChoiceResultCaption(state, choice.Text, text)", feature);
+        Assert.Contains("choiceButton.WithAccessibilityAnnouncement(", feature);
     }
 
     [Fact]
@@ -166,6 +170,8 @@ public sealed class NativeQuizFeedbackContractTests
 
         Assert.Contains("internal static SwiftView? Add(", summary);
         Assert.Contains("\"native.quiz.summary.footer\"", summary);
+        Assert.Contains("style.DockedBar(Views.VStack(row))", summary);
+        Assert.Contains("NativeAdaptiveLayout.EffectiveWidth(", summary);
         Assert.DoesNotContain("items.Add(style.PrimaryButton(", summary);
         Assert.Contains("footer = QuizSummaryView.Add(", page);
         Assert.Contains("Views.BottomInset(page, footer)", page);

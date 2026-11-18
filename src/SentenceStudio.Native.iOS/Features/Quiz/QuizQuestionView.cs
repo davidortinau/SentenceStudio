@@ -164,12 +164,15 @@ internal static class QuizQuestionView
         }
         // Issue 225 (Captain, 2026-11-15): a multiple-choice result shows only on the
         // options, so the graded question still fits a landscape screen. Audio choices show
-        // letters, so they keep the written answer; text answers keep the whole result.
-        var choicesShowResult = state.Mode == "MultipleChoice";
-        var choicesShowAnswer = choicesShowResult
-            && !(state.Prompt is { IsTargetLanguagePrompt: false }
-                && state.CanPlayAnswerAudio);
-        if (state.Phase == NativePhase.Feedback && !choicesShowAnswer)
+        // letters, so they keep the written answer; text answers keep the whole result, and
+        // so does a turn whose answer matches none of the options.
+        var audioChoices = state.Mode == "MultipleChoice"
+            && state.Prompt is { IsTargetLanguagePrompt: false }
+            && state.CanPlayAnswerAudio;
+        var choicesShowResult = state.Mode == "MultipleChoice"
+            && !state.Choices.IsDefault && state.Choices.Any(choice => IsCorrectChoice(state, choice.Text));
+        var showAnswerLine = !choicesShowResult || audioChoices;
+        if (state.Phase == NativePhase.Feedback && showAnswerLine)
         {
             // Source: the answer sits in the centered prompt block (text-center).
             if (state.CorrectAnswerAfterGrading is { Length: > 0 } correct)
@@ -178,28 +181,13 @@ internal static class QuizQuestionView
                     .WithAccessibilityIdentifier("native.quiz.correct-answer"));
         }
         if (state.Phase == NativePhase.Feedback && !choicesShowResult)
-        {
-            var status = state.CompleteForm is { Length: > 0 } fullForm
-                && state.AnswerWasCorrect == true
-                ? string.Format(CultureInfo.CurrentCulture,
-                    text("NativeVocabQuiz_FuzzyFeedback"), fullForm)
-                : state.AnswerWasCorrect == true
-                    ? text("NativeVocabQuiz_CorrectFeedback")
-                    : state.CorrectAnswerAfterGrading is { Length: > 0 } solution
-                        ? string.Format(CultureInfo.CurrentCulture,
-                            text("NativeVocabQuiz_IncorrectFeedback"), solution)
-                        : text(NativeText.QuizIncorrect);
-            items.Add(style.Alert(style.Text(Views.Text(status),
+            items.Add(style.Alert(style.Text(Views.Text(FeedbackStatus(state, text)),
                         SourceTextRole.DefaultBody),
                     success: state.AnswerWasCorrect == true, compact: true)
                 .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
                 .WithAccessibilityIdentifier(NativeAccess.QuizFeedback));
-        }
         if (state.Mode == "MultipleChoice")
         {
-            var audioChoices = state.Prompt is {
-                IsTargetLanguagePrompt: false }
-                && state.CanPlayAnswerAudio;
             for (var index = 0; index < state.Choices.Length; index++)
             {
                 var optionIndex = index;
@@ -211,6 +199,11 @@ internal static class QuizQuestionView
                         () => selectChoice(choice.Text), text,
                         audioChoices ? ((char)('A' + index)).ToString() : null)
                     .WithAccessibilityIdentifier(id);
+                // Without the banner, VoiceOver hears the result as the turn is graded.
+                if (index == 0)
+                    choiceButton.WithAccessibilityAnnouncement(
+                        state.Phase == NativePhase.Feedback && choicesShowResult
+                            ? FeedbackStatus(state, text) : string.Empty);
                 if (audioChoices)
                 {
                     var letter = ((char)('A' + index)).ToString();
@@ -294,10 +287,8 @@ internal static class QuizQuestionView
         Action select, Func<string, string> text, string? audioLetter = null)
     {
         var answered = state.Phase is NativePhase.Feedback or NativePhase.Error;
-        var correct = answered && string.Equals(answer,
-            state.CorrectAnswerAfterGrading, StringComparison.OrdinalIgnoreCase);
-        var incorrect = answered && !correct && string.Equals(answer,
-            state.SelectedAnswer, StringComparison.OrdinalIgnoreCase);
+        var correct = answered && IsCorrectChoice(state, answer);
+        var incorrect = answered && IsWrongPick(state, answer);
         var sourceClass = style.Appearance.Selection.ThemeId is "brite" or "sketchy";
         var neutralDisabled = answered && !correct && !incorrect;
         SourceColorPair? fill = correct ? style.Appearance.Success
@@ -310,23 +301,24 @@ internal static class QuizQuestionView
             : neutralDisabled && sourceClass
                 ? style.Appearance.BootstrapNeutralDisabledBorder
                 : style.Appearance.BootstrapButtonBorder;
-        var label = style.Text(Views.Text(audioLetter ?? answer),
+        var title = style.Text(Views.Text(audioLetter ?? answer),
             SourceTextRole.Title3);
-        // The graded options carry the result, so it is not told by color alone.
+        // The graded options carry the result, so it is not told by color alone. The
+        // mark's place is kept on every option, so grading does not move or rewrap text.
+        var mark = Views.Image(incorrect ? "xmark.circle.fill" : "checkmark.circle.fill")
+            .WithHidden(!correct && !incorrect)
+            .WithAccessibilityIdentifier(correct ? "native.quiz.choice.result.correct"
+                : incorrect ? "native.quiz.choice.result.incorrect"
+                : "native.quiz.choice.result.none");
         if (correct || incorrect)
         {
-            var mark = Views.HStack(label.WithFlexibleWidth(),
-                Views.Image(correct ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .WithAccessibilityIdentifier(correct
-                        ? "native.quiz.choice.result.correct"
-                        : "native.quiz.choice.result.incorrect"));
-            mark.Spacing = SourceUiLayout.ItemGap;
-            label = mark;
+            title.WithForegroundColor("#FFFFFF", "#FFFFFF");
+            mark.WithForegroundColor("#FFFFFF", "#FFFFFF");
         }
-        if (correct || incorrect)
-            label.WithForegroundColor("#FFFFFF", "#FFFFFF");
         else if (neutralDisabled && sourceClass)
-            label.WithForegroundColor(border.Light, border.Dark);
+            title.WithForegroundColor(border.Light, border.Dark);
+        var label = Views.HStack(title.WithFlexibleWidth(), mark);
+        label.Spacing = SourceUiLayout.ItemGap;
         label.WithFlexibleWidth()
             .WithPadding(16, 16, 16, 16);
         if (!sourceClass)
@@ -345,7 +337,7 @@ internal static class QuizQuestionView
                 .WithButtonBorderWidth(style.Appearance.BootstrapBaseButtonBorderWidth);
             style.WithSketchyBootstrapCorners(button);
         }
-        if (audioLetter is null && (correct || incorrect))
+        if (audioLetter is null)
             button.WithAccessibilityLabel(answer + ChoiceResultCaption(state, answer, text));
         button.IsEnabled = !answered && !busy;
         return button;
@@ -357,12 +349,29 @@ internal static class QuizQuestionView
     {
         if (state.Phase is not (NativePhase.Feedback or NativePhase.Error))
             return string.Empty;
-        if (string.Equals(answer, state.CorrectAnswerAfterGrading,
-                StringComparison.OrdinalIgnoreCase))
-            return $", {text(NativeText.QuizCorrect)}";
-        return string.Equals(answer, state.SelectedAnswer,
-                StringComparison.OrdinalIgnoreCase)
-            ? $", {text(NativeText.QuizIncorrect)}" : string.Empty;
+        return IsCorrectChoice(state, answer) ? $", {text(NativeText.QuizCorrect)}"
+            : IsWrongPick(state, answer) ? $", {text(NativeText.QuizIncorrect)}"
+            : string.Empty;
     }
+
+    private static bool IsCorrectChoice(NativeQuizState state, string answer) =>
+        string.Equals(answer, state.CorrectAnswerAfterGrading,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWrongPick(NativeQuizState state, string answer) =>
+        !IsCorrectChoice(state, answer) && string.Equals(answer,
+            state.SelectedAnswer, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The graded turn's result: the banner text, and what VoiceOver announces.</summary>
+    private static string FeedbackStatus(NativeQuizState state, Func<string, string> text) =>
+        state.CompleteForm is { Length: > 0 } fullForm && state.AnswerWasCorrect == true
+            ? string.Format(CultureInfo.CurrentCulture,
+                text("NativeVocabQuiz_FuzzyFeedback"), fullForm)
+            : state.AnswerWasCorrect == true
+                ? text("NativeVocabQuiz_CorrectFeedback")
+                : state.CorrectAnswerAfterGrading is { Length: > 0 } solution
+                    ? string.Format(CultureInfo.CurrentCulture,
+                        text("NativeVocabQuiz_IncorrectFeedback"), solution)
+                    : text(NativeText.QuizIncorrect);
 
 }

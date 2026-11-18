@@ -12,6 +12,9 @@ namespace SentenceStudio.Native.iOS.Features.Quiz;
 
 internal static class QuizSummaryView
 {
+    /// <summary>The text-scaled width from which Continue and Done share one row.</summary>
+    private const double SideBySideActionsWidth = 568;
+
     /// <summary>
     /// Adds the summary to <paramref name="items"/> and returns the footer that holds
     /// Continue and Done, or null when there is none.
@@ -91,15 +94,19 @@ internal static class QuizSummaryView
             actions.Add(style.SecondaryButton(
                     text(NativeText.Done), done)
                 .WithAccessibilityIdentifier("native.quiz.done"));
-            var row = Views.HStack(actions.ToArray())
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithPadding(12, 16, 12, 16);
+            // Side by side only where both fit at the current text size (landscape phone,
+            // iPad); otherwise stacked, as in the source.
+            var sideBySide = NativeAdaptiveLayout.EffectiveWidth(
+                style.ViewportWidth, style.TextScale) >= SideBySideActionsWidth;
+            var row = (sideBySide ? Views.HStack(actions.ToArray())
+                    : Views.VStack(actions.ToArray()))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
             row.Spacing = SourceUiLayout.ItemGap;
             return Views.VStack(
                     Views.Divider().WithAccessibilityIdentifier(
-                        "native.quiz.summary.footer.divider"), row)
-                .WithBackgroundColor(style.Appearance.BodyBackground.Light,
-                    style.Appearance.BodyBackground.Dark)
+                        "native.quiz.summary.footer.divider"),
+                    // DockedBar sets its content's width leading; the row inside stays centered.
+                    style.DockedBar(Views.VStack(row)))
                 .WithAccessibilityIdentifier("native.quiz.summary.footer");
         }
         if (canRetry)
