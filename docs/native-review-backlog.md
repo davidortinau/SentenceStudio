@@ -529,3 +529,19 @@ Captain's request:
 - `PlanService.ApplyCoachConstraintsAsync` loads the plan row and today's completions, then
   `PreviewCoreAsync` reads them again through `TodaysContentAsync`: two extra reads per apply.
   Cleanup: pass the kept words and resource into the preview.
+
+## Sam default duration (review 2026-11-17, branch `feat/sam-default-duration`)
+
+- Plan writes made through the write ledger (`CoachPreferenceChangeHandler`'s resize, and the
+  existing `CoachPlanRegenerationHandler`) skip the conversation's coach revision pipeline:
+  - no `CoachPlanRevision` row;
+  - the session's `ActiveConstraints` keep the old minutes and any exclusions;
+  - no `ValidateOwnedPreviewAsync` check, although the planner reads owner-scoped data only.
+
+  A later turn ("a bit shorter") reasons from the old minutes. Fix: give ledger handlers the
+  conversation, or reconcile the session's constraints with today's plan version at turn start.
+- `CoachWritePlanEffect.ReplacedPlan` reloads Today's Plan after every setting change, including
+  one that did not resize the plan. The extra reload is harmless; carry a "plan revised" flag on
+  the operation if another setting is approved.
+- The risk class of `propose_preference_change` is written in two places: `CoachToolRegistry`
+  and `CoachPreferenceChangeHandler.RiskClass`. `CoachWriteToolSurfaceTests` pins both.

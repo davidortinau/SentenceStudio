@@ -2369,6 +2369,17 @@ public sealed class CoachSessionService : ICoachSessionService
     /// not work would attach a permanent decision to a broken interaction.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// "45 minutes from now on" is the session-length setting this turn's card offers. A study-goal
+    /// memory saying the same would be a second, weaker copy that outlives an undo; any other memory
+    /// on the same turn is kept.
+    /// </summary>
+    internal static bool DuplicatesSessionLengthSetting(CoachMemoryProposalIntent proposal, CoachWriteChangeKind? writeKind) =>
+        writeKind == CoachWriteChangeKind.SettingChange
+        && proposal.Kind == CoachProposedMemoryKind.PersistentStudyGoal
+        && proposal.StudyGoalText is { } goal
+        && System.Text.RegularExpressions.Regex.IsMatch(goal, @"\d+\s*(min|minute|minutes|분)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private async Task<CoachOperationResult<CoachTurnResponse>> AttachMemoryCandidateAsync(
         string userProfileId,
         CoachSession session,
@@ -2381,7 +2392,8 @@ public sealed class CoachSessionService : ICoachSessionService
             || intent.MemoryProposal is null
             || !reduced.IsOk
             || reduced.Value is null
-            || reduced.Value.Status != CoachTurnStatus.Completed)
+            || reduced.Value.Status != CoachTurnStatus.Completed
+            || DuplicatesSessionLengthSetting(intent.MemoryProposal, reduced.Value.WriteOperation?.ChangeKind))
         {
             return reduced;
         }

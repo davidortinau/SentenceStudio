@@ -70,7 +70,7 @@ public sealed class CoachTurnIntent
     /// exact substring of it. A proposal writes nothing the learner has not approved.
     /// </para>
     /// </remarks>
-    [Description("A preference the learner explicitly asked you to remember. Set it only when their message says to remember something, such as 'remember that' or 'from now on'. Leave it empty otherwise.")]
+    [Description("A preference the learner explicitly asked you to remember. Set it only when their message says to remember something, such as 'remember that' or 'from now on'. Leave it empty when a setting covers it (a session length from now on is the session_minutes setting), and otherwise.")]
     public CoachMemoryProposalIntent? MemoryProposal { get; set; }
 
     /// <summary>

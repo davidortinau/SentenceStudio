@@ -48,7 +48,8 @@ public class CoachWriteToolSurfaceTests
         { CoachToolNames.ProposeResourceEntry, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeResourceEdit, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeResourceRemoval, CoachToolRiskClass.WriteHard },
-        { CoachToolNames.ProposePreferenceChange, CoachToolRiskClass.WriteHard },
+        // Soft while session length is its only reachable setting (Captain, 2026-11-17).
+        { CoachToolNames.ProposePreferenceChange, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeYouTubeImport, CoachToolRiskClass.WriteHard },
         { CoachToolNames.ProposeExampleSentenceEntry, CoachToolRiskClass.WriteSoft },
         { CoachToolNames.ProposeExampleSentenceEdit, CoachToolRiskClass.WriteSoft },

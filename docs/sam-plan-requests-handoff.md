@@ -10,7 +10,7 @@ wait for the Captain.
 | 1: plan routing, plan reads, word lists | `feat/sam-plan-reads` | Committed. Verified on web, Android and iOS (below). |
 | 2: start an activity | `feat/sam-start-activity` | Committed. Verified on web, Android and iOS (below). |
 | 3: builder keeps content, fills > 34 min | `feat/sam-plan-builder` | Committed. Verified on web (15 to 45 min) and Android (45 to 30 min); iOS not re-run (the change is server-side, and the dashboard refresh was verified in phase 1). |
-| 4: default duration | | Not started |
+| 4: default duration | `feat/sam-default-duration` | Verified on web (apply 45 to 30, apply then undo) and Android (apply, undo); iOS not re-run (shared presenter). |
 | 5: topic focus from tags | | Not started |
 | 6: another language today | | Not started |
 | 7: find or create, then plan | | Not started |
@@ -86,6 +86,22 @@ wait for the Captain.
 - **Model output check:** the evidence-window length rule (7/14/30 days) now applies to practice
   balance only. A one-day plan fact was refusing plan changes.
 - **Web conversation:** seeding the built-in scenarios is best effort (a fix to phase 2).
+
+## Phase 4: what changed
+
+- **Session length is open to Sam.** `propose_preference_change` accepts `session_minutes`, and only
+  that setting. Values come from `LearnerProfileOptions.SessionMinutes` (5, 10, 15, 20, 30, 45).
+  - The write touches one column (`UserProfileRepository.SavePreferredSessionMinutesAsync`).
+  - The tool is soft, so the learner approves with one tap ("Apply this change"). Approving a
+    language setting would make it protected again (`CoachPreferenceChangeHandler.RiskClass`).
+- **One approval also resizes today's plan.** It uses the phase 3 keep-content revision, so the
+  plan keeps its words and resource. With no plan today, only the setting changes.
+- **Undo puts both back:** the setting and today's plan. If the learner changed the plan again
+  after approving, the later plan stays and the receipt says so.
+- **Clients:** a setting change, and its undo, reload Today's Plan
+  (`CoachWritePlanEffect.ReplacedPlan`).
+- **Saved memories:** a turn that proposes a setting change records no memory candidate. "From
+  now on" no longer saves a second copy of the length that would outlive an undo.
 
 ## Known limits
 

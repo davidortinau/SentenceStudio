@@ -567,16 +567,17 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
         {
             Name = CoachToolNames.ProposePreferenceChange,
             ResultType = typeof(CoachWriteProposalResult),
-            RiskClass = CoachToolRiskClass.WriteHard,
+            // Soft while session length is the only reachable setting (see the handler's RiskClass).
+            RiskClass = CoachToolRiskClass.WriteSoft,
             EffectClass = CoachCapabilityEffectClass.LearnerData,
             Reversal = CoachCapabilityReversal.LedgerUndo,
-            Confirmation = CoachCapabilityConfirmation.Confirm,
+            Confirmation = CoachCapabilityConfirmation.Accept,
             ReceiptKind = CoachCapabilityReceiptKind.Ledger,
             Scope = CoachCapabilityScope.Account,
             RequiredStage = CoachCapabilityStage.Semantic,
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools", "SamWriteTools"],
-            Description = "Proposes changing one of the learner's own settings. No setting is currently approved for change, so this tool declines every request and writes nothing — tell the learner to change it in the app's own settings screen instead. Cannot reach the email address, the account, or any stored key."
+            Description = "Proposes changing one of the learner's own settings. Only session_minutes, the length Today's Plan is made for from now on (5, 10, 15, 20, 30 or 45), can be changed here; approving it also resizes today's plan, keeping its words and resource, and one undo reverts both. Use it when the learner wants a different plan length from now on, not just today (that is a plan change). Every other setting is declined: tell the learner to change it in the app's own settings screen. Cannot reach the email address, the account, or any stored key."
         });
         Register(new CoachToolRegistration
         {
