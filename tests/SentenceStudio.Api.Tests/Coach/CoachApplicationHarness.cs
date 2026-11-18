@@ -178,7 +178,7 @@ internal sealed class CoachApplicationHarness : IDisposable
             new CoachWriteAuthority(),
             new CoachIntentValidator(),
             LeakValidator,
-            new CoachVocabularyFocusService(FocusResolver, Languages, NullLogger<CoachVocabularyFocusService>.Instance),
+            new CoachVocabularyFocusService(FocusResolver, Languages, NullLogger<CoachVocabularyFocusService>.Instance, Topics),
             ValidationData,
             Runs,
             Idempotency,
@@ -394,6 +394,9 @@ internal sealed class CoachApplicationHarness : IDisposable
 
     /// <summary>The scripted vocabulary focus resolver. Tests set its next result.</summary>
     public FakeVocabularyFocusResolver FocusResolver { get; } = new();
+
+    /// <summary>The learner's tags and resources a topic focus may name.</summary>
+    public FakeLearnerTopics Topics { get; } = new();
 
     /// <summary>The learner's language tags. Korean target, English display, by default.</summary>
     public StubLanguageResolver Languages { get; } = new();
@@ -945,4 +948,14 @@ internal sealed class FakeVocabularyFocusResolver : IVocabularyFocusResolver
         ClassifiedCandidateCount = outcome == VocabularyFocusOutcome.MetadataUnavailable ? 2 : 30,
         RequestedCount = 10
     };
+}
+
+/// <summary>The learner's topics, set by the test.</summary>
+internal sealed class FakeLearnerTopics : ILearnerTopicQueries
+{
+    public LearnerTopics Current { get; set; } = new(
+        [new LearnerTopicTag("food", 12)],
+        [new LearnerTopicResource("res-restaurant", "At the restaurant", 8)]);
+
+    public Task<LearnerTopics> GetTopicsAsync(int maxEach, CancellationToken ct = default) => Task.FromResult(Current);
 }

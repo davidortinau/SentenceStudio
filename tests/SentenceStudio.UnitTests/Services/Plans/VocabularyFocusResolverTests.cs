@@ -492,6 +492,73 @@ public sealed class VocabularyFocusResolverTests : IDisposable
         result.Outcome.Should().Be(VocabularyFocusOutcome.InvalidFocus);
     }
 
+    /// <summary>A resource of <paramref name="owner"/> titled <paramref name="title"/>, linking new words recorded to <paramref name="wordOwner"/>.</summary>
+    private (string ResourceId, List<string> WordIds) SeedTopicResource(string owner, string title, int words, string? wordOwner = null)
+    {
+        var resourceId = Guid.NewGuid().ToString();
+        var ids = new List<string>();
+        for (var i = 0; i < words; i++)
+            ids.Add(SeedOwnedWord(wordOwner ?? owner, VocabularyPartOfSpeech.Noun, totalAttempts: 0));
+        using var db = NewDb();
+        db.LearningResources.Add(new LearningResource
+        {
+            Id = resourceId, Title = title, MediaType = "Vocabulary List", Language = "Korean",
+            UserProfileId = owner, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        foreach (var id in ids)
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(), ResourceId = resourceId, VocabularyWordId = id
+            });
+        db.SaveChanges();
+        return (resourceId, ids);
+    }
+
+    // "I want to study food and restaurant content" (Captain, 2026-11-17): a topic matches a word
+    // by a whole tag or by one of the learner's resources.
+    [Fact]
+    public async Task A_topic_selects_tagged_words_and_the_words_of_its_resources()
+    {
+        var tagged = Enumerable.Range(0, 3).Select(_ => SeedOwnedWord(UserA, VocabularyPartOfSpeech.Noun, tags: "Food; travel")).ToList();
+        var (restaurant, restaurantWords) = SeedTopicResource(UserA, "At the restaurant", 3);
+        SeedOwnedWord(UserA, VocabularyPartOfSpeech.Noun, tags: "sports");
+
+        var result = await NewResolver().ResolveAsync(new VocabularyFocusRequest
+        {
+            CategoryTags = ["food"], ResourceIds = [restaurant]
+        });
+
+        result.Outcome.Should().Be(VocabularyFocusOutcome.Success);
+        result.SelectedVocabularyWordIds.Should().BeEquivalentTo(tagged.Concat(restaurantWords));
+    }
+
+    [Fact]
+    public async Task Another_learners_resource_adds_no_words()
+    {
+        SeedVerbs(UserA, 5);
+        var (theirs, _) = SeedTopicResource(UserB, "Their restaurant", 6, wordOwner: UserA);
+
+        var result = await NewResolver().ResolveAsync(new VocabularyFocusRequest { ResourceIds = [theirs] });
+
+        result.Outcome.Should().Be(VocabularyFocusOutcome.NoMatches, "the resource is not the learner's");
+    }
+
+    [Fact]
+    public async Task Topics_list_the_learners_own_tags_and_resources_without_system_tags()
+    {
+        SeedOwnedWord(UserA, VocabularyPartOfSpeech.Noun, tags: "food, system-generated");
+        SeedOwnedWord(UserA, VocabularyPartOfSpeech.Noun, tags: "Food");
+        SeedOwnedWord(UserB, VocabularyPartOfSpeech.Noun, tags: "secret-topic");
+        SeedTopicResource(UserA, "At the restaurant", 2);
+        SeedTopicResource(UserB, "Their resource", 2);
+
+        var topics = await new LearnerTopicQueries(NewDb(), _scope,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LearnerTopicQueries>.Instance).GetTopicsAsync(LearnerTopicQueries.MaxEach);
+
+        topics.Tags.Should().ContainSingle().Which.Should().Be(new LearnerTopicTag("food", 2));
+        topics.Resources.Select(r => r.Title).Should().Equal("At the restaurant");
+    }
+
     private sealed class MutableScope : IUserScopeProvider
     {
         private string _userId;

@@ -179,6 +179,14 @@ public sealed class CoachConstraintMapper
             changed.Add(CoachConstraintField.VocabularyFocus);
         }
 
+        // Topic names ride with a description, bounded; whether the learner has them is checked
+        // when the focus is resolved.
+        var topics = NormalizeTopics(intent.VocabularyFocusTopics);
+        if (topics is { Count: > 0 } && focusDescription is null)
+        {
+            errors.Add("VocabularyFocusTopics need a VocabularyFocusDescription.");
+        }
+
         if (errors.Count > 0)
         {
             return new CoachConstraintMapResult(null, errors);
@@ -187,6 +195,7 @@ public sealed class CoachConstraintMapper
         var delta = new CoachConstraintDeltaDto
         {
             VocabularyFocusDescription = intent.ClearVocabularyFocus ? null : focusDescription,
+            VocabularyFocusTopics = intent.ClearVocabularyFocus || topics is not { Count: > 0 } ? null : topics,
             ClearVocabularyFocus = intent.ClearVocabularyFocus,
             AvailableMinutes = intent.AvailableMinutes,
             AudioAllowed = intent.AudioAllowed,
@@ -230,8 +239,33 @@ public sealed class CoachConstraintMapper
             ClearGoalHorizonDays = delta.ClearGoalHorizonDays,
             EnergyLevel = delta.EnergyLevel,
             VocabularyFocusDescription = delta.VocabularyFocusDescription,
+            VocabularyFocusTopics = delta.VocabularyFocusTopics?.ToList(),
             ClearVocabularyFocus = delta.ClearVocabularyFocus
         });
+    }
+
+    /// <summary>At most this many topic names on one focus.</summary>
+    public const int MaxFocusTopics = 5;
+
+    /// <summary>The longest topic name kept: the catalog's longest title.</summary>
+    public const int MaxFocusTopicLength = 120;
+
+    /// <summary>
+    /// Trimmed, distinct topic names, at most <see cref="MaxFocusTopics"/> of at most
+    /// <see cref="MaxFocusTopicLength"/> characters. Extra or overlong names are dropped rather
+    /// than failing the change: a name only counts if it matches the learner's own anyway.
+    /// </summary>
+    private static IReadOnlyList<string>? NormalizeTopics(IReadOnlyList<string>? topics)
+    {
+        if (topics is null)
+            return null;
+        return topics
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Where(t => t.Length <= MaxFocusTopicLength)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(MaxFocusTopics)
+            .ToList();
     }
 
     /// <summary>Applies a validated delta to the active constraint set.</summary>

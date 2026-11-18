@@ -87,7 +87,21 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
 
         var classifiedCount = ownedWords.Count(w => w.PartOfSpeech is not null);
 
-        var matches = ownedWords.Where(w => Matches(w, request)).ToList();
+        // Words of the named resources, limited to the learner's own resources.
+        var resourceWordIds = new HashSet<string>(StringComparer.Ordinal);
+        if (request.ResourceIds.Count > 0)
+        {
+            var resourceIds = request.ResourceIds.Distinct(StringComparer.Ordinal).ToList();
+            var linked = await _db.ResourceVocabularyMappings
+                .AsNoTracking()
+                .Where(m => resourceIds.Contains(m.ResourceId)
+                    && _db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userId))
+                .Select(m => m.VocabularyWordId)
+                .ToListAsync(ct);
+            resourceWordIds.UnionWith(linked);
+        }
+
+        var matches = ownedWords.Where(w => Matches(w, request, resourceWordIds)).ToList();
 
         // A part-of-speech focus is only trustworthy when enough owned words are
         // actually classified. Report the gap with counts instead of handing back
@@ -178,19 +192,25 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
     /// Canonical matching only: exact part of speech and/or whole-tag equality.
     /// Never a substring scan over terms or glosses.
     /// </summary>
-    private static bool Matches(WordRow word, VocabularyFocusRequest request)
+    private static bool Matches(WordRow word, VocabularyFocusRequest request, HashSet<string> resourceWordIds)
     {
         if (request.PartOfSpeech is { } pos && word.PartOfSpeech != pos)
         {
             return false;
         }
 
-        var tags = request.NormalizedCategoryTags();
-        if (tags.Count == 0)
+        if (!request.HasTopic)
         {
             return true;
         }
 
+        // A topic matches by a whole tag or by one of its resources.
+        if (resourceWordIds.Contains(word.Id))
+        {
+            return true;
+        }
+
+        var tags = request.NormalizedCategoryTags();
         var wordTags = SplitTags(word.Tags);
         return tags.Any(t => wordTags.Contains(t));
     }

@@ -95,12 +95,18 @@ public sealed record ResourceCatalogEntry(
     [property: Description("The tags on the resource.")] IReadOnlyList<string> Tags,
     [property: Description("The days since the learner last used the resource. Null if never used.")] int? DaysSinceLastUse);
 
+/// <summary>One tag on the learner's own words.</summary>
+public sealed record WordTagEntry(
+    [property: Description("The tag, as stored.")] string Tag,
+    [property: Description("How many of the learner's words carry it.")] int WordCount);
+
 /// <summary>The owned resources the planner can use.</summary>
 public sealed record ResourceCatalogSummary(
     [property: Description("The number of resources the learner owns.")] int TotalCount,
     [property: Description("The number of resources in this answer.")] int ReturnedCount,
     [property: Description("The resources, newest use first.")] IReadOnlyList<ResourceCatalogEntry> Resources,
-    [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
+    [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope,
+    [property: Description("The tags on the learner's own words, most used first. For a topic focus such as \"food and restaurants\", name the matching tags and resource titles in VocabularyFocusTopics, copied exactly.")] IReadOnlyList<WordTagEntry>? WordTags = null) : ICoachScopedResult;
 
 /// <summary>One activity in a plan preview.</summary>
 public sealed record PlanPreviewItem(

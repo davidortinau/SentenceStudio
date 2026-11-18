@@ -545,3 +545,13 @@ Captain's request:
   the operation if another setting is approved.
 - The risk class of `propose_preference_change` is written in two places: `CoachToolRegistry`
   and `CoachPreferenceChangeHandler.RiskClass`. `CoachWriteToolSurfaceTests` pins both.
+
+## Sam topic focus (review 2026-11-17, branch `feat/sam-topic-focus`)
+
+- **Tag splitting exists three times:** `LearnerTopicQueries`,
+  `VocabularyFocusResolver.SplitTags` and `ResourceCatalogTool.SplitTags`. Cleanup: one shared
+  splitter.
+- **A topic turn loads every tagged word twice:** once for the catalog's `WordTags`, once for
+  matching. For the Captain's 4,466 words this is still one query each. Cleanup: cache per request.
+- **`ApplicationOperationConcurrencyTests.ConcurrentConfirmationUse_ConsumesExactlyOnce`** failed
+  once in a full unit run. It passed three times alone.

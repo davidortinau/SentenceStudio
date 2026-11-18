@@ -258,17 +258,19 @@ public class CoachToolScopeAndIsolationTests
         catalog.Resources.Single(r => r.Title == "Word list").DaysSinceLastUse.Should().BeNull();
     }
 
+    // Clamped since 2026-11-17: a topic focus ("food and restaurants") asked for 100 resources,
+    // was refused twice, and Sam told the learner it could not see their resources.
     [Theory]
-    [InlineData(0)]
-    [InlineData(51)]
-    public async Task Resource_catalog_refuses_a_result_count_outside_the_range(int maxResults)
+    [InlineData(0, 1)]
+    [InlineData(100, 50)]
+    public async Task Resource_catalog_clamps_a_result_count_outside_the_range(int maxResults, int requested)
     {
         using var fixture = new CoachToolTestFixture();
+        fixture.SeedProfile(CoachToolTestFixture.UserA);
 
-        var act = () => fixture.ResourceTool.GetAsync(maxResults);
+        var catalog = await fixture.ResourceTool.GetAsync(maxResults);
 
-        (await act.Should().ThrowAsync<CoachToolException>()).Which
-            .Kind.Should().Be(CoachToolFailureKind.InvalidArgument);
+        catalog.Scope.RequestedCount.Should().Be(requested);
     }
 
     [Fact]

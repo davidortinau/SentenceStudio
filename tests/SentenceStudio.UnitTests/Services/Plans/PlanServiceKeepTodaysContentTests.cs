@@ -131,6 +131,55 @@ public sealed class PlanServiceKeepTodaysContentTests : IDisposable
         (await FocusAsync()).Should().Equal("w1", "w2");
     }
 
+    // Phase 5 (Captain, 2026-11-17): a set chosen through Sam is marked so serve-time trimming
+    // keeps it, and a revision that keeps today's words keeps the mark.
+    [Fact]
+    public async Task A_set_chosen_through_sam_is_marked_and_stays_marked_when_kept()
+    {
+        await SeedPlanWithWordsAsync("w1", "w2");
+        var before = await _h.NewService().GetTodaySnapshotAsync();
+
+        var chosen = await _h.NewService().ApplyCoachConstraintsAsync(new CoachPlanRevisionRequest
+        {
+            Constraints = new PlanConstraints(),
+            ExpectedPlanVersion = before.Version,
+            FocusVocabularyWordIds = ["food-1", "food-2"]
+        });
+        (await FactsAsync()).Should().Match<string?>(f => PlanFactsSerializer.IsCoachFocus(f));
+
+        await _h.NewService().ApplyCoachConstraintsAsync(new CoachPlanRevisionRequest
+        {
+            Constraints = new PlanConstraints { AvailableMinutes = 45 },
+            ExpectedPlanVersion = chosen.AfterPlanVersion
+        });
+        (await FactsAsync()).Should().Match<string?>(f => PlanFactsSerializer.IsCoachFocus(f), "keeping today's words keeps their source");
+    }
+
+    [Fact]
+    public async Task The_planners_own_words_are_not_marked()
+    {
+        await SeedPlanWithWordsAsync("w1", "w2");
+
+        PlanFactsSerializer.IsCoachFocus(await FactsAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task New_focus_words_keep_todays_resource()
+    {
+        await SeedPlanWithWordsAsync("w1", "w2");
+
+        await _h.NewService().PreviewPlanAsync(new PlanConstraints(), focusVocabularyWordIds: ["food-1"]);
+
+        _h.Generator.Requests.Single().PinnedResourceId.Should().Be("resource-1",
+            "a focus changes the words, not the resource the learner is working through");
+    }
+
+    private async Task<string?> FactsAsync()
+    {
+        using var db = _h.NewDbContext();
+        return (await db.DailyPlans.SingleAsync()).FocusVocabularyFacts;
+    }
+
     private async Task<List<string>> FocusAsync()
     {
         using var db = _h.NewDbContext();

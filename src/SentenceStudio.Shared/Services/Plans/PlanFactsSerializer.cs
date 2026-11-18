@@ -46,7 +46,10 @@ internal static class PlanFactsSerializer
         WriteIndented = false,
     };
 
-    public static string? SerializeFocusVocabularyFacts(IEnumerable<string>? vocabularyIds, string source = "deterministic-srs")
+    /// <summary>The source of a focus set the planner derived.</summary>
+    public const string PlannerFocusSource = "deterministic-srs";
+
+    public static string? SerializeFocusVocabularyFacts(IEnumerable<string>? vocabularyIds, string source = PlannerFocusSource)
     {
         var normalized = NormalizeFocusVocabularyIds(vocabularyIds);
         if (normalized.Count == 0)
@@ -58,6 +61,28 @@ internal static class PlanFactsSerializer
             VocabularyIds = normalized,
             Source = source,
         }, WriteOptions);
+    }
+
+    /// <summary>The source of a focus set the learner chose through Sam ("study food words").</summary>
+    public const string CoachFocusSource = "coach";
+
+    /// <summary>
+    /// True when the plan's focus words were chosen through Sam. Serve-time freshness trimming keeps
+    /// these: the learner asked for that set, so a word practised earlier today stays in it.
+    /// </summary>
+    public static bool IsCoachFocus(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+        try
+        {
+            var facts = JsonSerializer.Deserialize<FocusVocabularyFactsDto>(json, ReadOptions);
+            return string.Equals(facts?.Source, CoachFocusSource, StringComparison.Ordinal);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     public static List<string> DeserializeFocusVocabularyFacts(string? json)

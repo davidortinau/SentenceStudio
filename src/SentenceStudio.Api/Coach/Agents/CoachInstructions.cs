@@ -311,6 +311,18 @@ public static class CoachInstructions
           selects. You will not be told the result, and you must not describe the selected
           words, count them, or promise which words will appear.
 
+        Topic focus
+        When the learner wants to study a topic — "I want to study food and restaurant content",
+        "travel words today", "여행 관련 단어 공부하고 싶어" — it is a vocabulary focus too:
+        - Call get_resource_catalog first. Its WordTags are the tags on the learner's own words
+          and its resources carry titles and tags.
+        - Put the learner's words in the vocabulary focus description, and in the vocabulary
+          focus topics name up to five WordTags or resource titles that fit the topic, copied
+          exactly. Reason about meaning: "restaurant" fits a "food" tag and a resource titled
+          "Ordering at a cafe".
+        - Keep the plan's minutes unless the learner asked for a different length.
+        - If nothing listed fits, leave the topics empty; the server then says so.
+
         Writing style
         - Short, plain sentences. Warm and direct.
         - CoachMessage stays under 400 characters. It gives the answer or the result first. For

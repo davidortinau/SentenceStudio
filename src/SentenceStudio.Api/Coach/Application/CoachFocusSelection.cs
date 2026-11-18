@@ -44,8 +44,14 @@ public sealed record CoachFocusSelection
     /// </summary>
     public IReadOnlyList<CoachVocabularyFocusWordDto>? Words { get; init; }
 
+    /// <summary>
+    /// The label a topic focus shows ("food, At the restaurant"): the learner's own tag and resource
+    /// names it matched. Null for a registry focus, whose label comes from the registry.
+    /// </summary>
+    public string? DisplayLabel { get; init; }
+
     /// <summary>The same selection with display words stripped, for audit storage.</summary>
-    public CoachFocusSelection WithoutWords() => this with { Words = null };
+    public CoachFocusSelection WithoutWords() => this with { Words = null, DisplayLabel = null };
 }
 
 /// <summary>Strips learner-authored text from a delta before it is stored or returned.</summary>
@@ -71,7 +77,7 @@ public static class CoachDeltaRedaction
     {
         ArgumentNullException.ThrowIfNull(delta);
 
-        if (delta.VocabularyFocusDescription is null)
+        if (delta.VocabularyFocusDescription is null && delta.VocabularyFocusTopics is null)
         {
             return delta;
         }
@@ -90,6 +96,8 @@ public static class CoachDeltaRedaction
             ClearGoalHorizonDays = delta.ClearGoalHorizonDays,
             EnergyLevel = delta.EnergyLevel,
             VocabularyFocusDescription = null,
+            // Topic names are learner content too; the frozen selection carries what they resolved to.
+            VocabularyFocusTopics = null,
             ClearVocabularyFocus = delta.ClearVocabularyFocus,
             ChangedFields = delta.ChangedFields
         };
@@ -209,7 +217,7 @@ public sealed record CoachActiveStateEnvelope
             string.Equals(r.FocusCode, selection.FocusCode, StringComparison.Ordinal)
             && r.VocabularyWordIds.SequenceEqual(selection.VocabularyWordIds, StringComparer.Ordinal));
 
-        return match is null ? selection : selection with { Words = match.Words };
+        return match is null ? selection : selection with { Words = match.Words, DisplayLabel = match.DisplayLabel };
     }
 
     /// <summary>This session's memory with <paramref name="selection"/> added, newest first.</summary>

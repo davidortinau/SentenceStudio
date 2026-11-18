@@ -11,7 +11,7 @@ wait for the Captain.
 | 2: start an activity | `feat/sam-start-activity` | Committed. Verified on web, Android and iOS (below). |
 | 3: builder keeps content, fills > 34 min | `feat/sam-plan-builder` | Committed. Verified on web (15 to 45 min) and Android (45 to 30 min); iOS not re-run (the change is server-side, and the dashboard refresh was verified in phase 1). |
 | 4: default duration | `feat/sam-default-duration` | Verified on web (apply 45 to 30, apply then undo) and Android (apply, undo); iOS not re-run (shared presenter). |
-| 5: topic focus from tags | | Not started |
+| 5: topic focus from tags | `feat/sam-topic-focus` | Committed. Offer verified on web and Android (squad-kaylee: 9 food words, 30 min kept). |
 | 6: another language today | | Not started |
 | 7: find or create, then plan | | Not started |
 
@@ -103,6 +103,26 @@ wait for the Captain.
 - **Saved memories:** a turn that proposes a setting change records no memory candidate. "From
   now on" no longer saves a second copy of the length that would outlive an undo.
 
+## Phase 5: what changed
+
+- **A topic is a vocabulary focus.** For "I want to study food and restaurant content", Sam calls
+  `get_resource_catalog` (which now also lists the learner's word tags, `WordTags`). It then puts
+  the matching tags and resource titles in `VocabularyFocusTopics`, copied exactly.
+- **The server keeps only names the learner has** (`CoachVocabularyFocusService.MatchTopics`):
+  - a tag is compared whole;
+  - a resource is matched by its exact title, across all of the learner's resources;
+  - with no usable name, the learner's own words (filler removed) are matched to whole tags and
+    to whole words of titles.
+
+  The resolver then selects owned words that carry those tags or belong to those resources
+  (`VocabularyFocusRequest.ResourceIds`), and the set is offered like any focus.
+- **Label:** "words about food". The focus code is a hash, and the label stays off the
+  permanent audit. Topic names are redacted from stored deltas, like the description.
+- **Coach-chosen sets are marked:** `FocusVocabularyFacts.source = "coach"`. Serve-time freshness
+  trimming keeps their practised words, and a later same-words save keeps the mark.
+- **`get_resource_catalog` clamps `maxResults`** instead of refusing it. Asking for 100 used to
+  fail, and Sam then said it couldn't see the resources.
+
 ## Known limits
 
 - The word list isn't kept in durable history. Reloading a conversation shows Sam's sentence ("the
@@ -111,9 +131,13 @@ wait for the Captain.
   animation yet); the web fill animates smoothly.
 - The web can't detect a screen reader. Instead, reaching Cancel by keyboard or screen reader stops
   the countdown, and the countdown is announced in a polite live region.
-- Words chosen by a topic (phase 5) are still trimmed at serve time once practised and not due
-  (`ProgressService.ApplyFocusVocabularyFreshnessAsync`). Phase 5 needs to mark coach-chosen sets
-  so they are kept.
+- A topic changes the words, not the resource or skill. Pinning the topic's resource was tried
+  and removed: a bare word list has nothing to read or hear, so the plan lost its reading and
+  listening.
+- The model sometimes answers "study food words" with a question, because it also fits a
+  vocabulary review. It asks whether to review now or change Today's Plan.
+- Topic tags come from the learner's own data; few tagged words means few matches. The test
+  account has 10 of 16 words tagged, all "food".
 - Scenarios are matched to built-ins only. A learner's own custom scenarios are not matched yet.
 - `IsWordListRequest` and the on-screen routing use English and Korean phrase patterns. Other
   wording falls back to the old behavior (clarify, or no list).

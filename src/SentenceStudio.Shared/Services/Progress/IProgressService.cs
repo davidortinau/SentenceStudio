@@ -91,7 +91,8 @@ public record TodaysPlan
     string? SkillTitle = null,
     string? Rationale = null,
     PlanNarrative? Narrative = null,
-    IReadOnlyList<string>? FocusVocabularyIds = null
+    IReadOnlyList<string>? FocusVocabularyIds = null,
+    bool FocusChosenByLearner = false
 );
 
 public record PlanNarrative(

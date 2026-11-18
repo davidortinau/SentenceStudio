@@ -3245,7 +3245,7 @@ public sealed class CoachSessionService : ICoachSessionService
         var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 
         var outcome = await _focus
-            .ResolveAsync(delta.VocabularyFocusDescription, plan.Version, cancellationToken)
+            .ResolveAsync(delta.VocabularyFocusDescription, delta.VocabularyFocusTopics, plan.Version, cancellationToken)
             .ConfigureAwait(false);
 
         if (outcome.IsSuccess)

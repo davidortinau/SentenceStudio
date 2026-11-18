@@ -34,17 +34,20 @@ public sealed class ResourceCatalogTool : CoachToolBase
     private readonly ILearningResourceQueries _resources;
     private readonly IPracticeHistoryQueries _history;
     private readonly IPlanDateContext _dates;
+    private readonly ILearnerTopicQueries? _topics;
 
     public ResourceCatalogTool(
         IUserScopeProvider userScope,
         ILearningResourceQueries resources,
         IPracticeHistoryQueries history,
-        IPlanDateContext dates)
+        IPlanDateContext dates,
+        ILearnerTopicQueries? topics = null)
         : base(userScope)
     {
         _resources = resources;
         _history = history;
         _dates = dates;
+        _topics = topics;
     }
 
     public override string ToolName => CoachToolNames.GetResourceCatalog;
@@ -56,10 +59,9 @@ public sealed class ResourceCatalogTool : CoachToolBase
     {
         var userProfileId = RequireUserProfileId();
 
-        if (maxResults is < MinResults or > MaxResults)
-        {
-            throw InvalidArgument($"The result count must be from {MinResults} to {MaxResults}.");
-        }
+        // Clamped, not refused: a model asking for "all" (say 100) gets the largest page and the
+        // scope says it is a page. Refusing left a topic focus with no catalog at all.
+        maxResults = Math.Clamp(maxResults, MinResults, MaxResults);
 
         var today = _dates.UserLocalDate;
 
@@ -106,6 +108,21 @@ public sealed class ResourceCatalogTool : CoachToolBase
             .Take(maxResults)
             .ToList();
 
+        // The learner's word tags, so a topic ("food and restaurants") can be matched to them.
+        List<WordTagEntry>? wordTags = null;
+        if (_topics is not null)
+        {
+            try
+            {
+                wordTags = (await _topics.GetTopicsAsync(ct)).Tags
+                    .Select(t => new WordTagEntry(SanitizeMetadata(t.Tag, MaxTagLength), t.WordCount))
+                    .Where(t => t.Tag.Length > 0)
+                    .ToList();
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { throw DataAccessFailure(ex); }
+        }
+
         return new ResourceCatalogSummary(
             totalCount,
             entries.Count,
@@ -131,7 +148,8 @@ public sealed class ResourceCatalogTool : CoachToolBase
                 // resource used last night is "yesterday" for them regardless of the server.
                 ClockBasis = CoachScopeClockBasis.LearnerLocalDay,
                 ReferenceMode = CoachScopeReferenceMode.CalendarDay
-            });
+            },
+            wordTags);
     }
 
     private static bool HasAudio(string? mediaType, string? mediaUrl) =>

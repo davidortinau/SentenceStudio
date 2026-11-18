@@ -147,9 +147,12 @@ public class CoachVocabularyFocusParityTests
             .ToList();
 
         vocabularyFields.Select(p => p.Name).Should().BeEquivalentTo(
-            ["VocabularyFocusDescription", "ClearVocabularyFocus"]);
+            ["VocabularyFocusDescription", "VocabularyFocusTopics", "ClearVocabularyFocus"]);
 
-        // A description and a flag. No identifier, no list, no count.
+        // A description, topic names and a flag. No identifier and no count: topic names are the
+        // learner's own tags and resource titles (Captain, 2026-11-17), kept only when they match.
+        vocabularyFields.Single(p => p.Name == "VocabularyFocusTopics").PropertyType
+            .Should().Be<List<string>>();
         vocabularyFields.Single(p => p.Name == "VocabularyFocusDescription").PropertyType
             .Should().Be<string>();
         vocabularyFields.Single(p => p.Name == "ClearVocabularyFocus").PropertyType

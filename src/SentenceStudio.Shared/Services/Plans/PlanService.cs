@@ -644,7 +644,12 @@ public sealed class PlanService : IPlanService
             added++;
         }
 
-        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(preview.Skeleton!);
+        // A set the learner chose through Sam is marked, and kept marked by a revision that keeps
+        // today's words, so serve-time trimming leaves it alone.
+        var coachFocus = request.FocusVocabularyWordIds is { Count: > 0 }
+            || request.FocusVocabularyWordIds is null && PlanFactsSerializer.IsCoachFocus(planRow.FocusVocabularyFacts);
+        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(
+            preview.Skeleton!, coachFocus ? PlanFactsSerializer.CoachFocusSource : null);
         planRow.GeneratedAtUtc = nowUtc;
         planRow.RationaleFacts = rationaleFactsJson;
         planRow.NarrativeFacts = narrativeFactsJson;
@@ -1487,7 +1492,8 @@ public sealed class PlanService : IPlanService
     /// tags, sample words, etc.) land with the narrative-localization-resx
     /// lane.
     /// </summary>
-    private static (string? Rationale, string? Narrative, string? FocusVocabulary) SerializeFacts(PlanSkeleton skeleton)
+    private static (string? Rationale, string? Narrative, string? FocusVocabulary) SerializeFacts(
+        PlanSkeleton skeleton, string? focusSource = null)
     {
         var rationaleJson = PlanFactsSerializer.SerializeRationaleFacts(skeleton.ResourceSelectionReason);
 
@@ -1535,7 +1541,8 @@ public sealed class PlanService : IPlanService
         }
         var narrativeJson = PlanFactsSerializer.SerializeNarrativeFacts(narrativeDto);
 
-        var focusVocabularyJson = PlanFactsSerializer.SerializeFocusVocabularyFacts(skeleton.FocusVocabularyIds);
+        var focusVocabularyJson = PlanFactsSerializer.SerializeFocusVocabularyFacts(
+            skeleton.FocusVocabularyIds, focusSource ?? PlanFactsSerializer.PlannerFocusSource);
 
         return (rationaleJson, narrativeJson, focusVocabularyJson);
     }
