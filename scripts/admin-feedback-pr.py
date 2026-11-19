@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""What the feedback check reads from GitHub about its own pull requests and about main.
+"""What the feedback check reads from GitHub about issues, its own pull requests and main.
 
-scripts/admin-feedback-check.sh uses this to find a pull request the Captain has asked to be
-changed, to hand a fix session his request, and to report checks. A fix session uses `checks`
-after it pushes (docs/admin-feedback-fix.md).
+scripts/admin-feedback-check.sh uses this to find the issues waiting for a fix session, to find
+a pull request the Captain has asked to be changed, to hand a fix session his request, and to
+report checks. A fix session uses `checks` after it pushes (docs/admin-feedback-fix.md).
+
+  admin-feedback-pr.py issues [--windows FILE]
+      The open issues waiting for a fix session, oldest first, one line each: the number and
+      where it came from (triage, app or github). --windows names the runner's record of when
+      fix sessions ran. See "Which issues wait".
 
   admin-feedback-pr.py pending [--handled FILE] [--all]
       The oldest open pull request on a branch feedback/issue-<n> that has a request waiting,
@@ -50,6 +55,23 @@ told from his by its author. Two rules follow:
 This narrows what a misled session can pass on through GitHub. It is not a boundary: a fix
 session runs with the owner's own access to this machine. Giving sessions their own GitHub
 identity is what would let the two be told apart.
+
+Which issues wait (Captain, 2026-11-18): an open issue not labelled feedback-attempted, from one
+of three places, and from nobody else, since anyone can open an issue on a public repository:
+
+- triage: labelled feedback-check, filed by the triage stage through the owner's login.
+- app: filed by the app's feedback button (the GitHub App), whenever it was filed.
+- github: filed by the owner on GitHub at or after GITHUB_FROM (UTC), so that the backlog
+  written before the check took such issues is not swept in.
+
+An issue labelled with one of HOLD_LABELS, or any squad label, is not taken: it is a plan, a
+decision not to do it, or squad work. Labelling any issue feedback-attempted keeps it out.
+
+A fix session posts through the owner's login too, so an issue it opened, or labelled
+feedback-check, would read as his. An issue by the owner opened while a fix session was running
+(the runner's --windows record, and up to WINDOW_SLACK after) is never taken: text a session
+read in a learner's report must not become the next run's task. As with requests, this narrows
+what a misled session can pass on; it does not catch a label added to an older issue.
 """
 import hashlib
 import json
@@ -57,12 +79,19 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 
 REPO = "davidortinau/SentenceStudio"
 BRANCH = re.compile(r"^feedback/issue-([0-9]+)$")
 COMMAND = re.compile(r"^\s*/revise(?:\s|$)")
 REQUEST_ID = re.compile(r"^r?[0-9]+$")
 MARKER = re.compile(r"<!-- feedback-check handled:([r0-9 ]*)-->")
+APP = "app/sentence-studio-feedback"
+QUEUED = "feedback-check"
+ATTEMPTED = "feedback-attempted"
+GITHUB_FROM = "2026-11-19T02:00:00Z"
+WINDOW_SLACK = 300
+HOLD_LABELS = ("go:no", "go:needs-research", "type:spike", "type:epic")
 # Not passed: a check that was cancelled or is waiting for someone proved nothing.
 RED = ("failure", "timed_out", "startup_failure", "cancelled", "action_required", "stale")
 POLL_SECONDS = 30
@@ -103,6 +132,59 @@ def handled_ids(comments):
             for found in MARKER.findall(comment.get("body") or ""):
                 ids.update(found.split())
     return ids
+
+
+def created_at(issue):
+    return datetime.fromisoformat((issue.get("createdAt") or "").replace("Z", "+00:00"))
+
+
+def session_windows(path):
+    """When fix sessions ran, from the runner's record: one line per session, its start and,
+    once it has ended, its end (UTC). A session with no end is taken to be running still."""
+    windows = []
+    if not path:
+        return windows
+    try:
+        with open(path, encoding="utf-8") as source:
+            lines = source.read().splitlines()
+    except FileNotFoundError:
+        return windows
+    for line in lines:
+        parts = line.split()
+        if not parts:
+            continue
+        start = datetime.fromisoformat(parts[0].replace("Z", "+00:00"))
+        end = (datetime.fromisoformat(parts[1].replace("Z", "+00:00")) + timedelta(seconds=WINDOW_SLACK)
+               if len(parts) > 1 else datetime.max.replace(tzinfo=timezone.utc))
+        windows.append((start, end))
+    return windows
+
+
+def issue_source(issue, windows=()):
+    """Where an open issue came from if a fix session may take it (triage, app or github), or
+    None. See "Which issues wait"."""
+    labels = {label.get("name") for label in issue.get("labels") or []}
+    author = (issue.get("author") or {}).get("login")
+    if ATTEMPTED in labels or any(label in HOLD_LABELS or label.startswith("squad") for label in labels):
+        return None
+    if author == REPO.split("/")[0] and any(start <= created_at(issue) <= end for start, end in windows):
+        return None
+    if author == REPO.split("/")[0] and QUEUED in labels:
+        return "triage"
+    if author == APP:
+        return "app"
+    if author == REPO.split("/")[0] and created_at(issue) >= created_at({"createdAt": GITHUB_FROM}):
+        return "github"
+    return None
+
+
+def waiting_issues(windows=()):
+    found = gh_lines(
+        "issue", "list", "--repo", REPO, "--state", "open", "--limit", "1000",
+        "--search", f"-label:{ATTEMPTED}",
+        "--json", "number,author,labels,createdAt", "--jq", ".[]")
+    waiting = [(issue["number"], issue_source(issue, windows)) for issue in found]
+    return sorted((issue, source) for issue, source in waiting if source)
 
 
 def own_pull_requests():
@@ -371,6 +453,10 @@ def main(args):
         return 2
     mode = args[0]
     try:
+        if mode == "issues":
+            for waiting, source in waiting_issues(session_windows(option(args, "--windows"))):
+                print(waiting, source)
+            return 0
         if mode == "pending":
             for found in pending(ids_in(option(args, "--handled")), every="--all" in args):
                 print(line_for(found))

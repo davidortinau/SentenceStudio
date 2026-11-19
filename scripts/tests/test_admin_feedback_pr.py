@@ -41,6 +41,11 @@ def run(name, conclusion="success", status="completed"):
 FINISHED = [{"id": 1, "name": "CI", "status": "completed", "conclusion": "success"}]
 
 
+def issue(number, author="davidortinau", labels=(), at="2026-11-19T09:00:00Z"):
+    return {"number": number, "createdAt": at, "author": {"login": author},
+            "labels": [{"name": name} for name in labels]}
+
+
 def on_diff(comment_id, body, review_id, path="src/A.cs", line=12, who=None):
     return {"id": comment_id, "body": body, "path": path, "line": line, "review": review_id, **(who or OWNER)}
 
@@ -51,6 +56,7 @@ class FakeGitHub:
 
     def __init__(self):
         self.pull_requests = []
+        self.issues = []
         self.comments = {}
         self.reviews = {}
         self.inline = {}
@@ -69,6 +75,8 @@ class FakeGitHub:
         self.asked.append(args)
         if args[:2] == ("pr", "list"):
             return self.pull_requests
+        if args[:2] == ("issue", "list"):
+            return self.issues
         if args[:2] == ("pr", "view"):
             head = self.heads[int(args[2])]
             if isinstance(head, list):
@@ -199,6 +207,84 @@ class PendingRequestTests(GitHubTestCase):
 
         self.assertEqual(self.first_pending()["pr"], 231)
         self.assertEqual([found["pr"] for found in pr_script.pending(set(), every=True)], [231, 233])
+
+
+class WaitingIssueTests(GitHubTestCase):
+    def test_issues_from_triage_the_app_and_the_owner_wait_oldest_first(self):
+        self.github.issues = [
+            issue(240),
+            issue(225, author="app/sentence-studio-feedback", labels=["bug"], at="2026-11-15T21:36:53Z"),
+            issue(227, labels=["feedback-check"], at="2026-11-16T10:00:00Z"),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [(225, "app"), (227, "triage"), (240, "github")])
+
+    def test_nobody_elses_issue_waits_even_with_the_label(self):
+        self.github.issues = [
+            issue(241, author="someone-else"),
+            issue(242, author="someone-else", labels=["feedback-check"]),
+            issue(243, author="app/some-other-app"),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [])
+
+    def test_the_owners_backlog_from_before_the_change_does_not_wait(self):
+        self.github.issues = [issue(224, labels=["go:yes"], at="2026-11-14T08:00:00Z"),
+                              issue(232, at="2026-11-18T22:44:15Z"),
+                              issue(244, at="2026-11-19T02:00:00Z")]
+
+        self.assertEqual(pr_script.waiting_issues(), [(244, "github")])
+
+    def test_an_attempted_issue_never_waits(self):
+        self.github.issues = [
+            issue(225, author="app/sentence-studio-feedback", labels=["feedback-attempted"]),
+            issue(227, labels=["feedback-check", "feedback-attempted"]),
+            issue(245, labels=["feedback-attempted"]),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [])
+
+    def test_a_plan_a_no_or_squad_work_does_not_wait_whoever_filed_it(self):
+        self.github.issues = [
+            issue(246, labels=["type:spike"]),
+            issue(247, author="app/sentence-studio-feedback", labels=["go:no"]),
+            issue(248, labels=["squad", "squad:zoe"]),
+            issue(249, labels=["type:epic"]),
+            issue(250, labels=["go:needs-research"]),
+            issue(251, labels=["feedback-check", "type:spike"]),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [])
+
+    def test_an_owners_issue_opened_while_a_fix_session_ran_never_waits(self):
+        self.github.issues = [
+            issue(253, at="2026-11-19T10:30:00Z"),
+            issue(254, labels=["feedback-check"], at="2026-11-19T11:04:00Z"),
+            issue(255, at="2026-11-19T11:06:00Z"),
+            issue(256, at="2026-11-19T13:00:00Z"),
+            issue(257, author="app/sentence-studio-feedback", at="2026-11-19T10:30:00Z"),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            record = Path(folder) / "windows"
+            record.write_text("2026-11-19T10:00:00Z 2026-11-19T11:00:00Z\n2026-11-19T12:30:00Z\n")
+            windows = pr_script.session_windows(str(record))
+
+        # 254 is inside the five minutes after the end; 256 is during a session still running.
+        self.assertEqual(pr_script.waiting_issues(windows), [(255, "github"), (257, "app")])
+
+    def test_no_record_of_sessions_means_no_windows(self):
+        self.assertEqual(pr_script.session_windows(None), [])
+        self.assertEqual(pr_script.session_windows("/nonexistent/windows"), [])
+
+    def test_the_command_prints_one_line_each_and_a_github_failure_is_an_error(self):
+        self.github.issues = [issue(252, author="app/sentence-studio-feedback")]
+        with mock.patch("builtins.print") as printed:
+            self.assertEqual(pr_script.main(["issues"]), 0)
+        self.assertEqual(printed.call_args_list, [mock.call(252, "app")])
+
+        with mock.patch.object(pr_script, "gh_lines", side_effect=pr_script.GitHubError("HTTP 502")), \
+                mock.patch("sys.stderr"):
+            self.assertEqual(pr_script.main(["issues"]), 3)
 
 
 class AppearedDuringASessionTests(GitHubTestCase):
