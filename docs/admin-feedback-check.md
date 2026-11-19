@@ -38,9 +38,11 @@ running (or in the five minutes after): sessions post through his login, so an i
 them opened, perhaps talked into it by a learner's report, would otherwise become the next
 run's task as his. Fix sessions are also refused `gh issue create`, `gh issue edit` and
 `gh label`. Neither catches a session that adds `feedback-check` to an older issue through
-`gh api`; giving sessions their own GitHub identity would. The fix stage adds `feedback-attempted` when it has had its go, so an issue is
-worked once. **To keep an issue out, label it `feedback-attempted`**; remove the label to have it
-worked again. Each summary lists the issues waiting.
+`gh api`; giving sessions their own GitHub identity would.
+
+The fix stage adds `feedback-attempted` when it has had its go, so an issue is worked once. **To
+keep an issue out, label it `feedback-attempted`**; remove the label to have it worked again.
+Each summary lists the issues waiting.
 
 Until 2026-11-18 only issues triage filed were taken, so issue 225 (from the app) sat for three
 days with nothing saying why.
