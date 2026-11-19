@@ -429,17 +429,9 @@ else
         lastFeedback = null;
         inputMode = "Text";
 
-        var vocabularyForBlocks = focusVocabularyWords.Any()
-            ? FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusVocabularyWords, challenge.Vocabulary, maxVocabularyWords: 12)
-            : (challenge.Vocabulary ?? new List<VocabularyWord>())
-                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                .OrderBy(_ => Random.Shared.Next())
-                .ToList();
-
-        vocabBlocks = vocabularyForBlocks
-            .Select(v => v.TargetLanguageTerm)
-            .Where(t => !string.IsNullOrEmpty(t))
-            .ToList();
+        // The sentence's own words, never the plan's focus words (issue 233).
+        vocabBlocks = TranslationSentenceBlocks.Build(challenge.SentenceText,
+            (challenge.Vocabulary ?? new List<VocabularyWord>()).Select(v => v.TargetLanguageTerm));
     }
 
     private async Task SubmitInput()
