@@ -89,7 +89,7 @@ public sealed class NativeTranslationPresenterTests
 
         state = await translation.ToggleInputModeAsync();
         Assert.True(state.ShowsBlocks);
-        Assert.Contains($"target-{NativeSliceFixture.UserA}-0", state.Blocks);
+        Assert.Equal(["0", "sentence", "target"], state.Blocks.Order(StringComparer.Ordinal));
         state = await translation.UseBlockAsync(0);
         state = await translation.UseBlockAsync(1);
         Assert.Equal($"{state.Blocks[0]} {state.Blocks[1]}", state.Input);
@@ -174,6 +174,74 @@ public sealed class NativeTranslationPresenterTests
         Assert.Equal(NativeDestination.TodaysPlan, (await translation.GradeAsync()).Destination);
         var reloaded = await dashboard.LoadAsync();
         Assert.Contains(reloaded.Cards, item => item.Id == card.Id);
+    }
+
+    [Fact]
+    public async Task PlanCard_BlocksAreTheSentenceWords_NotThePlanFocusWords()
+    {
+        // Issue 233: a plan launch showed the plan's focus words as the blocks, and no word of
+        // the sentence that was not also a saved word, so the sentence could not be assembled.
+        using var fixture = new NativeSliceFixture();
+        var first = $"target-{NativeSliceFixture.UserA}-0";
+        var ai = new ScratchTranslationAi(NativeSliceFixture.UserA)
+        {
+            Sentence = i => $"{first} 시장에 사람이 {i}번 더 많았어요."
+        };
+        var (card, _) = await PlanCardAsync(fixture, NativeSliceFixture.UserA);
+        var launch = await fixture.Provider.GetRequiredService<NativeActivityLaunchService>()
+            .FromPlanCardAsync(card.Id);
+        Assert.NotNull(launch);
+        Assert.True(launch.FocusVocabularyIds.Length > 1);
+        using var translation = Presenter(fixture, ai);
+        await translation.OpenAsync(launch);
+        await translation.StartAsync();
+
+        var state = await translation.ToggleInputModeAsync();
+
+        string[] words = [first, "시장에", "사람이", "0번", "더", "많았어요"];
+        Assert.True(state.ShowsBlocks);
+        Assert.Equal(words.Order(StringComparer.Ordinal), state.Blocks.Order(StringComparer.Ordinal));
+        // Tapping the blocks in the sentence's order writes the sentence.
+        foreach (var word in words)
+            state = await translation.UseBlockAsync(state.Blocks.IndexOf(word));
+        Assert.Equal($"{first} 시장에 사람이 0번 더 많았어요", state.Input);
+
+        // Each sentence has its own blocks.
+        translation.SetInput(string.Empty);
+        await translation.NextAsync();
+        state = await translation.ToggleInputModeAsync();
+        Assert.Contains("1번", state.Blocks);
+        Assert.DoesNotContain("0번", state.Blocks);
+    }
+
+    [Theory]
+    [InlineData("Unknown", "Korean")]
+    [InlineData("", "Korean")]
+    [InlineData(null, "Korean")]
+    [InlineData("Japanese", "Japanese")]
+    public async Task TargetLanguage_IsTheResourcesOrTheProfilesWhenTheResourceHasNone(
+        string? resourceLanguage, string expected)
+    {
+        // Found with issue 233: the field read "Translate to Unknown..." and the sentence
+        // prompt asked for "Unknown" sentences.
+        using var fixture = new NativeSliceFixture();
+        var ai = new ScratchTranslationAi(NativeSliceFixture.UserA);
+        await SeedSkillAsync(fixture, NativeSliceFixture.UserA, wordCount: 3);
+        using (var scope = fixture.Scope())
+        {
+            var resourceId = fixture.ResourceId(NativeSliceFixture.UserA);
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().LearningResources
+                .Where(resource => resource.Id == resourceId)
+                .ExecuteUpdateAsync(resource => resource.SetProperty(r => r.Language, resourceLanguage));
+        }
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var translation = Presenter(fixture, ai);
+
+        await translation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        var state = await translation.StartAsync();
+
+        Assert.Equal(expected, state.TargetLanguage);
+        Assert.Contains($"Generate 5 short, natural {expected} sentences", Assert.Single(ai.GeneratePrompts));
     }
 
     [Fact]
@@ -470,6 +538,9 @@ internal sealed class ScratchTranslationAi(string owner) : INativeTranslationAi
     /// <summary>A hung gateway: generation waits for it and ignores cancellation.</summary>
     public TaskCompletionSource<bool>? GenerateHang { get; set; }
 
+    /// <summary>The target sentence of each generated challenge.</summary>
+    public Func<int, string> Sentence { get; set; } = i => $"target sentence {i}";
+
     private string Term(int index) => $"target-{owner}-{index}";
 
     public async Task<TranslationResponse?> GenerateAsync(
@@ -485,7 +556,7 @@ internal sealed class ScratchTranslationAi(string owner) : INativeTranslationAi
         {
             Sentences = Enumerable.Range(0, SentenceTotal).Select(i => new TranslationDto
             {
-                SentenceText = $"target sentence {i}",
+                SentenceText = Sentence(i),
                 RecommendedTranslation = $"I want sentence {i}.",
                 TranslationVocabulary = [Term(0), Term(1), "싶다"]
             }).ToList()

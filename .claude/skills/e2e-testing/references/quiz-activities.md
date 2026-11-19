@@ -257,3 +257,18 @@ Set every row's `NativeSentence` to the sentinel `DO-NOT-RENDER-native-translati
 | 1 | Navigate to translation URL | Source sentence displayed |
 | 2 | Type translation | Text in input |
 | 3 | Submit | AI feedback with corrections |
+
+### Blocks mode (issue 233, 2026-11-19)
+
+Run it from a Today's Plan card as well as from Choose My Own: the plan launch carries
+`FocusVocabularyIds`, which is where the blocks went wrong. The prompt is the native-language
+sentence and every block is target-language text, so the mode is native prompt, target response.
+
+| Step | Action | Verify |
+|------|--------|--------|
+| 1 | Start Translate from a plan card, press Start, tap Blocks | The blocks are words of one target-language sentence that translates the prompt, about as many as the prompt has words. They are not the plan's word list, carry no full stop, and are shuffled (a short sentence can come out in its own order by chance) |
+| 2 | Tap the blocks in the order of the sentence | The field holds the sentence, words separated by spaces |
+| 3 | Grade | Accuracy near 100%; the suggested translation matches what the blocks wrote |
+| 4 | Next, tap Blocks | The mode reset to Type; the blocks now belong to the new sentence |
+| 5 | Stay in Type mode on a sentence | No target-language word of the answer is on screen before grading (the blocks show only after the learner asks for them) |
+| 6 | Look at the answer field | The placeholder names the learner's target language, never "Unknown" (native heads) |

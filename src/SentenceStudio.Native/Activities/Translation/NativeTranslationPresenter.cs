@@ -48,7 +48,6 @@ public sealed class NativeTranslationPresenter(
     private readonly NativeActivityExit _exit = new();
     private readonly List<Challenge> _sentences = [];
     private readonly HashSet<string> _ownedWordIds = new(StringComparer.Ordinal);
-    private List<VocabularyWord> _focusWords = [];
     private NativeActivityLaunch? _launch;
     private NativeTranslationState _state = new(NativePhase.Idle);
     private string _nativeLanguage = "English";
@@ -420,7 +419,6 @@ public sealed class NativeTranslationPresenter(
             _sentences.AddRange(content.Sentences);
             _ownedWordIds.Clear();
             _ownedWordIds.UnionWith(content.OwnedWordIds);
-            _focusWords = content.FocusWords;
             _nativeLanguage = content.NativeLanguage;
             _targetLanguage = content.TargetLanguage;
             _profileTargetLanguage = content.ProfileTargetLanguage;
@@ -550,7 +548,9 @@ public sealed class NativeTranslationPresenter(
             resource = await resources.GetResourceAsync(resourceId, userId);
             if (resource is not null && resource.UserProfileId != userId)
                 resource = null;
-            content.TargetLanguage = resource?.Language ?? content.TargetLanguage;
+            // A resource saved with no language, or with "Unknown", takes the profile's.
+            if (!VocabularyDuplicatePolicy.IsUnknownLanguage(resource?.Language))
+                content.TargetLanguage = resource!.Language!;
         }
         else if (focusIds.Count == 0)
         {
@@ -614,13 +614,6 @@ public sealed class NativeTranslationPresenter(
     private NativeTranslationState SentenceState(int index)
     {
         var challenge = _sentences[index];
-        var blockWords = _focusWords.Count > 0
-            ? FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(
-                _focusWords, challenge.Vocabulary, MaxIntroVocabulary)
-            : (challenge.Vocabulary ?? [])
-                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
-                .OrderBy(_ => Random.Shared.Next())
-                .ToList();
         var current = _state;
         return new(NativePhase.Ready,
             IntroResourceTitle: current.IntroResourceTitle,
@@ -630,9 +623,9 @@ public sealed class NativeTranslationPresenter(
             Count: _sentences.Count,
             Prompt: challenge.RecommendedTranslation ?? string.Empty,
             TargetLanguage: _targetLanguage,
-            Blocks: blockWords.Select(word => word.TargetLanguageTerm)
-                .Where(term => !string.IsNullOrEmpty(term))
-                .Select(term => term!)
+            // The sentence's own words, never the plan's focus words (issue 233).
+            Blocks: TranslationSentenceBlocks.Build(challenge.SentenceText,
+                    (challenge.Vocabulary ?? []).Select(word => word.TargetLanguageTerm))
                 .ToImmutableArray(),
             HasPendingSync: HasPending());
     }
