@@ -32,11 +32,11 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.True(graded >= 0 && correctTerm > graded
             && status > correctTerm && choices > status && textInput > choices);
         Assert.Contains("state.AnswerWasCorrect == true", question);
-        Assert.Contains("state.CompleteForm is { Length: > 0 }", question);
+        Assert.Contains("state.CompleteForm is { Length: > 0 }", feature);
         Assert.Contains("state.FeedbackMnemonicText is { Length: > 0 }", question);
-        Assert.Contains("NativeVocabQuiz_FuzzyFeedback", question);
-        Assert.Contains("NativeVocabQuiz_CorrectFeedback", question);
-        Assert.Contains("NativeVocabQuiz_IncorrectFeedback", question);
+        Assert.Contains("NativeVocabQuiz_FuzzyFeedback", feature);
+        Assert.Contains("NativeVocabQuiz_CorrectFeedback", feature);
+        Assert.Contains("NativeVocabQuiz_IncorrectFeedback", feature);
         Assert.Contains("native.quiz.feedback.mnemonic", question);
         Assert.DoesNotContain("native.quiz.feedback.full-form", feature);
     }
@@ -126,7 +126,7 @@ public sealed class NativeQuizFeedbackContractTests
     public void SummaryUsesOneSourceCardWithInlineResultRowsAndSuccessMetrics()
     {
         var feature = ReadHead("Features/Quiz/QuizSummaryView.cs");
-        var start = feature.IndexOf("internal static void Add(",
+        var start = feature.IndexOf("internal static SwiftView? Add(",
             StringComparison.Ordinal);
         var end = feature.IndexOf("private static SwiftView Statistic(", start,
             StringComparison.Ordinal);
@@ -139,6 +139,42 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Equal(1, summary.Split("style.Card(", StringSplitOptions.None).Length - 1);
         Assert.Contains("\"mastered\", style, success: true)", summary);
         Assert.Contains(".WithAccessibilityIdentifier($\"{id}.status\")", summary);
+    }
+
+    [Fact]
+    public void Issue225_MultipleChoiceResultShowsOnlyOnTheOptions()
+    {
+        var feature = FeatureSource();
+
+        // The banner stays for text answers and for a turn whose answer is not an option;
+        // written choices also drop the answer line, which audio-letter choices keep.
+        Assert.Contains("state.Choices.Any(choice => IsCorrectChoice(state, choice.Text))",
+            feature);
+        Assert.Contains("var showAnswerLine = !choicesShowResult || audioChoices;", feature);
+        Assert.Contains("state.Phase == NativePhase.Feedback && showAnswerLine", feature);
+        Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowResult", feature);
+        // Not by color alone: a mark whose place is always kept, and the spoken result.
+        Assert.Contains("\"xmark.circle.fill\" : \"checkmark.circle.fill\"", feature);
+        Assert.Contains(".WithHidden(!correct && !incorrect)", feature);
+        Assert.Contains("title.WithForegroundColor(\"#FFFFFF\", \"#FFFFFF\")", feature);
+        Assert.Contains("answer + ChoiceResultCaption(state, answer, text)", feature);
+        Assert.Contains("+ ChoiceResultCaption(state, choice.Text, text)", feature);
+        Assert.Contains("choiceButton.WithAccessibilityAnnouncement(", feature);
+    }
+
+    [Fact]
+    public void Issue225_SummaryContinueAndDoneStayOnScreenInAFooter()
+    {
+        var summary = ReadHead("Features/Quiz/QuizSummaryView.cs");
+        var page = ReadHead("Features/Quiz/QuizView.cs");
+
+        Assert.Contains("internal static SwiftView? Add(", summary);
+        Assert.Contains("\"native.quiz.summary.footer\"", summary);
+        Assert.Contains("style.DockedBar(Views.VStack(row))", summary);
+        Assert.Contains("NativeAdaptiveLayout.EffectiveWidth(", summary);
+        Assert.DoesNotContain("items.Add(style.PrimaryButton(", summary);
+        Assert.Contains("footer = QuizSummaryView.Add(", page);
+        Assert.Contains("Views.BottomInset(page, footer)", page);
     }
 
     [Theory]

@@ -12,7 +12,14 @@ namespace SentenceStudio.Native.iOS.Features.Quiz;
 
 internal static class QuizSummaryView
 {
-    internal static void Add(
+    /// <summary>The text-scaled width from which Continue and Done share one row.</summary>
+    private const double SideBySideActionsWidth = 568;
+
+    /// <summary>
+    /// Adds the summary to <paramref name="items"/> and returns the footer that holds
+    /// Continue and Done, or null when there is none.
+    /// </summary>
+    internal static SwiftView? Add(
         List<SwiftView> items, NativeQuizState state, bool canRetry,
         SourceUiStyle style, Func<string, string> text,
         Action continueRound, Action done, Action retry)
@@ -77,17 +84,35 @@ internal static class QuizSummaryView
             .WithAccessibilityIdentifier(NativeAccess.QuizSummary));
         if (state.Phase == NativePhase.Summary)
         {
+            // Issue 225 (Captain, 2026-11-15): Continue and Done stay on screen below the
+            // scrolling results, so a landscape phone reaches them without scrolling.
+            var actions = new List<SwiftView>();
             if (state.TotalTurns > 0)
-                items.Add(style.PrimaryButton(
+                actions.Add(style.PrimaryButton(
                         text("VocabQuiz_ContinueQuiz"), continueRound)
                     .WithAccessibilityIdentifier("native.quiz.continue"));
-            items.Add(style.SecondaryButton(
+            actions.Add(style.SecondaryButton(
                     text(NativeText.Done), done)
                 .WithAccessibilityIdentifier("native.quiz.done"));
+            // Side by side only where both fit at the current text size (landscape phone,
+            // iPad); otherwise stacked, as in the source.
+            var sideBySide = NativeAdaptiveLayout.EffectiveWidth(
+                style.ViewportWidth, style.TextScale) >= SideBySideActionsWidth;
+            var row = (sideBySide ? Views.HStack(actions.ToArray())
+                    : Views.VStack(actions.ToArray()))
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
+            row.Spacing = SourceUiLayout.ItemGap;
+            return Views.VStack(
+                    Views.Divider().WithAccessibilityIdentifier(
+                        "native.quiz.summary.footer.divider"),
+                    // DockedBar sets its content's width leading; the row inside stays centered.
+                    style.DockedBar(Views.VStack(row)))
+                .WithAccessibilityIdentifier("native.quiz.summary.footer");
         }
-        else if (canRetry)
+        if (canRetry)
             items.Add(Views.Button(text(NativeText.Retry), retry)
                 .WithAccessibilityIdentifier("native.quiz.retry"));
+        return null;
     }
 
     private static SwiftView Statistic(

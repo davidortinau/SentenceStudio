@@ -107,11 +107,13 @@ def graded_geometry(ready, graded, label):
         same_frame(one(ready, identifier + ".container"),
                    one(graded, identifier + ".container"),
                    f"{label} option {index} container")
-    last_choice = one(graded, "native.quiz.choice.3.container")
-    answer = one(graded, "native.quiz.correct-answer")
-    feedback = one(graded, "native.quiz.feedback", "View")
-    assert frame(answer)["y"] >= bottom(last_choice), f"{label}: answer shifted choices"
-    assert frame(feedback)["y"] >= bottom(answer), f"{label}: feedback shifted choices"
+    # Issue 225: written choices carry the result themselves (a mark and the spoken
+    # name), with no separate answer line or banner.
+    ids = [node.get("automationId") for node in all_nodes(graded)]
+    assert "native.quiz.correct-answer" not in ids, f"{label}: answer line shown"
+    assert "native.quiz.feedback" not in ids, f"{label}: result banner shown"
+    assert ids.count("native.quiz.choice.result.correct") == 1, (
+        f"{label}: the correct option has no mark")
 
 
 def main():

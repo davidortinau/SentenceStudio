@@ -51,6 +51,7 @@ internal static class QuizView
         var continueAfterSentence = actions.ContinueAfterSentence;
         var promptAppeared = actions.PromptAppeared;
         var items = new List<SwiftView>();
+        SwiftView? footer = null;
         // Like the source quiz, no sync caption: pending writes are still recorded and
         // retried by the presenter, and connection failures show through ErrorKey
         // (Captain, 2026-11-06).
@@ -136,7 +137,7 @@ internal static class QuizView
                 break;
             case NativePhase.Summary:
             case NativePhase.Error when state.Destination == NativeDestination.QuizSummary:
-                QuizSummaryView.Add(items, state, canRetry, style, text,
+                footer = QuizSummaryView.Add(items, state, canRetry, style, text,
                     continueRound, done, retry);
                 break;
             case NativePhase.Empty:
@@ -160,7 +161,6 @@ internal static class QuizView
                         .WithAccessibilityIdentifier("native.quiz.retry"));
                 break;
         }
-        SwiftView? footer = null;
         if (state.Prompt is not null && state.Sentence is null
             && state.Phase is (NativePhase.Ready
                 or NativePhase.Feedback or NativePhase.Error)
