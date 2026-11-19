@@ -1,8 +1,8 @@
 #!/bin/bash
-# One run of the feedback check. launchd runs this every four hours on Lilliput
-# (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), through
-# scripts/admin-feedback-run.sh, from a checkout of its own that follows origin/main. Two stages,
-# each a headless Claude session:
+# One run of the feedback check. On Lilliput, launchd starts scripts/admin-feedback-run.sh --loop
+# every five minutes (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), from a
+# checkout of its own that follows origin/main, and that runs this with --pass again and again
+# while there is work (see "A pass" below). Two stages, each a headless Claude session:
 #
 #   1. Triage (docs/admin-feedback-check.md): reads the admin portal's inbox with the agent
 #      token, files or links GitHub issues, sets each report's status. It can run
@@ -21,6 +21,15 @@
 #   scripts/admin-feedback-check.sh --fix-only [n]  stage 2 only; n is an issue number, otherwise
 #                                                   a follow-up pass or the oldest issue waiting
 #   scripts/admin-feedback-check.sh --probe         only asks the API what the token is
+#   scripts/admin-feedback-check.sh --pass          one pass of the loop: exits 10, writing no
+#                                                   summary, when there is nothing to do
+#
+# A pass (Captain, 2026-11-19: fixes should not wait hours for the next run). It first looks,
+# without a session, for work: a fix session to settle, a follow-up request, an issue waiting.
+# Triage runs when four hours have passed since the last one. With neither, it exits 10 and the
+# loop stops until launchd's next start. A pass does not wait for a pull request's checks; the
+# status issue shows them as they finish. At most FEEDBACK_DAILY_CAP (12) fix sessions start
+# in a UTC day. scripts/admin-feedback-status.py keeps the status issue on GitHub up to date.
 #
 # Which issues wait for stage 2 (scripts/admin-feedback-pr.py issues): open issues not yet
 # labelled feedback-attempted that the triage filed (labelled feedback-check), that the app's
@@ -75,7 +84,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PAT
 MODE="${1:-both}"
 ISSUE_ARG="${2:-}"
 case "$MODE" in
-  both|--triage-only|--fix-only|--probe) ;;
+  both|--triage-only|--fix-only|--probe|--pass) ;;
   *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
@@ -105,6 +114,8 @@ finish() {
   } >> "$RUN"
   cp "$RUN" "$OUT/latest.md"
   printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-400)" >> "$OUT/history.log"
+  # A run that fails before status is defined (a missing script) cannot write the status issue.
+  declare -F status >/dev/null && status
   [ "$NOTIFY" = yes ] && notify "$(grep -E '^(RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
   # Keep the last 200 runs.
   ls -1t "$OUT"/run-*.md 2>/dev/null | tail -n +201 | while read -r old; do rm -f "$old" "${old%.md}.err"; done
@@ -118,13 +129,15 @@ fail() {
   finish
 }
 
-# One run at a time. A lock older than the longest a run may take is a run that died.
+# One run at a time. A lock older than the longest a run may take is a run that died. A pass
+# that finds another run holding it is idle, so the loop does not spin while that run goes on.
 LOCK="$OUT/.lock"
+BUSY=0; [ "$MODE" = --pass ] && BUSY=10
 if ! mkdir "$LOCK" 2>/dev/null; then
   if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((TRIAGE_LIMIT + FIX_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
-    rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || exit 0
+    rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || { rm -f "$RUN"; exit "$BUSY"; }
   else
-    exit 0
+    rm -f "$RUN"; exit "$BUSY"
   fi
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
@@ -137,6 +150,60 @@ for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
 done
 command -v claude >/dev/null || fail "The claude command is not on PATH."
+
+# ------------------------------------------------------------------ the status issue and a pass
+
+DAILY_CAP="${FEEDBACK_DAILY_CAP:-12}"
+FIX_ALLOWED=yes
+TRIAGE_EVERY=14400
+LAST_TRIAGE="$OUT/state/last-triage"
+# When a pass last reported that GitHub could not be read, so an outage is reported once an
+# hour rather than every five minutes.
+UNREADABLE="$OUT/state/github-unreadable-reported"
+IDLE=10
+
+# Rewrites the status issue when what it says has changed. Its failure is kept in
+# state/status.err and never stops the run. $1 a line to say at the top, or nothing.
+status() {
+  python3 -I "$ROOT/scripts/admin-feedback-status.py" update --cap "$DAILY_CAP" \
+    --windows "$WINDOWS" --handled "$HANDLED" ${1:+--note "$1"} >/dev/null 2> "$OUT/state/status.err" \
+    && rm -f "$OUT/state/status.err"
+  return 0
+}
+
+seconds_since() {
+  local then; then="$(cat "$1" 2>/dev/null)"
+  case "$then" in ""|*[!0-9]*) echo 999999 ;; *) echo $(( $(date +%s) - then )) ;; esac
+}
+
+# Whether this pass has work, into TRIAGE_DUE and FIX_ALLOWED; exits $IDLE, with no summary,
+# when it has none.
+pass_gate() {
+  local waiting=no today note=""
+  TRIAGE_DUE=no
+  [ "$(seconds_since "$LAST_TRIAGE")" -ge "$TRIAGE_EVERY" ] && TRIAGE_DUE=yes
+  if [ -f "$INFLIGHT" ] || [ -f "$KNOWN" ]; then
+    waiting=yes
+  elif found="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" pending --handled "$HANDLED" 2>/dev/null)" \
+       && issues="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" issues --windows "$WINDOWS" 2>/dev/null)"; then
+    [ -n "$found$issues" ] && waiting=yes
+  elif [ "$(seconds_since "$UNREADABLE")" -ge 3600 ]; then
+    # The fix stage says that GitHub could not be read.
+    date +%s > "$UNREADABLE"; waiting=yes
+  fi
+  today="$(python3 -I "$ROOT/scripts/admin-feedback-status.py" today 2>/dev/null)" || today=0
+  if [ "$today" -ge "$DAILY_CAP" ] 2>/dev/null; then
+    FIX_ALLOWED=no
+    note="The daily cap of $DAILY_CAP fix sessions is reached; work waiting starts after 00:00 UTC."
+  fi
+  # A session to settle is settled even at the cap; it starts no new one.
+  if [ "$TRIAGE_DUE" = no ] && { [ "$waiting" = no ] || { [ "$FIX_ALLOWED" = no ] && [ ! -f "$INFLIGHT" ] && [ ! -f "$KNOWN" ]; }; }; then
+    status "$note"
+    rm -f "$RUN"
+    exit "$IDLE"
+  fi
+  status "$note"
+}
 
 # Runs one session under its own time limit, so a run that hangs is ended and reported, not
 # left holding the lock. Its event stream goes straight into the usage filter, which keeps the
@@ -226,6 +293,17 @@ triage_stage() {
   cat "$reply" >> "$RUN"; echo >> "$RUN"
   record_usage "$record" "$([ "$MODE" = "--probe" ] && echo probe || echo triage)" "" "$TRIAGE_MODEL" "$TRIAGE_EFFORT" "$wall" "$(head -1 "$reply")"
   rm -f "$reply" "$record"
+}
+
+# Triage, and the time of the last one that did not fail, so a failed one is tried again on the
+# next pass rather than four hours later.
+triage_and_stamp() {
+  local before=$FAILED
+  FAILED=no
+  triage_stage
+  [ "$FAILED" = no ] && date +%s > "$LAST_TRIAGE"
+  [ "$before" = yes ] && FAILED=yes
+  return 0
 }
 
 # Whether main's own checks are green. A red main makes every pull request red, and nothing else
@@ -341,6 +419,16 @@ fix_session() {
       --strict-mcp-config \
       --max-budget-usd 40
     exit $? )
+}
+
+# Says on the issue or pull request, as the app, that a session has started on it. $1 issue or
+# pr, $2 its number.
+say_started() {
+  env -u GH_TOKEN -u GITHUB_TOKEN GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1 \
+    gh "$1" comment "$2" --repo "$REPO" \
+      --body "The feedback check started a session on this at $(date -u +%H:%M) UTC. It aims to finish within 15 minutes and is stopped at 30; what it found or changed is posted here." \
+      >/dev/null 2>&1 \
+    || { echo "The note that the session started could not be posted on #$2."; echo; } >> "$RUN"
 }
 
 # A fix session runs as the Captain's macOS user, so an issue it opened by going around its app
@@ -582,6 +670,8 @@ follow_up_stage() {
   for id in ${ids//,/ }; do printf '%s\n' "$id" >> "$HANDLED"; done
   printf 'follow-up %s %s %s %s\n' "$$" "$pr" "$ids" "$tree" > "$INFLIGHT"
   window_open
+  say_started pr "$pr"
+  status
 
   printf '\n## Follow-up pass, %s\n\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$log"
   local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
@@ -653,6 +743,10 @@ fix_stage() {
     NOTIFY=yes; FAILED=yes
     return
   fi
+  if [ "$FIX_ALLOWED" = no ]; then
+    { echo "FIX RESULT: skipped (the daily cap of $DAILY_CAP fix sessions is reached)"; echo; } >> "$RUN"
+    return
+  fi
   local came_from="" read_ok=yes
   case "$issue" in *[!0-9]*) fail "--fix-only takes an issue number." ;; esac
   # Said in every run that gets this far, a follow-up pass's included.
@@ -689,8 +783,10 @@ fix_stage() {
   if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" || [ -e "$tree" ]; then
     # It was attempted, whether or not the label got on at the time. Without the label every
     # later run would stop here and take no other issue.
-    gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
     { echo "FIX RESULT: skipped #$issue"; echo; echo "The branch $branch or the worktree $tree already exists, so an earlier attempt is still there. Remove them (and the label feedback-attempted) to have the issue worked again."; echo; } >> "$RUN"
+    # Without the label the next pass would take it again at once.
+    gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 \
+      || { echo "The label feedback-attempted could not be added, so the issue is still waiting."; echo; FAILED=yes; } >> "$RUN"
     NOTIFY=yes
     return
   fi
@@ -725,6 +821,8 @@ fix_stage() {
   fi
   printf 'issue %s %s %s\n' "$$" "$issue" "$tree" > "$INFLIGHT"
   window_open
+  say_started issue "$issue"
+  status
 
   : > "$log"
   local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
@@ -775,10 +873,17 @@ fix_stage() {
 
 case "$MODE" in
   --probe) triage_stage ;;
-  --triage-only) triage_stage; main_ci; read_waiting ;;
+  --triage-only) triage_and_stamp; main_ci; read_waiting ;;
   --fix-only) fix_stage ;;
+  --pass)
+    pass_gate
+    # The loop moves on as soon as a session ends; the status issue shows the checks.
+    CHECKS_WAIT=0
+    [ "$TRIAGE_DUE" = yes ] && triage_and_stamp
+    main_ci
+    fix_stage ;;
   both)
-    triage_stage
+    triage_and_stamp
     main_ci
     # A triage that failed is reported; the fix stage still has its turn, on what was already filed.
     fix_stage ;;

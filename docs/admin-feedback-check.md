@@ -4,7 +4,7 @@ What the scheduled agent does with the admin portal's feedback inbox, and what i
 Decided by the Captain on 2026-11-15 and 2026-11-16 (`docs/admin-portal-plan.md`). The API it
 calls is in `docs/admin-api.md`.
 
-Each run has two stages, each its own session (`scripts/admin-feedback-check.sh`):
+Each pass has two stages, each its own session (`scripts/admin-feedback-check.sh`):
 
 1. **Triage**, which this document is the instructions for: read what needs attention, file or
    link a GitHub issue, set each report's status, summarise. It is the only stage that reads
@@ -21,7 +21,7 @@ Each run has two stages, each its own session (`scripts/admin-feedback-check.sh`
    wrote.
 
 **Which issues the fix stage takes** (Captain, 2026-11-18: the job must also see issues filed
-from the app or directly on GitHub). One per run, the oldest open issue that is not labelled
+from the app or directly on GitHub). One per pass, the oldest open issue that is not labelled
 `feedback-attempted` and is one of these (`scripts/admin-feedback-pr.py issues`):
 
 - **Filed by triage**, labelled `feedback-check` by the Captain's login (the triage stage's)
@@ -87,8 +87,12 @@ carries only its own text.
   request too, and for a first pass it labels the issue so that later runs move on.
 
 **Checks.** A fix session does not wait for its pull request's checks (they take 25 to 45
-minutes, longer than a fix should; Captain, 2026-11-19). After it, the runner waits for them
-for up to 50 minutes and writes into the summary which failed, and for each whether `main` fails it too; a cancelled check counts as failed.
+minutes, longer than a fix should; Captain, 2026-11-19), and neither does the loop: a pass
+writes into its summary what the checks show when the session ends, and the status issue shows
+them for every open pull request of the check's as they finish. A run started by hand
+(`scripts/admin-feedback-check.sh` without `--pass`) still waits for them for up to 50 minutes
+and writes which failed, and for each whether `main` fails it too; a cancelled check counts as
+failed.
 Every run also has one line on `main` itself: `MAIN CI: green`, `red`, `running`, `no checks
 reported` or `unknown` (GitHub did not answer). A red `main` shows a notification once per
 commit and set of failures: it makes every pull request red, and in November 2026 it stayed
@@ -96,10 +100,34 @@ red for a day because nothing said so.
 
 ## Where and when it runs
 
-- On Lilliput, **every four hours** (00:07, 04:07, 08:07 and so on, local time), by the launchd
-  agent `com.sentencestudio.feedback-check`. The Captain chose the interval on 2026-11-16; the
-  plan had said weekdays. It runs only when Lilliput is on and he is logged in; a run missed
-  while the Mac slept happens once when it wakes.
+- On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting
+  hours for the next run; until then it ran every four hours, his choice of 2026-11-16). The
+  launchd agent `com.sentencestudio.feedback-check` starts `scripts/admin-feedback-run.sh
+  --loop` every five minutes (`StartInterval` 300), and launchd never starts it again while it
+  is running. The loop runs `scripts/admin-feedback-check.sh --pass` again and again:
+  - A pass first looks for work without a session: a fix session to settle, a `/revise`
+    request, an issue waiting. Triage, a Sonnet session, runs only when four hours have passed
+    since the last one (`state/last-triage`); its instructions read the four hours before it.
+    A pass with neither writes no summary and exits 10, which ends the loop until the next
+    start, five minutes later. So an issue filed from the app or on GitHub is taken within
+    about five minutes, or as soon as the session before it ends.
+  - The loop stops after two failed passes in a row and then waits an hour
+    (`state/loop-paused-until`; delete it to start again sooner), and after 40 passes.
+  - At most 12 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`), counted in `usage.jsonl`,
+    so a queue cannot use up the week's limit. Triage still runs when it is due.
+  - An issue is still worked once: one that ended diagnosed, stuck or failed waits for the
+    Captain (remove `feedback-attempted` to have it worked again).
+  - When a session starts, the app says so on the issue (or, for a follow-up pass, on the pull
+    request), with the 15 and 30 minute limits.
+  It runs only when Lilliput is on and he is logged in.
+- **The status issue** (`scripts/admin-feedback-status.py`): one pinned issue, labelled
+  `feedback-status` (and `feedback-attempted`, which keeps it out of the queue), whose body says
+  what is running and for how long, the queue in order, the check's open pull requests with
+  their checks, the issues worked once and left open, the fix sessions today against the cap,
+  and the last 10 passes with how long their sessions took. Every pass and every idle look
+  rewrites it, but only when what it says has changed. The repository is public, so it holds
+  numbers, results and times only. It is written with the Captain's login, like the runner's
+  other posts. A failure to write it is kept in `state/status.err` and never stops a pass.
 - **It runs what is on `main`** (2026-11-17). launchd starts `scripts/admin-feedback-run.sh` in
   the check's own checkout, `~/work/copilot-worktrees/SentenceStudio/feedback-runner`, a git
   worktree with a detached HEAD. That script brings the checkout to `origin/main` and then runs
@@ -130,7 +158,8 @@ red for a day because nothing said so.
     without it the run says why and leaves that work waiting. A run with nothing waiting does
     not need one.
     `scripts/admin-feedback-agent-token.py check` shows what the app can do, never the token.
-  - The runner's own posts (labels, closing comments, notes) still use the Captain's login.
+  - The runner's own posts (labels, closing comments, notes, the status issue) still use the
+    Captain's login; only the note that a session started is the app's.
   - Not a boundary: a session runs as the Captain's macOS user and could read his GitHub login
     or the app's key from the keychain. A macOS user of its own for the check would make it
     one.
