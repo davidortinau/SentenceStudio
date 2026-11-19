@@ -994,8 +994,11 @@ Without the feedback key, `azd deploy` stops with `parameter feedbackhmackey not
 Vault value matched the API's deployed secret that day.
 
 The azd environment (`.azure/`, git-ignored) lives in the main checkout
-`/Users/davidortinau/work/SentenceStudio`. To deploy from a worktree, symlink it:
-`ln -s /Users/davidortinau/work/SentenceStudio/.azure .azure`.
+`/Users/davidortinau/work/SentenceStudio`. To deploy from a worktree, copy it (azd refuses a
+symlinked `.azure` since 2026-11-18: "must not be a symbolic link or reparse point"):
+`cp -Rp /Users/davidortinau/work/SentenceStudio/.azure .azure`. On Lilliput the worktree also
+needs the package mirror's NuGet.config (`cp ~/sstudio-feedback-check/NuGet.config src/NuGet.config
+&& git update-index --skip-worktree src/NuGet.config`), since api.nuget.org is unreachable there.
 
 ### Option B: `aspire deploy` (Preview)
 

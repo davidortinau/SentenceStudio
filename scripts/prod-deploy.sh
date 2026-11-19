@@ -38,8 +38,13 @@ check() {
 
   [ "$(az account show --query id -o tsv)" = "$S" ] && ok "subscription" \
     || fail "az is not on subscription $S (az account set -s $S)"
-  [ -e .azure/sstudio-prod-biz ] && ok "azd environment" \
-    || fail "no .azure here; ln -s /Users/davidortinau/work/SentenceStudio/.azure .azure"
+  if [ -L .azure ]; then
+    fail "azd refuses a symlinked .azure; rm .azure && cp -Rp /Users/davidortinau/work/SentenceStudio/.azure .azure"
+  elif [ -e .azure/sstudio-prod-biz ]; then
+    ok "azd environment"
+  else
+    fail "no .azure here; cp -Rp /Users/davidortinau/work/SentenceStudio/.azure .azure"
+  fi
   if [ -z "$(git status --porcelain --untracked-files=no)" ] \
      && [ -z "$(git status --porcelain -- src | grep '^??' || true)" ]; then
     ok "clean checkout at $(git rev-parse --short HEAD) ($(git rev-parse --abbrev-ref HEAD))"
