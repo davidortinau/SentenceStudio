@@ -33,9 +33,11 @@ class TokenTests(unittest.TestCase):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         self.cache = os.path.join(folder.name, "state", "agent-token.json")
-        patch = mock.patch.object(agent, "CACHE", self.cache)
-        patch.start()
-        self.addCleanup(patch.stop)
+        self.identity = os.path.join(folder.name, "state", "agent-identity.json")
+        for name, value in (("CACHE", self.cache), ("IDENTITY", self.identity)):
+            patch = mock.patch.object(agent, name, value)
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def keep(self, token, expires_at):
         os.makedirs(os.path.dirname(self.cache), exist_ok=True)
@@ -104,6 +106,31 @@ class TokenTests(unittest.TestCase):
             self.assertEqual(agent.main(["check"]), 0)
         self.assertNotIn("ghs_secret", out.getvalue())
         self.assertIn('"commit_name": "ss-fix-agent[bot]"', out.getvalue())
+
+
+    def test_the_bots_identity_is_looked_up_once_and_kept_private(self):
+        who = ({"slug": "ss-fix-agent"}, "ss-fix-agent[bot]", "1+ss-fix-agent[bot]@users.noreply.github.com")
+        with mock.patch.object(agent, "identity", return_value=who) as asked:
+            self.assertEqual(agent.kept_identity(), who[1:])
+            self.assertEqual(agent.kept_identity(), who[1:])
+        asked.assert_called_once()
+        self.assertEqual(os.stat(self.identity).st_mode & 0o777, 0o600)
+        self.assertEqual(os.stat(os.path.dirname(self.identity)).st_mode & 0o777, 0o700)
+
+    def test_a_damaged_identity_file_is_looked_up_again(self):
+        os.makedirs(os.path.dirname(self.identity), exist_ok=True)
+        who = ({"slug": "ss-fix-agent"}, "ss-fix-agent[bot]", "1+ss-fix-agent[bot]@users.noreply.github.com")
+        for content in ("not json", "[]", '{"login": "davidortinau", "email": "dave@example.com"}'):
+            with open(self.identity, "w", encoding="utf-8") as out:
+                out.write(content)
+            with mock.patch.object(agent, "identity", return_value=who):
+                self.assertEqual(agent.kept_identity(), who[1:], content)
+
+    def test_a_failed_write_leaves_no_temporary_file(self):
+        with mock.patch.object(agent.json, "dump", side_effect=ValueError("boom")):
+            with self.assertRaises(ValueError):
+                agent.keep({"token": "ghs_x", "expires_at": in_minutes(60)})
+        self.assertEqual(os.listdir(os.path.dirname(self.cache)), [])
 
 
 class KeyTests(unittest.TestCase):

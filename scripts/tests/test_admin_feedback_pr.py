@@ -57,6 +57,7 @@ class FakeGitHub:
     def __init__(self):
         self.pull_requests = []
         self.issues = []
+        self.labelled = {}
         self.comments = {}
         self.reviews = {}
         self.inline = {}
@@ -85,6 +86,9 @@ class FakeGitHub:
         path = args[1]
         if path.endswith("/commits/main"):
             return [{"sha": self.heads["main"]}]
+        if path.endswith("/events"):
+            number = int(path.split("/")[-2])
+            return self.labelled.get(number, [{"who": "davidortinau", "at": "2026-11-16T10:05:00Z"}])
         if "/issues/" in path:
             return self.comments.get(int(path.split("/")[-2]), [])
         if path.endswith("/reviews"):
@@ -271,6 +275,27 @@ class WaitingIssueTests(GitHubTestCase):
 
         # 254 is inside the five minutes after the end; 256 is during a session still running.
         self.assertEqual(pr_script.waiting_issues(windows), [(255, "github"), (257, "app")])
+
+    def test_the_queue_label_counts_only_when_the_owner_added_it_outside_a_session(self):
+        self.github.issues = [issue(260, labels=["feedback-check"], at="2026-11-10T09:00:00Z"),
+                              issue(261, labels=["feedback-check"], at="2026-11-10T09:00:00Z"),
+                              issue(262, labels=["feedback-check"], at="2026-11-10T09:00:00Z"),
+                              issue(263, labels=["feedback-check"], at="2026-11-10T09:00:00Z"),
+                              issue(264, labels=["feedback-check"], at="2026-11-10T09:00:00Z")]
+        self.github.labelled = {
+            260: [{"who": "davidortinau", "at": "2026-11-10T09:01:00Z"}],
+            # The fix sessions' app labelled an older issue of the owner's.
+            261: [{"who": "ss-fix-agent[bot]", "at": "2026-11-19T10:20:00Z"}],
+            262: [{"who": "davidortinau", "at": "2026-11-10T09:01:00Z"},
+                  {"who": "ss-fix-agent[bot]", "at": "2026-11-19T10:20:00Z"}],
+            # Added through the owner's login while a session ran.
+            263: [{"who": "davidortinau", "at": "2026-11-19T10:20:00Z"}],
+            264: [],
+        }
+        windows = [(pr_script.created_at({"createdAt": "2026-11-19T10:00:00Z"}),
+                    pr_script.created_at({"createdAt": "2026-11-19T11:05:00Z"}))]
+
+        self.assertEqual(pr_script.waiting_issues(windows), [(260, "triage")])
 
     def test_no_record_of_sessions_means_no_windows(self):
         self.assertEqual(pr_script.session_windows(None), [])

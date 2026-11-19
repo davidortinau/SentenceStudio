@@ -24,7 +24,8 @@ Each run has two stages, each its own session (`scripts/admin-feedback-check.sh`
 from the app or directly on GitHub). One per run, the oldest open issue that is not labelled
 `feedback-attempted` and is one of these (`scripts/admin-feedback-pr.py issues`):
 
-- **Filed by triage**, labelled `feedback-check`.
+- **Filed by triage**, labelled `feedback-check` by the Captain's login (the triage stage's)
+  outside any fix session's window, every time the label was added.
 - **Filed from the app** by the feedback button (author `app/sentence-studio-feedback`), whenever
   it was filed.
 - **Filed by the Captain on GitHub** at or after 2026-11-19 02:00 UTC (the evening of
@@ -37,9 +38,10 @@ either, whoever filed it. Nor is an issue the Captain's login opened while a fix
 running (or in the five minutes after): a session runs as his macOS user, so one that went
 around its own app login, perhaps talked into it by a learner's report, could open an issue
 that would otherwise become the next run's task as his. Fix sessions are also refused
-`gh issue create`, `gh issue edit` and `gh label`. None of this catches a session that reaches
-his login and adds `feedback-check` to an older issue; only running the sessions as a macOS
-user of their own would.
+`gh issue create`, `gh issue edit` and `gh label`. The `feedback-check` label counts only when
+his login added it outside those windows, so the sessions' app (which can label issues)
+labelling an older issue of his does not queue it. None of this is a boundary: a session runs
+as his macOS user, and only a macOS user of its own for the sessions would make one.
 
 The fix stage adds `feedback-attempted` when it has had its go, so an issue is worked once. **To
 keep an issue out, label it `feedback-attempted`**; remove the label to have it worked again.
@@ -116,20 +118,27 @@ red for a day because nothing said so.
     `scripts/admin-feedback-agent-token.py`, which signs with the app's private key. The key is
     in the login keychain (service `sstudio-fix-agent-key`, account `sstudio-fix-agent`, the
     `.pem` in base64), where the Captain put it. Tokens last an hour and are renewed every 20
-    minutes while a session runs.
+    minutes by the clock while a session runs (a Mac that slept renews on waking); a renewal
+    that fails is retried two minutes later and noted in the summary. The bot's name and email
+    are looked up once and kept in `state/agent-identity.json`.
   - The session's `gh` reads a config folder of its own (`state/agent-gh`, whose token file is
     deleted when the session ends, however it ends; the token stays in the helper's cache,
     `state/agent-token.json`, readable only by this user, until it expires within the hour). Its git asks that `gh` for credentials, after clearing every other credential
-    helper. Its commit name and email are the bot's.
-  - **Without a token, no session starts**: the run says why and leaves everything waiting.
+    helper, and cannot use SSH (an SSH remote or an `insteadOf` rule would push with the
+    Captain's key). Its commit name and email are the bot's.
+  - **Without a token, no session starts**: the token is asked for once there is work, and
+    without it the run says why and leaves that work waiting. A run with nothing waiting does
+    not need one.
     `scripts/admin-feedback-agent-token.py check` shows what the app can do, never the token.
   - The runner's own posts (labels, closing comments, notes) still use the Captain's login.
   - Not a boundary: a session runs as the Captain's macOS user and could read his GitHub login
     or the app's key from the keychain. A macOS user of its own for the check would make it
     one.
-- To rotate the key: generate a new one on the app's page, replace the keychain item
-  (`security add-generic-password -U -a sstudio-fix-agent -s sstudio-fix-agent-key -w "$(base64
-  -i <file>.pem)"`), delete the file and the old key on GitHub.
+- To rotate the key: generate a new one on the app's page, copy it as base64 (`base64 -i
+  <file>.pem | pbcopy`), replace the keychain item with `security add-generic-password -U -a
+  sstudio-fix-agent -s sstudio-fix-agent-key -w` and paste at its prompt (a value on the
+  command line can be read by any process while it runs), then delete the file and the old key
+  on GitHub.
 - Lilliput reaches packages only through a mirror. The mirror's `NuGet.config` is kept at
   `~/sstudio-feedback-check/NuGet.config` and copied into each fix worktree, hidden from git.
   If the working checkout's copy changes, copy it there again.

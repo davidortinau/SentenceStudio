@@ -265,9 +265,12 @@ agent_token() {
   AGENT_TOKEN="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" token 2> "$errors")" \
     || { AGENT_ERROR="$(tail -1 "$errors" | cut -c1-300)"; rm -f "$errors"; return 1; }
   rm -f "$errors"
-  case "$AGENT_NAME$AGENT_EMAIL$AGENT_TOKEN" in
-    *[[:space:]]*|"") AGENT_ERROR="the helper printed something that is not a token and an identity"; return 1 ;;
-  esac
+  local value
+  for value in "$AGENT_NAME" "$AGENT_EMAIL" "$AGENT_TOKEN"; do
+    case "$value" in
+      *[[:space:]]*|"") AGENT_NAME=""; AGENT_ERROR="the helper printed something that is not a token and an identity"; return 1 ;;
+    esac
+  done
 }
 
 # A token written where the session's gh reads it. Returns 1, with the reason in AGENT_ERROR.
@@ -285,16 +288,23 @@ agent_login() {
 # record, $5 prompt.
 fix_session() {
   ( cd "$1" || exit 1
-    # The renewal stops when the token file is gone (the trap below removes it, however the
-    # session ends) and in any case after the longest a session may run. Its sleep is killed
-    # with it, so nothing is left behind.
-    ( left=$((FIX_LIMIT / 1200 + 1)); nap=""
+    # The token is renewed every 20 minutes by the clock, which a sleeping Mac does not stop,
+    # and two minutes after a renewal that failed, which goes in the summary. The renewal
+    # stops when the token file is gone (the trap below removes it, however the session ends)
+    # and in any case after the longest a session may run. Its sleep is killed with it, so
+    # nothing is left behind.
+    ( renew=$(( $(date +%s) + 1200 )); stop=$(( $(date +%s) + FIX_LIMIT + 600 )); nap=""
       trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 0' TERM
-      while [ "$left" -gt 0 ]; do
-        sleep 1200 & nap=$!; wait "$nap"; nap=""
+      while [ "$(date +%s)" -lt "$stop" ]; do
+        sleep 60 & nap=$!; wait "$nap"; nap=""
         [ -e "$AGENT_GH/hosts.yml" ] || exit 0
-        agent_login || true
-        left=$((left - 1))
+        [ "$(date +%s)" -ge "$renew" ] || continue
+        if agent_login; then
+          renew=$(( $(date +%s) + 1200 ))
+        else
+          { echo "The fix session's GitHub token could not be renewed at $(date -u +%H:%M:%SZ) ($AGENT_ERROR); trying again in two minutes."; echo; } >> "$RUN"
+          renew=$(( $(date +%s) + 120 ))
+        fi
       done ) &
     local refresher=$!
     trap 'kill "$refresher" 2>/dev/null; wait "$refresher" 2>/dev/null; rm -f "$AGENT_GH/hosts.yml"' EXIT
@@ -306,6 +316,9 @@ fix_session() {
     export GIT_CONFIG_COUNT=2 \
       GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0= \
       GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
+    # No SSH: an SSH remote, or a url.*.insteadOf rule in the Captain's git config, would push
+    # with his key as him.
+    export GIT_SSH_COMMAND=false GIT_SSH=false
     export GIT_AUTHOR_NAME="$AGENT_NAME" GIT_AUTHOR_EMAIL="$AGENT_EMAIL" \
       GIT_COMMITTER_NAME="$AGENT_NAME" GIT_COMMITTER_EMAIL="$AGENT_EMAIL"
     session "$FIX_LIMIT" "$2" "$3" "$4" -p "$5" \
@@ -554,7 +567,7 @@ follow_up_stage() {
     # Nothing has run in it, so it holds nothing to keep.
     git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
     rm -f "$KNOWN"
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The package mirror configuration $MIRROR_CONFIG could not be copied into the worktree, so the session was not started. The request is still waiting."; echo; } >> "$RUN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The package mirror configuration $MIRROR_CONFIG could not be copied into the worktree, so the session was not started. The request is still waiting. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
     FAILED=yes
     return 0
   fi
@@ -563,7 +576,7 @@ follow_up_stage() {
     # Nothing has run in it, so it holds nothing to keep.
     git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
     rm -f "$KNOWN"
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The request is still waiting."; echo; } >> "$RUN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The request is still waiting. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return 0
   fi
@@ -643,12 +656,6 @@ fix_stage() {
     NOTIFY=yes; FAILED=yes
     return
   fi
-  # No session runs under the Captain's own login: without the app's token, none starts.
-  if ! agent_token; then
-    { echo "FIX RESULT: failed"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so no fix work was started this run. Nothing is lost: what was waiting still is. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
-    NOTIFY=yes; FAILED=yes
-    return
-  fi
   local came_from="" read_ok=yes
   case "$issue" in *[!0-9]*) fail "--fix-only takes an issue number." ;; esac
   # Said in every run that gets this far, a follow-up pass's included.
@@ -715,7 +722,7 @@ fix_stage() {
     git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
     git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
     rm -f "$KNOWN"
-    { echo "FIX RESULT: failed #$issue"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The issue is still waiting."; echo; } >> "$RUN"
+    { echo "FIX RESULT: failed #$issue"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The issue is still waiting. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return
   fi

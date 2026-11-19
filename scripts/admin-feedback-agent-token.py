@@ -13,7 +13,8 @@ than MIN_LEFT left, so a token handed out always outlives the next renewal.
       Prints the app, its installation, the token's permissions and repositories, and the bot's
       commit identity, as JSON. Never a token or a key.
   admin-feedback-agent-token.py identity
-      Prints two lines: the bot's name and its commit email.
+      Prints two lines: the bot's name and its commit email. They never change, so they are
+      looked up once and kept in IDENTITY; check looks them up again.
 
 The app's private key is kept in the login keychain (service KEY_SERVICE, account KEY_ACCOUNT,
 base64 of the .pem), where the Captain put it himself. It is read only to sign the request for a
@@ -39,8 +40,10 @@ REPO = "davidortinau/SentenceStudio"
 KEY_SERVICE = "sstudio-fix-agent-key"
 KEY_ACCOUNT = "sstudio-fix-agent"
 API = "https://api.github.com"
-CACHE = os.path.join(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"),
-                     "state", "agent-token.json")
+STATE = os.path.join(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"),
+                     "state")
+CACHE = os.path.join(STATE, "agent-token.json")
+IDENTITY = os.path.join(STATE, "agent-identity.json")
 # More than the runner's 20-minute renewal, with ten minutes to spare.
 MIN_LEFT = 1800
 SECONDS = 30
@@ -125,12 +128,24 @@ def cached():
         return None
 
 
+def write_private(path, content):
+    """content as JSON in path, readable only by this user, replaced whole: each writer has its
+    own temporary file, so two at once cannot mix their contents."""
+    folder = os.path.dirname(path)
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    os.chmod(folder, 0o700)
+    handle, temporary = tempfile.mkstemp(dir=folder, prefix=".agent-", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            json.dump(content, out)
+        os.replace(temporary, path)
+    except BaseException:
+        os.unlink(temporary)
+        raise
+
+
 def keep(fresh):
-    os.makedirs(os.path.dirname(CACHE), mode=0o700, exist_ok=True)
-    temporary = CACHE + ".tmp"
-    with open(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as out:
-        json.dump({"token": fresh["token"], "expires_at": fresh["expires_at"]}, out)
-    os.replace(temporary, CACHE)
+    write_private(CACHE, {"token": fresh["token"], "expires_at": fresh["expires_at"]})
 
 
 def token():
@@ -156,6 +171,19 @@ def identity(jwt=None):
     return app, login, f"{user['id']}+{login}@users.noreply.github.com"
 
 
+def kept_identity():
+    try:
+        with open(IDENTITY, encoding="utf-8") as source:
+            saved = json.load(source)
+        if saved["login"].endswith("[bot]") and saved["email"].endswith("@users.noreply.github.com"):
+            return saved["login"], saved["email"]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    _, login, email = identity()
+    write_private(IDENTITY, {"login": login, "email": email})
+    return login, email
+
+
 def main(args):
     mode = args[0] if args else ""
     try:
@@ -163,7 +191,7 @@ def main(args):
             print(token())
             return 0
         if mode == "identity":
-            _, login, email = identity()
+            login, email = kept_identity()
             print(login)
             print(email)
             return 0
@@ -172,6 +200,7 @@ def main(args):
             app, login, email = identity(jwt)
             found, fresh = new_token(jwt)
             keep(fresh)
+            write_private(IDENTITY, {"login": login, "email": email})
             print(json.dumps({
                 "app": app["slug"], "app_id": app["id"], "owner": app["owner"]["login"],
                 "installation": found["id"], "installed_on": found["account"]["login"],

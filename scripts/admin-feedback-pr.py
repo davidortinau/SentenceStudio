@@ -71,8 +71,10 @@ decision not to do it, or squad work. Labelling any issue feedback-attempted kee
 For the same reason, an issue a misled session opened through the owner's login, or labelled
 feedback-check, would read as his. An issue by the owner opened while a fix session was running
 (the runner's --windows record, and up to WINDOW_SLACK after) is never taken: text a session
-read in a learner's report must not become the next run's task. As with requests, this narrows
-what a misled session can pass on; it does not catch a label added to an older issue.
+read in a learner's report must not become the next run's task. The feedback-check label counts
+only when every time it was added, it was added by the owner and outside those windows: a
+session works as the fix sessions' app, which can label issues, so a label it added to an older
+issue of his does not queue that issue.
 """
 import hashlib
 import json
@@ -161,16 +163,29 @@ def session_windows(path):
     return windows
 
 
-def issue_source(issue, windows=()):
+def queued_by_owner(number, windows=()):
+    """Whether every feedback-check label on issue number was added by the owner, outside the
+    fix sessions' windows."""
+    added = gh_lines(
+        "api", f"repos/{REPO}/issues/{number}/events", "--paginate", "--jq",
+        f'.[] | select(.event == "labeled" and .label.name == "{QUEUED}") | {{who: .actor.login, at: .created_at}}')
+    return bool(added) and all(
+        event.get("who") == REPO.split("/")[0]
+        and not any(start <= created_at({"createdAt": event["at"]}) <= end for start, end in windows)
+        for event in added)
+
+
+def issue_source(issue, windows=(), queued_ok=None):
     """Where an open issue came from if a fix session may take it (triage, app or github), or
-    None. See "Which issues wait"."""
+    None. queued_ok(number) says whether its feedback-check label is the owner's own. See "Which
+    issues wait"."""
     labels = {label.get("name") for label in issue.get("labels") or []}
     author = (issue.get("author") or {}).get("login")
     if ATTEMPTED in labels or any(label in HOLD_LABELS or label.startswith("squad") for label in labels):
         return None
     if author == REPO.split("/")[0] and any(start <= created_at(issue) <= end for start, end in windows):
         return None
-    if author == REPO.split("/")[0] and QUEUED in labels:
+    if author == REPO.split("/")[0] and QUEUED in labels and queued_ok and queued_ok(issue["number"]):
         return "triage"
     if author == APP:
         return "app"
@@ -184,7 +199,8 @@ def waiting_issues(windows=()):
         "issue", "list", "--repo", REPO, "--state", "open", "--limit", "1000",
         "--search", f"-label:{ATTEMPTED}",
         "--json", "number,author,labels,createdAt", "--jq", ".[]")
-    waiting = [(issue["number"], issue_source(issue, windows)) for issue in found]
+    waiting = [(issue["number"], issue_source(issue, windows, lambda n: queued_by_owner(n, windows)))
+               for issue in found]
     return sorted((issue, source) for issue, source in waiting if source)
 
 
