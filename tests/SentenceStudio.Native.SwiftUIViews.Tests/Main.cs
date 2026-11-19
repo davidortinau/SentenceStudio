@@ -1,9 +1,12 @@
+using System.Runtime.InteropServices;
 using AppKit;
+using CoreGraphics;
 using Microsoft.SwiftUI;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Lookups;
+using SentenceStudio.Native.iOS.Features.Activities;
 using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Lookups;
@@ -893,6 +896,35 @@ var cases = new (string Name, Action Test)[]
                      "native.resources.filters.apply", "native.resources.filters.close" })
             Assert(Find(sheet, id) is not null);
     }),
+    // Issue #234 (Duotopia, 951 points wide): only the stats card was centered; the heading,
+    // the line under it and Play Again sat at the page's leading edge. The tree read as
+    // centered (a centered frame on the stack), so this one is drawn in a real SwiftUI host.
+    ("Vocabulary Matching: the completion heading, line, stats and Play Again are centered", () =>
+    {
+        static string English(string key) => key switch
+        {
+            NativeMatchingText.Congratulations => "Congratulations!",
+            NativeMatchingText.AllPairsMatched => "All pairs matched!",
+            NativeMatchingText.Matched => "Matched",
+            NativeMatchingText.Misses => "Misses",
+            NativeMatchingText.PlayAgain => "Play Again",
+            _ => key
+        };
+        foreach (var width in new[] { 402d, 951d })
+        {
+            using var view = VocabularyMatchingCompleteView.Render(
+                new NativeMatchingState(NativePhase.Summary, MatchedPairs: 6, TotalPairs: 6),
+                new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width),
+                English, () => { });
+            Assert(Find(view, NativeMatchingAccess.PlayAgain) is { Kind: "button" });
+            var rows = PaintedRows(view, width, 400);
+            var drawn = $"At {width} points the rows are painted at {string.Join(", ", rows.Select(row => $"{row.Left:0.#}-{row.Right:0.#}"))}.";
+            if (rows.Count != 4)
+                throw new Exception($"Expected the heading, the line, the card and the button. {drawn}");
+            if (rows.Any(row => Math.Abs((row.Left + row.Right) / 2 - width / 2) > 4))
+                throw new Exception($"A row is off the center ({width / 2:0.#}). {drawn}");
+        }
+    }),
 };
 
 var failures = 0;
@@ -1040,6 +1072,54 @@ static SwiftView? Find(SwiftView node, string id)
         if (Find(child, id) is { } match)
             return match;
     return null;
+}
+
+// Draws a view in a real SwiftUI host and returns, for each run of pixel rows with anything
+// painted on it, the left and right edge of the paint in points. The host has no background
+// of its own, so a painted pixel is one that is not transparent.
+static List<(double Left, double Right)> PaintedRows(SwiftView root, double width, double height)
+{
+    var host = SwiftUIHost.CreateView(root);
+    try
+    {
+        host.Frame = new CGRect(0, 0, width, height);
+        host.LayoutSubtreeIfNeeded();
+        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+            ?? throw new Exception("The host has no bitmap to draw in.");
+        host.CacheDisplay(host.Bounds, bitmap);
+        if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+            throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
+        var scale = bitmap.PixelsWide / width;
+        var samples = (int)bitmap.BitsPerPixel / 8;
+        var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
+        var rows = new List<(double Left, double Right)>();
+        (int Left, int Right)? run = null;
+        void EndRun()
+        {
+            if (run is { } ended)
+                rows.Add((ended.Left / scale, (ended.Right + 1) / scale));
+            run = null;
+        }
+        for (var y = 0; y < bitmap.PixelsHigh; y++)
+        {
+            (int Left, int Right)? painted = null;
+            for (var x = 0; x < bitmap.PixelsWide; x++)
+                if (Marshal.ReadByte(bitmap.BitmapData, y * (int)bitmap.BytesPerRow + x * samples + alpha) != 0)
+                    painted = (painted?.Left ?? x, x);
+            if (painted is { } row)
+                run = (Math.Min(run?.Left ?? row.Left, row.Left), Math.Max(run?.Right ?? row.Right, row.Right));
+            else
+                EndRun();
+        }
+        EndRun();
+        if (rows.Count == 0)
+            throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+        return rows;
+    }
+    finally
+    {
+        SwiftUIHost.DetachView(root, host);
+    }
 }
 
 static void Assert(bool condition)

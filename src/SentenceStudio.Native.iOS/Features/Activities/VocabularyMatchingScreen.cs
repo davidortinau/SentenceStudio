@@ -80,7 +80,8 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
                     SourceTextRole.Body1, SourceTextTone.Secondary));
                 break;
             case NativePhase.Summary:
-                items.Add(Complete(state, style, text));
+                items.Add(VocabularyMatchingCompleteView.Render(state, style, text,
+                    () => Fire(_presenter.RestartAsync)));
                 break;
             case NativePhase.Ready:
                 if (state.ErrorKey is { } error)
@@ -236,46 +237,6 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
             .WithOpacity(tile.IsMatched ? 0.3 : 1);
         button.IsEnabled = !tile.IsMatched && !state.IsChecking;
         return button;
-    }
-
-    private SwiftView Complete(NativeMatchingState state, SourceUiStyle style,
-        Func<string, string> text)
-    {
-        var stats = Views.HStack(
-            Stat(state.MatchedPairs, NativeMatchingText.Matched, SourceTextTone.Success,
-                NativeMatchingAccess.CompleteMatched, style, text),
-            Stat(state.Misses, NativeMatchingText.Misses, SourceTextTone.Danger,
-                NativeMatchingAccess.CompleteMisses, style, text));
-        stats.Spacing = 32;
-        var card = Views.VStack(
-                Views.HStack(
-                    Views.Image("trophy.fill").WithForegroundColor(
-                        style.Appearance.Warning.Light, style.Appearance.Warning.Dark),
-                    style.Text(Views.Text(text(NativeMatchingText.Congratulations)),
-                        SourceTextRole.Title1, sourceHeading: true)),
-                style.Text(Views.Text(text(NativeMatchingText.AllPairsMatched)),
-                    SourceTextRole.Body1, SourceTextTone.Secondary),
-                style.Card(stats.WithPadding(SourceUiLayout.CardInset), maxWidth: 320),
-                style.PrimaryButton(text(NativeMatchingText.PlayAgain),
-                        () => Fire(_presenter.RestartAsync))
-                    .WithAccessibilityIdentifier(NativeMatchingAccess.PlayAgain))
-            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-            .WithAccessibilityIdentifier(NativeMatchingAccess.Complete);
-        card.Spacing = SourceUiLayout.PageGap;
-        return card;
-    }
-
-    private static SwiftView Stat(int value, string labelKey, SourceTextTone tone,
-        string id, SourceUiStyle style, Func<string, string> text)
-    {
-        var stat = Views.VStack(
-                style.Text(Views.Text(value.ToString(CultureInfo.CurrentCulture)),
-                    SourceTextRole.Title2, tone),
-                style.Text(Views.Text(text(labelKey)), SourceTextRole.Small,
-                    SourceTextTone.Secondary))
-            .WithAccessibilityLabel($"{text(labelKey)} {value}")
-            .WithAccessibilityIdentifier(id);
-        return stat;
     }
 
     public void Dispose()

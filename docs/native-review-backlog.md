@@ -555,3 +555,30 @@ Captain's request:
   matching. For the Captain's 4,466 words this is still one query each. Cleanup: cache per request.
 - **`ApplicationOperationConcurrencyTests.ConcurrentConfirmationUse_ConsumesExactlyOnce`** failed
   once in a full unit run. It passed three times alone.
+
+## Vocabulary Matching completion centered (review 2026-11-19, branch `feedback/issue-234`)
+
+- **Translation's headings have the fault issue #234 reported.** `TranslationScreen.cs`: the intro
+  heading (`bookmark.fill` and the intro title) and the summary heading (`checkmark.rectangle.stack`
+  and "Session complete") are bare `Views.HStack` rows in a stack whose card takes the full width,
+  so they sit at the leading edge while the card and the buttons are centered. The source
+  (`Translation.razor`) centers both. Fix: give each its own centered frame, as
+  `VocabularyMatchingCompleteView` now does, and draw it in the view tests. Not seen on a device.
+- **The stats in the summary cards are leading-aligned** (the number over its label). Seen drawn
+  on Vocabulary Matching; Cloze, Word Association and Translation build the stat the same way. The
+  source centers each number over its label (`text-center`) and spreads the pairs
+  (`justify-content-around`).
+- **The completion block starts at the top of the page;** the source centers it vertically
+  (`justify-content-center flex-grow-1`).
+- **"Center this row" exists per screen in two forms:** a centered frame on the view (Word
+  Association, Writing, the Matching completion view) and an `HStack` wrapper with the frame
+  (`TranslationScreen.Centered`). Cleanup: one helper on `SourceUiStyle`.
+- **`VocabularyMatchingCompleteView.Stat` builds its accessibility label by joining the label and
+  an unformatted number;** the status row in `VocabularyMatchingScreen` uses
+  `string.Format(CultureInfo.CurrentCulture, ...)`. Moved as it was.
+- **Tests failing on `main` (`f0ccec10`, Lilliput) that are not in the notes above.** View tests:
+  "Word editor: Reference Sentences have Generate, the add row, suggestions and sentences core
+  first" and "Vocabulary wide: a fixed filter column, sort first, beside the results" (with the two
+  Word editor cases already listed: 27 passed, 4 failed before this branch). iOS tests:
+  `NativeVocabularyRouteTests.DelayedCatalogCompletion_ReprojectsMountedPhoneChoicesWithoutResettingDraft`
+  (with the five already listed: 473 passed, 6 failed).

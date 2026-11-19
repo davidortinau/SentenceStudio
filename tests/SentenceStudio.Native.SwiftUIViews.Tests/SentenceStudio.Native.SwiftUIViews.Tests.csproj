@@ -42,6 +42,8 @@
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyListView.cs"
              Link="Features/VocabularyListView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Browse/*.cs" LinkBase="Features/Browse" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Activities/VocabularyMatchingCompleteView.cs"
+             Link="Features/Activities/VocabularyMatchingCompleteView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourcesView.cs"
              Link="Features/LearningResources/LearningResourcesView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourcesActions.cs"
