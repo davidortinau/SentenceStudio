@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SentenceStudio.Shared.Services;
 
 /// <summary>
@@ -6,23 +8,27 @@ namespace SentenceStudio.Shared.Services;
 /// </summary>
 public static class TranslationSentenceBlocks
 {
+    private const string LeadingMarks = "\"'¿¡";
+    private const string TrailingMarks = "\"'.,!?;:…~。、！？，；：～";
+
     /// <param name="targetSentence">The target-language sentence the learner is asked to produce.</param>
     /// <param name="sentenceTerms">
-    /// The components the AI listed for the sentence. Used only when the sentence is not
-    /// written with spaces between its words (it would be a single block: the whole answer).
+    /// The components the AI listed for the sentence. Used only for a sentence written without
+    /// spaces (it would be a single block: the whole answer), and only when the components,
+    /// in their order, are that sentence.
     /// </param>
     /// <param name="random">The shuffle's source; tests pass a seeded one.</param>
     public static List<string> Build(
         string? targetSentence, IEnumerable<string?>? sentenceTerms = null, Random? random = null)
     {
         var blocks = SentenceWords(targetSentence);
-        if (blocks.Count < 2)
+        if (blocks.Count == 1)
         {
             var terms = (sentenceTerms ?? [])
                 .Select(term => term?.Trim() ?? string.Empty)
                 .Where(term => term.Length > 0)
                 .ToList();
-            if (terms.Count > blocks.Count)
+            if (terms.Count > 1 && Letters(string.Concat(terms)) == Letters(blocks[0]))
                 blocks = terms;
         }
 
@@ -34,24 +40,32 @@ public static class TranslationSentenceBlocks
     }
 
     /// <summary>
-    /// The sentence split at whitespace, without the punctuation around each word (a block
-    /// that kept the full stop would mark itself as the last one). A repeated word stays repeated.
+    /// The sentence split at whitespace, without the sentence punctuation and quotation marks
+    /// around each word (a block that kept the full stop would mark itself as the last one).
+    /// Marks that belong to the word stay ("50%", "-5도"). A repeated word stays repeated.
     /// </summary>
     public static List<string> SentenceWords(string? sentence) =>
         (sentence ?? string.Empty)
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .Select(TrimPunctuation)
+            .Select(TrimMarks)
             .Where(word => word.Length > 0)
             .ToList();
 
-    private static string TrimPunctuation(string word)
+    private static string TrimMarks(string word)
     {
         var start = 0;
         var end = word.Length;
-        while (start < end && char.IsPunctuation(word[start]))
+        while (start < end && (LeadingMarks.Contains(word[start]) || IsQuote(word[start])))
             start++;
-        while (end > start && char.IsPunctuation(word[end - 1]))
+        while (end > start && (TrailingMarks.Contains(word[end - 1]) || IsQuote(word[end - 1])))
             end--;
         return word[start..end];
     }
+
+    private static bool IsQuote(char mark) => char.GetUnicodeCategory(mark)
+        is UnicodeCategory.InitialQuotePunctuation or UnicodeCategory.FinalQuotePunctuation;
+
+    /// <summary>The text as compared between a sentence and its components: letters and digits only.</summary>
+    private static string Letters(string text) =>
+        string.Concat(text.Where(char.IsLetterOrDigit)).ToUpperInvariant();
 }

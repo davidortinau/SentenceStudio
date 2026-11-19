@@ -42,28 +42,39 @@ public sealed class TranslationSentenceBlocksTests
     }
 
     [Fact]
-    public void Blocks_KeepARepeatedWordAndDropThePunctuationAroundWords()
+    public void Blocks_KeepARepeatedWordAndDropTheSentencePunctuationAroundWords()
     {
-        TranslationSentenceBlocks.SentenceWords("  \"네, 네!\"  정말요?  -  ")
+        TranslationSentenceBlocks.SentenceWords("  \"네, 네!\"  정말요?  ...  ")
             .Should().Equal("네", "네", "정말요");
-        TranslationSentenceBlocks.SentenceWords("¿Dónde está el café-bar?")
-            .Should().Equal("Dónde", "está", "el", "café-bar");
-        TranslationSentenceBlocks.Build("네 네").Should().Equal("네", "네");
+        TranslationSentenceBlocks.SentenceWords("“좋아요~” ¿Dónde está el café-bar?")
+            .Should().Equal("좋아요", "Dónde", "está", "el", "café-bar");
+        TranslationSentenceBlocks.Build("네 네.").Should().Equal("네", "네");
     }
 
     [Fact]
-    public void Blocks_FallBackToTheAiComponents_OnlyWhenTheSentenceHasNoSpaces()
+    public void Blocks_KeepTheMarksThatBelongToAWord()
     {
+        TranslationSentenceBlocks.SentenceWords("오늘은 -5도이고 습도는 50% (아마) 돼요.")
+            .Should().Equal("오늘은", "-5도이고", "습도는", "50%", "(아마)", "돼요");
+    }
+
+    [Fact]
+    public void Blocks_UseTheAiComponents_OnlyForASentenceWithoutSpacesThatTheyWrite()
+    {
+        // No spaces between words: the AI's components, when they are the sentence in order.
         TranslationSentenceBlocks.Build("私は学生です。", ["私", "は", " 学生 ", "", null, "です"])
             .Should().BeEquivalentTo(["私", "は", "学生", "です"]);
+        // Dictionary forms do not write the sentence: it stays whole.
+        TranslationSentenceBlocks.Build("私は学生でした。", ["私", "学生", "です"]).Should().Equal("私は学生でした");
+        // A one-word sentence keeps its word, whatever the AI listed.
+        TranslationSentenceBlocks.Build("안녕하세요.", ["안녕하다", "안녕"]).Should().Equal("안녕하세요");
         TranslationSentenceBlocks.Build("가요.", ["가다"]).Should().Equal("가요");
-        TranslationSentenceBlocks.Build(null, ["가다"]).Should().Equal("가다");
     }
 
     [Fact]
-    public void Blocks_AreEmpty_WhenThereIsNoSentenceAndNoComponents()
+    public void Blocks_AreEmpty_WhenThereIsNoSentence()
     {
         TranslationSentenceBlocks.Build(" ").Should().BeEmpty();
-        TranslationSentenceBlocks.Build(null, [" ", null]).Should().BeEmpty();
+        TranslationSentenceBlocks.Build(null, ["가다", "오다"]).Should().BeEmpty();
     }
 }
