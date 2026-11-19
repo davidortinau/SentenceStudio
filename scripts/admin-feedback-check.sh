@@ -33,8 +33,9 @@
 # the Captain has left a comment starting with /revise that no pass has answered yet
 # (scripts/admin-feedback-pr.py). Each such comment is answered once, whatever came of it.
 #
-# A fix session posts through the Captain's GitHub login, so a request that appears or changes
-# while one is running cannot be told from his: the runner sets it aside and says so on the pull
+# A fix session posts as its own GitHub App (ss-fix-agent), but it runs as the Captain's macOS
+# user and could reach his login, so a request that appears or changes while one is running
+# cannot be told from his for certain: the runner sets it aside and says so on the pull
 # request. A run that died during its session is reported by the next one.
 #
 # After a fix session the runner reads the pull request's checks and writes what failed into the
@@ -83,7 +84,7 @@ RUN="$OUT/run-$STAMP.md"
 HANDLED="$OUT/state/handled-requests"
 KNOWN="$OUT/state/requests-before-session.json"
 INFLIGHT="$OUT/state/session-in-flight"
-# When each fix session ran: an issue the Captain's login opened then is the session's, not his.
+# When each fix session ran: an issue the Captain's login opened then may be a session's.
 WINDOWS="$OUT/state/fix-session-windows"
 : > "$RUN"
 NOTIFY=no
@@ -246,34 +247,58 @@ main_ci() {
 # A fix session's own GitHub login: the GitHub App ss-fix-agent, never the Captain's
 # (scripts/admin-feedback-agent-token.py). Its gh reads a config folder of its own whose
 # hosts.yml holds an app token; its git asks that gh for credentials; its commits are the bot's.
-# Tokens last an hour, so the file is written again every 20 minutes while a session runs.
-# Returns 1, with the reason in AGENT_ERROR, when no token could be had.
+# Tokens last an hour, so the file is written again every 20 minutes while a session runs. The
+# file is deleted when the session ends; the token stays in the helper's cache
+# (state/agent-token.json, this user only) until it expires.
 AGENT_GH="$OUT/state/agent-gh"
-agent_login() {
-  local token
+
+# The app's commit identity and a token, into AGENT_NAME, AGENT_EMAIL and AGENT_TOKEN. Only
+# what the helper prints on stdout is taken. Returns 1, with the reason in AGENT_ERROR.
+agent_token() {
+  local errors="$OUT/state/agent-token.err" who
   if [ -z "${AGENT_NAME:-}" ]; then
-    local who
-    who="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" identity 2>&1)" \
-      || { AGENT_ERROR="$(printf '%s' "$who" | tail -1 | cut -c1-300)"; return 1; }
+    who="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" identity 2> "$errors")" \
+      || { AGENT_ERROR="$(tail -1 "$errors" | cut -c1-300)"; rm -f "$errors"; return 1; }
     AGENT_NAME="$(printf '%s\n' "$who" | sed -n 1p)"
     AGENT_EMAIL="$(printf '%s\n' "$who" | sed -n 2p)"
   fi
-  token="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" token 2>&1)" \
-    || { AGENT_ERROR="$(printf '%s' "$token" | tail -1 | cut -c1-300)"; return 1; }
+  AGENT_TOKEN="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" token 2> "$errors")" \
+    || { AGENT_ERROR="$(tail -1 "$errors" | cut -c1-300)"; rm -f "$errors"; return 1; }
+  rm -f "$errors"
+  case "$AGENT_NAME$AGENT_EMAIL$AGENT_TOKEN" in
+    *[[:space:]]*|"") AGENT_ERROR="the helper printed something that is not a token and an identity"; return 1 ;;
+  esac
+}
+
+# A token written where the session's gh reads it. Returns 1, with the reason in AGENT_ERROR.
+agent_login() {
+  agent_token || return 1
   mkdir -p "$AGENT_GH" && chmod 700 "$AGENT_GH" || { AGENT_ERROR="$AGENT_GH could not be made"; return 1; }
   ( umask 077
-    printf 'github.com:\n    oauth_token: %s\n    user: %s\n    git_protocol: https\n' "$token" "$AGENT_NAME" \
+    printf 'github.com:\n    oauth_token: %s\n    user: %s\n    git_protocol: https\n' "$AGENT_TOKEN" "$AGENT_NAME" \
       > "$AGENT_GH/hosts.yml.tmp" && mv "$AGENT_GH/hosts.yml.tmp" "$AGENT_GH/hosts.yml" ) \
     || { AGENT_ERROR="the token could not be written"; return 1; }
 }
 
-# One fix session in its worktree, as the app. $1 the worktree, $2 reply, $3 errors, $4 usage
+# One fix session in its worktree, as the app. The caller has run agent_login just before, so
+# that a failure there leaves the work waiting. $1 the worktree, $2 reply, $3 errors, $4 usage
 # record, $5 prompt.
 fix_session() {
   ( cd "$1" || exit 1
-    agent_login || { printf 'STOP: no token for the fix session: %s\n' "$AGENT_ERROR" > "$3"; exit 90; }
-    ( while sleep 1200; do agent_login || true; done ) &
+    # The renewal stops when the token file is gone (the trap below removes it, however the
+    # session ends) and in any case after the longest a session may run. Its sleep is killed
+    # with it, so nothing is left behind.
+    ( left=$((FIX_LIMIT / 1200 + 1)); nap=""
+      trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 0' TERM
+      while [ "$left" -gt 0 ]; do
+        sleep 1200 & nap=$!; wait "$nap"; nap=""
+        [ -e "$AGENT_GH/hosts.yml" ] || exit 0
+        agent_login || true
+        left=$((left - 1))
+      done ) &
     local refresher=$!
+    trap 'kill "$refresher" 2>/dev/null; wait "$refresher" 2>/dev/null; rm -f "$AGENT_GH/hosts.yml"' EXIT
+    trap 'exit 143' TERM HUP INT
     unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
     export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1
     # The empty helper drops every credential helper configured before it, the Captain's among
@@ -300,10 +325,7 @@ fix_session() {
       --setting-sources project \
       --strict-mcp-config \
       --max-budget-usd 40
-    local code=$?
-    kill "$refresher" 2>/dev/null; wait "$refresher" 2>/dev/null
-    rm -f "$AGENT_GH/hosts.yml"
-    exit $code )
+    exit $? )
 }
 
 # A fix session runs as the Captain's macOS user, so an issue it opened by going around its app
@@ -537,6 +559,15 @@ follow_up_stage() {
     return 0
   fi
 
+  if ! agent_login; then
+    # Nothing has run in it, so it holds nothing to keep.
+    git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
+    rm -f "$KNOWN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The request is still waiting."; echo; } >> "$RUN"
+    NOTIFY=yes; FAILED=yes
+    return 0
+  fi
+
   # It has its pass from here on, whatever comes of it, even if this run dies before the end.
   for id in ${ids//,/ }; do printf '%s\n' "$id" >> "$HANDLED"; done
   printf 'follow-up %s %s %s %s\n' "$$" "$pr" "$ids" "$tree" > "$INFLIGHT"
@@ -613,7 +644,7 @@ fix_stage() {
     return
   fi
   # No session runs under the Captain's own login: without the app's token, none starts.
-  if ! agent_login; then
+  if ! agent_token; then
     { echo "FIX RESULT: failed"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so no fix work was started this run. Nothing is lost: what was waiting still is. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return
@@ -676,6 +707,15 @@ fix_stage() {
     git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
     git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
     { echo "FIX RESULT: failed #$issue"; echo; echo "GitHub could not be read just before the session, so it was not started. The issue is still waiting."; echo; } >> "$RUN"
+    NOTIFY=yes; FAILED=yes
+    return
+  fi
+  if ! agent_login; then
+    # Nothing has run in the worktree, so it and its new branch hold nothing to keep.
+    git -C "$ROOT" worktree remove --force "$tree" >/dev/null 2>&1
+    git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+    rm -f "$KNOWN"
+    { echo "FIX RESULT: failed #$issue"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so the session was not started. The issue is still waiting."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return
   fi

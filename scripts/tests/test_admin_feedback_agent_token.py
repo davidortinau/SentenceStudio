@@ -48,14 +48,36 @@ class TokenTests(unittest.TestCase):
             self.assertEqual(agent.token(), "ghs_kept")
         fresh.assert_not_called()
 
-    def test_a_token_close_to_its_end_is_replaced_and_kept_private(self):
-        self.keep("ghs_old", in_minutes(5))
+    def test_a_token_that_would_not_outlive_the_next_renewal_is_replaced_and_kept_private(self):
+        self.keep("ghs_old", in_minutes(25))
         with mock.patch.object(agent, "new_token",
                                return_value=({"id": 1}, {"token": "ghs_new", "expires_at": in_minutes(60)})):
             self.assertEqual(agent.token(), "ghs_new")
         self.assertEqual(os.stat(self.cache).st_mode & 0o777, 0o600)
         with open(self.cache, encoding="utf-8") as source:
             self.assertEqual(json.load(source)["token"], "ghs_new")
+
+    def test_a_damaged_or_strange_cache_asks_for_a_new_token(self):
+        os.makedirs(os.path.dirname(self.cache), exist_ok=True)
+        for content in ("{}", "[]", '{"token": "ghs_x", "expires_at": "2026-11-19T04:32:41.5Z"}', "not json"):
+            with open(self.cache, "w", encoding="utf-8") as out:
+                out.write(content)
+            self.assertIsNone(agent.cached(), content)
+
+    def test_the_time_left_is_read_in_utc_whatever_the_local_zone(self):
+        self.keep("ghs_kept", in_minutes(40))
+        old = os.environ.get("TZ")
+        try:
+            for zone in ("America/Los_Angeles", "Europe/London", "UTC"):
+                os.environ["TZ"] = zone
+                time.tzset()
+                self.assertEqual(agent.cached(), "ghs_kept", zone)
+        finally:
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
 
     def test_the_token_is_asked_for_this_repository_only(self):
         calls = []

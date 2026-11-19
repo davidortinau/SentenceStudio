@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""The fix sessions' own GitHub identity: the GitHub App sentence-studio-fix-agent.
+"""The fix sessions' own GitHub identity: the GitHub App ss-fix-agent (ss-fix-agent[bot]).
 
 scripts/admin-feedback-check.sh runs every fix session as this app instead of the Captain's
 login (docs/admin-feedback-check.md, "Whose login a session uses"). The session's gh and git
-ask this script for a token each time they need one; a token lasts an hour and is kept until it
-has less than ten minutes left.
+read a token the runner gets from this script and writes again every 20 minutes. A token lasts
+an hour; the one kept in CACHE (readable only by this user) is used again while it has more
+than MIN_LEFT left, so a token handed out always outlives the next renewal.
 
   admin-feedback-agent-token.py token
       Prints a token for the app's installation on the repository, and nothing else.
@@ -23,6 +24,7 @@ session's GitHub actions look like and can do, it is not a boundary.
 Exit 0 on success, 3 when the keychain, openssl or GitHub did not answer as expected.
 """
 import base64
+import calendar
 import json
 import os
 import subprocess
@@ -39,7 +41,8 @@ KEY_ACCOUNT = "sstudio-fix-agent"
 API = "https://api.github.com"
 CACHE = os.path.join(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"),
                      "state", "agent-token.json")
-MIN_LEFT = 600
+# More than the runner's 20-minute renewal, with ten minutes to spare.
+MIN_LEFT = 1800
 SECONDS = 30
 
 
@@ -101,8 +104,8 @@ def installation(jwt):
     return call("GET", f"/repos/{owner}/{name}/installation", jwt)
 
 
-def new_token():
-    jwt = app_jwt()
+def new_token(jwt=None):
+    jwt = jwt or app_jwt()
     found = installation(jwt)
     # Only this repository, whatever else the app may one day be installed on.
     token = call("POST", f"/app/installations/{found['id']}/access_tokens", jwt,
@@ -111,13 +114,23 @@ def new_token():
 
 
 def cached():
+    """The kept token while it has more than MIN_LEFT left; None for anything else, a file
+    that is missing, damaged or of another shape included, so that a new one is asked for."""
     try:
         with open(CACHE, encoding="utf-8") as source:
             saved = json.load(source)
-    except (OSError, ValueError):
+        left = calendar.timegm(time.strptime(saved["expires_at"], "%Y-%m-%dT%H:%M:%SZ")) - time.time()
+        return saved["token"] if left > MIN_LEFT and saved["token"] else None
+    except (OSError, ValueError, KeyError, TypeError):
         return None
-    left = time.mktime(time.strptime(saved["expires_at"], "%Y-%m-%dT%H:%M:%SZ")) - time.mktime(time.gmtime())
-    return saved["token"] if left > MIN_LEFT else None
+
+
+def keep(fresh):
+    os.makedirs(os.path.dirname(CACHE), mode=0o700, exist_ok=True)
+    temporary = CACHE + ".tmp"
+    with open(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as out:
+        json.dump({"token": fresh["token"], "expires_at": fresh["expires_at"]}, out)
+    os.replace(temporary, CACHE)
 
 
 def token():
@@ -125,11 +138,7 @@ def token():
     if found:
         return found
     _, fresh = new_token()
-    os.makedirs(os.path.dirname(CACHE), mode=0o700, exist_ok=True)
-    temporary = CACHE + ".tmp"
-    with open(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as out:
-        json.dump({"token": fresh["token"], "expires_at": fresh["expires_at"]}, out)
-    os.replace(temporary, CACHE)
+    keep(fresh)
     return fresh["token"]
 
 
@@ -161,7 +170,8 @@ def main(args):
         if mode == "check":
             jwt = app_jwt()
             app, login, email = identity(jwt)
-            found, fresh = new_token()
+            found, fresh = new_token(jwt)
+            keep(fresh)
             print(json.dumps({
                 "app": app["slug"], "app_id": app["id"], "owner": app["owner"]["login"],
                 "installation": found["id"], "installed_on": found["account"]["login"],

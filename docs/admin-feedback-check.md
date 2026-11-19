@@ -117,8 +117,9 @@ red for a day because nothing said so.
     in the login keychain (service `sstudio-fix-agent-key`, account `sstudio-fix-agent`, the
     `.pem` in base64), where the Captain put it. Tokens last an hour and are renewed every 20
     minutes while a session runs.
-  - The session's `gh` reads a config folder of its own (`state/agent-gh`, deleted after the
-    session). Its git asks that `gh` for credentials, after clearing every other credential
+  - The session's `gh` reads a config folder of its own (`state/agent-gh`, whose token file is
+    deleted when the session ends, however it ends; the token stays in the helper's cache,
+    `state/agent-token.json`, readable only by this user, until it expires within the hour). Its git asks that `gh` for credentials, after clearing every other credential
     helper. Its commit name and email are the bot's.
   - **Without a token, no session starts**: the run says why and leaves everything waiting.
     `scripts/admin-feedback-agent-token.py check` shows what the app can do, never the token.
