@@ -22,18 +22,23 @@ public sealed class TranslationSentenceBlocksTests
     }
 
     [Fact]
-    public void Blocks_NeverComeInTheSentenceOrder()
+    public void Blocks_AreShuffled_AndTheOrderShownSaysNothingAboutTheSentence()
     {
-        for (var seed = 0; seed < 500; seed++)
+        var orders = new HashSet<string>(StringComparer.Ordinal);
+        for (var seed = 0; seed < 200; seed++)
         {
             var blocks = TranslationSentenceBlocks.Build(Sentence, random: new Random(seed));
 
             blocks.Should().BeEquivalentTo(Words);
-            blocks.Should().NotEqual(Words, "seed {0} would show the answer, read left to right", seed);
+            orders.Add(string.Join(' ', blocks));
         }
+        orders.Count.Should().BeGreaterThan(100, "six words have 720 orders");
 
-        for (var seed = 0; seed < 50; seed++)
-            TranslationSentenceBlocks.Build("가요 지금", random: new Random(seed)).Should().Equal("지금", "가요");
+        // A two-word sentence comes either way round, not always reversed.
+        var twoWords = Enumerable.Range(0, 50)
+            .Select(seed => string.Join(' ', TranslationSentenceBlocks.Build("지금 가요.", random: new Random(seed))))
+            .ToHashSet(StringComparer.Ordinal);
+        twoWords.Should().BeEquivalentTo(["지금 가요", "가요 지금"]);
     }
 
     [Fact]

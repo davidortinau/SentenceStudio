@@ -26,12 +26,10 @@ public static class TranslationSentenceBlocks
                 blocks = terms;
         }
 
+        // A plain shuffle: the order shown says nothing about the sentence's. (Ruling out the
+        // sentence's own order would make a two-word sentence always appear reversed.)
         var shuffled = blocks.ToArray();
         (random ?? Random.Shared).Shuffle(shuffled);
-        // Never the sentence's own order: that would be the answer, read left to right.
-        if (shuffled.SequenceEqual(blocks, StringComparer.Ordinal)
-            && blocks.Distinct(StringComparer.Ordinal).Skip(1).Any())
-            shuffled = [.. blocks.Skip(1), blocks[0]];
         return [.. shuffled];
     }
 

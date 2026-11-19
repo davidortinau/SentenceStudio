@@ -177,7 +177,7 @@ public sealed class NativeTranslationPresenterTests
     }
 
     [Fact]
-    public async Task PlanCard_BlocksAreTheSentenceWordsInAShuffledOrder_NotThePlanFocusWords()
+    public async Task PlanCard_BlocksAreTheSentenceWords_NotThePlanFocusWords()
     {
         // Issue 233: a plan launch showed the plan's focus words as the blocks, and no word of
         // the sentence that was not also a saved word, so the sentence could not be assembled.
@@ -201,7 +201,6 @@ public sealed class NativeTranslationPresenterTests
         string[] words = [first, "시장에", "사람이", "0번", "더", "많았어요"];
         Assert.True(state.ShowsBlocks);
         Assert.Equal(words.Order(StringComparer.Ordinal), state.Blocks.Order(StringComparer.Ordinal));
-        Assert.NotEqual(words, state.Blocks.ToArray());
         // Tapping the blocks in the sentence's order writes the sentence.
         foreach (var word in words)
             state = await translation.UseBlockAsync(state.Blocks.IndexOf(word));
