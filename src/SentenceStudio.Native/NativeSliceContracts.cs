@@ -54,6 +54,7 @@ public static class NativeText
     public const string Regenerate = "Dashboard_RegeneratePlan";
     public const string Quiz = "Activity_VocabQuiz";
     public const string QuizEmpty = "VocabQuiz_NoVocab";
+    public const string QuizAllKnown = "VocabQuiz_AllVocabularyMastered";
     public const string QuizUnavailable = "VocabQuiz_LaunchUnavailable";
     public const string Resume = "VocabQuiz_Resume";
     public const string StartFresh = "VocabQuiz_StartFresh";
@@ -373,6 +374,12 @@ public sealed record NativeQuizState(
     NativeQuizLearningDetails? Details = null)
 {
     public ImmutableArray<NativeQuizSentenceHint> SentenceHints { get; init; } = [];
+    /// <summary>
+    /// The quiz opened with nothing to ask because every word in the chosen scope is Known
+    /// (issue 235). The summary says so (<see cref="NativeText.QuizAllKnown"/>, the source's
+    /// toast) in place of four zero statistics.
+    /// </summary>
+    public bool AllWordsKnown { get; init; }
     /// <summary>
     /// Mark Known (docs/known-words-plan.md) is offered for this question: Learner-led, a
     /// question or its feedback on screen, nothing open over it. The toolbar item shows only then.

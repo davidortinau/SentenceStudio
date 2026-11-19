@@ -32,15 +32,20 @@ internal static class QuizSummaryView
             .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center));
         var summary = new List<SwiftView>
         {
-            Views.HStack(
-                Statistic(state.CorrectCount, text(NativeText.QuizCorrect),
-                    "correct", style, success: true),
-                Statistic(state.TotalTurns, text("VocabQuiz_Total"),
-                    "total", style),
-                Statistic(state.WordsMastered, text("VocabQuiz_Mastered"),
-                    "mastered", style, success: true),
-                Statistic(state.RoundsCompleted, text("VocabQuiz_Rounds"),
-                    "rounds", style)),
+            // Issue 235: a quiz that opens with every word Known has nothing to count, so it
+            // says why (the source's toast) instead of four zeros.
+            state.AllWordsKnown
+                ? style.Text(Views.Text(text(NativeText.QuizAllKnown)), SourceTextRole.Body1)
+                    .WithAccessibilityIdentifier("native.quiz.summary.all-known")
+                : Views.HStack(
+                    Statistic(state.CorrectCount, text(NativeText.QuizCorrect),
+                        "correct", style, success: true),
+                    Statistic(state.TotalTurns, text("VocabQuiz_Total"),
+                        "total", style),
+                    Statistic(state.WordsMastered, text("VocabQuiz_Mastered"),
+                        "mastered", style, success: true),
+                    Statistic(state.RoundsCompleted, text("VocabQuiz_Rounds"),
+                        "rounds", style)),
         };
         var results = state.Results.IsDefault ? [] : state.Results;
         for (var index = 0; index < results.Length; index++)

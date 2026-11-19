@@ -123,6 +123,18 @@ public sealed class NativeQuizFeedbackContractTests
     }
 
     [Fact]
+    public void SummaryOfAQuizWithEveryWordKnownSaysSoInPlaceOfZeroStatistics()
+    {
+        // Issue 235.
+        var feature = ReadHead("Features/Quiz/QuizSummaryView.cs");
+        Assert.Matches(
+            @"state\.AllWordsKnown\s*\? style\.Text\(Views\.Text\(text\(NativeText\.QuizAllKnown\)\)",
+            feature);
+        Assert.Contains("\"native.quiz.summary.all-known\"", feature);
+        Assert.Matches(@"\: Views\.HStack\(\s*Statistic\(state\.CorrectCount", feature);
+    }
+
+    [Fact]
     public void SummaryUsesOneSourceCardWithInlineResultRowsAndSuccessMetrics()
     {
         var feature = ReadHead("Features/Quiz/QuizSummaryView.cs");

@@ -328,6 +328,7 @@ public sealed class NativeSliceJourneyTests
         Assert.Equal(NativePhase.Summary, summary.Phase);
         Assert.Equal(0, summary.TotalTurns);
         Assert.True(summary.Results.IsDefaultOrEmpty);
+        Assert.True(summary.AllWordsKnown);
         await quiz.DoneAsync();
         await quiz.DoneAsync();
         var rows = await fixture.RowsAsync(NativeSliceFixture.UserA, planItemId);
@@ -357,6 +358,7 @@ public sealed class NativeSliceJourneyTests
         }
 
         Assert.Equal(NativePhase.Summary, question.Phase);
+        Assert.False(question.AllWordsKnown);
         Assert.Equal(4, question.Results.Length);
         Assert.All(question.Results, result => Assert.True(result.WasCorrect));
         Assert.False((await fixture.RowsAsync(

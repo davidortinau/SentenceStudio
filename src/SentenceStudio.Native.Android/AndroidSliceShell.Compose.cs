@@ -787,9 +787,15 @@ internal sealed partial class AndroidSliceShell
                 SummaryStatistic(state.RoundsCompleted,
                     Localize("VocabQuiz_Rounds"), palette),
             };
+            // Issue 235: a quiz that opens with every word Known has nothing to count, so it
+            // says why (the source's toast) instead of four zeros.
+            ComposableNode counts = state.AllWordsKnown
+                ? Body(Localize(NativeText.QuizAllKnown), palette,
+                    modifier: Modifier.TestTag("native.quiz.summary.all-known"))
+                : stats;
             viewport.Add(Card(palette, NativeAccess.QuizSummary,
                 Heading(Localize(NativeText.QuizSummary), palette, 24),
-                stats));
+                counts));
             var results = state.Results.IsDefault ? [] : state.Results;
             for (var index = 0; index < results.Length; index++)
             {
