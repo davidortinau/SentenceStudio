@@ -548,7 +548,9 @@ public sealed class NativeTranslationPresenter(
             resource = await resources.GetResourceAsync(resourceId, userId);
             if (resource is not null && resource.UserProfileId != userId)
                 resource = null;
-            content.TargetLanguage = resource?.Language ?? content.TargetLanguage;
+            // A resource saved with no language, or with "Unknown", takes the profile's.
+            if (!VocabularyDuplicatePolicy.IsUnknownLanguage(resource?.Language))
+                content.TargetLanguage = resource!.Language!;
         }
         else if (focusIds.Count == 0)
         {

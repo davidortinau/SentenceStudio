@@ -215,6 +215,36 @@ public sealed class NativeTranslationPresenterTests
         Assert.DoesNotContain("0번", state.Blocks);
     }
 
+    [Theory]
+    [InlineData("Unknown", "Korean")]
+    [InlineData("", "Korean")]
+    [InlineData(null, "Korean")]
+    [InlineData("Japanese", "Japanese")]
+    public async Task TargetLanguage_IsTheResourcesOrTheProfilesWhenTheResourceHasNone(
+        string? resourceLanguage, string expected)
+    {
+        // Found with issue 233: the field read "Translate to Unknown..." and the sentence
+        // prompt asked for "Unknown" sentences.
+        using var fixture = new NativeSliceFixture();
+        var ai = new ScratchTranslationAi(NativeSliceFixture.UserA);
+        await SeedSkillAsync(fixture, NativeSliceFixture.UserA, wordCount: 3);
+        using (var scope = fixture.Scope())
+        {
+            var resourceId = fixture.ResourceId(NativeSliceFixture.UserA);
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().LearningResources
+                .Where(resource => resource.Id == resourceId)
+                .ExecuteUpdateAsync(resource => resource.SetProperty(r => r.Language, resourceLanguage));
+        }
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var translation = Presenter(fixture, ai);
+
+        await translation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        var state = await translation.StartAsync();
+
+        Assert.Equal(expected, state.TargetLanguage);
+        Assert.Contains($"Generate 5 short, natural {expected} sentences", Assert.Single(ai.GeneratePrompts));
+    }
+
     [Fact]
     public async Task ChooseOwn_WithoutSkillOrFocusShowsNoSentencesWithoutCallingAi()
     {
