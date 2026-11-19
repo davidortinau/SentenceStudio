@@ -42,8 +42,9 @@ Whose words count: the repository is public, so anyone can comment on a pull req
 comment or review by the owner is a request, a pull request from a fork is never one of the
 check's own, and nothing anyone else wrote is ever passed to a session.
 
-A fix session posts through the owner's own GitHub login, so what it writes there cannot be
-told from his by its author. Two rules follow:
+A fix session posts as its own GitHub App (ss-fix-agent), but it runs as the owner's macOS
+user and could reach his login, so what a misled session writes cannot always be told from his
+by its author. Two rules follow:
 
 - A session is handed a request's own text and nothing else from the pull request. Comments on
   the diff reach it only as part of a review that is itself a request.
@@ -53,8 +54,8 @@ told from his by its author. Two rules follow:
   could talk it into writing a request that the next run would take as the Captain's.
 
 This narrows what a misled session can pass on through GitHub. It is not a boundary: a fix
-session runs with the owner's own access to this machine. Giving sessions their own GitHub
-identity is what would let the two be told apart.
+session runs with the owner's own access to this machine. Running sessions as a macOS user of
+their own is what would make it one.
 
 Which issues wait (Captain, 2026-11-18): an open issue not labelled feedback-attempted, from one
 of three places, and from nobody else, since anyone can open an issue on a public repository:
@@ -67,7 +68,7 @@ of three places, and from nobody else, since anyone can open an issue on a publi
 An issue labelled with one of HOLD_LABELS, or any squad label, is not taken: it is a plan, a
 decision not to do it, or squad work. Labelling any issue feedback-attempted keeps it out.
 
-A fix session posts through the owner's login too, so an issue it opened, or labelled
+For the same reason, an issue a misled session opened through the owner's login, or labelled
 feedback-check, would read as his. An issue by the owner opened while a fix session was running
 (the runner's --windows record, and up to WINDOW_SLACK after) is never taken: text a session
 read in a learner's report must not become the next run's task. As with requests, this narrows

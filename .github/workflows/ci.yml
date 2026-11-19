@@ -59,10 +59,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Parse the runner and its launcher
         run: bash -n scripts/admin-feedback-check.sh && bash -n scripts/admin-feedback-run.sh
-      - name: Test whose comments count and how checks are read
+      - name: Test whose comments count, how checks are read and the sessions' token
         # The check runs unattended with a session that can edit and push. These tests hold
         # the rule that only the repository owner's comment starts one.
-        run: python3 -m unittest discover -s scripts/tests -p test_admin_feedback_pr.py
+        run: python3 -m unittest discover -s scripts/tests -p 'test_admin_feedback_*.py'
 
   platform-neutral-dependencies:
     name: Server and shared dependency closure

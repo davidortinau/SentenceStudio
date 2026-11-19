@@ -128,6 +128,7 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
+              scripts/admin-feedback-agent-token.py \
               scripts/admin-feedback-usage.py docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
@@ -242,9 +243,47 @@ main_ci() {
 
 # ------------------------------------------------------------------ stage 2: one piece of fix work
 
-# One fix session in its worktree. $1 the worktree, $2 reply, $3 errors, $4 usage record, $5 prompt.
+# A fix session's own GitHub login: the GitHub App ss-fix-agent, never the Captain's
+# (scripts/admin-feedback-agent-token.py). Its gh reads a config folder of its own whose
+# hosts.yml holds an app token; its git asks that gh for credentials; its commits are the bot's.
+# Tokens last an hour, so the file is written again every 20 minutes while a session runs.
+# Returns 1, with the reason in AGENT_ERROR, when no token could be had.
+AGENT_GH="$OUT/state/agent-gh"
+agent_login() {
+  local token
+  if [ -z "${AGENT_NAME:-}" ]; then
+    local who
+    who="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" identity 2>&1)" \
+      || { AGENT_ERROR="$(printf '%s' "$who" | tail -1 | cut -c1-300)"; return 1; }
+    AGENT_NAME="$(printf '%s\n' "$who" | sed -n 1p)"
+    AGENT_EMAIL="$(printf '%s\n' "$who" | sed -n 2p)"
+  fi
+  token="$(python3 -I "$ROOT/scripts/admin-feedback-agent-token.py" token 2>&1)" \
+    || { AGENT_ERROR="$(printf '%s' "$token" | tail -1 | cut -c1-300)"; return 1; }
+  mkdir -p "$AGENT_GH" && chmod 700 "$AGENT_GH" || { AGENT_ERROR="$AGENT_GH could not be made"; return 1; }
+  ( umask 077
+    printf 'github.com:\n    oauth_token: %s\n    user: %s\n    git_protocol: https\n' "$token" "$AGENT_NAME" \
+      > "$AGENT_GH/hosts.yml.tmp" && mv "$AGENT_GH/hosts.yml.tmp" "$AGENT_GH/hosts.yml" ) \
+    || { AGENT_ERROR="the token could not be written"; return 1; }
+}
+
+# One fix session in its worktree, as the app. $1 the worktree, $2 reply, $3 errors, $4 usage
+# record, $5 prompt.
 fix_session() {
-  ( cd "$1" && session "$FIX_LIMIT" "$2" "$3" "$4" -p "$5" \
+  ( cd "$1" || exit 1
+    agent_login || { printf 'STOP: no token for the fix session: %s\n' "$AGENT_ERROR" > "$3"; exit 90; }
+    ( while sleep 1200; do agent_login || true; done ) &
+    local refresher=$!
+    unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1
+    # The empty helper drops every credential helper configured before it, the Captain's among
+    # them; the next one is gh as the app.
+    export GIT_CONFIG_COUNT=2 \
+      GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0= \
+      GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
+    export GIT_AUTHOR_NAME="$AGENT_NAME" GIT_AUTHOR_EMAIL="$AGENT_EMAIL" \
+      GIT_COMMITTER_NAME="$AGENT_NAME" GIT_COMMITTER_EMAIL="$AGENT_EMAIL"
+    session "$FIX_LIMIT" "$2" "$3" "$4" -p "$5" \
       --model "$FIX_MODEL" --effort "$FIX_EFFORT" \
       --add-dir "$OUT/fix" \
       --dangerously-skip-permissions \
@@ -260,10 +299,15 @@ fix_session() {
                         "Bash(gh issue create:*)" "Bash(gh issue edit:*)" "Bash(gh label:*)" \
       --setting-sources project \
       --strict-mcp-config \
-      --max-budget-usd 40 )
+      --max-budget-usd 40
+    local code=$?
+    kill "$refresher" 2>/dev/null; wait "$refresher" 2>/dev/null
+    rm -f "$AGENT_GH/hosts.yml"
+    exit $code )
 }
 
-# A fix session posts through the Captain's login, so an issue it opens would read as his. The
+# A fix session runs as the Captain's macOS user, so an issue it opened by going around its app
+# login would read as his. The
 # runner records when each one ran, and scripts/admin-feedback-pr.py issues never takes an issue
 # his login opened then. A window left open by a run that died is closed by the next one.
 window_open() { printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$WINDOWS"; }
@@ -372,7 +416,8 @@ save_known_requests() {
 }
 
 # A request that appeared, or whose text changed, while a session ran is not acted on: the
-# session posts through the Captain's login, so it cannot be told from his, and text it read on
+# session runs as the Captain's macOS user and could reach his login, so it cannot always be
+# told from his, and text it read on
 # a public page could have talked it into writing one. It is marked answered and he is told on
 # the pull request. Fails when GitHub cannot be read; the saved list is then kept and this is
 # tried again before any other fix work, so what he asks in between is set aside too.
@@ -384,10 +429,10 @@ set_aside_new_requests() {
     [ -n "$pr" ] && [ -n "$ids" ] || continue
     if [ "$kind" = draft ]; then
       # A session can add comments to a review that has not been sent, and nothing would show it.
-      printf '%s\n' "You had a review in draft here while a fix session was running, or before the check could confirm that the session had ended. It will not be taken as a request once sent: a session posts through your login and could have added to it. Discard the draft and write the review again." > "$note"
+      printf '%s\n' "You had a review in draft here while a fix session was running, or before the check could confirm that the session had ended. It will not be taken as a request once sent: a session runs on your Mac with your login within reach and could have added to it. Discard the draft and write the review again." > "$note"
       { echo "FIX RESULT: set aside a draft review on pull request #$pr"; echo; echo "A review was in draft there while a session ran. It will not be taken once sent, and that is said on the pull request."; echo; } >> "$RUN"
     else
-      printf '%s\n' "A \`/revise\` request appeared or changed here while a fix session was running, or before the check could confirm that the session had ended. It was not taken: a session posts through your login, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
+      printf '%s\n' "A \`/revise\` request appeared or changed here while a fix session was running, or before the check could confirm that the session had ended. It was not taken: a session runs on your Mac with your login within reach, so the check cannot tell a request made during one from yours. If it was yours, comment \`/revise\` again." > "$note"
       { echo "FIX RESULT: set aside a request on pull request #$pr"; echo; echo "A /revise request appeared or changed there while a session ran. It was not taken, and that is said on the pull request."; echo; } >> "$RUN"
     fi
     answer_requests "$pr" "$ids" "$note"
@@ -564,6 +609,12 @@ fix_stage() {
   fi
   if ! set_aside_new_requests; then
     { echo "FIX RESULT: failed"; echo; echo "GitHub could not be read, so no fix work was started this run."; echo; } >> "$RUN"
+    NOTIFY=yes; FAILED=yes
+    return
+  fi
+  # No session runs under the Captain's own login: without the app's token, none starts.
+  if ! agent_login; then
+    { echo "FIX RESULT: failed"; echo; echo "No GitHub token for the fix sessions' app ($AGENT_ERROR), so no fix work was started this run. Nothing is lost: what was waiting still is. Run scripts/admin-feedback-agent-token.py check to see why."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
     return
   fi

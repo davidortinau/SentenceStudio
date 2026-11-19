@@ -34,11 +34,12 @@ from the app or directly on GitHub). One per run, the oldest open issue that is 
 An issue anyone else opened is never taken: the repository is public. An issue labelled
 `go:no`, `go:needs-research`, `type:spike`, `type:epic` or any `squad` label is not taken
 either, whoever filed it. Nor is an issue the Captain's login opened while a fix session was
-running (or in the five minutes after): sessions post through his login, so an issue one of
-them opened, perhaps talked into it by a learner's report, would otherwise become the next
-run's task as his. Fix sessions are also refused `gh issue create`, `gh issue edit` and
-`gh label`. Neither catches a session that adds `feedback-check` to an older issue through
-`gh api`; giving sessions their own GitHub identity would.
+running (or in the five minutes after): a session runs as his macOS user, so one that went
+around its own app login, perhaps talked into it by a learner's report, could open an issue
+that would otherwise become the next run's task as his. Fix sessions are also refused
+`gh issue create`, `gh issue edit` and `gh label`. None of this catches a session that reaches
+his login and adds `feedback-check` to an older issue; only running the sessions as a macOS
+user of their own would.
 
 The fix stage adds `feedback-attempted` when it has had its go, so an issue is worked once. **To
 keep an issue out, label it `feedback-attempted`**; remove the label to have it worked again.
@@ -68,15 +69,14 @@ carries only its own text.
 - **Only your comments count.** The repository is public, so a comment by anyone else, or a
   pull request from a fork, is never a request and is never shown to the session
   (`scripts/admin-feedback-pr.py`).
-- **A request made or edited while a fix session is running is not taken.** The session posts
-  through your GitHub login, so the check cannot tell what it wrote from what you wrote, and
-  text it read on a public page could talk it into writing a request. The runner fingerprints
-  every waiting request before a session and, after it, marks any that appeared or changed as
-  answered and says so on the pull request; if it was yours, comment again. The same happens
-  to what you ask between a run that died mid-session (or could not read GitHub afterwards) and
-  the next run. This narrows what a misled session can pass on; it is not a boundary, because a
-  fix session has your access to this Mac. Giving the sessions their own GitHub identity is
-  what would let the two be told apart, and is not done.
+- **A request made or edited while a fix session is running is not taken.** Sessions post as
+  their own app (see "Whose login a session uses"), but they run as your macOS user, so a
+  misled one could still reach your own GitHub login on this Mac, and text it read on a public
+  page could talk it into writing a request. The runner fingerprints every waiting request
+  before a session and, after it, marks any that appeared or changed as answered and says so on
+  the pull request; if it was yours, comment again. The same happens to what you ask between a
+  run that died mid-session (or could not read GitHub afterwards) and the next run. This
+  narrows what a misled session can pass on; it is not a boundary.
 - **A review you have in draft while a fix session runs** is not taken once you send it, for
   the same reason: a session could have added to it, and nothing would show that. The runner
   says so on the pull request; discard the draft and write the review again.
@@ -106,6 +106,29 @@ red for a day because nothing said so.
   check ran from the working checkout, on whatever branch that was, with commits that were not
   on GitHub.) Each summary ends with the commit it ran from. If `origin/main` cannot be
   fetched, the last copy runs and the summary says so.
+- **Whose login a session uses** (2026-11-18). A fix session uses the GitHub App
+  `ss-fix-agent` (App ID 5826863), installed on this repository only, never the Captain's
+  login. Its pushes, pull requests and comments show as `ss-fix-agent[bot]`, and so do its
+  commits. The app can write contents, pull requests and issues, and read Actions, checks and
+  statuses; it has no access to workflows. The `main` ruleset (restrict updates and deletions,
+  block force pushes, bypass for repository admins) refuses it on `main`.
+  - Before each session the runner gets a token for the app with
+    `scripts/admin-feedback-agent-token.py`, which signs with the app's private key. The key is
+    in the login keychain (service `sstudio-fix-agent-key`, account `sstudio-fix-agent`, the
+    `.pem` in base64), where the Captain put it. Tokens last an hour and are renewed every 20
+    minutes while a session runs.
+  - The session's `gh` reads a config folder of its own (`state/agent-gh`, deleted after the
+    session). Its git asks that `gh` for credentials, after clearing every other credential
+    helper. Its commit name and email are the bot's.
+  - **Without a token, no session starts**: the run says why and leaves everything waiting.
+    `scripts/admin-feedback-agent-token.py check` shows what the app can do, never the token.
+  - The runner's own posts (labels, closing comments, notes) still use the Captain's login.
+  - Not a boundary: a session runs as the Captain's macOS user and could read his GitHub login
+    or the app's key from the keychain. A macOS user of its own for the check would make it
+    one.
+- To rotate the key: generate a new one on the app's page, replace the keychain item
+  (`security add-generic-password -U -a sstudio-fix-agent -s sstudio-fix-agent-key -w "$(base64
+  -i <file>.pem)"`), delete the file and the old key on GitHub.
 - Lilliput reaches packages only through a mirror. The mirror's `NuGet.config` is kept at
   `~/sstudio-feedback-check/NuGet.config` and copied into each fix worktree, hidden from git.
   If the working checkout's copy changes, copy it there again.
@@ -140,7 +163,7 @@ by hand: `scripts/admin-feedback-check.sh` (`--triage-only`, `--fix-only [issue]
 which only asks the API what the token is). Run by hand from a checkout on a branch, it runs
 that branch's copy and moves nothing.
 
-Its own tests: `python3 -m unittest discover -s scripts/tests -p test_admin_feedback_pr.py`
+Its own tests: `python3 -m unittest discover -s scripts/tests -p 'test_admin_feedback_*.py'`
 (whose comments count, which checks are finished, what `main`'s line says). They run in CI.
 
 ## What it does, in order
