@@ -7,10 +7,12 @@ namespace SentenceStudio.Native.iOS.Features.Activities;
 
 /// <summary>
 /// The Vocabulary Matching completion block (source VocabMatching.razor,
-/// isGameComplete): heading, line, stats card and Play Again, each centered in
-/// the page like the source's align-items-center column. The bridge's VStack is
-/// leading-aligned and the card's centered frame takes the full width, so every
-/// other row carries its own centered frame (issue #234).
+/// isGameComplete): the heading at the page's leading edge, then the line, the
+/// stats card and Play Again, each centered in the page. The bridge's VStack is
+/// leading-aligned and the card's centered frame takes the full width, so the
+/// line and the button carry their own centered frames (issue #234). The Captain
+/// took the heading out of the source's centered column and dropped its trophy,
+/// which read as an emoji (pull request 238).
 /// </summary>
 internal static class VocabularyMatchingCompleteView
 {
@@ -26,11 +28,9 @@ internal static class VocabularyMatchingCompleteView
         static SwiftView Centered(SwiftView view) =>
             view.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
         var card = Views.VStack(
-                Centered(Views.HStack(
-                    Views.Image("trophy.fill").WithForegroundColor(
-                        style.Appearance.Warning.Light, style.Appearance.Warning.Dark),
-                    style.Text(Views.Text(text(NativeMatchingText.Congratulations)),
-                        SourceTextRole.Title1, sourceHeading: true))),
+                style.Text(Views.Text(text(NativeMatchingText.Congratulations)),
+                        SourceTextRole.Title1, sourceHeading: true)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Leading),
                 Centered(style.Text(Views.Text(text(NativeMatchingText.AllPairsMatched)),
                     SourceTextRole.Body1, SourceTextTone.Secondary)),
                 style.Card(stats.WithPadding(SourceUiLayout.CardInset), maxWidth: 320),

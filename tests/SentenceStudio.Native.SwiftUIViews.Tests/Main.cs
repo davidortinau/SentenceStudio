@@ -899,7 +899,9 @@ var cases = new (string Name, Action Test)[]
     // Issue #234 (Duotopia, 951 points wide): only the stats card was centered; the heading,
     // the line under it and Play Again sat at the page's leading edge. The tree read as
     // centered (a centered frame on the stack), so this one is drawn in a real SwiftUI host.
-    ("Vocabulary Matching: the completion heading, line, stats and Play Again are centered", () =>
+    // The Captain then asked (pull request 238) for the heading to stay at the leading edge,
+    // with only the content under it centered, and for its trophy to go: it read as an emoji.
+    ("Vocabulary Matching: the completion line, stats and Play Again are centered under a leading heading with no symbol", () =>
     {
         static string English(string key) => key switch
         {
@@ -917,12 +919,15 @@ var cases = new (string Name, Action Test)[]
                 new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width),
                 English, () => { });
             Assert(Find(view, NativeMatchingAccess.PlayAgain) is { Kind: "button" });
+            Assert(view.Children[0] is { Kind: "text", Text: "Congratulations!" });
             var rows = PaintedRows(view, width, 400);
             var drawn = $"At {width} points the rows are painted at {string.Join(", ", rows.Select(row => $"{row.Left:0.#}-{row.Right:0.#}"))}.";
             if (rows.Count != 4)
                 throw new Exception($"Expected the heading, the line, the card and the button. {drawn}");
-            if (rows.Any(row => Math.Abs((row.Left + row.Right) / 2 - width / 2) > 4))
-                throw new Exception($"A row is off the center ({width / 2:0.#}). {drawn}");
+            if (rows[0].Left > 4 || (rows[0].Left + rows[0].Right) / 2 > width / 2 - 4)
+                throw new Exception($"The heading is not at the leading edge. {drawn}");
+            if (rows.Skip(1).Any(row => Math.Abs((row.Left + row.Right) / 2 - width / 2) > 4))
+                throw new Exception($"A row under the heading is off the center ({width / 2:0.#}). {drawn}");
         }
     }),
 };
