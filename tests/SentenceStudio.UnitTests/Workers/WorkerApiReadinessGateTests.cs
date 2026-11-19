@@ -406,7 +406,9 @@ public sealed class WorkerApiReadinessGateTests
 
         Assert.Contains("database identity unavailable (BackendChanged)", failure.Message);
         Assert.True(localAttempts > 1);
-        Assert.Equal(localAttempts, handler.Requests);
+        // Every local read follows an API answer. The deadline can fall after the last answer
+        // and before its local read, so the API may have been asked once more.
+        Assert.InRange(handler.Requests - localAttempts, 0, 1);
     }
 
     [Fact]

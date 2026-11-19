@@ -570,3 +570,40 @@ Captain's request:
   is for the blocks. It now feeds vocabulary scoring and the no-spaces fallback only.
 - **Blocks in a language with capital letters** show which word starts the sentence, and
   **Japanese and Chinese** need a word segmenter (`docs/translate-blocks-learning-value-gate.md`).
+
+## Vocabulary Matching completion centered (review 2026-11-19, branch `feedback/issue-234`)
+
+- **Translation's headings have the fault issue #234 reported.** `TranslationScreen.cs`: the intro
+  heading (`bookmark.fill` and the intro title) and the summary heading (`checkmark.rectangle.stack`
+  and "Session complete") are bare `Views.HStack` rows in a stack whose card takes the full width,
+  so they sit at the leading edge while the card and the buttons are centered. The source
+  (`Translation.razor`) centers both. Fix: give each its own centered frame, as
+  `VocabularyMatchingCompleteView` does for its line and button, and draw it in the view tests.
+  Not seen on a device. **Ask first:** on Vocabulary Matching the Captain then chose the heading
+  at the leading edge and only the content under it centered (pull request 238), so these two
+  headings may be where he wants them.
+- **The heading symbols the Captain may read as emoji.** He had the yellow `trophy.fill` beside
+  the iOS Matching heading removed (pull request 238): it read as an emoji. Not changed, as he
+  spoke of that screen: Android's Matching completion has a star in the warning colour beside
+  the same heading (`AndroidSliceShell.Matching.Compose.cs`), the web page and the MAUI apps show
+  `bi-trophy-fill` in the heading's colour (`VocabMatching.razor`), the iOS Word Association
+  summary has an uncoloured `trophy` (`WordAssociationScreen.cs`, source `bi-trophy`), and the two
+  Translation headings above have `bookmark.fill` and `checkmark.rectangle.stack`.
+- **The stats in the summary cards are leading-aligned** (the number over its label). Seen drawn
+  on Vocabulary Matching; Cloze, Word Association and Translation build the stat the same way. The
+  source centers each number over its label (`text-center`) and spreads the pairs
+  (`justify-content-around`).
+- **The completion block starts at the top of the page;** the source centers it vertically
+  (`justify-content-center flex-grow-1`).
+- **"Center this row" exists per screen in two forms:** a centered frame on the view (Word
+  Association, Writing, the Matching completion view) and an `HStack` wrapper with the frame
+  (`TranslationScreen.Centered`). Cleanup: one helper on `SourceUiStyle`.
+- **`VocabularyMatchingCompleteView.Stat` builds its accessibility label by joining the label and
+  an unformatted number;** the status row in `VocabularyMatchingScreen` uses
+  `string.Format(CultureInfo.CurrentCulture, ...)`. Moved as it was.
+- **Tests failing on `main` (`f0ccec10`, Lilliput) that are not in the notes above.** View tests:
+  "Word editor: Reference Sentences have Generate, the add row, suggestions and sentences core
+  first" and "Vocabulary wide: a fixed filter column, sort first, beside the results" (with the two
+  Word editor cases already listed: 27 passed, 4 failed before this branch). iOS tests:
+  `NativeVocabularyRouteTests.DelayedCatalogCompletion_ReprojectsMountedPhoneChoicesWithoutResettingDraft`
+  (with the five already listed: 473 passed, 6 failed).
