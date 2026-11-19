@@ -86,9 +86,9 @@ carries only its own text.
   says so and names the worktree left behind; for a follow-up pass it says so on the pull
   request too, and for a first pass it labels the issue so that later runs move on.
 
-**Checks.** A fix session waits for its pull request's checks itself (they take 25 to 45
-minutes). After it, the runner looks again for up to 15 minutes and writes into the summary
-which failed, and for each whether `main` fails it too; a cancelled check counts as failed.
+**Checks.** A fix session does not wait for its pull request's checks (they take 25 to 45
+minutes, longer than a fix should; Captain, 2026-11-19). After it, the runner waits for them
+for up to 50 minutes and writes into the summary which failed, and for each whether `main` fails it too; a cancelled check counts as failed.
 Every run also has one line on `main` itself: `MAIN CI: green`, `red`, `running`, `no checks
 reported` or `unknown` (GitHub did not answer). A red `main` shows a notification once per
 commit and set of failures: it makes every pull request red, and in November 2026 it stayed
@@ -146,7 +146,8 @@ red for a day because nothing said so.
   nothing else: `scripts/admin-api.sh` and `scripts/admin-feedback-issue.sh`. It cannot edit
   files, run other commands or reach the web.
 - Fix: Fable 5.2 at high effort, in a git worktree of its own under
-  `~/work/copilot-worktrees/SentenceStudio/`, with up to three hours. It can edit, build, test,
+  `~/work/copilot-worktrees/SentenceStudio/`. It aims to finish within 15 minutes (most fixes
+  take 10 to 15; Captain, 2026-11-19) and is stopped at 30. It can edit, build, test,
   push its own branch and open a pull request. It cannot use Azure, the production scripts, the
   learner-content commands or a merge.
 - It reads the token from Key Vault `dbkv-rsn72awybem6s`, secret `admin-agent-token`, through

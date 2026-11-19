@@ -64,10 +64,12 @@ TRIAGE_EFFORT=medium
 TRIAGE_LIMIT=1500
 FIX_MODEL=claude-fable-5-2
 FIX_EFFORT=high
-FIX_LIMIT=10800
-# The session waits for its own checks (they take 25 to 45 minutes here); this is the runner's
-# second look, kept short so that a whole run fits inside the four hours between runs.
-CHECKS_WAIT=900
+# Most fixes take 10 to 15 minutes (Captain, 2026-11-19); one that runs longer is going wrong.
+# The session aims at 15 and is stopped at 30.
+FIX_LIMIT=1800
+# The session does not wait for its checks (they take 25 to 45 minutes here); the runner does,
+# after the session, and writes them into the summary.
+CHECKS_WAIT=3000
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 MODE="${1:-both}"
@@ -413,11 +415,6 @@ report_checks() {
   echo >> "$RUN"
 }
 
-# The command a session runs to wait for its checks. From the runner's checkout, because a
-# branch cut before this script existed does not have it. One call waits nine minutes, under
-# the ten a session's shell call may take.
-CHECKS_COMMAND="python3 $ROOT/scripts/admin-feedback-pr.py checks <pull request number> --wait 540 --head \"\$(git rev-parse HEAD)\""
-
 # Says on the pull request that these requests have had their pass, so they are not taken again.
 # The ids are also kept on this machine, in case the comment cannot be posted. $1 the pull
 # request's number, $2 the request ids joined by commas, $3 a file with the comment's text.
@@ -587,7 +584,7 @@ follow_up_stage() {
   window_open
 
   printf '\n## Follow-up pass, %s\n\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$log"
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. After each push, wait for the checks with: $CHECKS_COMMAND (give that shell call a ten-minute limit, and run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
@@ -730,7 +727,7 @@ fix_stage() {
   window_open
 
   : > "$log"
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. After each push to it, wait for the checks with: $CHECKS_COMMAND (give that shell call a ten-minute limit, and run it again while its exit code is 2, for up to an hour). Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"

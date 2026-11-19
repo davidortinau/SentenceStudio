@@ -64,7 +64,13 @@ result and stop; the Captain will read them.
    your own diff as a reviewer would before you push, and fix what you find.
 5. **Open a pull request** against `main` (see below) and comment on the issue with what you
    found and the pull request's address.
-6. **Wait for its checks**, then finish (see "The checks").
+6. **Finish.** Do not wait for the checks (see "The checks").
+
+**Time.** Most fixes take 10 to 15 minutes (Captain, 2026-11-19), and one that takes longer is
+probably going wrong or doing something unneeded. Read the clock as you go. At 15 minutes, if
+you are not about to push, stop: push what you have with what is left, or end with
+`RESULT: diagnosed` or `RESULT: stuck` and say what is taking the time. The session is stopped
+at 30 minutes, whatever it is doing.
 
 Go as far as you can. If you can only get part of the way, a pull request with the diagnosis
 and a failing test, or a comment on the issue with the diagnosis and the options, is a good
@@ -89,31 +95,15 @@ or copy its screen state reference.
 
 ## The checks
 
-A pull request whose checks you never looked at is not finished. After every push, run the
-command your prompt gives for this. It is `scripts/admin-feedback-pr.py checks` from the
-runner's own checkout (your branch may be older than that script), with the pull request's
-number, `--wait 540` and `--head "$(git rev-parse HEAD)"`.
+**Do not wait for the pull request's checks.** They take 25 to 45 minutes here, longer than a
+fix should. The runner waits for them after you finish and puts them in the summary, with
+whether `main` fails each one too; if one fails because of your change, the Captain asks for a
+follow-up pass. Under how it was checked, write what you ran locally and "GitHub checks: left
+to the runner".
 
-It waits until GitHub shows your commit as the head and every workflow has finished (they
-register one after another, so a first look that shows two green checks proves nothing) and
-prints each check that failed, with whether `main` fails it too. A check that was cancelled
-counts as failed: it proved nothing. The whole set takes 25 to 45 minutes here and one call
-waits nine, so give the shell call a ten-minute limit (its default is two, and ten is the
-most it may have) and run it again while its exit code is 2, for up to an hour.
-
-- **Fails here and passes on `main`:** yours. Read the job's log (`gh run view --job <id>
-  --log-failed`), fix it, push, and wait again. After three attempts at the same failure, stop
-  and say where it stands.
-- **Also fails on `main`** (a check, or a whole workflow shown as `workflow <name>`): not yours
-  to hide. Say so in the pull request under how it was
-  checked, with the check's name. If the cause is plain and small, fix it in its own commit and
-  say that you did; a check that passes on your machine and fails only on the runners is still
-  a failure to explain, not to rerun until it passes.
-- **Still running after an hour** (exit code 2 every time): say so; do not report them as
-  passed.
-
-Put the last line it printed for the final commit in the pull request, under how it was
-checked. The runner reads the checks again after you finish and puts them in the summary.
+**Never change a test, a check or a workflow that your fix did not break** to make it pass,
+whether it fails locally, on the runners or on `main`, flaky or not. Name it in the pull
+request, with what you saw, for the Captain to file.
 
 ## A follow-up pass
 
@@ -137,7 +127,8 @@ Then:
   the footer. Update the rest of the description to match what the pull request now does: the
   problem, the fix, how it was checked, and "For the Captain to decide" (mark what he has
   settled as settled, with his answer).
-- Check it as in a first pass: tests, a review of your own diff, then "The checks".
+- Check it as in a first pass: tests and a review of your own diff. Do not wait for the
+  checks, and keep to the same 15 minutes.
 - **Never write a comment or a review that starts with `/revise`, and never edit one of his, on
   any pull request.** That is how he asks. The runner sets aside
   any request that appears or changes while you are running, so doing either would only lose
@@ -214,8 +205,7 @@ Do everything short of these, write up the rest, and say in your result what is 
   web check on Lilliput" in `docs/admin-portal-plan.md` (an isolated stack with its own
   volumes, stopped and removed afterwards) and use only the accounts `e2e@test.local` and
   `testsailor@test.local`.
-- After 30 minutes on one blocker without progress, write down where you are and try another
-  angle; after three failed attempts at the same thing, stop and report.
+- After three failed attempts at the same thing, stop and report. See "Time".
 
 ## Your reply
 
@@ -232,5 +222,5 @@ of:
 A follow-up pass ends with `RESULT: pr <address>` (the same pull request), `RESULT: stuck` or
 `RESULT: failed`.
 
-Then, in a few plain lines: the cause, what you changed, how it was checked (with the state of
-the checks), and what the Captain needs to decide.
+Then, in a few plain lines: the cause, what you changed, how it was checked, and what the
+Captain needs to decide.
