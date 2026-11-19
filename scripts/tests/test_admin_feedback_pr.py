@@ -41,7 +41,7 @@ def run(name, conclusion="success", status="completed"):
 FINISHED = [{"id": 1, "name": "CI", "status": "completed", "conclusion": "success"}]
 
 
-def issue(number, author="davidortinau", labels=(), at="2026-11-18T09:00:00Z"):
+def issue(number, author="davidortinau", labels=(), at="2026-11-19T09:00:00Z"):
     return {"number": number, "createdAt": at, "author": {"login": author},
             "labels": [{"name": name} for name in labels]}
 
@@ -230,7 +230,8 @@ class WaitingIssueTests(GitHubTestCase):
 
     def test_the_owners_backlog_from_before_the_change_does_not_wait(self):
         self.github.issues = [issue(224, labels=["go:yes"], at="2026-11-14T08:00:00Z"),
-                              issue(244, at="2026-11-18T00:00:01Z")]
+                              issue(232, at="2026-11-18T22:44:15Z"),
+                              issue(244, at="2026-11-19T02:00:00Z")]
 
         self.assertEqual(pr_script.waiting_issues(), [(244, "github")])
 
@@ -243,7 +244,7 @@ class WaitingIssueTests(GitHubTestCase):
 
         self.assertEqual(pr_script.waiting_issues(), [])
 
-    def test_a_plan_a_no_or_squad_work_does_not_wait_unless_triage_filed_it(self):
+    def test_a_plan_a_no_or_squad_work_does_not_wait_whoever_filed_it(self):
         self.github.issues = [
             issue(246, labels=["type:spike"]),
             issue(247, author="app/sentence-studio-feedback", labels=["go:no"]),
@@ -253,7 +254,27 @@ class WaitingIssueTests(GitHubTestCase):
             issue(251, labels=["feedback-check", "type:spike"]),
         ]
 
-        self.assertEqual(pr_script.waiting_issues(), [(251, "triage")])
+        self.assertEqual(pr_script.waiting_issues(), [])
+
+    def test_an_owners_issue_opened_while_a_fix_session_ran_never_waits(self):
+        self.github.issues = [
+            issue(253, at="2026-11-19T10:30:00Z"),
+            issue(254, labels=["feedback-check"], at="2026-11-19T11:04:00Z"),
+            issue(255, at="2026-11-19T11:06:00Z"),
+            issue(256, at="2026-11-19T13:00:00Z"),
+            issue(257, author="app/sentence-studio-feedback", at="2026-11-19T10:30:00Z"),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            record = Path(folder) / "windows"
+            record.write_text("2026-11-19T10:00:00Z 2026-11-19T11:00:00Z\n2026-11-19T12:30:00Z\n")
+            windows = pr_script.session_windows(str(record))
+
+        # 254 is inside the five minutes after the end; 256 is during a session still running.
+        self.assertEqual(pr_script.waiting_issues(windows), [(255, "github"), (257, "app")])
+
+    def test_no_record_of_sessions_means_no_windows(self):
+        self.assertEqual(pr_script.session_windows(None), [])
+        self.assertEqual(pr_script.session_windows("/nonexistent/windows"), [])
 
     def test_the_command_prints_one_line_each_and_a_github_failure_is_an_error(self):
         self.github.issues = [issue(252, author="app/sentence-studio-feedback")]
