@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Tests;
@@ -86,6 +87,74 @@ public sealed class NativeQuizSourceLaunchTests
             or NativePhase.Summary);
         Assert.Equal(1, await CountDailyPlansAsync(fixture, onlyAdHoc: true));
         Assert.Equal(0, await CountDailyPlansAsync(fixture));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SwitchToDailyReview_UsesCurrentSelectionInsteadOfShowingPreviousSummary(
+        bool allKnown)
+    {
+        using var fixture = new NativeSliceFixture(productionAdapters: true);
+        const string owner = NativeSliceFixture.UserA;
+        const string dailyReview = "daily-review-owner-a";
+        await fixture.SeedAsync(owner, known: allKnown);
+        await AddOwnedResourceAsync(fixture);
+        var reviewWords = Enumerable.Range(0, 4)
+            .Select(index => fixture.WordId(owner, index)).ToArray();
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.LearningResources.Add(new LearningResource
+            {
+                Id = dailyReview, UserProfileId = owner, Title = "Daily Review",
+                MediaType = "Vocabulary List", Language = "Korean",
+                IsSmartResource = true,
+                SmartResourceType = SmartResourceService.SmartResourceType_DailyReview
+            });
+            db.ResourceVocabularyMappings.AddRange(reviewWords.Select(wordId =>
+                new ResourceVocabularyMapping
+                {
+                    Id = $"daily-review-{wordId}",
+                    ResourceId = dailyReview,
+                    VocabularyWordId = wordId
+                }));
+            await db.SaveChangesAsync();
+        }
+
+        fixture.Activate(owner);
+        var launcher = fixture.Provider.GetRequiredService<NativeQuizLaunchService>();
+        var original = await launcher.CreateChooseOwnAsync(owner,
+            [fixture.ResourceId(owner), "second-owner-a"], skillId: null);
+        Assert.NotNull(original);
+        using (var quiz = fixture.Quiz)
+        {
+            var first = await quiz.OpenAsync(original);
+            Assert.Equal(NativePhase.Ready, first.Phase);
+            Assert.Equal(NativePhase.Feedback, (await quiz.AnswerAsync(first.Choices[0].Text)).Phase);
+            Assert.Equal(NativeDestination.TodaysPlan, (await quiz.BackAsync()).Destination);
+        }
+
+        var review = await launcher.CreateChooseOwnAsync(owner, [dailyReview], skillId: null);
+        Assert.NotNull(review);
+        using var reviewQuiz = fixture.Quiz;
+        var state = await reviewQuiz.OpenAsync(review);
+        Assert.Equal(NativeDestination.VocabularyQuiz, state.Destination);
+        Assert.Equal(0, state.TotalTurns);
+        if (allKnown)
+        {
+            Assert.Equal(NativePhase.Empty, state.Phase);
+            Assert.Equal(NativeText.QuizAllMastered, state.ErrorKey);
+            Assert.Equal(NativeDestination.TodaysPlan, (await reviewQuiz.BackAsync()).Destination);
+            Assert.Equal(1, await CountDailyPlansAsync(fixture, onlyAdHoc: true));
+        }
+        else
+        {
+            Assert.Equal(NativePhase.Ready, state.Phase);
+            Assert.Contains(state.Prompt!.WordId, reviewWords);
+        }
+        using var originalQuiz = fixture.Quiz;
+        Assert.Equal(NativePhase.ResumeChoice, (await originalQuiz.OpenAsync(original)).Phase);
     }
 
     [Fact]

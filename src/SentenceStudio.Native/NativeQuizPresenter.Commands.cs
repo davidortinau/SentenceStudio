@@ -1204,7 +1204,7 @@ public sealed partial class NativeQuizPresenter
                 return await CompleteAsync(cancellationToken);
             if (_launch is null || !HasOwner(_launch.UserId))
                 return RefuseLaunch();
-            if (State.Phase == NativePhase.ResumeChoice)
+            if (State.Phase is NativePhase.ResumeChoice or NativePhase.Empty)
                 return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
                     HasPendingSync: _pendingSync));
             if (State is { Phase: NativePhase.Blocked, Prompt: null,

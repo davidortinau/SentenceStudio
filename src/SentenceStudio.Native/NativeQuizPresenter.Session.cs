@@ -97,15 +97,13 @@ public sealed partial class NativeQuizPresenter
 
         if (_batch.Count == 0)
         {
-            if (_allMasteredAtLaunch)
+            if (_allMasteredAtLaunch && _launch.PlanItemId.Length > 0)
             {
-                // Source all-mastered-at-launch has no ActivitySession or
-                // timer; the assigned plan card is completed only on Done.
-                _allMasteredAtLaunch = true;
+                // An assigned card can still be completed on Done without a quiz run.
                 return SetState(SummaryState());
             }
             return SetState(new(NativePhase.Empty, NativeDestination.VocabularyQuiz,
-                ErrorKey: NativeText.QuizEmpty));
+                ErrorKey: _allMasteredAtLaunch ? NativeText.QuizAllMastered : NativeText.QuizEmpty));
         }
 
         await LoadSentenceHintsAsync(cancellationToken);

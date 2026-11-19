@@ -54,6 +54,7 @@ public static class NativeText
     public const string Regenerate = "Dashboard_RegeneratePlan";
     public const string Quiz = "Activity_VocabQuiz";
     public const string QuizEmpty = "VocabQuiz_NoVocab";
+    public const string QuizAllMastered = "VocabQuiz_AllVocabularyMastered";
     public const string QuizUnavailable = "VocabQuiz_LaunchUnavailable";
     public const string Resume = "VocabQuiz_Resume";
     public const string StartFresh = "VocabQuiz_StartFresh";
