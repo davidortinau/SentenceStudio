@@ -60,7 +60,9 @@ namespace SentenceStudio.Services
             {
                 resource = await _resourceRepo.GetResourceAsync(resourceID, userProfile?.Id);
                 _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
-                targetLanguage = resource?.Language ?? targetLanguage;
+                // A resource saved with no language, or with "Unknown", takes the profile's.
+                if (!VocabularyDuplicatePolicy.IsUnknownLanguage(resource?.Language))
+                    targetLanguage = resource!.Language!;
             }
             else if (normalizedFocusIds.Count == 0)
             {

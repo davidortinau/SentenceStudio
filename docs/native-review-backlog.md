@@ -555,3 +555,18 @@ Captain's request:
   matching. For the Captain's 4,466 words this is still one query each. Cleanup: cache per request.
 - **`ApplicationOperationConcurrencyTests.ConcurrentConfirmationUse_ConsumesExactlyOnce`** failed
   once in a full unit run. It passed three times alone.
+
+## Translate blocks (review 2026-11-19, branch `feedback/issue-233`)
+
+- **A resource's language "Unknown" is still read as a language outside Translate:**
+  `ShadowingService`, `StorytellerService`, `TeacherService` and `NativeShadowingContent` use
+  `resource.Language ?? profile language`. Translate now checks
+  `VocabularyDuplicatePolicy.IsUnknownLanguage` at its two sites. Cleanup: one shared "language of
+  this resource, else the profile's" helper for all six, which should also cover a profile whose
+  target language is blank.
+- **The web and MAUI Translate field always reads "Translate to Korean":** `Translation.razor`
+  never assigns `targetLanguage`. The native heads show the language the sentences are made in.
+- **`GetTranslations.scriban-txt` and `TranslationDto.TranslationVocabulary`** still say the list
+  is for the blocks. It now feeds vocabulary scoring and the no-spaces fallback only.
+- **Blocks in a language with capital letters** show which word starts the sentence, and
+  **Japanese and Chinese** need a word segmenter (`docs/translate-blocks-learning-value-gate.md`).

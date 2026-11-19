@@ -143,6 +143,30 @@ public sealed class TranslationGradeRecordingTests
     }
 
     [Fact]
+    public async Task Blocks_AreTheSentenceWords_NotThePlanFocusWords()
+    {
+        // Issue 233: a plan launch showed the plan's focus words as the blocks.
+        await using var fixture = await ActivityPageFixture.CreateAsync();
+        var (_, words) = await fixture.SeedResourceAsync(ActivityPageFixture.OwnerA,
+            ("바다", "sea"), ("많다", "to be many"), ("도착하다", "to arrive"), ("엽서", "postcard"));
+        var (_, page) = await fixture.Renderer.RenderAsync<TranslationPage>();
+        fixture.Ai.Respond = type => type == typeof(TranslationResponse) ? Sentences() : null;
+        await fixture.Renderer.Dispatcher.InvokeAsync(() =>
+            Members.Set(page, "FocusVocabularyIdsParam", string.Join(',', words.Select(word => word.Id))));
+        await fixture.Renderer.InvokeAsync(page, "LoadSentences");
+        await fixture.Renderer.InvokeAsync(page, "StartFromIntro");
+
+        Members.Get<List<string>>(page, "vocabBlocks").Should().BeEquivalentTo(["바다가", "파래요"],
+            "the blocks are the words of the sentence being translated");
+        await fixture.Renderer.InvokeAsync(page, "UseVocabBlock", "바다가");
+        await fixture.Renderer.InvokeAsync(page, "UseVocabBlock", "파래요");
+        Members.Get<string>(page, "userInput").Should().Be("바다가 파래요");
+
+        await fixture.Renderer.InvokeAsync(page, "NextSentence");
+        Members.Get<List<string>>(page, "vocabBlocks").Should().BeEquivalentTo(["바다에", "가요"]);
+    }
+
+    [Fact]
     public async Task NoActiveProfile_LoadsNothingAndGradesNothing()
     {
         await using var fixture = await ActivityPageFixture.CreateAsync();
