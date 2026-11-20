@@ -304,6 +304,41 @@ public class KnownWordsTests : IClassFixture<PlanGenerationTestFixture>
         Item(LearningMode.PracticeLed).ReadyToRotateOut.Should().BeFalse();
     }
 
+    // Issue 245: the quiz summary gave a word marked Known the wrong-answer icon, because a
+    // mark is not an answer and the row looked only at WasCorrectThisSession.
+    [Fact]
+    public void AWordMarkedKnownInTheQuiz_IsShownAsKnown_NotAsAWrongAnswer()
+    {
+        var marked = new VocabularyProgress { Id = "p", UserId = UserA, VocabularyWordId = "w" };
+        VocabularyKnownMarks.MarkKnown(marked, T0);
+        var unmarked = new VocabularyProgress { Id = "q", UserId = UserA, VocabularyWordId = "w" };
+        VocabularyQuizItem Item(VocabularyProgress progress, LearningMode mode) => new()
+        {
+            Word = new VocabularyWord { Id = "w" }, Progress = progress, LearningMode = mode,
+        };
+
+        var item = Item(marked, LearningMode.LearnerLed);
+        item.WasCorrectThisSession.Should().BeFalse("marking a word answers nothing");
+        item.MarkedKnownByLearner.Should().BeTrue();
+        Item(unmarked, LearningMode.LearnerLed).MarkedKnownByLearner.Should().BeFalse(
+            "a word that was only answered wrong keeps the wrong-answer icon");
+        Item(marked, LearningMode.PracticeLed).MarkedKnownByLearner.Should().BeFalse(
+            "Practice-led has no Mark Known");
+
+        // The summary row on the shared Razor page asks the mark before the answer.
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "SentenceStudio.UI")))
+            directory = directory.Parent;
+        directory.Should().NotBeNull();
+        var page = File.ReadAllText(Path.Combine(
+            directory!.FullName, "src", "SentenceStudio.UI", "Pages", "VocabQuiz.razor"));
+        var row = page.IndexOf("item.MarkedKnownByLearner", StringComparison.Ordinal);
+        var wrong = page.IndexOf("\"bi-x-circle text-danger\"", StringComparison.Ordinal);
+        row.Should().BePositive();
+        wrong.Should().BeGreaterThan(row);
+        page[row..wrong].Should().Contain("(\"bi-patch-check text-success\", \"Vocabulary_Known\")");
+    }
+
     [Fact]
     public async Task PracticeAgain_ChangesOnlyKnownWords()
     {

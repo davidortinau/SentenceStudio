@@ -52,19 +52,23 @@ internal static class QuizSummaryView
         {
             var result = results[index];
             var id = $"{NativeAccess.QuizSummaryResult}.{index}";
-            var status = result.WasCorrect
-                ? result.ReadyToRotateOut
-                    ? "VocabQuiz_Mastered" : NativeText.QuizCorrect
-                : NativeText.QuizIncorrect;
-            var icon = Views.Image(result.WasCorrect
+            // Issue 245: a word the learner marked Known is not a wrong answer.
+            var positive = result.MarkedKnown || result.WasCorrect;
+            var status = result.MarkedKnown ? "Vocabulary_Known"
+                : result.WasCorrect
                     ? result.ReadyToRotateOut
-                        ? "checkmark.circle.fill" : "checkmark.circle"
-                    : "xmark.circle")
+                        ? "VocabQuiz_Mastered" : NativeText.QuizCorrect
+                    : NativeText.QuizIncorrect;
+            var icon = Views.Image(result.MarkedKnown ? "checkmark.seal"
+                    : result.WasCorrect
+                        ? result.ReadyToRotateOut
+                            ? "checkmark.circle.fill" : "checkmark.circle"
+                        : "xmark.circle")
                 .WithForegroundColor(
-                    result.WasCorrect
+                    positive
                         ? style.Appearance.Success.Light
                         : style.Appearance.Danger.Light,
-                    result.WasCorrect
+                    positive
                         ? style.Appearance.Success.Dark
                         : style.Appearance.Danger.Dark)
                 .WithAccessibilityLabel(text(status))

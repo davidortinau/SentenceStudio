@@ -115,11 +115,16 @@ else if (showSessionSummary)
                 <hr class="border-secondary" />
                 @foreach (var item in sessionItems)
                 {
-                    var iconClass = item.WasCorrectThisSession
-                        ? (item.ReadyToRotateOut ? "bi-check-circle-fill text-success" : "bi-check-circle text-success")
-                        : "bi-x-circle text-danger";
+                    // Issue 245: a word the learner marked Known is not a wrong answer.
+                    var (iconClass, statusKey) = item.MarkedKnownByLearner
+                        ? ("bi-patch-check text-success", "Vocabulary_Known")
+                        : item.WasCorrectThisSession
+                            ? (item.ReadyToRotateOut
+                                ? ("bi-check-circle-fill text-success", "VocabQuiz_Mastered")
+                                : ("bi-check-circle text-success", "Common_Correct"))
+                            : ("bi-x-circle text-danger", "Common_Incorrect");
                     <div class="d-flex align-items-center gap-2 py-1">
-                        <i class="bi @iconClass"></i>
+                        <i class="bi @iconClass" role="img" title="@Localize[statusKey]" aria-label="@Localize[statusKey]"></i>
                         <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
                         <span class="text-secondary-ss">→</span>
                         <span class="ss-body1">@item.Word.NativeLanguageTerm</span>

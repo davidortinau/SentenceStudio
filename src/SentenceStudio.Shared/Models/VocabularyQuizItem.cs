@@ -59,6 +59,13 @@ public class VocabularyQuizItem
         ProductionDemonstrationsBaseline = Progress?.QuizProductionDemonstrations ?? 0;
     }
 
+    /// <summary>
+    /// The learner marked the word Known (Learner-led). The session summary shows such a word
+    /// as Known whatever was answered: a mark is not a wrong answer (issue 245).
+    /// </summary>
+    public bool MarkedKnownByLearner => LearningMode == LearningMode.LearnerLed && Progress is { } marked
+        && SentenceStudio.Services.VocabularyKnownRule.IsLearnerKnownMark(marked.VerificationState);
+
     // Tiered rotation model (spec §1.2.2 / §1.3)
     //
     // Issue #191: Tier 2 trigger tightened from OR → AND, and demonstration
@@ -77,8 +84,7 @@ public class VocabularyQuizItem
         {
             // The learner marked the word Known (docs/known-words-plan.md): it leaves the
             // session, a plan's focus session included.
-            if (LearningMode == LearningMode.LearnerLed && Progress is { } marked
-                && SentenceStudio.Services.VocabularyKnownRule.IsLearnerKnownMark(marked.VerificationState))
+            if (MarkedKnownByLearner)
                 return true;
 
             if (RequiresFullSessionDemonstration)

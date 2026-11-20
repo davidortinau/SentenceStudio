@@ -376,6 +376,37 @@ public sealed class KnownWordsNativeTests
         Assert.True(after.HasPendingSync);
     }
 
+    // Issue 245: the summary called a word marked Known incorrect.
+    [Fact]
+    public async Task Quiz_Summary_ShowsAMarkedWordAsKnown_NotAsIncorrect()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(UserA);
+        var planItemId = await fixture.GenerateQuizPlanAsync(UserA);
+        var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planItemId))!;
+        fixture.Activate(UserA);
+        var quiz = fixture.Quiz;
+        var state = await quiz.OpenAsync(launch);
+
+        // Every word is marked without an answer, which ends the round on its summary.
+        var marks = 0;
+        while (state.Phase == NativePhase.Ready && marks < 50)
+        {
+            state = await quiz.MarkKnownAsync();
+            marks++;
+        }
+
+        Assert.Equal(NativePhase.Summary, state.Phase);
+        Assert.Equal(marks, state.Results.Length);
+        Assert.NotEmpty(state.Results);
+        Assert.All(state.Results, result =>
+        {
+            Assert.True(result.MarkedKnown);
+            Assert.False(result.WasCorrect);
+        });
+        Assert.Equal(0, state.WordsMastered);
+    }
+
     [Fact]
     public async Task Quiz_PracticeLed_DoesNotOfferMarkKnown_AndRefusesIt()
     {
