@@ -97,6 +97,24 @@ public class CoachPlanOnScreenRoutingTests
         _authority.IsWordListRequest(text).Should().Be(asks);
     }
 
+    [Theory]
+    [InlineData("What is the answer?", true)]
+    [InlineData("What's the answer", true)]
+    [InlineData("Just tell me the answer.", true)]
+    [InlineData("What does this mean?", true)]
+    [InlineData("How do you say it?", true)]
+    [InlineData("정답 알려줘", true)]
+    [InlineData("무슨 뜻이야?", true)]
+    [InlineData("Can I get a hint?", false)]
+    [InlineData("Help me with this one", false)]
+    [InlineData("Help me, but don't tell me the answer.", false)]
+    [InlineData("답 말고 힌트 줘", false)]
+    [InlineData("I have 45 minutes today", false)]
+    public void Only_the_learners_own_words_ask_for_the_answer(string text, bool asks)
+    {
+        _authority.IsAnswerRequest(text).Should().Be(asks);
+    }
+
     [Fact]
     public void A_plain_command_on_the_plan_screen_may_apply_directly()
     {

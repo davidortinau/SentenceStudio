@@ -109,9 +109,10 @@ public class CoachGeneralAnswerTests
     }
 
     [Fact]
-    public async Task AGeneralAnswer_IsRefused_WhenTheLearnerWroteOnlyTheMeaningOfADueWord()
+    public async Task AGeneralAnswer_IsShown_WhenTheLearnerWroteTheMeaningOfADueWord()
     {
-        // The meaning is not the word: asking "how do you say fish" must not hand over a due answer.
+        // Captain, 2026-11-20: what the learner asks for directly is not refused. "How do you say
+        // fish" asks for the word, due or not.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", "fish", WordId: "word-fish")];
         var sessionId = await harness.StartSessionAsync();
@@ -120,25 +121,54 @@ public class CoachGeneralAnswerTests
 
         var result = await AskAsync(harness, sessionId, "How do you say fish?");
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().Contain("\uC0DD\uC120");
     }
 
-    [Fact]
-    public async Task AGeneralAnswer_IsRefused_WhenTheLearnerWroteTheWordTheirScreenIsHiding()
+    [Theory]
+    [InlineData("Is it \uC0DD\uC120?")]
+    [InlineData("What is the answer?")]
+    [InlineData("\uC815\uB2F5 \uC54C\uB824\uC918")]
+    public async Task AGeneralAnswer_IsShown_WhenTheLearnerAsksForTheAnswerTheirScreenIsHiding(string text)
     {
-        // In a quiz the learner may type a guess. While their screen is hiding an answer, typing
-        // a word releases nothing, so Sam cannot confirm the answer for them.
+        // The learner is in control of their learning (Captain, 2026-11-20): in a quiz, a typed
+        // guess or a request for the answer is answered, not refused.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
         var sessionId = await harness.StartSessionAsync();
 
-        harness.Coach.NextResult = General("Yes, it is \uC0DD\uC120.");
+        harness.Coach.NextResult = General("It is \uC0DD\uC120.");
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        var result = await AskInAQuizAsync(harness, sessionId, text);
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().Contain("\uC0DD\uC120");
+    }
+
+    [Theory]
+    [InlineData("Can I get a hint?")]
+    [InlineData("Help me, but don't tell me the answer.")]
+    public async Task AGeneralAnswer_ThatGivesTheHiddenAnswerUnasked_IsRefused(string text)
+    {
+        // What stays guarded: Sam giving the answer away when the learner did not ask for it.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General("It is \uC0DD\uC120.");
+
+        var result = await AskInAQuizAsync(harness, sessionId, text);
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
+    }
+
+    private static Task<CoachOperationResult<CoachTurnResponse>> AskInAQuizAsync(
+        CoachApplicationHarness harness, string sessionId, string text) =>
+        harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "Is it \uC0DD\uC120?",
+            Text = text,
             ClientScreen = new CoachClientScreenContext
             {
                 ScreenId = "native.vocabulary-quiz",
@@ -157,10 +187,6 @@ public class CoachGeneralAnswerTests
                 ]
             }
         });
-
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
-    }
 
     [Fact]
     public async Task APlanKindWithoutAPlanReference_StillFailsClosed()

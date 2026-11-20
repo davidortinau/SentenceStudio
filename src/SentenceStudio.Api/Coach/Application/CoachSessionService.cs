@@ -1889,13 +1889,8 @@ public sealed class CoachSessionService : ICoachSessionService
             var surfaced = modelIntentWasReplaced ? [] : SurfacedModelText(intent);
             if (surfaced.Count > 0)
             {
-                // While their screen is hiding an answer, typing a word releases nothing: a
-                // guess in a quiz is never confirmed.
-                var written = request.ClientScreen?.AnswerHidden == true
-                    ? string.Empty
-                    : LearnerTextFor(request);
                 var leak = await ValidateNoAnswerLeakAsync(
-                    userProfileId, session, surfaced, TurnEmbargo(request), written,
+                    userProfileId, session, surfaced, TurnEmbargo(request), LearnerTextFor(request),
                     cancellationToken).ConfigureAwait(false);
                 if (leak is not null)
                 {
@@ -2651,14 +2646,24 @@ public sealed class CoachSessionService : ICoachSessionService
             .GetTurnEmbargoAsync(userProfileId, turn, cancellationToken)
             .ConfigureAwait(false);
 
-        // A due word the learner wrote in this message is not withheld from them. Sam is told it
-        // may repeat one, and a request about that word ("example sentences using 생선") cannot
-        // be answered without it; refusing left them the safe-failure notice however they
-        // rephrased it.
+        // What the learner asks for directly is not withheld from them (Captain, 2026-11-20: they
+        // are in control of their learning): a word or a meaning they wrote in this message, in an
+        // activity or not, and the word their screen is hiding when they ask for the answer
+        // outright. The scan is for what Sam would give away unasked. Refusing a request about a
+        // due word ("example sentences using 생선") left them the safe-failure notice however
+        // they rephrased it (issue 252).
         if (!string.IsNullOrWhiteSpace(writtenByLearner))
         {
+            var askedFor = _writeAuthority.IsAnswerRequest(writtenByLearner)
+                ? turn.ScreenWords
+                    .Where(word => word.AnswerHidden)
+                    .Select(word => word.WordId)
+                    .ToHashSet(StringComparer.Ordinal)
+                : [];
+
             embargoed = embargoed
-                .Where(item => !_leakValidator.NamesTargetWord(writtenByLearner, item))
+                .Where(item => (item.WordId is null || !askedFor.Contains(item.WordId))
+                    && !_leakValidator.NamesWordOrMeaning(writtenByLearner, item))
                 .ToList();
         }
 
