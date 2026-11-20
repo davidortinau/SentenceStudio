@@ -62,6 +62,106 @@ public class CoachGeneralAnswerTests
         harness.Db.CoachPlanRevisions.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("Give me example sentences using \uC0DD\uC120.")]
+    [InlineData("Give me example sentences using \uFFFC\uC0DD\uC120\uFFFC")]
+    [InlineData("\uC0DD\uC120\uC73C\uB85C \uC608\uBB38 \uB9CC\uB4E4\uC5B4 \uC918")]
+    public async Task AGeneralAnswer_ThatUsesADueWordTheLearnerWrote_IsShown(string text)
+    {
+        // Issue 252: Sam is told it may repeat a due word the learner wrote in their message, but
+        // the scan refused the reply all the same, so a request about a word that happened to be
+        // due could never be answered. The second message carries the placeholder characters
+        // (U+FFFC) the reported requests had beside the word.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", "fish", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General(
+            "\uC2DC\uC7A5\uC5D0\uC11C \uC0DD\uC120\uC744 \uC0C0\uC5B4\uC694. (I bought fish at the market.)");
+
+        var result = await AskAsync(harness, sessionId, text);
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.StopReason.Should().Be(CoachStopReason.Completed);
+        result.Value.Messages.Should().ContainSingle()
+            .Which.Should().Match<CoachMessageDto>(m =>
+                m.Kind == CoachMessageKind.Text && m.Text!.Contains("\uC0DD\uC120"));
+    }
+
+    [Fact]
+    public async Task AGeneralAnswer_ThatAlsoNamesADueWordTheLearnerDidNotWrite_IsRefused()
+    {
+        // Writing one word releases that word only.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed =
+        [
+            new CoachEmbargoedItem("\uC0DD\uC120", "fish", WordId: "word-fish"),
+            new CoachEmbargoedItem("SENTINELDUEWORD", "sentinel gloss", WordId: "word-sentinel")
+        ];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General("\uC0DD\uC120 goes well with SENTINELDUEWORD.");
+
+        var result = await AskAsync(harness, sessionId, "Give me example sentences using \uC0DD\uC120.");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("SENTINELDUEWORD");
+    }
+
+    [Fact]
+    public async Task AGeneralAnswer_IsRefused_WhenTheLearnerWroteOnlyTheMeaningOfADueWord()
+    {
+        // The meaning is not the word: asking "how do you say fish" must not hand over a due answer.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", "fish", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General("Fish is \uC0DD\uC120.");
+
+        var result = await AskAsync(harness, sessionId, "How do you say fish?");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
+    }
+
+    [Fact]
+    public async Task AGeneralAnswer_IsRefused_WhenTheLearnerWroteTheWordTheirScreenIsHiding()
+    {
+        // In a quiz the learner may type a guess. While their screen is hiding an answer, typing
+        // a word releases nothing, so Sam cannot confirm the answer for them.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General("Yes, it is \uC0DD\uC120.");
+
+        var result = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
+        {
+            InputKind = CoachTurnInputKind.Text,
+            Text = "Is it \uC0DD\uC120?",
+            ClientScreen = new CoachClientScreenContext
+            {
+                ScreenId = "native.vocabulary-quiz",
+                Route = "vocabulary-quiz",
+                Platform = "ios",
+                AnswerHidden = true,
+                Items =
+                [
+                    new CoachClientScreenItem
+                    {
+                        Kind = CoachClientScreenItemKinds.VocabularyWord,
+                        Id = "word-fish",
+                        Label = "fish",
+                        Focus = true
+                    }
+                ]
+            }
+        });
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
+    }
+
     [Fact]
     public async Task APlanKindWithoutAPlanReference_StillFailsClosed()
     {

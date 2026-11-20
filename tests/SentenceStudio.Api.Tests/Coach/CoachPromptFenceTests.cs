@@ -69,6 +69,19 @@ public class CoachPromptFenceTests
     }
 
     /// <summary>
+    /// Issue 252: a request for example sentences using a word ended in the safe-failure notice.
+    /// The only guidance on example sentences was about the saved ones and their tools, which
+    /// points away from the teaching answer. The instructions now say that writing new sentences
+    /// is a language question.
+    /// </summary>
+    [Fact]
+    public void Instructions_SayThatWritingExampleSentencesForAWordIsATeachingAnswer()
+    {
+        CoachInstructions.Instructions.Should().Contain("Those tools are for the sentences saved with a word.");
+        CoachInstructions.Instructions.Should().Contain("write new sentences yourself in a PedagogicalAnswer");
+    }
+
+    /// <summary>
     /// Sam had no way to make a plan, and was told to ask a question when a plan request did not
     /// fit the fields it can change. The instructions now name the request and the tool for it,
     /// and say to act when a tool can do what was asked.
