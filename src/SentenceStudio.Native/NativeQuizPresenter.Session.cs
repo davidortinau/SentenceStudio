@@ -459,7 +459,10 @@ public sealed partial class NativeQuizPresenter
             Elapsed: _clock.Elapsed,
             HasPendingSync: _pendingSync,
             WordsMastered: _wordsMastered,
-            Results: results);
+            Results: results)
+        {
+            AllWordsKnown = _allMasteredAtLaunch && results.IsEmpty
+        };
     }
 
     private void ValidateChoices(

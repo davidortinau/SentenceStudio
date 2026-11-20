@@ -240,6 +240,19 @@ public sealed class AndroidPackagingTests
     }
 
     [Fact]
+    public void QuizSummary_OfAQuizWithEveryWordKnownSaysSoInPlaceOfZeroStatistics()
+    {
+        // Issue 235.
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        Assert.Matches(
+            @"state\.AllWordsKnown\s*\? Body\(Localize\(NativeText\.QuizAllKnown\), palette,",
+            composition);
+        Assert.Contains("Modifier.TestTag(\"native.quiz.summary.all-known\")", composition);
+        Assert.Contains(": stats;", composition);
+    }
+
+    [Fact]
     public void QuizCompleteFormAndMnemonicAppearOnlyInCorrectGradedFeedback()
     {
         var composition = File.ReadAllText(Path.Combine(

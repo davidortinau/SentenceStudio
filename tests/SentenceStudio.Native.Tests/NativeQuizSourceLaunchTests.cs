@@ -46,6 +46,28 @@ public sealed class NativeQuizSourceLaunchTests
     }
 
     [Fact]
+    public async Task ChooseOwnResourceWithEveryWordKnown_SaysSoInsteadOfAnEmptySummary()
+    {
+        // Issue 235: the quiz never asks a Known word, so a list whose words are all Known
+        // opens on the summary with nothing to count. The state says why.
+        using var fixture = new NativeSliceFixture(productionAdapters: true);
+        await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var launch = await fixture.Provider.GetRequiredService<NativeQuizLaunchService>()
+            .CreateChooseOwnAsync(NativeSliceFixture.UserA,
+                [fixture.ResourceId(NativeSliceFixture.UserA)], skillId: null);
+        Assert.NotNull(launch);
+        using var quiz = fixture.Quiz;
+        var summary = await quiz.OpenAsync(launch);
+        Assert.Equal(NativePhase.Summary, summary.Phase);
+        Assert.Equal(NativeDestination.QuizSummary, summary.Destination);
+        Assert.Equal(0, summary.TotalTurns);
+        Assert.True(summary.Results.IsDefaultOrEmpty);
+        Assert.True(summary.AllWordsKnown);
+        Assert.Equal("VocabQuiz_AllVocabularyMastered", NativeText.QuizAllKnown);
+    }
+
+    [Fact]
     public async Task DueOnlyWithSelectedResource_UsesOwnersActualDueVocabulary()
     {
         using var fixture = new NativeSliceFixture(productionAdapters: true);
