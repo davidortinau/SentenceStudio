@@ -446,7 +446,7 @@ public sealed partial class NativeQuizPresenter
         var results = _roundArchive.Select(item => new NativeQuizResult(
             item.Word.Id, item.Word.TargetLanguageTerm!,
             item.Word.NativeLanguageTerm!, item.WasCorrectThisSession,
-            item.ReadyToRotateOut))
+            item.ReadyToRotateOut, item.MarkedKnownByLearner))
             .ToImmutableArray();
         return new(
             NativePhase.Summary,

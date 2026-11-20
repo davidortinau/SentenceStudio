@@ -236,6 +236,8 @@ public sealed class AndroidPackagingTests
         Assert.Contains("result.ReadyToRotateOut", composition);
         Assert.Contains("\"VocabQuiz_Mastered\" : NativeText.QuizCorrect", composition);
         Assert.Contains("NativeText.QuizIncorrect", composition);
+        // Issue 245: a word the learner marked Known is not called incorrect.
+        Assert.Contains("var statusKey = result.MarkedKnown ? \"Vocabulary_Known\"", composition);
         Assert.Contains("NativeAccess.QuizSummaryResult", composition);
     }
 

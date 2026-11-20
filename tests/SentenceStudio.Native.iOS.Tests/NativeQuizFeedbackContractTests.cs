@@ -122,6 +122,18 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Contains(": NativeText.QuizIncorrect", feature);
     }
 
+    // Issue 245: a word the learner marked Known had the wrong-answer symbol and colour.
+    [Fact]
+    public void SummaryShowsAMarkedWordAsKnownInTheSuccessColour()
+    {
+        var feature = ReadHead("Features/Quiz/QuizSummaryView.cs");
+        Assert.Contains("var status = result.MarkedKnown ? \"Vocabulary_Known\"", feature);
+        Assert.Contains("Views.Image(result.MarkedKnown ? \"checkmark.seal\"", feature);
+        Assert.Contains("var positive = result.MarkedKnown || result.WasCorrect;", feature);
+        Assert.Contains("positive\n                        ? style.Appearance.Success.Light",
+            feature.ReplaceLineEndings("\n"));
+    }
+
     [Fact]
     public void SummaryOfAQuizWithEveryWordKnownSaysSoInPlaceOfZeroStatistics()
     {

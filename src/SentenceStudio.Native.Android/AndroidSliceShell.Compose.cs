@@ -801,10 +801,12 @@ internal sealed partial class AndroidSliceShell
             {
                 var result = results[index];
                 var id = $"{NativeAccess.QuizSummaryResult}.{index}";
-                var statusKey = result.WasCorrect
-                    ? result.ReadyToRotateOut
-                        ? "VocabQuiz_Mastered" : NativeText.QuizCorrect
-                    : NativeText.QuizIncorrect;
+                // Issue 245: a word the learner marked Known is not a wrong answer.
+                var statusKey = result.MarkedKnown ? "Vocabulary_Known"
+                    : result.WasCorrect
+                        ? result.ReadyToRotateOut
+                            ? "VocabQuiz_Mastered" : NativeText.QuizCorrect
+                        : NativeText.QuizIncorrect;
                 viewport.Add(Card(palette, id,
                     Heading(result.TargetLanguageTerm, palette, 20,
                         Modifier.TestTag($"{id}.word")),

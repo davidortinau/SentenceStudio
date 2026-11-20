@@ -294,7 +294,9 @@ public sealed record NativeQuizResult(
     string TargetLanguageTerm,
     string NativeLanguageTerm,
     bool WasCorrect,
-    bool ReadyToRotateOut = false);
+    bool ReadyToRotateOut = false,
+    // The learner marked the word Known: the summary says Known, not Incorrect (issue 245).
+    bool MarkedKnown = false);
 
 public sealed record NativeQuizPrompt(
     string WordId,
