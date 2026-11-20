@@ -1889,8 +1889,14 @@ public sealed class CoachSessionService : ICoachSessionService
             var surfaced = modelIntentWasReplaced ? [] : SurfacedModelText(intent);
             if (surfaced.Count > 0)
             {
+                // While their screen is hiding an answer, typing a word releases nothing: a
+                // guess in a quiz is never confirmed.
+                var written = request.ClientScreen?.AnswerHidden == true
+                    ? string.Empty
+                    : LearnerTextFor(request);
                 var leak = await ValidateNoAnswerLeakAsync(
-                    userProfileId, session, surfaced, TurnEmbargo(request), cancellationToken).ConfigureAwait(false);
+                    userProfileId, session, surfaced, TurnEmbargo(request), written,
+                    cancellationToken).ConfigureAwait(false);
                 if (leak is not null)
                 {
                     return leak;
@@ -2638,11 +2644,23 @@ public sealed class CoachSessionService : ICoachSessionService
         CoachSession session,
         IReadOnlyList<string?> surfaced,
         CoachTurnEmbargo turn,
+        string writtenByLearner,
         CancellationToken cancellationToken)
     {
         var embargoed = await _validationData
             .GetTurnEmbargoAsync(userProfileId, turn, cancellationToken)
             .ConfigureAwait(false);
+
+        // A due word the learner wrote in this message is not withheld from them. Sam is told it
+        // may repeat one, and a request about that word ("example sentences using 생선") cannot
+        // be answered without it; refusing left them the safe-failure notice however they
+        // rephrased it.
+        if (!string.IsNullOrWhiteSpace(writtenByLearner))
+        {
+            embargoed = embargoed
+                .Where(item => !_leakValidator.NamesTargetWord(writtenByLearner, item))
+                .ToList();
+        }
 
         if (embargoed.Count == 0)
         {

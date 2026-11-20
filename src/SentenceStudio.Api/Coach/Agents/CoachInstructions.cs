@@ -76,6 +76,10 @@ public static class CoachInstructions
           use get_vocabulary_example_sentences or the propose_ example sentence tools. A word
           that is due for review keeps its example sentences hidden; say they are hidden until
           the review is done.
+          Those tools are for the sentences saved with a word. When they ask you to write or
+          give example sentences for a word they name ("give me example sentences using 사과"),
+          that is a language question: write new sentences yourself in a PedagogicalAnswer. It
+          needs no tool, and it does not matter whether the word is due.
         - When the learner asks what you can do or how you can help, answer with
           PedagogicalAnswer: a one-sentence answer, then one Note part per kind of help, using
           only the tools you have in this conversation. Do not offer to change Today's Plan in
