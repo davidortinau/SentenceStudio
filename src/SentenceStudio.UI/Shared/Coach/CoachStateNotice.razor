@@ -76,14 +76,9 @@
                 <i class="bi bi-hourglass-split" aria-hidden="true"></i>
                 <span>@Localize["Coach_Incomplete"]</span>
             </div>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-                <button type="button" class="btn btn-ss-primary coach-action" @onclick="RetryLast">
-                    @Localize["Coach_TryAgain"]
-                </button>
-                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="Coach.KeepCurrentPlan">
-                    @Localize["Coach_KeepPlan"]
-                </button>
-            </div>
+            <button type="button" class="btn btn-ss-primary coach-action mt-2" @onclick="RetryLast">
+                @Localize["Coach_TryAgain"]
+            </button>
         </div>
         break;
 
@@ -95,14 +90,9 @@
                 <i class="bi bi-exclamation-octagon" aria-hidden="true"></i>
                 <span>@Localize["Coach_Failed"]</span>
             </div>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-                <button type="button" class="btn btn-ss-primary coach-action" @onclick="RetryLast">
-                    @Localize["Coach_TryAgain"]
-                </button>
-                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="Coach.KeepCurrentPlan">
-                    @Localize["Coach_KeepPlan"]
-                </button>
-            </div>
+            <button type="button" class="btn btn-ss-primary coach-action mt-2" @onclick="RetryLast">
+                @Localize["Coach_TryAgain"]
+            </button>
         </div>
         break;
 

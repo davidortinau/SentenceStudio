@@ -1039,9 +1039,6 @@ internal static class SamView
             buttons.Add(style.SecondaryButton(text("Coach_KeepChatting"), actions.Dismiss)
                 .WithAccessibilityIdentifier("native.sam.keepchatting"));
         }
-        else if (!state.Busy && state.Status is NativeSamStatus.Failed or NativeSamStatus.Incomplete)
-            buttons.Add(style.SecondaryButton(text("Coach_KeepPlan"), actions.Dismiss)
-                .WithAccessibilityIdentifier("native.sam.keepplan"));
         else if (!state.Busy && state.Status == NativeSamStatus.Expired)
             buttons.Add(style.PrimaryButton(text("Coach_StartNew"), actions.NewConversation)
                 .WithAccessibilityIdentifier("native.sam.startnew"));

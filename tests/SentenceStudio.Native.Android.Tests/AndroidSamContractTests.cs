@@ -226,7 +226,6 @@ public sealed class AndroidSamContractTests
     [InlineData("native.sam.retry")]
     [InlineData("native.sam.stop")]
     [InlineData("native.sam.reloadplan")]
-    [InlineData("native.sam.keepplan")]
     [InlineData("native.sam.startnew")]
     [InlineData("native.sam.repair.")]
     [InlineData("native.sam.write.")]

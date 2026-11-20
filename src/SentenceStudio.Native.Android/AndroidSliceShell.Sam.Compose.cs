@@ -831,8 +831,6 @@ internal sealed partial class AndroidSliceShell
                     ReloadSamPlan, true),
                 AndroidSamStatusAction.KeepChatting => (Localize("Coach_KeepChatting"), "native.sam.keepchatting",
                     DismissSamNotice, false),
-                AndroidSamStatusAction.KeepPlan => (Localize("Coach_KeepPlan"), "native.sam.keepplan",
-                    DismissSamNotice, false),
                 _ => (Localize("Coach_StartNew"), "native.sam.startnew", NewSamConversation, true),
             };
             buttons.Add(new Box { Modifier.Weight(1f), Action(label, tag, command, true, primary) });

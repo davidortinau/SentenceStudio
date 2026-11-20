@@ -30,7 +30,7 @@ internal enum AndroidSamRowKind
 internal sealed record AndroidSamRow(string Key, AndroidSamRowKind Kind,
     int EntryIndex = -1, bool ShowUndo = false);
 
-internal enum AndroidSamStatusAction { Stop, Retry, Recover, ReloadPlan, KeepChatting, KeepPlan, StartNew }
+internal enum AndroidSamStatusAction { Stop, Retry, Recover, ReloadPlan, KeepChatting, StartNew }
 
 /// <summary>Where the Sam entry sits on the current screen.</summary>
 internal enum AndroidSamEntryPlacement { None, Floating, TopBar }
@@ -283,8 +283,6 @@ internal static class AndroidSamProjection
             actions.Add(AndroidSamStatusAction.ReloadPlan);
             actions.Add(AndroidSamStatusAction.KeepChatting);
         }
-        else if (!state.Busy && state.Status is NativeSamStatus.Failed or NativeSamStatus.Incomplete)
-            actions.Add(AndroidSamStatusAction.KeepPlan);
         else if (!state.Busy && state.Status == NativeSamStatus.Expired)
             actions.Add(AndroidSamStatusAction.StartNew);
         return new AndroidSamStatus(message, danger, progress, actions.ToImmutable());
