@@ -1402,6 +1402,36 @@ public sealed class NativeSamPresenterTests
         Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
     }
 
+    /// <summary>
+    /// Issue 249: the server refuses a turn with Sam's own notice message in the thread. A
+    /// failure notice with Try Again under it was a second reply saying the same thing.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalSamAlreadyExplainedIsReadyWithNoFailureNotice()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, _) => Turn(CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
+            messages:
+            [
+                new CoachMessageDto
+                {
+                    MessageId = "notice-1", Role = CoachMessageRole.Coach, Kind = CoachMessageKind.Notice,
+                    Text = "I couldn't finish that reply safely, so nothing was changed.",
+                    CreatedAtUtc = DateTime.UtcNow
+                }
+            ]);
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("What does 좋아하다 mean?");
+        await sam.SendAsync();
+
+        Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
+        Assert.Null(sam.State.FailureKey);
+        Assert.False(sam.State.CanRetry);
+        Assert.False(sam.State.Busy);
+    }
+
     [Fact]
     public void ACompletedTurnThatStoppedEarlyWithNothingToShowIsIncomplete()
     {
@@ -1567,14 +1597,15 @@ public sealed class NativeSamPresenterTests
         CoachVocabularySetProposal? vocabularySet = null,
         CoachWriteOperationDto? write = null,
         Contracts.LearnerMemory.CoachMemoryFactDto? memory = null,
-        CoachRepairDisclosure? repair = null) => new()
+        CoachRepairDisclosure? repair = null,
+        IReadOnlyList<CoachMessageDto>? messages = null) => new()
     {
         SessionId = "session-1", TurnId = Guid.NewGuid().ToString("N"), Status = status, StopReason = stop,
         SessionStatus = CoachSessionStatus.Active, ActiveConstraints = Constraints(), PlanState = Plan(),
         ChangeReceipt = receipt, PendingSuggestion = suggestion, Limitation = limitation,
         Evidence = evidence ?? [], ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
         VocabularySetProposal = vocabularySet, WriteOperation = write, MemoryCandidate = memory,
-        RepairDisclosure = repair
+        RepairDisclosure = repair, Messages = messages ?? []
     };
 
     /// <summary>Fake owner-bound client over a dispatch-proxied ICoachApiClient.</summary>

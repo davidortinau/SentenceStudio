@@ -832,13 +832,15 @@ public sealed partial class NativeSamPresenter
             return NativeSamStatus.Expired;
         if (turn.StopReason == CoachStopReason.RateLimit)
             return NativeSamStatus.Limited;
-        // A validated refusal that the learner can see (a typed limitation card) is a safe
-        // no-op. A rejection with nothing to show — e.g. the server refused the answer
-        // shape ("between 1 and 8 parts") — must not vanish: it is an honest failure with
-        // Try Again (the operation is terminal, so Try Again sends under new keys).
+        // A validated refusal that the learner can see (Sam's own notice message, or a typed
+        // limitation card) is a safe no-op, as in source CoachStateMachine.FromTurn: a failure
+        // notice under it would say the same thing twice. A rejection with nothing to show
+        // must not vanish: it is an honest failure with Try Again (the operation is terminal,
+        // so Try Again sends under new keys).
         if (turn.Status == CoachTurnStatus.Rejected && turn.StopReason == CoachStopReason.ValidationFailed
             && turn.ChangeReceipt is null && string.IsNullOrWhiteSpace(turn.ClarifyingQuestion))
-            return turn.Limitation is not null ? NativeSamStatus.Ready : NativeSamStatus.Failed;
+            return turn.Limitation is not null || turn.Messages.Count > 0
+                ? NativeSamStatus.Ready : NativeSamStatus.Failed;
         if (turn.Status == CoachTurnStatus.Failed)
             return NativeSamStatus.Failed;
         var asks = turn.StopReason == CoachStopReason.ClarificationRequested

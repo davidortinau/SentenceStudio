@@ -177,6 +177,7 @@ Captain, 2026-11-06: "every word should have an owner and only be visible and us
 
 - Fixed as B49: Translation sentence loading reports AI failures.
 - Fixed as B49: `ClozureService` and `TranslationService` no longer keep the last call's words in a shared field.
+- Sam (issue 249, 2026-11-20): the failure and stopped-early notices in the shared web UI (`CoachStateNotice.razor`, also what the MAUI apps show) no longer offer Keep Today's Plan beside Try again; the native heads dropped it in the same change. It only dismissed the notice, and the next message does that.
 
 ## Process
 

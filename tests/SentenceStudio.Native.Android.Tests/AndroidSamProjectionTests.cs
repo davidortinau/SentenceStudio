@@ -66,8 +66,8 @@ public sealed class AndroidSamProjectionTests
 
     [Theory]
     [InlineData(NativeSamStatus.Running, true, true, false, false, "Stop")]
-    [InlineData(NativeSamStatus.Failed, false, false, true, false, "Retry,KeepPlan")]
-    [InlineData(NativeSamStatus.Incomplete, false, false, true, true, "Recover,KeepPlan")]
+    [InlineData(NativeSamStatus.Failed, false, false, true, false, "Retry")]
+    [InlineData(NativeSamStatus.Incomplete, false, false, true, true, "Recover")]
     [InlineData(NativeSamStatus.PlanChangedElsewhere, false, false, false, false, "ReloadPlan,KeepChatting")]
     [InlineData(NativeSamStatus.Expired, false, false, false, false, "StartNew")]
     [InlineData(NativeSamStatus.Offline, false, false, true, false, "Retry")]
