@@ -24,6 +24,12 @@ internal sealed class ReadingScreen : IActivityScreen
 
     public object? SamSource => _presenter;
     private NativeReadingState _state = new(NativePhase.Loading);
+    // The mounted Ready page; TryUpdateInPlace fills these and leaves the footer's slider alone.
+    private SwiftView? _scroll;
+    private SwiftView? _content;
+    private SwiftView? _controls;
+    private SourceUiStyle? _renderedStyle;
+    private double _renderedWidth;
 
     public ReadingScreen(ActivityScreenHost host)
     {
@@ -86,8 +92,64 @@ internal sealed class ReadingScreen : IActivityScreen
     {
         var text = _host.Text;
         var state = _state;
-        var items = new List<SwiftView>();
+        _scroll = _content = _controls = null;
+        _renderedStyle = style;
+        _renderedWidth = style.ViewportWidth;
         var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
+        var content = Views.VStack(Items(state, style, text))
+            .WithPadding(16, gutter, 16, gutter)
+            .WithFlexibleWidth()
+            .WithAccessibilityIdentifier("native.reading.content");
+        content.Spacing = SourceUiLayout.PageGap;
+        var scroll = Views.Scroll(content).WithAccessibilityIdentifier(NativeReadingAccess.Screen);
+        // Source: the current sentence scrolls into view (block: center).
+        if (state.Phase == NativePhase.Ready && state.CurrentSentenceAnchorId is { } anchor)
+            scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);
+        if (state.Phase != NativePhase.Ready || state.SentenceCount == 0)
+            return style.Page(scroll);
+        var page = style.Page(Views.BottomInset(scroll, Footer(state, style, text)));
+        _scroll = scroll;
+        _content = content;
+        return page;
+    }
+
+    /// <summary>
+    /// A Ready passage keeps its mounted scroll and footer and takes the new state into them.
+    /// A publish (the font size while it is dragged, audio progress, the next sentence) that
+    /// replaced the page replaced the font size slider under the finger and ended the drag.
+    /// The slider keeps the value the finger gave it. Every other change re-renders.
+    /// </summary>
+    public bool TryUpdateInPlace(SourceUiStyle style)
+    {
+        var state = _state;
+        if (_scroll is null || _content is null || _controls is null
+            || !ReferenceEquals(style, _renderedStyle)
+            || Math.Abs(_renderedWidth - style.ViewportWidth) >= 0.5
+            || state.Phase != NativePhase.Ready || state.SentenceCount == 0)
+            return false;
+        var text = _host.Text;
+        Swap(_content, Items(state, style, text));
+        Swap(_controls, Controls(state, style, text));
+        if (state.CurrentSentenceAnchorId is { } anchor)
+            _scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);
+        return true;
+    }
+
+    private static void Swap(SwiftView slot, SwiftView[] next)
+    {
+        while (slot.Children.Count > 0)
+        {
+            var old = slot.Children[0];
+            slot.RemoveAt(0);
+            old.Dispose();
+        }
+        foreach (var view in next)
+            slot.Add(view);
+    }
+
+    private SwiftView[] Items(NativeReadingState state, SourceUiStyle style, Func<string, string> text)
+    {
+        var items = new List<SwiftView>();
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -121,20 +183,7 @@ internal sealed class ReadingScreen : IActivityScreen
                     .WithAccessibilityIdentifier(NativeReadingAccess.GoBack));
                 break;
         }
-
-        var content = Views.VStack(items.ToArray())
-            .WithPadding(16, gutter, 16, gutter)
-            .WithFlexibleWidth()
-            .WithAccessibilityIdentifier("native.reading.content");
-        content.Spacing = SourceUiLayout.PageGap;
-        var scroll = Views.Scroll(content).WithAccessibilityIdentifier(NativeReadingAccess.Screen);
-        // Source: the current sentence scrolls into view (block: center). Each
-        // publish mounts a new scroll, so this also keeps the reader's place.
-        if (state.Phase == NativePhase.Ready && state.CurrentSentenceAnchorId is { } anchor)
-            scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);
-        if (state.Phase != NativePhase.Ready || state.SentenceCount == 0)
-            return style.Page(scroll);
-        return style.Page(Views.BottomInset(scroll, Footer(state, style, text)));
+        return items.ToArray();
     }
 
     /// <summary>Errors stay inline until the next action; success messages are the scene's toast.</summary>
@@ -268,6 +317,40 @@ internal sealed class ReadingScreen : IActivityScreen
     private SwiftView Footer(NativeReadingState state, SourceUiStyle style, Func<string, string> text)
     {
         var appearance = style.Appearance;
+        // The controls are their own row, so an update can swap them beside a mounted slider.
+        var controls = Views.HStack(Controls(state, style, text)).WithFlexibleWidth();
+        controls.Spacing = 4;
+        _controls = controls;
+        var transport = new List<SwiftView> { controls };
+        // Source: the font slider is d-none d-md-inline-flex (768 px and wider).
+        if (style.ViewportWidth >= 768)
+        {
+            var slider = Views.Slider(text(NativeReadingText.FontSize),
+                NativeReadingPresenter.MinimumFontSize, NativeReadingPresenter.MaximumFontSize,
+                state.FontSize,
+                value => Fire(token => _presenter.SetFontSizeAsync((int)Math.Round(value), token)))
+                .WithAccessibilityIdentifier(NativeReadingAccess.FontSize);
+            var font = Views.HStack(
+                Views.Image("textformat.size")
+                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
+                Views.VStack(slider).WithFlexibleWidth(96));
+            font.Spacing = 4;
+            transport.Add(font);
+        }
+        var row = Views.HStack(transport.ToArray()).WithFlexibleWidth();
+        row.Spacing = 4;
+        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
+        var tertiary = appearance.SecondarySurface;
+        return Views.VStack(Views.Divider(), row.WithPadding(8, gutter, 8, gutter))
+            .WithFlexibleWidth()
+            .WithBackgroundColor(tertiary.Light, tertiary.Dark)
+            .WithAccessibilityIdentifier(NativeReadingAccess.Footer);
+    }
+
+    /// <summary>Source transport: previous, play or pause, next, the counter, the time and the speed select.</summary>
+    private SwiftView[] Controls(NativeReadingState state, SourceUiStyle style, Func<string, string> text)
+    {
+        var appearance = style.Appearance;
         SwiftView Icon(string symbol, string labelKey, string id, Action action, bool enabled)
         {
             var button = Views.Button(Views.Image(symbol).WithPadding(6), action)
@@ -316,33 +399,7 @@ internal sealed class ReadingScreen : IActivityScreen
                 })
             .WithPickerStyle(SwiftPickerStyle.Menu)
             .WithAccessibilityIdentifier(NativeReadingAccess.Speed);
-        var transport = new List<SwiftView>
-        {
-            previous, play, next, counter, time, speed
-        };
-        // Source: the font slider is d-none d-md-inline-flex (768 px and wider).
-        if (style.ViewportWidth >= 768)
-        {
-            var slider = Views.Slider(text(NativeReadingText.FontSize),
-                NativeReadingPresenter.MinimumFontSize, NativeReadingPresenter.MaximumFontSize,
-                state.FontSize,
-                value => Fire(token => _presenter.SetFontSizeAsync((int)Math.Round(value), token)))
-                .WithAccessibilityIdentifier(NativeReadingAccess.FontSize);
-            var font = Views.HStack(
-                Views.Image("textformat.size")
-                    .WithForegroundColor(appearance.SecondaryText.Light, appearance.SecondaryText.Dark),
-                Views.VStack(slider).WithFlexibleWidth(96));
-            font.Spacing = 4;
-            transport.Add(font);
-        }
-        var row = Views.HStack(transport.ToArray()).WithFlexibleWidth();
-        row.Spacing = 4;
-        var gutter = SourceUiLayout.PageGutter(style.ViewportWidth);
-        var tertiary = appearance.SecondarySurface;
-        return Views.VStack(Views.Divider(), row.WithPadding(8, gutter, 8, gutter))
-            .WithFlexibleWidth()
-            .WithBackgroundColor(tertiary.Light, tertiary.Dark)
-            .WithAccessibilityIdentifier(NativeReadingAccess.Footer);
+        return [previous, play, next, counter, time, speed];
     }
 
     /// <summary>Source offcanvas-bottom: word, definition or spinner, "In your vocab" or "Remember this word".</summary>
