@@ -36,8 +36,49 @@ public sealed class NativeReadingScreenContractTests
         Assert.Contains("scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);", screen);
     }
 
+    /// <summary>
+    /// Issue 246: every publish (the font size while its slider is dragged, audio progress, the
+    /// next sentence) replaced the whole page, so the slider under the finger was a new view
+    /// and the drag ended. The mounted page is updated instead and the slider is left alone.
+    /// </summary>
+    [Fact]
+    public void APublish_UpdatesTheMountedPage_AndLeavesTheFontSizeSliderMounted()
+    {
+        var screen = Source("Features/Activities/ReadingScreen.cs");
+        var update = Method(screen, "public bool TryUpdateInPlace(");
+        Assert.Contains("Swap(_content, Items(state, style, text));", update);
+        Assert.Contains("Swap(_controls, Controls(state, style, text));", update);
+        Assert.Contains("_scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);", update);
+        // Another style (theme, text size), another width or another phase draws the page again.
+        Assert.Contains("!ReferenceEquals(style, _renderedStyle)", update);
+        // The scene keeps one style and changes its width: the slider shows from 768 pt.
+        Assert.Contains("Math.Abs(_renderedWidth - style.ViewportWidth) >= 0.5", update);
+        Assert.Contains("state.Phase != NativePhase.Ready || state.SentenceCount == 0", update);
+        // The slider is built once with the footer, outside the row an update swaps.
+        Assert.DoesNotContain("Footer(", update);
+        Assert.Contains("Views.Slider(text(NativeReadingText.FontSize),",
+            Method(screen, "private SwiftView Footer("));
+        Assert.DoesNotContain("Views.Slider(", Method(screen, "private SwiftView[] Controls("));
+        Assert.DoesNotContain("Views.Slider(", Method(screen, "private SwiftView[] Items("));
+    }
+
+    private static string Method(string source, string signature)
+    {
+        var start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing {signature}");
+        var open = source.IndexOf('{', start);
+        var depth = 0;
+        for (var index = open; index < source.Length; index++)
+        {
+            if (source[index] == '{') depth++;
+            else if (source[index] == '}' && --depth == 0)
+                return source[start..(index + 1)];
+        }
+        throw new InvalidOperationException($"Unbalanced {signature}");
+    }
+
     private static string Source(string relative) =>
-        File.ReadAllText(Path.Combine(HeadPath, relative));
+        File.ReadAllText(Path.Combine(HeadPath, relative)).Replace("\r\n", "\n");
 
     private static string HeadPath => Path.GetFullPath(Path.Combine(
         Path.GetDirectoryName(CurrentFile())!, "../../src/SentenceStudio.Native.iOS"));
