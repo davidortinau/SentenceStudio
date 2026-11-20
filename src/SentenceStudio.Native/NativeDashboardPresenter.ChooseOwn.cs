@@ -27,11 +27,14 @@ public sealed partial class NativeDashboardPresenter
     /// <summary>
     /// Whether a Choose My Own Dashboard shows its selectors and tiles. The source
     /// renders them in every phase of a load (only the plan has a spinner), so a
-    /// reload keeps the already-loaded choices on screen instead of a spinner.
+    /// reload keeps the already-loaded choices on screen instead of a spinner. A load
+    /// that fails keeps them too: the source shows a plan error only under Today's Plan
+    /// (Index.razor), never in place of Choose My Own (issue 239). A blocked load has no
+    /// owner and no choices, so it still shows its message.
     /// </summary>
     public static bool ShowsChooseOwn(NativeDashboardState state) =>
         state.Phase is NativePhase.Ready or NativePhase.Empty
-        || state.Phase == NativePhase.Loading && state.ChooseOwn is not null;
+        || state.Phase is NativePhase.Loading or NativePhase.Error && state.ChooseOwn is not null;
 
     public async Task<NativeDashboardState> LoadChooseOwnAsync(
         CancellationToken cancellationToken = default)

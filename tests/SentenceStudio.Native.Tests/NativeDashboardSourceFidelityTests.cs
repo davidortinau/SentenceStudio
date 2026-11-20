@@ -219,8 +219,38 @@ public sealed class NativeDashboardSourceFidelityTests
             state => Assert.True(NativeDashboardPresenter.ShowsChooseOwn(state)));
         Assert.False(NativeDashboardPresenter.ShowsChooseOwn(
             new NativeDashboardState(NativePhase.Loading)));
+    }
+
+    [Fact]
+    public async Task ChooseOwnChoicesStayVisibleWhenAReloadFails()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var dashboard = fixture.Dashboard;
+        dashboard.SetMode(NativeDashboardMode.ChooseOwn);
+        var loaded = await dashboard.LoadAsync();
+        Assert.NotNull(loaded.ChooseOwn);
+
+        // Issue 239: the refresh on the way back from a quiz fails. The plan is not on
+        // screen in Choose My Own, so its error must not replace the choices.
+        fixture.Sync.DuringSynchronization = _ =>
+            throw new HttpRequestException("offline");
+        var failed = await dashboard.RefreshAsync();
+        Assert.Equal(NativePhase.Error, failed.Phase);
+        Assert.Equal(NativeDashboardMode.ChooseOwn, failed.Mode);
+        Assert.Equal(loaded.ChooseOwn, failed.ChooseOwn);
+        Assert.True(NativeDashboardPresenter.ShowsChooseOwn(failed));
+        // The iOS controller's catch-all for an exception the presenter does not handle.
+        Assert.True(NativeDashboardPresenter.ShowsChooseOwn(loaded with {
+            Phase = NativePhase.Error, ErrorKey = NativeText.PlanError }));
+
+        // Nothing to show: the choices never loaded, or there is no trusted owner.
         Assert.False(NativeDashboardPresenter.ShowsChooseOwn(
-            new NativeDashboardState(NativePhase.Error) { ChooseOwn = published[0].ChooseOwn }));
+            new NativeDashboardState(NativePhase.Error, ErrorKey: NativeText.PlanError)));
+        Assert.False(NativeDashboardPresenter.ShowsChooseOwn(
+            new NativeDashboardState(NativePhase.Blocked, ErrorKey: NativeText.PlanError)
+            { ChooseOwn = loaded.ChooseOwn }));
     }
 
     [Fact]
