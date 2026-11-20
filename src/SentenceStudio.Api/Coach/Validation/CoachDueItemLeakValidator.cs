@@ -125,14 +125,14 @@ public sealed class CoachDueItemLeakValidator
     }
 
     /// <summary>
-    /// Whether a text names an item's target-language word or its lemma, by the same matching the
-    /// scan uses on a reply. The translation, the examples and the mnemonic do not count.
+    /// Whether a text names an item's word, its lemma or its meaning, by the same matching the
+    /// scan uses on a reply. The examples and the mnemonic do not count.
     /// </summary>
-    public bool NamesTargetWord(string? text, CoachEmbargoedItem item)
+    public bool NamesWordOrMeaning(string? text, CoachEmbargoedItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        return !Validate(text, [new CoachEmbargoedItem(item.TargetTerm, Lemma: item.Lemma)]).IsValid;
+        return !Validate(text, [new CoachEmbargoedItem(item.TargetTerm, item.NativeTerm, item.Lemma)]).IsValid;
     }
 
     /// <summary>Checks several pieces of coach text in one pass.</summary>

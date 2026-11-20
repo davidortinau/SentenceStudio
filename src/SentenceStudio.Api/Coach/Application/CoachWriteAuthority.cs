@@ -464,6 +464,34 @@ public sealed class CoachWriteAuthority
     }
 
     /// <summary>
+    /// True when the learner's own words ask for the answer or the meaning outright: "what is the
+    /// answer", "tell me the answer", "what does this mean", "how do you say it", "정답 알려줘",
+    /// "무슨 뜻이야". A request for a hint or for help is not one, and neither is "don't tell me
+    /// the answer". It is what lets a reply give the answer their screen is hiding.
+    /// </summary>
+    internal bool IsAnswerRequest(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = Normalize(text);
+        if (System.Text.RegularExpressions.Regex.IsMatch(normalized,
+            @"\b(don t|dont|do not|never)\s+(tell|give|show|reveal|say|spoil)\b"
+            + @"|\bwithout\s+(telling|giving|showing|revealing|the answer)\b"
+            + @"|(말하지|알려\s?주지|보여\s?주지|가르쳐\s?주지)\s?마|말고"))
+        {
+            return false;
+        }
+
+        return System.Text.RegularExpressions.Regex.IsMatch(normalized,
+            @"\b(what|tell|give|show|reveal|say)\b.*\b(answer|mean|means|meaning|translation)\b"
+            + @"|\b(translate|how do (you|i) say)\b"
+            + @"|(정답|답|뜻|의미).*(뭐|무슨|알려|말해|보여|가르쳐)|(무슨|어떤)\s?(뜻|의미)");
+    }
+
+    /// <summary>
     /// True when the learner's own words say to start a named activity now: "start a conversation
     /// in German", "open a cloze", "let's start reading", "대화 시작해줘". Never a question, and never
     /// "do" (which starts as many questions as requests). The only thing that lets an activity Sam
