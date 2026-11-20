@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using CoreFoundation;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +55,8 @@ internal sealed partial class ApplicationController : IDisposable
     private SwiftView? _signInSubmit;
     private SwiftView? _onboardingNextButton;
     private string _chooseOwnSearch = string.Empty;
+    private ImmutableArray<NativeChooseOwnOption> _chooseOwnResourcesListed;
+    private ImmutableArray<NativeChooseOwnOption> _chooseOwnResourceOrder;
     private string? _onboardingOwner;
     private string? _onboardingErrorKey;
     private string? _chooseOwnSelector;
@@ -1129,6 +1132,7 @@ internal sealed partial class ApplicationController : IDisposable
             return;
         _chooseOwnSelector = kind;
         _chooseOwnSearch = string.Empty;
+        _chooseOwnResourceOrder = default;
         Publish();
     }
 
@@ -1136,13 +1140,31 @@ internal sealed partial class ApplicationController : IDisposable
     {
         _chooseOwnSelector = null;
         _chooseOwnSearch = string.Empty;
+        _chooseOwnResourceOrder = default;
         Publish();
     }
 
     internal SwiftView RenderChooseOwnSelector(SourceUiStyle style) =>
         ChooseOwnSelectorView.Page(style, _chooseOwnSelector,
-            _dashboardState.ChooseOwn, _chooseOwnSearch, Text,
+            _dashboardState.ChooseOwn, ChooseOwnResourceOrder(), _chooseOwnSearch, Text,
             SelectChooseOwn, DismissChooseOwnSelector);
+
+    /// <summary>
+    /// Issue 244: the chosen resources lead the list as the selection stood when the sheet
+    /// opened or the list was last reloaded. Switching a row does not reorder the list.
+    /// </summary>
+    private ImmutableArray<NativeChooseOwnOption> ChooseOwnResourceOrder()
+    {
+        if (_dashboardState.ChooseOwn is not { } state)
+            return [];
+        if (_chooseOwnResourceOrder.IsDefault || state.Resources != _chooseOwnResourcesListed)
+        {
+            _chooseOwnResourcesListed = state.Resources;
+            _chooseOwnResourceOrder = NativeChooseOwnOrder.SelectedFirst(
+                state.Resources, state.SelectedResourceIds);
+        }
+        return _chooseOwnResourceOrder;
+    }
 
     internal void FilterChooseOwn(string query)
     {
