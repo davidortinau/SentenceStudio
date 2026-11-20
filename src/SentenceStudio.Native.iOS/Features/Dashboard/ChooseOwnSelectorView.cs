@@ -9,6 +9,7 @@ internal static class ChooseOwnSelectorView
 {
     internal static SwiftView Page(
         SourceUiStyle style, string? selector, NativeChooseOwnState? selection,
+        ImmutableArray<NativeChooseOwnOption> resourceOrder,
         string search, Func<string, string> text, Action<string?> choose,
         Action dismiss)
     {
@@ -18,7 +19,7 @@ internal static class ChooseOwnSelectorView
         var prefix = isResource
             ? "native.dashboard.chooseown.resource"
             : "native.dashboard.chooseown.skill";
-        var options = isResource ? selected.Resources : selected.Skills;
+        var options = isResource ? resourceOrder : selected.Skills;
         var visible = (options.IsDefault
                 ? ImmutableArray<NativeChooseOwnOption>.Empty
                 : options)
@@ -32,15 +33,26 @@ internal static class ChooseOwnSelectorView
         foreach (var option in visible)
         {
             var id = option.Id;
-            var chosen = isResource
-                ? !selected.SelectedResourceIds.IsDefault
-                  && selected.SelectedResourceIds.Contains(id)
-                : selected.SelectedSkillId == id;
+            if (isResource)
+            {
+                // Issue 244: several can be chosen, so each row is a system switch at its
+                // trailing edge, not a drawn mark after the title. choose flips the
+                // resource, so only a switch that differs from the selection is passed on.
+                var chosen = !selected.SelectedResourceIds.IsDefault
+                    && selected.SelectedResourceIds.Contains(id);
+                items.Add(NativeForm.Switch(style, option.Title, chosen,
+                    isOn =>
+                    {
+                        if (isOn != chosen)
+                            choose(id);
+                    }, $"{prefix}.{Uri.EscapeDataString(id)}"));
+                continue;
+            }
             items.Add(Views.HStack(
                 Views.Button(option.Title, () => choose(id))
                     .WithAccessibilityIdentifier(
                         $"{prefix}.{Uri.EscapeDataString(id)}"),
-                Views.Image(chosen ? "checkmark" : "circle"))
+                Views.Image(selected.SelectedSkillId == id ? "checkmark" : "circle"))
                 .WithAccessibilityIdentifier(
                     $"{prefix}.{Uri.EscapeDataString(id)}.row"));
         }

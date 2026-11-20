@@ -264,6 +264,47 @@ public sealed class NativeSwiftUIPresentationContractTests
             "items.Add(Views.Button(text(\"Common_Done\")", selector);
     }
 
+    /// <summary>
+    /// Issue 244: a Learning Resources row is a system switch at its trailing edge (several
+    /// can be chosen), not a drawn checkmark or circle after the title, and the chosen
+    /// resources lead the list in an order taken when the sheet opens or the list reloads.
+    /// The skill list is a single choice and keeps its rows.
+    /// </summary>
+    [Fact]
+    public void ChooseOwnResourceRowsAreSwitchesWithTheChosenFirst()
+    {
+        var selector = Source("Features/Dashboard/ChooseOwnSelectorView.cs");
+        var app = Source("App/ApplicationController.cs");
+        var resourceRow = selector[selector.IndexOf("if (isResource)\n            {",
+            StringComparison.Ordinal)..selector.IndexOf("continue;", StringComparison.Ordinal)];
+
+        Assert.Contains("NativeForm.Switch(style, option.Title, chosen,", resourceRow);
+        Assert.Contains("selected.SelectedResourceIds.Contains(id)", resourceRow);
+        // choose flips the resource: a switch already in step with the selection is not sent.
+        Assert.Contains("if (isOn != chosen)", resourceRow);
+        Assert.Contains("}, $\"{prefix}.{Uri.EscapeDataString(id)}\")", resourceRow);
+        Assert.DoesNotContain("Views.Image(", resourceRow);
+        Assert.Equal(1, selector.Split("Views.Image(").Length - 1);
+        Assert.Contains("Views.Image(selected.SelectedSkillId == id ? \"checkmark\" : \"circle\")",
+            selector);
+
+        Assert.Contains("var options = isResource ? resourceOrder : selected.Skills;", selector);
+        Assert.Contains("_dashboardState.ChooseOwn, ChooseOwnResourceOrder(), _chooseOwnSearch,",
+            app);
+        var order = app[app.IndexOf("ChooseOwnResourceOrder()\n    {", StringComparison.Ordinal)..
+            app.IndexOf("internal void FilterChooseOwn(", StringComparison.Ordinal)];
+        Assert.Contains("NativeChooseOwnOrder.SelectedFirst(", order);
+        Assert.Contains("state.Resources, state.SelectedResourceIds);", order);
+        // Taken once per opening and per reload, never on a switch.
+        Assert.Contains(
+            "if (_chooseOwnResourceOrder.IsDefault || state.Resources != _chooseOwnResourcesListed)",
+            order);
+        Assert.Equal(2, app.Split("_chooseOwnResourceOrder = default;").Length - 1);
+        var choose = app[app.IndexOf("private void SelectChooseOwn(", StringComparison.Ordinal)..
+            app.IndexOf("private async Task SignOutAsync()", StringComparison.Ordinal)];
+        Assert.DoesNotContain("_chooseOwnResourceOrder", choose);
+    }
+
     private static string Source(string relative) =>
         File.ReadAllText(Path.Combine(HeadPath, relative));
 
