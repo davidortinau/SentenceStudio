@@ -162,7 +162,7 @@ internal sealed partial class ApplicationController
                     && _quizLaunch is not null));
         return QuizView.Page(style, QuizViewState,
             new QuizViewInputs(_answer, _quizCorrectionCompleted, _busy,
-                canRetry, QuizAnswerShouldFocus, _sentenceInput),
+                canRetry, QuizAnswerShouldFocus, _sentenceInput, _quizKeyboardVisible),
             Text, new QuizActions(
             AnswerChanged: value => _answer = value,
             AnswerFocusChanged: focused => _quizInputFocused = focused,
@@ -287,7 +287,9 @@ internal sealed partial class ApplicationController
                 if (_quizState.Phase == NativePhase.Summary)
                     _destination = NativeDestination.QuizSummary;
             }),
-            PromptAppeared: OnQuizPromptAppeared));
+            PromptAppeared: OnQuizPromptAppeared,
+            // Kept for the next page, which opens without the counts footer while it is up.
+            KeyboardVisibleChanged: visible => _quizKeyboardVisible = visible));
     }
 
     /// <summary>

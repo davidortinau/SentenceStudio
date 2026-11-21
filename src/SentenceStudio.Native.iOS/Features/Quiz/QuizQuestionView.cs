@@ -34,7 +34,8 @@ internal static class QuizQuestionView
         Action<string, string> photoFailed,
         Action openPhoto,
         Action togglePhotoVisible,
-        Action<string>? promptAppeared = null)
+        Action<string>? promptAppeared = null,
+        SwiftView? besideSubmit = null)
     {
         if (state.Prompt is { } prompt)
         {
@@ -171,7 +172,10 @@ internal static class QuizQuestionView
             && state.CanPlayAnswerAudio;
         var choicesShowResult = state.Mode == "MultipleChoice"
             && !state.Choices.IsDefault && state.Choices.Any(choice => IsCorrectChoice(state, choice.Text));
-        var showAnswerLine = !choicesShowResult || audioChoices;
+        // Issue 254 (Captain, 2026-11-20): a wrong typed answer's banner already gives the
+        // answer, so the line is not repeated above it and the field stays above the keyboard.
+        var bannerGivesAnswer = state.Mode == "Text" && state.AnswerWasCorrect != true;
+        var showAnswerLine = (!choicesShowResult || audioChoices) && !bannerGivesAnswer;
         if (state.Phase == NativePhase.Feedback && showAnswerLine)
         {
             // Source: the answer sits in the centered prompt block (text-center).
@@ -277,8 +281,15 @@ internal static class QuizQuestionView
                 field.FocusRequested = true;
             items.Add(field);
             if (submit is not null)
-                items.Add(Views.HStack(submit)
+            {
+                var submitRow = besideSubmit is null
+                    ? Views.HStack(submit) : Views.HStack(submit, besideSubmit);
+                submitRow.Spacing = SourceUiLayout.ItemGap;
+                items.Add(submitRow
                     .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
+            }
+            else if (besideSubmit is not null)
+                items.Add(besideSubmit);
         }
     }
 

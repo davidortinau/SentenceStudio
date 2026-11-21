@@ -21,16 +21,7 @@ internal static class QuizFeedbackView
         Action next)
     {
         if (state.RequiresCorrection)
-        {
-            var overrideLabel = Views.HStack(
-                Views.Image("checkmark"),
-                Views.Text(text(NativeText.QuizOverride)));
-            overrideLabel.Spacing = 4;
-            items.Add(style.SuccessOutlineSmallButton(
-                    overrideLabel, overrideAsCorrect)
-                .WithAccessibilityLabel(text(NativeText.QuizOverride))
-                .WithAccessibilityIdentifier("native.quiz.override"));
-        }
+            items.Add(Override(style, text, overrideAsCorrect));
         else
         {
             var nextButton = style.QuizPrimaryButton(
@@ -39,4 +30,18 @@ internal static class QuizFeedbackView
             items.Add(Views.HStack(nextButton)
                 .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
         }
-    }}
+    }
+
+    internal static SwiftView Override(
+        SourceUiStyle style, Func<string, string> text, Action overrideAsCorrect)
+    {
+        var overrideLabel = Views.HStack(
+            Views.Image("checkmark"),
+            Views.Text(text(NativeText.QuizOverride)));
+        overrideLabel.Spacing = 4;
+        return style.SuccessOutlineSmallButton(
+                overrideLabel, overrideAsCorrect)
+            .WithAccessibilityLabel(text(NativeText.QuizOverride))
+            .WithAccessibilityIdentifier("native.quiz.override");
+    }
+}

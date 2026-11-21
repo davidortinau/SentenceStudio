@@ -174,7 +174,9 @@ public sealed class NativeQuizFeedbackContractTests
         // written choices also drop the answer line, which audio-letter choices keep.
         Assert.Contains("state.Choices.Any(choice => IsCorrectChoice(state, choice.Text))",
             feature);
-        Assert.Contains("var showAnswerLine = !choicesShowResult || audioChoices;", feature);
+        Assert.Contains(
+            "var showAnswerLine = (!choicesShowResult || audioChoices) && !bannerGivesAnswer;",
+            feature);
         Assert.Contains("state.Phase == NativePhase.Feedback && showAnswerLine", feature);
         Assert.Contains("state.Phase == NativePhase.Feedback && !choicesShowResult", feature);
         // Not by color alone: a mark whose place is always kept, and the spoken result.
@@ -199,6 +201,45 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.DoesNotContain("items.Add(style.PrimaryButton(", summary);
         Assert.Contains("footer = QuizSummaryView.Add(", page);
         Assert.Contains("Views.BottomInset(page, footer)", page);
+    }
+
+    [Fact]
+    public void Issue254_TypedCorrectionFitsAboveTheKeyboard()
+    {
+        var question = FeatureSource();
+        var page = ReadHead("Features/Quiz/QuizView.cs");
+        var feedback = ReadHead("Features/Quiz/QuizFeedbackView.cs");
+        var footer = ReadHead("Features/Quiz/QuizKeyboardFooter.cs");
+        var app = ReadHead("App/ApplicationController.Quiz.cs");
+
+        // The counts footer leaves in place while the keyboard is up; the summary's stays.
+        Assert.Contains("countsFooter ? actions.KeyboardVisibleChanged : null", page);
+        Assert.Contains(
+            "QuizKeyboardFooter.Bind(inset, keyboardVisible, keyboardVisibleChanged)", page);
+        Assert.Contains("inset.OnKeyboardOverlapChanged(", footer);
+        Assert.Contains("footer.Clear();", footer);
+        Assert.Contains("footer.Add(row);", footer);
+        Assert.DoesNotContain("Publish", footer);
+        Assert.Contains("_sentenceInput, _quizKeyboardVisible)", app);
+        Assert.Contains(
+            "KeyboardVisibleChanged: visible => _quizKeyboardVisible = visible", app);
+
+        // "I was correct" shares Submit's row, and only a correction's page opens at its end.
+        Assert.Contains("QuizFeedbackView.Override(style, text, overrideAsCorrect)", page);
+        Assert.Contains("if (state.Phase == NativePhase.Feedback && besideSubmit is null)", page);
+        Assert.Contains("Views.HStack(submit, besideSubmit)", question);
+        Assert.Contains("items.Add(Override(style, text, overrideAsCorrect));", feedback);
+        Assert.Contains(".WithScrollAnchoredToBottom(keepEndVisible)", page);
+        Assert.Contains("Phase: NativePhase.Feedback, Mode: \"Text\", RequiresCorrection: true }",
+            page);
+
+        // The banner of a wrong typed answer gives the answer, so the line is not repeated.
+        Assert.Contains(
+            "var bannerGivesAnswer = state.Mode == \"Text\" && state.AnswerWasCorrect != true;",
+            question);
+        Assert.Contains(
+            "var showAnswerLine = (!choicesShowResult || audioChoices) && !bannerGivesAnswer;",
+            question);
     }
 
     [Theory]

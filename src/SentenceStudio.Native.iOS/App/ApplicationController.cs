@@ -44,6 +44,7 @@ internal sealed partial class ApplicationController : IDisposable
     private string _password = string.Empty;
     private string _answer = string.Empty;
     private bool _quizInputFocused;
+    private bool _quizKeyboardVisible;
     private bool _quizCorrectionCompleted;
     private string _sentenceInput = string.Empty;
     private string? _sentenceDraftRestoredTurn;
