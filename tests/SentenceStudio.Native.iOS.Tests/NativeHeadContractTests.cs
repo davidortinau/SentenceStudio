@@ -275,7 +275,8 @@ public sealed class NativeHeadContractTests
         Assert.Contains("private bool QuizAnswerShouldFocus => _quizInputFocused\n"
             + "        || (_quizState.RequiresCorrection && !IsSamPresented);",
             source.ReplaceLineEndings("\n"));
-        Assert.Contains("canRetry, QuizAnswerShouldFocus, _sentenceInput)", source);
+        Assert.Contains("canRetry, QuizAnswerShouldFocus, _sentenceInput, _quizKeyboardVisible)",
+            source);
         Assert.DoesNotContain("_quizState.RequiresCorrection || _quizInputFocused", source);
     }
 

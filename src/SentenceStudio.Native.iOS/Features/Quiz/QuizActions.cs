@@ -25,4 +25,5 @@ internal sealed record QuizActions(
     Action SubmitSentence,
     Action CancelSentence,
     Action ContinueAfterSentence,
-    Action<string> PromptAppeared);
+    Action<string> PromptAppeared,
+    Action<bool> KeyboardVisibleChanged);

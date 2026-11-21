@@ -10,6 +10,7 @@ using SentenceStudio.Native.iOS.Features.Activities;
 using SentenceStudio.Native.iOS.Features.Browse;
 using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Lookups;
+using SentenceStudio.Native.iOS.Features.Quiz;
 using SentenceStudio.Native.iOS.Features.Sam;
 using SentenceStudio.Native.iOS.Features.Vocabulary;
 using SentenceStudio.Native.iOS.Styling;
@@ -150,6 +151,37 @@ var cases = new (string Name, Action Test)[]
         inset.InvokeAccessibilitySettingsChanged(SwiftAccessibilitySettings.ReduceMotion);
         scroll.InvokeScrollGeometryChanged(Geometry(330));
         Assert(entry.IsHidden);
+    }),
+    ("Quiz footer: its rows leave while the keyboard is up and return after (issue 254)", () =>
+    {
+        var footer = Views.VStack(Views.Divider(), Views.Text("1 / 10"));
+        using var inset = Views.BottomInset(
+            Views.Scroll(Views.VStack(Views.Text("Question"))), footer);
+        bool? reported = null;
+        QuizKeyboardFooter.Bind(inset, keyboardVisible: false, visible => reported = visible);
+        Assert(footer.Children.Count == 2);
+        inset.InvokeKeyboardOverlapChanged(291);
+        Assert(reported == true);
+        Assert(footer.Children.Count == 0);
+        inset.InvokeKeyboardOverlapChanged(240);
+        Assert(footer.Children.Count == 0);
+        inset.InvokeKeyboardOverlapChanged(0);
+        Assert(reported == false);
+        Assert(footer.Children.Count == 2);
+        Assert(footer.Children[0].Kind == "divider" && footer.Children[1].Text == "1 / 10");
+    }),
+    ("Quiz footer: a page built while the keyboard is up opens without its rows", () =>
+    {
+        var footer = Views.VStack(Views.Divider(), Views.Text("1 / 10"));
+        using var inset = Views.BottomInset(
+            Views.Scroll(Views.VStack(Views.Text("Question"))), footer);
+        QuizKeyboardFooter.Bind(inset, keyboardVisible: true, _ => { });
+        Assert(footer.Children.Count == 0);
+        inset.InvokeKeyboardOverlapChanged(0);
+        Assert(footer.Children.Count == 2);
+        Throws<ArgumentException>(() => QuizKeyboardFooter.Bind(
+            Views.BottomInset(Views.Scroll(Views.Text("Question")), Views.Text("1 / 10")),
+            false, _ => { }));
     }),
     ("Sam entry: a page built and discarded leaves the mounted page's button alone", () =>
     {
