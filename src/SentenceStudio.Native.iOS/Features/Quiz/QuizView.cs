@@ -52,6 +52,7 @@ internal static class QuizView
         var promptAppeared = actions.PromptAppeared;
         var items = new List<SwiftView>();
         SwiftView? footer = null;
+        var countsFooter = false;
         // Like the source quiz, no sync caption: pending writes are still recorded and
         // retried by the presenter, and connection failures show through ErrorKey
         // (Captain, 2026-11-06).
@@ -103,14 +104,19 @@ internal static class QuizView
                         continueAfterSentence);
                     break;
                 }
+                // Issue 254 (Captain, 2026-11-20): "I was correct" shares Submit's row, so the
+                // correction fits above the keyboard on a landscape phone.
+                var besideSubmit = state is {
+                    Phase: NativePhase.Feedback, Mode: "Text", RequiresCorrection: true }
+                    ? QuizFeedbackView.Override(style, text, overrideAsCorrect) : null;
                 QuizQuestionView.Add(items, state, answer, correctionCompleted,
                     busy, style, text, answerChanged,
                     answerFocusChanged, answerShouldFocus,
                     selectChoice, playPrompt, playChoiceAudio,
                     submitText, submitCorrection,
                     openDetails, toggleSentenceHints, photoRendered, photoFailed,
-                    openPhoto, togglePhotoVisible, promptAppeared);
-                if (state.Phase == NativePhase.Feedback)
+                    openPhoto, togglePhotoVisible, promptAppeared, besideSubmit);
+                if (state.Phase == NativePhase.Feedback && besideSubmit is null)
                     QuizFeedbackView.Add(items, state, style, text, overrideAsCorrect, next);
                 break;
             case NativePhase.Error when state.Prompt is not null
@@ -205,8 +211,16 @@ internal static class QuizView
                             "native.quiz.footer.divider"), counts)
                     .WithBackgroundColor(style.Appearance.BodyBackground.Light,
                         style.Appearance.BodyBackground.Dark);
+            countsFooter = true;
         }
-        return QuizPage(items, style, footer);
+        // A correction is typed with the keyboard up: the page opens at its end and keeps the
+        // field and its buttons in view when it is taller than the room above the keyboard.
+        return QuizPage(items, style, footer,
+            keepEndVisible: state is {
+                Phase: NativePhase.Feedback, Mode: "Text", RequiresCorrection: true },
+            inputs.KeyboardVisible,
+            // Only the counts leave for the keyboard; the summary's footer holds its buttons.
+            countsFooter ? actions.KeyboardVisibleChanged : null);
     }
 
     internal static SwiftView WithToolbarAndPhoto(
@@ -262,7 +276,9 @@ internal static class QuizView
     }
 
     private static SwiftView QuizPage(
-        List<SwiftView> items, SourceUiStyle style, SwiftView? footer = null)
+        List<SwiftView> items, SourceUiStyle style, SwiftView? footer = null,
+        bool keepEndVisible = false, bool keyboardVisible = false,
+        Action<bool>? keyboardVisibleChanged = null)
     {
         var content = Views.VStack(items.ToArray())
             .WithPadding(16, 16, 12, 16)
@@ -272,8 +288,14 @@ internal static class QuizView
         // A drag into the keyboard puts it away: the sentence editor's Return adds a line.
         var page = Views.Scroll(content)
             .WithAccessibilityIdentifier("native.quiz.screen")
-            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively);
-        return style.Page(footer is null ? page : Views.BottomInset(page, footer));
+            .WithScrollDismissesKeyboard(SwiftScrollDismissesKeyboard.Interactively)
+            .WithScrollAnchoredToBottom(keepEndVisible);
+        if (footer is null)
+            return style.Page(page);
+        var inset = Views.BottomInset(page, footer);
+        if (keyboardVisibleChanged is not null)
+            QuizKeyboardFooter.Bind(inset, keyboardVisible, keyboardVisibleChanged);
+        return style.Page(inset);
     }
 
 }

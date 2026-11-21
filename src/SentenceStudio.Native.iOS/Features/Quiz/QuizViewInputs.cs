@@ -6,4 +6,5 @@ internal sealed record QuizViewInputs(
     bool Busy,
     bool CanRetry,
     bool AnswerShouldFocus,
-    string SentenceInput);
+    string SentenceInput,
+    bool KeyboardVisible = false);
