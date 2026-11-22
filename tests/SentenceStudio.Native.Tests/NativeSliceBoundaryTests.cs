@@ -392,6 +392,48 @@ public sealed class NativeSliceBoundaryTests
             .VocabularyLearningContexts.AsNoTracking().SingleAsync()).WasCorrect);
     }
 
+    // Issue 256: the two corrections the Captain typed. The second uses the curly apostrophe
+    // the iOS keyboard types and leaves out the full stop.
+    [Theory]
+    [InlineData("center (of)", "Center of")]
+    [InlineData("That's really unique.", "That\u2019s really unique")]
+    public async Task TypedCorrection_PassesWhenItWouldHavePassedAsTheAnswer(
+        string shown, string typed)
+    {
+        Assert.True(SentenceStudio.Shared.Services.VocabQuizSourcePolicy
+            .EvaluateAnswer("Text", typed, shown).IsCorrect);
+
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
+        using (var seed = fixture.Scope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            foreach (var word in await db.VocabularyWords.ToListAsync())
+                word.NativeLanguageTerm = shown;
+            await db.SaveChangesAsync();
+        }
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.DisplayDirection = "TargetToNative";
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        Assert.Equal("Text", question.Mode);
+        var wrong = await quiz.AnswerAsync("wrong response");
+        Assert.True(wrong.RequiresCorrection);
+        Assert.Equal(shown, wrong.CorrectAnswerAfterGrading);
+        Assert.Equal(NativeText.CorrectionRequired,
+            (await quiz.SubmitCorrectionAsync("not the answer")).ErrorKey);
+
+        var correction = await quiz.SubmitCorrectionAsync(typed);
+        Assert.False(correction.RequiresCorrection);
+        Assert.Null(correction.ErrorKey);
+        await quiz.NextAsync();
+        Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        using var scope = fixture.Scope();
+        Assert.False((await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .VocabularyLearningContexts.AsNoTracking().SingleAsync()).WasCorrect);
+    }
+
     [Fact]
     public async Task OverrideWrongText_ReusesSharedQuizItemRuleAndCreditsOnce()
     {
