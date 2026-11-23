@@ -80,6 +80,52 @@ the commit that fixed it, run the tests that cover it, and say what is left for 
 confirm on a device. Do not invent a change to have something to deliver. A guess presented as
 a fix is not a good result.
 
+## The proof
+
+Your word that the fix works is not taken (Captain, 2026-11-22). After you finish, the runner
+runs the test you name twice in your worktree: as you left it, and with every changed file
+outside the test projects put back to what `main` has, your tests kept. It says the result on
+the pull request: **verified** when the test fails without the fix and passes with it, **not
+shown** when it passes either way, **partly** when your tests do not build without the fix.
+
+When you open a pull request, write the file named in your prompt before your final reply. It
+is JSON, one of:
+
+```json
+{"proof": "test", "project": "tests/SentenceStudio.Native.Tests/SentenceStudio.Native.Tests.csproj", "filter": "FullyQualifiedName~TypedCorrection_PassesWhenItWouldHavePassedAsTheAnswer"}
+{"proof": "view-test", "cases": ["Quiz footer: a page built while the keyboard is up opens without its rows"]}
+{"proof": "none", "reason": "One plain sentence: why no test can show this."}
+```
+
+- `test` is a project under `tests/` (or another test project) and a `dotnet test --filter`
+  expression. The runner runs `dotnet test <project> --filter <filter>
+  -p:IncludeMobileTargets=false -p:ValidateXcodeVersion=false`. Name only the tests that show
+  this fault, a method or a class, not the project: other tests there fail on this machine for
+  their own reasons.
+- `view-test` is for `tests/SentenceStudio.Native.SwiftUIViews.Tests`: the exact names of its
+  cases, as its program prints them after `PASS`.
+- **Write the test so that it builds against `main`'s code and fails there**: call what already
+  exists and assert on what the learner sees. A test that only compiles with your fix (it names
+  a member or a file the fix adds) can only be reported as partly. When both are natural, name
+  the one that runs red.
+- Run it yourself both ways first, as step 3 of "The work" says. Take the fix out and watch it
+  fail; a test that passes is not proof that it reaches the new code.
+- A test that needs PostgreSQL is skipped by the runner (it has no database), so it cannot be
+  the proof; name one that runs without.
+- `none` is the honest answer when no test can show it: wording only, or a change only a run of
+  the app shows. The pull request then says that nothing but your word supports it. Do not
+  invent a test to have one.
+- Nothing a learner wrote goes in the file. Its text is posted on the pull request.
+
+On a follow-up pass the file from the earlier pass is still there. Bring it up to date when the
+request changes what proves the fix; write it if it is missing.
+
+The runner also lists, on the pull request, what in your diff a fix should rarely touch:
+workflows, these instructions and the check's scripts, migrations, build and package
+configuration, and existing tests that lost tests, assertions or lines. None of it is refused,
+and a fix that changes behaviour has to change the expectations that pinned the old one; say
+in the pull request why each such change belongs to the fix.
+
 ## The activity log
 
 Keep it as you go, not at the end: one short entry per step, with the time read from the

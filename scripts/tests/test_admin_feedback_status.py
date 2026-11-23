@@ -85,6 +85,20 @@ class StatusTests(unittest.TestCase):
         paused.write_text(f"{int(time.time()) - 1}\n", encoding="utf-8")
         self.assertEqual(status.paused_note(), "")
 
+    def test_a_pull_request_carries_what_the_runner_found(self):
+        self.assertEqual(status.checked(257), "")
+        (self.dir / "state" / "verdicts.json").write_text(json.dumps({
+            "257": {"proof": "verified", "diff": "clean"},
+            "255": {"proof": "same", "diff": "2 to look at"},
+            "250": {"proof": "a verdict this version does not know", "diff": "clean"},
+        }), encoding="utf-8")
+        self.assertEqual(status.checked(257), ". Proof verified; diff: nothing to look at")
+        self.assertEqual(status.checked(255), ". Proof NOT shown; diff: 2 to look at")
+        self.assertEqual(status.checked(250), "")
+        self.assertEqual(status.checked(1), "")
+        (self.dir / "state" / "verdicts.json").write_text("[1, 2]", encoding="utf-8")
+        self.assertEqual(status.checked(257), "")
+
 
 if __name__ == "__main__":
     unittest.main()

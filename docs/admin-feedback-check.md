@@ -86,6 +86,39 @@ carries only its own text.
   says so and names the worktree left behind; for a follow-up pass it says so on the pull
   request too, and for a first pass it labels the issue so that later runs move on.
 
+**What the runner checks itself** (Captain, 2026-11-22). A session's word that its fix works is
+not evidence: a check counts only when it could have come back red. So when a session ends with
+a pull request, the runner, in the session's worktree and before removing it
+(`scripts/admin-feedback-verify.py`):
+
+- **Runs the session's proof both ways.** The session names the test that shows the fault
+  (`fix/issue-<n>-proof.json`; `docs/admin-feedback-fix.md`, "The proof"). The runner runs it as
+  the session left the worktree, then with every changed file outside the test projects put
+  back to what `main` has, the session's tests kept, and puts the worktree back. The verdicts:
+  - `verified`: fails without the fix, passes with it.
+  - `NOT shown`: passes without the fix too, so it does not show the fault.
+  - `partly`: passes with the fix; without it the tests do not build (they need code the fix
+    adds), so no run came back red.
+  - `FAILING`: does not pass with the change.
+  - `tests only`: nothing outside tests changed, so there was no fix to take out.
+  - `none`: the session named no test, or none the runner could use.
+  - `not run`: the runner could not run it (a time limit of 15 minutes a run, uncommitted
+    changes, a test that needs a database: the runner has none).
+- **Lists what in the diff a fix should rarely touch**: workflows; the check's own instructions
+  and scripts (`AGENTS.md`, `.claude/`, `.squad/`, `docs/admin-feedback-*.md`, `scripts/admin-*`,
+  `scripts/prod-*`); migrations; build, package and app configuration (a changed package or
+  project reference among them); and existing test files that lost tests, assertions or lines,
+  or gained a skip. Nothing is refused. (The first unrelated test a session edited to get green
+  checks, in pull request 238, was answered with a sentence in its instructions; this is the
+  check.)
+
+Both are one line each in the summary and `history.log` (`PROOF:`, `DIFF:`), a comment on the
+pull request under "What the runner checked" (with the usage), a note beside the pull request
+in the status issue, and `proof`, `diff` and `proof_seconds` in `usage.jsonl`. A follow-up pass
+is checked the same way. The proof runs with the session's environment, not the Captain's
+login, and inside the session's window: the tests are code the session wrote. It adds the time
+of two test runs to a pass: 7 to 40 seconds on the three earlier pull requests it was tried on.
+
 **Checks.** A fix session does not wait for its pull request's checks (they take 25 to 45
 minutes, longer than a fix should; Captain, 2026-11-19), and neither does the loop: a pass
 writes into its summary what the checks show when the session ends, and the status issue shows
@@ -123,7 +156,8 @@ red for a day because nothing said so.
 - **The status issue** (`scripts/admin-feedback-status.py`): one pinned issue, labelled
   `feedback-status` (and `feedback-attempted`, which keeps it out of the queue), whose body says
   what is running and for how long, the queue in order, the check's open pull requests with
-  their checks, the issues worked once and left open, the fix sessions today against the cap,
+  their checks and what the runner found of the proof and the diff, the issues worked once and
+  left open, the fix sessions today against the cap,
   and the last 10 passes with how long their sessions took. Every pass and every idle look
   rewrites it, but only when what it says has changed. The repository is public, so it holds
   numbers, results and times only. It is written with the Captain's login, like the runner's
@@ -204,7 +238,8 @@ which only asks the API what the token is). Run by hand from a checkout on a bra
 that branch's copy and moves nothing.
 
 Its own tests: `python3 -m unittest discover -s scripts/tests -p 'test_admin_feedback_*.py'`
-(whose comments count, which checks are finished, what `main`'s line says). They run in CI.
+(whose comments count, which checks are finished, what `main`'s line says, how a proof is
+judged and what in a diff is listed). They run in CI.
 
 ## What it does, in order
 

@@ -50,6 +50,12 @@
 # After a fix session the runner reads the pull request's checks and writes what failed into the
 # summary. Every run also says whether main's own checks are green.
 #
+# A session's word that its fix works is not taken (Captain, 2026-11-22). When a session ends
+# with a pull request the runner itself, in the session's worktree, runs the test the session
+# named with the fix and without it, and lists what in the diff a fix should rarely touch
+# (scripts/admin-feedback-verify.py). Both go into the summary (PROOF and DIFF), onto the pull
+# request and into the status issue.
+#
 # What each session used (tokens, time, models, tools) is recorded in
 # ~/sstudio-feedback-check/usage.jsonl by scripts/admin-feedback-usage.py, shown in each summary,
 # and posted on the pull request a fix session works on. `scripts/admin-feedback-usage.py report`
@@ -79,6 +85,8 @@ FIX_LIMIT=1800
 # The session does not wait for its checks (they take 25 to 45 minutes here); the runner does,
 # after the session, and writes them into the summary.
 CHECKS_WAIT=3000
+# The longest one run of a session's proof may take; the runner makes two (see verify_pr).
+PROOF_LIMIT=900
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 MODE="${1:-both}"
@@ -113,7 +121,7 @@ finish() {
     [ -n "${FEEDBACK_CHECK_UPDATE:-}" ] && echo "$FEEDBACK_CHECK_UPDATE"
   } >> "$RUN"
   cp "$RUN" "$OUT/latest.md"
-  printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-400)" >> "$OUT/history.log"
+  printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
   # A run that fails before status is defined (a missing script) cannot write the status issue.
   declare -F status >/dev/null && status
   [ "$NOTIFY" = yes ] && notify "$(grep -E '^(RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
@@ -134,7 +142,7 @@ fail() {
 LOCK="$OUT/.lock"
 BUSY=0; [ "$MODE" = --pass ] && BUSY=10
 if ! mkdir "$LOCK" 2>/dev/null; then
-  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((TRIAGE_LIMIT + FIX_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((TRIAGE_LIMIT + FIX_LIMIT + 2 * PROOF_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
     rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || { rm -f "$RUN"; exit "$BUSY"; }
   else
     rm -f "$RUN"; exit "$BUSY"
@@ -144,7 +152,7 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
-              scripts/admin-feedback-agent-token.py \
+              scripts/admin-feedback-agent-token.py scripts/admin-feedback-verify.py \
               scripts/admin-feedback-usage.py docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
@@ -221,13 +229,18 @@ session() {
 
 # Adds what the runner knows to a session's usage record, appends it to usage.jsonl, and writes
 # it into the summary. $1 the record, $2 stage, $3 issue or empty, $4 model asked for, $5 effort,
-# $6 seconds by the runner's clock, $7 the session's result line.
+# $6 seconds by the runner's clock, $7 the session's result line, $8 the runner's own verdicts
+# on the pull request (verify_pr), when it gave any.
 record_usage() {
   [ -s "$1" ] || { echo "Usage: not recorded (the session left no record)." >> "$RUN"; echo >> "$RUN"; return; }
-  python3 -I - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$STAMP" "$OUT/usage.jsonl" <<'PY'
+  python3 -I - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$STAMP" "$OUT/usage.jsonl" "${8:-}" <<'PY'
 import json, sys
-path, stage, issue, model, effort, wall, result_line, stamp, history = sys.argv[1:10]
+path, stage, issue, model, effort, wall, result_line, stamp, history, verdicts = sys.argv[1:11]
 record = json.load(open(path, encoding="utf-8"))
+try:
+    checked = json.load(open(verdicts, encoding="utf-8")) if verdicts else {}
+except (OSError, ValueError):
+    checked = {}
 record = {
     "at": f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]}T{stamp[9:11]}:{stamp[11:13]}:{stamp[13:15]}Z",
     "stage": stage,
@@ -236,6 +249,7 @@ record = {
     "effort": effort,
     "wall_seconds": int(wall),
     "result_line": result_line[:200],
+    **{key: checked[key] for key in ("proof", "diff", "proof_seconds") if key in checked},
     **record,
 }
 json.dump(record, open(path, "w", encoding="utf-8"))
@@ -503,6 +517,31 @@ report_checks() {
   echo >> "$RUN"
 }
 
+# The runner's own look at a pull request a session has just worked: the session's proof run
+# with and without the fix, and what in the diff the Captain should look at
+# (scripts/admin-feedback-verify.py). It runs in the session's worktree, so before leave_tree,
+# and while the session's window is still open: the tests are code the session wrote, run here
+# with the session's environment and not the Captain's login. Its PROOF and DIFF lines go into
+# $VERDICT. $1 the pull request's number, $2 the issue, $3 the branch, $4 the worktree, $5 where
+# what to say on the pull request goes, $6 where the verdicts go.
+verify_pr() {
+  local pushed restore=""
+  git -C "$ROOT" fetch -q origin 2>/dev/null
+  pushed="$(git -C "$ROOT" rev-parse --verify -q "origin/$3" 2>/dev/null)"
+  [ -f "$MIRROR_CONFIG" ] && restore="$4/src/NuGet.config"
+  VERDICT="$( unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+    export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1 GIT_SSH_COMMAND=false GIT_SSH=false
+    python3 -I "$ROOT/scripts/admin-feedback-verify.py" pr --pr "$1" --tree "$4" \
+      --declared "$OUT/fix/issue-$2-proof.json" --comment "$5" --result "$6" --limit "$PROOF_LIMIT" \
+      ${pushed:+--pushed "$pushed"} ${restore:+--restore-config "$restore"} 2> "$OUT/state/verify.err" )"
+  if [ -z "$VERDICT" ]; then
+    VERDICT="PROOF: not run (the runner's check did not answer: $(tail -1 "$OUT/state/verify.err" 2>/dev/null | cut -c1-200))
+DIFF: not read (the runner's check did not answer)"
+    printf '%s\n' "**What the runner checked**" "" "The runner's own check of the proof and the diff did not answer, so neither was checked." > "$5"
+  fi
+  rm -f "$OUT/state/verify.err"
+}
+
 # Says on the pull request that these requests have had their pass, so they are not taken again.
 # The ids are also kept on this machine, in case the comment cannot be posted. $1 the pull
 # request's number, $2 the request ids joined by commas, $3 a file with the comment's text.
@@ -614,7 +653,9 @@ follow_up_stage() {
   local log="$OUT/fix/issue-$issue-activity.md" reply="$OUT/fix/issue-$issue-result-$STAMP.md"
   local request="$OUT/fix/issue-$issue-request-$STAMP.md" errors="$OUT/fix/issue-$issue-$STAMP.err"
   local record="$OUT/fix/issue-$issue-usage-$STAMP.json" closing="$OUT/state/closing-$STAMP.tmp"
-  local code started why id
+  local proof="$OUT/fix/issue-$issue-proof.json"
+  local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
+  local code started why id wall result_line
 
   # Nothing has been spent yet, so a failure to reach GitHub leaves the request waiting.
   if ! git -C "$ROOT" fetch -q origin 2>/dev/null \
@@ -674,14 +715,20 @@ follow_up_stage() {
   status
 
   printf '\n## Follow-up pass, %s\n\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$log"
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $request, and it is your task for this pass. First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
+  wall=$(( $(date +%s) - started ))
+  local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
+  result_line="$(head -1 "$reply" 2>/dev/null)"
+  VERDICT=""
+  case "$finished $result_line" in
+    "yes RESULT: pr"*) verify_pr "$pr" "$issue" "$branch" "$tree" "$checked" "$verdicts" ;;
+  esac
   window_close
   [ -s "$errors" ] || rm -f "$errors"
-  local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
   set_aside_new_requests || { echo "Whether a request appeared during the session could not be read from GitHub; it is checked again before any other fix work."; echo; } >> "$RUN"
 
   {
@@ -696,14 +743,14 @@ follow_up_stage() {
       tail -n +2 "$reply"
     fi
     echo
+    [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo "His request: $request"
     echo
   } >> "$RUN"
 
-  local result_line; result_line="$(head -1 "$reply" 2>/dev/null)"
-  record_usage "$record" "fix follow-up" "$issue" "$FIX_MODEL" "$FIX_EFFORT" "$(( $(date +%s) - started ))" "${result_line:-RESULT: failed}"
+  record_usage "$record" "fix follow-up" "$issue" "$FIX_MODEL" "$FIX_EFFORT" "$wall" "${result_line:-RESULT: failed}" "$verdicts"
 
   # The closing comment says how the pass ended and what it cost, and marks his requests as
   # answered. It does not invite another request while the worktree is still in the way.
@@ -722,10 +769,11 @@ follow_up_stage() {
       echo "Comment \`/revise\` again to have it tried once more."
     fi
     echo
+    [ -s "$checked" ] && { cat "$checked"; echo; }
     [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
   } > "$closing"
   answer_requests "$pr" "$ids" "$closing"
-  rm -f "$closing" "$INFLIGHT"
+  rm -f "$closing" "$checked" "$verdicts" "$INFLIGHT"
   report_checks "$pr" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   return 0
 }
@@ -778,7 +826,9 @@ fix_stage() {
   local branch="feedback/issue-$issue" tree="$WORKTREES/feedback-issue-$issue"
   local log="$OUT/fix/issue-$issue-activity.md" reply="$OUT/fix/issue-$issue-result-$STAMP.md"
   local errors="$OUT/fix/issue-$issue-$STAMP.err" code
-  local record="$OUT/fix/issue-$issue-usage-$STAMP.json" started
+  local record="$OUT/fix/issue-$issue-usage-$STAMP.json" started wall
+  local proof="$OUT/fix/issue-$issue-proof.json"
+  local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
 
   if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" || [ -e "$tree" ]; then
     # It was attempted, whether or not the label got on at the time. Without the label every
@@ -825,12 +875,18 @@ fix_stage() {
   status
 
   : > "$log"
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  rm -f "$proof"
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $ROOT/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. When you open one, write the proof of your fix to the file $proof before your final reply, as the section \"The proof\" of those instructions says: the runner runs it with and without your fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
+  wall=$(( $(date +%s) - started ))
 
+  local result_line; result_line="$(head -1 "$reply" 2>/dev/null)"
+  local pr; pr="$(printf '%s' "$result_line" | sed -n 's|^RESULT: pr \(https://github.com/'"$REPO"'/pull/[0-9][0-9]*\).*|\1|p')"
+  VERDICT=""
+  [ $code -eq 0 ] && [ -n "$pr" ] && verify_pr "${pr##*/}" "$issue" "$branch" "$tree" "$checked" "$verdicts"
   window_close
   # It has had its go, whatever came of it: it is not picked again until someone asks.
   gh issue edit "$issue" --repo "$REPO" --add-label feedback-attempted >/dev/null 2>&1 || true
@@ -851,24 +907,27 @@ fix_stage() {
       tail -n +2 "$reply"
     fi
     echo
+    [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo
   } >> "$RUN"
 
-  local result_line; result_line="$(head -1 "$reply" 2>/dev/null)"
-  record_usage "$record" fix "$issue" "$FIX_MODEL" "$FIX_EFFORT" "$(( $(date +%s) - started ))" "${result_line:-RESULT: failed}"
+  record_usage "$record" fix "$issue" "$FIX_MODEL" "$FIX_EFFORT" "$wall" "${result_line:-RESULT: failed}" "$verdicts"
 
-  # The pull request carries what the work cost, beside its activity log.
-  local pr; pr="$(printf '%s' "$result_line" | sed -n 's|^RESULT: pr \(https://github.com/'"$REPO"'/pull/[0-9][0-9]*\).*|\1|p')"
+  # The pull request carries what the runner checked and what the work cost, beside its
+  # activity log.
   if [ -n "$pr" ]; then
-    if [ -s "$record" ]; then
-      python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record" \
-        | gh pr comment "$pr" --body-file - >/dev/null 2>&1 \
-        || echo "The usage could not be posted on $pr; it is in this summary and in usage.jsonl." >> "$RUN"
+    if [ -s "$checked" ] || [ -s "$record" ]; then
+      { [ -s "$checked" ] && { cat "$checked"; echo; }
+        [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
+        true
+      } | gh pr comment "$pr" --body-file - >/dev/null 2>&1 \
+        || echo "What the runner checked and the usage could not be posted on $pr; they are in this summary and in usage.jsonl." >> "$RUN"
     fi
     report_checks "${pr##*/}" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   fi
+  rm -f "$checked" "$verdicts"
 }
 
 case "$MODE" in

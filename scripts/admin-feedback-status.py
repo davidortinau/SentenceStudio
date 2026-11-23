@@ -2,8 +2,9 @@
 """The feedback check's status issue on GitHub, and how many fix sessions ran today.
 
 scripts/admin-feedback-check.sh keeps one pinned issue (labelled STATUS_LABEL) whose body says
-what the check is doing: the session running now, the queue, the pull requests and issues
-waiting for the Captain, and the last passes. It is rewritten only when what it says changes.
+what the check is doing: the session running now, the queue, the pull requests (with their
+checks and what the runner itself found of the proof and the diff) and issues waiting for the
+Captain, and the last passes. It is rewritten only when what it says changes.
 The repository is public, so the body holds numbers, results and times, never what a learner
 wrote or a run's summary.
 
@@ -27,9 +28,17 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SPEC = importlib.util.spec_from_file_location("admin_feedback_pr", HERE / "admin-feedback-pr.py")
-pr = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(pr)
+
+
+def sibling(name):
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), HERE / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+pr = sibling("admin-feedback-pr")
+verify = sibling("admin-feedback-verify")
 
 OUT = Path(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"))
 STATUS_LABEL = "feedback-status"
@@ -145,6 +154,19 @@ def render(note, running, queue, prs, waiting_on_you, recent, today, cap):
     return "\n".join(lines) + "\n"
 
 
+def checked(number, path=None):
+    """What the runner's own checks said about a pull request (scripts/admin-feedback-verify.py),
+    or nothing for one it never checked."""
+    path = path or OUT / "state" / "verdicts.json"
+    try:
+        found = json.loads(path.read_text(encoding="utf-8")).get(str(number))
+        proof = verify.PROOF_WORDS[found["proof"]]
+        diff = "nothing to look at" if found["diff"] == "clean" else str(found["diff"])[:40]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return ""
+    return f". Proof {proof}; diff: {diff}"
+
+
 def fingerprint(body):
     """The body without its timestamp line, so an unchanged status is not rewritten."""
     return hashlib.sha256("\n".join(body.splitlines()[1:]).encode()).hexdigest()
@@ -163,7 +185,7 @@ def gather(windows, handled):
     prs = []
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)
-        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}")
+        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}{checked(item['pr'])}")
     with_pr = {item["issue"] for item in own}
     attempted = pr.gh_lines(
         "issue", "list", "--repo", pr.REPO, "--state", "open", "--limit", "200",
