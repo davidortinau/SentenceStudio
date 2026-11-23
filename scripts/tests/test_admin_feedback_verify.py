@@ -75,6 +75,15 @@ class ReadingRunsTests(unittest.TestCase):
             (Path(folder) / "broken.trx").write_text("<TestRun", encoding="utf-8")
             self.assertEqual(verify.trx_counts(folder), (4, 1, 1))
 
+    def test_a_skipped_test_is_counted_from_the_total(self):
+        # What dotnet test wrote on Lilliput for one skipped xunit test (2026-11-22).
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "proof.trx").write_text(
+                '<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010"><ResultSummary>'
+                '<Counters total="1" executed="0" passed="0" failed="0" error="0" timeout="0" aborted="0" '
+                'inconclusive="0" notExecuted="0" /></ResultSummary></TestRun>', encoding="utf-8")
+            self.assertEqual(verify.trx_counts(folder), (0, 0, 1))
+
     def test_view_test_cases_are_found_by_name(self):
         output = ("PASS Quiz footer: rows leave\n"
                   "FAIL Quiz footer: opens without rows: InvalidOperationException: 3 rows, expected 0\n"
@@ -113,6 +122,18 @@ class DiffTests(unittest.TestCase):
                          "1 assertion line removed or rewritten")
         self.assertEqual(verify.test_change(["  var deadline = 200;", "  var x = 1;"], ["  var deadline = 900;"]),
                          "2 lines removed or rewritten")
+
+    def test_a_skip_added_on_new_lines_is_said(self):
+        self.assertEqual(verify.test_change([], ['        Assert.Skip("flaky on the runners");']), "1 skipped")
+        self.assertEqual(verify.test_change([], ["    [Ignore]"]), "1 skipped")
+
+    def test_a_test_project_deleted_or_emptied_is_an_existing_test_changed(self):
+        lines = {"tests/App.Tests/App.Tests.csproj": ([], ['    <Compile Remove="FlakyTests.cs" />'])}
+        found = dict(verify.look_at([("M", "tests/App.Tests/App.Tests.csproj"), ("D", "tests/Old.Tests/Old.Tests.csproj")],
+                                    lambda path: lines[path]))
+        self.assertEqual(found, {"Existing tests changed": [
+            ("tests/App.Tests/App.Tests.csproj", "files taken out of the test build"),
+            ("tests/Old.Tests/Old.Tests.csproj", "test project deleted")]})
 
     def test_what_a_fix_should_rarely_touch_is_listed_under_its_kind(self):
         lines = {
@@ -287,12 +308,48 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(self.seen, [])
         self.assertEqual((self.tree / "src/quiz.txt").read_text(encoding="utf-8"), "half done")
 
-    def test_a_file_git_does_not_track_is_left_alone(self):
-        self.write("notes.txt", "the session's own")
-        key, _, said, _ = self.prove()
-        self.assertEqual(key, "verified")
-        self.assertNotIn("could not put the worktree back", " ".join(said))
-        self.assertEqual((self.tree / "notes.txt").read_text(encoding="utf-8"), "the session's own")
+    def test_a_file_the_session_never_added_stops_the_proof(self):
+        # The build would take it in, and the pull request does not have it.
+        self.write("src/forgotten.txt", "never added")
+        key, line, _, _ = self.prove()
+        self.assertEqual((key, line), ("not-run", "not run (the worktree has uncommitted or untracked files)"))
+        self.assertEqual(self.seen, [])
+        self.assertTrue((self.tree / "src/forgotten.txt").exists())
+
+    def test_a_run_without_the_fix_that_gives_no_result_is_not_a_verdict(self):
+        def run(tree, declared, restore_config, limit):
+            if (Path(tree) / "src/quiz.txt").read_text(encoding="utf-8") == "fixed":
+                return verify.Ran(True, passed=2)
+            return verify.Ran(False, error="dotnet test ended with code 134 and left no result")
+        key, line, said, _ = verify.prove(self.tree, TEST_PROOF, None, self.changed, self.base, runner=run)
+        self.assertEqual((key, line), ("not-run", "not run (without the fix the run gave no result)"))
+        self.assertIn("code 134", " ".join(said))
+        self.assert_as_the_session_left_it()
+
+    def test_nothing_failing_because_nothing_ran_is_not_a_pass(self):
+        def run(result):
+            def runner(tree, declared, restore_config, limit):
+                fixed = (Path(tree) / "src/quiz.txt").read_text(encoding="utf-8") == "fixed"
+                return verify.Ran(True, passed=2) if fixed else result
+            return runner
+        for declared, result in ((TEST_PROOF, verify.Ran(True)), (TEST_PROOF, verify.Ran(True, skipped=2)),
+                                 ({"proof": "view-test", "cases": ["A", "B"]}, verify.Ran(True, passed=1, skipped=1))):
+            key, line, _, _ = verify.prove(self.tree, declared, None, self.changed, self.base, runner=run(result))
+            self.assertEqual(key, "not-run", line)
+            self.assertTrue(line.startswith("not run (without the fix: "), line)
+        self.assert_as_the_session_left_it()
+
+    def test_a_worktree_that_is_not_at_the_pull_requests_head_is_not_proved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            (out / "proof.json").write_text(json.dumps(TEST_PROOF), encoding="utf-8")
+            printed = io.StringIO()
+            with mock.patch.object(verify, "run_declared", side_effect=AssertionError("ran")), \
+                    contextlib.redirect_stdout(printed):
+                verify.main(["pr", "--tree", str(self.tree), "--declared", str(out / "proof.json"),
+                             "--comment", str(out / "comment.md"), "--base", self.base, "--pushed", "0" * 40])
+            self.assertEqual(printed.getvalue().splitlines()[0],
+                             "PROOF: not run (the worktree is not at the pull request's head)")
 
     def test_the_worktree_is_put_back_when_the_run_breaks(self):
         calls = []
@@ -327,7 +384,9 @@ class ProofTests(unittest.TestCase):
                                     "--base", self.base, "--pr", "257", "--pushed", "0" * 40])
             self.assertEqual(code, 0)
             lines = printed.getvalue().splitlines()
-            self.assertTrue(lines[0].startswith("PROOF: none (the session: "))
+            # What the session wrote is said on the pull request, never in the summary line.
+            self.assertEqual(lines[0], "PROOF: none (the session named no test)")
+            self.assertIn("revise merge it", (out / "comment.md").read_text(encoding="utf-8"))
             self.assertEqual(lines[1], "DIFF: look at: existing tests changed (1) (5 files, +4 -3)")
             said = (out / "comment.md").read_text(encoding="utf-8")
             self.assertTrue(said.startswith("**What the runner checked**"))
@@ -344,11 +403,11 @@ class ProofTests(unittest.TestCase):
     def test_a_worktree_that_cannot_be_compared_is_said_not_raised(self):
         with tempfile.TemporaryDirectory() as folder:
             printed = io.StringIO()
-            with contextlib.redirect_stdout(printed):
+            with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(io.StringIO()):
                 code = verify.main(["pr", "--tree", folder, "--declared", "/nonexistent",
                                     "--comment", str(Path(folder) / "comment.md")])
             self.assertEqual(code, 0)
-            self.assertTrue(printed.getvalue().startswith("PROOF: not run ("))
+            self.assertTrue(printed.getvalue().startswith("PROOF: not run (the worktree could not be compared with main)"))
             self.assertIn("DIFF: not read", printed.getvalue())
 
 

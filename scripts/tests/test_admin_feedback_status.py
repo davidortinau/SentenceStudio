@@ -86,18 +86,22 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(status.paused_note(), "")
 
     def test_a_pull_request_carries_what_the_runner_found(self):
-        self.assertEqual(status.checked(257), "")
+        self.assertEqual(status.checked(257, "965e0043"), "")
         (self.dir / "state" / "verdicts.json").write_text(json.dumps({
-            "257": {"proof": "verified", "diff": "clean"},
-            "255": {"proof": "same", "diff": "2 to look at"},
-            "250": {"proof": "a verdict this version does not know", "diff": "clean"},
+            "257": {"proof": "verified", "diff": "clean", "head": "965e004353007c3a"},
+            "255": {"proof": "same", "diff": "2 to look at", "head": "56f2a4a6aaaa"},
+            "250": {"proof": "a verdict this version does not know", "diff": "clean", "head": "c1101f5b"},
         }), encoding="utf-8")
-        self.assertEqual(status.checked(257), ". Proof verified; diff: nothing to look at")
-        self.assertEqual(status.checked(255), ". Proof NOT shown; diff: 2 to look at")
-        self.assertEqual(status.checked(250), "")
-        self.assertEqual(status.checked(1), "")
+        self.assertEqual(status.head_in("CHECKS: pull request #257 at 965e0043: 21 passed, 0 failed, 1 skipped"), "965e0043")
+        self.assertEqual(status.checked(257, "965e0043"), ". Proof verified; diff: nothing to look at")
+        self.assertEqual(status.checked(255, "56f2a4a6"), ". Proof NOT shown; diff: 2 to look at")
+        self.assertEqual(status.checked(250, "c1101f5b"), "")
+        self.assertEqual(status.checked(1, "abcdef12"), "")
+        # A push after the runner looked: its verdict was about another commit.
+        self.assertIn("has not checked", status.checked(257, "0a0a0a0a"))
+        self.assertIn("has not checked", status.checked(257, ""))
         (self.dir / "state" / "verdicts.json").write_text("[1, 2]", encoding="utf-8")
-        self.assertEqual(status.checked(257), "")
+        self.assertEqual(status.checked(257, "965e0043"), "")
 
 
 if __name__ == "__main__":

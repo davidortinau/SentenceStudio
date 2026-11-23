@@ -208,9 +208,12 @@ def trx_counts(folder):
         for element in root.iter():
             if element.tag.rsplit("}", 1)[-1] != "Counters":
                 continue
-            passed += counter(element, "passed")
-            failed += sum(counter(element, name) for name in ("failed", "error", "timeout", "aborted"))
-            skipped += counter(element, "notExecuted") + counter(element, "inconclusive")
+            ok = counter(element, "passed")
+            bad = sum(counter(element, name) for name in ("failed", "error", "timeout", "aborted"))
+            passed += ok
+            failed += bad
+            # A skipped test is counted in total and nowhere else (notExecuted stays 0).
+            skipped += max(counter(element, "total") - ok - bad, 0)
     return passed, failed, skipped
 
 
@@ -234,9 +237,11 @@ def run_dotnet_test(tree, declared, restore_config, limit):
     if code is None:
         return Ran(False, timed_out=True, seconds=seconds)
     if counts is None:
-        # No result file: the build failed, or the filter matched no test.
+        # No result file: the build or the restore failed, or the test host died. Only a compiler
+        # error (see does_not_compile) is read as "the tests do not build".
         if code != 0:
-            return Ran(False, error=first_error(output, tree) or f"dotnet test ended with code {code}", seconds=seconds)
+            return Ran(False, error=first_error(output, tree) or f"dotnet test ended with code {code} and left no result",
+                       seconds=seconds)
         return Ran(True, seconds=seconds)
     return Ran(True, *counts, seconds=seconds)
 
@@ -268,7 +273,8 @@ def run_view_test(tree, declared, restore_config, limit):
         "Debug/*/*/*.app/Contents/MacOS/SentenceStudio.Native.SwiftUIViews.Tests"))
     if not programs:
         return Ran(False, error="the view test program was not where the build puts it", seconds=int(time.time() - began))
-    code, output = run([str(programs[-1])], tree, limit)
+    # One limit for the build and the program together.
+    code, output = run([str(programs[-1])], tree, max(limit - (time.time() - began), 1))
     seconds = int(time.time() - began)
     if code is None:
         return Ran(False, timed_out=True, seconds=seconds)
@@ -284,13 +290,14 @@ def run_declared(tree, declared, restore_config, limit):
 
 # ---------------------------------------------------------------- with and without the fix
 
-def state(tree):
-    return git(tree, "status", "--porcelain")
+def clean(tree):
+    """Whether the worktree holds exactly its commit. A file git does not track counts as a
+    change: the build would take it in, and the pull request does not have it."""
+    return not git(tree, "status", "--porcelain").strip()
 
 
-def committed(tree):
-    """Whether every tracked file is as committed. Files git does not track are left alone."""
-    return not git(tree, "status", "--porcelain", "--untracked-files=no").strip()
+def does_not_compile(ran):
+    return not ran.built and ran.error.startswith("error CS")
 
 
 def chunks(paths, size=100):
@@ -310,15 +317,14 @@ def take_out(tree, base, fix):
                 pass
 
 
-def put_back(tree, fix, before):
-    """Undoes take_out. Returns whether the worktree is as the session left it (before is its
-    state then)."""
+def put_back(tree, fix):
+    """Undoes take_out. Returns whether the worktree is as the session left it."""
     try:
         for group in chunks([path for status, path in fix if status != "D"]):
             git(tree, "checkout", "HEAD", "--", *group)
         for group in chunks([path for status, path in fix if status == "D"]):
             git(tree, "rm", "-q", "-f", "--", *group)
-        return state(tree) == before
+        return clean(tree)
     except (RuntimeError, subprocess.TimeoutExpired, OSError):
         return False
 
@@ -338,17 +344,17 @@ def prove(tree, declared, why, changed, base, restore_config=None, limit=LIMIT, 
             f"The runner could not use a proof from the session: {why}.",
             "Nothing but the session's own word says this change works."], 0
     if declared["proof"] == "none":
-        return "none", f"none (the session: {declared['reason']})", [
+        return "none", "none (the session named no test)", [
             f"The session named no test. Its reason: {declared['reason']}",
             "Nothing but the session's own word says this change works."], 0
     what = named(declared)
     if declared["proof"] == "test" and not (Path(tree) / declared["project"]).is_file():
         return "not-run", "not run (the named project is not in the worktree)", [
             f"The session named {what}, and that project is not in its worktree."], 0
-    if not committed(tree):
-        return "not-run", "not run (the worktree has uncommitted changes)", [
-            f"The session named {what}. Its worktree has uncommitted changes, so the runner did not run it: "
-            "what is on the pull request is not what is in the worktree."], 0
+    if not clean(tree):
+        return "not-run", "not run (the worktree has uncommitted or untracked files)", [
+            f"The session named {what}. Its worktree has uncommitted or untracked files, so the runner did not "
+            "run it: what is on the pull request is not what is in the worktree."], 0
 
     with_fix = runner(tree, declared, restore_config, limit)
     spent = with_fix.seconds
@@ -373,28 +379,39 @@ def prove(tree, declared, why, changed, base, restore_config=None, limit=LIMIT, 
             f"The session named {what}: {with_fix.said()}.",
             "The change has nothing outside its tests, so there was no fix to take out and see them fail."], spent
 
-    before = state(tree)
     restored = True
     try:
         take_out(tree, base, fix)
         without = runner(tree, declared, restore_config, limit)
     finally:
-        restored = put_back(tree, fix, before)
+        restored = put_back(tree, fix)
     spent += without.seconds
     left = [] if restored else [
         "**The runner could not put the worktree back as the session left it; it is kept on Lilliput.**"]
     if without.timed_out:
         return "not-run", f"not run (without the fix the test did not finish in {limit} s)", [
             f"The session named {what}. With the change: {with_fix.said()}. Without the fix it did not finish in {limit} s."] + left, spent
-    if not without.built:
+    if does_not_compile(without):
         return "unbuilt", "partly (passes with the fix; without it the tests do not build)", [
             f"The session named {what}. With the change: {with_fix.said()}.",
-            f"Without the fix the tests do not build ({without.error or 'no error line found'}), so no run came back red: "
+            f"Without the fix the tests do not build ({without.error}), so no run came back red: "
             "the tests need code the fix adds. They show that code exists and behaves, not that the fault was there."] + left, spent
+    if not without.built:
+        # A failed restore or a test host that died: not a red run, and not the session's doing.
+        return "not-run", "not run (without the fix the run gave no result)", [
+            f"The session named {what}. With the change: {with_fix.said()}.",
+            f"Without the fix the run gave no result ({without.error or 'no error line found'}): the build did not get "
+            "as far as the tests, or the test program died. That is not a run that came back red."] + left, spent
     if without.failed:
         return "verified", f"verified (without the fix: {without.said()}; with it: {with_fix.said()})", [
             f"The session named {what}.",
             f"Without the fix (its tests kept, everything else as on main): {without.said()}. With it: {with_fix.said()}."] + left, spent
+    if not without.passed or (declared["proof"] == "view-test" and without.skipped):
+        # Nothing failed because nothing, or not everything, ran: that is not a pass.
+        said = without.said() if without.passed or without.skipped else "no test ran"
+        return "not-run", f"not run (without the fix: {said})", [
+            f"The session named {what}. With the change: {with_fix.said()}.",
+            f"Without the fix the named tests did not all run ({said}), so whether they fail there is not known."] + left, spent
     return "same", f"NOT shown (the test passes without the fix too: {without.said()})", [
         f"The session named {what}. With the change: {with_fix.said()}.",
         f"**Without the fix it passes too ({without.said()}), so it does not show the fault.**"] + left, spent
@@ -411,6 +428,7 @@ OWN_INSTRUCTIONS = re.compile(
 TEST_MARK = re.compile(r"\[\s*(Fact|Theory|Test|TestMethod|TestCase)\b|^\s*def test_")
 ASSERTION = re.compile(r"\bAssert\.|\.Should\b|\bself\.assert|\bexpect\(")
 SKIP = re.compile(r"\bSkip\s*=|\[\s*Ignore\b|\bAssert\.Skip|\bAssert\.Inconclusive|@unittest\.skip|\.skip\(")
+TAKEN_OUT = re.compile(r"<\s*(Compile|None|Content|EmbeddedResource)\s+Remove\s*=")
 REFERENCE = re.compile(r"<\s*(PackageReference|PackageVersion|ProjectReference)\b")
 
 
@@ -440,9 +458,7 @@ def changed_lines(tree, base, path):
 
 
 def test_change(removed, added):
-    """What an existing test file lost, in words, or None when it only gained lines."""
-    if not removed:
-        return None
+    """What an existing test file lost, in words, or None when it only gained tests."""
     def count(pattern, lines):
         return sum(1 for line in lines if pattern.search(line))
 
@@ -456,6 +472,8 @@ def test_change(removed, added):
     assertions = count(ASSERTION, removed)
     if assertions:
         parts.append(f"{assertions} assertion line{'s' if assertions > 1 else ''} removed or rewritten")
+    if not removed and not parts:
+        return None
     if not parts:
         parts.append(f"{len(removed)} line{'s' if len(removed) > 1 else ''} removed or rewritten")
     return ", ".join(parts)
@@ -480,8 +498,12 @@ def look_at(changed, lines_of):
             add("Build, package or app configuration", path)
         elif path.endswith(".csproj"):
             removed, added = lines_of(path) if status == "M" else ([], [])
-            if status != "M" and not is_test_path(path):
+            if status == "D" and is_test_path(path):
+                add("Existing tests changed", path, "test project deleted")
+            elif status != "M" and not is_test_path(path):
                 add("Build, package or app configuration", path, "new project" if status == "A" else "project removed")
+            elif is_test_path(path) and any(TAKEN_OUT.search(line) for line in added):
+                add("Existing tests changed", path, "files taken out of the test build")
             elif any(REFERENCE.search(line) for line in removed + added):
                 add("Build, package or app configuration", path, "package or project references changed")
         elif is_test_path(path):
@@ -574,29 +596,39 @@ def check_pr(args):
         head = git(tree, "rev-parse", "HEAD").strip()
         changed = changes(tree, base)
     except (RuntimeError, subprocess.TimeoutExpired, OSError) as error:
-        print(f"PROOF: not run ({plain(error, 200)})")
+        print(error, file=sys.stderr)
+        print("PROOF: not run (the worktree could not be compared with main)")
         print("DIFF: not read (the worktree could not be compared with main)")
         Path(comment_path).write_text(
             "**What the runner checked**\n\nNeither the proof nor the diff could be checked: the session's "
             "worktree could not be compared with main.\n", encoding="utf-8")
         return 0
     pushed = option(args, "--pushed")
-    if pushed and pushed != head:
-        notes.append(f"The worktree was at {head[:8]} and the pull request's head was {pushed[:8]}; "
-                     "what was checked is the worktree.")
+    elsewhere = bool(pushed and pushed != head)
+    if elsewhere:
+        notes.append(f"The worktree was at {head[:8]} and the pull request's head was {pushed[:8]}: "
+                     "the diff read here is the worktree's, not the pull request's.")
 
     declared, why = read_declared(declared_path)
     try:
-        proof_key, proof_line, proof_said, seconds = prove(
-            tree, declared, why, changed, base, option(args, "--restore-config"), limit)
+        if elsewhere and declared and declared["proof"] != "none":
+            # A proof of commits that were never pushed says nothing about the pull request.
+            proof_key, proof_line, seconds = "not-run", "not run (the worktree is not at the pull request's head)", 0
+            proof_said = [f"The session named {named(declared)}. Its worktree is not at the pull request's head, "
+                          "so the runner did not run it."]
+        else:
+            proof_key, proof_line, proof_said, seconds = prove(
+                tree, declared, why, changed, base, option(args, "--restore-config"), limit)
     except (RuntimeError, subprocess.TimeoutExpired, OSError) as error:
-        proof_key, proof_line, seconds = "not-run", f"not run ({plain(error, 200)})", 0
+        print(error, file=sys.stderr)
+        proof_key, proof_line, seconds = "not-run", "not run (the runner's own run broke)", 0
         proof_said = [f"The runner could not run the session's proof: {plain(error, 200)}."]
     try:
         findings = look_at(changed, lambda path: changed_lines(tree, base, path))
         diff_key, diff_line, diff_said = diff_verdict(findings, size(tree, base))
     except (RuntimeError, subprocess.TimeoutExpired, OSError) as error:
-        diff_key, diff_line, diff_said = "not read", f"not read ({plain(error, 200)})", ["The diff could not be read."]
+        print(error, file=sys.stderr)
+        diff_key, diff_line, diff_said = "not read", "not read (git did not answer)", ["The diff could not be read."]
 
     print(f"PROOF: {proof_line}")
     print(f"DIFF: {diff_line}")

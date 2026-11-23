@@ -377,6 +377,21 @@ agent_login() {
     || { AGENT_ERROR="the token could not be written"; return 1; }
 }
 
+# What a session, and the runner's proof of the code it wrote (verify_pr), run with: the app's
+# gh and git credentials, never the Captain's. Called inside a subshell.
+session_environment() {
+  unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+  export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1
+  # The empty helper drops every credential helper configured before it, the Captain's among
+  # them; the next one is gh as the app.
+  export GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0= \
+    GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
+  # No SSH: an SSH remote, or a url.*.insteadOf rule in the Captain's git config, would push
+  # with his key as him.
+  export GIT_SSH_COMMAND=false GIT_SSH=false
+}
+
 # One fix session in its worktree, as the app. The caller has run agent_login just before, so
 # that a failure there leaves the work waiting. $1 the worktree, $2 reply, $3 errors, $4 usage
 # record, $5 prompt.
@@ -403,16 +418,7 @@ fix_session() {
     local refresher=$!
     trap 'kill "$refresher" 2>/dev/null; wait "$refresher" 2>/dev/null; rm -f "$AGENT_GH/hosts.yml"' EXIT
     trap 'exit 143' TERM HUP INT
-    unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
-    export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1
-    # The empty helper drops every credential helper configured before it, the Captain's among
-    # them; the next one is gh as the app.
-    export GIT_CONFIG_COUNT=2 \
-      GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0= \
-      GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
-    # No SSH: an SSH remote, or a url.*.insteadOf rule in the Captain's git config, would push
-    # with his key as him.
-    export GIT_SSH_COMMAND=false GIT_SSH=false
+    session_environment
     export GIT_AUTHOR_NAME="$AGENT_NAME" GIT_AUTHOR_EMAIL="$AGENT_EMAIL" \
       GIT_COMMITTER_NAME="$AGENT_NAME" GIT_COMMITTER_EMAIL="$AGENT_EMAIL"
     session "$FIX_LIMIT" "$2" "$3" "$4" -p "$5" \
@@ -521,7 +527,8 @@ report_checks() {
 # with and without the fix, and what in the diff the Captain should look at
 # (scripts/admin-feedback-verify.py). It runs in the session's worktree, so before leave_tree,
 # and while the session's window is still open: the tests are code the session wrote, run here
-# with the session's environment and not the Captain's login. Its PROOF and DIFF lines go into
+# with the session's environment (session_environment; the app's token file is gone by then, so
+# with no GitHub login at all). Its PROOF and DIFF lines go into
 # $VERDICT. $1 the pull request's number, $2 the issue, $3 the branch, $4 the worktree, $5 where
 # what to say on the pull request goes, $6 where the verdicts go.
 verify_pr() {
@@ -529,8 +536,7 @@ verify_pr() {
   git -C "$ROOT" fetch -q origin 2>/dev/null
   pushed="$(git -C "$ROOT" rev-parse --verify -q "origin/$3" 2>/dev/null)"
   [ -f "$MIRROR_CONFIG" ] && restore="$4/src/NuGet.config"
-  VERDICT="$( unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
-    export GH_CONFIG_DIR="$AGENT_GH" GH_PROMPT_DISABLED=1 GIT_SSH_COMMAND=false GIT_SSH=false
+  VERDICT="$( session_environment
     python3 -I "$ROOT/scripts/admin-feedback-verify.py" pr --pr "$1" --tree "$4" \
       --declared "$OUT/fix/issue-$2-proof.json" --comment "$5" --result "$6" --limit "$PROOF_LIMIT" \
       ${pushed:+--pushed "$pushed"} ${restore:+--restore-config "$restore"} 2> "$OUT/state/verify.err" )"

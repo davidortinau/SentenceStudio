@@ -102,8 +102,10 @@ a pull request, the runner, in the session's worktree and before removing it
   - `FAILING`: does not pass with the change.
   - `tests only`: nothing outside tests changed, so there was no fix to take out.
   - `none`: the session named no test, or none the runner could use.
-  - `not run`: the runner could not run it (a time limit of 15 minutes a run, uncommitted
-    changes, a test that needs a database: the runner has none).
+  - `not run`: the runner could not run it, or a run gave no answer: the 15 minute limit of a
+    run, uncommitted or untracked files in the worktree, a worktree that is not at the pull
+    request's head, a test that needs a database (the runner has none), a run without the fix
+    that died or did not restore. Only a compiler error counts as "do not build".
 - **Lists what in the diff a fix should rarely touch**: workflows; the check's own instructions
   and scripts (`AGENTS.md`, `.claude/`, `.squad/`, `docs/admin-feedback-*.md`, `scripts/admin-*`,
   `scripts/prod-*`); migrations; build, package and app configuration (a changed package or
@@ -112,9 +114,10 @@ a pull request, the runner, in the session's worktree and before removing it
   checks, in pull request 238, was answered with a sentence in its instructions; this is the
   check.)
 
-Both are one line each in the summary and `history.log` (`PROOF:`, `DIFF:`), a comment on the
-pull request under "What the runner checked" (with the usage), a note beside the pull request
-in the status issue, and `proof`, `diff` and `proof_seconds` in `usage.jsonl`. A follow-up pass
+Both are one line each in the summary and `history.log` (`PROOF:`, `DIFF:`; never the
+session's own words), a comment on the pull request under "What the runner checked" (with the
+usage), a note beside the pull request in the status issue (only while the pull request's head
+is the commit that was checked), and `proof`, `diff` and `proof_seconds` in `usage.jsonl`. A follow-up pass
 is checked the same way. The proof runs with the session's environment, not the Captain's
 login, and inside the session's window: the tests are code the session wrote. It adds the time
 of two test runs to a pass: 7 to 40 seconds on the three earlier pull requests it was tried on.

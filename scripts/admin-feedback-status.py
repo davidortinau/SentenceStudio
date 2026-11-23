@@ -22,6 +22,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -154,17 +155,27 @@ def render(note, running, queue, prs, waiting_on_you, recent, today, cap):
     return "\n".join(lines) + "\n"
 
 
-def checked(number, path=None):
+def checked(number, head, path=None):
     """What the runner's own checks said about a pull request (scripts/admin-feedback-verify.py),
-    or nothing for one it never checked."""
+    or nothing for one it never checked. head is the start of the pull request's head now: a
+    verdict on an earlier commit is not shown as this one's."""
     path = path or OUT / "state" / "verdicts.json"
     try:
         found = json.loads(path.read_text(encoding="utf-8")).get(str(number))
         proof = verify.PROOF_WORDS[found["proof"]]
         diff = "nothing to look at" if found["diff"] == "clean" else str(found["diff"])[:40]
+        on = str(found.get("head") or "")
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return ""
+    if not head or not on.startswith(head):
+        return ". The runner has not checked the proof or the diff of this head"
     return f". Proof {proof}; diff: {diff}"
+
+
+def head_in(line):
+    """The head a CHECKS line is about ("... at 965e0043: ..."), or nothing."""
+    found = re.search(r" at ([0-9a-f]{8})\b", line)
+    return found.group(1) if found else ""
 
 
 def fingerprint(body):
@@ -185,7 +196,8 @@ def gather(windows, handled):
     prs = []
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)
-        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}{checked(item['pr'])}")
+        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}"
+                   f"{checked(item['pr'], head_in(lines[0]))}")
     with_pr = {item["issue"] for item in own}
     attempted = pr.gh_lines(
         "issue", "list", "--repo", pr.REPO, "--state", "open", "--limit", "200",

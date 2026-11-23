@@ -108,6 +108,8 @@ is JSON, one of:
   exists and assert on what the learner sees. A test that only compiles with your fix (it names
   a member or a file the fix adds) can only be reported as partly. When both are natural, name
   the one that runs red.
+- Commit and push everything before you finish. The runner does not run a proof in a worktree
+  with uncommitted or untracked files, or one that is not at the pull request's head.
 - Run it yourself both ways first, as step 3 of "The work" says. Take the fix out and watch it
   fail; a test that passes is not proof that it reaches the new code.
 - A test that needs PostgreSQL is skipped by the runner (it has no database), so it cannot be
