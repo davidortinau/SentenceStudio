@@ -399,9 +399,12 @@ there() { as_session /bin/test -e "$1"; }
 
 # Ends every process of the session's user: what a session or its tests started does not
 # outlive them, and a session cannot leave something running for the next one. (It would also
-# end a desktop login of that user; the user is for this job only.)
+# end a desktop login of that user; the user is for this job only.) Its Docker is shut down
+# first, in order, within a minute; what is left of it is ended with the rest.
 stop_session_processes() {
   session_places || return 0
+  command -v colima >/dev/null 2>&1 \
+    && as_session /bin/sh -c 'cd "$HOME" && exec perl -e "alarm 60; exec @ARGV" colima stop' < /dev/null >/dev/null 2>&1
   as_session /bin/sh -c 'kill -TERM -1; sleep 2; kill -KILL -1; true' >/dev/null 2>&1
   return 0
 }
@@ -437,33 +440,26 @@ publish_shared() {
   chmod -R u+rwX,go+rX,go-w "$SHARED"
 }
 
-# The scratch PostgreSQL server the API tests can use: the container $PG_CONTAINER in the
-# Captain's Docker. A session has no Docker, but it reaches the server on localhost. The runner
-# reads where it listens and its password, and gives the session's user the two connection
-# strings the tests read, in a file only that user can read (never as an argument). The
-# session's environment gets them from there (SESSION_SCRIPT). A server that is not there, not
-# ready, or whose password cannot go into a connection string as it is: no file, and those
-# tests skip. Never a failure.
-PG_CONTAINER="${FEEDBACK_PG_CONTAINER:-ss-test-pg}"
-publish_database() {
-  local docker port password connection tries=0 file="$SESSION_HOME/sstudio/pg.env"
-  as_session /bin/rm -f "$file" 2>/dev/null
-  docker="$(command -v docker 2>/dev/null)" || docker="$HOME/.docker/bin/docker"
-  [ -x "$docker" ] || return 0
-  [ "$("$docker" inspect -f '{{.State.Running}}' "$PG_CONTAINER" 2>/dev/null)" = true ] \
-    || "$docker" start "$PG_CONTAINER" >/dev/null 2>&1 || return 0
-  until "$docker" exec "$PG_CONTAINER" pg_isready -q -U postgres >/dev/null 2>&1; do
-    tries=$((tries + 1)); [ "$tries" -lt 15 ] || return 0
-    sleep 2
-  done
-  port="$("$docker" port "$PG_CONTAINER" 5432/tcp 2>/dev/null | sed -n 's/^127\.0\.0\.1:\([0-9][0-9]*\)$/\1/p' | head -1)"
-  password="$("$docker" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$PG_CONTAINER" 2>/dev/null \
-                | sed -n 's/^POSTGRES_PASSWORD=//p' | head -1)"
-  case "$port" in ""|*[!0-9]*) return 0 ;; esac
-  case "$password" in ""|*[!A-Za-z0-9_.~+=@%^-]*) return 0 ;; esac
-  connection="Host=localhost;Port=$port;Username=postgres;Password=$password;Database=postgres"
-  printf 'COACH_PG_TEST_CONNECTION=%s\nAPP_OPERATION_PG_TEST_CONNECTION=%s\n' "$connection" "$connection" \
-    | as_session /bin/sh -c 'umask 077; cat > "$1"' sh "$file" 2>/dev/null
+# Docker of the session user's own (Captain, 2026-11-24): a Colima virtual machine under that
+# user's home, which mounts that home and nothing of the Captain's, with a throwaway PostgreSQL
+# 16 in it for the API tests that need one. The Captain's Docker is never shared: its socket is
+# his whole machine. It is started in the background just before a session, which does not
+# wait for it: it is up in about half a minute, and until then the tests that need PostgreSQL
+# skip, as they did without it. The server listens on localhost only and holds nothing, so its
+# password is no secret and the connection strings are plain settings (SESSION_SCRIPT). The
+# log is in the session user's folder. Without colima installed, a session has no Docker.
+SESSION_PG_PORT="${FEEDBACK_SESSION_PG_PORT:-55442}"
+case "$SESSION_PG_PORT" in ""|*[!0-9]*) SESSION_PG_PORT=55442 ;; esac
+SESSION_PG="Host=localhost;Port=$SESSION_PG_PORT;Username=postgres;Password=scratch;Database=postgres"
+start_session_docker() {
+  command -v colima >/dev/null 2>&1 || return 0
+  as_session /bin/sh -c '
+    cd "$HOME" || exit 1
+    { colima start --cpu 4 --memory 4 --disk 30 --vm-type vz \
+        && { docker --context colima rm -f ss-session-pg >/dev/null 2>&1; true; } \
+        && docker --context colima run -d --rm --name ss-session-pg -e POSTGRES_PASSWORD=scratch \
+             -p "127.0.0.1:$1:5432" postgres:16
+    } > "$HOME/sstudio/docker.log" 2>&1 &' sh "$SESSION_PG_PORT" < /dev/null >/dev/null 2>&1
   return 0
 }
 
@@ -490,7 +486,6 @@ session_ready() {
   sgit fetch -q --prune origin 2>/dev/null \
     || { SESSION_ERROR="GitHub could not be fetched into $CLONE"; return 1; }
   publish_shared || return 1
-  publish_database
   SESSION_READY=yes
 }
 
@@ -545,12 +540,13 @@ agent_logout() {
 # What starts a fix session's command as the session's user: in its worktree, with its own
 # temporary folder and Claude token, the app's gh and git credentials and commit identity, and
 # its time limit. No SSH: an SSH remote or a url.*.insteadOf rule would push some other way.
-# Arguments: the worktree, seconds, the app's name and email, its gh folder, then the command.
-# (Read into the variable directly: the bash this runs with, 3.2, ends a $( ) at the first
-# case pattern's parenthesis inside it.)
+# Arguments: the worktree, seconds, the app's name and email, its gh folder, the connection
+# string of its own PostgreSQL server, then the command.
+# (Read into the variable directly, not through $( ): the bash this runs with, 3.2, ends a
+# $( ) at the first case pattern's parenthesis inside it, should the script ever get one.)
 IFS= read -r -d '' SESSION_SCRIPT <<'EOS'
 cd "$1" || exit 1
-limit=$2 name=$3 email=$4 gh_folder=$5; shift 5
+limit=$2 name=$3 email=$4 gh_folder=$5 database=$6; shift 6
 export TMPDIR="${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}"
 export CLAUDE_CODE_OAUTH_TOKEN="$(cat "$HOME/.claude-token")"
 export GH_CONFIG_DIR="$gh_folder" GH_PROMPT_DISABLED=1
@@ -560,17 +556,14 @@ export GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
 export GIT_SSH_COMMAND=false GIT_SSH=false
 export GIT_AUTHOR_NAME="$name" GIT_AUTHOR_EMAIL="$email" GIT_COMMITTER_NAME="$name" GIT_COMMITTER_EMAIL="$email"
-# The scratch PostgreSQL server, when the runner found one (publish_database).
-if [ -f "$HOME/sstudio/pg.env" ]; then
-  while IFS= read -r line; do
-    case "$line" in COACH_PG_TEST_CONNECTION=*|APP_OPERATION_PG_TEST_CONNECTION=*) export "$line" ;; esac
-  done < "$HOME/sstudio/pg.env"
-fi
+# Its own Docker and the PostgreSQL server in it (start_session_docker), once they are up.
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export COACH_PG_TEST_CONNECTION="$database" APP_OPERATION_PG_TEST_CONNECTION="$database"
 exec perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" "$@"
 EOS
 run_as_session() {
   local limit=$1; shift
-  as_session /bin/bash -c "$SESSION_SCRIPT" session "$SESSION_TREE" "$limit" "$AGENT_NAME" "$AGENT_EMAIL" "$SESSION_GH" "$@"
+  as_session /bin/bash -c "$SESSION_SCRIPT" session "$SESSION_TREE" "$limit" "$AGENT_NAME" "$AGENT_EMAIL" "$SESSION_GH" "$SESSION_PG" "$@"
 }
 
 # One fix session in its worktree, as the session's user and the app. The caller has run
@@ -897,6 +890,7 @@ follow_up_stage() {
   there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
   local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $asked, and it is your task for this pass. First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged.$codes Deliver by pushing to the same branch and updating the pull request, as those instructions say. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
+  start_session_docker
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
@@ -1051,6 +1045,7 @@ fix_stage() {
 
   local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log.$codes Deliver through a pull request as those instructions say. When you open one, write the proof of your fix to the file $proof before your final reply, as the section \"The proof\" of those instructions says: the runner runs it with and without your fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
+  start_session_docker
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?

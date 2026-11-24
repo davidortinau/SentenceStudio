@@ -248,12 +248,17 @@ Do everything short of these, write up the rest, and say in your result what is 
   checkouts, his local package folders, his memory notes) is not yours to read: use what is in
   your worktree and in `/Users/Shared/sstudio-feedback`.
 - **Never touch the Captain's running stack.** It listens on this Mac's localhost ports, which
-  you can reach: do not call it, and do not use its database ports. Never run
-  `aspire stop --all`.
-- **You have no Docker and no simulator.** So the app's web stack cannot be started here and
-  nothing can be run on a simulator: do not try to get either. Everything else works as it did: the unit and contract tests, the macOS view
-  tests (`tests/SentenceStudio.Native.SwiftUIViews.Tests`) and `scripts/ios-build.sh sim`.
-  Say in the pull request what could not be run and why.
+  you can reach (the API on 5081 among them): do not call it, and do not use its database
+  ports. Never run `aspire stop --all`.
+- **You have a Docker of your own** (a Colima virtual machine under your home; `docker` works
+  as usual). The runner starts it as your session starts, so it is up about half a minute in;
+  `docker info` says whether it is. It sees your home and nothing else of this Mac. It and
+  everything in it are stopped when your session ends.
+- **Do not run the app on a simulator, and do not start the app's web stack.** The simulator
+  build talks to `localhost:5081`, which is the Captain's stack, and there is no stack of your
+  own for it to sign in to yet. Everything else works as it did: the unit and contract tests,
+  the macOS view tests (`tests/SentenceStudio.Native.SwiftUIViews.Tests`) and
+  `scripts/ios-build.sh sim`. Say in the pull request what could not be run and why.
 - **Everything you start is ended when your session and its proof end**: leave nothing running
   on purpose, and expect nothing from an earlier session to be running.
 - A package restore that fails with NU1101 for a package no feed has (the Captain's own builds
@@ -265,12 +270,11 @@ Do everything short of these, write up the rest, and say in your result what is 
   repositories.
 - Build with `-p:IncludeMobileTargets=false`. Name the project and target framework.
 - The API tests that need PostgreSQL read `COACH_PG_TEST_CONNECTION` and
-  `APP_OPERATION_PG_TEST_CONNECTION`. Both are already in your environment when the scratch
-  server is up (a throwaway PostgreSQL 16 the runner found for you; `echo
-  ${COACH_PG_TEST_CONNECTION:+set}` says whether). Use it only through those tests: they make
-  and drop their own databases. Never print the connection string or put it in a file, a
-  commit, the log or the pull request. Without the variables those tests skip, which is
-  acceptable; say that they were skipped.
+  `APP_OPERATION_PG_TEST_CONNECTION`. Both are already in your environment and point at a
+  throwaway PostgreSQL 16 in your own Docker (the container `ss-session-pg`), so those tests
+  run once it is up; before that, or if it did not start (`~/sstudio/docker.log` says why),
+  they skip. Say in the pull request whether they ran. They still cannot be your proof: the
+  runner's own run has no database.
 - After three failed attempts at the same thing, stop and report. See "Time".
 
 ## Your reply

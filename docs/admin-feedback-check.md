@@ -229,15 +229,26 @@ red for a day because nothing said so.
     no reason to have one.
   - **What it can still build and run** (tried as that user on 2026-11-24): the unit and
     contract tests, the macOS view tests (30 pass and the same 4 fail as for the Captain) and
-    `scripts/ios-build.sh sim`, and the tests that need PostgreSQL: it has no Docker, so before
-    each session the runner reads the port and password of the scratch server (the container
-    `ss-test-pg` in the Captain's Docker, started if it is stopped; `FEEDBACK_PG_CONTAINER`)
-    and puts the two connection strings the tests read in `~lemuel/sstudio/pg.env`, readable
-    only by that user, from where the session's environment gets them. That hands a session
-    the superuser of a throwaway server and nothing else of Docker's. **What it cannot:** the
-    isolated web stack, a simulator run, and `scripts/admin-api.sh` (no Azure sign-in). For
+    `scripts/ios-build.sh sim`, and with its own Docker the tests that need PostgreSQL (672 of
+    that family passed, 6 skipped). **What it cannot yet:** run the app on a simulator or start
+    the isolated web stack (see "Its own Docker and simulators" below), and
+    `scripts/admin-api.sh` (no Azure sign-in). For
     an issue the triage filed, the runner itself reads the codes of the reports it names
     (`sam-show`, at most five) and hands them to the session as a file.
+  - **Its own Docker and simulators** (2026-11-24). The Captain's Docker is never shared with
+    it: that socket can mount his whole home. It has a Colima virtual machine of its own
+    (`brew install colima docker`, done once by the Captain's user; the machine is under
+    `~lemuel/.colima`, 4 CPUs, 4 GB, and mounts that user's home only: a container there
+    could not list the Captain's home when tried). The runner starts it in the background as a
+    session starts (15 to 25 seconds) with a throwaway PostgreSQL 16 on `localhost:55442`
+    (`FEEDBACK_SESSION_PG_PORT`), whose connection strings are in the session's environment,
+    and shuts it down when the session ends, before the proof: the proof has no database, so
+    a test that needs one still cannot be the proof. That user also has simulators of its own
+    (`xcrun simctl` as that user made its own device set; an iPad booted without a desktop
+    login in 42 seconds and gave a screenshot of Settings). A session is not yet told to use
+    one: the simulator build talks to the Captain's stack on 5081, so a useful run needs a
+    stack of the session's own (the isolated Aspire stack on its Docker, and an `aspire` and
+    an `ailoha` command for that user, which it does not have).
   - **What the runner never does:** run a session's code, or a git command in a session's
     files, as the Captain. It reads a session's reply from its output stream and its proof
     file through that user, takes only the fields it validates, and writes every GitHub post
