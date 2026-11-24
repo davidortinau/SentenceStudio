@@ -437,6 +437,36 @@ publish_shared() {
   chmod -R u+rwX,go+rX,go-w "$SHARED"
 }
 
+# The scratch PostgreSQL server the API tests can use: the container $PG_CONTAINER in the
+# Captain's Docker. A session has no Docker, but it reaches the server on localhost. The runner
+# reads where it listens and its password, and gives the session's user the two connection
+# strings the tests read, in a file only that user can read (never as an argument). The
+# session's environment gets them from there (SESSION_SCRIPT). A server that is not there, not
+# ready, or whose password cannot go into a connection string as it is: no file, and those
+# tests skip. Never a failure.
+PG_CONTAINER="${FEEDBACK_PG_CONTAINER:-ss-test-pg}"
+publish_database() {
+  local docker port password connection tries=0 file="$SESSION_HOME/sstudio/pg.env"
+  as_session /bin/rm -f "$file" 2>/dev/null
+  docker="$(command -v docker 2>/dev/null)" || docker="$HOME/.docker/bin/docker"
+  [ -x "$docker" ] || return 0
+  [ "$("$docker" inspect -f '{{.State.Running}}' "$PG_CONTAINER" 2>/dev/null)" = true ] \
+    || "$docker" start "$PG_CONTAINER" >/dev/null 2>&1 || return 0
+  until "$docker" exec "$PG_CONTAINER" pg_isready -q -U postgres >/dev/null 2>&1; do
+    tries=$((tries + 1)); [ "$tries" -lt 15 ] || return 0
+    sleep 2
+  done
+  port="$("$docker" port "$PG_CONTAINER" 5432/tcp 2>/dev/null | sed -n 's/^127\.0\.0\.1:\([0-9][0-9]*\)$/\1/p' | head -1)"
+  password="$("$docker" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$PG_CONTAINER" 2>/dev/null \
+                | sed -n 's/^POSTGRES_PASSWORD=//p' | head -1)"
+  case "$port" in ""|*[!0-9]*) return 0 ;; esac
+  case "$password" in ""|*[!A-Za-z0-9_.~+=@%^-]*) return 0 ;; esac
+  connection="Host=localhost;Port=$port;Username=postgres;Password=$password;Database=postgres"
+  printf 'COACH_PG_TEST_CONNECTION=%s\nAPP_OPERATION_PG_TEST_CONNECTION=%s\n' "$connection" "$connection" \
+    | as_session /bin/sh -c 'umask 077; cat > "$1"' sh "$file" 2>/dev/null
+  return 0
+}
+
 # Everything a fix session needs before one can start: the user, its clone at what GitHub has,
 # its folders, its Claude token, what is published for it, and nothing of its own still running.
 # Returns 1, with the reason in SESSION_ERROR; nothing has been spent then.
@@ -460,6 +490,7 @@ session_ready() {
   sgit fetch -q --prune origin 2>/dev/null \
     || { SESSION_ERROR="GitHub could not be fetched into $CLONE"; return 1; }
   publish_shared || return 1
+  publish_database
   SESSION_READY=yes
 }
 
@@ -515,7 +546,9 @@ agent_logout() {
 # temporary folder and Claude token, the app's gh and git credentials and commit identity, and
 # its time limit. No SSH: an SSH remote or a url.*.insteadOf rule would push some other way.
 # Arguments: the worktree, seconds, the app's name and email, its gh folder, then the command.
-SESSION_SCRIPT="$(cat <<'EOS'
+# (Read into the variable directly: the bash this runs with, 3.2, ends a $( ) at the first
+# case pattern's parenthesis inside it.)
+IFS= read -r -d '' SESSION_SCRIPT <<'EOS'
 cd "$1" || exit 1
 limit=$2 name=$3 email=$4 gh_folder=$5; shift 5
 export TMPDIR="${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}"
@@ -527,9 +560,14 @@ export GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_1=credential.https://github.com.helper GIT_CONFIG_VALUE_1="!$(command -v gh) auth git-credential"
 export GIT_SSH_COMMAND=false GIT_SSH=false
 export GIT_AUTHOR_NAME="$name" GIT_AUTHOR_EMAIL="$email" GIT_COMMITTER_NAME="$name" GIT_COMMITTER_EMAIL="$email"
+# The scratch PostgreSQL server, when the runner found one (publish_database).
+if [ -f "$HOME/sstudio/pg.env" ]; then
+  while IFS= read -r line; do
+    case "$line" in COACH_PG_TEST_CONNECTION=*|APP_OPERATION_PG_TEST_CONNECTION=*) export "$line" ;; esac
+  done < "$HOME/sstudio/pg.env"
+fi
 exec perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" "$@"
 EOS
-)"
 run_as_session() {
   local limit=$1; shift
   as_session /bin/bash -c "$SESSION_SCRIPT" session "$SESSION_TREE" "$limit" "$AGENT_NAME" "$AGENT_EMAIL" "$SESSION_GH" "$@"

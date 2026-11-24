@@ -250,9 +250,8 @@ Do everything short of these, write up the rest, and say in your result what is 
 - **Never touch the Captain's running stack.** It listens on this Mac's localhost ports, which
   you can reach: do not call it, and do not use its database ports. Never run
   `aspire stop --all`.
-- **You have no Docker and no simulator.** So the tests that need PostgreSQL skip, the app's
-  web stack cannot be started here, and nothing can be run on a simulator: do not try to get
-  any of them. Everything else works as it did: the unit and contract tests, the macOS view
+- **You have no Docker and no simulator.** So the app's web stack cannot be started here and
+  nothing can be run on a simulator: do not try to get either. Everything else works as it did: the unit and contract tests, the macOS view
   tests (`tests/SentenceStudio.Native.SwiftUIViews.Tests`) and `scripts/ios-build.sh sim`.
   Say in the pull request what could not be run and why.
 - **Everything you start is ended when your session and its proof end**: leave nothing running
@@ -266,7 +265,11 @@ Do everything short of these, write up the rest, and say in your result what is 
   repositories.
 - Build with `-p:IncludeMobileTargets=false`. Name the project and target framework.
 - The API tests that need PostgreSQL read `COACH_PG_TEST_CONNECTION` and
-  `APP_OPERATION_PG_TEST_CONNECTION`. You have neither, so those tests skip, which is
+  `APP_OPERATION_PG_TEST_CONNECTION`. Both are already in your environment when the scratch
+  server is up (a throwaway PostgreSQL 16 the runner found for you; `echo
+  ${COACH_PG_TEST_CONNECTION:+set}` says whether). Use it only through those tests: they make
+  and drop their own databases. Never print the connection string or put it in a file, a
+  commit, the log or the pull request. Without the variables those tests skip, which is
   acceptable; say that they were skipped.
 - After three failed attempts at the same thing, stop and report. See "Time".
 
