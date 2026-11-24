@@ -25,7 +25,8 @@ from the app or directly on GitHub). One per pass, the oldest open issue that is
 `feedback-attempted` and is one of these (`scripts/admin-feedback-pr.py issues`):
 
 - **Filed by triage**, labelled `feedback-check` by the Captain's login (the triage stage's)
-  outside any fix session's window, every time the label was added.
+  every time the label was added (and outside the earlier fix sessions that ran as his macOS
+  user, below).
 - **Filed from the app** by the feedback button (author `app/sentence-studio-feedback`), whenever
   it was filed.
 - **Filed by the Captain on GitHub** at or after 2026-11-19 02:00 UTC (the evening of
@@ -34,14 +35,16 @@ from the app or directly on GitHub). One per pass, the oldest open issue that is
 
 An issue anyone else opened is never taken: the repository is public. An issue labelled
 `go:no`, `go:needs-research`, `type:spike`, `type:epic` or any `squad` label is not taken
-either, whoever filed it. Nor is an issue the Captain's login opened while a fix session was
-running (or in the five minutes after): a session runs as his macOS user, so one that went
-around its own app login, perhaps talked into it by a learner's report, could open an issue
-that would otherwise become the next run's task as his. Fix sessions are also refused
-`gh issue create`, `gh issue edit` and `gh label`. The `feedback-check` label counts only when
-his login added it outside those windows, so the sessions' app (which can label issues)
-labelling an older issue of his does not queue it. None of this is a boundary: a session runs
-as his macOS user, and only a macOS user of its own for the sessions would make one.
+either, whoever filed it. Fix sessions are refused `gh issue create`, `gh issue edit` and
+`gh label`.
+
+An issue the Captain files while a fix session is running is taken like any other (2026-11-24).
+Sessions run as a macOS user of their own that cannot read his login (see "The sessions' macOS
+user"), so an issue by his login is his. Before that date a session ran as his macOS user and
+could have opened one as him, so an issue his login opened during one of those sessions (or in
+the five minutes after) is still never taken, and the `feedback-check` label counts only when
+his login added it outside them. The record of those sessions (`state/fix-session-windows`)
+gets no new entries.
 
 The fix stage adds `feedback-attempted` when it has had its go, so an issue is worked once. **To
 keep an issue out, label it `feedback-attempted`**; remove the label to have it worked again.
@@ -71,17 +74,11 @@ carries only its own text.
 - **Only your comments count.** The repository is public, so a comment by anyone else, or a
   pull request from a fork, is never a request and is never shown to the session
   (`scripts/admin-feedback-pr.py`).
-- **A request made or edited while a fix session is running is not taken.** Sessions post as
-  their own app (see "Whose login a session uses"), but they run as your macOS user, so a
-  misled one could still reach your own GitHub login on this Mac, and text it read on a public
-  page could talk it into writing a request. The runner fingerprints every waiting request
-  before a session and, after it, marks any that appeared or changed as answered and says so on
-  the pull request; if it was yours, comment again. The same happens to what you ask between a
-  run that died mid-session (or could not read GitHub afterwards) and the next run. This
-  narrows what a misled session can pass on; it is not a boundary.
-- **A review you have in draft while a fix session runs** is not taken once you send it, for
-  the same reason: a session could have added to it, and nothing would show that. The runner
-  says so on the pull request; discard the draft and write the review again.
+- **A request counts whenever you make it**, also while a fix session is running (2026-11-24).
+  Sessions post as their own app and run as a macOS user of their own that cannot read your
+  GitHub login (see "The sessions' macOS user"), so a `/revise` by your login is yours. (Before
+  that, a request made or edited during a session was set aside, and so was a review you had in
+  draft.)
 - **A run that dies during its session** (a shutdown, a logout) writes no summary. The next run
   says so and names the worktree left behind; for a follow-up pass it says so on the pull
   request too, and for a first pass it labels the issue so that later runs move on.
@@ -118,9 +115,11 @@ Both are one line each in the summary and `history.log` (`PROOF:`, `DIFF:`; neve
 session's own words), a comment on the pull request under "What the runner checked" (with the
 usage), a note beside the pull request in the status issue (only while the pull request's head
 is the commit that was checked), and `proof`, `diff` and `proof_seconds` in `usage.jsonl`. A follow-up pass
-is checked the same way. The proof runs with the session's environment, not the Captain's
-login, and inside the session's window: the tests are code the session wrote. It adds the time
-of two test runs to a pass: 7 to 40 seconds on the three earlier pull requests it was tried on.
+is checked the same way. The tests are code the session wrote, so they run as the sessions'
+macOS user, never as the Captain: the runner decides and writes, and every command in the
+session's worktree (git, the build, the tests) goes through `sudo -u` to that user
+(`admin-feedback-verify.py --as`). It adds the time of two test runs to a pass: 7 to 47 seconds
+on the three earlier pull requests it was tried on.
 
 **Checks.** A fix session does not wait for its pull request's checks (they take 25 to 45
 minutes, longer than a fix should; Captain, 2026-11-19), and neither does the loop: a pass
@@ -186,33 +185,86 @@ red for a day because nothing said so.
     minutes by the clock while a session runs (a Mac that slept renews on waking); a renewal
     that fails is retried two minutes later and noted in the summary. The bot's name and email
     are looked up once and kept in `state/agent-identity.json`.
-  - The session's `gh` reads a config folder of its own (`state/agent-gh`, whose token file is
-    deleted when the session ends, however it ends; the token stays in the helper's cache,
-    `state/agent-token.json`, readable only by this user, until it expires within the hour). Its git asks that `gh` for credentials, after clearing every other credential
-    helper, and cannot use SSH (an SSH remote or an `insteadOf` rule would push with the
-    Captain's key). Its commit name and email are the bot's.
+  - The session's `gh` reads a config folder of its own (`~lemuel/sstudio/gh`, readable only by
+    the sessions' macOS user; the runner keeps a copy in `state/agent-gh` for its own note that
+    a session started). Both token files are deleted when the session ends, however it ends;
+    the token stays in the helper's cache, `state/agent-token.json`, readable only by the
+    Captain's user, until it expires within the hour. The token reaches the sessions' user on
+    standard input, never as an argument. Its git asks that `gh` for credentials, after
+    clearing every other credential helper, and cannot use SSH. Its commit name and email are
+    the bot's.
   - **Without a token, no session starts**: the token is asked for once there is work, and
     without it the run says why and leaves that work waiting. A run with nothing waiting does
     not need one.
     `scripts/admin-feedback-agent-token.py check` shows what the app can do, never the token.
   - The runner's own posts (labels, closing comments, notes, the status issue) still use the
     Captain's login; only the note that a session started is the app's.
-  - Not a boundary: a session runs as the Captain's macOS user and could read his GitHub login
-    or the app's key from the keychain. A macOS user of its own for the check would make it
-    one.
+  - The app's key and the Captain's GitHub login are out of a session's reach: both are his
+    macOS user's, and a session is another user (next point).
+- **The sessions' macOS user** (Captain, 2026-11-24). A fix session, and the runner's proof of
+  the code it wrote, run as the macOS user `lemuel` (`FEEDBACK_SESSION_USER`), a standard
+  account for this job only, through `sudo -n -H -u lemuel` with an environment made from
+  nothing. The runner itself, and the triage session (which can run two commands and nothing
+  else), stay the Captain's user.
+  - **What it cannot reach:** the Captain's home (mode 700): his GitHub login, SSH keys, Azure
+    sign-in, keychain, his other repositories and their ignored secret files, his Claude
+    sessions and memory, this check's folder with the app's key cache and the feedback key. It
+    has no sudo, no Docker (the socket is in the Captain's home) and no simulator of its own.
+  - **What it has:** under `~lemuel/sstudio/` a clone of the repository (`repo`, public, fetched
+    without a login), the worktrees (`trees/feedback-issue-<n>`), each issue's activity log and
+    proof file and each request handed to a follow-up pass (`fix`), and the app's token while a
+    session runs (`gh`). Its Claude sign-in is a long-lived token in `~lemuel/.claude-token`
+    (mode 600), made by the Captain with `claude setup-token`; the session can read it, as it
+    must. Its package cache is its own (`~lemuel/.nuget`), filled from the mirror.
+  - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
+    (owned by the Captain, rewritten before each session): the current
+    `docs/admin-feedback-fix.md`, the mirror's `NuGet.config` with its local feed pointed at
+    `LocalNuGets` there, and in that folder the `.nupkg` files that are on no feed, copied from
+    `~/work/LocalNuGets` and `~/work/Microsoft.SwiftUI/artifacts` (`FEEDBACK_LOCAL_FEEDS`). **A
+    package that exists only in the Captain's package cache is not there:** put its `.nupkg`
+    in `~/work/LocalNuGets`, or a session's restore fails with NU1101.
+  - **Nothing outlives a session.** Before a session starts and after it and its proof end,
+    every process of that user is ended (`kill -1` as that user): build servers, test hosts,
+    anything a session left running. A desktop login of that user would be ended too; it has
+    no reason to have one.
+  - **What the runner never does:** run a session's code, or a git command in a session's
+    files, as the Captain. It reads a session's reply from its output stream and its proof
+    file through that user, takes only the fields it validates, and writes every GitHub post
+    itself.
+  - **What this does not cover.** Both users are on one Mac: a session can reach whatever
+    listens on localhost (the Captain's running stack and its database ports among them), can
+    see the command lines of his processes, and shares `/tmp`. It can read its own Claude
+    token. A session that was talked into something can still open a bad pull request as the
+    app; the proof, the diff list and the Captain's review are what stand against that.
+  - **Setting it up again** (a new Mac, or the account was removed). The Captain, in his own
+    Terminal: create a standard user `lemuel` in System Settings; `chmod 700 ~`; make the sudo
+    rule with `printf 'davidortinau ALL=(lemuel) NOPASSWD: ALL\n' > /tmp/sstudio-lemuel &&
+    visudo -cf /tmp/sstudio-lemuel && sudo install -o root -g wheel -m 440 /tmp/sstudio-lemuel
+    /etc/sudoers.d/sstudio-lemuel`; run `claude setup-token` and store what it prints with
+    `read -s "t?Token: " && print -r -- "$t" | sudo -H -u lemuel sh -c 'umask 077; cat >
+    /Users/lemuel/.claude-token'; unset t`. The runner makes the clone and the folders itself.
+    The token lasts a year (made 2026-11-24); when it stops working, sessions fail at once and
+    the summary says so: make a new one the same way.
+  - **A worktree that was kept** (uncommitted or unpushed work, or a run that died) belongs to
+    that user. Look at it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/trees/feedback-issue-<n>
+    status`, and remove it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/repo worktree
+    remove --force /Users/lemuel/sstudio/trees/feedback-issue-<n>` (and `branch -D
+    feedback/issue-<n>` there to have the issue worked from scratch).
 - To rotate the key: generate a new one on the app's page, copy it as base64 (`base64 -i
   <file>.pem | pbcopy`), replace the keychain item with `security add-generic-password -U -a
   sstudio-fix-agent -s sstudio-fix-agent-key -w` and paste at its prompt (a value on the
   command line can be read by any process while it runs), then delete the file and the old key
   on GitHub.
 - Lilliput reaches packages only through a mirror. The mirror's `NuGet.config` is kept at
-  `~/sstudio-feedback-check/NuGet.config` and copied into each fix worktree, hidden from git.
-  If the working checkout's copy changes, copy it there again.
+  `~/sstudio-feedback-check/NuGet.config`; before each session it is published to
+  `/Users/Shared/sstudio-feedback/NuGet.config`, with its local feed pointed at the shared
+  copy, and copied from there into the fix worktree, hidden from git. If the working
+  checkout's copy changes, copy it to `~/sstudio-feedback-check/` again.
 - Triage: Sonnet 5.5 at medium effort, as a headless session that can run two commands and
   nothing else: `scripts/admin-api.sh` and `scripts/admin-feedback-issue.sh`. It cannot edit
   files, run other commands or reach the web.
-- Fix: Fable 5.2 at high effort, in a git worktree of its own under
-  `~/work/copilot-worktrees/SentenceStudio/`. It aims to finish within 15 minutes (most fixes
+- Fix: Fable 5.2 at high effort, as the sessions' macOS user, in a git worktree of its own under
+  `~lemuel/sstudio/trees/`. It aims to finish within 15 minutes (most fixes
   take 10 to 15; Captain, 2026-11-19) and is stopped at 30. It can edit, build, test,
   push its own branch and open a pull request. It cannot use Azure, the production scripts, the
   learner-content commands or a merge.
@@ -222,8 +274,9 @@ red for a day because nothing said so.
 - The token needs all three permissions: read the inbox, read learner content, set status and
   issue.
 - The summary of each run is written to `~/sstudio-feedback-check/` (`latest.md` is the newest,
-  `history.log` has one line per run, `fix/` holds each issue's activity log and each request
-  handed to a follow-up pass, `state/` what the runner keeps for itself). A desktop notification is shown when something was triaged, an
+  `history.log` has one line per run, `fix/` holds each session's reply, errors and usage record,
+  `state/` what the runner keeps for itself). Each issue's activity log and proof file are the
+  sessions' user's, in `~lemuel/sstudio/fix/`; the Captain can read them there. A desktop notification is shown when something was triaged, an
   issue or a pull request was worked, `main`'s checks turned red or the run failed, and not
   when there was nothing to do.
 

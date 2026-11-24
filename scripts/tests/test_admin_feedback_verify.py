@@ -5,8 +5,12 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
+import pwd
+import stat
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -409,6 +413,90 @@ class ProofTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertTrue(printed.getvalue().startswith("PROOF: not run (the worktree could not be compared with main)"))
             self.assertIn("DIFF: not read", printed.getvalue())
+
+
+class RunTests(unittest.TestCase):
+    """The supervisor that runs a session's command in its worktree."""
+
+    def test_a_command_runs_in_the_folder_and_its_output_and_code_come_back(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code, output = verify.run(["/bin/sh", "-c", "pwd; echo out; echo err >&2; echo $MSBUILDDISABLENODEREUSE; exit 3"],
+                                      folder, 20)
+            self.assertEqual(code, 3)
+            self.assertEqual(output.splitlines(), [os.path.realpath(folder), "out", "err", "1"])
+
+    def test_a_run_over_its_limit_is_ended_with_everything_it_started(self):
+        with tempfile.TemporaryDirectory() as folder:
+            began = time.time()
+            code, output = verify.run(["/bin/sh", "-c", "sleep 60 & echo $! > child; sleep 60"], folder, 1)
+            self.assertEqual((code, output), (None, ""))
+            self.assertLess(time.time() - began, 20)
+            child = int((Path(folder) / "child").read_text(encoding="utf-8"))
+            for _ in range(50):
+                try:
+                    os.kill(child, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            else:
+                self.fail("what the command started outlived it")
+
+    def test_a_command_that_is_not_there_is_said(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code, output = verify.run(["/nonexistent/program"], folder, 20)
+            self.assertEqual(code, 127)
+            self.assertIn("/nonexistent/program", output)
+            code, output = verify.run(["/bin/echo", "ran"], str(Path(folder) / "gone"), 20)
+            self.assertEqual(code, 127)
+            self.assertIn("error RUN0001: /usr/bin/env could not be started", output)
+
+
+class AsTheSessionsUserTests(ProofTests):
+    """With --as, everything that touches the worktree goes through the command that becomes the
+    session's user. A script that notes each command and runs it stands in for sudo, and every
+    proof test above runs through it again."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.noted = Path(folder.name) / "noted"
+        stand_in = Path(folder.name) / "as"
+        stand_in.write_text(f'#!/bin/sh\necho "$1" >> "{self.noted}"\nexec "$@"\n', encoding="utf-8")
+        stand_in.chmod(stand_in.stat().st_mode | stat.S_IXUSR)
+        patched = mock.patch.object(verify, "AS", [str(stand_in)])
+        patched.start()
+        self.addCleanup(patched.stop)
+        super().setUp()
+
+    def test_git_the_files_and_the_run_all_go_through_it(self):
+        self.assertEqual(self.prove()[0], "verified")
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "proof.json").write_text(json.dumps(TEST_PROOF), encoding="utf-8")
+            self.assertEqual(verify.read_declared(Path(folder) / "proof.json"), (TEST_PROOF, None))
+            self.assertEqual(verify.run(["/bin/echo", "ran"], folder, 20), (0, "ran\n"))
+        noted = set(self.noted.read_text(encoding="utf-8").split())
+        self.assertEqual(noted, {"git", "/bin/test", "/bin/rm", "/usr/bin/head", verify.PYTHON})
+
+
+class BecomingTheSessionsUserTests(unittest.TestCase):
+    def test_another_user_is_reached_through_sudo_with_an_environment_made_from_nothing(self):
+        other = next(user for user in pwd.getpwall() if user.pw_uid not in (0, os.getuid()))
+        command = verify.become(other.pw_name)
+        self.assertEqual(command[:7], ["sudo", "-n", "-H", "-u", other.pw_name, "/usr/bin/env", "-i"])
+        self.assertIn(f"HOME={other.pw_dir}", command)
+        self.assertIn(f"PATH={verify.SESSION_PATH}", command)
+
+    def test_this_user_root_and_a_user_that_is_not_there_are_refused(self):
+        for user in (pwd.getpwuid(os.getuid()).pw_name, "root", "no-such-user-here"):
+            with self.assertRaises(KeyError):
+                verify.become(user)
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as said:
+            code = verify.main(["pr", "--as", "root", "--tree", folder, "--declared", "/nonexistent",
+                                "--comment", str(Path(folder) / "comment.md")])
+        self.assertEqual(code, 2)
+        self.assertIn("--as root", said.getvalue())
+        self.assertEqual(verify.AS, [])
 
 
 if __name__ == "__main__":

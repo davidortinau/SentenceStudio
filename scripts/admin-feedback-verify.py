@@ -5,6 +5,11 @@ A session's "it is fixed" is not evidence (Captain, 2026-11-22): a check counts 
 could have come back red. So the runner, not the session, does two things in the session's
 worktree and says the result on the pull request.
 
+Fix sessions run as a macOS user of their own (Captain, 2026-11-24), and the worktree is that
+user's. With --as, every command that touches the worktree or runs the session's code runs as
+that user, through sudo; what is decided and written here is this user's. The tests are code
+the session wrote, so they never run as the Captain.
+
 The proof. The session names the test that shows the fault, in a small JSON file
 (docs/admin-feedback-fix.md, "The proof"). The runner runs it as the session left the worktree,
 then again with every changed file outside the test projects put back to what main has, the
@@ -17,22 +22,23 @@ existing tests that lost tests, assertions or lines. Nothing is blocked; it is s
 
   admin-feedback-verify.py pr --tree DIR --declared FILE --comment FILE [--pr N] [--pushed SHA]
                               [--base REF] [--restore-config FILE] [--limit SECONDS]
-                              [--result FILE]
+                              [--result FILE] [--as USER]
       Prints a "PROOF: ..." and a "DIFF: ..." line for the run's summary, writes what to say on
       the pull request to --comment, and with --pr keeps the two verdicts for the status issue
       (state/verdicts.json in the check's folder). --pushed is the pull request's head on
       GitHub; --base what the branch was made from (origin/main); --limit how long one test run
-      may take (900). --result gets the verdicts as JSON, for the usage record.
+      may take (900). --result gets the verdicts as JSON, for the usage record. --as names the
+      macOS user the worktree and --declared belong to; both paths must then be absolute.
 
 Exit 0 whatever the verdicts are; 2 on bad arguments. Nothing here talks to GitHub.
 """
 import json
 import os
+import pwd
 import re
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -41,6 +47,12 @@ OUT = Path(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio
 # Lilliput's unattended PATH has no dotnet.
 DOTNET_DIR = os.environ.get("FEEDBACK_DOTNET_DIR") or "/usr/local/share/dotnet"
 LIMIT = 900
+PYTHON = "/usr/bin/python3"
+# What a command run as the session's user finds on its PATH (nothing of the Captain's).
+SESSION_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# The start of every command that touches the worktree. Empty: it runs as this user. With --as
+# it is sudo to the session's user with an environment made from nothing (become).
+AS = []
 VIEW_TESTS = "tests/SentenceStudio.Native.SwiftUIViews.Tests/SentenceStudio.Native.SwiftUIViews.Tests.csproj"
 # Hidden from git in a fix worktree (the package mirror's copy), so it is never moved.
 LOCAL_ONLY = ("src/NuGet.config",)
@@ -69,11 +81,49 @@ def plain(text, most=300):
     return text[:most]
 
 
+def become(user):
+    """The command that runs something as the session's macOS user, with nothing of this user's
+    environment. Raises KeyError when there is no such user."""
+    found = pwd.getpwnam(user)
+    if found.pw_uid in (0, os.getuid()):
+        raise KeyError(user)
+    return ["sudo", "-n", "-H", "-u", user, "/usr/bin/env", "-i", f"HOME={found.pw_dir}", f"USER={user}",
+            f"LOGNAME={user}", "LANG=en_US.UTF-8", f"PATH={SESSION_PATH}"]
+
+
+def tool(command, limit=120):
+    """A short command, as whoever owns the worktree."""
+    return subprocess.run([*AS, *command], capture_output=True, text=True, errors="replace", timeout=limit,
+                          cwd="/" if AS else None)
+
+
 def git(tree, *args, check=True):
-    done = subprocess.run(["git", "-C", str(tree), *args], capture_output=True, text=True, timeout=120)
+    done = tool(["git", "-C", str(tree), *args])
     if check and done.returncode != 0:
         raise RuntimeError(f"git {' '.join(args[:2])} failed: {(done.stderr or done.stdout).strip()[:200]}")
     return done.stdout
+
+
+def read_file(path, most=1_000_000):
+    """The start of a file in the session's space. Raises OSError when it cannot be read."""
+    done = tool(["/usr/bin/head", "-c", str(most), "--", str(path)])
+    if done.returncode != 0:
+        raise OSError(f"{path} could not be read")
+    return done.stdout
+
+
+def is_file(path):
+    return tool(["/bin/test", "-f", str(path)]).returncode == 0
+
+
+def remove(*paths, folders=False):
+    if paths:
+        tool(["/bin/rm", "-rf" if folders else "-f", "--", *[str(path) for path in paths]])
+
+
+def find_files(folder, *tests):
+    done = tool(["/usr/bin/find", str(folder), "-type", "f", *tests])
+    return sorted(line for line in done.stdout.splitlines() if line)
 
 
 # ---------------------------------------------------------------- which files are tests
@@ -104,8 +154,8 @@ def changes(tree, base):
 def read_declared(path):
     """The session's proof declaration: ({"proof": ...}, None) or (None, why it cannot be used)."""
     try:
-        text = Path(path).read_text(encoding="utf-8")
-    except OSError:
+        text = read_file(path, 100_000)
+    except (OSError, subprocess.TimeoutExpired):
         return None, "the session wrote no proof file"
     try:
         found = json.loads(text)
@@ -153,37 +203,70 @@ class Ran:
         return ", ".join(parts)
 
 
-def run(command, tree, limit):
-    """Runs a command in the worktree in a process group of its own, so a run over its limit is
-    ended with everything it started. Returns (exit code or None when it ran out of time,
-    output)."""
-    env = dict(os.environ)
-    env["PATH"] = DOTNET_DIR + os.pathsep + env.get("PATH", "")
-    # No build servers left holding the worktree's files after the run.
-    env.update(MSBUILDDISABLENODEREUSE="1", DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1",
-               DOTNET_CLI_USE_MSBUILD_SERVER="0")
+# Runs a command in a folder, in a process group of its own, and ends the whole group when it
+# runs over its limit. It runs as whoever owns the worktree: this user cannot end another
+# user's processes. Arguments: seconds, folder, the command. Exit 124 means it ran out of time.
+SUPERVISOR = """
+import os, signal, subprocess, sys
+limit, folder, command = float(sys.argv[1]), sys.argv[2], sys.argv[3:]
+try:
+    os.chdir(folder)
+    child = subprocess.Popen(command, start_new_session=True, stdin=subprocess.DEVNULL)
+except OSError as error:
+    print(f"error RUN0001: {command[0]} could not be started: {error}")
+    sys.exit(127)
+try:
+    code = child.wait(timeout=limit)
+except subprocess.TimeoutExpired:
     try:
-        started = subprocess.Popen(command, cwd=str(tree), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   text=True, errors="replace", start_new_session=True, env=env)
+        os.killpg(child.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    child.wait()
+    sys.exit(124)
+sys.exit(code if code >= 0 else 128 - code)
+"""
+OUT_OF_TIME = 124
+
+
+def run(command, tree, limit):
+    """Runs a command in the worktree, as whoever owns it, in a process group of its own, so a
+    run over its limit is ended with everything it started. Returns (exit code or None when it
+    ran out of time, output)."""
+    path = DOTNET_DIR + os.pathsep + (SESSION_PATH if AS else os.environ.get("PATH", ""))
+    # No build servers left holding the worktree's files after the run.
+    settings = ["/usr/bin/env", f"PATH={path}", "MSBUILDDISABLENODEREUSE=1", "DOTNET_CLI_TELEMETRY_OPTOUT=1",
+                "DOTNET_NOLOGO=1", "DOTNET_CLI_USE_MSBUILD_SERVER=0"]
+    try:
+        started = subprocess.Popen(
+            [*AS, PYTHON, "-I", "-c", SUPERVISOR, str(limit), str(tree), *settings, *command],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+            cwd="/" if AS else None)
     except OSError as error:
         return 127, f"error RUN0001: {command[0]} could not be started: {error}"
     try:
-        output, _ = started.communicate(timeout=limit)
-        return started.returncode, output
+        output, _ = started.communicate(timeout=limit + 60)
     except subprocess.TimeoutExpired:
+        # The supervisor itself hung. sudo passes the signal on to it.
         try:
-            os.killpg(started.pid, signal.SIGKILL)
+            started.terminate()
         except OSError:
             pass
-        started.communicate()
+        try:
+            started.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
         return None, ""
+    if started.returncode == OUT_OF_TIME:
+        return None, ""
+    return started.returncode, output
 
 
 def first_error(output, tree=None):
     """The first build error, without where the worktree is on this machine: it is posted."""
     output = output or ""
     if tree:
-        output = output.replace(str(Path(tree).resolve()) + os.sep, "").replace(str(tree) + os.sep, "")
+        output = output.replace(os.path.realpath(str(tree)) + os.sep, "").replace(str(tree) + os.sep, "")
     found = BUILD_ERROR.search(output)
     return plain(found.group(1), 200) if found else ""
 
@@ -196,13 +279,13 @@ def counter(element, name):
 def trx_counts(folder):
     """(passed, failed, skipped) summed over the result files a dotnet test run left, or None
     when it left none."""
-    files = list(Path(folder).glob("**/*.trx"))
+    files = find_files(folder, "-name", "*.trx")
     if not files:
         return None
     passed = failed = skipped = 0
     for file in files:
         try:
-            root = ET.parse(file).getroot()
+            root = ET.fromstring(read_file(file, 20_000_000))
         except (ET.ParseError, OSError):
             continue
         for element in root.iter():
@@ -227,12 +310,18 @@ def build_properties(restore_config, mobile_targets_off=True):
 
 def run_dotnet_test(tree, declared, restore_config, limit):
     began = time.time()
-    with tempfile.TemporaryDirectory(prefix="feedback-proof-") as results:
+    # Where the test run can write: a folder of the worktree's owner.
+    results = tool(["/usr/bin/mktemp", "-d", "/tmp/feedback-proof.XXXXXXXX"]).stdout.strip()
+    if not results.startswith("/tmp/feedback-proof."):
+        raise OSError("no folder for the test results could be made")
+    try:
         code, output = run(["dotnet", "test", declared["project"], "--filter", declared["filter"],
                             *build_properties(restore_config),
                             "--logger", "trx;LogFileName=proof.trx", "--results-directory", results],
                            tree, limit)
         counts = trx_counts(results)
+    finally:
+        remove(results, folders=True)
     seconds = int(time.time() - began)
     if code is None:
         return Ran(False, timed_out=True, seconds=seconds)
@@ -269,8 +358,8 @@ def run_view_test(tree, declared, restore_config, limit):
         return Ran(False, timed_out=True, seconds=int(time.time() - began))
     if code != 0:
         return Ran(False, error=first_error(output, tree) or f"the build ended with code {code}", seconds=int(time.time() - began))
-    programs = sorted((Path(tree) / Path(VIEW_TESTS).parent / "bin").glob(
-        "Debug/*/*/*.app/Contents/MacOS/SentenceStudio.Native.SwiftUIViews.Tests"))
+    programs = find_files(Path(tree) / Path(VIEW_TESTS).parent / "bin" / "Debug",
+                          "-path", "*.app/Contents/MacOS/SentenceStudio.Native.SwiftUIViews.Tests")
     if not programs:
         return Ran(False, error="the view test program was not where the build puts it", seconds=int(time.time() - began))
     # One limit for the build and the program together.
@@ -309,12 +398,8 @@ def take_out(tree, base, fix):
     """Puts every changed file outside the tests back to what base has."""
     for group in chunks([path for status, path in fix if status != "A"]):
         git(tree, "checkout", base, "--", *group)
-    for status, path in fix:
-        if status == "A":
-            try:
-                os.remove(Path(tree) / path)
-            except FileNotFoundError:
-                pass
+    for group in chunks([str(Path(tree) / path) for status, path in fix if status == "A"]):
+        remove(*group)
 
 
 def put_back(tree, fix):
@@ -348,7 +433,7 @@ def prove(tree, declared, why, changed, base, restore_config=None, limit=LIMIT, 
             f"The session named no test. Its reason: {declared['reason']}",
             "Nothing but the session's own word says this change works."], 0
     what = named(declared)
-    if declared["proof"] == "test" and not (Path(tree) / declared["project"]).is_file():
+    if declared["proof"] == "test" and not is_file(Path(tree) / declared["project"]):
         return "not-run", "not run (the named project is not in the worktree)", [
             f"The session named {what}, and that project is not in its worktree."], 0
     if not clean(tree):
@@ -590,6 +675,13 @@ def check_pr(args):
         print(__doc__)
         return 2
     limit = int(option(args, "--limit") or LIMIT)
+    user = option(args, "--as")
+    if user:
+        try:
+            AS[:] = become(user)
+        except KeyError:
+            print(f"--as {user}: no such macOS user, or not one apart from this one", file=sys.stderr)
+            return 2
     notes = []
     try:
         base = git(tree, "merge-base", "HEAD", option(args, "--base") or "origin/main").strip()

@@ -19,8 +19,8 @@ than MIN_LEFT left, so a token handed out always outlives the next renewal.
 The app's private key is kept in the login keychain (service KEY_SERVICE, account KEY_ACCOUNT,
 base64 of the .pem), where the Captain put it himself. It is read only to sign the request for a
 token; it is never written anywhere but a file that is deleted at once, readable only by this
-user. A session runs as this macOS user, so it could read the key itself: this narrows what a
-session's GitHub actions look like and can do, it is not a boundary.
+user. A fix session runs as a macOS user of its own (docs/admin-feedback-check.md, "The
+sessions' macOS user") and cannot read this user's keychain or the cache.
 
 Exit 0 on success, 3 when the keychain, openssl or GitHub did not answer as expected.
 """

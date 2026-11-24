@@ -17,14 +17,6 @@ report checks. A fix session uses `checks` after it pushes (docs/admin-feedback-
       request ids already answered. A request is a comment on the pull request, or a review of
       it, written by the repository's owner, whose text starts with /revise, and that no
       earlier pass has answered. A review's id is written r<number>.
-  admin-feedback-pr.py snapshot [--handled FILE]
-      Every request waiting now with a fingerprint of its text, as JSON. Saved before a
-      session starts.
-  admin-feedback-pr.py appeared --known FILE [--handled FILE]
-      Requests waiting now that were not in FILE (a saved snapshot), or whose text has changed
-      since, one line per pull request (pull request, ids, "request"). Also every review the
-      owner has in draft on those pull requests (pull request, ids, "draft"): a session could
-      have added to it, so it is not to be taken once sent. See "Whose words count".
   admin-feedback-pr.py request <pr> --ids ID[,ID...] --out FILE
       Writes those requests to FILE: the text of each, and for a review the comments on the
       diff that are part of it.
@@ -42,20 +34,13 @@ Whose words count: the repository is public, so anyone can comment on a pull req
 comment or review by the owner is a request, a pull request from a fork is never one of the
 check's own, and nothing anyone else wrote is ever passed to a session.
 
-A fix session posts as its own GitHub App (ss-fix-agent), but it runs as the owner's macOS
-user and could reach his login, so what a misled session writes cannot always be told from his
-by its author. Two rules follow:
+A fix session posts as its own GitHub App (ss-fix-agent) and, since 2026-11-24, runs as a macOS
+user of its own that cannot read the owner's login. So what the owner's login writes is his, and
+a request counts whenever he made it. One rule remains, because anyone can write on a public
+pull request:
 
 - A session is handed a request's own text and nothing else from the pull request. Comments on
   the diff reach it only as part of a review that is itself a request.
-- The runner never acts on a request that appeared, or whose text changed, while one of its
-  sessions was running (`snapshot`, `appeared`): it marks it answered and says so on the pull
-  request, and he asks again if it was his. Without that, text a session read on a public page
-  could talk it into writing a request that the next run would take as the Captain's.
-
-This narrows what a misled session can pass on through GitHub. It is not a boundary: a fix
-session runs with the owner's own access to this machine. Running sessions as a macOS user of
-their own is what would make it one.
 
 Which issues wait (Captain, 2026-11-18): an open issue not labelled feedback-attempted, from one
 of three places, and from nobody else, since anyone can open an issue on a public repository:
@@ -68,15 +53,13 @@ of three places, and from nobody else, since anyone can open an issue on a publi
 An issue labelled with one of HOLD_LABELS, or any squad label, is not taken: it is a plan, a
 decision not to do it, or squad work. Labelling any issue feedback-attempted keeps it out.
 
-For the same reason, an issue a misled session opened through the owner's login, or labelled
-feedback-check, would read as his. An issue by the owner opened while a fix session was running
-(the runner's --windows record, and up to WINDOW_SLACK after) is never taken: text a session
-read in a learner's report must not become the next run's task. The feedback-check label counts
-only when every time it was added, it was added by the owner and outside those windows: a
-session works as the fix sessions' app, which can label issues, so a label it added to an older
-issue of his does not queue that issue.
+Before 2026-11-24 a fix session ran as the owner's macOS user and could reach his login, so an
+issue a misled session opened through it, or labelled feedback-check, would read as his. An
+issue by the owner opened while such a session was running (the runner's --windows record, and
+up to WINDOW_SLACK after) is still never taken: text a session read in a learner's report must
+not become a later run's task. The feedback-check label counts only when every time it was
+added, it was added by the owner and outside those windows. The record gets no new windows.
 """
-import hashlib
 import json
 import re
 import subprocess
@@ -224,14 +207,12 @@ def comments_on(pr):
     return [{**c, "id": str(c["id"])} for c in comments]
 
 
-def reviews_on(pr, drafts=False):
-    """The reviews that have been sent, or with drafts=True the owner's that have not."""
+def reviews_on(pr):
+    """The reviews that have been sent."""
     reviews = gh_lines(
         "api", f"repos/{REPO}/pulls/{pr}/reviews", "--paginate", "--jq",
         ".[] | {id, body, state, created_at: .submitted_at, user: .user.login, assoc: .author_association}")
     reviews = [{**r, "id": f"r{r['id']}", "review": r["id"]} for r in reviews]
-    if drafts:
-        return [r for r in reviews if not r.get("created_at") and owner_wrote(r)]
     return [r for r in reviews if r.get("created_at")]
 
 
@@ -248,20 +229,12 @@ def part_of(request, inline):
     return [c for c in inline if request.get("review") is not None and c.get("review") == request["review"]]
 
 
-def fingerprint(request, inline):
-    """Changes when the request's text, or a comment on the diff that is part of it, changes."""
-    said = [request.get("body") or ""] + [[c["id"], c.get("path"), c.get("line"), c.get("body")]
-                                          for c in part_of(request, inline)]
-    return hashlib.sha256(json.dumps(said, sort_keys=True).encode("utf-8")).hexdigest()
-
-
 def requests_on(pr):
     """The owner's requests on one pull request, with the ids earlier passes answered."""
     comments = comments_on(pr)
     requests = [item for item in comments + reviews_on(pr) if is_request(item)]
     inline = inline_on(pr) if any(item.get("review") is not None for item in requests) else []
     for request in requests:
-        request["print"] = fingerprint(request, inline)
         request["inline"] = part_of(request, inline)
     return requests, handled_ids(comments)
 
@@ -272,8 +245,7 @@ def pending(locally_handled, every=False):
         requests, answered = requests_on(pr["pr"])
         waiting = [r for r in requests if r["id"] not in answered | locally_handled]
         if waiting:
-            waiting_on.append({**pr, "ids": [r["id"] for r in waiting],
-                               "prints": {r["id"]: r["print"] for r in waiting}})
+            waiting_on.append({**pr, "ids": [r["id"] for r in waiting]})
             if not every:
                 break
     return waiting_on
@@ -477,29 +449,6 @@ def main(args):
         if mode == "pending":
             for found in pending(ids_in(option(args, "--handled")), every="--all" in args):
                 print(line_for(found))
-            return 0
-        if mode == "snapshot":
-            prints = {}
-            for found in pending(ids_in(option(args, "--handled")), every=True):
-                prints.update(found["prints"])
-            print(json.dumps(prints, sort_keys=True))
-            return 0
-        if mode == "appeared":
-            known_path = option(args, "--known")
-            if not known_path:
-                print(__doc__)
-                return 2
-            with open(known_path, encoding="utf-8") as source:
-                known = json.load(source)
-            handled = ids_in(option(args, "--handled"))
-            for found in pending(handled, every=True):
-                new = [request for request in found["ids"] if known.get(request) != found["prints"][request]]
-                if new:
-                    print(found["pr"], ",".join(new), "request")
-            for pr in own_pull_requests():
-                drafts = [r["id"] for r in reviews_on(pr["pr"], drafts=True) if r["id"] not in handled]
-                if drafts:
-                    print(pr["pr"], ",".join(drafts), "draft")
             return 0
         if mode == "request" and len(args) >= 2:
             pr = number(args[1], "the pull request")
