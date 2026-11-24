@@ -252,7 +252,7 @@ Do everything short of these, write up the rest, and say in your result what is 
   ports. Never run `aspire stop --all`.
 - **You have a Docker of your own** (a Colima virtual machine under your home; `docker` works
   as usual). The runner starts it as your session starts, so it is up about half a minute in;
-  `docker info` says whether it is. It sees your home and nothing else of this Mac. It and
+  `docker exec ss-session-pg pg_isready -U postgres` says whether it and its database are. It sees your home and nothing else of this Mac. It and
   everything in it are stopped when your session ends.
 - **Do not run the app on a simulator, and do not start the app's web stack.** The simulator
   build talks to `localhost:5081`, which is the Captain's stack, and there is no stack of your
@@ -273,7 +273,7 @@ Do everything short of these, write up the rest, and say in your result what is 
   `APP_OPERATION_PG_TEST_CONNECTION`. Both are already in your environment and point at a
   throwaway PostgreSQL 16 in your own Docker (the container `ss-session-pg`), so those tests
   run once it is up; before that, or if it did not start (`~/sstudio/docker.log` says why),
-  they skip. Say in the pull request whether they ran. They still cannot be your proof: the
+  they skip, and a test run started too early skips them all: check first, then run. Say in the pull request whether they ran. They still cannot be your proof: the
   runner's own run has no database.
 - After three failed attempts at the same thing, stop and report. See "Time".
 

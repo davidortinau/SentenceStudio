@@ -400,12 +400,20 @@ there() { as_session /bin/test -e "$1"; }
 # Ends every process of the session's user: what a session or its tests started does not
 # outlive them, and a session cannot leave something running for the next one. (It would also
 # end a desktop login of that user; the user is for this job only.) Its Docker is shut down
-# first, in order, within a minute; what is left of it is ended with the rest.
+# first, in order: a start still under way is given a minute to finish (a virtual machine
+# killed while it is being set up may not start again), then the stop a minute. Whatever is
+# left after that is ended with the rest. (A watch by the clock, not an alarm: colima is a Go
+# program and ignores one.)
 stop_session_processes() {
   session_places || return 0
-  command -v colima >/dev/null 2>&1 \
-    && as_session /bin/sh -c 'cd "$HOME" && exec perl -e "alarm 60; exec @ARGV" colima stop' < /dev/null >/dev/null 2>&1
-  as_session /bin/sh -c 'kill -TERM -1; sleep 2; kill -KILL -1; true' >/dev/null 2>&1
+  as_session /bin/sh -c '
+    if command -v colima >/dev/null 2>&1 && [ -d "$HOME/.colima" ]; then
+      cd "$HOME"
+      n=0; while pgrep -u "$(id -u)" -f "colima start" >/dev/null 2>&1 && [ "$n" -lt 60 ]; do sleep 1; n=$((n + 1)); done
+      colima stop >/dev/null 2>&1 & stopping=$!
+      n=0; while kill -0 "$stopping" 2>/dev/null && [ "$n" -lt 60 ]; do sleep 1; n=$((n + 1)); done
+    fi
+    kill -TERM -1; sleep 2; kill -KILL -1; true' < /dev/null >/dev/null 2>&1
   return 0
 }
 
@@ -448,19 +456,41 @@ publish_shared() {
 # skip, as they did without it. The server listens on localhost only and holds nothing, so its
 # password is no secret and the connection strings are plain settings (SESSION_SCRIPT). The
 # log is in the session user's folder. Without colima installed, a session has no Docker.
+# What is in that machine from an earlier session is removed before the server starts: every
+# container, so that none restarts itself or holds the port. (Its images and that user's home
+# do persist between sessions.) A machine that will not start is deleted and made again, once.
 SESSION_PG_PORT="${FEEDBACK_SESSION_PG_PORT:-55442}"
-case "$SESSION_PG_PORT" in ""|*[!0-9]*) SESSION_PG_PORT=55442 ;; esac
-SESSION_PG="Host=localhost;Port=$SESSION_PG_PORT;Username=postgres;Password=scratch;Database=postgres"
+case "$SESSION_PG_PORT" in ""|*[!0-9]*|?|??|???|??????*) SESSION_PG_PORT=55442 ;; esac
+[ "$SESSION_PG_PORT" -ge 1024 ] && [ "$SESSION_PG_PORT" -le 65535 ] || SESSION_PG_PORT=55442
+# Empty without colima: a session is then told of no Docker and no database (SESSION_SCRIPT).
+SESSION_PG=""
+command -v colima >/dev/null 2>&1 \
+  && SESSION_PG="Host=localhost;Port=$SESSION_PG_PORT;Username=postgres;Password=scratch;Database=postgres"
 start_session_docker() {
-  command -v colima >/dev/null 2>&1 || return 0
+  [ -n "$SESSION_PG" ] || return 0
   as_session /bin/sh -c '
     cd "$HOME" || exit 1
-    { colima start --cpu 4 --memory 4 --disk 30 --vm-type vz \
-        && { docker --context colima rm -f ss-session-pg >/dev/null 2>&1; true; } \
-        && docker --context colima run -d --rm --name ss-session-pg -e POSTGRES_PASSWORD=scratch \
-             -p "127.0.0.1:$1:5432" postgres:16
+    up() { colima start --cpu 4 --memory 4 --disk 30 --vm-type vz; }
+    { date -u +"started %Y-%m-%dT%H:%M:%SZ"
+      up || { echo "The machine did not start; deleting it and making it again."; colima delete -f; up; } || exit 1
+      old="$(docker --context colima ps -aq)"
+      [ -z "$old" ] || docker --context colima rm -f $old >/dev/null
+      docker --context colima run -d --rm --name ss-session-pg -e POSTGRES_PASSWORD=scratch \
+        -p "127.0.0.1:$1:5432" postgres:16
     } > "$HOME/sstudio/docker.log" 2>&1 &' sh "$SESSION_PG_PORT" < /dev/null >/dev/null 2>&1
   return 0
+}
+
+# Whether the session had its database, said in the summary: a server that never came up
+# makes the tests that need it skip, which would otherwise look the same as before. Asked
+# while the machine is still up, so before stop_session_processes.
+session_docker_state() {
+  [ -n "$SESSION_PG" ] || { echo "The session had no Docker of its own: colima is not installed."; return 0; }
+  if as_session /bin/sh -c 'docker --context colima exec ss-session-pg pg_isready -q -U postgres' < /dev/null >/dev/null 2>&1; then
+    echo "The session's own Docker and its PostgreSQL server were up."
+  else
+    echo "The session's own PostgreSQL server was not up when the session ended, so the tests that need it will have skipped: $(as_session /usr/bin/tail -2 "$SESSION_HOME/sstudio/docker.log" 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
+  fi
 }
 
 # Everything a fix session needs before one can start: the user, its clone at what GitHub has,
@@ -557,8 +587,11 @@ export GIT_CONFIG_COUNT=2 \
 export GIT_SSH_COMMAND=false GIT_SSH=false
 export GIT_AUTHOR_NAME="$name" GIT_AUTHOR_EMAIL="$email" GIT_COMMITTER_NAME="$name" GIT_COMMITTER_EMAIL="$email"
 # Its own Docker and the PostgreSQL server in it (start_session_docker), once they are up.
-export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
-export COACH_PG_TEST_CONNECTION="$database" APP_OPERATION_PG_TEST_CONNECTION="$database"
+# The runner hands over no connection string when there is no Docker to start.
+if [ -n "$database" ]; then
+  export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+  export COACH_PG_TEST_CONNECTION="$database" APP_OPERATION_PG_TEST_CONNECTION="$database"
+fi
 exec perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" "$@"
 EOS
 run_as_session() {
@@ -895,6 +928,7 @@ follow_up_stage() {
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
   wall=$(( $(date +%s) - started ))
+  local docker_state; docker_state="$(session_docker_state)"
   local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
   result_line="$(head -1 "$reply" 2>/dev/null)"
   VERDICT=""
@@ -917,6 +951,7 @@ follow_up_stage() {
     fi
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
+    echo "$docker_state"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo "His request: $request"
@@ -1050,6 +1085,7 @@ fix_stage() {
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
   code=$?
   wall=$(( $(date +%s) - started ))
+  local docker_state; docker_state="$(session_docker_state)"
 
   local result_line; result_line="$(head -1 "$reply" 2>/dev/null)"
   local pr; pr="$(printf '%s' "$result_line" | sed -n 's|^RESULT: pr \(https://github.com/'"$REPO"'/pull/[0-9][0-9]*\).*|\1|p')"
@@ -1075,6 +1111,7 @@ fix_stage() {
     fi
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
+    echo "$docker_state"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo

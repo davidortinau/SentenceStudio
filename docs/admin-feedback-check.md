@@ -209,7 +209,8 @@ red for a day because nothing said so.
   - **What it cannot reach:** the Captain's home (mode 700): his GitHub login, SSH keys, Azure
     sign-in, keychain, his other repositories and their ignored secret files, his Claude
     sessions and memory, this check's folder with the app's key cache and the feedback key. It
-    has no sudo, no Docker (the socket is in the Captain's home) and no simulator of its own.
+    has no sudo, and no use of the Captain's Docker (the socket is in his home) or of his
+    simulators; it has its own of each (below).
   - **What it has:** under `~lemuel/sstudio/` a clone of the repository (`repo`, public, fetched
     without a login), the worktrees (`trees/feedback-issue-<n>`), each issue's activity log and
     proof file and each request handed to a follow-up pass (`fix`), and the app's token while a
@@ -243,7 +244,10 @@ red for a day because nothing said so.
     session starts (15 to 25 seconds) with a throwaway PostgreSQL 16 on `localhost:55442`
     (`FEEDBACK_SESSION_PG_PORT`), whose connection strings are in the session's environment,
     and shuts it down when the session ends, before the proof: the proof has no database, so
-    a test that needs one still cannot be the proof. That user also has simulators of its own
+    a test that needs one still cannot be the proof. Every container an earlier session left
+    in that machine is removed before the server starts, a machine that will not start is
+    deleted and made again once, and each summary says whether the server was up when the
+    session ended (a server that never came up makes those tests skip). That user also has simulators of its own
     (`xcrun simctl` as that user made its own device set; an iPad booted without a desktop
     login in 42 seconds and gave a screenshot of Settings). A session is not yet told to use
     one: the simulator build talks to the Captain's stack on 5081, so a useful run needs a
@@ -256,7 +260,8 @@ red for a day because nothing said so.
   - **What this does not cover.** Both users are on one Mac: a session can reach whatever
     listens on localhost (the Captain's running stack and its database ports among them), can
     see the command lines of his processes, and shares `/tmp`. It can read its own Claude
-    token. A session that was talked into something can still open a bad pull request as the
+    token. Its home persists between sessions (the clone, the package cache, its Docker
+    machine's images): no process of one session reaches the next, but a file can. A session that was talked into something can still open a bad pull request as the
     app; the proof, the diff list and the Captain's review are what stand against that.
   - **Setting it up again** (a new Mac, or the account was removed). The Captain, in his own
     Terminal: create a standard user `lemuel` in System Settings; `chmod 700 ~`; make the sudo
