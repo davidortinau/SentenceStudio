@@ -101,6 +101,12 @@ public sealed record CoachAgentTurnRequest
     /// <summary>The delta the pending suggestion would apply, if one is open.</summary>
     public CoachConstraintDeltaDto? PendingSuggestionDelta { get; init; }
 
+    /// <summary>
+    /// True when the learner's screen is hiding an answer and this message replies to a clarifying
+    /// question just asked, which may be the hint-or-answer question (issue 258).
+    /// </summary>
+    public bool AnswersAQuestionWhileTheScreenHidesAnAnswer { get; init; }
+
     /// <summary>How many clarifying questions the coach may still ask in this session.</summary>
     public required int ClarificationsRemaining { get; init; }
 

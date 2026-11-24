@@ -26,7 +26,7 @@ public class VocabularySearchFilterTests
         fixture.SeedProgress(me, fish.Id, masteryScore: 0.4f, totalAttempts: 5, nextReviewDate: fixture.Now.AddDays(3));
         ids["fish"] = fish.Id;
 
-        // Due now, tagged food: always withheld.
+        // Due now, tagged food: listed like any other word (issue 258).
         var bread = fixture.SeedWord("빵", "bread", tags: "Food", owner: me);
         fixture.Link(market, bread);
         fixture.SeedProgress(me, bread.Id, totalAttempts: 4, nextReviewDate: fixture.Now.AddDays(-1));
@@ -70,20 +70,22 @@ public class VocabularySearchFilterTests
     }
 
     [Fact]
-    public async Task A_tag_is_matched_whole_and_without_case_and_due_words_stay_withheld()
+    public async Task A_tag_is_matched_whole_and_without_case_and_a_due_word_is_listed()
     {
+        // Issue 258: this pinned the due bread as matched, counted and withheld. It is now listed.
         var (fixture, ids) = await SeedAsync();
         using var _ = fixture;
 
         var result = await fixture.VocabularySearchTool.SearchAsync(
             null, 10, tag: "FOOD", resourceId: null, status: null, includeNeverPracticed: true);
 
-        result.Words.Select(w => w.WordId).Should().Equal(ids["apple"]);
+        result.Words.Select(w => w.WordId).Should().BeEquivalentTo([ids["apple"], ids["bread"]]);
         result.Scope.MatchedCount.Should().Be(2, "the due bread matched and is counted");
-        result.Scope.WithheldCount.Should().Be(1);
-        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.DueReviewEmbargo);
+        result.Scope.WithheldCount.Should().Be(0);
+        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.None);
         result.Scope.Filters.Should().HaveFlag(CoachScopeFilters.AttributeFilter);
-        result.Words.Should().NotContain(w => w.TargetTerm == "빵");
+        result.Scope.Filters.Should().NotHaveFlag(CoachScopeFilters.ExcludeDue);
+        result.Words.Should().NotContain(w => w.TargetTerm == "생선", "seafood is not the food tag");
         result.Words.Should().NotContain(w => w.TargetTerm == "우유", "another learner's word is never listed");
         CoachScopeInvariants.Violations(result.Scope).Should().BeEmpty();
     }
@@ -96,8 +98,9 @@ public class VocabularySearchFilterTests
 
         var mine = await fixture.VocabularySearchTool.SearchAsync(
             null, 10, tag: null, resourceId: ids["market"], status: null, includeNeverPracticed: true);
-        mine.Words.Select(w => w.WordId).Should().Equal(ids["apple"]);
-        mine.Scope.WithheldCount.Should().Be(1, "bread is on Market but due");
+        // Issue 258: this pinned bread, on Market but due, as withheld. It is now listed.
+        mine.Words.Select(w => w.WordId).Should().BeEquivalentTo([ids["apple"], ids["bread"]]);
+        mine.Scope.WithheldCount.Should().Be(0);
 
         var theirs = await fixture.VocabularySearchTool.SearchAsync(
             null, 10, tag: null, resourceId: ids["theirResource"], status: null, includeNeverPracticed: true);
@@ -121,17 +124,18 @@ public class VocabularySearchFilterTests
     }
 
     [Fact]
-    public async Task Review_status_returns_a_count_and_no_words()
+    public async Task Review_status_returns_the_words_due_for_review()
     {
-        var (fixture, _) = await SeedAsync();
+        // Issue 258: this pinned a count and no words. The words due for review are now listed.
+        var (fixture, ids) = await SeedAsync();
         using var __ = fixture;
 
         var result = await fixture.VocabularySearchTool.SearchAsync(
             null, 10, tag: null, resourceId: null, status: "review", includeNeverPracticed: true);
 
-        result.Words.Should().BeEmpty();
+        result.Words.Select(w => w.WordId).Should().Equal(ids["bread"]);
         result.Scope.MatchedCount.Should().Be(1);
-        result.Scope.WithheldCount.Should().Be(1);
+        result.Scope.WithheldCount.Should().Be(0);
     }
 
     [Theory]
@@ -192,14 +196,15 @@ public class VocabularySearchFilterTests
     }
 
     [Fact]
-    public async Task Without_filters_the_original_search_is_unchanged()
+    public async Task Without_filters_the_original_search_lists_every_practised_word_due_or_not()
     {
+        // Issue 258: this pinned the due bread as left out. It is a practised word and is listed.
         var (fixture, ids) = await SeedAsync();
         using var _ = fixture;
 
         var result = await fixture.VocabularySearchTool.SearchAsync();
 
-        result.Words.Select(w => w.WordId).Should().BeEquivalentTo([ids["water"], ids["fish"]]);
+        result.Words.Select(w => w.WordId).Should().BeEquivalentTo([ids["water"], ids["fish"], ids["bread"]]);
         result.Scope.Filters.Should().HaveFlag(CoachScopeFilters.ProgressRowExists);
         result.Scope.Filters.Should().NotHaveFlag(CoachScopeFilters.AttributeFilter);
     }

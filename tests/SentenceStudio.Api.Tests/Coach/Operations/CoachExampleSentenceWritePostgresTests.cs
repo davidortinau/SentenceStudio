@@ -250,9 +250,10 @@ public sealed class CoachExampleSentenceWritePostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task A_due_words_sentence_cannot_be_edited_or_deleted()
+    public async Task A_due_words_sentence_can_be_proposed_for_an_edit_or_a_removal()
     {
-        // Its preview would show a sentence the read tool hides until the review is done.
+        // Issue 258: this pinned both proposals as refused because the word was due. Being due
+        // is not a secret; the proposals are made, and nothing is written until one is approved.
         var wordId = await SeedWordAsync(Owner, "만기", due: true);
         var sentenceId = await SeedSentenceAsync(Owner, wordId, "만기 문장이에요.");
         await using var appDb = _harness.NewApplicationContext();
@@ -261,13 +262,14 @@ public sealed class CoachExampleSentenceWritePostgresTests : IAsyncLifetime
         var edit = () => ledger.ProposeAsync(
             Conversation, "turn-1", CoachToolNames.ProposeExampleSentenceEdit,
             Json(new CoachExampleSentenceEditArgs(sentenceId, TargetSentence: "바뀐 문장이에요.")));
-        await edit.Should().ThrowAsync<CoachToolException>();
+        await edit.Should().NotThrowAsync();
 
         var remove = () => ledger.ProposeAsync(
             Conversation, "turn-2", CoachToolNames.ProposeExampleSentenceRemoval,
             Json(new CoachExampleSentenceRemovalArgs(sentenceId)));
-        await remove.Should().ThrowAsync<CoachToolException>();
+        await remove.Should().NotThrowAsync();
 
+        // A proposal writes nothing: the sentence is as it was until the learner approves.
         await using var after = _harness.NewApplicationContext();
         (await after.ExampleSentences.SingleAsync()).TargetSentence.Should().Be("만기 문장이에요.");
     }

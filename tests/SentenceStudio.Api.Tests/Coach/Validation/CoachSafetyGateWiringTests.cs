@@ -99,8 +99,9 @@ public class CoachSafetyGateWiringTests
     }
 
     [Fact]
-    public async Task ALeakedClarifyingQuestionIsAlsoRefused()
+    public async Task AClarifyingQuestionThatNamesADueWordIsAsked()
     {
+        // Issue 258: this pinned the refusal of a clarifying question that named a due word.
         using var harness = new CoachApplicationHarness();
         SeedDueWord(harness);
         var sessionId = await harness.StartSessionAsync();
@@ -119,8 +120,8 @@ public class CoachSafetyGateWiringTests
 
         var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("maybe"));
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain(DueTerm);
+        result.Value!.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+        result.Value.ClarifyingQuestion.Should().Be($"Should I start with {DueTerm}?");
     }
 
     [Fact]

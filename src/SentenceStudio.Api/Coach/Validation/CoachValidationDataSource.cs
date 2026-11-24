@@ -31,21 +31,29 @@ public interface ICoachValidationDataSource
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The embargo for one turn's reply: the due words, less the ones the learner asked to see
-    /// this turn and the visible side of the words on their screen, plus the hidden side of any
-    /// word whose answer their screen is keeping from them.
+    /// What one turn's reply would spoil: the hidden side of any word whose answer the learner's
+    /// screen is keeping from them. Nothing else, and never a word because it is due (issue 258).
     /// </summary>
     /// <remarks>
-    /// The default keeps the due-word embargo and only removes exemptions, so a source that knows
-    /// nothing about screens never loosens it beyond what the learner asked for.
+    /// The default, for a source that knows nothing about screens, is the items it holds for the
+    /// words the screen is hiding.
     /// </remarks>
     async Task<IReadOnlyList<CoachEmbargoedItem>> GetTurnEmbargoAsync(
         string userProfileId,
         CoachTurnEmbargo turn,
         CancellationToken cancellationToken = default)
     {
-        var due = await GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return due.Where(item => item.WordId is null || !turn.ExemptWordIds.Contains(item.WordId)).ToList();
+        var hidden = turn.ScreenWords
+            .Where(word => word.AnswerHidden)
+            .Select(word => word.WordId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (hidden.Count == 0)
+        {
+            return [];
+        }
+
+        var items = await GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return items.Where(item => item.WordId is not null && hidden.Contains(item.WordId)).ToList();
     }
 
     /// <summary>Every resource identifier the learner owns, for the ownership check.</summary>
@@ -178,12 +186,8 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
             return [];
         }
 
-        var onScreen = turn.ScreenWords.Select(word => word.WordId).ToHashSet(StringComparer.Ordinal);
-        var due = await GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var embargo = due
-            .Where(item => item.WordId is null
-                || (!turn.ExemptWordIds.Contains(item.WordId) && !onScreen.Contains(item.WordId)))
-            .ToList();
+        // Due words are not part of this (issue 258): only what the screen is hiding.
+        var embargo = new List<CoachEmbargoedItem>();
 
         var hidden = turn.ScreenWords.Where(word => word.AnswerHidden).ToList();
         if (hidden.Count == 0)
@@ -298,8 +302,8 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
     private sealed record ExampleRow(string VocabularyWordId, string TargetSentence, string? NativeSentence);
 }
 
-/// <summary>What one turn's reply may and may not repeat beyond the due-word embargo.</summary>
-/// <param name="ExemptWordIds">Words a list tool showed this turn because the learner asked to see them.</param>
+/// <summary>The words on the learner's screen for one turn, for the hidden-answer check.</summary>
+/// <param name="ExemptWordIds">Words a list tool showed this turn. No longer read: nothing is withheld for them to be exempt from.</param>
 /// <param name="ScreenWords">The vocabulary on the learner's screen as they sent the message.</param>
 public sealed record CoachTurnEmbargo(
     IReadOnlySet<string> ExemptWordIds,

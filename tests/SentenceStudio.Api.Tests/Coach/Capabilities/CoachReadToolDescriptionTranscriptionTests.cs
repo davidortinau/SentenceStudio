@@ -64,12 +64,12 @@ public class CoachReadToolDescriptionTranscriptionTests
         },
         {
             CoachToolNames.ListUserVocabularies,
-            "Searches the learner's vocabulary, ordered by mastery, strongest first. Words currently due "
-            + "for review are always excluded and reported as a withheld count with a reason, never as "
-            + "content; a query, when supplied, narrows the search further. Matched, returned and withheld "
-            + "can all differ, and returned plus withheld need not equal matched when the answer is also a "
-            + "page. Each match carries its term, gloss, tags and mastery. Use get_vocabulary_due_summary "
-            + "for due counts, or get_vocabulary_word_detail for one named word."
+            // Issue 258: the approved words said due words are excluded and counted as withheld.
+            "Searches the learner's vocabulary, ordered by mastery, strongest first. Words due for "
+            + "review are listed like any other word. A query, when supplied, narrows the search further. "
+            + "Matched and returned differ when the answer is a page. Each match carries its term, gloss, "
+            + "tags and mastery. Use get_vocabulary_due_summary for due counts, or "
+            + "get_vocabulary_word_detail for one named word."
         },
         {
             CoachToolNames.GetCurrentPlanSummary,

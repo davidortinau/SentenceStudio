@@ -168,8 +168,9 @@ public class CoachToolBehaviorCharacterizationTests
     }
 
     [Fact]
-    public async Task Vocabulary_search_total_count_excludes_due_words()
+    public async Task Vocabulary_search_total_count_includes_due_words()
     {
+        // Issue 258: this pinned the due word as left out of the count and of the page.
         using var fixture = new CoachToolTestFixture();
         var user = CoachToolTestFixture.UserA;
 
@@ -181,8 +182,8 @@ public class CoachToolBehaviorCharacterizationTests
 
         var result = await fixture.VocabularySearchTool.SearchAsync();
 
-        result.TotalMatchCount.Should().Be(1, "a due word is embargoed from the count as well as the page");
-        result.Words.Select(w => w.TargetTerm).Should().Equal("안전");
+        result.TotalMatchCount.Should().Be(2, "a due word is counted and listed like any other");
+        result.Words.Select(w => w.TargetTerm).Should().Equal("만기", "안전");
     }
 
     // ---------------------------------------------------------------------

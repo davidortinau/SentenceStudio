@@ -343,14 +343,13 @@ public class CoachResultScopeContractTests
     // =====================================================================
 
     [Fact]
-    public async Task Vocabulary_search_reports_fourteen_matched_ten_returned_and_four_withheld()
+    public async Task Vocabulary_search_reports_fourteen_matched_and_fourteen_returned_due_or_not()
     {
         using var fixture = new CoachToolTestFixture();
         var user = CoachToolTestFixture.UserA;
 
-        // Ten words the learner may see, four that are due and therefore embargoed. The model is
-        // told the four exist so it can say "four are due" instead of describing a ten-word
-        // vocabulary the learner does not have.
+        // Issue 258: this pinned fourteen matched, ten returned and the four due words withheld.
+        // Being due is not a secret, so all fourteen are returned and nothing is withheld.
         for (var i = 0; i < 10; i++)
         {
             var word = fixture.SeedWord($"안전{i}", $"safe {i}");
@@ -365,28 +364,27 @@ public class CoachResultScopeContractTests
 
         var result = await fixture.VocabularySearchTool.SearchAsync(maxResults: 25);
 
-        result.Words.Should().HaveCount(10);
-        result.TotalMatchCount.Should().Be(10, "the existing count keeps meaning 'eligible to show'");
+        result.Words.Should().HaveCount(14);
+        result.TotalMatchCount.Should().Be(14, "the existing count keeps meaning 'eligible to show'");
 
         result.Scope.MatchedCount.Should().Be(14);
-        result.Scope.ReturnedCount.Should().Be(10);
-        result.Scope.WithheldCount.Should().Be(4);
-        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.DueReviewEmbargo);
-        result.Scope.EligiblePopulationCount.Should().Be(10);
+        result.Scope.ReturnedCount.Should().Be(14);
+        result.Scope.WithheldCount.Should().Be(0);
+        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.None);
+        result.Scope.EligiblePopulationCount.Should().Be(14);
         result.Scope.Truncated.Should().BeFalse();
         result.Scope.Coverage.Should().Be(CoachScopeCoverage.CompleteOwnedSet);
         result.Scope.Order.Should().Be(CoachScopeOrder.MasteryDescending);
         result.Scope.Filters.Should().Be(
             CoachScopeFilters.OwnerScoped
-            | CoachScopeFilters.ProgressRowExists
-            | CoachScopeFilters.ExcludeDue);
+            | CoachScopeFilters.ProgressRowExists);
 
-        // The embargo still holds: the count crossed and the words did not.
+        // The due words cross like any other.
         var json = JsonSerializer.Serialize(result, ModelSerializerOptions);
         for (var i = 0; i < 4; i++)
         {
-            json.Should().NotContain($"만기{i}");
-            json.Should().NotContain($"due {i}");
+            json.Should().Contain($"만기{i}");
+            json.Should().Contain($"due {i}");
         }
     }
 
@@ -781,7 +779,7 @@ public class CoachResultScopeContractTests
         // normalizer being demonstrated rather than described.
         json.Should().Be(
             """
-            {"coverage":"CompleteOwnedSet","order":"MasteryDescending","orderHonored":true,"filters":"OwnerScoped, ExcludeDue, ProgressRowExists","asOfUtc":"2026-08-14T12:00:00Z","requestedCount":10,"returnedCount":1,"matchedCount":1}
+            {"coverage":"CompleteOwnedSet","order":"MasteryDescending","orderHonored":true,"filters":"OwnerScoped, ProgressRowExists","asOfUtc":"2026-08-14T12:00:00Z","requestedCount":10,"returnedCount":1,"matchedCount":1}
             """.Trim());
 
         json.Length.Should().BeLessThan(
@@ -1075,13 +1073,15 @@ public class CoachResultScopeContractTests
         scopes.Where(s => s.Scope.WithheldCount > 0).Select(s => s.Name).Should().NotBeEmpty(
             "at least one tool in the sweep fixture must actually withhold rows");
 
+        // Issue 258: this asked for two reasons, and the second was the vocabulary search's
+        // DueReviewEmbargo. No tool withholds a word for being due any more, so the only reason
+        // this fixture reaches is the practice balance's evidence bar. It must still be reached.
         scopes.Select(s => s.Scope.WithheldReason)
             .Where(r => r != CoachScopeWithheldReason.None)
             .Distinct()
-            .Should().HaveCountGreaterThanOrEqualTo(
-                2,
-                "the fixture must exercise more than one reason, or a rule about the wrong one "
-                + "passes for the right one");
+            .Should().Contain(
+                CoachScopeWithheldReason.BelowMinimumEvidence,
+                "the fixture must actually reach a withheld reason, or the rules about one are never evaluated");
 
         scopes.Select(s => s.Scope.Coverage).Should().Contain(
             CoachScopeCoverage.CompleteAggregateWithBreakdown,

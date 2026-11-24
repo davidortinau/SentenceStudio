@@ -143,7 +143,7 @@ public static class CoachReadCapabilityMetadataTable
         [CoachToolNames.ListUserVocabularies] = new(
             CoachScopeCoverage.PageOfOwnedSet,
             [CoachScopeOrder.MasteryDescending],
-            Owner | CoachScopeFilters.ProgressRowExists | CoachScopeFilters.ExcludeDue
+            Owner | CoachScopeFilters.ProgressRowExists
                 | CoachScopeFilters.TextQuery | CoachScopeFilters.AttributeFilter,
             CoachReadDateSupport.None,
             CoachReadRangeSupport.ResultLimit,
@@ -225,11 +225,11 @@ public static class CoachReadCapabilityMetadataTable
         [CoachToolNames.GetVocabularyExampleSentences] = new(
             CoachScopeCoverage.PageOfOwnedSet,
             [CoachScopeOrder.Unordered],
-            Owner | CoachScopeFilters.SingleIdentifier | CoachScopeFilters.ExcludeDue,
+            Owner | CoachScopeFilters.SingleIdentifier,
             CoachReadDateSupport.None,
             CoachReadRangeSupport.ResultLimit,
             MaxPageSize: VocabularyExampleSentencesTool.MaxResults,
-            Source: "SamTools/VocabularyExampleSentencesTool.cs MaxResults; ExcludeDue applied only when the word is due"),
+            Source: "SamTools/VocabularyExampleSentencesTool.cs MaxResults"),
 
         [CoachToolNames.GetPlanVocabulary] = new(
             CoachScopeCoverage.CompleteOwnedSet,

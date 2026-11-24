@@ -109,8 +109,11 @@ public class CoachReadToolDescriptionTests
     {
         var registry = CapabilityFixtures.FrozenRegistry();
 
+        // Issue 258: the vocabulary search withheld due words and said so. It no longer withholds
+        // anything, and says that instead.
         registry.Find(CoachToolNames.ListUserVocabularies)!.Description
-            .Should().Contain("withheld", "the due-word exclusion is disclosed as a count and a reason");
+            .Should().Contain("Words due for review are listed like any other word")
+            .And.NotContain("withheld");
 
         registry.Find(CoachToolNames.GetLearningResourceList)!.Description
             .Should().Contain("Never returns transcript", "the embargo is stated, not implied");

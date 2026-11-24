@@ -152,12 +152,13 @@ public class SamReadToolBehaviorTests
     }
 
     // ---------------------------------------------------------------------
-    // The due-word embargo. This is the defect the first version shipped with.
+    // Due words. Issue 258: being due is not a secret, so they are listed like any other word.
     // ---------------------------------------------------------------------
 
     [Fact]
-    public async Task Vocabulary_list_excludes_words_that_are_due_for_review()
+    public async Task Vocabulary_list_includes_words_that_are_due_for_review()
     {
+        // Issue 258: this pinned the due word as left out of the list and of the count.
         using var fixture = new CoachToolTestFixture();
         fixture.SeedProfile(CoachToolTestFixture.UserA);
 
@@ -175,18 +176,19 @@ public class SamReadToolBehaviorTests
         var result = await fixture.VocabularySearchTool.SearchAsync();
 
         var terms = result.Words.Select(w => w.TargetTerm).ToList();
-        terms.Should().NotContain("복습", "a due word's term is the answer to a review the learner has not taken");
+        terms.Should().Contain("복습", "being due for review is a scheduling fact, not a secret");
         terms.Should().Contain("안전");
         terms.Should().Contain("새단어");
 
-        // The count must agree with the rows, or the model learns the due volume from the gap.
-        result.TotalMatchCount.Should().Be(2);
-        result.ReturnedCount.Should().Be(2);
+        // The count agrees with the rows.
+        result.TotalMatchCount.Should().Be(3);
+        result.ReturnedCount.Should().Be(3);
     }
 
     [Fact]
-    public async Task Vocabulary_list_excludes_a_due_word_even_when_the_query_names_it()
+    public async Task Vocabulary_list_finds_a_due_word_the_query_names()
     {
+        // Issue 258: this pinned an empty answer for a query that named a due word.
         using var fixture = new CoachToolTestFixture();
         fixture.SeedProfile(CoachToolTestFixture.UserA);
 
@@ -195,8 +197,8 @@ public class SamReadToolBehaviorTests
 
         var result = await fixture.VocabularySearchTool.SearchAsync("review");
 
-        result.Words.Should().BeEmpty("a search term must not become a way around the due embargo");
-        result.TotalMatchCount.Should().Be(0);
+        result.Words.Should().ContainSingle().Which.TargetTerm.Should().Be("복습");
+        result.TotalMatchCount.Should().Be(1);
     }
 
     [Fact]

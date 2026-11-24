@@ -34,7 +34,7 @@ public sealed class CoachTurnIntent
     [Description("One short question for the learner. Set it only for AskClarification. The largest length is 200 characters.")]
     public string? ClarifyingQuestion { get; set; }
 
-    [Description("Your reply to the learner in plain words: the answer, the result, or what you prepared. The largest length is 400 characters. Do not add a target-language word that is due for review.")]
+    [Description("Your reply to the learner in plain words: the answer, the result, or what you prepared. The largest length is 1,600 characters.")]
     public string CoachMessage { get; set; } = string.Empty;
 
     [Description("Facts a read tool returned in this turn that your answer relies on. Leave the list empty if you called no read tool. What the learner said, what the app attached about the screen, and proposals you prepared are not facts to cite.")]

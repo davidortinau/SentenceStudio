@@ -290,6 +290,52 @@ public class CoachPedagogicalAnswerTests
     }
 
     [Fact]
+    public async Task ThreeSentencesWithADueWord_AreShownAsATeachingAnswer_WhenTheyContainOtherDueWords()
+    {
+        // Issue 258, the same case as the general reply: the word asked about is due and the
+        // sentences use other due words and their meanings.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed =
+        [
+            Due("\uC0DD\uC120", "fish"), Due("\uC2DC\uC7A5", "market"), Due("\uC88B\uC544\uD558\uB2E4", "like")
+        ];
+        var sessionId = await harness.StartSessionAsync();
+        harness.Coach.NextResult = AnswerResult(new CoachPedagogicalAnswerIntent
+        {
+            Topic = CoachAnswerTopic.Vocabulary,
+            Blocks =
+            [
+                new CoachAnswerBlockIntent
+                {
+                    Kind = CoachAnswerBlockKind.Answer,
+                    Spans = [new CoachAnswerSpanIntent { Text = "Here are three sentences.", Language = CoachLanguageRole.Display }]
+                },
+                Sentence("\uC2DC\uC7A5\uC5D0\uC11C \uC0DD\uC120\uC744 \uC0C0\uC5B4\uC694.", "I bought fish at the market."),
+                Sentence("\uC800\uB141\uC5D0 \uC0DD\uC120\uC744 \uBA39\uC5B4\uC694.", "I eat fish in the evening."),
+                Sentence("\uC800\uB294 \uC0DD\uC120\uC744 \uC88B\uC544\uD574\uC694.", "I like fish.")
+            ]
+        });
+
+        var result = await AskAsync(harness, sessionId, "Show me 3 sentences with \uC0DD\uC120");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Answer.Should().NotBeNull();
+        result.Value.Answer!.PlainText.Should().Contain("\uC2DC\uC7A5\uC5D0\uC11C \uC0DD\uC120\uC744 \uC0C0\uC5B4\uC694.")
+            .And.Contain("I like fish.");
+
+        static CoachAnswerBlockIntent Sentence(string target, string native) => new()
+        {
+            Kind = CoachAnswerBlockKind.Example,
+            Label = "Example",
+            Spans =
+            [
+                new CoachAnswerSpanIntent { Text = target, Language = CoachLanguageRole.Target },
+                new CoachAnswerSpanIntent { Text = native, Language = CoachLanguageRole.Display }
+            ]
+        };
+    }
+
+    [Fact]
     public async Task AnAnswerNeverReadsTheDueQueueAtAll()
     {
         // The guarantee is upstream of any matcher: the answer path does not fetch the review

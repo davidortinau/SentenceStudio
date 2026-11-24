@@ -228,10 +228,10 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             EffectClass = CoachCapabilityEffectClass.Read,
             EmbargoScope = CoachEmbargoScope.ToolResult,
             RequiredFeatures = ["SamOverlay", "SamReadTools"],
-            Description = "Searches the learner's vocabulary, ordered by mastery, strongest first. Words currently due for "
-                + "review are always excluded and reported as a withheld count with a reason, never as content; a "
-                + "query, when supplied, narrows the search further. Matched, returned and withheld can all differ, "
-                + "and returned plus withheld need not equal matched when the answer is also a page. Each match "
+            Description = "Searches the learner's vocabulary, ordered by mastery, strongest first. Words due for "
+                + "review are listed like any other word. A "
+                + "query, when supplied, narrows the search further. Matched and returned differ when the answer "
+                + "is a page. Each match "
                 + "carries its term, gloss, tags and mastery. Use get_vocabulary_due_summary for due counts, or "
                 + "get_vocabulary_word_detail for one named word."
         });
@@ -351,8 +351,8 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
             RequiredFeatures = ["SamOverlay", "SamReadTools"],
             Description = "Reads the example sentences on one vocabulary word the learner owns, named by the caller, "
                 + "main example first, each with its identifier for the propose_ example sentence tools. Works "
-                + "for words never practised. When the word is due for review its sentences are hidden: the "
-                + "answer says so and counts them as withheld, and you must not guess them."
+                + "for words never practised, and for words due for review. The total counts every sentence "
+                + "on the word."
         });
         Register(new CoachToolRegistration
         {

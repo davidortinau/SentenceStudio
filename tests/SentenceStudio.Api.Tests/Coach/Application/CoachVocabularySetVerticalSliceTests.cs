@@ -120,13 +120,13 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A review whose set names a due word is refused after the reducer has run. It used to be
-    /// recorded as a reply first: the session lost the reason its turn stopped, and the count of
-    /// clarifying questions started again for a turn the learner saw refused.
+    /// A review whose set names a due word is prepared like any other and recorded as a reply.
     /// </summary>
     [Fact]
-    public async Task A_refused_vocabulary_set_is_recorded_as_refused_and_keeps_the_question_count()
+    public async Task A_vocabulary_set_that_names_a_due_word_is_recorded_as_a_reply()
     {
+        // Issue 258: this pinned the refusal of a review set that names a due word (Rejected,
+        // ValidationFailed, question count kept). Being due is not a secret, so the set is shown.
         using var harness = new CoachApplicationHarness(vocabularySets: new StubVocabularyGenerator());
         var sessionId = await harness.StartSessionAsync();
         await AskTwoQuestionsAsync(harness, sessionId);
@@ -135,11 +135,11 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
 
         var result = await SubmitAsync(harness, sessionId, "start a vocabulary review activity with words about food");
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        result.Value.VocabularySetProposal.Should().BeNull();
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.VocabularySetProposal.Should().NotBeNull();
         var row = harness.Db.CoachSessions.Single();
-        row.StopReason.Should().Be(CoachStopReason.ValidationFailed);
-        row.ClarificationCount.Should().Be(2, "nothing was answered");
+        row.StopReason.Should().BeNull();
+        row.ClarificationCount.Should().Be(0, "the set was prepared, so the turn was answered");
     }
 
     [Fact]
@@ -247,9 +247,11 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
         result.Value.ClarifyingQuestion.Should().BeNull();
         result.Value.Messages.Should().NotContain(message =>
             message.Text.Contains("replace the vocabulary", StringComparison.OrdinalIgnoreCase));
+        // Issue 258: this pinned one read of the due-word list to check the generated set. Nothing
+        // is withheld for being due, so the list is not read at all.
         harness.ValidationData.EmbargoQueryCount.Should().Be(
-            1,
-            "the generated evidence-bearing proposal is checked even though discarded model prose is not");
+            0,
+            "no proposal and no reply is checked against the due words");
         generator.Calls.Should().ContainSingle().Which.Should().Be(
             new VocabularyGenerationCall("food", "ko-KR", "en-US"));
         string.Join("|", generator.Calls.SelectMany(call =>
@@ -263,10 +265,12 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
     [Theory]
     [InlineData("\uBC25", "not-a-generated-gloss")]
     [InlineData("\uC0DD\uAC01", "bread")]
-    public async Task Generated_food_term_collision_returns_no_card_and_issues_no_proposal(
+    public async Task A_generated_food_term_that_matches_a_due_word_still_returns_the_card_and_writes_no_vocabulary(
         string dueTarget,
         string dueNative)
     {
+        // Issue 258: this pinned the refusal of a generated set that collides with a due word (no
+        // card, no proposal). The card is now shown; nothing is saved until the learner approves.
         var applicationService = Service(_db, CoachApplicationHarness.OwnerUserId);
         var generator = new StubVocabularyGenerator();
         using var harness = new CoachConversationHarness(
@@ -293,16 +297,14 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
             "start a vocabulary review activity with words about food");
 
         result.IsOk.Should().BeTrue(result.Detail);
-        result.Value!.Result!.Status.Should().Be(CoachTurnStatus.Rejected);
-        result.Value.Result.StopReason.Should().Be(CoachStopReason.ValidationFailed);
-        result.Value.Result.VocabularySetProposal.Should().BeNull();
-        string.Join(" ", result.Value.Result.Messages.Select(message => message.Text))
-            .Should().NotContain(dueTarget)
-            .And.NotContain(dueNative);
+        result.Value!.Result!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Result.VocabularySetProposal.Should().NotBeNull();
+        result.Value.Result.VocabularySetProposal!.Terms.Should().BeEquivalentTo(FoodTerms());
         generator.Calls.Should().ContainSingle();
-        harness.App.ValidationData.EmbargoQueryCount.Should().Be(1);
-        (await _db.ApplicationOperations.AsNoTracking().CountAsync()).Should().Be(0);
-        (await _db.ApplicationOperationEvents.AsNoTracking().CountAsync()).Should().Be(0);
+        harness.App.ValidationData.EmbargoQueryCount.Should().Be(0);
+        // The proposal waits for the learner: issued, not executed, and nothing saved.
+        (await _db.ApplicationOperations.AsNoTracking().SingleAsync())
+            .Status.Should().Be(ApplicationOperationStatus.Proposed);
         (await _db.ApplicationOperationReceipts.AsNoTracking().CountAsync()).Should().Be(0);
         (await _db.LearningResources.AsNoTracking().CountAsync()).Should().Be(0);
         (await _db.VocabularyWords.AsNoTracking().CountAsync()).Should().Be(0);
@@ -412,8 +414,10 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Due_content_is_owner_scoped_during_same_turn_and_reload_projection()
+    public async Task A_due_word_withholds_no_proposal_and_stays_owner_scoped_during_same_turn_and_reload_projection()
     {
+        // Issue 258: this pinned owner A's proposal being withheld for colliding with A's own due
+        // word. It is shown now. The owner scoping it also proves is unchanged and still asserted.
         var ownerAService = Service(_db, OwnerId);
         var ownerAProposal = await ownerAService.IssueAsync(Proposal());
         _db.VocabularyWords.Add(new VocabularyWord
@@ -440,8 +444,8 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
         await _db.SaveChangesAsync();
 
         var ownerAProjection = await ownerAService.ProjectForClientAsync(ownerAProposal!);
-        ownerAProjection.Proposal.Should().BeNull();
-        ownerAProjection.WasWithheld.Should().BeTrue();
+        ownerAProjection.Proposal.Should().NotBeNull();
+        ownerAProjection.WasWithheld.Should().BeFalse();
 
         var ownerBService = Service(_db, CoachApplicationHarness.OwnerUserId);
         using var harness = new CoachConversationHarness(
@@ -486,8 +490,11 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Due_mnemonic_collision_blocks_projection_and_approval_without_a_write()
+    public async Task A_due_mnemonic_that_matches_a_term_blocks_neither_projection_nor_approval()
     {
+        // Issue 258: this pinned a proposal being withdrawn (replay refused, approval a conflict,
+        // nothing written) once a newly due word's mnemonic matched one of its terms. A due word
+        // no longer takes back what the learner was offered.
         var applicationService = Service(_db, CoachApplicationHarness.OwnerUserId);
         using var harness = new CoachConversationHarness(
             vocabularySets: new StubVocabularyGenerator(),
@@ -538,24 +545,22 @@ public sealed class CoachVocabularySetVerticalSliceTests : IAsyncLifetime
             submitted.Value.OperationId);
 
         replayed.IsOk.Should().BeTrue();
-        replayed.Value!.Result!.VocabularySetProposal.Should().BeNull();
-        replayed.Value.Result.Status.Should().Be(CoachTurnStatus.Rejected);
-        replayed.Value.Result.Limitation.Should().NotBeNull();
+        replayed.Value!.Result!.VocabularySetProposal.Should().BeEquivalentTo(proposal);
+        replayed.Value.Result.Status.Should().Be(CoachTurnStatus.Completed);
         var restored = await harness.Service.GetVocabularyStateAsync(conversationId);
         restored.IsOk.Should().BeTrue(restored.Detail);
-        restored.Value!.PendingProposal.Should().BeNull();
+        restored.Value!.PendingProposal.Should().BeEquivalentTo(proposal);
 
-        var approve = () => applicationService.ApproveAsync(new ApproveCoachVocabularySetRequest
+        var accepted = await applicationService.ApproveAsync(new ApproveCoachVocabularySetRequest
         {
             ProposalReference = proposal.ProposalId,
             Decision = ApplicationOperationDecision.Accept
         });
-        await approve.Should().ThrowAsync<ApplicationOperationConflictException>();
-        (await _db.LearningResources.AsNoTracking().CountAsync()).Should().Be(0);
-        (await _db.VocabularyWords.AsNoTracking().CountAsync()).Should().Be(1);
-        (await _db.ApplicationOperationReceipts.AsNoTracking().CountAsync()).Should().Be(0);
-        (await _db.ApplicationOperations.AsNoTracking().SingleAsync())
-            .Status.Should().Be(ApplicationOperationStatus.Rejected);
+        accepted!.ResourceId.Should().NotBeNull();
+        (await _db.LearningResources.AsNoTracking().CountAsync()).Should().Be(1);
+        // The newly due word and the ten approved terms.
+        (await _db.VocabularyWords.AsNoTracking().CountAsync()).Should().Be(11);
+        (await _db.ApplicationOperations.AsNoTracking().CountAsync()).Should().Be(1);
     }
 
     [Fact]

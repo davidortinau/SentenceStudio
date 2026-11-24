@@ -63,7 +63,7 @@ public sealed class VocabularySearchTool : CoachToolBase
     /// <remarks>
     /// With none of those set this is exactly the original search over tracked words. With any of
     /// them it searches the learner's own words (the one ownership rule), so a word added a moment
-    /// ago is found. Due words stay embargoed either way.
+    /// ago is found. A word due for review is listed like any other (issue 258).
     /// </remarks>
     public async Task<VocabularySearchResult> SearchAsync(
         string? query,
@@ -102,9 +102,8 @@ public sealed class VocabularySearchTool : CoachToolBase
                     : null
             )).ToList();
 
-            // Matched counts everything the query found; TotalCount counts what survived the due
-            // embargo. Their difference is the number of the learner's own words this answer is
-            // refusing to name, which the model may state and must not try to fill in.
+            // Nothing is withheld for being due (issue 258), so the two counts are the same; the
+            // scope fields stay for the clients that read them.
             var withheld = Math.Max(0, page.MatchedCount - page.TotalCount);
 
             return new VocabularySearchResult(
@@ -120,7 +119,6 @@ public sealed class VocabularySearchTool : CoachToolBase
                     OrderHonored = true,
                     Filters = CoachScopeFilters.OwnerScoped
                         | (includeNeverPracticed ? CoachScopeFilters.None : CoachScopeFilters.ProgressRowExists)
-                        | CoachScopeFilters.ExcludeDue
                         | (query is null ? CoachScopeFilters.None : CoachScopeFilters.TextQuery)
                         | (tag is null && resourceId is null && statusFilter is null
                             ? CoachScopeFilters.None
@@ -130,12 +128,7 @@ public sealed class VocabularySearchTool : CoachToolBase
                     ReturnedCount = entries.Count,
                     MatchedCount = page.MatchedCount,
                     WithheldCount = withheld,
-                    // The embargo is named ahead of the result limit on purpose. Both can be true
-                    // at once, and of the two only the embargo means "those words exist and you
-                    // may not have them" — which is the one the model must not paper over.
-                    WithheldReason = withheld > 0
-                        ? CoachScopeWithheldReason.DueReviewEmbargo
-                        : CoachScopeWithheldReason.None,
+                    WithheldReason = CoachScopeWithheldReason.None,
                     Truncated = page.TotalCount > entries.Count,
                     DefinitionCode = CoachScopeDefinition.UndueVocabularySearch,
                     EligiblePopulationCount = page.TotalCount,
