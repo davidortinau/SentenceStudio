@@ -735,9 +735,28 @@ public sealed partial class NativeQuizPresenter
                     && !(State.Phase == NativePhase.Error && _correctionRetryPending)
                 || _pending is null || !_requiresCorrection)
                 return RefuseInvalidAction();
-            if (!string.Equals(
+            // A correction passes when it would have passed as the answer, so brackets,
+            // punctuation and the keyboard's curly quotes do not refuse it.
+            var matches = string.Equals(
                 answer?.Trim(), _pending.ExpectedAnswer?.Trim(),
-                StringComparison.OrdinalIgnoreCase))
+                StringComparison.OrdinalIgnoreCase);
+            if (!matches && !string.IsNullOrWhiteSpace(answer)
+                && !string.IsNullOrWhiteSpace(_pending.ExpectedAnswer))
+            {
+                try
+                {
+                    matches = (await grader.EvaluateAsync(
+                        _launch.UserId, "Text", answer, _pending.ExpectedAnswer,
+                        cancellationToken))?.IsCorrect == true;
+                }
+                catch (NotSupportedException ex)
+                {
+                    logger.LogWarning(ex, "Native quiz correction needs the shared source rule.");
+                }
+                if (!HasOwner(_launch.UserId))
+                    return RefuseLaunch();
+            }
+            if (!matches)
             {
                 logger.LogWarning("Quiz correction did not match the shown target answer.");
                 return SetState(State with { ErrorKey = NativeText.CorrectionRequired });
