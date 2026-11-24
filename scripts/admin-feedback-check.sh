@@ -82,17 +82,22 @@ OUT="${FEEDBACK_CHECK_DIR:-$HOME/sstudio-feedback-check}"
 REPO=davidortinau/SentenceStudio
 # The macOS user fix sessions run as, and where its things are (set by session_places).
 SESSION_USER="${FEEDBACK_SESSION_USER:-lemuel}"
-# Its PATH, for a session and for the runner's proof alike (admin-feedback-verify.py reads it).
-export FEEDBACK_SESSION_PATH="/opt/homebrew/bin:/usr/local/share/dotnet:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # What the session's user is given of the Captain's, read-only: the current fix instructions,
-# the package configuration and the packages no feed has.
+# the package configuration, the packages no feed has, and the Ailoha agent and command.
 SHARED="${FEEDBACK_SHARED:-/Users/Shared/sstudio-feedback}"
+# Its PATH, for a session and for the runner's proof alike (admin-feedback-verify.py reads it).
+# A session adds its own dotnet tools (aspire) in front (SESSION_SCRIPT).
+export FEEDBACK_SESSION_PATH="/opt/homebrew/bin:/usr/local/share/dotnet:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$SHARED/ailoha/bin"
 # Lilliput reaches packages only through a mirror. Its NuGet.config is kept beside the summaries
 # and, with its local feed pointed at $SHARED, copied into each fix worktree.
 MIRROR_CONFIG="${FEEDBACK_NUGET_CONFIG:-$OUT/NuGet.config}"
 # Folders of packages that are on no feed (the Captain's own builds). Their .nupkg files are
 # copied to $SHARED/LocalNuGets before a session: its user cannot read them where they are.
 LOCAL_FEEDS="${FEEDBACK_LOCAL_FEEDS:-$HOME/work/LocalNuGets:$HOME/work/Microsoft.SwiftUI/artifacts}"
+# The Captain's builds of the Ailoha agent (what the Debug app links to be driven) and of its
+# command, published to $SHARED/ailoha for a session that runs the app (scripts/session-sim.sh).
+AILOHA_AGENT="${FEEDBACK_AILOHA_AGENT:-$HOME/work/ailoha-artifacts/swift-actions/AilohaAgent.xcframework}"
+AILOHA_CLI="${FEEDBACK_AILOHA_CLI:-$HOME/work/ailoha-artifacts/cli-actions}"
 TRIAGE_MODEL=claude-sonnet-5-5
 TRIAGE_EFFORT=medium
 TRIAGE_LIMIT=1500
@@ -399,14 +404,18 @@ there() { as_session /bin/test -e "$1"; }
 
 # Ends every process of the session's user: what a session or its tests started does not
 # outlive them, and a session cannot leave something running for the next one. (It would also
-# end a desktop login of that user; the user is for this job only.) Its Docker is shut down
-# first, in order: a start still under way is given a minute to finish (a virtual machine
+# end a desktop login of that user; the user is for this job only.) Its simulators are shut
+# down first, then its Docker, in order: a start still under way is given a minute to finish (a virtual machine
 # killed while it is being set up may not start again), then the stop a minute. Whatever is
 # left after that is ended with the rest. (A watch by the clock, not an alarm: colima is a Go
 # program and ignores one.)
 stop_session_processes() {
   session_places || return 0
   as_session /bin/sh -c '
+    if [ -d "$HOME/Library/Developer/CoreSimulator/Devices" ]; then
+      xcrun simctl shutdown all >/dev/null 2>&1 & stopping=$!
+      n=0; while kill -0 "$stopping" 2>/dev/null && [ "$n" -lt 30 ]; do sleep 1; n=$((n + 1)); done
+    fi
     if command -v colima >/dev/null 2>&1 && [ -d "$HOME/.colima" ]; then
       cd "$HOME"
       n=0; while pgrep -u "$(id -u)" -f "colima start" >/dev/null 2>&1 && [ "$n" -lt 60 ]; do sleep 1; n=$((n + 1)); done
@@ -442,6 +451,12 @@ publish_shared() {
     rsync -a --include='*.nupkg' --exclude='*' "$feed/" "$SHARED/LocalNuGets/" 2>/dev/null \
       || { SESSION_ERROR="the packages in $feed could not be copied to $SHARED/LocalNuGets"; return 1; }
   done
+  # Without these a session cannot run the app on its simulator, and says so; it is no failure.
+  if [ -f "$AILOHA_AGENT/Info.plist" ] && [ -x "$AILOHA_CLI/ailoha" ]; then
+    mkdir -p "$SHARED/ailoha/bin" \
+      && rsync -a --delete "$AILOHA_AGENT" "$SHARED/ailoha/" 2>/dev/null \
+      && rsync -a "$AILOHA_CLI/ailoha" "$AILOHA_CLI"/*.dylib "$SHARED/ailoha/bin/" 2>/dev/null
+  fi
   sed -E 's#(<add key="localnugets" value=")[^"]*#\1'"$SHARED/LocalNuGets"'#' "$config" > "$SHARED/NuGet.config.tmp" \
     && mv "$SHARED/NuGet.config.tmp" "$SHARED/NuGet.config" \
     || { SESSION_ERROR="the package configuration could not be written to $SHARED"; return 1; }
@@ -578,6 +593,7 @@ IFS= read -r -d '' SESSION_SCRIPT <<'EOS'
 cd "$1" || exit 1
 limit=$2 name=$3 email=$4 gh_folder=$5 database=$6; shift 6
 export TMPDIR="${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}"
+export PATH="$HOME/.dotnet/tools:$PATH"
 export CLAUDE_CODE_OAUTH_TOKEN="$(cat "$HOME/.claude-token")"
 export GH_CONFIG_DIR="$gh_folder" GH_PROMPT_DISABLED=1
 # The empty helper drops every credential helper configured before it; the next is gh as the app.

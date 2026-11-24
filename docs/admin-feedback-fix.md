@@ -232,6 +232,51 @@ fits the patterns the code already has for Sam's tools and proposals and needs n
 stops below. When it does not fit in one pull request, make Sam say plainly that it cannot and
 where in the app the learner can, and write up what the capability needs.
 
+## Running the app
+
+You can run the app when a fix needs it: a web stack of your own and the native iOS app on a
+simulator of your own, driven by control id. It costs three to six minutes, so decide first.
+The Captain's rule: run it when it is worth that, otherwise trust the build and the tests.
+
+- **Run it** when the change is to what a screen shows or how a flow behaves and no test you
+  can write would show the fault or the fix: a layout, a control that does nothing, a screen
+  that does not open, a state that does not survive leaving and coming back.
+- **Do not run it** when a test shows the fault and the fix, when the change is not in the
+  native iOS app or its API, or when the screen needs what this stack does not have (below).
+- Either way, say so in the pull request in one line: "App run: yes, <what you saw>" or "App
+  run: no, <why not>". The Captain wants to see how often a run was needed and what it caught.
+
+How:
+
+1. `scripts/session-stack.sh up` starts the API, the web app and the workers with their own
+   database on your Docker, and prints `API=` and `WEBAPP=`. It waits for your Docker if it
+   is still starting, and takes 20 seconds to three minutes. Every secret on it is made up.
+2. `scripts/session-sim.sh up` boots your simulator ("Session iPad"; its first boot ever takes
+   two minutes), builds the app with the Ailoha agent against that API (about a minute and a
+   half), starts it signed out and empty, and prints `UDID=` and `AILOHA_AGENT_PORT=`. `scripts/session-sim.sh signin`
+   signs in as `e2e@test.local` and prints the port again.
+3. Drive it with `AILOHA_AGENT_PORT=<port> ailoha ios ui tree --no-json`, `... ui tap <id>`,
+   `... ui fill <id> "<text>"`. The tree starts with unnamed `[view:...]` wrappers; the
+   controls follow, each with its id in brackets, and that bracketed form is what `tap` and
+   `fill` take (`tid:native.auth.submit`).
+   **Always give the port the script printed.** The Captain's own apps have agents on the
+   neighbouring ports of this Mac; a command without the port, or with another, drives one of
+   his. Never do that.
+4. `scripts/session-sim.sh screenshot <file>` writes a PNG you can read. Describe what it
+   shows in the pull request; do not commit it.
+5. `scripts/session-sim.sh down` and `scripts/session-stack.sh down` when you are done, in
+   either order (about ten seconds). The container `ss-session-pg` stays up: it is the test
+   database, not part of the stack. (The runner ends whatever is left, but a stack left up
+   slows your own tests.)
+
+What this stack does not have, so do not spend time on it: **Sam and every other AI feature**
+(no Azure sign-in: the Sam tab shows as unavailable, and the starter resource on the first
+screen fails), **voice**,
+filing feedback to GitHub, and **any data**: `e2e@test.local` starts empty, so a screen that
+needs vocabulary or history needs you to add some through the app or the API first. System
+sheets and alerts (the keyboard, "Save Password?") are outside Ailoha; `signin` already works
+around the one it meets.
+
 ## Where you stop
 
 Do everything short of these, write up the rest, and say in your result what is waiting:
@@ -252,13 +297,13 @@ Do everything short of these, write up the rest, and say in your result what is 
   ports. Never run `aspire stop --all`.
 - **You have a Docker of your own** (a Colima virtual machine under your home; `docker` works
   as usual). The runner starts it as your session starts, so it is up about half a minute in;
-  `docker exec ss-session-pg pg_isready -U postgres` says whether it and its database are. It sees your home and nothing else of this Mac. It and
-  everything in it are stopped when your session ends.
-- **Do not run the app on a simulator, and do not start the app's web stack.** The simulator
-  build talks to `localhost:5081`, which is the Captain's stack, and there is no stack of your
-  own for it to sign in to yet. Everything else works as it did: the unit and contract tests,
-  the macOS view tests (`tests/SentenceStudio.Native.SwiftUIViews.Tests`) and
-  `scripts/ios-build.sh sim`. Say in the pull request what could not be run and why.
+  `docker exec ss-session-pg pg_isready -U postgres` says whether it and its database are. It
+  sees your home and nothing else of this Mac. It and everything in it are stopped when your
+  session ends.
+- **The app runs only on your own stack and your own simulator** ("Running the app" above).
+  Never build or run it against `localhost:5081`, which is the Captain's stack; `scripts/ios-sim.sh`
+  and `scripts/ios-build.sh sim` use that address unless told another, so give them `--api`,
+  or use `scripts/session-sim.sh`, which refuses it.
 - **Everything you start is ended when your session and its proof end**: leave nothing running
   on purpose, and expect nothing from an earlier session to be running.
 - A package restore that fails with NU1101 for a package no feed has (the Captain's own builds

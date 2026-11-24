@@ -230,10 +230,10 @@ red for a day because nothing said so.
     no reason to have one.
   - **What it can still build and run** (tried as that user on 2026-11-24): the unit and
     contract tests, the macOS view tests (30 pass and the same 4 fail as for the Captain) and
-    `scripts/ios-build.sh sim`, and with its own Docker the tests that need PostgreSQL (672 of
-    that family passed, 6 skipped). **What it cannot yet:** run the app on a simulator or start
-    the isolated web stack (see "Its own Docker and simulators" below), and
-    `scripts/admin-api.sh` (no Azure sign-in). For
+    `scripts/ios-build.sh sim`, with its own Docker the tests that need PostgreSQL (672 of
+    that family passed, 6 skipped), and the app on its own simulator against its own stack
+    (see "Its own Docker and simulators" below). **What it cannot:** anything that needs an
+    Azure sign-in (Sam and the other AI features on its stack, `scripts/admin-api.sh`). For
     an issue the triage filed, the runner itself reads the codes of the reports it names
     (`sam-show`, at most five) and hands them to the session as a file.
   - **Its own Docker and simulators** (2026-11-24). The Captain's Docker is never shared with
@@ -248,11 +248,23 @@ red for a day because nothing said so.
     in that machine is removed before the server starts, a machine that will not start is
     deleted and made again once, and each summary says whether the server was up when the
     session ended (a server that never came up makes those tests skip). That user also has simulators of its own
-    (`xcrun simctl` as that user made its own device set; an iPad booted without a desktop
-    login in 42 seconds and gave a screenshot of Settings). A session is not yet told to use
-    one: the simulator build talks to the Captain's stack on 5081, so a useful run needs a
-    stack of the session's own (the isolated Aspire stack on its Docker, and an `aspire` and
-    an `ailoha` command for that user, which it does not have).
+    (`xcrun simctl` as that user made its own device set; they boot without a desktop login),
+    and a session can run the app on one (2026-11-24, `docs/admin-feedback-fix.md`, "Running
+    the app"). `scripts/session-stack.sh` starts the isolated Aspire stack on its Docker with
+    every secret made up (so no Sam or other AI, no voice, and an empty test account);
+    `scripts/session-sim.sh` makes the simulator "Session iPad" with accessibility on (without
+    it Ailoha sees no SwiftUI controls), builds the app with the Ailoha agent against that
+    stack, signs in as `e2e@test.local` and reads the agent's port from the app's own process.
+    Tried as that user: stack up in 18 to 40 seconds, the app on a fresh simulator in 2 min
+    14 s, sign-in by control id in 16 seconds, and both scripts' `down` left no container,
+    volume or process. For this the runner publishes the Captain's builds of the Ailoha agent
+    and command to `/Users/Shared/sstudio-feedback/ailoha` (`FEEDBACK_AILOHA_AGENT`,
+    `FEEDBACK_AILOHA_CLI`), and that user needs the `aspire` command once: `sudo -H -u lemuel
+    dotnet tool install -g Aspire.Cli --version <the Captain's> --source <the mirror's
+    nuget.org address in ~/sstudio-feedback-check/NuGet.config>`. **The Captain's own Debug
+    apps have Ailoha agents on this Mac's ports 9233 and up, open to any local user:** a
+    session is told to use only the port of its own app, and nothing but that instruction
+    stops one from driving his.
   - **What the runner never does:** run a session's code, or a git command in a session's
     files, as the Captain. It reads a session's reply from its output stream and its proof
     file through that user, takes only the fields it validates, and writes every GitHub post
