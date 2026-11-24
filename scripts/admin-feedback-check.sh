@@ -82,7 +82,8 @@ OUT="${FEEDBACK_CHECK_DIR:-$HOME/sstudio-feedback-check}"
 REPO=davidortinau/SentenceStudio
 # The macOS user fix sessions run as, and where its things are (set by session_places).
 SESSION_USER="${FEEDBACK_SESSION_USER:-lemuel}"
-SESSION_PATH="/opt/homebrew/bin:/usr/local/share/dotnet:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# Its PATH, for a session and for the runner's proof alike (admin-feedback-verify.py reads it).
+export FEEDBACK_SESSION_PATH="/opt/homebrew/bin:/usr/local/share/dotnet:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # What the session's user is given of the Captain's, read-only: the current fix instructions,
 # the package configuration and the packages no feed has.
 SHARED="${FEEDBACK_SHARED:-/Users/Shared/sstudio-feedback}"
@@ -169,6 +170,12 @@ if ! mkdir "$LOCK" 2>/dev/null; then
   fi
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+
+# A session window that a run from before 2026-11-24 left open (it died mid-session) is closed
+# now: left open, every issue the Captain files from then on would count as inside it.
+if [ -s "$WINDOWS" ] && [ "$(tail -1 "$WINDOWS" | wc -w | tr -d ' ')" = 1 ]; then
+  sed -i '' '$ s/$/ '"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'/' "$WINDOWS"
+fi
 
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
@@ -377,10 +384,14 @@ session_places() {
 }
 
 # Runs a command as the session's user, from /, with an environment made from nothing: none of
-# the Captain's variables, tokens or agent sockets go with it.
+# the Captain's variables, tokens or agent sockets go with it. Its temporary folder is that
+# user's own once session_ready has asked for it (the path has no spaces, and unquoted it is
+# no argument at all while it is not known). admin-feedback-verify.py builds the same command
+# (become): change both together.
+SESSION_TMP=""
 as_session() {
   ( cd / && exec sudo -n -H -u "$SESSION_USER" /usr/bin/env -i HOME="$SESSION_HOME" USER="$SESSION_USER" \
-      LOGNAME="$SESSION_USER" LANG=en_US.UTF-8 PATH="$SESSION_PATH" "$@" )
+      LOGNAME="$SESSION_USER" LANG=en_US.UTF-8 PATH="$FEEDBACK_SESSION_PATH" ${SESSION_TMP:+TMPDIR=$SESSION_TMP} "$@" )
 }
 # git in the session user's clone.
 sgit() { as_session git -C "$CLONE" "$@"; }
@@ -399,15 +410,30 @@ stop_session_processes() {
 # instructions, the packages no feed has, and the package configuration with its local feed
 # pointed at them. Owned by the Captain, so a session cannot change it.
 publish_shared() {
-  local feed config="$MIRROR_CONFIG"
+  local config="$MIRROR_CONFIG" feeds="$LOCAL_FEEDS:" feed part
   [ -f "$config" ] || config="$ROOT/src/NuGet.config"
-  mkdir -p "$SHARED/docs" "$SHARED/LocalNuGets" || return 1
-  cp "$ROOT/docs/admin-feedback-fix.md" "$SHARED/docs/admin-feedback-fix.md" || return 1
-  printf '%s\n' "$LOCAL_FEEDS" | tr ':' '\n' | while read -r feed; do
-    [ -d "$feed" ] && rsync -a --include='*.nupkg' --exclude='*' "$feed/" "$SHARED/LocalNuGets/" 2>/dev/null
+  # /Users/Shared is everyone's to write in. The folder and what is in it must be this user's
+  # own and no links, or a session could have put them there to have the runner write, as the
+  # Captain, wherever they point.
+  mkdir -p "$SHARED/docs" "$SHARED/LocalNuGets" 2>/dev/null
+  for part in "$SHARED" "$SHARED/docs" "$SHARED/LocalNuGets"; do
+    [ -d "$part" ] && [ ! -L "$part" ] && [ -O "$part" ] || { SESSION_ERROR="$part is not a folder of $(id -un)'s own"; return 1; }
+  done
+  chmod -R u+rwX,go+rX,go-w "$SHARED" || { SESSION_ERROR="$SHARED could not be closed to writing"; return 1; }
+  for part in "$SHARED/docs/admin-feedback-fix.md" "$SHARED/NuGet.config" "$SHARED/NuGet.config.tmp"; do
+    [ ! -L "$part" ] || { SESSION_ERROR="$part is a link"; return 1; }
+  done
+  cp "$ROOT/docs/admin-feedback-fix.md" "$SHARED/docs/admin-feedback-fix.md" \
+    || { SESSION_ERROR="the fix instructions could not be copied to $SHARED"; return 1; }
+  while [ -n "$feeds" ]; do
+    feed="${feeds%%:*}"; feeds="${feeds#*:}"
+    [ -d "$feed" ] || continue
+    rsync -a --include='*.nupkg' --exclude='*' "$feed/" "$SHARED/LocalNuGets/" 2>/dev/null \
+      || { SESSION_ERROR="the packages in $feed could not be copied to $SHARED/LocalNuGets"; return 1; }
   done
   sed -E 's#(<add key="localnugets" value=")[^"]*#\1'"$SHARED/LocalNuGets"'#' "$config" > "$SHARED/NuGet.config.tmp" \
-    && mv "$SHARED/NuGet.config.tmp" "$SHARED/NuGet.config" || return 1
+    && mv "$SHARED/NuGet.config.tmp" "$SHARED/NuGet.config" \
+    || { SESSION_ERROR="the package configuration could not be written to $SHARED"; return 1; }
   chmod -R u+rwX,go+rX,go-w "$SHARED"
 }
 
@@ -423,6 +449,8 @@ session_ready() {
   as_session /bin/test -s "$SESSION_HOME/.claude-token" \
     || { SESSION_ERROR="$SESSION_USER has no Claude token in $SESSION_HOME/.claude-token (make one with claude setup-token)"; return 1; }
   stop_session_processes
+  SESSION_TMP="$(as_session /usr/bin/getconf DARWIN_USER_TEMP_DIR 2>/dev/null)"
+  case "$SESSION_TMP" in /*[!A-Za-z0-9_./-]*|"") SESSION_TMP="" ;; /*) ;; *) SESSION_TMP="" ;; esac
   as_session /bin/sh -c 'mkdir -p "$1" "$2" "$3" && chmod 700 "$3"' sh "$WORKTREES" "$SESSION_FIX" "$SESSION_GH" \
     || { SESSION_ERROR="the folders under $SESSION_HOME/sstudio could not be made"; return 1; }
   if ! there "$CLONE/.git"; then
@@ -431,7 +459,7 @@ session_ready() {
   fi
   sgit fetch -q --prune origin 2>/dev/null \
     || { SESSION_ERROR="GitHub could not be fetched into $CLONE"; return 1; }
-  publish_shared || { SESSION_ERROR="$SHARED could not be written"; return 1; }
+  publish_shared || return 1
   SESSION_READY=yes
 }
 
@@ -490,7 +518,7 @@ agent_logout() {
 SESSION_SCRIPT="$(cat <<'EOS'
 cd "$1" || exit 1
 limit=$2 name=$3 email=$4 gh_folder=$5; shift 5
-export TMPDIR="$(getconf DARWIN_USER_TEMP_DIR)"
+export TMPDIR="${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}"
 export CLAUDE_CODE_OAUTH_TOKEN="$(cat "$HOME/.claude-token")"
 export GH_CONFIG_DIR="$gh_folder" GH_PROMPT_DISABLED=1
 # The empty helper drops every credential helper configured before it; the next is gh as the app.
@@ -592,6 +620,30 @@ hand_over() {
   as_session /bin/sh -c 'cat > "$1"' sh "$2" < "$1"
 }
 
+# A session has no Azure sign-in, so it cannot read a report's codes itself
+# (scripts/admin-api.sh sam-show: when it failed, how the turn ended, which tools ran; never
+# what a learner wrote). For an issue the triage filed, the runner reads them for the reports
+# the issue names and hands them over. $1 the issue, $2 the file for the session. Returns 1
+# only when codes were read and could not be handed over.
+hand_over_reports() {
+  local ids id found="$OUT/state/reports-$STAMP.tmp"
+  as_session /bin/rm -f "$2" 2>/dev/null
+  ids="$(gh issue view "$1" --repo "$REPO" --json body,labels \
+           --jq 'select(any(.labels[]; .name == "feedback-check")) | .body' 2>/dev/null \
+         | grep -o -E '[0-9a-f]{32}' | sort -u | head -5)"
+  [ -n "$ids" ] || return 0
+  : > "$found"
+  for id in $ids; do
+    { echo "== scripts/admin-api.sh sam-show $id"
+      "${FEEDBACK_ADMIN_API:-$ROOT/scripts/admin-api.sh}" sam-show "$id" 2>&1 | head -c 20000
+      echo; } >> "$found"
+  done
+  as_session /bin/sh -c 'cat > "$1"' sh "$2" < "$found"
+  local code=$?
+  rm -f "$found"
+  return $code
+}
+
 # What a session left on this machine, said plainly, and the worktree removed when nothing in
 # it would be lost. $1 the branch, $2 the worktree. Writes to the summary.
 leave_tree() {
@@ -633,11 +685,14 @@ report_checks() {
 # with and without the fix, and what in the diff the Captain should look at
 # (scripts/admin-feedback-verify.py). It works in the session's worktree, so before leave_tree.
 # The tests are code the session wrote: every command in that worktree runs as the session's
-# user (--as), with no GitHub login at all (the app's token file is gone by then). Its PROOF and
+# user (--as), with no GitHub login at all (the app's token file is gone by then) and after
+# everything the session left running has been ended. Its PROOF and
 # DIFF lines go into $VERDICT. $1 the pull request's number, $2 the issue, $3 the branch, $4 the
 # worktree, $5 where what to say on the pull request goes, $6 where the verdicts go.
 verify_pr() {
   local pushed
+  # Whatever the session left running could change the worktree's files under the proof.
+  stop_session_processes
   git -C "$ROOT" fetch -q origin 2>/dev/null
   pushed="$(git -C "$ROOT" rev-parse --verify -q "origin/$3" 2>/dev/null)"
   sgit fetch -q origin 2>/dev/null
@@ -693,7 +748,8 @@ settle_interrupted() {
   [ "$kind" = follow-up ] || tree=$ids
   # Whatever that session left running is ended before its worktree is looked at.
   stop_session_processes
-  local kept=no; session_places && there "$tree" && kept=yes
+  # A record from before 2026-11-24 names a worktree in the Captain's own folders.
+  local kept=no; { [ -e "$tree" ] || { session_places && there "$tree"; }; } && kept=yes
   state="is gone"; [ "$kept" = yes ] && state="is still there"
   if [ "$kind" = follow-up ]; then
     { echo "FIX RESULT: interrupted pull request #$what"; echo; echo "An earlier run ended while its follow-up session on pull request #$what was still running, or just after it. Nothing was posted then. Its worktree $tree $state$([ "$kept" = yes ] && echo ": look at what it holds, then remove it (docs/admin-feedback-check.md, \"A worktree that was kept\")")."; echo; } >> "$RUN"
@@ -739,6 +795,7 @@ follow_up_stage() {
   local request="$OUT/fix/issue-$issue-request-$STAMP.md" errors="$OUT/fix/issue-$issue-$STAMP.err"
   local record="$OUT/fix/issue-$issue-usage-$STAMP.json" closing="$OUT/state/closing-$STAMP.tmp"
   local proof="$SESSION_FIX/issue-$issue-proof.json" asked="$SESSION_FIX/issue-$issue-request-$STAMP.md"
+  local reports="$SESSION_FIX/issue-$issue-reports.txt" codes=""
   local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
   local code started why id wall result_line
 
@@ -775,10 +832,11 @@ follow_up_stage() {
   if ! prepare_tree "$tree" \
      || ! as_session /bin/sh -c 'cat > "$1"' sh "$asked" < "$request" \
      || ! hand_over "$OUT/fix/issue-$issue-activity.md" "$log" \
-     || ! hand_over "$OUT/fix/issue-$issue-proof.json" "$proof"; then
+     || ! hand_over "$OUT/fix/issue-$issue-proof.json" "$proof" \
+     || ! hand_over_reports "$issue" "$reports"; then
     # Nothing has run in it, so it holds nothing to keep.
     sgit worktree remove --force "$tree" >/dev/null 2>&1
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The worktree $tree could not be given its package configuration, the request or the earlier log, so the session was not started. The request is still waiting."; echo; } >> "$RUN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The worktree $tree could not be given its package configuration, the request, the earlier log or the reports' codes, so the session was not started. The request is still waiting."; echo; } >> "$RUN"
     FAILED=yes
     return 0
   fi
@@ -798,7 +856,8 @@ follow_up_stage() {
   status
 
   as_session /bin/sh -c 'printf "\n## Follow-up pass, %s\n\n" "$2" >> "$1"' sh "$log" "$(date -u +%Y-%m-%dT%H:%MZ)"
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $asked, and it is your task for this pass. First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged. Deliver by pushing to the same branch and updating the pull request, as those instructions say. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. The Captain has asked for changes: his request is in the file $asked, and it is your task for this pass. First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged.$codes Deliver by pushing to the same branch and updating the pull request, as those instructions say. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"
@@ -911,6 +970,7 @@ fix_stage() {
   local errors="$OUT/fix/issue-$issue-$STAMP.err" code
   local record="$OUT/fix/issue-$issue-usage-$STAMP.json" started wall
   local proof="$SESSION_FIX/issue-$issue-proof.json"
+  local reports="$SESSION_FIX/issue-$issue-reports.txt" codes=""
   local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
 
   if sgit show-ref --verify --quiet "refs/heads/$branch" || sgit show-ref --verify --quiet "refs/remotes/origin/$branch" \
@@ -929,6 +989,7 @@ fix_stage() {
   sgit worktree add -q -b "$branch" "$tree" origin/main 2>/dev/null \
     && prepare_tree "$tree" \
     && as_session /bin/sh -c ': > "$1" && rm -f "$2"' sh "$log" "$proof" \
+    && hand_over_reports "$issue" "$reports" \
     || {
       # Nothing has run in it, so the worktree and its new branch hold nothing to keep.
       sgit worktree remove --force "$tree" >/dev/null 2>&1
@@ -948,8 +1009,9 @@ fix_stage() {
   printf 'issue %s %s %s\n' "$$" "$issue" "$tree" > "$INFLIGHT"
   say_started issue "$issue"
   status
+  there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
 
-  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log. Deliver through a pull request as those instructions say. When you open one, write the proof of your fix to the file $proof before your final reply, as the section \"The proof\" of those instructions says: the runner runs it with and without your fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local prompt="Work GitHub issue #$issue of $REPO to a resolution, as far as you can go. $origin First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older): together they are your instructions, including how far to go and where you must stop. You are in your own git worktree on the branch $branch, made from origin/main. Keep your activity log, as you go, in the file $log.$codes Deliver through a pull request as those instructions say. When you open one, write the proof of your fix to the file $proof before your final reply, as the section \"The proof\" of those instructions says: the runner runs it with and without your fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: diagnosed\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   started=$(date +%s)
   fix_session "$tree" "$reply" "$errors" "$record" "$prompt"

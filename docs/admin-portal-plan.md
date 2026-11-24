@@ -709,7 +709,9 @@ Captain chose three changes from the ten proposed:
     part of a review that is itself a request), and the runner fingerprints every waiting
     request before a session and sets aside any that appeared or changed during it, and any
     review he had in draft, saying so on the pull request. That narrows what a misled session can pass on. It is not a boundary:
-    a fix session has his access to the Mac. A separate GitHub identity for the sessions (the
+    a fix session has his access to the Mac. (Superseded 2026-11-24: sessions run as a macOS
+    user of their own that cannot read his login, so a request counts whenever he makes it and
+    nothing is set aside; `docs/admin-feedback-check.md`, "The sessions' macOS user".) A separate GitHub identity for the sessions (the
     GitHub App the API already uses to file issues is one candidate) would let the two be told
     apart, and is left for him to decide.
   - A run that dies during its session is reported by the next one, on the pull request too.

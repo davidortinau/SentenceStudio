@@ -48,8 +48,10 @@ OUT = Path(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio
 DOTNET_DIR = os.environ.get("FEEDBACK_DOTNET_DIR") or "/usr/local/share/dotnet"
 LIMIT = 900
 PYTHON = "/usr/bin/python3"
-# What a command run as the session's user finds on its PATH (nothing of the Captain's).
-SESSION_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# What a command run as the session's user finds on its PATH (nothing of the Captain's). The
+# runner hands over the one its sessions get, so a session and its proof run with the same.
+SESSION_PATH = os.environ.get("FEEDBACK_SESSION_PATH") or \
+    "/opt/homebrew/bin:/usr/local/share/dotnet:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # The start of every command that touches the worktree. Empty: it runs as this user. With --as
 # it is sudo to the session's user with an environment made from nothing (become).
 AS = []
@@ -83,7 +85,8 @@ def plain(text, most=300):
 
 def become(user):
     """The command that runs something as the session's macOS user, with nothing of this user's
-    environment. Raises KeyError when there is no such user."""
+    environment: the same one scripts/admin-feedback-check.sh starts a session with
+    (as_session; change both together). Raises KeyError when there is no such user."""
     found = pwd.getpwnam(user)
     if found.pw_uid in (0, os.getuid()):
         raise KeyError(user)
@@ -267,6 +270,8 @@ def first_error(output, tree=None):
     output = output or ""
     if tree:
         output = output.replace(os.path.realpath(str(tree)) + os.sep, "").replace(str(tree) + os.sep, "")
+    # Nor whose home anything else is in.
+    output = re.sub(r"/Users/[^/\s]+/", "~/", output)
     found = BUILD_ERROR.search(output)
     return plain(found.group(1), 200) if found else ""
 
@@ -311,8 +316,9 @@ def build_properties(restore_config, mobile_targets_off=True):
 def run_dotnet_test(tree, declared, restore_config, limit):
     began = time.time()
     # Where the test run can write: a folder of the worktree's owner.
-    results = tool(["/usr/bin/mktemp", "-d", "/tmp/feedback-proof.XXXXXXXX"]).stdout.strip()
-    if not results.startswith("/tmp/feedback-proof."):
+    made = tool(["/bin/sh", "-c", 'mktemp -d "${TMPDIR:-/tmp}/feedback-proof.XXXXXXXX"'])
+    results = made.stdout.strip()
+    if made.returncode != 0 or not results.startswith("/") or "feedback-proof" not in results:
         raise OSError("no folder for the test results could be made")
     try:
         code, output = run(["dotnet", "test", declared["project"], "--filter", declared["filter"],
@@ -682,6 +688,13 @@ def check_pr(args):
         except KeyError:
             print(f"--as {user}: no such macOS user, or not one apart from this one", file=sys.stderr)
             return 2
+        # That user's own temporary folder, as its sessions have: /tmp is shared with the Captain.
+        try:
+            own = tool(["/usr/bin/getconf", "DARWIN_USER_TEMP_DIR"]).stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            own = ""
+        if re.fullmatch(r"/[A-Za-z0-9_./-]+", own):
+            AS.append(f"TMPDIR={own}")
     notes = []
     try:
         base = git(tree, "merge-base", "HEAD", option(args, "--base") or "origin/main").strip()

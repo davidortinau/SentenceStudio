@@ -45,17 +45,20 @@ brings in commits from `main` that change `.github/workflows` is refused: on a f
 do not merge or rebase onto `main` unless the Captain asks, and if he does and the push is
 refused, say so in your result.
 
-When the issue names report ids, you may read a report's codes with
-`scripts/admin-api.sh sam-show <reportId>` (when it failed, how the turn ended, which tools ran). **You may not open the flagged exchange or a saved
-screen state** (`sam-exchange`, `screen-state`): the session that edits code does not read
-learner content. If you cannot make progress without the learner's exact words, say so in your
+When the issue names report ids, the runner has read each report's codes for you (when it
+failed, how the turn ended, which tools ran) and your prompt names the file they are in: it is
+what `scripts/admin-api.sh sam-show <reportId>` printed. You cannot run that script yourself:
+it needs the Captain's Azure sign-in, which your macOS user does not have. If your prompt names
+no such file, the codes could not be read; say so and work from the issue. **You may not open
+the flagged exchange or a saved screen state** (`sam-exchange`, `screen-state`): the session
+that edits code does not read learner content. If you cannot make progress without the learner's exact words, say so in your
 result and stop; the Captain will read them.
 
 ## The work
 
 1. **Restate the problem** in one or two sentences at the top of your activity log.
 2. **Diagnose before changing anything.** First find out which build answered the learner.
-   `sam-show` gives the time of each flag, and a flag can only follow its turn. The deploy
+   The reports' codes give the time of each flag, and a flag can only follow its turn. The deploy
    records under `docs/` say what production ran then
    (`git log -i --grep=deploy --date=short --format='%ad %h %s' -- docs` lists them). A flag
    can be older than the deploy that fixed what it reports: both reports behind issue 226
@@ -249,8 +252,9 @@ Do everything short of these, write up the rest, and say in your result what is 
   `aspire stop --all`.
 - **You have no Docker and no simulator.** So the tests that need PostgreSQL skip, the app's
   web stack cannot be started here, and nothing can be run on a simulator: do not try to get
-  any of them. Build, run the tests that need none of them, and say in the pull request what
-  could not be run and why.
+  any of them. Everything else works as it did: the unit and contract tests, the macOS view
+  tests (`tests/SentenceStudio.Native.SwiftUIViews.Tests`) and `scripts/ios-build.sh sim`.
+  Say in the pull request what could not be run and why.
 - **Everything you start is ended when your session and its proof end**: leave nothing running
   on purpose, and expect nothing from an earlier session to be running.
 - A package restore that fails with NU1101 for a package no feed has (the Captain's own builds

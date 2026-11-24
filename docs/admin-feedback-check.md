@@ -223,10 +223,16 @@ red for a day because nothing said so.
     `~/work/LocalNuGets` and `~/work/Microsoft.SwiftUI/artifacts` (`FEEDBACK_LOCAL_FEEDS`). **A
     package that exists only in the Captain's package cache is not there:** put its `.nupkg`
     in `~/work/LocalNuGets`, or a session's restore fails with NU1101.
-  - **Nothing outlives a session.** Before a session starts and after it and its proof end,
-    every process of that user is ended (`kill -1` as that user): build servers, test hosts,
+  - **Nothing outlives a session.** Before a session starts, between the session and the
+    runner's proof of it, and after the proof, every process of that user is ended (`kill -1` as that user): build servers, test hosts,
     anything a session left running. A desktop login of that user would be ended too; it has
     no reason to have one.
+  - **What it can still build and run** (tried as that user on 2026-11-24): the unit and
+    contract tests, the macOS view tests (30 pass and the same 4 fail as for the Captain) and
+    `scripts/ios-build.sh sim`. **What it cannot:** the tests that need PostgreSQL (no Docker),
+    the isolated web stack, a simulator run, and `scripts/admin-api.sh` (no Azure sign-in). For
+    an issue the triage filed, the runner itself reads the codes of the reports it names
+    (`sam-show`, at most five) and hands them to the session as a file.
   - **What the runner never does:** run a session's code, or a git command in a session's
     files, as the Captain. It reads a session's reply from its output stream and its proof
     file through that user, takes only the fields it validates, and writes every GitHub post
