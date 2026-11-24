@@ -221,10 +221,11 @@ public class CoachDueWordQuestionRegressionTests
     }
 
     [Fact]
-    public async Task ASurfacedNoChangeMessage_IsStillRefusedForASentinel()
+    public async Task ASurfacedNoChangeMessage_IsShownEvenWhenItNamesADueWord()
     {
-        // The other half of the same rule: NoChange falls through to the branch that shows the
-        // model's CoachMessage verbatim, so that string is scanned.
+        // Issue 258: this pinned the refusal of a NoChange message that named a due word. NoChange
+        // shows the model's CoachMessage verbatim, and a due word in it is no longer a reason to
+        // refuse; the due-word list is not read.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("SENTINELDUEWORD", "sentinel gloss")];
 
@@ -241,16 +242,17 @@ public class CoachDueWordQuestionRegressionTests
 
         var result = await AskAsync(harness, sessionId, "anything to change?");
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        result.Value.Messages.Should().NotContain(m => m.Text.Contains("SENTINELDUEWORD"));
-        harness.ValidationData.EmbargoQueryCount.Should().BeGreaterThan(0);
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Messages.Should().Contain(m => m.Text.Contains("SENTINELDUEWORD"));
+        harness.ValidationData.EmbargoQueryCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task ThePlanPathStillScansModelAuthoredPlanText()
+    public async Task AClarifyingQuestion_IsAskedEvenWhenItNamesADueWord()
     {
-        // Scope check: a clarifying question is model-authored and surfaced verbatim, so it is
-        // scanned.
+        // Issue 258: this pinned the refusal of a clarifying question that named a due word. The
+        // question is model-authored and shown verbatim; a due word in it is not a reason to
+        // refuse, and the due-word list is not read.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("SENTINELDUEWORD", "sentinel gloss")];
 
@@ -268,8 +270,9 @@ public class CoachDueWordQuestionRegressionTests
 
         var result = await AskAsync(harness, sessionId, "change my plan somehow");
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        harness.ValidationData.EmbargoQueryCount.Should().BeGreaterThan(0);
+        result.Value!.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+        result.Value.ClarifyingQuestion.Should().Be("Did you mean SENTINELDUEWORD?");
+        harness.ValidationData.EmbargoQueryCount.Should().Be(0);
     }
 
     // ---------------------------------------------------------------- helpers

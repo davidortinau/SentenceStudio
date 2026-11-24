@@ -1855,6 +1855,9 @@ public sealed class CoachSessionService : ICoachSessionService
                         != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference,
                 PendingSuggestionId = session.PendingSuggestionId,
                 PendingSuggestionDelta = pendingDelta,
+                AnswersAQuestionWhileTheScreenHidesAnAnswer =
+                    session.Status == CoachSessionStatus.AwaitingClarification
+                    && request.ClientScreen is { AnswerHidden: true },
                 ClarificationsRemaining =
                     Math.Max(0, options.MaxClarificationsPerSession - session.ClarificationCount),
                 UserLocalDate = _dateContext.UserLocalDate
@@ -1872,30 +1875,28 @@ public sealed class CoachSessionService : ICoachSessionService
     {
         var intent = agentResult.Intent;
 
-        // The leak gate runs first, before the conversation state is persisted and before any
-        // text can reach the learner. A leak is terminal: the coach does not re-prompt, does not
-        // surface the message, and does not write the plan.
+        // No reply is refused for naming a word that is due for review (issue 258): being due is a
+        // scheduling fact the learner can see in their own app, not a secret. The one thing still
+        // checked is context: the answer the learner's screen is hiding while it challenges them.
+        // A reply that would give that away unasked is not shown; the learner is asked whether
+        // they want a hint or the answer instead, and their reply is honoured. It is a question,
+        // never the safe-failure notice.
         //
-        // It scans exactly the model-authored strings this turn will surface, which is now a
-        // short list. Receipts and suggestion rationale are application-owned, and a pedagogical
-        // answer surfaces its validated blocks, so on every other intent the model's CoachMessage
-        // is discarded — scanning it could only refuse a turn over text no learner ever sees.
+        // It reads exactly the model-authored strings this turn will surface. Receipts and
+        // suggestion rationale are application-owned, and a pedagogical answer surfaces its
+        // validated blocks, so on every other intent the model's CoachMessage is discarded.
+        var askHintOrAnswer = false;
         if (agentResult.Outcome == CoachAgentOutcome.Completed && intent is not null)
         {
             // The explicit-review normalizer replaces the complete model intent with
             // application-owned copy and a topic parsed from the learner's own text. None of the
-            // original model prose can surface on that path, so scanning it could only produce a
-            // false refusal. Every non-replaced intent keeps the existing fail-closed scan.
+            // original model prose can surface on that path.
             var surfaced = modelIntentWasReplaced ? [] : SurfacedModelText(intent);
             if (surfaced.Count > 0)
             {
-                var leak = await ValidateNoAnswerLeakAsync(
+                askHintOrAnswer = await SpoilsTheHiddenAnswerUnaskedAsync(
                     userProfileId, session, surfaced, TurnEmbargo(request), LearnerTextFor(request),
                     cancellationToken).ConfigureAwait(false);
-                if (leak is not null)
-                {
-                    return leak;
-                }
             }
         }
 
@@ -1906,6 +1907,21 @@ public sealed class CoachSessionService : ICoachSessionService
             await _sessions.UpdateAsync(
                 userProfileId, session.Id,
                 new CoachSessionUpdate { AgentSessionJson = agentResult.AgentSessionJson, TurnIncrement = 1 },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (askHintOrAnswer)
+        {
+            // The conversation state was kept above, so the model's next turn knows what was
+            // asked; its own reply was not shown, and the next turn's context says so.
+            _logger.LogInformation(
+                "[Coach] Session {SessionId}: the reply would have given the answer the screen is hiding, unasked; "
+                + "the learner was asked whether they want a hint or the answer.",
+                session.Id);
+            var languages = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+            return await AskClarificationAsync(
+                userProfileId, session,
+                CoachDeterministicCopy.HintOrAnswerQuestion(languages.DisplayLanguageTag),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -2153,9 +2169,9 @@ public sealed class CoachSessionService : ICoachSessionService
     }
 
     /// <summary>
-    /// What this reply may repeat beyond the due-word rule (Captain, 2026-11-17): the words the
-    /// learner asked to have listed, and the side of a word on their screen they can already see.
-    /// The side their screen still hides stays withheld, due or not.
+    /// The vocabulary on the learner's screen as they sent this, and whether the screen is hiding
+    /// its answer. Only the hidden side of those words is checked in a reply; see
+    /// <see cref="SpoilsTheHiddenAnswerUnaskedAsync"/>.
     /// </summary>
     private CoachTurnEmbargo TurnEmbargo(CoachTurnRequest request)
     {
@@ -2453,17 +2469,7 @@ public sealed class CoachSessionService : ICoachSessionService
             languages.NativeLanguageTag,
             cancellationToken).ConfigureAwait(false);
 
-        if (proposal is not null)
-        {
-            var leak = await _vocabularyEmbargo
-                .ValidateAsync(userProfileId, proposal, cancellationToken)
-                .ConfigureAwait(false);
-            if (!leak.IsValid)
-            {
-                return await BuildAnswerLeakResponseAsync(
-                    userProfileId, session, leak, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        // A review set is not refused for naming a word that is due (issue 258).
 
         if (proposal is not null && _vocabularySetApplications is not null)
         {
@@ -2634,7 +2640,24 @@ public sealed class CoachSessionService : ICoachSessionService
         _ => [intent.CoachMessage, intent.ClarifyingQuestion]
     };
 
-    private async Task<CoachOperationResult<CoachTurnResponse>?> ValidateNoAnswerLeakAsync(
+    /// <summary>
+    /// True when this reply would give away the answer the learner's screen is hiding, they did
+    /// not ask for it, and there is room to ask them which they want.
+    /// </summary>
+    /// <remarks>
+    /// Context, not a filter (Captain, 2026-11-24, issue 258). Due words are not part of it: only
+    /// the hidden side of the words on a screen that is challenging the learner. It is false, and
+    /// the reply is shown, when:
+    /// <list type="bullet">
+    /// <item>they asked for the answer or the meaning outright, or wrote the word or its meaning;</item>
+    /// <item>they are answering a clarifying question just asked, which is how "the answer" or
+    /// "a hint" after the hint-or-answer question is honoured, and why that question is never
+    /// asked twice in a row;</item>
+    /// <item>no clarifying question remains in the budget, so asking would end in the limit's
+    /// notice.</item>
+    /// </list>
+    /// </remarks>
+    private async Task<bool> SpoilsTheHiddenAnswerUnaskedAsync(
         string userProfileId,
         CoachSession session,
         IReadOnlyList<string?> surfaced,
@@ -2642,45 +2665,28 @@ public sealed class CoachSessionService : ICoachSessionService
         string writtenByLearner,
         CancellationToken cancellationToken)
     {
-        var embargoed = await _validationData
+        if (!turn.ScreenWords.Any(word => word.AnswerHidden)
+            || session.Status == CoachSessionStatus.AwaitingClarification
+            || session.ClarificationCount >= _options.CurrentValue.MaxClarificationsPerSession
+            || _writeAuthority.IsAnswerRequest(writtenByLearner))
+        {
+            return false;
+        }
+
+        var hidden = await _validationData
             .GetTurnEmbargoAsync(userProfileId, turn, cancellationToken)
             .ConfigureAwait(false);
 
-        // What the learner asks for directly is not withheld from them (Captain, 2026-11-20: they
-        // are in control of their learning): a word or a meaning they wrote in this message, in an
-        // activity or not, and the word their screen is hiding when they ask for the answer
-        // outright. The scan is for what Sam would give away unasked. Refusing a request about a
-        // due word ("example sentences using 생선") left them the safe-failure notice however
-        // they rephrased it (issue 252).
+        // What the learner asks for directly is not kept from them (Captain, 2026-11-20): a word
+        // or a meaning they wrote in this message is theirs to have repeated.
         if (!string.IsNullOrWhiteSpace(writtenByLearner))
         {
-            var askedFor = _writeAuthority.IsAnswerRequest(writtenByLearner)
-                ? turn.ScreenWords
-                    .Where(word => word.AnswerHidden)
-                    .Select(word => word.WordId)
-                    .ToHashSet(StringComparer.Ordinal)
-                : [];
-
-            embargoed = embargoed
-                .Where(item => (item.WordId is null || !askedFor.Contains(item.WordId))
-                    && !_leakValidator.NamesWordOrMeaning(writtenByLearner, item))
+            hidden = hidden
+                .Where(item => !_leakValidator.NamesWordOrMeaning(writtenByLearner, item))
                 .ToList();
         }
 
-        if (embargoed.Count == 0)
-        {
-            return null;
-        }
-
-        var leak = _leakValidator.ValidateMany(surfaced, embargoed);
-
-        if (leak.IsValid)
-        {
-            return null;
-        }
-
-        return await BuildAnswerLeakResponseAsync(
-            userProfileId, session, leak, cancellationToken).ConfigureAwait(false);
+        return hidden.Count > 0 && !_leakValidator.ValidateMany(surfaced, hidden).IsValid;
     }
 
     private async Task<CoachOperationResult<CoachTurnResponse>> BuildAnswerLeakResponseAsync(

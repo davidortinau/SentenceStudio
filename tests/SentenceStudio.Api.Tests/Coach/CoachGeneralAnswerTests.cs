@@ -46,10 +46,10 @@ public class CoachGeneralAnswerTests
     }
 
     [Fact]
-    public async Task AGeneralAnswer_ThatNamesADueWord_IsRefused()
+    public async Task AGeneralAnswer_ThatNamesADueWord_IsShown()
     {
-        // The general reply shows model prose as written, so it goes through the same leak scan
-        // as NoChange: a due review answer never reaches the learner through it.
+        // Issue 258: being due for review is a scheduling fact the learner can see in their own
+        // app, not a secret. This pinned the refusal before; the reply is now shown.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("SENTINELDUEWORD", "sentinel gloss")];
         var sessionId = await harness.StartSessionAsync();
@@ -58,8 +58,71 @@ public class CoachGeneralAnswerTests
 
         var result = await AskAsync(harness, sessionId, "Show me one of my words.");
 
-        string.Join(" ", result.Value!.Messages.Select(m => m.Text)).Should().NotContain("SENTINELDUEWORD");
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().Contain("SENTINELDUEWORD");
         harness.Db.CoachPlanRevisions.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Show me 3 sentences with \uC0DD\uC120")]
+    [InlineData("Can you use \uC0DD\uC120 in three sentences for me?")]
+    [InlineData("\uC0DD\uC120 \uC608\uBB38 \uC138 \uAC1C \uBCF4\uC5EC \uC918")]
+    public async Task ThreeSentencesWithADueWord_AreShown_WhenTheyContainOtherDueWordsAndTheirMeanings(string text)
+    {
+        // Issue 258, the Captain's test case. The word asked about is due, and the three
+        // sentences use other due words (market, eat, like) and their meanings. Before, one such
+        // match discarded the whole reply and the learner got the safe-failure notice.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed =
+        [
+            new CoachEmbargoedItem("\uC0DD\uC120", "fish", WordId: "word-fish"),
+            new CoachEmbargoedItem("\uC2DC\uC7A5", "market", WordId: "word-market"),
+            new CoachEmbargoedItem("\uBA39\uB2E4", "eat", Lemma: "\uBA39\uB2E4", WordId: "word-eat"),
+            new CoachEmbargoedItem("\uC88B\uC544\uD558\uB2E4", "like", WordId: "word-like",
+                Examples: ["\uC800\uB294 \uC0DD\uC120\uC744 \uC88B\uC544\uD574\uC694."])
+        ];
+        var sessionId = await harness.StartSessionAsync();
+
+        const string reply =
+            "1. \uC2DC\uC7A5\uC5D0\uC11C \uC0DD\uC120\uC744 \uC0C0\uC5B4\uC694. (I bought fish at the market.)\n"
+            + "2. \uC800\uB141\uC5D0 \uC0DD\uC120\uC744 \uBA39\uC5B4\uC694. (I eat fish in the evening.)\n"
+            + "3. \uC800\uB294 \uC0DD\uC120\uC744 \uC88B\uC544\uD574\uC694. (I like fish.)";
+        harness.Coach.NextResult = General(reply);
+
+        var result = await AskAsync(harness, sessionId, text);
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.StopReason.Should().Be(CoachStopReason.Completed);
+        result.Value.Messages.Should().ContainSingle()
+            .Which.Should().Match<CoachMessageDto>(m => m.Kind == CoachMessageKind.Text && m.Text == reply);
+        result.Value.Messages.Select(m => m.Text).Should().NotContain(CoachDeterministicCopy.ValidationFailedNeutral);
+    }
+
+    [Fact]
+    public async Task AGeneralAnswer_OfAboutAThousandCharacters_IsShown()
+    {
+        // Issue 258: the cap on a general reply is the 1,600 a teaching answer allows, not 400.
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        var reply = string.Join(" ", Enumerable.Repeat("Here is one more plain sentence about your words.", 20));
+        reply.Length.Should().BeInRange(950, 1050);
+
+        harness.Coach.NextResult = General(reply);
+
+        var result = await AskAsync(harness, sessionId, "Tell me about my words.");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Messages.Should().ContainSingle().Which.Text.Should().Be(reply);
+    }
+
+    [Fact]
+    public void AGeneralAnswer_OverSixteenHundredCharacters_IsStillRefusedForItsLength()
+    {
+        new CoachIntentValidator().ValidateIntent(new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.GeneralAnswer,
+            CoachMessage = new string('a', 1601)
+        }).IsValid.Should().BeFalse();
     }
 
     [Theory]
@@ -89,9 +152,10 @@ public class CoachGeneralAnswerTests
     }
 
     [Fact]
-    public async Task AGeneralAnswer_ThatAlsoNamesADueWordTheLearnerDidNotWrite_IsRefused()
+    public async Task AGeneralAnswer_ThatAlsoNamesADueWordTheLearnerDidNotWrite_IsShown()
     {
-        // Writing one word releases that word only.
+        // Issue 258: this pinned the refusal (writing one word released that word only). No reply
+        // is refused for a due word now, whoever wrote it.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed =
         [
@@ -104,8 +168,8 @@ public class CoachGeneralAnswerTests
 
         var result = await AskAsync(harness, sessionId, "Give me example sentences using \uC0DD\uC120.");
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("SENTINELDUEWORD");
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().Contain("SENTINELDUEWORD");
     }
 
     [Fact]
@@ -148,9 +212,12 @@ public class CoachGeneralAnswerTests
     [Theory]
     [InlineData("Can I get a hint?")]
     [InlineData("Help me, but don't tell me the answer.")]
-    public async Task AGeneralAnswer_ThatGivesTheHiddenAnswerUnasked_IsRefused(string text)
+    [InlineData("Help me with this one.")]
+    public async Task AGeneralAnswer_ThatGivesTheHiddenAnswerUnasked_BecomesTheHintOrAnswerQuestion(string text)
     {
-        // What stays guarded: Sam giving the answer away when the learner did not ask for it.
+        // Issue 258, item 5. What stays guarded is Sam giving the answer away when the learner
+        // did not ask for it, but the turn no longer ends in the safe-failure notice: the learner
+        // is asked which they want.
         using var harness = new CoachApplicationHarness();
         harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
         var sessionId = await harness.StartSessionAsync();
@@ -159,9 +226,93 @@ public class CoachGeneralAnswerTests
 
         var result = await AskInAQuizAsync(harness, sessionId, text);
 
-        result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
-        string.Join(" ", result.Value.Messages.Select(m => m.Text)).Should().NotContain("\uC0DD\uC120");
+        result.Value!.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+        result.Value.ClarifyingQuestion.Should().Be(HintOrAnswerQuestion);
+        result.Value.Messages.Should().ContainSingle()
+            .Which.Should().Match<CoachMessageDto>(m =>
+                m.Kind == CoachMessageKind.Clarification
+                && m.Text == HintOrAnswerQuestion);
+        var shown = string.Join(" ", result.Value.Messages.Select(m => m.Text));
+        shown.Should().NotContain("\uC0DD\uC120");
+        shown.Should().NotContain(CoachDeterministicCopy.ValidationFailedNeutral);
     }
+
+    [Theory]
+    [InlineData("the answer", "It is \uC0DD\uC120.")]
+    [InlineData("just tell me", "It is \uC0DD\uC120.")]
+    [InlineData("a hint", "It lives in water and you might buy it at a market.")]
+    public async Task TheReplyToTheHintOrAnswerQuestion_IsHonoured(string reply, string samsNextReply)
+    {
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+        harness.Coach.NextResult = General("It is \uC0DD\uC120.");
+        var asked = await AskInAQuizAsync(harness, sessionId, "Help me with this one.");
+        asked.Value!.ClarifyingQuestion.Should().Be(HintOrAnswerQuestion);
+
+        harness.Coach.NextResult = General(samsNextReply);
+        var result = await AskInAQuizAsync(harness, sessionId, reply);
+
+        // Sam is told this message replies to the question, and what it writes is shown: the
+        // question is never asked twice in a row, and no turn here ends in the notice.
+        CoachInstructions.BuildTurnMessage(harness.Coach.LastRequest!)
+            .Should().Contain("whether they want a hint or the answer, this message is their reply");
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Messages.Should().ContainSingle()
+            .Which.Should().Match<CoachMessageDto>(m => m.Kind == CoachMessageKind.Text && m.Text == samsNextReply);
+    }
+
+    [Fact]
+    public async Task TheHintOrAnswerQuestion_CountsTowardTheBudget_AndIsNotAskedWhenNoneIsLeft()
+    {
+        // docs/coach/sam-safe-failure-notice.md, "The clarification budget": the question counts
+        // as one, and when none is left the reply is shown instead of the limit's notice.
+        using var harness = new CoachApplicationHarness();
+        harness.ValidationData.Embargoed = [new CoachEmbargoedItem("\uC0DD\uC120", WordId: "word-fish")];
+        var sessionId = await harness.StartSessionAsync();
+
+        harness.Coach.NextResult = General("It is \uC0DD\uC120.");
+        await AskInAQuizAsync(harness, sessionId, "Help me with this one.");
+        harness.Db.ChangeTracker.Clear();
+        harness.Db.CoachSessions.Single().ClarificationCount.Should().Be(1);
+
+        var session = harness.Db.CoachSessions.Single();
+        session.ClarificationCount = CoachConstraintLimits.MaxClarificationsPerSession;
+        session.Status = CoachSessionStatus.Active;
+        harness.Db.SaveChanges();
+        harness.Db.ChangeTracker.Clear();
+
+        harness.Coach.NextResult = General("It is \uC0DD\uC120.");
+        var result = await AskInAQuizAsync(harness, sessionId, "Help me with this one.");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        var shown = string.Join(" ", result.Value.Messages.Select(m => m.Text));
+        shown.Should().NotContain(CoachDeterministicCopy.ClarificationLimitReached);
+        shown.Should().NotContain(CoachDeterministicCopy.ValidationFailedNeutral);
+    }
+
+    [Fact]
+    public async Task AnOffTopicReply_IsShownAsSamWroteIt()
+    {
+        // Issue 258, item 4: the deflection is Sam's own words and never the notice.
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+        const string deflection = "Ha, good one. A calculator will do that faster than I can. I'm your language tutor: shall we get back to your words?";
+        harness.Coach.NextResult = new CoachAgentTurnResult
+        {
+            Outcome = CoachAgentOutcome.Completed,
+            Intent = new CoachTurnIntent { Kind = CoachIntentKind.OffTopic, CoachMessage = deflection }
+        };
+
+        var result = await AskAsync(harness, sessionId, "What is 5+5?");
+
+        result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
+        result.Value.Messages.Should().ContainSingle().Which.Text.Should().Be(deflection);
+    }
+
+    // Written out, not read from CoachDeterministicCopy: the exact words a learner sees are pinned
+    // here, and this file still builds against the code before issue 258.
+    private const string HintOrAnswerQuestion = "Would you like a hint, or the answer?";
 
     private static Task<CoachOperationResult<CoachTurnResponse>> AskInAQuizAsync(
         CoachApplicationHarness harness, string sessionId, string text) =>

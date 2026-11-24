@@ -3,37 +3,23 @@ using SentenceStudio.Contracts.Coach;
 namespace SentenceStudio.Api.Coach.Validation;
 
 /// <summary>
-/// Applies the current learner-specific embargo to every string a vocabulary proposal can surface.
+/// Formerly refused a vocabulary proposal that named a word due for review. Being due is not a
+/// secret (issue 258), so every proposal now passes; the type is kept for its callers and can be
+/// removed in a follow-up.
 /// </summary>
 internal sealed class CoachVocabularySetEmbargoValidator(
     ICoachValidationDataSource validationData,
     CoachDueItemLeakValidator leakValidator)
 {
-    public async Task<CoachValidationResult> ValidateAsync(
+    public Task<CoachValidationResult> ValidateAsync(
         string userProfileId,
         CoachVocabularySetProposal proposal,
         CancellationToken cancellationToken)
     {
-        var surfacedText = proposal.Terms
-            .SelectMany(static entry => new[]
-            {
-                entry.TargetTerm,
-                entry.NativeTerm
-            })
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-
-        if (surfacedText.Length == 0)
-        {
-            return CoachValidationResult.Valid;
-        }
-
-        var embargoedItems = await validationData.GetEmbargoedItemsAsync(
-            userProfileId,
-            cancellationToken: cancellationToken);
-        return leakValidator.ValidateMany(
-            surfacedText,
-            embargoedItems);
+        // Nothing is read: no due word is looked up, so none can refuse a proposal.
+        _ = validationData;
+        _ = leakValidator;
+        return Task.FromResult(CoachValidationResult.Valid);
     }
 
     public async Task<bool> IsSafeAsync(

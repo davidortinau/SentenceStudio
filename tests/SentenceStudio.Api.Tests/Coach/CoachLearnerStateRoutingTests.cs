@@ -198,11 +198,12 @@ public class CoachLearnerStateRoutingTests
     }
 
     [Fact]
-    public void Instructions_StillProhibitDueWordLeaks()
+    public void Instructions_NoLongerWithholdDueWords()
     {
-        CoachInstructions.Instructions.Should().Contain(
-            "due review words",
-            "the due-word privacy rule is preserved");
+        // Issue 258: this pinned the due-word rule as preserved. The Captain removed the rule:
+        // being due for review is a scheduling fact, not a secret.
+        CoachInstructions.Instructions.Should().NotContain("due review words");
+        CoachInstructions.Instructions.Should().Contain("Being due for review is not a secret.");
     }
 
     [Fact]

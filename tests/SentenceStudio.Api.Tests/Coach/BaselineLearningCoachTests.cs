@@ -112,7 +112,9 @@ public class BaselineLearningCoachTests
         instructions.Should().Contain("language coach and their assistant for this app");
         instructions.Should().Contain("Today's Plan is one optional capability");
         instructions.Should().Contain("default destination");
-        instructions.Should().Contain("due review words");
+        // Issue 258: the due-word rule is gone; being due is not a secret.
+        instructions.Should().NotContain("due review words");
+        instructions.Should().Contain("Being due for review is not a secret.");
         instructions.Should().Contain("window");
         instructions.Should().Contain("one open suggestion");
 

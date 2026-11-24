@@ -385,13 +385,8 @@ public sealed class CoachExampleSentenceEditHandler : CoachWriteHandlerBase<Coac
         var found = await _store.FindSentenceAsync(userProfileId, args.SentenceId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
 
-        // The same guards as the forward edit: putting the old text back must not make a
-        // duplicate the learner added since, nor touch a sentence that is now hidden for review.
-        if (await _store.IsDueAsync(userProfileId, found.Word.Id, cancellationToken).ConfigureAwait(false))
-        {
-            throw InvalidArgument("That word is due for review, so its example sentences stay hidden until the review is done.");
-        }
-
+        // The same guard as the forward edit: putting the old text back must not make a
+        // duplicate the learner added since.
         if (await _store.HasSentenceAsync(userProfileId, found.Word.Id, prior.TargetSentence, cancellationToken,
                 exceptSentenceId: found.Sentence.Id).ConfigureAwait(false))
         {
@@ -428,11 +423,6 @@ public sealed class CoachExampleSentenceEditHandler : CoachWriteHandlerBase<Coac
         var found = await _store.FindSentenceAsync(userProfileId, args.SentenceId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
         var (sentence, word) = found;
-
-        if (await _store.IsDueAsync(userProfileId, word.Id, cancellationToken).ConfigureAwait(false))
-        {
-            throw InvalidArgument("That word is due for review, so its example sentences stay hidden until the review is done.");
-        }
 
         var target = CoachExampleSentenceText.Sentence(args.TargetSentence, InvalidArgument);
         if (target is not null && target.Length == 0)
@@ -537,11 +527,6 @@ public sealed class CoachExampleSentenceRemovalHandler : CoachWriteHandlerBase<C
     {
         var found = await _store.FindSentenceAsync(userProfileId, args.SentenceId, cancellationToken)
             .ConfigureAwait(false) ?? throw NotFoundOrNotOwned();
-
-        if (await _store.IsDueAsync(userProfileId, found.Word.Id, cancellationToken).ConfigureAwait(false))
-        {
-            throw InvalidArgument("That word is due for review, so its example sentences stay hidden until the review is done.");
-        }
 
         return found;
     }

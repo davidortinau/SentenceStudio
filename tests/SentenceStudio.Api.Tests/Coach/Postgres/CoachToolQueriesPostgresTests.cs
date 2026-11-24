@@ -144,17 +144,17 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task Vocabulary_search_translates_the_like_filter_and_holds_the_due_embargo()
+    public async Task Vocabulary_search_translates_the_like_filter_and_lists_the_due_word()
     {
+        // Issue 258: this pinned the due word as left out of the count and of the page.
         (await Vocabulary.CountTrackedWordsAsync(Owner)).Should().Be(2);
         (await Vocabulary.GetProgressFactsAsync(Owner)).Should().HaveCount(2);
         (await Vocabulary.GetDueWordTagsAsync(Owner, Now)).Should().Equal("food");
 
         var unfiltered = await Vocabulary.SearchUndueWordsAsync(Owner, null, 10, Now);
-        unfiltered.TotalCount.Should().Be(1, "the due word is embargoed from the count as well");
-        unfiltered.MatchedCount.Should().Be(
-            2, "the count of what matched before the embargo is what lets a caller say one is due");
-        unfiltered.Words.Should().ContainSingle().Which.WordId.Should().Be("pg-word-undue");
+        unfiltered.TotalCount.Should().Be(2, "the due word is counted like any other");
+        unfiltered.MatchedCount.Should().Be(2);
+        unfiltered.Words.Select(w => w.WordId).Should().BeEquivalentTo(["pg-word-undue", "pg-word-due"]);
 
         var matching = await Vocabulary.SearchUndueWordsAsync(Owner, "safe", 10, Now);
         matching.Words.Should().ContainSingle();
@@ -165,7 +165,7 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
         notMatching.TotalCount.Should().Be(0);
         notMatching.Words.Should().BeEmpty();
 
-        // The sanctioned route to a due word is naming it, and that route still works.
+        // Naming a due word still works, and stays owner-scoped.
         (await Vocabulary.GetTrackedWordAsync(Owner, "pg-word-due"))!.TargetLanguageTerm.Should().Be("만기");
         (await Vocabulary.GetTrackedWordAsync(Stranger, "pg-word-due")).Should().BeNull();
     }
@@ -185,13 +185,14 @@ public sealed class CoachToolQueriesPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task Owned_word_search_translates_its_filters_and_holds_the_due_embargo()
+    public async Task Owned_word_search_translates_its_filters_and_lists_the_due_word()
     {
+        // Issue 258: this pinned the due word, which carries the tag, as matched and not returned.
         var byTag = await Vocabulary.SearchOwnedWordsAsync(
             Owner, new VocabularySearchFilter(Tag: "FOOD", IncludeNeverPracticed: true), 10, Now);
         byTag.MatchedCount.Should().Be(1, "the due word carries the tag");
-        byTag.TotalCount.Should().Be(0, "and is embargoed");
-        byTag.Words.Should().BeEmpty();
+        byTag.TotalCount.Should().Be(1, "and is listed like any other");
+        byTag.Words.Should().ContainSingle().Which.WordId.Should().Be("pg-word-due");
 
         var byResource = await Vocabulary.SearchOwnedWordsAsync(
             Owner, new VocabularySearchFilter(ResourceId: "pg-resource-a", IncludeNeverPracticed: true), 10, Now);

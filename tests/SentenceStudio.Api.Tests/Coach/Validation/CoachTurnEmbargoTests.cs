@@ -6,24 +6,25 @@ using SentenceStudio.Api.Tests.Coach.Tools;
 namespace SentenceStudio.Api.Tests.Coach.Validation;
 
 /// <summary>
-/// The leak scan's word list for one turn (Captain, 2026-11-17): due words stay withheld, except
-/// the ones the learner asked to see and the side of the word on their screen they can already
-/// read; the side the screen hides is withheld whether it is due or not.
+/// The word list one turn's reply is checked against (issue 258): only the side of a word that
+/// the learner's screen is hiding, whether the word is due or not. A due word is never in it for
+/// being due.
 /// </summary>
 public class CoachTurnEmbargoTests
 {
     private static readonly CoachDueItemLeakValidator Leak = new();
 
     [Fact]
-    public async Task With_no_screen_and_nothing_listed_a_due_word_stays_withheld()
+    public async Task With_no_screen_a_due_word_is_not_withheld()
     {
+        // Issue 258: this pinned a due word staying withheld when nothing exempted it.
         using var fixture = new CoachToolTestFixture();
-        var fish = Due(fixture, "생선", "fish");
+        Due(fixture, "생선", "fish");
 
         var embargo = await Source(fixture).GetTurnEmbargoAsync(CoachToolTestFixture.UserA, CoachTurnEmbargo.None);
 
-        Leak.ValidateMany(["오늘 생선을 먹었어요."], embargo).IsValid.Should().BeFalse();
-        embargo.Should().Contain(item => item.WordId == fish.Id);
+        embargo.Should().BeEmpty();
+        Leak.ValidateMany(["오늘 생선을 먹었어요."], embargo).IsValid.Should().BeTrue();
     }
 
     [Fact]

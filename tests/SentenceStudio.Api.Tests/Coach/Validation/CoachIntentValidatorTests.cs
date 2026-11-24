@@ -176,8 +176,9 @@ public class CoachIntentValidatorTests
     [Fact]
     public void A_long_message_is_refused()
     {
+        // Issue 258: the cap was 400; it is now the 1,600 a teaching answer allows.
         var intent = DirectChange();
-        intent.CoachMessage = new string('a', 401);
+        intent.CoachMessage = new string('a', 1601);
 
         _validator.ValidateIntent(intent).Violations.Should().Contain(v => v.Code == "text_length");
     }

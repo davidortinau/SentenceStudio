@@ -293,6 +293,20 @@ public static class CoachDeterministicCopy
         + "saying it a little differently often helps.";
 
     /// <summary>
+    /// Asked in place of a reply that would have given away, unasked, the answer the learner's
+    /// screen is hiding (issue 258). One short question; their reply to it is honoured.
+    /// </summary>
+    internal const string HintOrAnswerQuestionEnglish = "Would you like a hint, or the answer?";
+
+    /// <summary>The same question for a learner whose display language is Korean.</summary>
+    internal const string HintOrAnswerQuestionKorean = "\uD78C\uD2B8\uB97C \uB4DC\uB9B4\uAE4C\uC694, \uC815\uB2F5\uC744 \uC54C\uB824 \uB4DC\uB9B4\uAE4C\uC694?";
+
+    internal static string HintOrAnswerQuestion(string? displayLanguageTag) =>
+        displayLanguageTag is not null && displayLanguageTag.StartsWith("ko", StringComparison.OrdinalIgnoreCase)
+            ? HintOrAnswerQuestionKorean
+            : HintOrAnswerQuestionEnglish;
+
+    /// <summary>
     /// The model asked another clarifying question after asking as many in a row as it is allowed.
     /// The question is withheld; this says what happened and what gets the learner moving again.
     /// It does not say how many were asked: the limit is a setting and can be zero.

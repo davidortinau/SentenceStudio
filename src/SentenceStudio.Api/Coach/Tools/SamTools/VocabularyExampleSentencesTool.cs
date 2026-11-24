@@ -13,11 +13,8 @@ namespace SentenceStudio.Api.Coach.Tools.SamTools;
 /// word the learner just added is reachable. Only the learner's own sentences are read.
 /// </para>
 /// <para>
-/// A word that is due for review keeps its sentences hidden: they are counted and reported as
-/// withheld with <see cref="CoachScopeWithheldReason.DueReviewEmbargo"/>, and the query never
-/// selects them. That matches what the coach's leak check embargoes (the curated example
-/// sentences of due words), so the read tool cannot hand the model text its reply would then be
-/// refused for.
+/// A word that is due for review returns its sentences like any other (issue 258): being due
+/// is a scheduling fact the learner can see in their own app. <c>IsDueForReview</c> reports it.
 /// </para>
 /// </remarks>
 public sealed class VocabularyExampleSentencesTool : CoachToolBase
@@ -74,8 +71,8 @@ public sealed class VocabularyExampleSentencesTool : CoachToolBase
                     IsCore: s.IsCore))
                 .ToList();
 
-            var withheld = page.IsDueForReview ? page.TotalCount : 0;
-            var truncated = !page.IsDueForReview && page.TotalCount > entries.Count;
+            const int withheld = 0;
+            var truncated = page.TotalCount > entries.Count;
 
             return new VocabularyExampleSentencesResult(
                 WordId: page.WordId,
@@ -91,17 +88,14 @@ public sealed class VocabularyExampleSentencesTool : CoachToolBase
                     Order = CoachScopeOrder.Unordered,
                     OrderHonored = true,
                     Filters = CoachScopeFilters.OwnerScoped
-                        | CoachScopeFilters.SingleIdentifier
-                        | (page.IsDueForReview ? CoachScopeFilters.ExcludeDue : CoachScopeFilters.None),
+                        | CoachScopeFilters.SingleIdentifier,
                     AsOfUtc = now,
                     RequestedCount = maxResults,
                     ReturnedCount = entries.Count,
                     MatchedCount = page.TotalCount,
                     EligiblePopulationCount = page.TotalCount - withheld,
                     WithheldCount = withheld,
-                    WithheldReason = withheld > 0
-                        ? CoachScopeWithheldReason.DueReviewEmbargo
-                        : CoachScopeWithheldReason.None,
+                    WithheldReason = CoachScopeWithheldReason.None,
                     Truncated = truncated,
                     // Reuses the single-word definition: the read is about one word the learner
                     // named, and a new code would be a client wire change for no new meaning.

@@ -18,14 +18,14 @@ All are in `src/SentenceStudio.Api/Coach/Application/CoachSessionService.cs` unl
 |---|---|---|---|---|
 | 1 | The model's reply failed a shape or grounding rule (too long, a stray plan change on a general reply, evidence cited with no read) and its kind is not a plan kind. A plan kind shows "Today's Plan is unchanged." instead. | `ReduceAgentResultAsync` | `validation_failed` | warning: `the intent failed N validation rule(s); codes: [kind:code, ...]` |
 | 2 | A plan preview named a resource the learner does not own. | `RejectUnownedPreviewAsync` | `validation_failed` | error: `a preview failed the ownership check` |
-| 3 | The reply repeated a word that is due for review. Since issue 252 what the learner asked for directly does not count: a due word they wrote in that message, or its meaning, and the answer their screen is hiding when they ask for it outright (`CoachWriteAuthority.IsAnswerRequest`). A reply that gives one away unasked is still refused. Only a reply shown as written is scanned (a general reply, not a teaching answer). | `BuildAnswerLeakResponseAsync` | `validation_failed` | warning: `the answer repeated N embargoed item(s)` |
+| 3 | **Removed by issue 258 (2026-11-24).** It was: the reply repeated a word that is due for review. No reply is refused for a due word any more: being due is a scheduling fact the learner can see in their own app. What is left is context, and it does not end in the notice: when a general reply would give away, unasked, the answer the learner's screen is hiding, the learner is asked "Would you like a hint, or the answer?" and their reply is honoured (see "The hidden answer on screen"). | `SpoilsTheHiddenAnswerUnaskedAsync` | `clarification_requested`, shown as a question | information: `the reply would have given the answer the screen is hiding, unasked` |
 | 4 | The model asked a clarifying question after its clarifying questions were used up. Since the change described under "The clarification budget" this ending shows its own notice, not the sentence above. | `ReduceClarificationAsync` | `clarification_requested` | warning: `the model asked a clarifying question after N of the M clarification(s) allowed in a row were used` |
 | 5 | The model's output could not be read as a turn intent. (A timeout, a cancel or the output limit ends in a different notice.) | `IncompleteAsync`; logged in `Agents/CoachAgentTurnRunner.cs` | `validation_failed` | warning: `the model answer did not match the turn-intent schema. FinishReason=...` |
 
 ## Telling them apart
 
 - **The report's stop reason** (`scripts/admin-api.sh sam-show <reportId>`, `report.stopReason`)
-  separates ending 4 from the other four: a flag whose `responseKind` is `notice` and whose
+  separates ending 4 from the others: a flag whose `responseKind` is `notice` and whose
   report says `clarification_requested` is ending 4. (A question Sam did ask has the same stop
   reason, with `responseKind` `clarification`.) Until the fix that came with this document the
   report never had a stop reason: it looked for it at the root of the stored turn outcome, and
@@ -56,8 +56,8 @@ is now a general assistant in a long conversation (`docs/coach/sam-single-runtim
 
 - The cap is on questions asked **in a row**. A turn that ends in a reply (any turn recorded
   with no stop reason) sets the count back to zero, in `RecordTurnOutcomeAsync`. A refused or
-  cut-off turn leaves it, including a vocabulary review whose word set is refused for naming a
-  due word: that turn is recorded only after its set has passed. No column changed: `ClarificationCount` now holds the run, not the
+  cut-off turn leaves it. (A vocabulary review's word set is no longer refused for naming a
+  due word, since issue 258.) No column changed: `ClarificationCount` now holds the run, not the
   session's total.
 - At zero the turn context reads `Clarifying questions remaining: 0 (do not use
   AskClarification on this turn)`, and the instructions say what to do instead: no question and
@@ -66,7 +66,7 @@ is now a general assistant in a long conversation (`docs/coach/sam-single-runtim
 - If the model asks anyway, the question is still withheld, but the notice is its own
   (`CoachDeterministicCopy.ClarificationLimitReached`): "I still can't tell what you'd like, so
   nothing was changed. Tell me the one thing you want me to do, as plainly as you can." Ending 4 therefore no longer
-  shows the sentence at the top of this document; the other four still do.
+  shows the sentence at the top of this document; the others still do.
 
 The cap, what Sam is told at zero and the wording of the notice change what Sam says to a
 learner. They are the Captain's to approve, which he does by merging the pull request that
@@ -76,6 +76,27 @@ learning activity's prompt, response, mode or default changes.
 The clients' card "Choose one option." (`Coach_ClarificationLimit`) is shown only when an offer
 is open to choose about. Without one the last question shows as a question, and a withheld one
 leaves the learner ready to type (web `CoachStateMachine`, native `NativeSamPresenter`).
+
+## The hidden answer on screen (issue 258)
+
+Context, not a filter (Captain, 2026-11-24). It applies only while the learner's screen is
+challenging them to answer (`CoachClientScreenContext.AnswerHidden`), and only to the hidden side
+of the words on that screen. Due words are not part of it.
+
+- They ask for the answer or the meaning outright, or write the word or its meaning: the reply is
+  shown (unchanged since issue 252).
+- A general reply would give the answer away and they did not ask for it: the reply is not shown,
+  and the application asks `CoachDeterministicCopy.HintOrAnswerQuestion` ("Would you like a hint,
+  or the answer?", in Korean for a Korean display language) through the ordinary clarification
+  path. It counts as one clarifying question.
+- Their next message is their reply to that question. The turn context tells the model so
+  (`CoachInstructions.HintOrAnswerReplyContext`), and what the model then writes is shown: the
+  question is never asked twice in a row.
+- When no clarifying question is left in the budget, the question is not asked and the reply is
+  shown, so this never ends in ending 4's notice either.
+- A teaching answer was never scanned and still is not; there the instructions carry the rule.
+
+Tests: `CoachGeneralAnswerTests` (the hidden-answer tests).
 
 ## Creating a plan
 

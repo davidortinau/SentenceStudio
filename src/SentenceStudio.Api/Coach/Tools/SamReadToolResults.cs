@@ -26,9 +26,9 @@ public sealed record VocabularySearchEntry(
     [property: Description("The mastery score, 0 to 1. Null if never practiced.")] double? MasteryScore,
     [property: Description("Days since last practice. Null if never practiced.")] int? DaysSinceLastPractice);
 
-/// <summary>Bounded vocabulary search result. Words currently due for review are excluded.</summary>
+/// <summary>Bounded vocabulary search result. A word due for review is listed like any other.</summary>
 public sealed record VocabularySearchResult(
-    [property: Description("Total words matching the query, excluding words currently due for review.")] int TotalMatchCount,
+    [property: Description("Total words matching the query.")] int TotalMatchCount,
     [property: Description("Words returned in this page.")] int ReturnedCount,
     [property: Description("The matches.")] IReadOnlyList<VocabularySearchEntry> Words,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
@@ -66,20 +66,19 @@ public sealed record VocabularyExampleSentenceEntry(
     [property: Description("True for the word's main example, the one shown first.")] bool IsCore);
 
 /// <summary>
-/// The example sentences on one of the learner's words, or only their count when the word is due
+/// The example sentences on one of the learner's words, whether or not the word is due
 /// for review.
 /// </summary>
 /// <remarks>
-/// A due word's example sentences are part of the answer to the review the learner has not taken
-/// yet, and the coach's leak check embargoes them; so for a due word the sentences are counted and
-/// reported as withheld, never returned (the query does not even select them).
+/// Being due for review is a scheduling fact, not a secret (issue 258): a due word's sentences
+/// are returned like any other word's.
 /// </remarks>
 public sealed record VocabularyExampleSentencesResult(
     [property: Description("The word identifier.")] string WordId,
-    [property: Description("The word in the target language. Null when the word is due for review.")] string? TargetTerm,
-    [property: Description("True when the word is due for review. Its example sentences are then hidden until the review is done; say so and never guess them.")] bool IsDueForReview,
-    [property: Description("How many example sentences the learner has on this word, including hidden ones.")] int TotalCount,
-    [property: Description("The example sentences, main example first. Empty when the word is due for review.")] IReadOnlyList<VocabularyExampleSentenceEntry> Sentences,
+    [property: Description("The word in the target language.")] string? TargetTerm,
+    [property: Description("True when the word is due for review. A scheduling fact only; nothing is hidden for it.")] bool IsDueForReview,
+    [property: Description("How many example sentences the learner has on this word.")] int TotalCount,
+    [property: Description("The example sentences, main example first.")] IReadOnlyList<VocabularyExampleSentenceEntry> Sentences,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
 
 // ──────────────────────────────────────────────────────
@@ -163,7 +162,7 @@ public sealed record CurrentProfileSummary(
     [property: Description("Dashboard New: words on a resource never practised.")] int NewWordCount,
     [property: Description("Dashboard Learning: words being learned.")] int LearningWordCount,
     [property: Description("Dashboard Familiar: words the learner marked familiar, not yet confirmed by practice.")] int FamiliarWordCount,
-    [property: Description("Dashboard Review: words due for review now. A count only; never name them.")] int ReviewWordCount,
+    [property: Description("Dashboard Review: how many words are due for review now.")] int ReviewWordCount,
     [property: Description("Dashboard Known: words the learner knows.")] int KnownWordCount,
     [property: Description("Every word the learner owns, on a resource or not: the total on the Vocabulary screen. Larger than TotalWordCount when some words are on no resource.")] int VocabularyScreenWordCount,
     [property: Description("Total skill profiles.")] int SkillCount,

@@ -22,7 +22,7 @@ namespace SentenceStudio.Api.Coach.Validation;
 /// </remarks>
 public sealed class CoachIntentValidator
 {
-    private const int MaxCoachMessageLength = 400;
+    private const int MaxCoachMessageLength = 1600;
     private const int MaxClarifyingQuestionLength = 200;
     private const int MaxSuggestionIdLength = 64;
     private const int MaxEvidenceReferences = 6;

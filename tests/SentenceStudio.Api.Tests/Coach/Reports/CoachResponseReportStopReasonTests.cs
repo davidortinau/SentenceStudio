@@ -56,7 +56,8 @@ public class CoachResponseReportStopReasonTests
         var conversationId = await harness.CreateConversationAsync();
 
         // Longer than a reply may be, so the server refuses it and shows the neutral notice.
-        harness.Coach.NextResult = General(new string('a', 401));
+        // Issue 258: the cap on a general reply went from 400 to 1,600 characters.
+        harness.Coach.NextResult = General(new string('a', 1601));
 
         var turn = await harness.TurnAsync(conversationId, "Tell me about my words.");
         turn.Value!.Result!.StopReason.Should().Be(CoachStopReason.ValidationFailed);

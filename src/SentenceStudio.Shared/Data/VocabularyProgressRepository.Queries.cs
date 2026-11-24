@@ -161,11 +161,9 @@ public partial class VocabularyProgressRepository
 
         var matchedCount = await matchedQuery.CountAsync(cancellationToken);
 
-        // Minus anything currently due for review. A row is due when it has a review date that has
-        // already passed; rows with no schedule yet, or a schedule still in the future, are safe to
-        // surface in bulk.
-        var progressQuery = matchedQuery
-            .Where(p => p.NextReviewDate == null || p.NextReviewDate > asOfUtc);
+        // Being due for review is a scheduling fact the learner can see in their own app, not a
+        // secret (issue 258): a due word is listed like any other.
+        var progressQuery = matchedQuery;
 
         var totalCount = await progressQuery.CountAsync(cancellationToken);
 
@@ -284,10 +282,10 @@ public partial class VocabularyProgressRepository
 
         if (filter.Status is not { } status)
         {
-            // No status rule to apply, so counting, the due embargo, ordering and paging all run
-            // in the database, like SearchUndueWordsAsync.
+            // No status rule to apply, so counting, ordering and paging all run in the database,
+            // like SearchUndueWordsAsync. A due word is listed like any other (issue 258).
             matched = await rows.CountAsync(cancellationToken);
-            var eligible = rows.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc);
+            var eligible = rows;
             eligibleCount = await eligible.CountAsync(cancellationToken);
             page = (await eligible
                     .OrderByDescending(r => r.HasProgress)
@@ -310,7 +308,7 @@ public partial class VocabularyProgressRepository
                     r.TotalAttempts, r.VerificationState, r.NextReviewDate, asOfUtc, mode))
                 .ToList();
             matched = inStatus.Count;
-            var eligible = inStatus.Where(r => r.NextReviewDate == null || r.NextReviewDate > asOfUtc).ToList();
+            var eligible = inStatus;
             eligibleCount = eligible.Count;
             page = eligible
                 .OrderByDescending(r => r.HasProgress)
@@ -472,8 +470,7 @@ public partial class VocabularyProgressRepository
             return null;
         }
 
-        // The same "due" the coach's leak check uses (CoachValidationDataSource): this learner's
-        // progress row says the review is due now.
+        // This learner's progress row says the review is due now. Reported as a fact only.
         var isDue = await db.VocabularyProgresses
             .AsNoTracking()
             .AnyAsync(p => p.UserId == userProfileId
@@ -488,10 +485,9 @@ public partial class VocabularyProgressRepository
             .Where(e => e.VocabularyWordId == wordId);
 
         var total = await owned.CountAsync(cancellationToken);
-        if (isDue || total == 0 || maxResults <= 0)
+        if (total == 0 || maxResults <= 0)
         {
-            // Not selected, so a due word's sentences cannot be returned by mistake.
-            return new VocabularyExampleSentencePage(word.Id, isDue ? null : word.TargetLanguageTerm, isDue, total, []);
+            return new VocabularyExampleSentencePage(word.Id, word.TargetLanguageTerm, isDue, total, []);
         }
 
         var sentences = await owned
@@ -501,7 +497,8 @@ public partial class VocabularyProgressRepository
             .Select(e => new VocabularyExampleSentenceFacts(e.Id, e.TargetSentence, e.NativeSentence, e.IsCore))
             .ToListAsync(cancellationToken);
 
-        return new VocabularyExampleSentencePage(word.Id, word.TargetLanguageTerm, false, total, sentences);
+        // Due or not, the learner's own sentences are returned (issue 258); the flag is a fact.
+        return new VocabularyExampleSentencePage(word.Id, word.TargetLanguageTerm, isDue, total, sentences);
     }
 
     private bool HasWordOwner(string userProfileId, string method)

@@ -4,8 +4,8 @@ using SentenceStudio.Api.Coach.Tools.SamTools;
 namespace SentenceStudio.Api.Tests.Coach.Tools;
 
 /// <summary>
-/// <c>get_vocabulary_example_sentences</c>: a word's example sentences, owner-scoped, with a due
-/// word's sentences withheld (docs/coach/sam-capability-gap.md, gap 2).
+/// <c>get_vocabulary_example_sentences</c>: a word's example sentences, owner-scoped, returned
+/// whether or not the word is due (docs/coach/sam-capability-gap.md, gap 2; issue 258).
 /// </summary>
 public class VocabularyExampleSentencesToolTests
 {
@@ -30,8 +30,9 @@ public class VocabularyExampleSentencesToolTests
     }
 
     [Fact]
-    public async Task A_due_words_sentences_are_counted_and_withheld()
+    public async Task A_due_words_sentences_are_returned()
     {
+        // Issue 258: this pinned a due word's term and sentences as counted, withheld and never selected.
         using var fixture = new CoachToolTestFixture();
         var user = CoachToolTestFixture.UserA;
         var word = fixture.SeedWord("만기", "due", owner: user);
@@ -41,16 +42,13 @@ public class VocabularyExampleSentencesToolTests
         var result = await fixture.VocabularyExampleSentencesTool.GetAsync(word.Id);
 
         result.IsDueForReview.Should().BeTrue();
-        result.TargetTerm.Should().BeNull();
+        result.TargetTerm.Should().Be("만기");
         result.TotalCount.Should().Be(1);
-        result.Sentences.Should().BeEmpty();
-        result.Scope.WithheldCount.Should().Be(1);
-        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.DueReviewEmbargo);
-        result.Scope.Filters.Should().HaveFlag(CoachScopeFilters.ExcludeDue);
+        result.Sentences.Should().ContainSingle().Which.TargetSentence.Should().Be("SENTINEL 만기 문장이에요.");
+        result.Scope.WithheldCount.Should().Be(0);
+        result.Scope.WithheldReason.Should().Be(CoachScopeWithheldReason.None);
+        result.Scope.Filters.Should().NotHaveFlag(CoachScopeFilters.ExcludeDue);
         CoachScopeInvariants.Violations(result.Scope).Should().BeEmpty();
-
-        // Not selected at all, so no query text carries the sentence back.
-        fixture.Commands.CommandTexts.Should().NotContain(t => t.Contains("\"TargetSentence\"") && t.Contains("LIMIT"));
     }
 
     [Fact]
