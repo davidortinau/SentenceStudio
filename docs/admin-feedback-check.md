@@ -262,9 +262,11 @@ red for a day because nothing said so.
     `FEEDBACK_AILOHA_CLI`), and that user needs the `aspire` command once: `sudo -H -u lemuel
     dotnet tool install -g Aspire.Cli --version <the Captain's> --source <the mirror's
     nuget.org address in ~/sstudio-feedback-check/NuGet.config>`. **The Captain's own Debug
-    apps have Ailoha agents on this Mac's ports 9233 and up, open to any local user:** a
-    session is told to use only the port of its own app, and nothing but that instruction
-    stops one from driving his.
+    apps have Ailoha agents on this Mac's ports 9233 and up, open to any local user.** The
+    `ailoha` a session finds on its PATH is a wrapper (`scripts/session-ailoha.sh`) that runs
+    the real command only for a port a process of the session's own user listens on, so a
+    forgotten or stale port stops with a message instead of driving his app. It does not stop
+    a session that goes around it on purpose: those ports answer plain HTTP.
   - **What the runner never does:** run a session's code, or a git command in a session's
     files, as the Captain. It reads a session's reply from its output stream and its proof
     file through that user, takes only the fields it validates, and writes every GitHub post

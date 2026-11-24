@@ -251,17 +251,22 @@ How:
 1. `scripts/session-stack.sh up` starts the API, the web app and the workers with their own
    database on your Docker, and prints `API=` and `WEBAPP=`. It waits for your Docker if it
    is still starting, and takes 20 seconds to three minutes. Every secret on it is made up.
+   If it stops with a message, run `scripts/session-stack.sh down` and try once more.
 2. `scripts/session-sim.sh up` boots your simulator ("Session iPad"; its first boot ever takes
    two minutes), builds the app with the Ailoha agent against that API (about a minute and a
-   half), starts it signed out and empty, and prints `UDID=` and `AILOHA_AGENT_PORT=`. `scripts/session-sim.sh signin`
-   signs in as `e2e@test.local` and prints the port again.
+   half), starts it signed out and empty, and prints `UDID=` and `AILOHA_AGENT_PORT=`. Then
+   `scripts/session-sim.sh signin` signs in as `e2e@test.local` (about 20 seconds) and prints
+   the port again.
 3. Drive it with `AILOHA_AGENT_PORT=<port> ailoha ios ui tree --no-json`, `... ui tap <id>`,
-   `... ui fill <id> "<text>"`. The tree starts with unnamed `[view:...]` wrappers; the
-   controls follow, each with its id in brackets, and that bracketed form is what `tap` and
-   `fill` take (`tid:native.auth.submit`).
+   `... ui fill <id> "<text>"` (`ailoha` is on your PATH). Most of the tree is unnamed
+   `[view:...]` and `[ax:...]` wrappers, so read it through `grep automationId`; a control's
+   id is the bracketed form, and that is what `tap` and `fill` take
+   (`tid:native.auth.submit`). The tree also lists tabs that are not showing: being in the
+   tree is not being on screen, so check with a screenshot.
    **Always give the port the script printed.** The Captain's own apps have agents on the
-   neighbouring ports of this Mac; a command without the port, or with another, drives one of
-   his. Never do that.
+   neighbouring ports of this Mac, and you must never drive one of his. Your `ailoha` refuses
+   to run without `AILOHA_AGENT_PORT`, or with a port that no app of yours listens on; do not
+   go around it.
 4. `scripts/session-sim.sh screenshot <file>` writes a PNG you can read. Describe what it
    shows in the pull request; do not commit it.
 5. `scripts/session-sim.sh down` and `scripts/session-stack.sh down` when you are done, in

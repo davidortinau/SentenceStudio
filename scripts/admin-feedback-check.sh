@@ -185,7 +185,7 @@ fi
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
               scripts/admin-feedback-agent-token.py scripts/admin-feedback-verify.py \
-              scripts/admin-feedback-usage.py docs/admin-feedback-check.md \
+              scripts/admin-feedback-usage.py scripts/session-ailoha.sh docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
 done
@@ -419,9 +419,18 @@ stop_session_processes() {
     if command -v colima >/dev/null 2>&1 && [ -d "$HOME/.colima" ]; then
       cd "$HOME"
       n=0; while pgrep -u "$(id -u)" -f "colima start" >/dev/null 2>&1 && [ "$n" -lt 60 ]; do sleep 1; n=$((n + 1)); done
+      # What the session left in its Docker: every container and every volume.
+      ( docker --context colima info >/dev/null 2>&1 || exit 0
+        left="$(docker --context colima ps -aq)"; [ -z "$left" ] || docker --context colima rm -f $left
+        left="$(docker --context colima volume ls -q)"; [ -z "$left" ] || docker --context colima volume rm $left
+      ) >/dev/null 2>&1 & stopping=$!
+      n=0; while kill -0 "$stopping" 2>/dev/null && [ "$n" -lt 45 ]; do sleep 1; n=$((n + 1)); done
       colima stop >/dev/null 2>&1 & stopping=$!
       n=0; while kill -0 "$stopping" 2>/dev/null && [ "$n" -lt 60 ]; do sleep 1; n=$((n + 1)); done
     fi
+    # The record of a stack the session started, which would refuse the next one.
+    own="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)"
+    case "$own" in /*) rm -rf "${own%/}"/sstudio-session-stack-* ;; esac
     kill -TERM -1; sleep 2; kill -KILL -1; true' < /dev/null >/dev/null 2>&1
   return 0
 }
@@ -452,10 +461,14 @@ publish_shared() {
       || { SESSION_ERROR="the packages in $feed could not be copied to $SHARED/LocalNuGets"; return 1; }
   done
   # Without these a session cannot run the app on its simulator, and says so; it is no failure.
+  # The command a session finds on its PATH is the wrapper that keeps it to its own app
+  # (scripts/session-ailoha.sh); the real one is beside it in lib.
   if [ -f "$AILOHA_AGENT/Info.plist" ] && [ -x "$AILOHA_CLI/ailoha" ]; then
-    mkdir -p "$SHARED/ailoha/bin" \
+    mkdir -p "$SHARED/ailoha/bin" "$SHARED/ailoha/lib" \
       && rsync -a --delete "$AILOHA_AGENT" "$SHARED/ailoha/" 2>/dev/null \
-      && rsync -a "$AILOHA_CLI/ailoha" "$AILOHA_CLI"/*.dylib "$SHARED/ailoha/bin/" 2>/dev/null
+      && rsync -a "$AILOHA_CLI/ailoha" "$AILOHA_CLI"/*.dylib "$SHARED/ailoha/lib/" 2>/dev/null \
+      && rm -f "$SHARED/ailoha/bin/"* \
+      && cp "$ROOT/scripts/session-ailoha.sh" "$SHARED/ailoha/bin/ailoha" && chmod 755 "$SHARED/ailoha/bin/ailoha"
   fi
   sed -E 's#(<add key="localnugets" value=")[^"]*#\1'"$SHARED/LocalNuGets"'#' "$config" > "$SHARED/NuGet.config.tmp" \
     && mv "$SHARED/NuGet.config.tmp" "$SHARED/NuGet.config" \
@@ -472,7 +485,9 @@ publish_shared() {
 # password is no secret and the connection strings are plain settings (SESSION_SCRIPT). The
 # log is in the session user's folder. Without colima installed, a session has no Docker.
 # What is in that machine from an earlier session is removed before the server starts: every
-# container, so that none restarts itself or holds the port. (Its images and that user's home
+# container, so that none restarts itself or holds the port. Its volumes, and the record of a
+# stack the session started (scripts/session-stack.sh), are removed when a session ends
+# (stop_session_processes), never while one runs: a session may be starting a stack by then. (Its images and that user's home
 # do persist between sessions.) A machine that will not start is deleted and made again, once.
 SESSION_PG_PORT="${FEEDBACK_SESSION_PG_PORT:-55442}"
 case "$SESSION_PG_PORT" in ""|*[!0-9]*|?|??|???|??????*) SESSION_PG_PORT=55442 ;; esac

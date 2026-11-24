@@ -112,6 +112,9 @@ up() {
 down() {
   local name="" left
   [ -e "$STATE/name" ] && name="$(cat "$STATE/name")"
+  # Only a stack this script started: an AppHost of this worktree that someone started another
+  # way is not this script's to stop.
+  case "$name" in sstack-*) ;; *) rm -rf "$STATE"; say "no stack of this worktree was started by $0; nothing was stopped."; return 0 ;; esac
   if command -v aspire >/dev/null; then
     within 90 aspire stop --apphost "$APPHOST" --force >/dev/null 2>&1
   fi
@@ -138,7 +141,7 @@ down() {
 
 case "${1:-}" in
   up) shift; up "$@" ;;
-  urls) addresses || stop "no stack of this worktree is up." ;;
+  urls) [ -e "$STATE/name" ] && addresses || stop "no stack of this worktree, started by $0, is up." ;;
   down) down ;;
   *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

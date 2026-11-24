@@ -4,7 +4,7 @@
 # (docs/admin-feedback-fix.md, "Running the app"); it works for anyone whose simulators and
 # Ailoha files are where it looks.
 #
-#   scripts/session-sim.sh up [--api URL] [--no-build]
+#   scripts/session-sim.sh up [--api URL]
 #       Boots the simulator (making it the first time, with accessibility on), builds the app
 #       with the Ailoha agent against the API, installs and launches it, and prints
 #       UDID=<simulator> and AILOHA_AGENT_PORT=<the app's agent>. The API is this worktree's
@@ -22,7 +22,8 @@
 #
 # Drive the app with `AILOHA_AGENT_PORT=<port> ailoha ios ui tree|tap|fill ...`. ALWAYS give the
 # port this script printed: other apps on this Mac have agents on the neighbouring ports, they
-# are not yours, and a command without the port can land on one of them.
+# are not yours, and a command without the port can land on one of them. (The ailoha a fix
+# session has refuses to run without a port of that user's own: scripts/session-ailoha.sh.)
 #
 # It never uses the API on port 5081, which is the Captain's own stack. The only simulator it
 # makes, resets or shuts down is the one named SESSION_SIM_NAME ("Session iPad").
@@ -53,20 +54,30 @@ for devices in json.load(sys.stdin).get("devices", {}).values():
             sys.exit(0)' "$NAME"
 }
 
-# Makes the simulator once. SwiftUI builds its accessibility elements only when accessibility
-# is on, and without them Ailoha sees text fields and nothing else; the setting is read at boot.
+# Makes the simulator. simctl says which runtime it took on standard error; the UDID is its
+# only standard output.
 make() {
   local made
-  # simctl says which runtime it took on standard error; the UDID is its only standard output.
   made="$(xcrun simctl create "$NAME" "$TYPE" 2>/dev/null | tail -1)"
   case "$made" in ????????-????-????-????-????????????) ;; *) stop "the simulator \"$NAME\" ($TYPE) could not be made." ;; esac
-  say "made the simulator \"$NAME\" ($made); its first boot takes about two minutes"
-  xcrun simctl boot "$made" >/dev/null 2>&1
-  xcrun simctl bootstatus "$made" -b >/dev/null 2>&1
-  xcrun simctl spawn "$made" defaults write com.apple.Accessibility AccessibilityEnabled -bool true
-  xcrun simctl spawn "$made" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool true
-  xcrun simctl shutdown "$made" >/dev/null 2>&1
+  say "made the simulator \"$NAME\"; its first boot takes about two minutes"
   printf '%s\n' "$made"
+}
+
+# Boots the simulator with accessibility on. SwiftUI builds its accessibility elements only
+# when it is, and without them Ailoha sees text fields and nothing else. The setting is read
+# at boot, so a simulator that does not have it yet (a new one, or one whose first run was cut
+# short) gets it and is booted again.
+boot() {
+  xcrun simctl boot "$UDID" >/dev/null 2>&1
+  xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || stop "the simulator \"$NAME\" did not boot."
+  [ "$(xcrun simctl spawn "$UDID" defaults read com.apple.Accessibility ApplicationAccessibilityEnabled 2>/dev/null)" = 1 ] && return 0
+  xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool true \
+    && xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool true \
+    || stop "accessibility could not be turned on in \"$NAME\"."
+  xcrun simctl shutdown "$UDID" >/dev/null 2>&1
+  xcrun simctl boot "$UDID" >/dev/null 2>&1
+  xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || stop "the simulator \"$NAME\" did not boot again."
 }
 
 need_device() {
@@ -74,20 +85,31 @@ need_device() {
   [ -n "$UDID" ] || stop "there is no simulator \"$NAME\": run $0 up first."
 }
 
-# The port the running app's agent listens on, read from the app's own process so that it is
-# never another app's. Waits up to $1 seconds for it.
+# The port the running app's agent listens on. It is read from the app's own process, so it is
+# never another app's, and it counts only when it answers as the agent of this app: the
+# process may listen on other ports too. Waits up to $1 seconds for it.
 agent_port() {
   local waited=0 pid port
   while [ "$waited" -lt "${1:-30}" ]; do
     pid="$(xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | awk -v b="UIKitApplication:$BUNDLE" 'index($3, b) == 1 {print $1}' | head -1)"
     case "$pid" in ""|*[!0-9]*) ;; *)
-      port="$(lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR > 1 {sub(/.*:/, "", $9); print $9}' | head -1)"
-      case "$port" in ""|*[!0-9]*) ;; *) printf '%s\n' "$port"; return 0 ;; esac ;;
+      for port in $(lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR > 1 {sub(/.*:/, "", $9); print $9}' | sort -u); do
+        case "$port" in ""|*[!0-9]*) continue ;; esac
+        case "$(AILOHA_AGENT_PORT="$port" "$AILOHA" ios device app --json 2>/dev/null)" in
+          *"\"$BUNDLE\""*) printf '%s\n' "$port"; return 0 ;;
+        esac
+      done ;;
     esac
     sleep 1; waited=$((waited + 1))
   done
   return 1
 }
+
+# What the app shows, by control id; nothing when the agent does not answer. Read whole before
+# it is searched: under pipefail, a grep that stops at its first match fails the pipeline.
+screen() { AILOHA_AGENT_PORT="$1" "$AILOHA" ios ui tree --no-json 2>/dev/null || true; }
+on_sign_in() { case "$1" in *native.auth.submit*) return 0 ;; esac; return 1; }
+signed_in() { case "$1" in *native.auth.submit*) return 1 ;; *native.dashboard.*|*native.tab.*) return 0 ;; esac; return 1; }
 
 report() {
   local port
@@ -96,11 +118,10 @@ report() {
 }
 
 up() {
-  local api="" build=yes
+  local api=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --api) api="${2:-}"; shift 2 ;;
-      --no-build) build=no; shift ;;
+      --api) [ $# -ge 2 ] || stop "--api needs an address."; api="$2"; shift 2 ;;
       *) stop "unknown option: $1" ;;
     esac
   done
@@ -111,57 +132,60 @@ up() {
 
   UDID="$(udid)"
   [ -n "$UDID" ] || UDID="$(make)" || exit 1
-  xcrun simctl boot "$UDID" >/dev/null 2>&1
-  xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || stop "the simulator \"$NAME\" did not boot."
+  boot
 
-  if [ "$build" = yes ]; then
-    if [ ! -f "$SHIM/Info.plist" ]; then
-      bash "$HEAD_DIR/scripts/build-ailoha-debug.sh" "$AGENT" >/dev/null 2>&1 \
-        || stop "the Debug Ailoha shim did not build (src/SentenceStudio.Native.iOS/scripts/build-ailoha-debug.sh)."
-    fi
-    # Nothing of an earlier run: its app, its data and the tokens it kept in the keychain.
-    xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1
-    xcrun simctl uninstall "$UDID" "$BUNDLE" >/dev/null 2>&1
-    xcrun simctl keychain "$UDID" reset >/dev/null 2>&1
-    "$ROOT/scripts/ios-sim.sh" "$UDID" --api "$api" -- \
-        "-p:AilohaAgentXCFramework=$AGENT" "-p:AilohaDebugShimXCFramework=$SHIM" >&2 \
-      || stop "the app did not build or start (scripts/ios-sim.sh)."
-  else
-    xcrun simctl launch "$UDID" "$BUNDLE" >/dev/null 2>&1 || stop "the app is not installed on \"$NAME\"; run without --no-build."
-  fi
+  # The shim is made again each time: one linked against an older agent than the published
+  # one starts an app that spins without ever drawing.
+  rm -rf "$HEAD_DIR/obj/ailoha-debug"
+  bash "$HEAD_DIR/scripts/build-ailoha-debug.sh" "$AGENT" > "${TMPDIR:-/tmp}/sstudio-session-shim.log" 2>&1 \
+    || { tail -5 "${TMPDIR:-/tmp}/sstudio-session-shim.log" >&2; stop "the Debug Ailoha shim did not build."; }
+  # Nothing of an earlier run: its app, its data and the tokens it kept in the keychain.
+  xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1
+  xcrun simctl uninstall "$UDID" "$BUNDLE" >/dev/null 2>&1
+  xcrun simctl keychain "$UDID" reset >/dev/null 2>&1
+  "$ROOT/scripts/ios-sim.sh" "$UDID" --api "$api" -- \
+      "-p:AilohaAgentXCFramework=$AGENT" "-p:AilohaDebugShimXCFramework=$SHIM" >&2 \
+    || stop "the app did not build or start (scripts/ios-sim.sh)."
   report
 }
 
 signin() {
   need_device
-  local port password waited=0
+  local port password waited=0 shown
   port="$(agent_port 30)" || stop "the app is not running with an Ailoha agent on \"$NAME\"; run $0 up first."
   password="$(sed -n 's/.*`e2e@test.local` | `\([^`]*\)`.*/\1/p' "$ROOT/docs/local-dev-test-accounts.md" | head -1)"
   [ -n "$password" ] || stop "the test account is not in docs/local-dev-test-accounts.md."
-  export AILOHA_AGENT_PORT="$port"
   # The form takes a moment to appear after the app starts.
-  while ! "$AILOHA" ios ui tree --no-json 2>/dev/null | grep -q 'native\.auth\.submit'; do
+  until shown="$(screen "$port")"; on_sign_in "$shown"; do
     waited=$((waited + 1))
-    [ "$waited" -lt 15 ] || stop "the app is not on its sign-in screen. If it shows a signed-in screen, that sign-in is from an earlier run: run $0 up again (without --no-build), which starts the app signed out."
+    [ "$waited" -lt 15 ] || stop "the app is not on its sign-in screen. If it shows a signed-in screen, that sign-in is from an earlier run: run $0 up again, which starts the app signed out."
     sleep 1
   done
-  waited=0
+  export AILOHA_AGENT_PORT="$port"
   "$AILOHA" ios ui fill tid:native.auth.email e2e@test.local >/dev/null 2>&1 \
     && "$AILOHA" ios ui fill tid:native.auth.password "$password" >/dev/null 2>&1 \
     && "$AILOHA" ios ui tap tid:native.auth.submit >/dev/null 2>&1 \
     || stop "the sign-in form could not be filled."
-  # Signed in when the form is gone.
-  while "$AILOHA" ios ui tree --no-json 2>/dev/null | grep -q 'native\.auth\.submit'; do
+  # Signed in when the app shows a screen behind the sign-in, not merely when the form is
+  # gone: an agent that stopped answering shows nothing at all.
+  waited=0
+  until shown="$(screen "$port")"; signed_in "$shown"; do
     waited=$((waited + 1))
-    [ "$waited" -lt 30 ] || stop "still on the sign-in screen after 30 s: the stack refused the sign-in, or is not up."
+    [ "$waited" -lt 30 ] || stop "no signed-in screen after 30 s: the stack refused the sign-in, the stack is not up, or the app stopped."
     sleep 1
   done
   # The system asks to save the password in a sheet Ailoha cannot reach; a fresh start has none.
   xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1
   xcrun simctl launch "$UDID" "$BUNDLE" >/dev/null 2>&1 || stop "the app did not start again."
-  sleep 3
+  port="$(agent_port 30)" || stop "the app did not come back with an Ailoha agent after the sign-in."
+  waited=0
+  until shown="$(screen "$port")"; signed_in "$shown"; do
+    waited=$((waited + 1))
+    [ "$waited" -lt 20 ] || stop "the app started again but does not show a signed-in screen."
+    sleep 1
+  done
   say "signed in as e2e@test.local"
-  report
+  printf 'UDID=%s\nAILOHA_AGENT_PORT=%s\n' "$UDID" "$port"
 }
 
 case "${1:-}" in
