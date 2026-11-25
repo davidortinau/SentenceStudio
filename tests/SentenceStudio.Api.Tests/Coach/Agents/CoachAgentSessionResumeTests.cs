@@ -127,6 +127,43 @@ public class CoachAgentSessionResumeTests
         transcript[^1].Text.Should().Contain(FollowUp);
     }
 
+    /// <summary>
+    /// Issue 268, follow-up. The resumed session is how Sam has the ongoing conversation, and each
+    /// earlier turn in it has to say when it was sent, or an old subject reads as a current one.
+    /// </summary>
+    [Theory]
+    [InlineData(CoachImplementation.Baseline)]
+    [InlineData(CoachImplementation.Harness)]
+    public async Task A_resumed_session_carries_when_each_earlier_turn_was_sent(
+        CoachImplementation implementation)
+    {
+        // Set by name, so this file also builds against the code before the change and fails here.
+        var sentAt = typeof(CoachAgentTurnRequest).GetProperty("SentAt");
+        sentAt.Should().NotBeNull("a turn says when the learner sent it");
+
+        var seoul = TimeSpan.FromHours(9);
+        var firstRequest = CoachAgentTestDoubles.NewRequest(FirstQuestion);
+        sentAt!.SetValue(firstRequest, new DateTimeOffset(2026, 8, 11, 8, 30, 0, seoul));
+
+        var before = new TranscriptRecordingChatClient();
+        var first = await CoachAgentTestDoubles.CreateCoach(implementation, before).RunTurnAsync(firstRequest);
+        first.Outcome.Should().Be(CoachAgentOutcome.Completed);
+
+        var followUp = CoachAgentTestDoubles.NewRequest(FollowUp, first.AgentSessionJson);
+        sentAt.SetValue(followUp, new DateTimeOffset(2026, 8, 14, 21, 0, 0, seoul));
+
+        var after = new TranscriptRecordingChatClient();
+        var resumed = await CoachAgentTestDoubles.CreateCoach(implementation, after).RunTurnAsync(followUp);
+        resumed.Outcome.Should().Be(CoachAgentOutcome.Completed);
+
+        Flatten(after.LastCall).Should().Match(
+            "*This message was sent (learner local time): 2026-08-11 08:30, Tuesday (UTC+09:00)*"
+            + $"{FirstQuestion}*{Answer}*"
+            + "This message was sent (learner local time): 2026-08-14 21:00, Friday (UTC+09:00)*"
+            + $"{FollowUp}*",
+            "the earlier turn keeps the time it was sent, and the turn being answered has its own");
+    }
+
     [Theory]
     [InlineData(CoachImplementation.Baseline)]
     [InlineData(CoachImplementation.Harness)]

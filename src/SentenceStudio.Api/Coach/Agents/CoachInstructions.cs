@@ -108,14 +108,33 @@ public static class CoachInstructions
         answer, with every fact, when you need more than the note shows.
         - The screen is what they are looking at now; the conversation may still be about an
           earlier word or thing. Decide which they mean this way:
-          * They say this, here, on screen or this screen: the focus item on screen. Do not ask.
+          * They say this, this word, here, on screen or this screen: the focus item on screen.
+            Do not ask whether they mean it, and do not ask "or a different word?": answer
+            about it in this reply, however much of the conversation was about something else.
           * They name the word or thing: that one. Do not ask.
           * They name nothing ("give me example sentences", "is it hard to remember"), and the
             conversation's latest subject is a different word or thing than the focus item on
-            screen: you cannot tell which they mean, even if your last reply offered something. Reply with AskClarification, one short question naming both,
-            for example: "생선 on screen, or 포도 from before?"
+            screen: assume the focus item on screen. It is what they are looking at now, and the
+            earlier subject may be from long ago. Answer in this same reply, and check while
+            you do: begin by naming the word you took, and end with a few words that let them
+            switch, for example: "Using 생선, the word on screen." and, last, "Say 포도 if you
+            meant that one." A question first costs them a turn; this costs them nothing.
+            Ask first, with AskClarification, one short question naming both ("생선 on screen,
+            or 포도 from before?"), only when you would call a propose_ tool for it: a proposal
+            about the wrong word is worse than a question.
           * They name nothing and the conversation has no earlier subject, or it is the same
             thing as the focus item on screen: the focus item.
+        - You are told when things were said. Each message's CONTEXT has a line that starts
+          "This message was sent", with the learner's local date and time, and each line under
+          EARLIER IN THIS CONVERSATION begins with when it was sent, in square brackets. A
+          message with neither is from before times were recorded: treat its age as unknown.
+          Compare an earlier subject's time with this message's time. One from the last few
+          minutes is the conversation they are in. One from more than an hour ago, or from an
+          earlier day, is history: when they name nothing, the focus item on screen is what
+          they mean, so do not ask about the old subject, and leave out the closing words that
+          offer a switch to it. They can still name it, and you answer about it when they do.
+        - When they answer a question you asked ("yes", "the first one", "생선"), do what they
+          first asked, in full, in this same reply. Do not stop at saying what you understood.
         - When the screen's answer is hidden they are in the middle of answering. Unless they ask
           for the answer, help them without giving it away: no meaning or translation of the
           word on screen, and no example sentence or hint that shows the answer. When the
@@ -193,6 +212,10 @@ public static class CoachInstructions
           eight parts. For a list, such as one line per day, put the items as pieces of one part.
         - When you are not answering a question, leave PedagogicalAnswer out. Never send an
           answer with no parts.
+        - A reply holds what it says it holds. Never write that sentences, examples, words or
+          an explanation are coming ("here are three sentences", "다음은 예문입니다") without
+          them in this same reply, as parts of PedagogicalAnswer.Blocks: there is no later
+          turn in which you send them, so that reply leaves the learner with nothing.
 
         Correcting the learner's own text
         - Say what is right before what is wrong.
@@ -362,6 +385,29 @@ public static class CoachInstructions
         + "the answer. If your last reply gave the answer, the learner was not shown it. Do not ask again.";
 
     /// <summary>
+    /// Told to the model when the learner's message replies to a clarifying question (issue 268).
+    /// A "yes" to "do you mean the word on screen?" was answered with a line that said three
+    /// sentences were coming and held none: the model treated the confirmation as the whole turn.
+    /// </summary>
+    internal const string ClarificationReplyContext =
+        "The learner was just asked a clarifying question. If this message answers it, do what they first asked, in "
+        + "full, in this reply: the sentences, words or explanation themselves, as parts of "
+        + "PedagogicalAnswer.Blocks when it is a language answer. A reply that only says what you understood, "
+        + "or that something is coming, leaves the learner with nothing.";
+
+    /// <summary>
+    /// Told to the model when the learner's message points at the screen and the screen has a focus
+    /// item (issue 268). The standing instructions already said not to ask; asked "for this word"
+    /// over a quiz word, the model still asked whether the word on screen was meant.
+    /// </summary>
+    internal const string PointsAtTheScreenContext =
+        "The learner's message points at what is on screen (\"this\"): they mean the focus item in ON SCREEN NOW. "
+        + "Do not ask which one they mean; answer about it in this reply.";
+
+    /// <summary>The context line that says when the learner sent the turn's message.</summary>
+    internal const string SentAtLabel = "This message was sent (learner local time): ";
+
+    /// <summary>
     /// Builds the per-turn context block. This is developer-authored text wrapped around the
     /// learner's message; the learner's own words are fenced so they read as data, not
     /// instructions.
@@ -396,6 +442,14 @@ public static class CoachInstructions
         builder.AppendLine("CONTEXT (facts from the application; not learner input)");
         builder.Append("Today (learner local date): ")
             .AppendLine(request.UserLocalDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        if (request.SentAt is { } sentAt)
+        {
+            // A resumed session holds every earlier turn message, so this line is also how the
+            // model knows when each earlier turn was (issue 268).
+            builder.Append(SentAtLabel)
+                .AppendLine(sentAt.ToString("yyyy-MM-dd HH:mm, dddd '(UTC'zzz')'", CultureInfo.InvariantCulture));
+        }
+
         builder.Append("Clarifying questions remaining: ")
             .Append(request.ClarificationsRemaining.ToString(CultureInfo.InvariantCulture));
         if (request.ClarificationsRemaining <= 0)
@@ -407,10 +461,24 @@ public static class CoachInstructions
 
         builder.AppendLine();
 
+        if (request.AnswersAClarifyingQuestion || request.AnswersAQuestionWhileTheScreenHidesAnAnswer)
+        {
+            // Application text only; nothing here comes from the learner.
+            builder.AppendLine(ClarificationReplyContext);
+        }
+
         if (request.AnswersAQuestionWhileTheScreenHidesAnAnswer)
         {
             // Application text only; nothing here comes from the learner.
             builder.AppendLine(HintOrAnswerReplyContext);
+        }
+
+        if (request.Screen is { } pointedAt
+            && pointedAt.Items.Any(item => item.Focus)
+            && PointsAtTheScreen(request.LearnerText))
+        {
+            // Application text only: the learner's words are matched, never copied here.
+            builder.AppendLine(PointsAtTheScreenContext);
         }
 
         if (request.IncludePlanContext || !string.IsNullOrWhiteSpace(request.PendingSuggestionId))
@@ -455,6 +523,15 @@ public static class CoachInstructions
             builder.AppendLine(fence.Open);
             foreach (var prior in request.PriorMessages)
             {
+                if (prior.SentAt is { } priorSentAt)
+                {
+                    // The server's own stamp, before the role tag. It is inside the fence with the
+                    // text it dates, so it is read as a fact about the line and nothing more.
+                    builder.Append('[')
+                        .Append(priorSentAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))
+                        .Append("] ");
+                }
+
                 builder.Append(prior.Role == CoachMessageRole.Learner ? "learner: " : "coach: ")
                     .AppendLine(prior.Text);
             }
@@ -481,6 +558,47 @@ public static class CoachInstructions
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// The phrases with which a learner points at the screen. Phrases, not the bare word "this":
+    /// "this week" and "this month" point at nothing on screen.
+    /// </summary>
+    private static readonly string[] ScreenPointers =
+    [
+        "this word", "this one", "this verb", "this noun", "this adjective", "this adverb", "this phrase",
+        "this expression", "this sentence", "this term", "this vocabulary", "this item", "this card",
+        "this question", "this screen", "on screen", "on the screen", "on my screen", "on-screen",
+        "이 단어", "이 낱말", "이 동사", "이 명사", "이 형용사", "이 표현", "이 문장", "이 문제", "이 카드",
+        "이거", "이것", "이건", "이게", "화면"
+    ];
+
+    /// <summary>True when the learner's message points at what is on their screen.</summary>
+    internal static bool PointsAtTheScreen(string? learnerText)
+    {
+        if (string.IsNullOrWhiteSpace(learnerText))
+        {
+            return false;
+        }
+
+        // Runs of whitespace are folded so "this  word" and a line break still match.
+        var folded = string.Join(' ', learnerText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        foreach (var pointer in ScreenPointers)
+        {
+            var at = folded.IndexOf(pointer, StringComparison.OrdinalIgnoreCase);
+            while (at >= 0)
+            {
+                // A Latin phrase must start at a word: one that begins inside a longer word is not it.
+                if (pointer[0] > '\u007F' || at == 0 || !char.IsLetterOrDigit(folded[at - 1]))
+                {
+                    return true;
+                }
+
+                at = folded.IndexOf(pointer, at + 1, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Shell state that says nothing about what the learner sees.</summary>
