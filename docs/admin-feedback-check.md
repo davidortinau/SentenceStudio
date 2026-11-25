@@ -166,7 +166,11 @@ red for a day because nothing said so.
   Until then it was written only when a session started and when it ended, which can be an
   hour apart: the Captain filed two issues during a session, saw neither listed, and took the
   job for dead. It is written only when what it says has changed, and one rewrite at a time
-  (`state/status.lock`). The repository is public, so it holds
+  (`state/status.lock`). The rewrite every minute is a spare one: it is skipped while the run
+  itself is rewriting, and when less than a fifth of the hour's GitHub calls are left. One
+  rewrite costs about three calls with no pull request open. The "Idle" line says how often
+  the check looks for work from `StartInterval` in the launchd file itself, and the day's cap
+  is said from the sessions counted as it writes. The repository is public, so it holds
   numbers, results and times only. It is written with the Captain's login, like the runner's
   other posts. A failure to write it is kept in `state/status.err` (`state/status-keeper.err` for the
   rewrite every minute) and never stops a pass.

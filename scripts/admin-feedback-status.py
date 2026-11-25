@@ -8,10 +8,12 @@ Captain, and the last passes. It is rewritten only when what it says changes.
 The repository is public, so the body holds numbers, results and times, never what a learner
 wrote or a run's summary.
 
-  admin-feedback-status.py update [--cap N] [--windows FILE] [--handled FILE] [--note TEXT] [--print]
+  admin-feedback-status.py update [--cap N] [--windows FILE] [--handled FILE] [--note TEXT] [--spare] [--print]
       Rewrites the status issue from what is on GitHub and in the check's folder, creating and
-      pinning it first if there is none. --note is one line said at the top (a cap). With
-      --print, prints the body and changes nothing.
+      pinning it first if there is none. It says at the top when the day's cap is reached;
+      --note adds one more line there. With --print, prints the body and changes nothing.
+      --spare is the rewrite a run makes every minute while it has work: it does nothing when
+      another rewrite is running or when little is left of the hour's GitHub calls.
   admin-feedback-status.py today
       The number of fix sessions (first passes and follow-ups) that started today, UTC.
 
@@ -24,7 +26,9 @@ import hashlib
 import importlib.util
 import json
 import os
+import plistlib
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -45,6 +49,12 @@ verify = sibling("admin-feedback-verify")
 
 OUT = Path(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"))
 STATUS_LABEL = "feedback-status"
+# What starts the check on Lilliput, and so how often an idle check looks for work.
+AGENT = Path(os.path.expanduser("~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist"))
+# How long a rewrite waits for another one before it goes ahead anyway.
+LOCK_SECONDS = 20
+# A spare rewrite leaves the last of the hour's GitHub calls to the run and to the Captain.
+SPARE_FRACTION = 0.2
 TITLE = "Feedback check: status"
 FIX_STAGES = ("fix", "fix follow-up")
 PASSES_SHOWN = 10
@@ -139,11 +149,26 @@ def in_flight(path=None):
     return f"Working on {what} since {utc(since)}. It aims to finish within 15 minutes and is stopped at 30."
 
 
-def render(note, running, queue, prs, waiting_on_you, recent, today, cap):
+def looks_every(path=None):
+    """How often launchd starts the check, in words, read from what starts it: said in the
+    status, it must be what happens and not what a document says."""
+    try:
+        with open(path or AGENT, "rb") as agent:
+            seconds = int(plistlib.load(agent)["StartInterval"])
+    except (OSError, ValueError, KeyError, TypeError, plistlib.InvalidFileException):
+        return "regularly"
+    if seconds <= 0:
+        return "regularly"
+    if seconds < 120:
+        return "every minute" if 45 <= seconds <= 75 else f"every {seconds} seconds"
+    return f"every {round(seconds / 60)} minutes"
+
+
+def render(note, running, queue, prs, waiting_on_you, recent, today, cap, every="regularly"):
     lines = [f"_Kept by the feedback check on Lilliput (docs/admin-feedback-check.md). Last changed {utc()}._", ""]
     if note:
         lines += [f"**{note}**", ""]
-    lines += ["## Now", "", running or "Idle: it looks for work every minute and runs passes back to back while there is some.",
+    lines += ["## Now", "", running or f"Idle: it looks for work {every} and runs passes back to back while there is some.",
               "", f"Fix sessions today: {today} of {cap}.", "", "## Queue", ""]
     lines += queue or ["Nothing waiting."]
     lines += ["", "## Pull requests waiting for you", ""]
@@ -259,32 +284,58 @@ def paused_note(path=None):
 
 
 @contextlib.contextmanager
-def one_at_a_time(path=None):
-    """Holds the status lock. While a run has work two things rewrite the status: the run, when
-    a session starts or ends, and its keeper, every minute. Without the lock a rewrite that read
-    GitHub earlier could land after one that read it later, and the issue would say the older
-    thing until the next change. The lock goes with the process, so a killed rewrite leaves
-    nothing to clear."""
+def one_at_a_time(wait=LOCK_SECONDS, path=None):
+    """Takes the status lock and yields whether it got it. While a run has work two things
+    rewrite the status: the run, when a session starts or ends, and its keeper, every minute.
+    Without the lock a rewrite that read GitHub earlier could land after one that read it later,
+    and the issue would say the older thing until the next change. It waits at most `wait`
+    seconds, so a run is never held up by a slow rewrite. The lock goes with the process, so a
+    killed rewrite leaves nothing to clear."""
     path = path or OUT / "state" / "status.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as held:
-        fcntl.flock(held, fcntl.LOCK_EX)
-        yield
+    until = time.monotonic() + wait
+    with open(path, "a", encoding="utf-8") as held:
+        got = False
+        while True:
+            try:
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                got = True
+                break
+            except OSError:
+                if time.monotonic() >= until:
+                    break
+                time.sleep(0.5)
+        yield got
 
 
-def update(cap, windows, handled, note, show=False):
-    if not show:
-        with one_at_a_time():
-            return write(cap, windows, handled, note)
-    return write(cap, windows, handled, note, show=True)
+def calls_to_spare():
+    """Whether enough of the hour's GitHub calls are left for a rewrite nobody is waiting for.
+    Asking costs none of them. When it cannot be read, the rewrite is skipped."""
+    try:
+        left = json.loads(gh("api", "rate_limit", "--jq", ".resources"))
+        return all(left[kind]["remaining"] >= SPARE_FRACTION * left[kind]["limit"] for kind in ("core", "graphql"))
+    except (pr.GitHubError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError):
+        return False
+
+
+def update(cap, windows, handled, note, show=False, spare=False):
+    if show:
+        return write(cap, windows, handled, note, show=True)
+    with one_at_a_time(0 if spare else LOCK_SECONDS) as alone:
+        if spare and not (alone and calls_to_spare()):
+            return None
+        return write(cap, windows, handled, note)
 
 
 def write(cap, windows, handled, note, show=False):
-    note = " ".join(part for part in (paused_note(), note) if part)
     records = usage()
+    today = sessions_today(records)
+    capped = (f"The daily cap of {cap} fix sessions is reached; work waiting starts after 00:00 UTC."
+              if today >= cap else "")
+    note = " ".join(part for part in (paused_note(), capped, note) if part)
     queue, prs, waiting_on_you = gather(windows, handled)
     body = render(note, in_flight(), queue, prs, waiting_on_you,
-                  passes(OUT / "history.log", records), sessions_today(records), cap)
+                  passes(OUT / "history.log", records), today, cap, looks_every())
     if show:
         print(body, end="")
         return
@@ -305,6 +356,9 @@ def write(cap, windows, handled, note, show=False):
 
 def main(args):
     mode = args[0] if args else ""
+    # A rewrite that is stopped (the run ending its keeper) ends its gh call with it:
+    # subprocess.run kills its child when an exception passes through it.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         if mode == "today":
             print(sessions_today(usage()))
@@ -312,7 +366,8 @@ def main(args):
         if mode == "update":
             cap = pr.option(args, "--cap") or "12"
             update(int(cap), pr.session_windows(pr.option(args, "--windows")),
-                   pr.ids_in(pr.option(args, "--handled")), pr.option(args, "--note") or "", "--print" in args)
+                   pr.ids_in(pr.option(args, "--handled")), pr.option(args, "--note") or "", "--print" in args,
+                   "--spare" in args)
             return 0
     except (pr.GitHubError, subprocess.TimeoutExpired, KeyError, IndexError, TypeError, ValueError, OSError) as error:
         print(f"STOP: the status issue could not be updated: {error}", file=sys.stderr)

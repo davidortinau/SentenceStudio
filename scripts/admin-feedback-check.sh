@@ -205,39 +205,47 @@ UNREADABLE="$OUT/state/github-unreadable-reported"
 IDLE=10
 
 # Rewrites the status issue when what it says has changed. Its failure is kept in
-# state/status.err and never stops the run. The line at the top is $STATUS_NOTE (the daily
-# cap), which a pass sets once and every rewrite of that pass repeats.
-STATUS_NOTE=""
+# state/status.err and never stops the run. The script itself says when the daily cap is
+# reached, from the sessions counted as it writes, so a run that goes on past midnight UTC
+# does not repeat yesterday's cap.
 status() {
-  local errors="${1:-$OUT/state/status.err}"
   python3 -I "$ROOT/scripts/admin-feedback-status.py" update --cap "$DAILY_CAP" \
-    --windows "$WINDOWS" --handled "$HANDLED" ${STATUS_NOTE:+--note "$STATUS_NOTE"} >/dev/null 2> "$errors" \
-    && rm -f "$errors"
+    --windows "$WINDOWS" --handled "$HANDLED" >/dev/null 2> "$OUT/state/status.err" \
+    && rm -f "$OUT/state/status.err"
   return 0
 }
 
 # While a run has work the status issue is also rewritten every minute (Captain, 2026-11-24:
 # he filed two issues during a session, saw neither in the queue, and took the job for dead).
 # Before this it was written when a session started and when it ended, and a session and its
-# proof can take an hour. The script itself lets one rewrite run at a time, and writes only
-# when what the issue says has changed. The keeper ends with the run, and on its own if the
-# run was killed.
+# proof can take an hour. The keeper's rewrite is a spare one (--spare): it is skipped when
+# the run itself is rewriting the status or when little is left of the hour's GitHub calls,
+# and it writes only when what the issue says has changed. It reads the run's files as they
+# are at that moment, so for a minute it can say a pull request is not yet checked while the
+# check is being recorded. Stopping the keeper ends a rewrite it is in the middle of, so the
+# run never waits for one. The keeper ends with the run, and on its own if the run was killed.
 STATUS_EVERY="${FEEDBACK_STATUS_EVERY:-60}"
+case "$STATUS_EVERY" in ""|*[!0-9]*) STATUS_EVERY=60 ;; esac
+[ "$STATUS_EVERY" -ge 15 ] || STATUS_EVERY=60
 keep_status() {
   [ -z "$STATUS_KEEPER" ] || return 0
-  ( nap=""
-    trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 0' TERM
+  ( nap=""; work=""
+    trap 'for job in $nap $work; do kill "$job" 2>/dev/null; done; exit 0' TERM
     while kill -0 "$$" 2>/dev/null; do
       sleep "$STATUS_EVERY" & nap=$!; wait "$nap"; nap=""
       kill -0 "$$" 2>/dev/null || exit 0
-      status "$OUT/state/status-keeper.err"
+      python3 -I "$ROOT/scripts/admin-feedback-status.py" update --spare --cap "$DAILY_CAP" \
+        --windows "$WINDOWS" --handled "$HANDLED" >/dev/null 2> "$OUT/state/status-keeper.err" &
+      work=$!; wait "$work" && rm -f "$OUT/state/status-keeper.err"; work=""
     done ) &
   STATUS_KEEPER=$!
 }
+# The keeper's last failure goes with it: the rewrite that follows reports in state/status.err.
 stop_keeping_status() {
   [ -n "$STATUS_KEEPER" ] || return 0
   kill "$STATUS_KEEPER" 2>/dev/null; wait "$STATUS_KEEPER" 2>/dev/null
   STATUS_KEEPER=""
+  rm -f "$OUT/state/status-keeper.err"
 }
 
 seconds_since() {
@@ -248,7 +256,7 @@ seconds_since() {
 # Whether this pass has work, into TRIAGE_DUE and FIX_ALLOWED; exits $IDLE, with no summary,
 # when it has none.
 pass_gate() {
-  local waiting=no today note=""
+  local waiting=no today
   TRIAGE_DUE=no
   [ "$(seconds_since "$LAST_TRIAGE")" -ge "$TRIAGE_EVERY" ] && TRIAGE_DUE=yes
   if [ -f "$INFLIGHT" ]; then
@@ -263,10 +271,8 @@ pass_gate() {
   today="$(python3 -I "$ROOT/scripts/admin-feedback-status.py" today 2>/dev/null)" || today=0
   if [ "$today" -ge "$DAILY_CAP" ] 2>/dev/null; then
     FIX_ALLOWED=no
-    note="The daily cap of $DAILY_CAP fix sessions is reached; work waiting starts after 00:00 UTC."
   fi
   # A session to settle is settled even at the cap; it starts no new one.
-  STATUS_NOTE="$note"
   if [ "$TRIAGE_DUE" = no ] && { [ "$waiting" = no ] || { [ "$FIX_ALLOWED" = no ] && [ ! -f "$INFLIGHT" ]; }; }; then
     status
     rm -f "$RUN"

@@ -25,6 +25,10 @@ class StatusTests(unittest.TestCase):
         patch = mock.patch.object(status, "OUT", self.dir)
         patch.start()
         self.addCleanup(patch.stop)
+        # Never this machine's own launchd file.
+        agent = mock.patch.object(status, "AGENT", self.dir / "agent.plist")
+        agent.start()
+        self.addCleanup(agent.stop)
 
     def test_only_fix_sessions_started_today_count_toward_the_cap(self):
         today = time.strftime("%Y-%m-%d", time.gmtime())
@@ -78,42 +82,82 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(ran.call_count, 1)
         self.assertEqual(found.call_count, 1)
 
-    def test_one_rewrite_runs_at_a_time(self):
-        # The run and its keeper both rewrite the status; the second waits for the first.
-        import fcntl
-        with status.one_at_a_time():
-            with open(self.dir / "state" / "status.lock", "w", encoding="utf-8") as other:
-                with self.assertRaises(OSError):
-                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with open(self.dir / "state" / "status.lock", "w", encoding="utf-8") as other:
-            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def test_a_rewrite_holds_the_lock_and_a_print_does_not(self):
-        held = []
-
+    def write_calls(self, spare, quota=None, held=False):
+        """How many times the issue is written by one update."""
         def gather(windows, handled):
-            with open(self.dir / "state" / "status.lock", "a", encoding="utf-8") as other:
-                try:
-                    fcntl_lock(other)
-                    held.append(False)
-                except OSError:
-                    held.append(True)
-            return [], [], []
-
-        def fcntl_lock(handle):
-            import fcntl
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
+            return ["- #239 (app)"], [], []
+        import fcntl
+        other = open(self.dir / "state" / "status.lock", "a", encoding="utf-8")
+        self.addCleanup(other.close)
+        if held:
+            fcntl.flock(other, fcntl.LOCK_EX)
         with mock.patch.object(status, "gather", gather), \
                 mock.patch.object(status, "status_issue", return_value=7), \
-                mock.patch.object(status.subprocess, "run", return_value=mock.Mock(returncode=0)), \
-                mock.patch("builtins.print"):
-            status.update(12, [], set(), "")
-            status.update(12, [], set(), "", show=True)
-        self.assertEqual(held, [True, False])
+                mock.patch.object(status, "LOCK_SECONDS", 0), \
+                mock.patch.object(status, "calls_to_spare", return_value=quota) as asked, \
+                mock.patch.object(status.subprocess, "run", return_value=mock.Mock(returncode=0)) as ran:
+            status.update(12, [], set(), "", spare=spare)
+        return ran.call_count, asked.call_count
 
-    def test_the_idle_line_says_how_often_it_looks(self):
-        self.assertIn("looks for work every minute", status.render("", None, [], [], [], [], 0, 12))
+    def test_one_rewrite_holds_the_lock_at_a_time(self):
+        import fcntl
+        with status.one_at_a_time(0) as first:
+            self.assertTrue(first)
+            with status.one_at_a_time(0) as second:
+                self.assertFalse(second)
+            with open(self.dir / "state" / "status.lock", "a", encoding="utf-8") as other:
+                with self.assertRaises(OSError):
+                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with status.one_at_a_time(0) as after:
+            self.assertTrue(after)
+
+    def test_a_spare_rewrite_is_skipped_while_another_runs(self):
+        self.assertEqual(self.write_calls(spare=True, quota=True, held=True), (0, 0))
+
+    def test_a_spare_rewrite_is_skipped_when_few_calls_are_left(self):
+        self.assertEqual(self.write_calls(spare=True, quota=False), (0, 1))
+
+    def test_a_spare_rewrite_writes_otherwise(self):
+        self.assertEqual(self.write_calls(spare=True, quota=True), (1, 1))
+
+    def test_the_runs_own_rewrite_goes_ahead_after_its_wait_and_asks_nothing(self):
+        self.assertEqual(self.write_calls(spare=False, held=True), (1, 0))
+
+    def test_calls_to_spare_reads_both_limits(self):
+        def left(core, graphql):
+            return json.dumps({"core": {"remaining": core, "limit": 5000},
+                               "graphql": {"remaining": graphql, "limit": 5000}})
+        with mock.patch.object(status, "gh", return_value=left(4000, 4000)):
+            self.assertTrue(status.calls_to_spare())
+        with mock.patch.object(status, "gh", return_value=left(4000, 900)):
+            self.assertFalse(status.calls_to_spare())
+        with mock.patch.object(status, "gh", side_effect=status.pr.GitHubError("down")):
+            self.assertFalse(status.calls_to_spare())
+
+    def test_the_idle_line_says_how_often_launchd_starts_it(self):
+        import plistlib
+        said = {}
+        for seconds in (60, 300, 90, 0):
+            with open(self.dir / "agent.plist", "wb") as agent:
+                plistlib.dump({"StartInterval": seconds}, agent)
+            said[seconds] = status.looks_every()
+        self.assertEqual(said, {60: "every minute", 300: "every 5 minutes", 90: "every 90 seconds", 0: "regularly"})
+        (self.dir / "agent.plist").unlink()
+        self.assertEqual(status.looks_every(), "regularly")
+        self.assertIn("looks for work every 5 minutes",
+                      status.render("", None, [], [], [], [], 0, 12, "every 5 minutes"))
+
+    def test_the_cap_is_said_from_the_sessions_counted_as_it_writes(self):
+        today = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        (self.dir / "usage.jsonl").write_text(
+            "".join(json.dumps({"stage": "fix", "at": today}) + "\n" for _ in range(2)), encoding="utf-8")
+        printed = []
+        with mock.patch.object(status, "gather", lambda windows, handled: ([], [], [])), \
+                mock.patch("builtins.print", lambda *a, **k: printed.append(a[0])):
+            status.update(2, [], set(), "", show=True)
+            status.update(3, [], set(), "", show=True)
+        self.assertIn("The daily cap of 2 fix sessions is reached", printed[0])
+        self.assertNotIn("daily cap", printed[1])
 
     def test_a_pause_after_failures_is_said_until_it_ends(self):
         paused = self.dir / "state" / "loop-paused-until"
