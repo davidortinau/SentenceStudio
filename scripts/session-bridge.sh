@@ -21,6 +21,10 @@
 #                                     for the runner: every Microsoft.SwiftUI package in the
 #                                     folder (the ones the Captain packed) goes into this
 #                                     user's package folder, over a copy that differs
+#   scripts/session-bridge.sh package
+#                                     for the runner (scripts/admin-feedback-bridge-release.sh):
+#                                     builds, packs and verifies as pack does and puts the
+#                                     package nowhere; it stays in the clone's artifacts folder
 #
 # pack packs what is committed: it refuses a clone with uncommitted changes, so the package
 # that is built and proved is the source in the bridge's pull request. It also refuses a
@@ -41,6 +45,8 @@ PROJECT="$BRIDGE/src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj"
 PINS="$ROOT/src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj"
 VIEW_TESTS="$ROOT/tests/SentenceStudio.Native.SwiftUIViews.Tests"
 PACKAGES="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
+# Where the logs of the steps go.
+LOGS="${SESSION_BRIDGE_LOGS:-${TMPDIR:-/tmp}}"
 
 # No build server and no build nodes kept between commands. With them a pack in a session,
 # after two runs of the tests, stopped for good at the bridge's first `dotnet run` (2026-11-24,
@@ -190,7 +196,10 @@ EOF
   return 1
 }
 
-pack() {
+# Builds the native framework, then packs and verifies the version the bridge's project file
+# names, from what is committed. Leaves the version in VERSION, the package in PACKAGE and the
+# log in PACK_LOG.
+build_package() {
   have_bridge
   local version log package
   version="$(version_in "$PROJECT" version)"
@@ -200,7 +209,7 @@ pack() {
   fi
   [ -z "$(git -C "$BRIDGE" status --porcelain)" ] \
     || stop "the bridge clone has uncommitted changes. Commit them first: the package must be the source that is in your branch, or what is proved is not what is merged."
-  log="${TMPDIR:-/tmp}/session-bridge-pack.log"
+  log="$LOGS/session-bridge-pack.log"
   say "building the native framework and packing $version (log: $log)"
   local code
   ( cd "$BRIDGE" && within 600 bash scripts/build-xcframework.sh ) > "$log" 2>&1; code=$?
@@ -211,22 +220,31 @@ pack() {
   [ -f "$package" ] || stop "no package at $package after the pack."
   [ -z "$(git -C "$BRIDGE" status --porcelain)" ] \
     || stop "the pack changed files the bridge's repository tracks ($(git -C "$BRIDGE" status --porcelain | head -3 | tr '\n' ' ')). Look at them before going on."
-  install "$package" "$version" "$log" \
-    || { tail -15 "$log" >&2; stop "the package was packed but could not be put in $PACKAGES; the copy that was there is kept. The whole log is $log."; }
+  VERSION="$version"; PACKAGE="$package"; PACK_LOG="$log"
+}
+
+packed() {
+  echo "VERSION=$VERSION"
+  echo "COMMIT=$(git -C "$BRIDGE" rev-parse --short HEAD)"
+  echo "PACKAGE=$PACKAGE"
+}
+
+pack() {
+  build_package
+  install "$PACKAGE" "$VERSION" "$PACK_LOG" \
+    || { tail -15 "$PACK_LOG" >&2; stop "the package was packed but could not be put in $PACKAGES; the copy that was there is kept. The whole log is $PACK_LOG."; }
   # The view tests keep the native code they took from the package the first time; a pack of
   # the same version again would not replace it. Their build output goes, so the next build
   # takes it afresh. (scripts/ios-build.sh does the same for the app.)
   [ ! -d "$VIEW_TESTS" ] || rm -rf "$VIEW_TESTS/obj" "$VIEW_TESTS/bin"
-  echo "VERSION=$version"
-  echo "COMMIT=$(git -C "$BRIDGE" rev-parse --short HEAD)"
-  echo "PACKAGE=$package"
-  say "packed. Pin $version in the two project files that name Microsoft.SwiftUI, then build."
+  packed
+  say "packed. Pin $VERSION in the two project files that name Microsoft.SwiftUI, then build."
 }
 
 bridge_tests() {
   have_bridge
   local log app
-  log="${TMPDIR:-/tmp}/session-bridge-test.log"
+  log="$LOGS/session-bridge-test.log"
   # The tests run the Swift side too, so it is built first, from what is there now.
   local code
   ( cd "$BRIDGE" && within 600 bash scripts/build-xcframework.sh ) > "$log" 2>&1; code=$?
@@ -248,7 +266,7 @@ bridge_tests() {
 sync() {
   local folder="${1:-}" package version log failed=0
   [ -d "$folder" ] || stop "sync needs the folder the packages are in."
-  log="${TMPDIR:-/tmp}/session-bridge-sync.log"; : > "$log"
+  log="$LOGS/session-bridge-sync.log"; : > "$log"
   for package in "$folder"/Microsoft.SwiftUI.*.nupkg; do
     [ -f "$package" ] || continue
     version="${package##*/Microsoft.SwiftUI.}"; version="${version%.nupkg}"
@@ -262,6 +280,7 @@ sync() {
 case "${1:-}" in
   where) where ;;
   pack) pack ;;
+  package) build_package; packed ;;
   test) bridge_tests ;;
   sync) sync "${2:-}" ;;
   *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;

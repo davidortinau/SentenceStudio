@@ -30,6 +30,27 @@ class StatusTests(unittest.TestCase):
         agent.start()
         self.addCleanup(agent.stop)
 
+    def test_the_bridge_section_is_what_the_release_last_decided_and_absent_without_it(self):
+        self.assertEqual(status.bridge_note(), ("", ""))
+        self.assertNotIn("## SwiftUI bridge", status.render("", None, [], [], [], [], 0, 12, bridge=""))
+        (self.dir / "state" / "bridge-release-note").write_text("released\nVersion 0.1.0-preview.68 was packed.\n", encoding="utf-8")
+        self.assertEqual(status.bridge_note(), ("released", "Version 0.1.0-preview.68 was packed."))
+        body = status.render("", None, [], [], [], [], 0, 12, bridge=status.bridge_note()[1])
+        self.assertIn("## SwiftUI bridge\n\nVersion 0.1.0-preview.68 was packed.\n\n## Pull requests waiting for you", body)
+
+    def test_while_the_bridge_is_packed_the_check_does_not_say_it_is_idle(self):
+        said = {}
+        with mock.patch.object(status, "gather", return_value=([], [], [])), \
+             mock.patch.object(status, "print", create=True), \
+             mock.patch.object(status, "render", side_effect=lambda *a: said.update(running=a[1], bridge=a[9]) or "body\n"):
+            (self.dir / "state" / "bridge-release-note").write_text("packing\nPacking version 0.1.0-preview.68.\n", encoding="utf-8")
+            status.write(12, [], set(), "", show=True)
+            self.assertIn("Packing a new version of the SwiftUI bridge", said["running"])
+            self.assertEqual(said["bridge"], "Packing version 0.1.0-preview.68.")
+            (self.dir / "state" / "bridge-release-note").write_text("released\nVersion 0.1.0-preview.68 was packed.\n", encoding="utf-8")
+            status.write(12, [], set(), "", show=True)
+            self.assertIsNone(said["running"])
+
     def test_only_fix_sessions_started_today_count_toward_the_cap(self):
         today = time.strftime("%Y-%m-%d", time.gmtime())
         records = [

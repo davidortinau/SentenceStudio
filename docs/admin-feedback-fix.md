@@ -383,9 +383,11 @@ a release or a package in anyone else's feed are, and stay his. The steps:
   repository's pull request, and under "Needs your answer" ask for what
   docs/admin-feedback-check.md, "The SwiftUI bridge", says is needed, to be followed by
   `/revise push the bridge branch`.
-- Under "Left undone", say that nobody else has the package yet: after merging the bridge's
-  pull request the Captain packs that version from `main` (docs/admin-feedback-check.md, "The
-  SwiftUI bridge"), and until then his own builds of your branch cannot restore.
+- Under "Left undone", say that nobody else has the package yet: once the Captain merges the
+  bridge's pull request the runner packs that version from `main`, puts it in his feed and
+  tags it, within about ten minutes (docs/admin-feedback-check.md, "The SwiftUI bridge"; the
+  status issue says when). Until then his own builds of your branch cannot restore, so the
+  bridge's pull request is merged first and this one after the tag is there.
 
 ## Where you stop
 

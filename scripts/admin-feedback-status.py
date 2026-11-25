@@ -164,13 +164,26 @@ def looks_every(path=None):
     return f"every {round(seconds / 60)} minutes"
 
 
-def render(note, running, queue, prs, waiting_on_you, recent, today, cap, every="regularly"):
+def bridge_note(path=None):
+    """What the runner last decided about the SwiftUI bridge's main
+    (scripts/admin-feedback-bridge-release.sh), as (state, text). The file's first line is the
+    state (packing, released, nothing or failed) and the rest is what to say."""
+    try:
+        state, _, text = (path or OUT / "state" / "bridge-release-note").read_text(encoding="utf-8").partition("\n")
+    except OSError:
+        return "", ""
+    return state.strip(), " ".join(text.split())
+
+
+def render(note, running, queue, prs, waiting_on_you, recent, today, cap, every="regularly", bridge=""):
     lines = [f"_Kept by the feedback check on Lilliput (docs/admin-feedback-check.md). Last changed {utc()}._", ""]
     if note:
         lines += [f"**{note}**", ""]
     lines += ["## Now", "", running or f"Idle: it looks for work {every} and runs passes back to back while there is some.",
               "", f"Fix sessions today: {today} of {cap}.", "", "## Queue", ""]
     lines += queue or ["Nothing waiting."]
+    if bridge:
+        lines += ["", "## SwiftUI bridge", "", bridge]
     lines += ["", "## Pull requests waiting for you", ""]
     lines += prs or ["None."]
     lines += ["", "## Issues waiting on you", "",
@@ -334,8 +347,12 @@ def write(cap, windows, handled, note, show=False):
               if today >= cap else "")
     note = " ".join(part for part in (paused_note(), capped, note) if part)
     queue, prs, waiting_on_you = gather(windows, handled)
-    body = render(note, in_flight(), queue, prs, waiting_on_you,
-                  passes(OUT / "history.log", records), today, cap, looks_every())
+    packing, bridge = bridge_note()
+    # No session runs while a version of the bridge is packed, and the check is not idle.
+    running = in_flight() or ("Packing a new version of the SwiftUI bridge (below); sessions start when it is done."
+                              if packing == "packing" and bridge else None)
+    body = render(note, running, queue, prs, waiting_on_you,
+                  passes(OUT / "history.log", records), today, cap, looks_every(), bridge)
     if show:
         print(body, end="")
         return

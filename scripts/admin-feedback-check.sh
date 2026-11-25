@@ -147,10 +147,10 @@ finish() {
     [ -n "${FEEDBACK_CHECK_UPDATE:-}" ] && echo "$FEEDBACK_CHECK_UPDATE"
   } >> "$RUN"
   cp "$RUN" "$OUT/latest.md"
-  printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
+  printf '%s  %s\n' "$STAMP" "$(grep -E '^(BRIDGE|RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
   # A run that fails before status is defined (a missing script) cannot write the status issue.
   declare -F status >/dev/null && { stop_keeping_status; status; }
-  [ "$NOTIFY" = yes ] && notify "$(grep -E '^(RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
+  [ "$NOTIFY" = yes ] && notify "$(grep -E '^(BRIDGE|RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
   # Keep the last 200 runs.
   ls -1t "$OUT"/run-*.md 2>/dev/null | tail -n +201 | while read -r old; do rm -f "$old" "${old%.md}.err"; done
   [ "$FAILED" = yes ] && exit 1
@@ -187,7 +187,8 @@ fi
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
               scripts/admin-feedback-agent-token.py scripts/admin-feedback-verify.py \
-              scripts/admin-feedback-usage.py scripts/session-ailoha.sh scripts/session-bridge.sh docs/admin-feedback-check.md \
+              scripts/admin-feedback-usage.py scripts/session-ailoha.sh scripts/session-bridge.sh \
+              scripts/admin-feedback-bridge-release.sh docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
 done
@@ -248,6 +249,28 @@ stop_keeping_status() {
   rm -f "$OUT/state/status-keeper.err"
 }
 
+# A version of the SwiftUI bridge that the Captain merged is packed, put in his feed and tagged
+# before anything else in the pass, so the session that follows already has it (Captain,
+# 2026-11-25: "make 3 automatic"; until then he packed and tagged by hand after merging a
+# bridge pull request). scripts/admin-feedback-bridge-release.sh decides and does it, as the
+# Captain's user and only from the bridge's main. While main has nothing new it costs one
+# `git ls-remote`. What it did goes into the summary as a BRIDGE line; a release that fails
+# is not a failed pass. Why it could not look, when it could not, is in
+# state/bridge-release.err.
+BRIDGE_RELEASED=no
+bridge_release() {
+  local due line err="$OUT/state/bridge-release.err"
+  due="$(/bin/bash "$ROOT/scripts/admin-feedback-bridge-release.sh" due 2> "$err")" && rm -f "$err"
+  [ -n "$due" ] || return 0
+  # The status issue says that it is packing, and goes on being rewritten while it does.
+  status
+  keep_status
+  line="$(/bin/bash "$ROOT/scripts/admin-feedback-bridge-release.sh" release 2> "$err")" && rm -f "$err"
+  [ -n "$line" ] || return 0
+  { echo "$line"; echo; } >> "$RUN"
+  BRIDGE_RELEASED=yes; NOTIFY=yes
+}
+
 seconds_since() {
   local then; then="$(cat "$1" 2>/dev/null)"
   case "$then" in ""|*[!0-9]*) echo 999999 ;; *) echo $(( $(date +%s) - then )) ;; esac
@@ -274,6 +297,8 @@ pass_gate() {
   fi
   # A session to settle is settled even at the cap; it starts no new one.
   if [ "$TRIAGE_DUE" = no ] && { [ "$waiting" = no ] || { [ "$FIX_ALLOWED" = no ] && [ ! -f "$INFLIGHT" ]; }; }; then
+    # A pass that packed the bridge has that to say, and nothing else to do.
+    [ "$BRIDGE_RELEASED" = no ] || finish
     status
     rm -f "$RUN"
     exit "$IDLE"
@@ -1255,6 +1280,7 @@ case "$MODE" in
   --triage-only) triage_and_stamp; main_ci; read_waiting ;;
   --fix-only) keep_status; fix_stage ;;
   --pass)
+    bridge_release
     pass_gate
     # The loop moves on as soon as a session ends; the status issue shows the checks.
     CHECKS_WAIT=0
@@ -1263,6 +1289,7 @@ case "$MODE" in
     fix_stage ;;
   both)
     keep_status
+    bridge_release
     triage_and_stamp
     main_ci
     # A triage that failed is reported; the fix stage still has its turn, on what was already filed.

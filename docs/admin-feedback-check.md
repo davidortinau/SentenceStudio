@@ -286,14 +286,41 @@ red for a day because nothing said so.
       after the Captain's change has it. The pull request goes to the branch that holds the
       pinned version (`PR_BASE`): `main` once he has merged `split-view` into it, which
       2026-11-24 he had not (`main` was at preview.46, the pinned preview.66 on `split-view`).
-    - **After the Captain merges a bridge pull request**, the version exists as source only.
-      Pack it from the merged `main`, on his side, before merging the pull request here that
-      pins it: in `~/work/Microsoft.SwiftUI` on an up-to-date `main`,
-      `bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh`, then
-      `gh release create v<version> --repo davidortinau/Microsoft.SwiftUI --prerelease --target
-      main artifacts/Microsoft.SwiftUI.<version>.nupkg`. The package in `artifacts` is what
-      his builds restore; the tag is what says the version was given out (a session's `pack`
-      refuses a tagged version, and the runner starts the next change from `main`).
+    - **After the Captain merges a bridge pull request**, the version exists as source only,
+      and the runner makes it a package by itself (2026-11-25; before that he packed and
+      tagged by hand). At the start of every pass `bridge_release` runs
+      `scripts/admin-feedback-bridge-release.sh`, as the Captain's user and never as the
+      sessions':
+      - It reads where the bridge's `main` is (one `git ls-remote`) and does nothing more
+        while `main` is where it last looked.
+      - When the version `main` names has no tag, it makes a clean copy of that commit under
+        `~/sstudio-feedback-check/bridge-release`, runs the bridge's own tests and its build,
+        pack and verify (`scripts/session-bridge.sh test` and `package`, the steps a session
+        proved the change with), copies the package into `~/work/Microsoft.SwiftUI/artifacts`
+        and makes the release `v<version>` on the bridge's repository at that commit, with
+        the package attached. About five minutes; sessions wait for it, so the next one has
+        the package (`publish_shared` and `sync` hand it on).
+      - It packs only while a ruleset restricts updates of the bridge's `main`: then what is
+        on `main` is what the Captain merged, and this step runs the bridge's build scripts
+        as him. The sessions' login can open a pull request there and cannot merge one.
+      - It never replaces a package of that version already in the feed with other contents;
+        it stops and says so. A copy of the version in the Captain's own package folder that
+        differs is named, and left.
+      - A release that fails is tried again after an hour, three times in all for one commit,
+        and is not a failed pass. To have it look again sooner, remove
+        `~/sstudio-feedback-check/state/bridge-release-seen`.
+      - `main` changed in `src` or `native` under a version that already has its tag is said
+        and not packed: a change reaches the app only under the next version.
+      - What it last decided is the section "SwiftUI bridge" of the status issue
+        (`state/bridge-release-note`); a pass that packed says so in its summary (a line
+        that begins `BRIDGE:`) and in a notification; the log of the last release is
+        `bridge-release/release.log`. Why it could not look, when it could not, is in
+        `state/bridge-release.err`.
+      So a bridge change needs two merges from the Captain and nothing else: the bridge's
+      pull request first, then, once the status issue says the version is tagged, the pull
+      request here that pins it. The package in `artifacts` is what his builds restore; the
+      tag is what says the version was given out (a session's `pack` refuses a tagged
+      version, and the runner starts the next change from `main`).
     - **The first session to use it** (2026-11-24, the follow-up on pull request 263) found
       the cause in the bridge and fixed it there, and was let down twice by the helper, both
       mended the same day. It was told `PUSH=no` with a token that covered the bridge: GitHub
