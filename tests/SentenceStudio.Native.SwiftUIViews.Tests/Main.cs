@@ -5,6 +5,7 @@ using Microsoft.SwiftUI;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
+using SentenceStudio.Native.Features.Import;
 using SentenceStudio.Native.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Activities;
 using SentenceStudio.Native.iOS.Features.Browse;
@@ -1039,32 +1040,31 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
-    // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New were
-    // fixed-size since bridge 0.1.0-preview.43. On 0.1.0-preview.67 a row gives its least
-    // flexible items their own width, so they keep one line beside a title that truncates
-    // without it. The rows are put together here as ImportRow, VideoRow and the count row put
-    // them together, from the views' own badges and buttons, and drawn 330 points wide (an
-    // iPhone's Form row): a row whose badge or button wrapped would be taller.
-    ("YouTube rows: the badges, Retry and Select All New keep one line beside a long title, without fixed size (issue 260)", () =>
+    // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
+    // keep one line beside a title that truncates. The rows are put together here as ImportRow,
+    // VideoRow and the count row put them together, from the views' own badges and buttons, and
+    // drawn 330 points wide (an iPhone's Form row): a row whose badge or button wrapped would be
+    // taller. Issue 260 also took fixed size off the badges and Retry, and this case refused it;
+    // issue 277 drew the wider badges, which wrap without it, and put it back (the next case).
+    // Select All New is still not fixed-size.
+    ("YouTube rows: the badges, Retry and Select All New keep one line beside a long title (issue 260)", () =>
     {
         const double width = 330;
         const string longTitle = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
         var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
         var phone = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
-        SwiftView Free(SwiftView view, string what) => view.FixedHorizontalSize
-            ? throw new Exception($"{what} is fixed-size; its row keeps its width without that.")
-            : view;
-        SwiftView StatusBadge() => Free((SwiftView)typeof(YouTubeImportView).GetMethod("StatusBadge", flags)!
-            .Invoke(null, [VideoImportStatus.Failed, phone, (Func<string, string>)(_ => "Failed"), "status"])!, "The import's status badge");
-        SwiftView VideoBadge() => Free((SwiftView)typeof(YouTubeChannelView).GetMethod("Badge", flags)!
-            .Invoke(null, [phone, "xmark.circle", "Failed", phone.Appearance.Danger, new SourceColorPair("#FFFFFF", "#FFFFFF"), "failed"])!, "The video's badge");
+        SwiftView StatusBadge() => (SwiftView)typeof(YouTubeImportView).GetMethod("StatusBadge", flags)!
+            .Invoke(null, [VideoImportStatus.Failed, phone, (Func<string, string>)(_ => "Failed"), "status"])!;
+        SwiftView VideoBadge() => (SwiftView)typeof(YouTubeChannelView).GetMethod("Badge", flags)!
+            .Invoke(null, [phone, "xmark.circle", "Failed", phone.Appearance.Danger, new SourceColorPair("#FFFFFF", "#FFFFFF"), "failed"])!;
         SwiftView Retry()
         {
             var label = Views.HStack(Views.Image("arrow.clockwise"), Views.Text("Retry"));
             label.Spacing = 4;
-            return Free(YouTubeImportView.OutlineWarningButton(label, () => { }, phone), "Retry");
+            return YouTubeImportView.OutlineWarningButton(label, () => { }, phone);
         }
-        SwiftView SelectAll() => NativeForm.Bordered(phone, "Select All New", () => { }, "select-all");
+        SwiftView SelectAll() => NativeForm.Bordered(phone, "Select All New", () => { }, "select-all") is { FixedHorizontalSize: false } button
+            ? button : throw new Exception("Select All New is fixed-size; beside one caption it keeps its width without that.");
         SwiftView Caption(string value) => phone.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Secondary);
         SwiftView ImportRow(string title)
         {
@@ -1099,6 +1099,94 @@ var cases = new (string Name, Action Test)[]
             if (Math.Abs(counted - button) > 1)
                 throw new Exception($"The video count row is {counted:0.#} points high and Select All New alone is {button:0.#}: the button wrapped.");
         }
+    }),
+    // Issue 277: the case above draws rows it puts together itself, 330 points wide, in English,
+    // at the default text size, and only "Failed" and "Retry", which fit in an equal share of
+    // the row. This one draws the pages' own rows (History's and Discovery's, from a state made
+    // here): each row alone, and all of them inside the grouped Form they sit in, at an iPhone's
+    // and an iPad's width, in English and in Korean (the app's own strings), at the default and
+    // at the largest app text size, with a title too long for any of them. Each is drawn again
+    // with room for everything on one line: a row whose badge, date or button wrapped is taller
+    // than that. (Without fixed size a stuck import's row was 164 points high at 330, not 40.)
+    ("YouTube rows: at iPad width, in Korean and at the largest app text size the pages' own rows keep one line, alone and in a Form (issue 277)", () =>
+    {
+        const double room = 2000;
+        const string title = "한국어 브이로그 아이폰 한 줄에는 도저히 들어가지 않는 아주 긴 영상 제목이라서 끝까지 가기 전에 어딘가에서 잘려야 하는데 아이패드에서도 한 줄에 다 들어가지 않을 만큼 길게 이어지는 제목입니다 and it goes on in English as well, far past the end of the row, so that it is cut short even with room for the rest of the row";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        // The rows take their coordinator only for what a tap does; nothing is tapped here.
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        // A failed manual import, a completed one from a channel, and one stuck while it runs
+        // (its badge has a spinner, and it has Retry).
+        var history = new YouTubeImportState(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [
+                new("1", title, true, null, VideoImportStatus.Failed, null, created, null, false),
+                new("2", title, false, title, VideoImportStatus.Completed, null, created, "res-1", false),
+                new("3", title, false, null, VideoImportStatus.GeneratingVocabulary, null, created, null, true),
+            ], 3, null, []);
+        // A failed video (badge and Retry), an imported one, one being imported and a new one.
+        var videos = new YouTubeChannelState(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [
+                new("a", title, "https://youtu.be/a", VideoImportStatus.Failed),
+                new("b", title, "https://youtu.be/b", VideoImportStatus.Completed),
+                new("c", title, "https://youtu.be/c", VideoImportStatus.CleaningTranscript),
+                new("d", title, "https://youtu.be/d", null),
+            ], System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null, false, null, []);
+        var wrapped = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var width in new[] { 330d, 402d, 951d })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), width);
+            SwiftView ImportRow(int index) =>
+                (SwiftView)typeof(YouTubeImportView).GetMethod("ImportRow", flags)!
+                    .Invoke(null, [import, history, history.DisplayedImports[index], look, (Func<string, string>)Words, opens])!;
+            SwiftView VideoRow(int index) =>
+                (SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                    .Invoke(null, [channel, videos, videos.Videos[index], index, look, (Func<string, string>)Words])!;
+            SwiftView HistoryForm() => NativeForm.Page(look,
+                (IEnumerable<SwiftView>)typeof(YouTubeImportView).GetMethod("History", flags)!
+                    .Invoke(null, [import, history, look, (Func<string, string>)Words, opens])!, "form", "page");
+            SwiftView DiscoveryForm() => NativeForm.Page(look,
+                [(SwiftView)typeof(YouTubeChannelView).GetMethod("Discovery", flags)!
+                    .Invoke(null, [channel, videos, look, (Func<string, string>)Words])!], "form", "page");
+            void OneLine(string what, Func<SwiftView> build, Func<SwiftView, double, double> height)
+            {
+                using var drawn = build();
+                using var withRoom = build();
+                var (high, oneLine) = (height(drawn, width), height(withRoom, room));
+                // Taller only: with room more of the title shows, and its letters can reach lower.
+                if (high - oneLine > 2)
+                    wrapped.Add($"{what} ({language}, text size {scale:0.##}, {width} points) is {high:0.#} points high, and {oneLine:0.#} with room for one line");
+            }
+            for (var index = 0; index < history.DisplayedImports.Length; index++)
+            {
+                var at = index;
+                OneLine($"The import row {history.DisplayedImports[at].Status}", () => ImportRow(at),
+                    (row, wide) => PaintedHeight(row, wide, 300));
+            }
+            for (var index = 0; index < videos.Videos.Length; index++)
+            {
+                var at = index;
+                OneLine($"The channel's video row {videos.Videos[at].ImportStatus?.ToString() ?? "New"}", () => VideoRow(at),
+                    (row, wide) => PaintedHeight(row, wide, 300));
+            }
+            OneLine("The import history in its Form", HistoryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
+            OneLine("The channel's videos in their Form", DiscoveryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
+        }
+        if (wrapped.Count > 0)
+            throw new Exception($"Something beside the title wrapped in {wrapped.Count} drawings: {string.Join("; ", wrapped)}.");
     }),
 };
 
@@ -1324,6 +1412,51 @@ static double PaintedHeight(SwiftView root, double width, double height)
                 }
         if (top < 0)
             throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+        return (bottom + 1 - top) / (high / height);
+    }
+    finally
+    {
+        SwiftUIHost.DetachView(root, host);
+    }
+}
+
+// The height in points of everything in a view that is not its canvas: for a page that paints
+// its own background (a grouped Form), where every pixel is painted. The canvas color is the
+// top left pixel's.
+static double HeightOffCanvas(SwiftView root, double width, double height)
+{
+    var host = SwiftUIHost.CreateView(root);
+    try
+    {
+        host.Frame = new CGRect(0, 0, width, height);
+        host.LayoutSubtreeIfNeeded();
+        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+            ?? throw new Exception("The host has no bitmap to draw in.");
+        host.CacheDisplay(host.Bounds, bitmap);
+        if (bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+            throw new Exception("The host's bitmap is not 8-bit meshed pixels, so the canvas cannot be told from what is on it.");
+        var (data, stride, wide, high) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide, (int)bitmap.PixelsHigh);
+        var samples = (int)bitmap.BitsPerPixel / 8;
+        bool OnCanvas(int x, int y)
+        {
+            for (var sample = 0; sample < samples; sample++)
+                if (Math.Abs(Marshal.ReadByte(data, y * stride + x * samples + sample) - Marshal.ReadByte(data, sample)) > 8)
+                    return false;
+            return true;
+        }
+        int top = -1, bottom = -1;
+        for (var y = 0; y < high; y++)
+            for (var x = 0; x < wide; x++)
+                if (!OnCanvas(x, y))
+                {
+                    top = top < 0 ? y : top;
+                    bottom = y;
+                    break;
+                }
+        if (top < 0)
+            throw new Exception("The host painted nothing but its canvas: this is the drawing, not the layout.");
+        if (bottom == high - 1)
+            throw new Exception($"The page is taller than the {height} points it was drawn in, so its height is not known.");
         return (bottom + 1 - top) / (high / height);
     }
     finally
