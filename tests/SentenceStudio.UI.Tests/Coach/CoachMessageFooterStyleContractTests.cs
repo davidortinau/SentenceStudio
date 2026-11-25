@@ -225,6 +225,24 @@ public class CoachMessageFooterStyleContractTests
                 "five 44px rows on a desktop would fill the message column on their own");
     }
 
+    // ================================================================ the reason rows (issue 270)
+
+    /// <summary>
+    /// Each radio button touched its label. The row is a flex line, where Bootstrap's own spacing
+    /// (the button floated into the row's left padding) does nothing, so the row has to say the
+    /// space itself.
+    /// </summary>
+    [Fact]
+    public void AReasonsRadioButtonAndItsLabelSitOneSmallStepApart()
+    {
+        var row = Block(".coach-report-reason");
+
+        Declarations(row, "display").Should().Contain("flex",
+            "the gap below only spaces the children of a flex row");
+        Declarations(row, "gap").Should().ContainSingle().Which
+            .Should().Be("0.5rem", "a radio button that touches its label reads as one cramped mark");
+    }
+
     // ================================================================ themes
 
     /// <summary>
