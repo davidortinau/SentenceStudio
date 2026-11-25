@@ -339,9 +339,9 @@ exactly as it will be filed, and files nothing before he merges.
   title, and why it matters. The runner's comment carries the full text and tells him how to
   leave items out or have them done in this pull request; you do not repeat that.
 - The repository is public and the task is filed under his login: no profile id, name or
-  email, and nothing you would not say to him. Write plain Markdown: the runner shows HTML as
-  text, shows images and link definitions as written, takes out characters that draw
-  nothing, and keeps an `@name` from notifying anyone.
+  email, and nothing you would not say to him. He reads each task as literal text, exactly
+  as you wrote it, so write plain sentences and short lists; the runner takes out characters
+  that draw nothing and keeps an `@name` from notifying anyone.
 - The list counts only when your pass ends with `RESULT: pr`. A pass that ends any other way
   leaves it out of count, and nothing is filed from it until a later pass writes it again.
 

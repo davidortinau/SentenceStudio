@@ -15,8 +15,9 @@ the check works them in turn, one pull request each.
       empty, nothing when it stands as posted. A missing or unreadable FILE leaves the list an
       earlier pass recorded as it was. Exit 4, with why on stderr, when N is not the open pull
       request of issue M's own branch.
-  admin-feedback-next.py posted --pr N
-      The runner posted what record printed: from now the list counts.
+  admin-feedback-next.py posted --pr N --url ADDRESS
+      The runner posted what record printed, as the comment at ADDRESS: the list counts from
+      the time GitHub gives that comment, and the comment is remembered as it then was.
   admin-feedback-next.py stale --pr N
       A pass ended without bringing the list up to date: it no longer counts, until a pass
       records and posts it again. Prints "yes" when there was a list.
@@ -36,11 +37,15 @@ task, because a session reads learners' reports and could be misled by one. A fo
 exactly that, so it runs only through the Captain:
 - A list is taken only for the open pull request of the session's own branch
   (feedback/issue-<n>, into main, not from a fork): a session cannot name another.
-- The runner posts every item in full on the pull request, as it will be filed. Nothing in an
-  item can hide: HTML is shown as text, invisible characters are taken out, and an item is
-  quoted so that it cannot pass for the runner's own words (see shown).
+- The runner posts every item in full on the pull request, as it will be filed. Each body is
+  shown as literal text, in a code block, so nothing in it can render unseen or pass for the
+  runner's own words; characters that draw nothing are taken out (see visible).
+- The sessions' login may be able to edit a comment on the pull request, the owner's
+  included. So the list's comment is remembered as posted, and nothing is filed when it has
+  been changed since; and a `/skip` or `/next` counts only while it is as its author wrote it.
 - Nothing is filed unless the owner himself merged the pull request into main after the list
-  was posted. One merged before its list was shown waits for his `/next`.
+  was posted (both times are GitHub's). One merged before its list was shown waits for his
+  `/next`.
 - Only the runner files, as his login; a session cannot open an issue. At most MAX_ITEMS for
   one pull request.
 
@@ -50,11 +55,14 @@ How much starts by itself is the appetite (FEEDBACK_APPETITE in admin-feedback-c
   narrow  nothing is filed unless he asks with `/next 1 3` or `/next all` on the pull request,
           before or after merging it; what he has not asked for within KEEP_DAYS is dropped.
 A `/skip` or `/next` counts when the owner wrote it after the list was posted: the numbers are
-those of the runner's newest list. It names items by number (`2`, `#2`, `2-4`), or is the one
-word `all`.
+those of the runner's newest list. It names items by number (`2`, `#2`, `2-4`); with no number
+in it, `all` or `everything` means every item. One that names nothing is said on the pull
+request when it is merged.
 """
 
 import calendar
+import hashlib
+import html
 import importlib.util
 import json
 import os
@@ -84,8 +92,11 @@ TITLE_LENGTH = 120
 BODY_LENGTH = 6000
 KEEP_DAYS = 30
 ORDER = re.compile(r"^\s*/(skip|next)\b([^\n]*)")
-# The footer of an issue filed from a list, by which one that was already filed is known.
-FILED_AS = "Follow-up {n} of {total} from pull request #{pr} (issue #{issue})."
+# How an issue filed from a list ends, by which one that was already filed is known.
+FILED_AS = ("\n\n---\nFollow-up {n} of {total} from pull request #{pr} (issue #{issue}). A fix session listed it "
+            "there, and the feedback check filed it when the Captain merged that pull request.")
+# Characters that draw nothing or a blank, beyond the categories visible() takes out.
+BLANK = re.compile("[\u115f\u1160\u2800\u3164\uffa0\ufe00-\ufe0f\U000e0100-\U000e01ef]")
 
 
 class Refused(Exception):
@@ -130,24 +141,13 @@ def settle(kept, outcome):
     path_of(kept["pr"]).unlink(missing_ok=True)
 
 
-def shown(text):
-    """The text with nothing in it that GitHub would render unseen, so that what the Captain
-    reads on the pull request is all there is, for him and for the session that later reads the
-    issue as plain text.
-    - Characters that draw nothing (format and private-use characters, surrogates, unassigned
-      ones) are taken out: text can be hidden in them.
-    - Every `<` that could open a tag, a comment or a processing instruction gets a zero-width
-      space after it, which shows it as text. No HTML works: no comment, no <details> closed
-      early.
-    - A link definition (`[name]: address "title"`, which renders as nothing) and an image
-      (whose text shows only when the picture does not) are shown as written, and a link with
-      no text is given some.
-    - A name after @ notifies nobody: the issue is filed under his login."""
+def visible(text):
+    """The text without characters that draw nothing (format and private-use characters,
+    surrogates, unassigned ones, variation selectors, blank fillers): text can be hidden in
+    them, from the Captain and not from the session that reads the issue. A name after @
+    notifies nobody: the issue is filed under his login."""
     text = "".join(c for c in text if c in "\n\t" or unicodedata.category(c) not in ("Cf", "Co", "Cs", "Cn", "Cc"))
-    text = re.sub(r"<(?=[A-Za-z/!?])", "<\u200b", text)
-    text = re.sub(r"(?m)^([ \t]{0,3})\[(?=[^\]\n]*\]:)", r"\1\\[", text)
-    text = text.replace("![", "!\\[").replace("[](", "[link](")
-    return re.sub(r"@(?=\w)", "@\u200b", text)
+    return re.sub(r"@(?=\w)", "@\u200b", BLANK.sub("", text))
 
 
 def cleaned(listed):
@@ -158,8 +158,8 @@ def cleaned(listed):
     for entry in listed:
         if not isinstance(entry, dict) or not isinstance(entry.get("title"), str) or not isinstance(entry.get("body"), str):
             raise ValueError('an item is not {"title": ..., "body": ...}')
-        title = " ".join(shown(entry["title"]).split())[:TITLE_LENGTH].strip()
-        body = shown(entry["body"]).strip()[:BODY_LENGTH].strip()
+        title = " ".join(visible(entry["title"]).split())[:TITLE_LENGTH].strip()
+        body = visible(entry["body"]).strip()[:BODY_LENGTH].strip()
         if title and body:
             items.append({"title": title, "body": body})
     return items[:MAX_ITEMS], max(0, len(items) - MAX_ITEMS)
@@ -171,8 +171,9 @@ def waiting(kept):
 
 
 def left(number):
+    """How many items a merge would start, or offer: none of a list that does not count."""
     kept = load(number)
-    return len(waiting(kept)) if kept else 0
+    return len(waiting(kept)) if kept and kept.get("posted_at") else 0
 
 
 def looked_at(number, fields):
@@ -218,11 +219,36 @@ def record(number, issue, source, appetite):
     return said
 
 
-def posted(number):
+def comment_of(comment_id):
+    """A comment as GitHub has it now: when it was made, by whom, and what it says."""
+    found = pr.gh_lines("api", f"repos/{pr.REPO}/issues/comments/{int(comment_id)}", "--jq",
+                        "{created_at, body, user: .user.login}")[0]
+    return found, hashlib.sha256((found.get("body") or "").replace("\r\n", "\n").strip().encode()).hexdigest()
+
+
+def posted(number, address):
+    """The list counts from the time GitHub gives the runner's comment, and that comment is
+    remembered as it is now: whatever the session left running has been ended and its login is
+    gone, so nobody else has touched it yet."""
     kept = load(number)
-    if kept and not kept.get("posted_at"):
-        kept["posted_at"] = now()
-        save(kept)
+    found = re.search(r"#issuecomment-(\d+)\s*$", address or "")
+    if not kept or kept.get("posted_at") or not found:
+        return bool(kept and kept.get("posted_at"))
+    comment, digest = comment_of(found.group(1))
+    if comment.get("user") != OWNER or not comment.get("created_at"):
+        return False
+    kept.update(posted_at=comment["created_at"], comment_id=int(found.group(1)), comment_sha=digest)
+    save(kept)
+    return True
+
+
+def as_posted(kept):
+    """Whether the list's comment still says what the runner posted."""
+    try:
+        comment, digest = comment_of(kept["comment_id"])
+    except (pr.GitHubError, KeyError, TypeError, ValueError, IndexError):
+        return False
+    return comment.get("user") == OWNER and digest == kept.get("comment_sha")
 
 
 def stale(number):
@@ -248,10 +274,12 @@ def markdown(kept, appetite, dropped=0):
                "before you merge. To have them done in this pull request first, comment `/revise all` or "
                "`/revise 2`.")
     lines = [f"**Next, when you merge** ({len(items)})", "", how,
-             "Each is the session's own text, quoted, as it will be filed.", ""]
+             "Each is the session's own text, shown as written; it is filed as it stands.", ""]
     for n, item in items:
-        quoted = "\n".join(f"> {line}".rstrip() for line in item["body"].splitlines())
-        lines += [f"<details><summary>{n}. {item['title']}</summary>", "", quoted, "", "</details>", ""]
+        # As literal text, in a fence longer than any in it: what he reads is all there is.
+        fence = "`" * max(3, 1 + max((len(run) for run in re.findall(r"`+", item["body"])), default=0))
+        lines += [f"<details><summary>{n}. {html.escape(item['title'])}</summary>", "",
+                  f"{fence}text", item["body"], fence, "", "</details>", ""]
     if dropped:
         lines += [f"The session listed {dropped} more than the {MAX_ITEMS} one pull request may leave; "
                   "they are in its description only.", ""]
@@ -259,27 +287,34 @@ def markdown(kept, appetite, dropped=0):
 
 
 def numbers_in(rest, count):
-    """The items a /skip or /next names: every one when it is the one word "all", else the
-    numbers and ranges that exist. Other words name nothing ("2, that is all" is item 2)."""
-    if rest.strip().lower() == "all":
-        return set(range(1, count + 1))
+    """The items a /skip or /next names. Numbers and ranges, when it has any ("2, that is all"
+    is item 2); with none, every item when it says all or everything ("all of them."); else
+    nothing."""
     named = set()
     for low, high in re.findall(r"#?(\d+)(?:\s*-\s*#?(\d+))?", rest):
-        named.update(range(int(low), int(high or low) + 1))
-    return {n for n in named if 1 <= n <= count}
+        named.update(range(max(1, int(low)), min(count, int(high or low)) + 1))
+    if not re.search(r"\d", rest) and re.search(r"\b(all|everything)\b", rest, re.I):
+        return set(range(1, count + 1))
+    return named
 
 
 def orders(number, kept):
     """What the owner asked on the pull request since the list was posted: the items to leave
-    out and the items to start."""
-    skip, start = set(), set()
+    out, the items to start, and what he wrote that named nothing. A comment that was edited
+    does not count, whoever it shows as its author: someone else may have changed it."""
+    skip, start, unclear = set(), set(), []
     for comment in pr.comments_on(number):
         found = ORDER.match(comment.get("body") or "")
         if not found or not pr.owner_wrote(comment) or (comment.get("created_at") or "") < kept["posted_at"]:
             continue
         named = numbers_in(found.group(2), len(kept["items"]))
-        (skip if found.group(1) == "skip" else start).update(named)
-    return skip, start
+        if comment.get("updated_at") not in (None, comment.get("created_at")):
+            unclear.append(f"`/{found.group(1)}{found.group(2).rstrip()[:60]}` was edited after it was written, so it was not counted")
+        elif not named:
+            unclear.append(f"`/{found.group(1)}{found.group(2).rstrip()[:60]}` names no item of the list (1 to {len(kept['items'])})")
+        else:
+            (skip if found.group(1) == "skip" else start).update(named)
+    return skip, start, unclear
 
 
 def gh(*args, text=None):
@@ -292,29 +327,30 @@ def gh(*args, text=None):
     return done.stdout
 
 
-def footer(kept, n):
+def ending(kept, n):
     return FILED_AS.format(n=n, total=len(kept["items"]), pr=kept["pr"], issue=kept["issue"])
 
 
 def filed_before(kept):
     """The issues already filed from this list, by item: a try that was cut off after GitHub
-    made the issue and before it was recorded here must not make it twice."""
+    made the issue and before it was recorded here must not make it twice. Only an issue of the
+    owner's that ends as the runner ends one: a task's own text comes before that ending, so no
+    task can make itself pass for another."""
     found = pr.gh_lines("issue", "list", "--repo", pr.REPO, "--state", "all", "--limit", "200",
                         "--label", pr.FOLLOW_UP, "--search", f'"from pull request #{kept["pr"]}" in:body',
                         "--json", "number,body,author", "--jq", ".[]")
     known = {}
     for n, _ in waiting(kept):
         for issue in found:
-            if (issue.get("author") or {}).get("login") == OWNER and footer(kept, n) in (issue.get("body") or ""):
+            body = (issue.get("body") or "").replace("\r\n", "\n").rstrip()
+            if (issue.get("author") or {}).get("login") == OWNER and body.endswith(ending(kept, n)):
                 known[n] = issue["number"]
     return known
 
 
 def open_issue(kept, n, item):
-    body = (f"{item['body']}\n\n---\n{footer(kept, n)} A fix session listed it there, and the feedback check "
-            "filed it when the Captain merged that pull request.\n")
     said = gh("issue", "create", "--repo", pr.REPO, "--title", item["title"], "--label", pr.FOLLOW_UP,
-              "--body-file", "-", text=body)
+              "--body-file", "-", text=f"{item['body']}{ending(kept, n)}\n")
     found = re.search(r"/issues/(\d+)\s*$", said.strip())
     if not found:
         raise pr.GitHubError(f"gh did not say which issue it opened: {said.strip()[:200]}")
@@ -339,8 +375,6 @@ def file_one(kept, appetite):
     """Acts on one list. Returns the line for the run's summary (or None) and why it could not
     go on, when it could not."""
     number = kept["pr"]
-    if not kept.get("posted_at"):
-        return None, None
     state = looked_at(number, "state,mergedAt,mergedBy,baseRefName")
     if state.get("state") == "OPEN":
         return None, None
@@ -354,10 +388,22 @@ def file_one(kept, appetite):
         settle(kept, f"merged by {merged_by} into {state.get('baseRefName')}")
         return (f"NEXT: pull request #{number} was not merged into main by {OWNER} (by {merged_by}, into "
                 f"{state.get('baseRefName')}), so the {count} on its list were dropped."), None
+    why = ""
+    if not kept.get("posted_at"):
+        why = ("its list of what is next was not posted here in a state that counts (the last pass did not "
+               "finish, or the list could not be posted)")
+    elif not as_posted(kept):
+        why = "the comment that shows its list of what is next was changed after the feedback check posted it"
+    if why:
+        # He was not shown it, or cannot be known to have been: nothing of it is filed.
+        say_on(number, [f"Nothing was filed from this pull request's list when it was merged: {why}. "
+                        "If something on it should still be done, file it as an issue."])
+        settle(kept, f"merged, nothing filed: {why}")
+        return f"NEXT: pull request #{number} was merged, and nothing was filed from its list: {why}.", None
     # Merged before the list was shown to him: his merge did not accept it, so he is asked.
     late = (state.get("mergedAt") or "") < kept["posted_at"]
     asked = appetite == "narrow" or late
-    skip, start = orders(number, kept)
+    skip, start, unclear = orders(number, kept)
     filed, left_out, problem = [], [], None
     try:
         known = None
@@ -368,10 +414,10 @@ def file_one(kept, appetite):
                 save(kept)
             elif not asked or n in start:
                 if known is None:
-                    known = filed_before(kept)
                     # Once per batch; --force makes an existing label no error.
                     gh("label", "create", pr.FOLLOW_UP, "--repo", pr.REPO, "--force", "--color", "C5DEF5",
                        "--description", "Listed by a fix session in a pull request; filed when the Captain merged it")
+                    known = filed_before(kept)
                 item["filed"] = known.get(n) or open_issue(kept, n, item)
                 filed.append((n, item))
                 save(kept)
@@ -385,16 +431,22 @@ def file_one(kept, appetite):
         lines += [f"- #{item['filed']}: {n}. {item['title']}" for n, item in filed]
     if left_out:
         lines += ["", f"Left out at your word: {', '.join(str(n) for n in left_out)}."]
-    if late and still and not problem and not kept.get("late_said"):
+    told = kept.setdefault("told", [])
+    for note in unclear:
+        if note not in told:
+            lines += ["", f"Your {note}."]
+            told.append(note)
+    if late and still and not problem and "late" not in told:
         lines += ["", "This pull request was merged before its list of what is next was posted here, so nothing "
                       "on it started by itself. To start some, comment `/next 1 3` or `/next all`."]
-        kept["late_said"] = True
-        save(kept)
+        told.append("late")
     if lines:
         say_on(number, lines)
     expired = bool(still) and not problem and asked and days_since(state.get("mergedAt")) > KEEP_DAYS
     if not problem and (not still or expired):
         settle(kept, "merged")
+    elif path_of(number).exists():
+        save(kept)
     said = []
     if filed:
         said.append("filed " + ", ".join(f"#{item['filed']}" for _, item in filed) + " from its list")
@@ -446,7 +498,11 @@ def main(args):
                 return 4
             return 0
         if mode == "posted":
-            posted(number)
+            try:
+                return 0 if posted(number, pr.option(args, "--url")) else 5
+            except (pr.GitHubError, LookupError, TypeError, ValueError) as error:
+                print(f"{error}.", file=sys.stderr)
+                return 5
         elif mode == "stale":
             print("yes" if stale(number) else "no")
         elif mode == "show":

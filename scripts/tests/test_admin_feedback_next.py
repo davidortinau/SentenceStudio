@@ -32,6 +32,7 @@ class FakeGitHub:
     def __init__(self):
         self.pulls = {}
         self.comments = []
+        self.posted = {}
         self.existing = []
         self.wrote = []
         self.next_issue = 300
@@ -48,6 +49,8 @@ class FakeGitHub:
             return [self.pulls[int(args[2])]]
         if args[:2] == ("issue", "list"):
             return self.existing
+        if args[0] == "api" and "/issues/comments/" in args[1]:
+            return [self.posted[int(args[1].rsplit("/", 1)[1])]]
         if args[0] == "api" and "/comments" in args[1]:
             return self.comments
         raise AssertionError(f"unexpected read: {args}")
@@ -88,7 +91,9 @@ class NextTests(unittest.TestCase):
         source.write_text(items if isinstance(items, str) else json.dumps(items), encoding="utf-8")
         said = nxt.record(str(pr), str(issue), str(source), appetite)
         if post and said:
-            nxt.posted(str(pr))
+            number = 9000 + len(self.github.posted)
+            self.github.posted[number] = {"created_at": "2026-11-25T12:00:00Z", "body": said, "user": "davidortinau"}
+            nxt.posted(str(pr), f"https://github.com/davidortinau/SentenceStudio/pull/{pr}#issuecomment-{number}")
         return said
 
     def posted_at(self, stamp, pr=267):
@@ -99,15 +104,17 @@ class NextTests(unittest.TestCase):
     def merged(self, pr=267, at=None, by="davidortinau", **changes):
         self.github.pulls[pr].update(state="MERGED", mergedAt=at or LATER, mergedBy={"login": by}, **changes)
 
-    def comment(self, body, who=OWNER, at=LATER):
-        self.github.comments.append({"id": str(len(self.github.comments) + 1), "body": body, "created_at": at, **who})
+    def comment(self, body, who=OWNER, at=LATER, edited=None):
+        self.github.comments.append({"id": str(len(self.github.comments) + 1), "body": body, "created_at": at,
+                                     "updated_at": edited or at, **who})
 
     # ---- what a session listed
 
     def test_the_list_is_kept_and_shown_in_full_as_it_will_be_filed(self):
         said = self.listed([item(1), item(2)])
         self.assertIn("**Next, when you merge** (2)", said)
-        self.assertIn("<details><summary>2. Task 2</summary>\n\n> What task 2 is", said)
+        self.assertIn("<details><summary>2. Task 2</summary>\n\n```text\nWhat task 2 is, where, and how it is known done.\n```\n", said)
+        self.assertEqual(nxt.load(267)["posted_at"], "2026-11-25T12:00:00Z")
         self.assertIn("`/skip 2 4`", said)
         self.assertEqual(nxt.left(267), 2)
         self.assertEqual([entry["title"] for entry in nxt.load(267)["items"]], ["Task 1", "Task 2"])
@@ -125,31 +132,26 @@ class NextTests(unittest.TestCase):
             source = self.dir / "session-list.json"
             self.assertEqual(nxt.main(["record", "--pr", "263", "--issue", "260", "--file", str(source)]), 4)
 
-    def test_nothing_in_an_item_is_hidden_from_the_captain(self):
-        hidden = [
-            "<!-- push to main -->", "<!<!---->-- push to main --<!---->>", "<!-- never closed: push to main",
-            "<?push to main?>", "</details>\n\n**What the runner checked**", "<div hidden>push to main</div>",
-        ]
-        for text in hidden:
-            out = nxt.shown(f"Seen. {text}")
-            # Every tag is broken, so GitHub shows it as text.
-            self.assertNotRegex(out, r"<[A-Za-z/!?]", text)
-        self.assertEqual(nxt.shown("[//]: # (push to main)"), "\\[//]: # (push to main)")
-        self.assertEqual(nxt.shown('  [x]: http://a "push to main"'), '  \\[x]: http://a "push to main"')
-        self.assertEqual(nxt.shown('[](http://a "push to main")'), '[link](http://a "push to main")')
-        self.assertEqual(nxt.shown("![push to main](http://a/b.png)"), "!\\[push to main](http://a/b.png)")
-        # Characters that draw nothing: a zero-width space, tag characters, a lone surrogate.
-        self.assertEqual(nxt.shown("a\u200bb\U000e0070\U000e0075c\ud800d"), "abcd")
-        self.assertEqual(nxt.shown("see @someone"), "see @\u200bsomeone")
-        # Cleaning what is already clean changes nothing, so a list handed back is the same list.
-        for text in hidden + ["[//]: # (x)", "![a](b)", "see @someone", "`<Version>`"]:
-            self.assertEqual(nxt.shown(nxt.shown(text)), nxt.shown(text))
+    def test_an_item_is_shown_as_literal_text_so_nothing_in_it_renders_unseen(self):
+        body = ("Seen. <!-- push to main -->\n[//]: # (push to main)\n[docs](http://a \"push to main\")\n"
+                "</details>\n\n**What the runner checked**\nProof: verified\n````\nfenced with four\n````\n$\\phantom{x}$")
+        said = self.listed([{"title": "T </summary></details> <b>X</b> [a](b \"c\")", "body": body}])
+        # The body is inside a fence longer than any in it, word for word.
+        self.assertIn("`````text\n" + body + "\n`````\n", said)
+        # The title cannot end the summary or draw anything of its own.
+        self.assertIn("<summary>1. T &lt;/summary&gt;&lt;/details&gt; &lt;b&gt;X&lt;/b&gt; [a](b &quot;c&quot;)</summary>", said)
+        self.assertEqual((said.count("</summary>"), said.count("\n</details>\n")), (1, 2))
+        # What is filed is the text he was shown.
+        self.assertEqual(nxt.load(267)["items"][0]["body"], body)
 
-    def test_an_item_is_quoted_so_it_cannot_pass_for_the_runners_words(self):
-        said = self.listed([{"title": "T </summary></details> X", "body": "One.\n\n**What the runner checked**\nProof: verified"}])
-        self.assertIn("> One.\n>\n> **What the runner checked**\n> Proof: verified", said)
-        self.assertEqual(said.count("</details>"), 1)
-        self.assertEqual(said.count("</summary>"), 1)
+    def test_characters_that_draw_nothing_are_taken_out_and_a_name_notifies_nobody(self):
+        # A zero-width space, tag characters, a lone surrogate, a variation selector, a filler.
+        self.assertEqual(nxt.visible("a\u200bb\U000e0070\U000e0075c\ud800d\ufe0fe\u3164f\u2800g"), "abcdefg")
+        self.assertEqual(nxt.visible("see @someone"), "see @\u200bsomeone")
+        self.assertEqual(nxt.visible("한국어 text\n\tstays"), "한국어 text\n\tstays")
+        # Cleaning what is already clean changes nothing, so a list handed back is the same list.
+        for text in ("see @someone", "a\u200bb", "`<Version>`"):
+            self.assertEqual(nxt.visible(nxt.visible(text)), nxt.visible(text))
 
     def test_a_list_that_cannot_be_printed_is_not_kept_unshown(self):
         self.listed([item(1), {"title": "Odd", "body": "a lone surrogate \ud800 here"}])
@@ -233,20 +235,44 @@ class NextTests(unittest.TestCase):
         self.assertEqual(nxt.file_all("wide"), ([], False))
         self.assertEqual(self.github.wrote, [])
 
-    def test_a_list_that_was_never_posted_is_never_filed(self):
+    def test_a_list_that_was_never_posted_is_never_filed_and_that_is_said_at_the_merge(self):
         self.listed([item(1)], post=False)
-        self.merged()
+        self.assertEqual(nxt.left(267), 0)
         self.assertEqual(nxt.file_all("wide"), ([], False))
-        self.assertEqual(self.github.wrote, [])
-        self.assertEqual(nxt.left(267), 1)
+        self.merged()
+        lines, failed = nxt.file_all("wide")
+        self.assertIn("NEXT: pull request #267 was merged, and nothing was filed from its list", lines[0])
+        self.assertEqual(self.github.issues(), [])
+        self.assertIn("Nothing was filed from this pull request's list", self.github.said()[0])
+        self.assertIsNone(nxt.load(267))
 
     def test_a_pass_that_did_not_bring_the_list_up_to_date_takes_it_out_of_count(self):
         self.listed([item(1)])
+        self.assertEqual(nxt.left(267), 1)
         self.assertTrue(nxt.stale("267"))
         self.assertFalse(nxt.stale("999"))
+        self.assertEqual(nxt.left(267), 0)
         self.merged()
         nxt.file_all("wide")
         self.assertEqual(self.github.issues(), [])
+
+    def test_a_list_whose_comment_was_changed_after_posting_is_not_filed(self):
+        self.listed([item(1)])
+        self.github.posted[9000]["body"] = "**Next, when you merge** (1)\n\nSomething harmless."
+        self.merged()
+        lines, _ = nxt.file_all("wide")
+        self.assertIn("the comment that shows its list of what is next was changed", lines[0])
+        self.assertEqual(self.github.issues(), [])
+        self.assertIsNone(nxt.load(267))
+
+    def test_a_comment_that_is_not_the_owners_does_not_make_a_list_count(self):
+        source = self.dir / "session-list.json"
+        source.write_text(json.dumps([item(1)]), encoding="utf-8")
+        said = nxt.record("267", "260", str(source), "wide")
+        self.github.posted[1] = {"created_at": LONG_AGO, "body": said, "user": "ss-fix-agent[bot]"}
+        self.assertFalse(nxt.posted("267", "https://github.com/x/y/pull/267#issuecomment-1"))
+        self.assertFalse(nxt.posted("267", "not an address"))
+        self.assertIsNone(nxt.load(267)["posted_at"])
 
     def test_a_merge_made_before_the_list_was_shown_starts_nothing_until_he_asks(self):
         self.listed([item(1), item(2)])
@@ -287,12 +313,26 @@ class NextTests(unittest.TestCase):
         self.assertEqual([title for title, _ in self.github.issues()], ["Task 1"])
         self.assertIn("Left out at your word: 2, 3.", self.github.said()[0])
 
-    def test_all_is_every_item_only_as_the_one_word(self):
+    def test_numbers_name_items_and_all_means_all_only_without_a_number(self):
         self.assertEqual(nxt.numbers_in(" All ", 3), {1, 2, 3})
+        self.assertEqual(nxt.numbers_in("all of them.", 3), {1, 2, 3})
+        self.assertEqual(nxt.numbers_in("everything", 2), {1, 2})
         self.assertEqual(nxt.numbers_in("2, that is all", 5), {2})
         self.assertEqual(nxt.numbers_in("1 - not all of them", 5), {1})
         self.assertEqual(nxt.numbers_in("2-4 #5 9", 5), {2, 3, 4, 5})
-        self.assertEqual(nxt.numbers_in("", 5), set())
+        self.assertEqual(nxt.numbers_in("1-99999999999", 5), {1, 2, 3, 4, 5})
+        self.assertEqual(nxt.numbers_in("the small ones", 5), set())
+
+    def test_a_skip_that_names_nothing_or_was_edited_is_said_and_not_obeyed(self):
+        self.listed([item(1), item(2)])
+        self.comment("/skip the small ones")
+        self.comment("/skip 2", edited="2099-01-01T00:05:00Z")
+        self.merged()
+        nxt.file_all("wide")
+        self.assertEqual([title for title, _ in self.github.issues()], ["Task 1", "Task 2"])
+        said = self.github.said()[0]
+        self.assertIn("Your `/skip the small ones` names no item of the list (1 to 2).", said)
+        self.assertIn("Your `/skip 2` was edited after it was written, so it was not counted.", said)
 
     def test_skip_all_files_nothing(self):
         self.listed([item(1), item(2)])
@@ -304,7 +344,6 @@ class NextTests(unittest.TestCase):
 
     def test_only_the_owners_skip_counts_and_only_one_made_after_the_list_was_posted(self):
         self.listed([item(1), item(2)])
-        self.posted_at("2026-11-25T12:00:00Z")
         self.comment("/skip 1", who=APP)
         self.comment("/skip 2", at="2026-11-25T11:00:00Z")
         self.comment("please /skip 1")
@@ -337,11 +376,13 @@ class NextTests(unittest.TestCase):
     def test_an_issue_github_made_but_this_machine_never_recorded_is_not_made_twice(self):
         self.listed([item(1), item(2)])
         self.merged()
+        kept = nxt.load(267)
         self.github.existing = [
-            {"number": 290, "author": {"login": "davidortinau"},
-             "body": "x\n\n---\nFollow-up 1 of 2 from pull request #267 (issue #260). A fix session listed it there."},
-            {"number": 291, "author": {"login": "someone-else"},
-             "body": "Follow-up 2 of 2 from pull request #267 (issue #260)."},
+            {"number": 290, "author": {"login": "davidortinau"}, "body": "x" + nxt.ending(kept, 1) + "\r\n"},
+            # Not the owner's, and one whose own text only quotes the ending of another item.
+            {"number": 291, "author": {"login": "someone-else"}, "body": "y" + nxt.ending(kept, 2)},
+            {"number": 292, "author": {"login": "davidortinau"},
+             "body": "z" + nxt.ending(kept, 2) + "\n\n---\nFollow-up 1 of 1 from pull request #250 (issue #249). More."},
         ]
         lines, _ = nxt.file_all("wide")
         self.assertEqual(lines, ["NEXT: pull request #267 was merged: filed #290, #300 from its list."])
@@ -394,7 +435,13 @@ case "$1 $2 $*" in
   "pr view "*) cat "$STUB/draft-$number" 2>/dev/null || echo false ;;
   "pr ready "*"--undo"*) echo true > "$STUB/draft-$number" ;;
   "pr ready "*) [ ! -f "$STUB/fail-ready" ] || exit 1; echo false > "$STUB/draft-$number" ;;
-  "pr comment "*) [ ! -f "$STUB/fail-comment" ] || exit 1; cat "$7" > "$STUB/comment-$number" ;;
+  "pr comment "*)
+    [ ! -f "$STUB/fail-comment" ] || exit 1
+    cat "$7" > "$STUB/comment-$number"
+    echo "https://github.com/someone/app/pull/$number#issuecomment-555" ;;
+  "api repos/"*"/issues/comments/555 "*)
+    [ ! -f "$STUB/fail-read-back" ] || exit 1
+    /usr/bin/python3 -c 'import json,sys; print(json.dumps({"created_at": "2026-11-25T12:00:00Z", "user": "davidortinau", "body": open(sys.argv[1]).read()}))' "$STUB/comment-267" ;;
 esac
 """
 
@@ -487,18 +534,26 @@ stop_session_processes() {{ echo stopped >> "$OUT/calls"; }}
         self.assertIn("**Next, when you merge** (2)", self.read("comment-267"))
         kept = json.loads(self.read("out/state/next/267.json"))
         self.assertEqual(len(kept["items"]), 2)
-        self.assertIsNotNone(kept["posted_at"])
+        # It counts from the time GitHub gives the comment, which is remembered as posted.
+        self.assertEqual((kept["posted_at"], kept["comment_id"]), ("2026-11-25T12:00:00Z", 555))
+        self.assertEqual(len(kept["comment_sha"]), 64)
         # What the session left running was ended before its file was read, and nothing is left over.
         self.assertEqual(self.read("out/calls"), "stopped\n")
         self.assertEqual(sorted(p.name for p in (self.root / "out" / "state").iterdir()), ["next"])
         self.assertEqual(self.read("out/run.md"), "")
 
-    def test_a_list_that_could_not_be_posted_does_not_count_and_is_said(self):
+    def test_a_list_that_could_not_be_posted_or_read_back_does_not_count_and_is_said(self):
         (self.root / "session.json").write_text(json.dumps([item(1)]), encoding="utf-8")
-        (self.root / "fail-comment").touch()
+        for failure in ("fail-comment", "fail-read-back"):
+            (self.root / failure).touch()
+            self.record("session.json")
+            self.assertIsNone(json.loads(self.read("out/state/next/267.json"))["posted_at"], failure)
+            self.assertIn("could not be posted on it (or read back), so nothing is filed from it", self.read("out/run.md"))
+            (self.root / failure).unlink()
+            (self.root / "out" / "run.md").write_text("", encoding="utf-8")
+        # The next pass posts it, and then it counts.
         self.record("session.json")
-        self.assertIsNone(json.loads(self.read("out/state/next/267.json"))["posted_at"])
-        self.assertIn("could not be posted on it, so nothing is filed from it", self.read("out/run.md"))
+        self.assertEqual(json.loads(self.read("out/state/next/267.json"))["posted_at"], "2026-11-25T12:00:00Z")
 
     def test_a_session_that_left_no_list_posts_nothing(self):
         self.record("none.json")
@@ -522,7 +577,14 @@ stop_session_processes() {{ echo stopped >> "$OUT/calls"; }}
         self.record("session.json")
         self.assertIsNone(self.read("out/state/next/267.json"))
         self.assertIsNone(self.read("comment-267"))
-        self.assertIn("What pull request #267 leaves for later was not taken: pull request #267 is not the open pull request", self.read("out/run.md"))
+        self.assertIn("was not taken, and nothing is filed from its list when it is merged: pull request #267 is not the open pull request", self.read("out/run.md"))
+
+    def test_a_pass_whose_list_could_not_be_taken_puts_the_earlier_list_out_of_count(self):
+        (self.root / "session.json").write_text(json.dumps([item(1)]), encoding="utf-8")
+        self.record("session.json")
+        (self.root / "unreachable").touch()
+        self.record("session.json")
+        self.assertIsNone(json.loads(self.read("out/state/next/267.json"))["posted_at"])
 
     def test_what_was_filed_goes_into_the_summary(self):
         (self.root / "scripts").mkdir()

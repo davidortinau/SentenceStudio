@@ -161,8 +161,9 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   - `/revise all` or `/revise 2`: a follow-up pass does them in this pull request instead.
   - `/next 1 3` or `/next all`: only under the narrow appetite, below.
   The numbers are those of the runner's newest list; a `/skip` or `/next` written before
-  that list was posted is not counted. Items are named by number (`2`, `#2`, `2-4`) or by
-  the one word `all`.
+  that list was posted is not counted. Items are named by number (`2`, `#2`, `2-4`); with
+  no number in it, `all` or `everything` means every item. One that names nothing is said
+  on the pull request when it is merged, and not obeyed.
 - **The appetite** (`FEEDBACK_APPETITE`, default `wide`, in `scripts/admin-feedback-check.sh`).
   `wide`: sessions also fix the same fault nearby, run the checks they would have listed, and
   list what they notice on the way; every task starts on merge. `narrow`, for when the app
@@ -175,15 +176,21 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   - A list is taken only for the open pull request of the session's own branch
     (`feedback/issue-<n>` into `main`, not from a fork). The number comes from the session's
     reply, and it could name another.
-  - He is shown exactly what will be filed. Nothing in a task can hide: HTML shows as text,
-    characters that draw nothing are taken out, link definitions and images show as written,
-    an `@name` notifies nobody, and each task is quoted so it cannot pass for the runner's
-    own words.
+  - He is shown exactly what will be filed. Each task's text is shown literally, in a code
+    block, so nothing in it can render unseen or pass for the runner's own words; characters
+    that draw nothing are taken out, and an `@name` notifies nobody.
   - A list counts only once it was posted. One that could not be posted, or that a pass
-    which did not finish left out of date, is never filed; the next pass posts it again.
+    which did not finish left out of date, is never filed; the next pass posts it again, and
+    a merge before that files nothing and says so on the pull request.
+  - The sessions' login may be able to edit comments on the pull request, his included. So
+    the runner remembers its list comment as posted and files nothing when that comment has
+    been changed since; and a `/skip` or `/next` that was edited after it was written is not
+    counted (he writes a new one). `/revise` requests are not protected this way yet: see
+    "Not yet covered" below.
   - Nothing is filed unless he himself merged the pull request into `main`, after the list
-    was posted. One merged before its list was shown starts nothing: the runner says so there
-    and waits for his `/next`. A pull request marked merged any other way drops its list.
+    was posted (both times are GitHub's). One merged before its list was shown starts
+    nothing: the runner says so there and waits for his `/next`. A pull request marked merged
+    any other way drops its list.
   - Only the runner files, as his login (a session cannot open an issue), and never twice:
     it looks for an issue it already filed from that list first.
   - A follow-up's own pull request needs his merge before its list starts in turn, and the
@@ -196,7 +203,13 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   minutes into a pass; its commit reached the branch after the merge and had to go into a
   new pull request. A run that dies leaves the record, and the next pass makes the pull
   request ready, also a pass with nothing else to do.
-- **The status issue** shows, beside each open pull request, how many tasks its list holds.
+- **Not yet covered.** A session's login can, if the app's permissions allow editing issues
+  and comments (they were not checked on 2026-11-25), change the text of an issue that waits
+  in the queue or of a comment of the Captain's that does not yet start with `/revise`. That
+  was so before this, for every issue the check works; follow-ups do not widen it, and the
+  two paths added here (the list's comment, `/skip` and `/next`) are closed to it.
+- **The status issue** shows, beside each open pull request, how many tasks its list holds
+  (none for a list that does not count).
   A list that could not be filed is tried again by the next pass; why is in `state/next.err`.
   What became of each list is kept in `state/next/done/`.
 

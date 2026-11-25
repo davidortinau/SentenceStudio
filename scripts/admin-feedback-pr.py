@@ -211,7 +211,7 @@ def own_pull_requests():
 def comments_on(pr):
     comments = gh_lines(
         "api", f"repos/{REPO}/issues/{pr}/comments", "--paginate", "--jq",
-        ".[] | {id, body, created_at, user: .user.login, assoc: .author_association}")
+        ".[] | {id, body, created_at, updated_at, user: .user.login, assoc: .author_association}")
     return [{**c, "id": str(c["id"])} for c in comments]
 
 

@@ -311,21 +311,25 @@ next_on_merge() {
 # The file is the session's: whatever that user left running is ended first, and then only a
 # plain file is read, with a time limit, so that nothing put in its place can hold the pass.
 record_next() {
-  local copy="$OUT/state/next-$STAMP.json" said="$OUT/state/next-$STAMP.md" why="$OUT/state/next-$STAMP.err"
+  local copy="$OUT/state/next-$STAMP.json" said="$OUT/state/next-$STAMP.md" why="$OUT/state/next-$STAMP.err" at
   stop_session_processes
   as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c \
     '[ -f "$1" ] && [ ! -L "$1" ] && head -c 200000 "$1"' sh "$3" > "$copy" 2>/dev/null || rm -f "$copy"
   if python3 -I "$ROOT/scripts/admin-feedback-next.py" record --pr "$1" --issue "$2" --file "$copy" \
        --appetite "$APPETITE" > "$said" 2> "$why"; then
     if [ -s "$said" ]; then
-      if gh pr comment "$1" --repo "$REPO" --body-file "$said" >/dev/null 2>&1; then
-        python3 -I "$ROOT/scripts/admin-feedback-next.py" posted --pr "$1" 2>/dev/null
-      else
-        { echo "The list of what pull request #$1 leaves for later could not be posted on it, so nothing is filed from it when it is merged; the next pass on it posts it."; echo; } >> "$RUN"
+      # The comment's address is what `posted` reads its time and its text back from.
+      if ! at="$(gh pr comment "$1" --repo "$REPO" --body-file "$said" 2>/dev/null | tail -1)" \
+         || ! python3 -I "$ROOT/scripts/admin-feedback-next.py" posted --pr "$1" --url "$at" 2>/dev/null; then
+        { echo "The list of what pull request #$1 leaves for later could not be posted on it (or read back), so nothing is filed from it when it is merged; the next pass on it posts it."; echo; } >> "$RUN"
       fi
     fi
   else
-    { echo "What pull request #$1 leaves for later was not taken: $(head -c 400 "$why" 2>/dev/null | tr '\n' ' ')"; echo; } >> "$RUN"
+    # The list an earlier pass posted may name work this pass did: it no longer counts.
+    python3 -I "$ROOT/scripts/admin-feedback-next.py" stale --pr "$1" >/dev/null 2>&1
+    # Said where he reads, too: the description's "Next" promises that his merge starts them.
+    gh pr comment "$1" --repo "$REPO" --body "The list of what this pull request leaves for later could not be taken by the feedback check (it was merged or closed before the session ended, or GitHub could not be read), so nothing is filed from it. If something under \"Next\" in the description should still be done, file it as an issue." >/dev/null 2>&1
+    { echo "What pull request #$1 leaves for later was not taken, and nothing is filed from its list when it is merged: $(head -c 400 "$why" 2>/dev/null | tr '\n' ' ')"; echo; } >> "$RUN"
   fi
   rm -f "$copy" "$said" "$why"
 }
@@ -1162,8 +1166,8 @@ follow_up_stage() {
   # session's file is missing, and a missing file leaves the list as it was.
   # (Whatever is at that path goes first, and the write has a time limit.)
   python3 -I "$ROOT/scripts/admin-feedback-next.py" show --pr "$pr" 2>/dev/null \
-    | as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c 'rm -f "$1" && cat > "$1"' sh "$next" 2>/dev/null \
-    || as_session /bin/rm -f "$next" 2>/dev/null
+    | as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c 'rm -rf "$1" && cat > "$1"' sh "$next" 2>/dev/null \
+    || as_session /bin/rm -rf "$next" 2>/dev/null
 
   as_session /bin/sh -c 'printf "\n## Follow-up pass, %s\n\n" "$2" >> "$1"' sh "$log" "$(date -u +%Y-%m-%dT%H:%MZ)"
   there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
@@ -1317,7 +1321,7 @@ fix_stage() {
   sgit worktree prune 2>/dev/null
   sgit worktree add -q -b "$branch" "$tree" origin/main 2>/dev/null \
     && prepare_tree "$tree" \
-    && as_session /bin/sh -c ': > "$1" && rm -f "$2" "$3"' sh "$log" "$proof" "$next" \
+    && as_session /bin/sh -c ': > "$1" && rm -f "$2" && rm -rf "$3"' sh "$log" "$proof" "$next" \
     && hand_over_reports "$issue" "$reports" \
     || {
       # Nothing has run in it, so the worktree and its new branch hold nothing to keep.
