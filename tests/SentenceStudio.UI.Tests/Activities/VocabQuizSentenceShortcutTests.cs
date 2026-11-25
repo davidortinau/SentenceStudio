@@ -515,7 +515,7 @@ public sealed class VocabQuizSentenceShortcutTests
     /// created under the English UI culture (its localizer keeps the culture it is created with),
     /// so the English assertions hold on any machine, as the Coach tests pin it.
     /// </summary>
-    private static async Task<ActivityPageHarness> OpenQuizAsync(
+    internal static async Task<ActivityPageHarness> OpenQuizAsync(
         bool canPlayLocally = true, bool autoPlay = false, Action<ActivityPageHarness>? beforeRender = null)
     {
         var previous = CultureInfo.CurrentUICulture;
