@@ -1100,6 +1100,53 @@ var cases = new (string Name, Action Test)[]
                 throw new Exception($"The video count row is {counted:0.#} points high and Select All New alone is {button:0.#}: the button wrapped.");
         }
     }),
+    // Issue 278: bridge 0.1.0-preview.67 frames a node only when it sets a frame, but a minimum
+    // height is one, and SwiftUI's frame directly around a row can still squeeze it (the quiz's
+    // two buttons are painted 294 points wide instead of 312 when their row is given one). The
+    // app sets a minimum height on no such row, but it does on buttons whose label is a row that
+    // does not fill: the link button in the brite and sketchy themes, the plan's resource link
+    // and the number drill's hint toggle. Each has one title beside its images, and is painted
+    // as wide with the minimum height as without it, at the largest text on a narrow phone too.
+    ("Minimum height: a link button and an image-and-title button are painted as wide with it as without (issue 278)", () =>
+    {
+        const double width = 330;
+        var largeBrite = new SourceUiStyle(SourceUiAppearance.FromSelection(new AppearanceSelection(
+            "brite", AppearanceSelection.Default.Mode, AppearanceSelection.MaxFontScale)), width);
+        double PaintedWidth(SwiftView view)
+        {
+            var rows = PaintedRows(view, width, 400);
+            if (rows.Count != 1)
+                throw new Exception($"Expected one painted row, found {rows.Count}.");
+            return rows[0].Right - rows[0].Left;
+        }
+        SwiftView Link(bool minimum)
+        {
+            var link = largeBrite.TextLinkButton("Report this response", "flag", () => { }, "link");
+            if (!minimum)
+            {
+                link.WithMinimumHeight(0);
+                link.Children[0].WithMinimumHeight(0);
+            }
+            return link;
+        }
+        // Put together as NumberDrillScreen puts its hint toggle together.
+        SwiftView Toggle(bool minimum)
+        {
+            var label = Views.HStack(Views.Image("chevron.right"), Views.Image("lightbulb"),
+                style.Text(Views.Text("Show a hint for this number"), SourceTextRole.Body2, SourceTextTone.Secondary));
+            label.Spacing = 4;
+            var toggle = Views.Button(label, () => { }).WithButtonStyle(SwiftButtonStyle.Plain);
+            return minimum ? toggle.WithMinimumHeight(SourceUiLayout.MinimumTouchHeight) : toggle;
+        }
+        foreach (var (what, build) in new (string, Func<bool, SwiftView>)[] { ("The link button", Link), ("The hint toggle", Toggle) })
+        {
+            using var with = build(true);
+            using var without = build(false);
+            var (framed, free) = (PaintedWidth(with), PaintedWidth(without));
+            if (Math.Abs(framed - free) > 1)
+                throw new Exception($"{what} is painted {framed:0.#} points wide with its minimum height and {free:0.#} without: the frame squeezes its label.");
+        }
+    }),
 };
 
 var failures = 0;
